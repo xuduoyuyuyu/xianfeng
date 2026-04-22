@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "hub-bg": "#f4f5f7",
+                        "hub-card": "#ffffff",
+                        "primary-purple": "#5e17eb",
+                        "primary-hover": "#4a12ba",
+                        "on-surface": "#1a1a1b",
+                        "on-surface-variant": "#64748b",
+                        "outline-light": "#e2e8f0"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Plus Jakarta Sans", "PingFang SC", "Microsoft YaHei", "sans-serif"],
+                        "body": ["Plus Jakarta Sans", "PingFang SC", "Microsoft YaHei", "sans-serif"]
+                    },
+                    "boxShadow": {
+                        "soft": "0 2px 15px -3px rgba(0, 0, 0, 0.07), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+                        "hub-hover": "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)"
+                    }
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        body {
+            font-family: 'Plus Jakarta Sans', 'PingFang SC', sans-serif;
+            background-color: #f4f5f7;
+            color: #1a1a1b;
+        }
+        .magazine-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);
+        }
+        .magazine-card:hover {
+            border-color: #5e17eb;
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px -15px rgba(94, 23, 235, 0.1);
+        }
+        .category-circle {
+            @apply flex flex-col items-center justify-center flex-shrink-0 w-24 gap-3 transition-all cursor-pointer;
+        }
+        .circle-icon {
+            @apply w-16 h-16 rounded-full border border-outline-light bg-white flex items-center justify-center transition-all duration-300 shadow-sm;
+        }
+        .category-circle:hover .circle-icon {
+            @apply border-primary-purple bg-primary-purple/5 scale-105;
+        }
+        .category-circle.active .circle-icon {
+            @apply bg-primary-purple border-primary-purple text-white shadow-lg shadow-primary-purple/20;
+        }
+        .category-circle.active .circle-text {
+            @apply text-primary-purple font-bold;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f4f5f7;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #5e17eb;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .nav-link {
+            @apply flex items-center gap-1.5 text-on-surface-variant hover:text-primary-purple transition-colors text-sm font-semibold;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col custom-scrollbar">
+<nav class="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-xl border-b border-outline-light">
+<div class="flex justify-between items-center px-8 h-20 w-full max-w-[1440px] mx-auto">
+<div class="flex items-center gap-12">
+<span class="text-3xl font-black tracking-tighter text-primary-purple">家长先疯</span>
+<div class="hidden xl:flex items-center gap-8">
+<div class="flex gap-8 border-r border-outline-light pr-8">
+<a class="nav-link !text-on-surface font-bold relative after:absolute after:bottom-[-29px] after:left-0 after:w-full after:h-1 after:bg-primary-purple" href="#">播客节目</a>
+<a class="nav-link" href="#">学习社区</a>
+</div>
+<div class="flex gap-6">
+<a class="nav-link" href="#">
+<span class="material-symbols-outlined text-lg">article</span>精选文稿
+                        </a>
+<a class="nav-link" href="#">
+<span class="material-symbols-outlined text-lg">auto_stories</span>推荐书单
+                        </a>
+<a class="nav-link" href="#">
+<span class="material-symbols-outlined text-lg">forum</span>专家采访
+                        </a>
+<a class="nav-link" href="#">
+<span class="material-symbols-outlined text-lg">collections_bookmark</span>课程资料
+                        </a>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative hidden lg:block">
+<input class="bg-hub-bg border-none rounded-xl px-6 py-2.5 w-64 text-sm text-on-surface focus:ring-2 focus:ring-primary-purple transition-all placeholder-on-surface-variant/60" placeholder="搜索内容..." type="text"/>
+<span class="material-symbols-outlined absolute right-4 top-2.5 text-on-surface-variant text-xl">search</span>
+</div>
+<button class="bg-primary-purple text-white px-8 py-2.5 rounded-xl text-sm font-bold hover:bg-primary-hover transition-all shadow-lg shadow-primary-purple/20">登录</button>
+</div>
+</div>
+</nav>
+<main class="pt-20 flex-grow flex max-w-[1440px] w-full mx-auto relative">
+<section class="flex-1 lg:mr-80 p-8 md:p-12">
+<header class="mb-12">
+<div class="flex items-baseline gap-4 mb-4">
+<h1 class="text-4xl font-black text-on-surface tracking-tight">知识沉淀</h1>
+<div class="h-1.5 w-12 bg-primary-purple rounded-full"></div>
+</div>
+<p class="text-on-surface-variant text-lg max-w-2xl">深度对话教育与成长，采用现代内容中心设计，为您呈现最优质的学习视野。</p>
+</header>
+<div class="relative mb-16">
+<div class="flex gap-8 overflow-x-auto pb-4 hide-scrollbar snap-x">
+<div class="category-circle active snap-start">
+<div class="circle-icon">
+<span class="material-symbols-outlined text-2xl">grid_view</span>
+</div>
+<span class="circle-text text-[10px] uppercase font-bold tracking-widest">全部节目</span>
+</div>
+<div class="category-circle snap-start">
+<div class="circle-icon">
+<span class="material-symbols-outlined text-2xl text-on-surface-variant">child_care</span>
+</div>
+<span class="circle-text text-[10px] text-on-surface-variant uppercase font-bold tracking-widest">早期启蒙</span>
+</div>
+<div class="category-circle snap-start">
+<div class="circle-icon">
+<span class="material-symbols-outlined text-2xl text-on-surface-variant">psychology</span>
+</div>
+<span class="circle-text text-[10px] text-on-surface-variant uppercase font-bold tracking-widest">情绪管理</span>
+</div>
+<div class="category-circle snap-start">
+<div class="circle-icon">
+<span class="material-symbols-outlined text-2xl text-on-surface-variant">school</span>
+</div>
+<span class="circle-text text-[10px] text-on-surface-variant uppercase font-bold tracking-widest">升学路径</span>
+</div>
+<div class="category-circle snap-start">
+<div class="circle-icon">
+<span class="material-symbols-outlined text-2xl text-on-surface-variant">palette</span>
+</div>
+<span class="circle-text text-[10px] text-on-surface-variant uppercase font-bold tracking-widest">艺术素养</span>
+</div>
+<div class="category-circle snap-start">
+<div class="circle-icon">
+<span class="material-symbols-outlined text-2xl text-on-surface-variant">menu_book</span>
+</div>
+<span class="circle-text text-[10px] text-on-surface-variant uppercase font-bold tracking-widest">通识博雅</span>
+</div>
+<div class="category-circle snap-start">
+<div class="circle-icon">
+<span class="material-symbols-outlined text-2xl text-on-surface-variant">diversity_3</span>
+</div>
+<span class="circle-text text-[10px] text-on-surface-variant uppercase font-bold tracking-widest">家庭关系</span>
+</div>
+</div>
+<div class="absolute right-0 top-0 bottom-4 w-20 bg-gradient-to-l from-hub-bg to-transparent pointer-events-none"></div>
+</div>
+<div class="space-y-8">
+<div class="magazine-card p-10 rounded-3xl group">
+<div class="flex flex-col xl:flex-row gap-10">
+<div class="w-full xl:w-[420px] h-[300px] rounded-2xl overflow-hidden flex-shrink-0 shadow-lg relative">
+<img alt="Podcast Cover" class="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD9kNK0Swlk0Z_8qKWeNY7pZRXiC8aQ5uXb7civ7JNln2ot7EXUUGXeU1g4OYo8pUPDqk_iwcI-Fqks1baa6f595CSw302ox2wCyWX3KGkcZq630cbJ0m9-DkHNLkbeKiJQoqTsFuQ41ThYMWb-CkI0xyoZ0sFJR5FyzlKpOAewSqoiZ6kmzawO5-T02uwzHQwHVvASQATN4dsVy6Gl1YGvmuTaEWHvnf3zRDSGoUeBDBsXQA9XGf2dJ2WS1cqnfOfRzJafzReWqXHu"/>
+</div>
+<div class="flex-1 flex flex-col justify-center">
+<div class="flex items-center gap-4 mb-4">
+<span class="text-[10px] px-3 py-1 rounded-lg bg-primary-purple/10 text-primary-purple font-bold tracking-widest uppercase">EPISODE 102</span>
+<span class="text-xs text-on-surface-variant font-medium">2024年3月24日</span>
+</div>
+<h2 class="text-3xl font-extrabold mb-4 group-hover:text-primary-purple transition-colors leading-tight">深度倾听：如何与正处于叛逆期的幼儿建立情感锚点</h2>
+<p class="text-on-surface-variant text-base mb-8 leading-relaxed line-clamp-2">探讨如何通过积极的存在将日常互动转化为深层的情感纽带，应对幼儿成长过程中的心理挑战。</p>
+<div class="flex flex-wrap gap-3">
+<button class="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary-purple text-white text-sm font-bold hover:bg-primary-hover transition-all shadow-md">
+<span class="material-symbols-outlined text-lg">description</span> 逐字稿
+                                </button>
+<button class="flex items-center gap-2 px-6 py-3 rounded-xl border border-outline-light text-on-surface hover:border-primary-purple transition-all text-sm font-bold">
+<span class="material-symbols-outlined text-lg">menu_book</span> 书单
+                                </button>
+<button class="flex items-center gap-2 px-6 py-3 rounded-xl border border-outline-light text-on-surface hover:border-primary-purple transition-all text-sm font-bold">
+<span class="material-symbols-outlined text-lg">school</span> 课程
+                                </button>
+</div>
+</div>
+</div>
+</div>
+<div class="magazine-card p-10 rounded-3xl group">
+<div class="flex flex-col xl:flex-row gap-10">
+<div class="w-full xl:w-[420px] h-[300px] rounded-2xl overflow-hidden flex-shrink-0 shadow-lg relative">
+<img alt="Podcast Cover" class="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCB-GSaZMDiqA4GYZONoY9nisAnyZtALuNcQhk8Sh7yVZ8RRhefCBZlMtZFXCEXhl10igFW9OuzkcwydIbKX3yMVjpTgT_naxLpII471gZ5JS-b2kNwpRqswWXGt51fIPTGbug0Fw56U6xYteRX7VML-uR9747KMFnEEGUj66zC47ibjudvQtvWORLUCejtqUqkDmYKZvDm3WXfE0heZ-pNhUnlG9fmAa4zzYH7nF6IZQbDz3AcIMWKDqBR9BEx11b7zyNaeaO0Xor3"/>
+</div>
+<div class="flex-1 flex flex-col justify-center">
+<div class="flex items-center gap-4 mb-4">
+<span class="text-[10px] px-3 py-1 rounded-lg bg-slate-100 text-on-surface-variant font-bold tracking-widest uppercase">EPISODE 101</span>
+<span class="text-xs text-on-surface-variant font-medium">2024年3月17日</span>
+</div>
+<h2 class="text-3xl font-extrabold mb-4 group-hover:text-primary-purple transition-colors leading-tight">IB课程导航：全球化教育背景下家长的选择指南</h2>
+<p class="text-on-surface-variant text-base mb-8 leading-relaxed line-clamp-2">揭秘国际文凭组织(IB)的课程体系，为什么它可能适合您孩子的未来，以及家庭需要做哪些准备。</p>
+<div class="flex flex-wrap gap-3">
+<button class="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary-purple text-white text-sm font-bold hover:bg-primary-hover transition-all shadow-md">
+<span class="material-symbols-outlined text-lg">description</span> 逐字稿
+                                </button>
+<button class="flex items-center gap-2 px-6 py-3 rounded-xl border border-outline-light text-on-surface hover:border-primary-purple transition-all text-sm font-bold">
+<span class="material-symbols-outlined text-lg">record_voice_over</span> 采访
+                                </button>
+</div>
+</div>
+</div>
+</div>
+<div class="magazine-card p-6 rounded-2xl group flex flex-col md:flex-row items-center justify-between gap-6">
+<div class="flex items-center gap-6">
+<span class="text-2xl font-black text-slate-200 w-12 text-center group-hover:text-primary-purple/20 transition-colors">100</span>
+<div>
+<h3 class="text-lg font-bold group-hover:text-primary-purple transition-colors">数字时代下的家庭公民教育：如何建立健康的屏幕时间</h3>
+<div class="flex items-center gap-3 mt-1">
+<span class="text-xs text-on-surface-variant">2024年3月10日</span>
+<span class="w-1 h-1 rounded-full bg-slate-200"></span>
+<span class="text-xs text-primary-purple font-bold">52分钟</span>
+</div>
+</div>
+</div>
+<button class="flex items-center gap-2 px-6 py-3 bg-primary-purple text-white rounded-xl hover:bg-primary-hover transition-all font-bold text-sm shadow-md">
+<span class="material-symbols-outlined text-lg">description</span> 阅读稿件
+                    </button>
+</div>
+<div class="flex flex-col items-center justify-center py-12 gap-4">
+<div class="relative w-8 h-8">
+<div class="absolute inset-0 border-4 border-primary-purple/10 rounded-full"></div>
+<div class="absolute inset-0 border-4 border-t-primary-purple rounded-full animate-spin"></div>
+</div>
+<p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">正在加载更多精彩...</p>
+</div>
+</div>
+</section>
+<aside class="w-80 hidden lg:flex flex-col p-10 fixed right-0 h-[calc(100vh-80px)] bg-white border-l border-outline-light">
+<div class="mt-4">
+<div class="magazine-card rounded-3xl p-8 text-center relative overflow-hidden bg-primary-purple/[0.02] !border-primary-purple/20">
+<div class="absolute -top-12 -right-12 w-32 h-32 bg-primary-purple/5 rounded-full blur-3xl"></div>
+<div class="w-16 h-16 bg-primary-purple text-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-primary-purple/20">
+<span class="material-symbols-outlined text-3xl font-bold">mail</span>
+</div>
+<h4 class="text-xl font-black mb-3 text-on-surface">每周精选推送</h4>
+<p class="text-sm text-on-surface-variant leading-relaxed mb-8">加入 5,000+ 精进家长，每周获取一次深度教育思考。</p>
+<input class="w-full bg-hub-bg border-none rounded-xl px-4 py-3 text-sm mb-4 focus:ring-1 focus:ring-primary-purple" placeholder="您的邮箱地址" type="email"/>
+<button class="w-full bg-primary-purple text-white text-sm font-black py-4 rounded-xl hover:bg-primary-hover transition-all shadow-lg shadow-primary-purple/15 tracking-wider">立即免费订阅</button>
+<p class="text-[10px] text-on-surface-variant/60 mt-4 italic">隐私保护 · 随时取消</p>
+</div>
+</div>
+</aside>
+</main>
+<footer class="bg-white border-t border-outline-light py-12 px-12">
+<div class="max-w-[1440px] mx-auto flex flex-col lg:flex-row justify-between items-center gap-8">
+<div class="flex flex-col items-center lg:items-start gap-2">
+<span class="text-2xl font-black text-primary-purple tracking-tighter">家长先疯</span>
+<p class="text-on-surface-variant text-xs">© 2024 Luminous Mentor. 专注家庭教育深度知识沉淀。</p>
+</div>
+<div class="flex flex-wrap justify-center gap-8 text-xs font-bold text-on-surface-variant">
+<a class="hover:text-primary-purple transition-all" href="#">关于我们</a>
+<a class="hover:text-primary-purple transition-all" href="#">联系合作</a>
+<a class="hover:text-primary-purple transition-all" href="#">隐私政策</a>
+<a class="hover:text-primary-purple transition-all" href="#">家长手册</a>
+</div>
+</div>
+</footer>
+
+</body></html>

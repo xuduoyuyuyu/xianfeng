@@ -1,0 +1,1556 @@
+<!DOCTYPE html>
+<html class="dark" data-theme="dark" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>家长先疯 | 先疯管理 - 播客管理</title>
+<link href="/screens/admin.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+(function () {
+  try {
+    const t = localStorage.getItem("adminTheme");
+    if (t === "light") {
+      document.documentElement.dataset.theme = "light";
+      document.documentElement.classList.remove("dark");
+    }
+  } catch (_e) {}
+})();
+</script>
+<style>
+        html,
+        body {
+            height: 100%;
+        }
+        body {
+            min-height: 100vh;
+            background-color: var(--panel);
+            color: var(--ink);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            background-image: radial-gradient(var(--grid) 1px, transparent 1px);
+            background-size: 56px 56px;
+        }
+        :root {
+            --panel: #0b1020;
+            --panel2: #0e1630;
+            --ink: #e6e9f2;
+            --muted: #98a2b3;
+            --line: rgba(255, 255, 255, 0.08);
+            --grid: rgba(94, 23, 235, 0.18);
+            --r-shell: 28px;
+            --r-card: 22px;
+            --r-item: 16px;
+            --r-control: 14px;
+            --r-pill: 9999px;
+        }
+        html[data-theme="light"] {
+            --panel: #f6f7fb;
+            --panel2: #ffffff;
+            --ink: #0f172a;
+            --muted: #475569;
+            --line: rgba(15, 23, 42, 0.12);
+            --grid: rgba(94, 23, 235, 0.07);
+        }
+        .theme-toggle {
+            border-radius: var(--r-pill) !important;
+            overflow: hidden;
+        }
+        .theme-toggle button[data-active="true"] {
+            background: rgba(94, 23, 235, 0.14);
+            color: #5e17eb;
+        }
+        .pearl-card {
+            background: rgba(14, 22, 48, 0.65);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 22px 60px -30px rgba(94, 23, 235, 0.35);
+        }
+        html[data-theme="light"] .pearl-card {
+            background: rgba(255, 255, 255, 0.86);
+            border: 1px solid rgba(15, 23, 42, 0.10);
+            box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04), 0 22px 60px -40px rgba(94, 23, 235, 0.25);
+        }
+        html[data-theme="light"] aside a:hover {
+            background: rgba(15, 23, 42, 0.04) !important;
+        }
+        html[data-theme="light"] aside a.bg-white\/5 {
+            background: rgba(94, 23, 235, 0.08) !important;
+            box-shadow: inset 0 0 0 1px rgba(94, 23, 235, 0.16);
+        }
+        html[data-theme="light"] button[data-filter].bg-white\/10 {
+            background: rgba(94, 23, 235, 0.10) !important;
+            color: #5e17eb !important;
+        }
+        html[data-theme="light"] .divide-white\/5 > :not([hidden]) ~ :not([hidden]) {
+            border-color: rgba(15, 23, 42, 0.08) !important;
+        }
+        .gradient-violet {
+            background: linear-gradient(135deg, #5e17eb 0%, #5e17eb 100%);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body>
+<div class="min-h-screen">
+  <aside class="fixed inset-y-0 left-0 w-[280px] border-r border-line bg-panel/70 backdrop-blur-xl">
+    <div class="flex h-full flex-col">
+      <div class="flex items-center gap-3 px-6 pt-6 pb-5">
+        <img alt="家长先疯" class="h-8 w-auto object-contain" src="/assets/logo.png"/>
+      </div>
+      <nav class="flex-1 px-4 pb-4">
+        <div class="mb-3 px-2 text-[11px] font-black uppercase tracking-[0.22em] text-muted/70">导航</div>
+        <a data-nav="dashboard" href="/admin" class="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-ink/90 hover:bg-white/5">
+          <span class="material-symbols-outlined text-[20px]">space_dashboard</span>
+          数据概览
+        </a>
+        <div class="mt-6 mb-3 px-2 text-[11px] font-black uppercase tracking-[0.22em] text-muted/70">内容管理</div>
+        <a data-nav="programs" href="/admin/programs" class="flex items-center gap-3 rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-3 text-sm font-bold text-ink/90">
+          <span class="material-symbols-outlined text-[20px]">podcasts</span>
+          播客管理
+        </a>
+        <a data-nav="books" href="/admin/books" class="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-ink/90 hover:bg-white/5">
+          <span class="material-symbols-outlined text-[20px]">menu_book</span>
+          书单管理
+        </a>
+        <a data-nav="materials" href="/admin/materials" class="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-ink/90 hover:bg-white/5">
+          <span class="material-symbols-outlined text-[20px]">school</span>
+          学习资料
+        </a>
+        <div class="mt-6 mb-3 px-2 text-[11px] font-black uppercase tracking-[0.22em] text-muted/70">系统</div>
+        <a data-nav="users" href="/admin/users" class="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-ink/90 hover:bg-white/5">
+          <span class="material-symbols-outlined text-[20px]">group</span>
+          用户管理
+        </a>
+        <a data-nav="system" href="/admin/system" class="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-ink/90 hover:bg-white/5">
+          <span class="material-symbols-outlined text-[20px]">settings</span>
+          系统信息
+        </a>
+      </nav>
+      <div class="border-t border-line p-4">
+        <div class="flex items-center justify-between rounded-[var(--r-item)] bg-white/5 px-4 py-3">
+          <div class="flex items-center gap-3">
+            <div id="admin-avatar" class="flex h-9 w-9 items-center justify-center rounded-[var(--r-control)] bg-primary/20 text-sm font-black text-primary">A</div>
+            <div class="flex flex-col">
+              <div id="admin-username" class="text-sm font-bold text-ink/90">管理员</div>
+              <div class="text-[11px] font-bold text-muted/80">已登录</div>
+            </div>
+          </div>
+          <button id="admin-logout-btn" class="flex h-9 w-9 items-center justify-center rounded-[var(--r-control)] border border-line bg-panel2/60 text-ink/70 hover:text-ink" type="button" aria-label="登出">
+            <span class="material-symbols-outlined text-[20px]">logout</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="ml-[280px] min-h-screen px-10 py-8">
+    <header class="mb-7 flex items-center justify-between">
+      <div class="space-y-1">
+        <div class="text-[11px] font-black uppercase tracking-[0.26em] text-muted/70">先疯管理</div>
+        <div class="text-3xl font-black tracking-tight">播客管理</div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="theme-toggle flex border border-line bg-panel2/60">
+          <button id="theme-dark-btn" type="button" class="flex h-11 w-11 items-center justify-center border-r border-line text-ink/70 hover:text-ink" aria-label="深色模式">
+            <span class="material-symbols-outlined text-[20px]">dark_mode</span>
+          </button>
+          <button id="theme-light-btn" type="button" class="flex h-11 w-11 items-center justify-center text-ink/70 hover:text-ink" aria-label="浅色模式">
+            <span class="material-symbols-outlined text-[20px]">light_mode</span>
+          </button>
+        </div>
+        <div class="flex rounded-[var(--r-pill)] border border-line bg-panel2/60 p-1">
+          <button data-filter="all" class="bg-white/10 px-4 py-2 rounded-[var(--r-pill)] text-xs font-black text-ink/90">全部</button>
+          <button data-filter="published" class="px-4 py-2 rounded-[var(--r-pill)] text-xs font-black text-ink/60 hover:bg-white/5">已发布</button>
+          <button data-filter="draft" class="px-4 py-2 rounded-[var(--r-pill)] text-xs font-black text-ink/60 hover:bg-white/5">草稿</button>
+        </div>
+      </div>
+    </header>
+
+    <section class="pearl-card rounded-[var(--r-shell)] overflow-hidden">
+      <div class="p-7 border-b border-line flex justify-between items-center bg-panel/30">
+        <div class="flex items-center gap-3">
+          <div class="flex h-10 w-10 items-center justify-center rounded-[var(--r-item)] bg-white/10 text-ink/70">
+            <span class="material-symbols-outlined text-[20px]">podcasts</span>
+          </div>
+          <h1 class="text-xl font-black tracking-tight text-ink/90">内容管理 / 播客</h1>
+        </div>
+        <button id="open-program-modal-btn" class="rounded-[var(--r-control)] bg-primary px-5 py-3 text-sm font-black text-white hover:opacity-95" type="button">
+          <span class="material-symbols-outlined mr-2 align-[-4px] text-[20px]">add_circle</span>
+          新增节目
+        </button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left min-w-[1100px]">
+          <thead class="bg-panel/30 text-muted/70 uppercase text-[10px] font-black tracking-[0.22em] border-b border-line">
+            <tr>
+              <th class="px-8 py-5 w-12"><input class="rounded-md border-white/20 bg-white/5 text-signature-violet focus:ring-signature-violet/20" type="checkbox"/></th>
+              <th class="px-8 py-5">资源名称与标识</th>
+              <th class="px-8 py-5">文件类型</th>
+              <th class="px-8 py-5">详情状态</th>
+              <th class="px-8 py-5 text-center">当前状态</th>
+              <th class="px-8 py-5">上传日期</th>
+              <th class="px-8 py-5 text-right">操作</th>
+            </tr>
+          </thead>
+          <tbody id="program-table-body" class="divide-y divide-white/5"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</div>
+<button id="open-audio-parse-modal-btn" class="fixed bottom-8 right-8 z-50 rounded-full bg-signature-violet px-6 py-3 text-sm font-black text-white shadow-lg flex items-center gap-2">
+<span class="material-symbols-outlined text-xl">graphic_eq</span>
+    上传并解析
+</button>
+<div id="program-modal" class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/35 p-6 backdrop-blur-sm">
+<div class="w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-[var(--r-card)] bg-white p-8 shadow-2xl">
+<div class="mb-6 flex items-center justify-between">
+<div>
+<h3 id="program-modal-title" class="text-2xl font-black text-stone-900">新增节目</h3>
+<p class="mt-1 text-sm text-warm-gray">保持当前风格不变，仅补充播客详情页的运营配置入口。</p>
+<div class="mt-3 flex flex-wrap items-center gap-2">
+<a id="preview-program-btn" class="rounded-full border border-signature-violet/30 bg-signature-violet/5 px-3 py-1 text-xs font-bold text-signature-violet opacity-50 pointer-events-none" href="javascript:void(0)" target="_blank" rel="noopener noreferrer">保存后可预览</a>
+<span id="program-completeness-hint" class="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">字段完整度：待补全</span>
+<span id="related-visibility-hint" class="rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs font-bold text-stone-600">相关推荐可见性：待计算</span>
+<span id="parse-status-hint" class="hidden rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs font-bold text-stone-600">解析状态：待机</span>
+<button id="retry-parse-btn" type="button" class="hidden rounded-full border border-signature-violet/30 bg-signature-violet/5 px-3 py-1 text-xs font-bold text-signature-violet">重试解析</button>
+</div>
+</div>
+<button id="close-program-modal-btn" class="material-symbols-outlined text-stone-400">close</button>
+</div>
+<form id="program-form" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<input name="title" class="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm" placeholder="节目标题（可留空，AI 自动生成）"/>
+<div class="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm">
+<input name="coverImage" class="w-full border-0 bg-transparent p-0 text-sm focus:ring-0" placeholder="封面图片 URL（可留空）"/>
+<div class="mt-2 flex items-center gap-2">
+<input id="cover-image-upload-input" accept="image/*" class="block text-[11px] text-stone-600 file:mr-2 file:rounded-full file:border-0 file:bg-signature-violet/10 file:px-3 file:py-1.5 file:text-[11px] file:font-bold file:text-signature-violet" type="file"/>
+</div>
+<div id="cover-image-upload-status" class="mt-1 text-[11px] font-bold text-warm-gray">未上传封面图片</div>
+</div>
+<input name="episodeTitle" class="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm" placeholder="单集标题（可留空，AI 自动生成）"/>
+<input name="episodeDuration" class="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm" placeholder="时长（如 45 分钟，可留空）"/>
+<input name="episodeUrl" class="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm md:col-span-2" placeholder="音频 URL（上传后自动填充）"/>
+<div class="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm md:col-span-2">
+<div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+<div class="flex items-center gap-3">
+<input id="audio-upload-input" accept="audio/*" class="block text-xs text-stone-600 file:mr-3 file:rounded-full file:border-0 file:bg-signature-violet/10 file:px-4 file:py-2 file:text-xs file:font-bold file:text-signature-violet" type="file"/>
+</div>
+<span id="audio-upload-status" class="text-xs font-bold text-warm-gray">未上传音频文件</span>
+</div>
+<div class="mt-2 h-2 w-full overflow-hidden rounded-full bg-stone-200">
+<div id="audio-upload-progress-bar" class="h-2 w-0 rounded-full bg-signature-violet transition-all duration-200"></div>
+</div>
+<div id="audio-upload-progress-text" class="mt-1 text-[11px] font-bold text-warm-gray">0%</div>
+</div>
+<textarea name="description" class="min-h-[120px] rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm md:col-span-2" placeholder="节目简介（可留空，AI 自动生成）"></textarea>
+
+<div class="rounded-2xl border border-stone-100 bg-stone-50/60 p-4 md:col-span-2">
+<p class="mb-3 text-[11px] font-black uppercase tracking-[0.15em] text-muted-teal">播客详情页字段配置</p>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<input name="summaryHeadline" class="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm" placeholder="摘要标题"/>
+<input name="summaryHighlightLabel" class="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm" placeholder="摘要亮点标签"/>
+<textarea name="summaryBody" class="min-h-[88px] rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm md:col-span-2" placeholder="摘要正文"></textarea>
+<textarea name="summaryHighlightText" class="min-h-[88px] rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm md:col-span-2" placeholder="摘要亮点文本"></textarea>
+<input name="summaryTags" class="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm md:col-span-2" placeholder="摘要标签（逗号分隔）"/>
+
+<input name="guestName" class="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm" placeholder="嘉宾姓名"/>
+<input name="guestTitle" class="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm" placeholder="嘉宾头衔"/>
+<div class="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm">
+<input name="guestAvatar" class="w-full border-0 bg-transparent p-0 text-sm focus:ring-0" placeholder="嘉宾头像 URL"/>
+<div class="mt-2 flex items-center gap-2">
+<input id="guest-avatar-upload-input" accept="image/*" class="block text-[11px] text-stone-600 file:mr-2 file:rounded-full file:border-0 file:bg-signature-violet/10 file:px-3 file:py-1.5 file:text-[11px] file:font-bold file:text-signature-violet" type="file"/>
+</div>
+<div id="guest-avatar-upload-status" class="mt-1 text-[11px] font-bold text-warm-gray">未上传嘉宾头像</div>
+</div>
+<input name="guestProfileUrl" class="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm" placeholder="嘉宾档案链接 URL（可选）"/>
+<textarea name="guestBio" class="min-h-[88px] rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm md:col-span-2" placeholder="嘉宾简介"></textarea>
+
+<input name="deepDiveTitle" class="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm md:col-span-2" placeholder="深度挖掘模块标题"/>
+<textarea name="curatedReadingRaw" class="min-h-[96px] rounded-2xl border border-stone-200 bg-white px-4 py-3 text-xs font-mono md:col-span-2" placeholder="推荐阅读：每行 标题|副标题|链接URL"></textarea>
+<textarea name="transcriptRaw" class="min-h-[120px] rounded-2xl border border-stone-200 bg-white px-4 py-3 text-xs font-mono md:col-span-2" placeholder="逐字稿：每行 时间|说话人|内容|featured(可选)"></textarea>
+<textarea name="speakerAliasRaw" class="min-h-[84px] rounded-2xl border border-stone-200 bg-white px-4 py-3 text-xs font-mono md:col-span-2" placeholder="说话人展示名映射（可选）：每行 原始说话人|展示名&#10;示例：主持人A|Jessie&#10;示例：主持人B|阿力"></textarea>
+<textarea name="termGlossaryRaw" class="min-h-[96px] rounded-2xl border border-stone-200 bg-white px-4 py-3 text-xs font-mono md:col-span-2" placeholder="术语表（AI可自动生成，可手动修改）：每行 术语|解释|链接(可选)&#10;示例：保研|本科阶段通过推免方式获得研究生录取资格。|"></textarea>
+</div>
+</div>
+
+<select name="status" class="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm md:col-span-2">
+<option value="draft">保存为草稿</option>
+<option value="published">直接发布</option>
+</select>
+
+<div class="mt-2 flex justify-end gap-3 md:col-span-2">
+<button id="cancel-program-modal-btn" type="button" class="rounded-full border border-stone-200 px-6 py-3 text-sm font-bold text-stone-700">取消</button>
+<button id="ai-generate-btn" type="button" class="rounded-full border border-signature-violet/30 bg-signature-violet/5 px-6 py-3 text-sm font-bold text-signature-violet">AI解析</button>
+<button id="save-program-btn" type="submit" class="gradient-violet rounded-full px-8 py-3 text-sm font-bold text-white">保存</button>
+</div>
+<div id="ai-generate-status" class="text-xs font-bold text-warm-gray md:col-span-2"></div>
+</form>
+</div>
+</div>
+<div id="audio-parse-modal" class="fixed inset-0 z-[71] hidden items-center justify-center bg-black/35 p-6 backdrop-blur-sm">
+<div class="w-full max-w-2xl rounded-[2rem] bg-white p-8 shadow-2xl">
+<div class="mb-6 flex items-center justify-between">
+<div>
+<h3 class="text-2xl font-black text-stone-900">上传并解析</h3>
+<p class="mt-1 text-sm text-warm-gray">上传音频后创建草稿，后台异步解析，完成后在编辑页优化发布。</p>
+</div>
+<button id="close-audio-parse-modal-btn" class="material-symbols-outlined text-stone-400">close</button>
+</div>
+<div class="space-y-4">
+<input id="audio-parse-file-input" accept="audio/*" class="block w-full text-xs text-stone-600 file:mr-3 file:rounded-full file:border-0 file:bg-signature-violet/10 file:px-4 file:py-2 file:text-xs file:font-bold file:text-signature-violet" type="file"/>
+<div class="h-2 w-full overflow-hidden rounded-full bg-stone-200">
+<div id="audio-parse-progress-bar" class="h-2 w-0 rounded-full bg-signature-violet transition-all duration-200"></div>
+</div>
+<div id="audio-parse-progress-text" class="text-[11px] font-bold text-warm-gray">0%</div>
+<div id="audio-parse-status" class="text-xs font-bold text-warm-gray">请选择音频文件</div>
+<div class="flex justify-end gap-3 pt-2">
+<button id="cancel-audio-parse-btn" type="button" class="rounded-full border border-stone-200 px-6 py-2.5 text-sm font-bold text-stone-700">取消</button>
+<button id="start-audio-parse-btn" type="button" class="gradient-violet rounded-full px-6 py-2.5 text-sm font-bold text-white opacity-40 pointer-events-none">开始解析</button>
+</div>
+</div>
+</div>
+</div>
+<script>
+(function () {
+  function isEmbedded() {
+    try {
+      return window.self !== window.top;
+    } catch (_e) {
+      return true;
+    }
+  }
+
+  function requestNavigate(path) {
+    try {
+      window.parent.postMessage({ type: "admin:navigate", path: path }, window.location.origin);
+    } catch (_e) {}
+  }
+
+  function requestSwitch(key) {
+    try {
+      window.parent.postMessage({ type: "admin:switch", key: key }, window.location.origin);
+    } catch (_e) {}
+  }
+
+  const token = localStorage.getItem("token");
+  if (!token) {
+    if (isEmbedded()) {
+      requestNavigate("/admin/login");
+      return;
+    }
+    window.location.href = "/admin/login";
+    return;
+  }
+
+  function applyTheme(theme) {
+    const normalized = theme === "light" ? "light" : "dark";
+    document.documentElement.dataset.theme = normalized;
+    if (normalized === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+    const darkBtn = document.getElementById("theme-dark-btn");
+    const lightBtn = document.getElementById("theme-light-btn");
+    if (darkBtn) darkBtn.setAttribute("data-active", normalized === "dark" ? "true" : "false");
+    if (lightBtn) lightBtn.setAttribute("data-active", normalized === "light" ? "true" : "false");
+  }
+
+  const savedTheme = localStorage.getItem("adminTheme") || "dark";
+  applyTheme(savedTheme);
+  const themeDarkBtn = document.getElementById("theme-dark-btn");
+  const themeLightBtn = document.getElementById("theme-light-btn");
+  if (themeDarkBtn) {
+    themeDarkBtn.addEventListener("click", function () {
+      localStorage.setItem("adminTheme", "dark");
+      applyTheme("dark");
+    });
+  }
+  if (themeLightBtn) {
+    themeLightBtn.addEventListener("click", function () {
+      localStorage.setItem("adminTheme", "light");
+      applyTheme("light");
+    });
+  }
+
+  const userRaw = localStorage.getItem("user");
+  const sessionUser = userRaw ? JSON.parse(userRaw) : null;
+  const username = (sessionUser && (sessionUser.username || sessionUser.name)) || "管理员";
+  const avatarEl = document.getElementById("admin-avatar");
+  const usernameEl = document.getElementById("admin-username");
+  if (usernameEl) usernameEl.textContent = username;
+  if (avatarEl) avatarEl.textContent = String(username || "A").slice(0, 1).toUpperCase();
+  const logoutBtn = document.getElementById("admin-logout-btn");
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", function () {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      if (isEmbedded()) {
+        requestNavigate("/admin/login");
+        return;
+      }
+      window.location.href = "/admin/login";
+    });
+  }
+
+  document.addEventListener(
+    "click",
+    function (event) {
+      const target = event.target;
+      const link = target && target.closest ? target.closest('a[href^="/admin"]') : null;
+      if (!link) return;
+      if (!isEmbedded()) return;
+      const href = link.getAttribute("href");
+      if (!href) return;
+      event.preventDefault();
+      if (href === "/admin/login") {
+        requestNavigate(href);
+        return;
+      }
+      const routeMap = {
+        "/admin": "dashboard",
+        "/admin/": "dashboard",
+        "/admin/programs": "programs",
+        "/admin/books": "books",
+        "/admin/materials": "materials",
+        "/admin/users": "users",
+        "/admin/system": "system",
+      };
+      const key = routeMap[href];
+      if (key) requestSwitch(key);
+    },
+    true
+  );
+
+  const tableBody = document.getElementById("program-table-body");
+  const openBtn = document.getElementById("open-program-modal-btn");
+  const openAudioParseBtn = document.getElementById("open-audio-parse-modal-btn");
+  const modal = document.getElementById("program-modal");
+  const audioParseModal = document.getElementById("audio-parse-modal");
+  const closeBtn = document.getElementById("close-program-modal-btn");
+  const cancelBtn = document.getElementById("cancel-program-modal-btn");
+  const closeAudioParseBtn = document.getElementById("close-audio-parse-modal-btn");
+  const cancelAudioParseBtn = document.getElementById("cancel-audio-parse-btn");
+  const form = document.getElementById("program-form");
+  const saveBtn = document.getElementById("save-program-btn");
+  const modalTitle = document.getElementById("program-modal-title");
+  const summaryEl = document.getElementById("program-pagination-summary");
+  const publishCenterTrigger = document.getElementById("publish-center-trigger");
+  const filterButtons = Array.from(document.querySelectorAll("button[data-filter]"));
+  const previewBtn = document.getElementById("preview-program-btn");
+  const completenessHint = document.getElementById("program-completeness-hint");
+  const relatedHint = document.getElementById("related-visibility-hint");
+  const parseStatusHint = document.getElementById("parse-status-hint");
+  const retryParseBtn = document.getElementById("retry-parse-btn");
+  const audioUploadInput = document.getElementById("audio-upload-input");
+  const audioUploadStatus = document.getElementById("audio-upload-status");
+  const audioUploadProgressBar = document.getElementById("audio-upload-progress-bar");
+  const audioUploadProgressText = document.getElementById("audio-upload-progress-text");
+  const coverImageUploadInput = document.getElementById("cover-image-upload-input");
+  const coverImageUploadStatus = document.getElementById("cover-image-upload-status");
+  const guestAvatarUploadInput = document.getElementById("guest-avatar-upload-input");
+  const guestAvatarUploadStatus = document.getElementById("guest-avatar-upload-status");
+  const aiGenerateBtn = document.getElementById("ai-generate-btn");
+  const aiGenerateStatus = document.getElementById("ai-generate-status");
+  const audioParseFileInput = document.getElementById("audio-parse-file-input");
+  const audioParseProgressBar = document.getElementById("audio-parse-progress-bar");
+  const audioParseProgressText = document.getElementById("audio-parse-progress-text");
+  const audioParseStatus = document.getElementById("audio-parse-status");
+  const startAudioParseBtn = document.getElementById("start-audio-parse-btn");
+
+  let programs = [];
+  let editingId = null;
+  let currentFilter = "all";
+  let uploadedAudioUrl = "";
+  let preParseUploadedAudioUrl = "";
+  let currentUploadXhr = null;
+  let currentImageUploadXhr = null;
+  let parsePollingTimer = null;
+  let listParsePollingTimer = null;
+  let isLoadingPrograms = false;
+  let formDirtySinceOpen = false;
+
+  function authHeaders() {
+    return {
+      "Content-Type": "application/json",
+      Authorization: "Bearer " + token,
+    };
+  }
+
+  function fmtDate(input) {
+    if (!input) return "-";
+    const d = new Date(input);
+    if (Number.isNaN(d.getTime())) return "-";
+    return d.toLocaleDateString("zh-CN");
+  }
+
+  function parseLines(raw, builder) {
+    return String(raw || "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map(builder)
+      .filter(Boolean);
+  }
+
+  function parseSpeakerAliasMap(raw) {
+    const map = {};
+    const lines = String(raw || "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i];
+      const parts = line.split("|").map((p) => p.trim());
+      if (!parts[0] || !parts[1]) continue;
+      map[parts[0]] = parts[1];
+    }
+    return map;
+  }
+
+  function buildSpeakerAliasTemplate(transcript) {
+    const list = Array.isArray(transcript) ? transcript : [];
+    const speakers = [];
+    const seen = {};
+    for (let i = 0; i < list.length; i += 1) {
+      const speaker = String((list[i] && list[i].speaker) || "").trim();
+      if (!speaker || seen[speaker]) continue;
+      seen[speaker] = true;
+      speakers.push(speaker + "|" + speaker);
+    }
+    return speakers.join("\n");
+  }
+
+  function validateStructuredLines(raw, minParts) {
+    const lines = String(raw || "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i];
+      const parts = line.split("|").map((p) => p.trim());
+      let nonEmpty = 0;
+      for (let j = 0; j < parts.length; j += 1) {
+        if (parts[j]) nonEmpty += 1;
+      }
+      if (nonEmpty < minParts) {
+        return { ok: false, lineNo: i + 1, line: line };
+      }
+    }
+    return { ok: true };
+  }
+
+  function parseGlossaryLine(line) {
+    const raw = String(line || "").trim();
+    if (!raw) return null;
+    if (raw.indexOf("|") >= 0 || raw.indexOf("｜") >= 0) {
+      const pipeNormalized = raw.replace(/｜/g, "|");
+      const parts = pipeNormalized.split("|").map(function (p) { return p.trim(); });
+      const term = parts[0] || "";
+      const definition = parts[1] || "";
+      const sourceUrl = parts[2] || "";
+      if (!term || !definition) return null;
+      return { term: term, definition: definition, sourceUrl: sourceUrl };
+    }
+    const compact = raw.replace(/[\u3000\t]+/g, " ").replace(/\s+/g, " ").trim();
+    const firstSpace = compact.indexOf(" ");
+    if (firstSpace <= 0) return null;
+    const term = compact.slice(0, firstSpace).trim();
+    const rest = compact.slice(firstSpace + 1).trim();
+    if (!term || !rest) return null;
+    return { term: term, definition: rest, sourceUrl: "" };
+  }
+
+  function parseGlossaryLines(raw) {
+    return String(raw || "")
+      .split("\n")
+      .map(function (line) { return line.trim(); })
+      .filter(Boolean)
+      .map(parseGlossaryLine)
+      .filter(Boolean);
+  }
+
+  function validateGlossaryLines(raw) {
+    const lines = String(raw || "")
+      .split("\n")
+      .map(function (line) { return line.trim(); })
+      .filter(Boolean);
+    for (let i = 0; i < lines.length; i += 1) {
+      const parsed = parseGlossaryLine(lines[i]);
+      if (!parsed) {
+        return { ok: false, lineNo: i + 1, line: lines[i] };
+      }
+    }
+    return { ok: true };
+  }
+
+  function hasText(value) {
+    return String(value || "").trim().length > 0;
+  }
+
+  function getProgramCapability(program) {
+    const episode = (program && program.episodes && program.episodes[0]) || {};
+    const guest = (program && program.guest) || {};
+    const transcript = Array.isArray(program && program.transcript) ? program.transcript : [];
+    return {
+      playable: hasText(episode.url),
+      transcript: transcript.some((item) => hasText(item.time) && hasText(item.speaker) && hasText(item.text)),
+      guest: hasText(guest.name) && hasText(guest.title) && hasText(guest.avatar),
+    };
+  }
+
+  function getParseProgressMeta(program) {
+    const status = (program && program.parseStatus) || "idle";
+    if (status === "success") {
+      return {
+        label: "AI解析：已完成",
+        percent: 100,
+        textClass: "text-emerald-700",
+        trackClass: "bg-emerald-100",
+        barClass: "bg-emerald-500",
+      };
+    }
+    if (status === "failed") {
+      return {
+        label: "AI解析：失败",
+        percent: 100,
+        textClass: "text-red-600",
+        trackClass: "bg-red-100",
+        barClass: "bg-red-500",
+      };
+    }
+    if (status === "parsing") {
+      const startedAt = program && program.parseStartedAt ? new Date(program.parseStartedAt).getTime() : Date.now();
+      const elapsedSec = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+      const percent = Math.max(8, Math.min(90, 12 + elapsedSec * 6));
+      return {
+        label: "AI解析中：" + percent + "%",
+        percent: percent,
+        textClass: "text-amber-700",
+        trackClass: "bg-amber-100",
+        barClass: "bg-amber-500",
+      };
+    }
+    return {
+      label: "AI解析：待触发",
+      percent: 0,
+      textClass: "text-stone-500",
+      trackClass: "bg-stone-200",
+      barClass: "bg-stone-400",
+    };
+  }
+
+  function getMissingKeys(program) {
+    const capability = getProgramCapability(program);
+    const missing = [];
+    if (!capability.playable) missing.push("音频");
+    if (!capability.transcript) missing.push("逐字稿");
+    if (!capability.guest) missing.push("嘉宾卡");
+    return missing;
+  }
+
+  function setPreviewState(programId) {
+    if (programId) {
+      previewBtn.href = "/programs/" + programId;
+      previewBtn.textContent = "详情预览";
+      previewBtn.classList.remove("opacity-50", "pointer-events-none");
+      return;
+    }
+    previewBtn.href = "javascript:void(0)";
+    previewBtn.textContent = "保存后可预览";
+    previewBtn.classList.add("opacity-50", "pointer-events-none");
+  }
+
+  function setAiStatus(message, tone) {
+    aiGenerateStatus.textContent = message || "";
+    if (tone === "success") {
+      aiGenerateStatus.className = "text-xs font-bold text-emerald-700 md:col-span-2";
+      return;
+    }
+    if (tone === "error") {
+      aiGenerateStatus.className = "text-xs font-bold text-red-600 md:col-span-2";
+      return;
+    }
+    aiGenerateStatus.className = "text-xs font-bold text-warm-gray md:col-span-2";
+  }
+
+  function setAudioUploadStatus(message, tone) {
+    audioUploadStatus.textContent = message;
+    if (tone === "success") {
+      audioUploadStatus.className = "text-xs font-bold text-emerald-700";
+      return;
+    }
+    if (tone === "error") {
+      audioUploadStatus.className = "text-xs font-bold text-red-600";
+      return;
+    }
+    audioUploadStatus.className = "text-xs font-bold text-warm-gray";
+  }
+
+  function setImageUploadStatus(type, message, tone) {
+    const target = type === "guest" ? guestAvatarUploadStatus : coverImageUploadStatus;
+    if (!target) return;
+    target.textContent = message;
+    if (tone === "success") {
+      target.className = "mt-1 text-[11px] font-bold text-emerald-700";
+      return;
+    }
+    if (tone === "error") {
+      target.className = "mt-1 text-[11px] font-bold text-red-600";
+      return;
+    }
+    target.className = "mt-1 text-[11px] font-bold text-warm-gray";
+  }
+
+  function setUploadProgress(percent) {
+    const safe = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+    audioUploadProgressBar.style.width = safe + "%";
+    audioUploadProgressText.textContent = safe + "%";
+  }
+
+  function setPreParseProgress(percent) {
+    const safe = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+    audioParseProgressBar.style.width = safe + "%";
+    audioParseProgressText.textContent = safe + "%";
+  }
+
+  function setPreParseStatus(message, tone) {
+    audioParseStatus.textContent = message || "";
+    if (tone === "success") {
+      audioParseStatus.className = "text-xs font-bold text-emerald-700";
+      return;
+    }
+    if (tone === "error") {
+      audioParseStatus.className = "text-xs font-bold text-red-600";
+      return;
+    }
+    audioParseStatus.className = "text-xs font-bold text-warm-gray";
+  }
+
+  function getUploadEndpointCandidates(pathname) {
+    const candidates = [pathname];
+    const protocol = window.location.protocol || "http:";
+    const host = window.location.hostname || "localhost";
+    const backendPort = "3001";
+    const isLocalLikeHost = host === "localhost" || host === "127.0.0.1";
+    if (window.location.port === "5173") {
+      candidates.push(protocol + "//" + host + ":" + backendPort + pathname);
+      if (isLocalLikeHost) {
+        candidates.push(protocol + "//localhost:" + backendPort + pathname);
+        candidates.push(protocol + "//127.0.0.1:" + backendPort + pathname);
+      }
+    }
+    return Array.from(new Set(candidates));
+  }
+
+  function uploadAudioViaXhr(file, onProgress) {
+    return new Promise(function (resolve, reject) {
+      const latestToken = localStorage.getItem("token");
+      if (!latestToken) {
+        reject(new Error("登录已过期，请重新登录后台"));
+        return;
+      }
+      const formData = new FormData();
+      formData.append("audio", file);
+      const endpoints = getUploadEndpointCandidates("/api/admin/programs/upload-audio");
+      let endpointIndex = 0;
+      let lastError = "";
+
+      function runNext() {
+        if (endpointIndex >= endpoints.length) {
+          reject(new Error(lastError || "上传失败，请检查后端服务是否已启动（/api/admin/programs/upload-audio）"));
+          return;
+        }
+        const endpoint = endpoints[endpointIndex];
+        endpointIndex += 1;
+        const xhr = new XMLHttpRequest();
+        currentUploadXhr = xhr;
+        xhr.open("POST", endpoint, true);
+        xhr.setRequestHeader("Authorization", "Bearer " + latestToken);
+        xhr.upload.onprogress = function (event) {
+          if (!event.lengthComputable) return;
+          const percent = (event.loaded / event.total) * 100;
+          if (typeof onProgress === "function") onProgress(percent);
+        };
+        xhr.onerror = function () {
+          lastError = "上传失败：网络异常或跨域限制（" + endpoint + "）";
+          runNext();
+        };
+        xhr.onabort = function () {
+          reject(new Error("上传已取消"));
+        };
+        xhr.onload = function () {
+          let body = {};
+          try { body = JSON.parse(xhr.responseText || "{}"); } catch (_error) {}
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(body);
+            return;
+          }
+          if (xhr.status === 401) {
+            reject(new Error("登录已过期，请重新登录后台"));
+            return;
+          }
+          if (xhr.status === 403) {
+            reject(new Error("当前账号没有管理员权限"));
+            return;
+          }
+          if (xhr.status === 404) {
+            lastError = "上传失败：接口不存在（" + endpoint + "）";
+            runNext();
+            return;
+          }
+          reject(new Error((body && body.message) || ("上传失败（HTTP " + xhr.status + "，" + endpoint + "）")));
+        };
+        xhr.send(formData);
+      }
+
+      runNext();
+    });
+  }
+
+  function uploadImageViaXhr(file) {
+    return new Promise(function (resolve, reject) {
+      const latestToken = localStorage.getItem("token");
+      if (!latestToken) {
+        reject(new Error("登录已过期，请重新登录后台"));
+        return;
+      }
+      const formData = new FormData();
+      formData.append("image", file);
+      const endpoints = getUploadEndpointCandidates("/api/admin/programs/upload-image");
+      let endpointIndex = 0;
+      let lastError = "";
+
+      function runNext() {
+        if (endpointIndex >= endpoints.length) {
+          reject(new Error(lastError || "上传失败：未找到图片上传接口（/api/admin/programs/upload-image）"));
+          return;
+        }
+        const endpoint = endpoints[endpointIndex];
+        endpointIndex += 1;
+        const xhr = new XMLHttpRequest();
+        currentImageUploadXhr = xhr;
+        xhr.open("POST", endpoint, true);
+        xhr.setRequestHeader("Authorization", "Bearer " + latestToken);
+        xhr.onerror = function () {
+          lastError = "上传失败：网络异常或跨域限制（" + endpoint + "）";
+          runNext();
+        };
+        xhr.onabort = function () {
+          reject(new Error("上传已取消"));
+        };
+        xhr.onload = function () {
+          let body = {};
+          try { body = JSON.parse(xhr.responseText || "{}"); } catch (_error) {}
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(body);
+            return;
+          }
+          if (xhr.status === 401) {
+            reject(new Error("登录已过期，请重新登录后台"));
+            return;
+          }
+          if (xhr.status === 403) {
+            reject(new Error("当前账号没有管理员权限"));
+            return;
+          }
+          if (xhr.status === 404) {
+            lastError = "上传失败：接口不存在（" + endpoint + "）";
+            runNext();
+            return;
+          }
+          reject(new Error((body && body.message) || ("上传失败（HTTP " + xhr.status + "，" + endpoint + "）")));
+        };
+        xhr.send(formData);
+      }
+
+      runNext();
+    });
+  }
+
+  async function uploadAudioFile(file) {
+    if (!file) {
+      setAudioUploadStatus("请先选择音频文件", "error");
+      return;
+    }
+    if (currentUploadXhr) {
+      try { currentUploadXhr.abort(); } catch (_error) {}
+      currentUploadXhr = null;
+    }
+    if (audioUploadInput) audioUploadInput.disabled = true;
+    setUploadProgress(0);
+    setAudioUploadStatus("上传中（0%）...", "normal");
+    try {
+      const data = await uploadAudioViaXhr(file, function (percent) {
+        setUploadProgress(percent);
+        setAudioUploadStatus("上传中（" + Math.round(percent) + "%）...", "normal");
+      });
+      uploadedAudioUrl = data.url || "";
+      if (uploadedAudioUrl) {
+        form.episodeUrl.value = uploadedAudioUrl;
+      }
+      setUploadProgress(100);
+      setAudioUploadStatus("上传成功：" + (data.originalName || file.name), "success");
+      refreshCapabilityHints();
+    } catch (error) {
+      const message = (error && error.message) ? error.message : "上传失败，请重试";
+      setAudioUploadStatus(message, "error");
+    } finally {
+      currentUploadXhr = null;
+      if (audioUploadInput) audioUploadInput.disabled = false;
+    }
+  }
+
+  async function uploadAudioForPreParse(file) {
+    if (!file) {
+      setPreParseStatus("请先选择音频文件", "error");
+      return;
+    }
+    if (currentUploadXhr) {
+      try { currentUploadXhr.abort(); } catch (_error) {}
+      currentUploadXhr = null;
+    }
+    preParseUploadedAudioUrl = "";
+    setPreParseProgress(0);
+    setPreParseStatus("上传中（0%）...", "normal");
+    startAudioParseBtn.classList.add("opacity-40", "pointer-events-none");
+    try {
+      const data = await uploadAudioViaXhr(file, function (percent) {
+        setPreParseProgress(percent);
+        setPreParseStatus("上传中（" + Math.round(percent) + "%）...", "normal");
+      });
+      preParseUploadedAudioUrl = data.url || "";
+      setPreParseProgress(100);
+      setPreParseStatus("上传成功，可开始解析", "success");
+      startAudioParseBtn.classList.remove("opacity-40", "pointer-events-none");
+    } catch (error) {
+      const message = (error && error.message) ? error.message : "上传失败，请重试";
+      setPreParseStatus(message, "error");
+      startAudioParseBtn.classList.add("opacity-40", "pointer-events-none");
+    } finally {
+      currentUploadXhr = null;
+    }
+  }
+
+  async function uploadImageFile(file, type) {
+    if (!file) {
+      setImageUploadStatus(type, "请先选择图片文件", "error");
+      return;
+    }
+    if (currentImageUploadXhr) {
+      try { currentImageUploadXhr.abort(); } catch (_error) {}
+      currentImageUploadXhr = null;
+    }
+    if (type === "cover" && coverImageUploadInput) coverImageUploadInput.disabled = true;
+    if (type === "guest" && guestAvatarUploadInput) guestAvatarUploadInput.disabled = true;
+    setImageUploadStatus(type, "上传中...", "normal");
+    try {
+      const data = await uploadImageViaXhr(file);
+      const imageUrl = (data && data.url) || "";
+      if (type === "cover" && imageUrl) {
+        form.coverImage.value = imageUrl;
+      }
+      if (type === "guest" && imageUrl) {
+        form.guestAvatar.value = imageUrl;
+      }
+      setImageUploadStatus(type, "上传成功：" + ((data && data.originalName) || file.name), "success");
+      refreshCapabilityHints();
+    } catch (error) {
+      const message = (error && error.message) ? error.message : "上传失败，请重试";
+      setImageUploadStatus(type, message, "error");
+    } finally {
+      currentImageUploadXhr = null;
+      if (type === "cover" && coverImageUploadInput) coverImageUploadInput.disabled = false;
+      if (type === "guest" && guestAvatarUploadInput) guestAvatarUploadInput.disabled = false;
+    }
+  }
+
+  function refreshCapabilityHints() {
+    const draft = {
+      episodes: [{ url: form.episodeUrl.value }],
+      transcript: parseLines(form.transcriptRaw.value, function (line) {
+        const parts = line.split("|").map((p) => p.trim());
+        return { time: parts[0], speaker: parts[1], text: parts[2] };
+      }),
+      guest: {
+        name: form.guestName.value,
+        title: form.guestTitle.value,
+        avatar: form.guestAvatar.value,
+      },
+      deepDive: {
+        sectionTitle: form.deepDiveTitle.value,
+      },
+    };
+    const missing = getMissingKeys(draft);
+    const hasDeepDive = hasText(form.deepDiveTitle.value) || hasText(form.curatedReadingRaw.value);
+    const deepDiveText = hasDeepDive ? "" : "、深度挖掘";
+    if (missing.length === 0) {
+      completenessHint.textContent = "字段完整度：可播放 / 可展示";
+      completenessHint.className = "rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700";
+    } else {
+      completenessHint.textContent = "字段完整度：待补全 " + missing.join("、") + deepDiveText;
+      completenessHint.className = "rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700";
+    }
+  }
+
+  function refreshRelatedHint() {
+    const publishedCount = programs.filter((item) => item.status === "published").length;
+    if (publishedCount < 2) {
+      relatedHint.textContent = "相关推荐可见性：已发布不足 2 条，前台相关推荐可能不足";
+      relatedHint.className = "rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700";
+      return;
+    }
+    relatedHint.textContent = "相关推荐可见性：正常";
+    relatedHint.className = "rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700";
+  }
+
+  function clearParsePolling() {
+    if (parsePollingTimer) {
+      clearInterval(parsePollingTimer);
+      parsePollingTimer = null;
+    }
+  }
+
+  function clearListParsePolling() {
+    if (listParsePollingTimer) {
+      clearInterval(listParsePollingTimer);
+      listParsePollingTimer = null;
+    }
+  }
+
+  function setParseStatusUI(program) {
+    const status = (program && program.parseStatus) || "idle";
+    parseStatusHint.classList.remove("hidden");
+    retryParseBtn.classList.add("hidden");
+    if (status === "parsing") {
+      parseStatusHint.textContent = "解析状态：解析中";
+      parseStatusHint.className = "rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700";
+      return;
+    }
+    if (status === "success") {
+      parseStatusHint.textContent = "解析状态：已完成";
+      parseStatusHint.className = "rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700";
+      return;
+    }
+    if (status === "failed") {
+      const errText = program && program.parseError ? "（" + program.parseError + "）" : "";
+      parseStatusHint.textContent = "解析状态：失败" + errText;
+      parseStatusHint.className = "rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-bold text-red-600";
+      if (editingId) retryParseBtn.classList.remove("hidden");
+      return;
+    }
+    parseStatusHint.textContent = "解析状态：待机";
+    parseStatusHint.className = "rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs font-bold text-stone-600";
+  }
+
+  async function fetchProgramById(id) {
+    const response = await fetch("/api/admin/programs/" + id, { headers: authHeaders() });
+    if (!response.ok) throw new Error("获取节目详情失败");
+    return await response.json();
+  }
+
+  async function pollParseStatus(programId) {
+    clearParsePolling();
+    parsePollingTimer = setInterval(async function () {
+      try {
+        const response = await fetch("/api/admin/programs/" + programId + "/parse-status", { headers: authHeaders() });
+        if (!response.ok) return;
+        const statusPayload = await response.json();
+        const status = (statusPayload && statusPayload.parseStatus) || "idle";
+        setParseStatusUI(statusPayload);
+        if (status !== "parsing") {
+          clearParsePolling();
+          await loadPrograms();
+          if (!formDirtySinceOpen && editingId === programId) {
+            const latest = await fetchProgramById(programId);
+            openModal(latest);
+            setAiStatus(status === "success" ? "后台解析已完成，字段已回填" : "解析失败，可继续手动编辑", status === "success" ? "success" : "error");
+          }
+        }
+      } catch (_error) {}
+    }, 2500);
+  }
+
+  function openModal(program) {
+    clearParsePolling();
+    editingId = program ? program._id : null;
+    formDirtySinceOpen = false;
+    modalTitle.textContent = editingId ? "编辑节目" : "新增节目";
+    form.reset();
+    uploadedAudioUrl = "";
+    setAiStatus("", "normal");
+    setAudioUploadStatus("未上传音频文件", "normal");
+    setImageUploadStatus("cover", "未上传封面图片", "normal");
+    setImageUploadStatus("guest", "未上传嘉宾头像", "normal");
+    setUploadProgress(0);
+    if (program) {
+      form.title.value = program.title || "";
+      form.description.value = program.description || "";
+      form.coverImage.value = program.coverImage || "";
+      form.episodeTitle.value = (program.episodes && program.episodes[0] && program.episodes[0].title) || "";
+      form.episodeDuration.value = (program.episodes && program.episodes[0] && program.episodes[0].duration) || "";
+      form.episodeUrl.value = (program.episodes && program.episodes[0] && program.episodes[0].url) || "";
+      form.status.value = program.status || "draft";
+      form.summaryHeadline.value = (program.summary && program.summary.headline) || "";
+      form.summaryBody.value = (program.summary && program.summary.body) || "";
+      form.summaryHighlightLabel.value = (program.summary && program.summary.highlightLabel) || "";
+      form.summaryHighlightText.value = (program.summary && program.summary.highlightText) || "";
+      form.summaryTags.value = ((program.summary && program.summary.tags) || []).join(", ");
+      form.guestName.value = (program.guest && program.guest.name) || "";
+      form.guestTitle.value = (program.guest && program.guest.title) || "";
+      form.guestBio.value = (program.guest && program.guest.bio) || "";
+      form.guestAvatar.value = (program.guest && program.guest.avatar) || "";
+      form.guestProfileUrl.value = (program.guest && program.guest.profileUrl) || "";
+      form.deepDiveTitle.value = (program.deepDive && program.deepDive.sectionTitle) || "";
+      form.curatedReadingRaw.value = ((program.deepDive && program.deepDive.curatedReading) || [])
+        .map((item) => [item.title || "", item.subtitle || "", item.url || ""].join("|"))
+        .join("\n");
+      form.transcriptRaw.value = (program.transcript || [])
+        .map((item) => [item.time || "", item.speaker || "", item.text || "", item.featured ? "featured" : ""].join("|"))
+        .join("\n");
+      form.speakerAliasRaw.value = buildSpeakerAliasTemplate(program.transcript || []);
+      form.termGlossaryRaw.value = (program.termGlossary || [])
+        .map((item) => [item.term || "", item.definition || "", item.sourceUrl || ""].join("|"))
+        .join("\n");
+      uploadedAudioUrl = form.episodeUrl.value;
+      setAudioUploadStatus(hasText(uploadedAudioUrl) ? "已配置音频 URL" : "未上传音频文件", hasText(uploadedAudioUrl) ? "success" : "normal");
+      setUploadProgress(hasText(uploadedAudioUrl) ? 100 : 0);
+      setImageUploadStatus("cover", hasText(form.coverImage.value) ? "已配置封面图片 URL" : "未上传封面图片", hasText(form.coverImage.value) ? "success" : "normal");
+      setImageUploadStatus("guest", hasText(form.guestAvatar.value) ? "已配置嘉宾头像 URL" : "未上传嘉宾头像", hasText(form.guestAvatar.value) ? "success" : "normal");
+    }
+    setParseStatusUI(program || { parseStatus: "idle", parseError: "" });
+    setPreviewState(editingId);
+    refreshCapabilityHints();
+    refreshRelatedHint();
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+    if (program && program._id && program.parseStatus === "parsing") {
+      pollParseStatus(program._id);
+    }
+  }
+
+  function closeModal() {
+    clearParsePolling();
+    modal.classList.remove("flex");
+    modal.classList.add("hidden");
+    editingId = null;
+    setPreviewState(null);
+  }
+
+  function renderRows() {
+    const visiblePrograms = programs.filter((row) => currentFilter === "all" ? true : row.status === currentFilter);
+    if (!visiblePrograms.length) {
+      tableBody.innerHTML = '<tr><td colspan="7" class="px-10 py-12 text-sm text-stone-500">暂无节目数据</td></tr>';
+      if (summaryEl) {
+        summaryEl.textContent = "正在显示 0-0 项，共 " + programs.length + " 项资源";
+      }
+      return;
+    }
+    tableBody.innerHTML = visiblePrograms
+      .map((row) => {
+        const statusClass = row.status === "published" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700";
+        const statusText = row.status === "published" ? "已发布" : "草稿箱";
+        const idSuffix = String(row._id || "").slice(-8).toUpperCase();
+        const capability = getProgramCapability(row);
+        const parseMeta = getParseProgressMeta(row);
+        return '<tr>' +
+          '<td class="px-10 py-7"><input class="rounded-md border-stone-300 text-signature-violet" type="checkbox"/></td>' +
+          '<td class="px-10 py-7"><div class="flex items-center gap-5"><div class="w-12 h-12 bg-stone-100 rounded-2xl flex items-center justify-center text-muted-teal shadow-sm"><span class="material-symbols-outlined text-2xl">mic</span></div><div><div class="font-bold text-stone-900 mb-0.5">' + (row.title || "") + '</div><div class="text-[10px] text-warm-gray tracking-widest font-medium">UUID: ' + idSuffix + '</div></div></div></td>' +
+          '<td class="px-10 py-7"><span class="text-sm font-medium text-stone-600">音频资源 / MP3</span></td>' +
+          '<td class="px-10 py-7"><div class="flex flex-wrap gap-2"><span class="rounded-full px-2.5 py-1 text-[10px] font-black ' + (capability.playable ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700") + '">可播放</span><span class="rounded-full px-2.5 py-1 text-[10px] font-black ' + (capability.transcript ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700") + '">有逐字稿</span><span class="rounded-full px-2.5 py-1 text-[10px] font-black ' + (capability.guest ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700") + '">有嘉宾卡</span></div><div class="mt-3"><div class="text-[10px] font-black ' + parseMeta.textClass + '">' + parseMeta.label + '</div><div class="mt-1 h-1.5 w-40 rounded-full ' + parseMeta.trackClass + '"><div class="h-1.5 rounded-full ' + parseMeta.barClass + '" style="width:' + parseMeta.percent + '%"></div></div></div></td>' +
+          '<td class="px-10 py-7 text-center"><span class="' + statusClass + ' px-4 py-1.5 rounded-full text-[11px] font-black">' + statusText + '</span></td>' +
+          '<td class="px-10 py-7 text-sm font-bold text-stone-500">' + fmtDate(row.publishedAt || row.createdAt) + '</td>' +
+          '<td class="px-10 py-7 text-right"><div class="inline-flex gap-2">' +
+          '<button data-action="edit" data-id="' + row._id + '" class="rounded-full border border-stone-200 px-4 py-2 text-xs font-bold text-stone-700">编辑</button>' +
+          '<button data-action="status" data-id="' + row._id + '" class="rounded-full border border-stone-200 px-4 py-2 text-xs font-bold text-stone-700">' + (row.status === "published" ? "下架" : "发布") + '</button>' +
+          '<button data-action="delete" data-id="' + row._id + '" class="rounded-full border border-red-100 px-4 py-2 text-xs font-bold text-red-500">删除</button>' +
+          "</div></td></tr>";
+      })
+      .join("");
+    if (summaryEl) {
+      summaryEl.textContent = "正在显示 1-" + visiblePrograms.length + " 项，共 " + programs.length + " 项资源";
+    }
+    refreshRelatedHint();
+  }
+
+  function refreshFilterUI() {
+    filterButtons.forEach(function (button) {
+      const filter = button.getAttribute("data-filter");
+      if (filter === currentFilter) {
+        button.className = "bg-white/10 px-4 py-2 rounded-xl text-xs font-black text-ink/90";
+      } else {
+        button.className = "px-4 py-2 rounded-xl text-xs font-black text-ink/60 hover:bg-white/5";
+      }
+    });
+  }
+
+  async function loadPrograms() {
+    if (isLoadingPrograms) return;
+    isLoadingPrograms = true;
+    try {
+      const response = await fetch("/api/admin/programs", { headers: authHeaders() });
+      if (!response.ok) throw new Error("获取节目失败");
+      programs = await response.json();
+      renderRows();
+      const hasParsing = (programs || []).some(function (item) { return item && item.parseStatus === "parsing"; });
+      if (hasParsing && !listParsePollingTimer) {
+        listParsePollingTimer = setInterval(loadPrograms, 3000);
+      }
+      if (!hasParsing) {
+        clearListParsePolling();
+      }
+    } catch (error) {
+      tableBody.innerHTML = '<tr><td colspan="7" class="px-10 py-12 text-sm text-red-500">节目加载失败，请检查后端服务和登录状态</td></tr>';
+    } finally {
+      isLoadingPrograms = false;
+    }
+  }
+
+  async function saveProgram(event) {
+    event.preventDefault();
+    saveBtn.disabled = true;
+    const effectiveAudioUrl = (uploadedAudioUrl || form.episodeUrl.value || "").trim();
+    saveBtn.textContent = "保存中...";
+    setAiStatus("", "normal");
+
+    if (!hasText(form.title.value) || !hasText(form.description.value) || !hasText(form.coverImage.value)) {
+      alert("请填写节目标题、节目简介、封面 URL。");
+      saveBtn.disabled = false;
+      saveBtn.textContent = "保存";
+      return;
+    }
+    if (!hasText(form.episodeTitle.value) || !hasText(form.episodeDuration.value) || !hasText(form.episodeUrl.value)) {
+      alert("请补全单集标题、时长、音频 URL。");
+      saveBtn.disabled = false;
+      saveBtn.textContent = "保存";
+      return;
+    }
+
+    const transcriptCheck = validateStructuredLines(form.transcriptRaw.value, 3);
+    if (!transcriptCheck.ok) {
+      alert("逐字稿第 " + transcriptCheck.lineNo + " 行格式不正确，请使用：时间|说话人|内容|featured(可选)");
+      saveBtn.disabled = false;
+      saveBtn.textContent = "保存";
+      return;
+    }
+    const curatedCheck = validateStructuredLines(form.curatedReadingRaw.value, 1);
+    if (!curatedCheck.ok) {
+      alert("推荐阅读第 " + curatedCheck.lineNo + " 行至少需要填写标题，可选格式：标题|副标题|链接");
+      saveBtn.disabled = false;
+      saveBtn.textContent = "保存";
+      return;
+    }
+    const glossaryCheck = validateGlossaryLines(form.termGlossaryRaw.value);
+    if (!glossaryCheck.ok) {
+      setAiStatus("术语表第 " + glossaryCheck.lineNo + " 行格式不规范，已自动忽略该行并继续保存。", "error");
+    }
+
+    // 前后台字段映射（详情页唯一来源）:
+    // episodes[0].title/duration/url
+    // summary.headline/body/highlightLabel/highlightText/tags
+    // transcript[]
+    // guest.name/title/bio/avatar/profileUrl
+    // deepDive.sectionTitle/curatedReading[]
+    const speakerAliasMap = parseSpeakerAliasMap(form.speakerAliasRaw.value);
+
+    const payload = {
+      title: form.title.value.trim(),
+      description: form.description.value.trim(),
+      coverImage: form.coverImage.value.trim(),
+      status: form.status.value,
+      episodes: [
+        {
+          title: form.episodeTitle.value.trim(),
+          duration: form.episodeDuration.value.trim(),
+          url: form.episodeUrl.value.trim(),
+        },
+      ],
+      summary: {
+        headline: form.summaryHeadline.value.trim(),
+        body: form.summaryBody.value.trim(),
+        highlightLabel: form.summaryHighlightLabel.value.trim(),
+        highlightText: form.summaryHighlightText.value.trim(),
+        tags: form.summaryTags.value.split(",").map((s) => s.trim()).filter(Boolean),
+      },
+      guest: {
+        name: form.guestName.value.trim(),
+        title: form.guestTitle.value.trim(),
+        bio: form.guestBio.value.trim(),
+        avatar: form.guestAvatar.value.trim(),
+        profileUrl: form.guestProfileUrl.value.trim(),
+      },
+      deepDive: {
+        sectionTitle: form.deepDiveTitle.value.trim(),
+        curatedReading: parseLines(form.curatedReadingRaw.value, function (line) {
+          const parts = line.split("|").map((p) => p.trim());
+          if (!parts[0]) return null;
+          return { title: parts[0], subtitle: parts[1] || "", url: parts[2] || "" };
+        }),
+      },
+      termGlossary: parseGlossaryLines(form.termGlossaryRaw.value),
+      transcript: parseLines(form.transcriptRaw.value, function (line) {
+        const parts = line.split("|").map((p) => p.trim());
+        if (!parts[0] || !parts[1] || !parts[2]) return null;
+        const rawSpeaker = parts[1];
+        const displaySpeaker = speakerAliasMap[rawSpeaker] || rawSpeaker;
+        return { time: parts[0], speaker: displaySpeaker, text: parts[2], featured: parts[3] === "featured" || parts[3] === "true" };
+      }),
+      autoGenerate: false,
+      uploadedAudioUrl: effectiveAudioUrl,
+    };
+    try {
+      const url = editingId ? "/api/admin/programs/" + editingId : "/api/admin/programs";
+      const method = editingId ? "PUT" : "POST";
+      const response = await fetch(url, { method: method, headers: authHeaders(), body: JSON.stringify(payload) });
+      const savedProgram = await response.json().catch(function () { return {}; });
+      if (!response.ok) {
+        throw new Error((savedProgram && savedProgram.message) || "保存失败");
+      }
+      setAiStatus("保存成功", "success");
+      const createdId = !editingId ? savedProgram && savedProgram._id : null;
+      closeModal();
+      await loadPrograms();
+      if (createdId && window.confirm("节目已创建，是否立即预览详情页？")) {
+        window.open("/programs/" + createdId, "_blank", "noopener,noreferrer");
+      }
+    } catch (error) {
+      const message = (error && error.message) ? error.message : "保存失败，请检查输入格式或后端状态";
+      setAiStatus(message, "error");
+      alert(message);
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = "保存";
+    }
+  }
+
+  async function triggerAiGenerateFromModal() {
+    if (!editingId) {
+      setAiStatus("请先保存节目，再执行 AI 解析", "error");
+      return;
+    }
+    const effectiveAudioUrl = (form.episodeUrl.value || "").trim();
+    if (!hasText(effectiveAudioUrl)) {
+      setAiStatus("当前节目缺少音频 URL，无法解析", "error");
+      return;
+    }
+    if (aiGenerateBtn) aiGenerateBtn.disabled = true;
+    setAiStatus("正在触发 AI 解析...", "normal");
+    try {
+      const response = await fetch("/api/admin/programs/" + editingId + "/parse", {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      const data = await response.json().catch(function () { return {}; });
+      if (!response.ok && response.status !== 409) {
+        throw new Error((data && data.message) || "触发 AI 解析失败");
+      }
+      setParseStatusUI({ parseStatus: "parsing" });
+      setAiStatus(response.status === 409 ? "解析任务已在进行中" : "已触发 AI 解析，请稍候...", "normal");
+      pollParseStatus(editingId);
+      await loadPrograms();
+    } catch (error) {
+      setAiStatus((error && error.message) ? error.message : "触发 AI 解析失败", "error");
+    } finally {
+      if (aiGenerateBtn) aiGenerateBtn.disabled = false;
+    }
+  }
+
+  function openAudioParseModal() {
+    preParseUploadedAudioUrl = "";
+    audioParseFileInput.value = "";
+    setPreParseProgress(0);
+    setPreParseStatus("请选择音频文件", "normal");
+    startAudioParseBtn.classList.add("opacity-40", "pointer-events-none");
+    audioParseModal.classList.remove("hidden");
+    audioParseModal.classList.add("flex");
+  }
+
+  function closeAudioParseModal() {
+    audioParseModal.classList.remove("flex");
+    audioParseModal.classList.add("hidden");
+  }
+
+  async function createDraftAndParse() {
+    if (!preParseUploadedAudioUrl) {
+      setPreParseStatus("请先上传音频", "error");
+      return;
+    }
+    startAudioParseBtn.classList.add("opacity-40", "pointer-events-none");
+    setPreParseStatus("创建草稿并触发解析中...", "normal");
+    try {
+      const response = await fetch("/api/admin/programs/create-from-audio", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ uploadedAudioUrl: preParseUploadedAudioUrl }),
+      });
+      const data = await response.json().catch(function () { return {}; });
+      if (!response.ok) {
+        throw new Error((data && data.message) || "创建解析草稿失败");
+      }
+      closeAudioParseModal();
+      await loadPrograms();
+      const programId = data.programId;
+      const program = await fetchProgramById(programId);
+      openModal(program);
+      setAiStatus("后台正在解析音频，可先继续编辑内容", "normal");
+    } catch (error) {
+      setPreParseStatus((error && error.message) ? error.message : "触发解析失败", "error");
+      startAudioParseBtn.classList.remove("opacity-40", "pointer-events-none");
+    }
+  }
+
+  tableBody.addEventListener("click", async function (event) {
+    const target = event.target.closest("button[data-action]");
+    if (!target) return;
+    const id = target.getAttribute("data-id");
+    const action = target.getAttribute("data-action");
+    const program = programs.find((item) => item._id === id);
+    if (!id || !action) return;
+    if (action === "edit" && program) {
+      openModal(program);
+      return;
+    }
+    if (action === "status" && program) {
+      const nextStatus = program.status === "published" ? "draft" : "published";
+      if (nextStatus === "published") {
+        const missing = getMissingKeys(program);
+        if (missing.length > 0) {
+          const ok = window.confirm("该节目缺少关键字段（" + missing.join("、") + "），发布后前台能力可能不完整。是否继续发布？");
+          if (!ok) return;
+        }
+      }
+      await fetch("/api/admin/programs/" + id + "/status", {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      await loadPrograms();
+      return;
+    }
+    if (action === "delete") {
+      if (!window.confirm("确认删除该节目吗？")) return;
+      await fetch("/api/admin/programs/" + id, { method: "DELETE", headers: authHeaders() });
+      await loadPrograms();
+    }
+  });
+
+  if (openBtn) {
+    openBtn.addEventListener("click", function () { openModal(null); });
+  }
+  if (openAudioParseBtn) {
+    openAudioParseBtn.addEventListener("click", openAudioParseModal);
+  }
+  if (publishCenterTrigger) {
+    publishCenterTrigger.addEventListener("click", function () { openModal(null); });
+  }
+  audioUploadInput.addEventListener("change", function () {
+    const file = audioUploadInput.files && audioUploadInput.files[0];
+    if (!file) {
+      setUploadProgress(0);
+      setAudioUploadStatus("未上传音频文件", "normal");
+      return;
+    }
+    uploadAudioFile(file);
+  });
+  if (coverImageUploadInput) {
+    coverImageUploadInput.addEventListener("change", function () {
+      const file = coverImageUploadInput.files && coverImageUploadInput.files[0];
+      if (!file) {
+        setImageUploadStatus("cover", hasText(form.coverImage.value) ? "已配置封面图片 URL" : "未上传封面图片", hasText(form.coverImage.value) ? "success" : "normal");
+        return;
+      }
+      uploadImageFile(file, "cover");
+    });
+  }
+  if (guestAvatarUploadInput) {
+    guestAvatarUploadInput.addEventListener("change", function () {
+      const file = guestAvatarUploadInput.files && guestAvatarUploadInput.files[0];
+      if (!file) {
+        setImageUploadStatus("guest", hasText(form.guestAvatar.value) ? "已配置嘉宾头像 URL" : "未上传嘉宾头像", hasText(form.guestAvatar.value) ? "success" : "normal");
+        return;
+      }
+      uploadImageFile(file, "guest");
+    });
+  }
+  if (audioParseFileInput) {
+    audioParseFileInput.addEventListener("change", function () {
+      const file = audioParseFileInput.files && audioParseFileInput.files[0];
+      if (!file) {
+        preParseUploadedAudioUrl = "";
+        setPreParseProgress(0);
+        setPreParseStatus("请选择音频文件", "normal");
+        startAudioParseBtn.classList.add("opacity-40", "pointer-events-none");
+        return;
+      }
+      uploadAudioForPreParse(file);
+    });
+  }
+  if (startAudioParseBtn) {
+    startAudioParseBtn.addEventListener("click", createDraftAndParse);
+  }
+  if (closeAudioParseBtn) {
+    closeAudioParseBtn.addEventListener("click", closeAudioParseModal);
+  }
+  if (cancelAudioParseBtn) {
+    cancelAudioParseBtn.addEventListener("click", closeAudioParseModal);
+  }
+  if (audioParseModal) {
+    audioParseModal.addEventListener("click", function (event) {
+      if (event.target === audioParseModal) closeAudioParseModal();
+    });
+  }
+  if (retryParseBtn) {
+    retryParseBtn.addEventListener("click", async function () {
+      if (!editingId) return;
+      try {
+        const response = await fetch("/api/admin/programs/" + editingId + "/parse", {
+          method: "POST",
+          headers: authHeaders(),
+        });
+        const data = await response.json().catch(function () { return {}; });
+        if (!response.ok && response.status !== 409) {
+          throw new Error((data && data.message) || "触发重试失败");
+        }
+        setAiStatus("已触发重试解析，请稍候...", "normal");
+        setParseStatusUI({ parseStatus: "parsing" });
+        pollParseStatus(editingId);
+      } catch (error) {
+        setAiStatus((error && error.message) ? error.message : "触发重试失败", "error");
+      }
+    });
+  }
+  if (aiGenerateBtn) {
+    aiGenerateBtn.addEventListener("click", triggerAiGenerateFromModal);
+  }
+  filterButtons.forEach(function (button) {
+    button.addEventListener("click", function () {
+      const next = button.getAttribute("data-filter") || "all";
+      currentFilter = next;
+      refreshFilterUI();
+      renderRows();
+    });
+  });
+  closeBtn.addEventListener("click", closeModal);
+  cancelBtn.addEventListener("click", closeModal);
+  modal.addEventListener("click", function (event) {
+    if (event.target === modal) closeModal();
+  });
+  window.addEventListener("beforeunload", function () {
+    clearParsePolling();
+    clearListParsePolling();
+  });
+  form.addEventListener("input", function () {
+    formDirtySinceOpen = true;
+    refreshCapabilityHints();
+  });
+  form.addEventListener("submit", saveProgram);
+
+  refreshFilterUI();
+  setPreviewState(null);
+  refreshCapabilityHints();
+  loadPrograms();
+})();
+</script>
+</body></html>

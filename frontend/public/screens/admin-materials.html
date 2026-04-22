@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html class="dark" data-theme="dark" lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>家长先疯 | 先疯管理 - 学习资料</title>
+    <link href="/screens/admin.css" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      (function () {
+        try {
+          const t = localStorage.getItem("adminTheme");
+          if (t === "light") {
+            document.documentElement.dataset.theme = "light";
+            document.documentElement.classList.remove("dark");
+          }
+        } catch (_e) {}
+      })();
+    </script>
+    <style>
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        background-color: var(--panel);
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        background-image: radial-gradient(var(--grid) 1px, transparent 1px);
+        background-size: 56px 56px;
+      }
+      :root {
+        --panel: #0b1020;
+        --panel2: #0e1630;
+        --ink: #e6e9f2;
+        --muted: #98a2b3;
+        --line: rgba(255, 255, 255, 0.08);
+        --grid: rgba(94, 23, 235, 0.18);
+        --r-shell: 28px;
+        --r-card: 22px;
+        --r-item: 16px;
+        --r-control: 14px;
+        --r-pill: 9999px;
+      }
+      html[data-theme="light"] {
+        --panel: #f6f7fb;
+        --panel2: #ffffff;
+        --ink: #0f172a;
+        --muted: #475569;
+        --line: rgba(15, 23, 42, 0.12);
+        --grid: rgba(94, 23, 235, 0.07);
+      }
+      html[data-theme="light"] .shadow-glow {
+        box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.06), 0 18px 48px -28px rgba(15, 23, 42, 0.28) !important;
+      }
+      html[data-theme="light"] [class*="hover:bg-white/5"]:hover {
+        background: rgba(15, 23, 42, 0.04) !important;
+      }
+      html[data-theme="light"] [class*="bg-white/5"] {
+        background: rgba(15, 23, 42, 0.03) !important;
+      }
+      html[data-theme="light"] [class*="bg-white/10"] {
+        background: rgba(15, 23, 42, 0.06) !important;
+      }
+      html[data-theme="light"] [class*="ring-white/10"] {
+        box-shadow: inset 0 0 0 1px rgba(94, 23, 235, 0.16) !important;
+      }
+      .theme-toggle {
+        border-radius: var(--r-pill) !important;
+        overflow: hidden;
+      }
+      .theme-toggle button[data-active="true"] {
+        background: rgba(94, 23, 235, 0.14);
+        color: #5e17eb;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="min-h-screen">
+      <aside class="fixed inset-y-0 left-0 w-[280px] border-r border-line bg-panel/70 backdrop-blur-xl">
+        <div class="flex h-full flex-col">
+          <div class="flex items-center gap-3 px-6 pt-6 pb-5">
+            <img alt="家长先疯" class="h-8 w-auto object-contain" src="/assets/logo.png" />
+          </div>
+          <nav class="flex-1 px-4 pb-4">
+            <div class="mb-3 px-2 text-[11px] font-black uppercase tracking-[0.22em] text-muted/70">导航</div>
+            <a data-nav="dashboard" href="/admin" class="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-ink/90 hover:bg-white/5">
+              <span class="material-symbols-outlined text-[20px]">space_dashboard</span>
+              数据概览
+            </a>
+            <div class="mt-6 mb-3 px-2 text-[11px] font-black uppercase tracking-[0.22em] text-muted/70">内容管理</div>
+            <a data-nav="programs" href="/admin/programs" class="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-ink/90 hover:bg-white/5">
+              <span class="material-symbols-outlined text-[20px]">podcasts</span>
+              播客管理
+            </a>
+            <a data-nav="books" href="/admin/books" class="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-ink/90 hover:bg-white/5">
+              <span class="material-symbols-outlined text-[20px]">menu_book</span>
+              书单管理
+            </a>
+            <a data-nav="materials" href="/admin/materials" class="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-ink/90 hover:bg-white/5">
+              <span class="material-symbols-outlined text-[20px]">school</span>
+              学习资料
+            </a>
+            <div class="mt-6 mb-3 px-2 text-[11px] font-black uppercase tracking-[0.22em] text-muted/70">系统</div>
+            <a data-nav="users" href="/admin/users" class="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-ink/90 hover:bg-white/5">
+              <span class="material-symbols-outlined text-[20px]">group</span>
+              用户管理
+            </a>
+            <a data-nav="system" href="/admin/system" class="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-ink/90 hover:bg-white/5">
+              <span class="material-symbols-outlined text-[20px]">settings</span>
+              系统信息
+            </a>
+          </nav>
+          <div class="border-t border-line p-4">
+            <div class="flex items-center justify-between rounded-2xl bg-white/5 px-4 py-3">
+              <div class="flex items-center gap-3">
+                <div id="admin-avatar" class="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/20 text-sm font-black text-primary">A</div>
+                <div class="flex flex-col">
+                  <div id="admin-username" class="text-sm font-bold text-ink/90">管理员</div>
+                  <div class="text-[11px] font-bold text-muted/80">已登录</div>
+                </div>
+              </div>
+              <button id="admin-logout-btn" class="flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-panel2/60 text-ink/70 hover:text-ink" type="button" aria-label="登出">
+                <span class="material-symbols-outlined text-[20px]">logout</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <main class="ml-[280px] min-h-screen px-10 py-8">
+        <header class="mb-7 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div class="space-y-1">
+            <div class="text-[11px] font-black uppercase tracking-[0.26em] text-muted/70">先疯管理</div>
+            <div class="text-3xl font-black tracking-tight">学习资料</div>
+          </div>
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="theme-toggle flex overflow-hidden rounded-2xl border border-line bg-panel2/60">
+              <button id="theme-dark-btn" type="button" class="flex h-11 w-11 items-center justify-center border-r border-line text-ink/70 hover:text-ink" aria-label="深色模式">
+                <span class="material-symbols-outlined text-[20px]">dark_mode</span>
+              </button>
+              <button id="theme-light-btn" type="button" class="flex h-11 w-11 items-center justify-center text-ink/70 hover:text-ink" aria-label="浅色模式">
+                <span class="material-symbols-outlined text-[20px]">light_mode</span>
+              </button>
+            </div>
+            <div class="flex rounded-2xl border border-line bg-panel2/60 p-1">
+              <button data-filter="all" class="filter-btn rounded-xl px-4 py-2 text-xs font-black text-ink/90">全部</button>
+              <button data-filter="published" class="filter-btn rounded-xl px-4 py-2 text-xs font-black text-ink/60">已发布</button>
+              <button data-filter="draft" class="filter-btn rounded-xl px-4 py-2 text-xs font-black text-ink/60">草稿</button>
+            </div>
+            <button id="create-btn" class="rounded-2xl bg-primary px-5 py-3 text-sm font-black text-white hover:opacity-95" type="button">
+              <span class="material-symbols-outlined mr-2 align-[-4px] text-[20px]">add_circle</span>
+              新建资料
+            </button>
+          </div>
+        </header>
+
+        <section class="rounded-3xl border border-line bg-panel2/60 shadow-[0_0_0_1px_rgba(255,255,255,0.06)]">
+          <div class="overflow-x-auto">
+            <table class="w-full min-w-[980px] text-left">
+              <thead class="border-b border-line bg-panel/40 text-[11px] font-black uppercase tracking-[0.22em] text-muted/70">
+                <tr>
+                  <th class="px-8 py-5">资料</th>
+                  <th class="px-8 py-5">分类</th>
+                  <th class="px-8 py-5">文件</th>
+                  <th class="px-8 py-5">状态</th>
+                  <th class="px-8 py-5">更新时间</th>
+                  <th class="px-8 py-5 text-right">操作</th>
+                </tr>
+              </thead>
+              <tbody id="table" class="divide-y divide-white/5"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="modal" class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/35 p-6 backdrop-blur-sm">
+      <div class="w-full max-w-3xl rounded-3xl border border-line bg-panel2/90 p-7 shadow-2xl">
+        <div class="mb-6 flex items-center justify-between">
+          <div>
+            <div id="modal-title" class="text-2xl font-black tracking-tight">新建资料</div>
+            <div class="mt-1 text-sm font-bold text-muted/80">基础字段维护：标题/分类/文件URL/简介/状态。</div>
+          </div>
+          <button id="close-modal-btn" class="flex h-10 w-10 items-center justify-center rounded-2xl border border-line bg-panel/60 text-ink/70 hover:text-ink" type="button">
+            <span class="material-symbols-outlined text-[20px]">close</span>
+          </button>
+        </div>
+        <form id="form" class="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <input id="f-title" class="rounded-2xl border border-line bg-panel/60 px-5 py-3 text-sm font-bold text-ink/90 placeholder:text-muted/70 md:col-span-2" placeholder="资料标题" />
+          <input id="f-category" class="rounded-2xl border border-line bg-panel/60 px-5 py-3 text-sm font-bold text-ink/90 placeholder:text-muted/70" placeholder="分类" />
+          <input id="f-file" class="rounded-2xl border border-line bg-panel/60 px-5 py-3 text-sm font-bold text-ink/90 placeholder:text-muted/70" placeholder="文件 URL（可为 /uploads/...）" />
+          <textarea id="f-desc" class="min-h-[120px] rounded-2xl border border-line bg-panel/60 px-5 py-3 text-sm font-bold text-ink/90 placeholder:text-muted/70 md:col-span-2" placeholder="资料简介"></textarea>
+          <select id="f-status" class="rounded-2xl border border-line bg-panel/60 px-5 py-3 text-sm font-black text-ink/90 md:col-span-2">
+            <option value="draft">保存为草稿</option>
+            <option value="published">直接发布</option>
+          </select>
+          <div class="mt-2 flex justify-end gap-3 md:col-span-2">
+            <button id="cancel-btn" type="button" class="rounded-2xl border border-line bg-panel/60 px-5 py-3 text-sm font-black text-ink/80 hover:bg-white/5">取消</button>
+            <button id="save-btn" type="submit" class="rounded-2xl bg-primary px-6 py-3 text-sm font-black text-white hover:opacity-95">保存</button>
+          </div>
+          <div id="hint" class="md:col-span-2 text-xs font-bold text-muted/80"></div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        function isEmbedded() {
+          try {
+            return window.self !== window.top;
+          } catch (_e) {
+            return true;
+          }
+        }
+
+        function requestNavigate(path) {
+          try {
+            window.parent.postMessage({ type: "admin:navigate", path: path }, window.location.origin);
+          } catch (_e) {}
+        }
+
+        const token = localStorage.getItem("token");
+        if (!token) {
+          if (isEmbedded()) {
+            requestNavigate("/admin/login");
+            return;
+          }
+          window.location.href = "/admin/login";
+          return;
+        }
+
+        function applyTheme(theme) {
+          const normalized = theme === "light" ? "light" : "dark";
+          document.documentElement.dataset.theme = normalized;
+          if (normalized === "dark") {
+            document.documentElement.classList.add("dark");
+          } else {
+            document.documentElement.classList.remove("dark");
+          }
+          const darkBtn = document.getElementById("theme-dark-btn");
+          const lightBtn = document.getElementById("theme-light-btn");
+          if (darkBtn) darkBtn.setAttribute("data-active", normalized === "dark" ? "true" : "false");
+          if (lightBtn) lightBtn.setAttribute("data-active", normalized === "light" ? "true" : "false");
+        }
+
+        const savedTheme = localStorage.getItem("adminTheme") || "dark";
+        applyTheme(savedTheme);
+        const darkBtn = document.getElementById("theme-dark-btn");
+        const lightBtn = document.getElementById("theme-light-btn");
+        if (darkBtn) {
+          darkBtn.addEventListener("click", function () {
+            localStorage.setItem("adminTheme", "dark");
+            applyTheme("dark");
+          });
+        }
+        if (lightBtn) {
+          lightBtn.addEventListener("click", function () {
+            localStorage.setItem("adminTheme", "light");
+            applyTheme("light");
+          });
+        }
+
+        const userRaw = localStorage.getItem("user");
+        const sessionUser = userRaw ? JSON.parse(userRaw) : null;
+        const username = (sessionUser && (sessionUser.username || sessionUser.name)) || "管理员";
+        document.getElementById("admin-username").textContent = username;
+        document.getElementById("admin-avatar").textContent = String(username || "A").slice(0, 1).toUpperCase();
+
+        const currentPath = window.location.pathname || "/admin/materials";
+        const map = {
+          "/admin": "dashboard",
+          "/admin/": "dashboard",
+          "/admin/programs": "programs",
+          "/admin/books": "books",
+          "/admin/materials": "materials",
+          "/admin/users": "users",
+          "/admin/system": "system",
+          "/screens/admin-dashboard.html": "dashboard",
+          "/screens/admin-programs.html": "programs",
+          "/screens/admin-books.html": "books",
+          "/screens/admin-materials.html": "materials",
+          "/screens/admin-users.html": "users",
+          "/screens/admin-system.html": "system",
+        };
+        const activeKey = map[currentPath] || "materials";
+        const activeLink = document.querySelector('[data-nav="' + activeKey + '"]');
+        if (activeLink) activeLink.classList.add("bg-white/5", "ring-1", "ring-white/10");
+
+        document.getElementById("admin-logout-btn").addEventListener("click", function () {
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          if (isEmbedded()) {
+            requestNavigate("/admin/login");
+            return;
+          }
+          window.location.href = "/admin/login";
+        });
+
+        document.addEventListener(
+          "click",
+          function (event) {
+            const target = event.target;
+            const link = target && target.closest ? target.closest('a[href^="/admin"]') : null;
+            if (!link) return;
+            if (!isEmbedded()) return;
+            const href = link.getAttribute("href");
+            if (!href) return;
+            event.preventDefault();
+            if (href === "/admin/login") {
+              requestNavigate(href);
+              return;
+            }
+            const routeMap = {
+              "/admin": "dashboard",
+              "/admin/": "dashboard",
+              "/admin/programs": "programs",
+              "/admin/books": "books",
+              "/admin/materials": "materials",
+              "/admin/users": "users",
+              "/admin/system": "system",
+            };
+            const key = routeMap[href];
+            if (key) {
+              try {
+                window.parent.postMessage({ type: "admin:switch", key: key }, window.location.origin);
+              } catch (_e) {}
+            }
+          },
+          true
+        );
+
+        function authHeaders() {
+          return { "Content-Type": "application/json", Authorization: "Bearer " + token };
+        }
+
+        const table = document.getElementById("table");
+        const modal = document.getElementById("modal");
+        const modalTitle = document.getElementById("modal-title");
+        const createBtn = document.getElementById("create-btn");
+        const closeModalBtn = document.getElementById("close-modal-btn");
+        const cancelBtn = document.getElementById("cancel-btn");
+        const form = document.getElementById("form");
+        const saveBtn = document.getElementById("save-btn");
+        const hint = document.getElementById("hint");
+
+        const fTitle = document.getElementById("f-title");
+        const fCategory = document.getElementById("f-category");
+        const fFile = document.getElementById("f-file");
+        const fDesc = document.getElementById("f-desc");
+        const fStatus = document.getElementById("f-status");
+
+        let items = [];
+        let editingId = null;
+        let currentFilter = "all";
+
+        function fmtDate(input) {
+          if (!input) return "-";
+          const d = new Date(input);
+          if (Number.isNaN(d.getTime())) return "-";
+          return d.toLocaleDateString("zh-CN");
+        }
+
+        function openModal(item) {
+          editingId = item ? item._id : null;
+          modalTitle.textContent = editingId ? "编辑资料" : "新建资料";
+          fTitle.value = item ? (item.title || "") : "";
+          fCategory.value = item ? (item.category || "") : "";
+          fFile.value = item ? (item.fileUrl || "") : "";
+          fDesc.value = item ? (item.description || "") : "";
+          fStatus.value = item ? (item.status || "draft") : "draft";
+          hint.textContent = "";
+          modal.classList.remove("hidden");
+          modal.classList.add("flex");
+        }
+
+        function closeModal() {
+          modal.classList.remove("flex");
+          modal.classList.add("hidden");
+          editingId = null;
+        }
+
+        async function load() {
+          const res = await fetch("/api/admin/learning-materials", { headers: authHeaders() });
+          if (!res.ok) throw new Error("加载失败");
+          items = await res.json();
+        }
+
+        function render() {
+          const visible = items.filter((row) => (currentFilter === "all" ? true : row.status === currentFilter));
+          if (!visible.length) {
+            table.innerHTML = '<tr><td colspan="6" class="px-8 py-10 text-sm font-bold text-muted/80">暂无资料</td></tr>';
+            return;
+          }
+          table.innerHTML = visible
+            .map((row) => {
+              const statusBadge =
+                row.status === "published"
+                  ? '<span class="rounded-full bg-emerald-500/15 px-3 py-1 text-[11px] font-black text-emerald-300">已发布</span>'
+                  : '<span class="rounded-full bg-amber-500/15 px-3 py-1 text-[11px] font-black text-amber-300">草稿</span>';
+              const fileBadge = row.fileUrl
+                ? '<a class="rounded-full bg-white/10 px-3 py-1 text-[11px] font-black text-ink/70 hover:bg-white/15" href="' +
+                  row.fileUrl +
+                  '" target="_blank" rel="noopener noreferrer">预览</a>'
+                : '<span class="rounded-full bg-white/5 px-3 py-1 text-[11px] font-black text-ink/40">无</span>';
+              return (
+                '<tr class="hover:bg-white/3">' +
+                '<td class="px-8 py-5"><div class="flex items-center gap-4"><div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-ink/70"><span class="material-symbols-outlined text-[20px]">description</span></div><div><div class="text-sm font-black text-ink/90">' +
+                (row.title || "-") +
+                '</div><div class="text-[11px] font-bold text-muted/80">' +
+                String(row._id || "").slice(-8).toUpperCase() +
+                "</div></div></div></td>" +
+                '<td class="px-8 py-5 text-sm font-bold text-ink/80">' +
+                (row.category || "-") +
+                "</td>" +
+                '<td class="px-8 py-5">' +
+                fileBadge +
+                "</td>" +
+                '<td class="px-8 py-5">' +
+                statusBadge +
+                "</td>" +
+                '<td class="px-8 py-5 text-sm font-bold text-muted/80">' +
+                fmtDate(row.updatedAt || row.createdAt) +
+                "</td>" +
+                '<td class="px-8 py-5 text-right"><div class="inline-flex gap-2">' +
+                '<button data-action="edit" data-id="' +
+                row._id +
+                '" class="rounded-2xl border border-line bg-panel/60 px-4 py-2 text-xs font-black text-ink/80 hover:bg-white/5">编辑</button>' +
+                '<button data-action="status" data-id="' +
+                row._id +
+                '" class="rounded-2xl border border-line bg-panel/60 px-4 py-2 text-xs font-black text-ink/80 hover:bg-white/5">' +
+                (row.status === "published" ? "下架" : "发布") +
+                "</button>" +
+                '<button data-action="delete" data-id="' +
+                row._id +
+                '" class="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-2 text-xs font-black text-red-200 hover:bg-red-500/15">删除</button>' +
+                "</div></td></tr>"
+              );
+            })
+            .join("");
+        }
+
+        async function refresh() {
+          try {
+            await load();
+            render();
+          } catch (_e) {
+            table.innerHTML = '<tr><td colspan="6" class="px-8 py-10 text-sm font-bold text-red-200">加载失败</td></tr>';
+          }
+        }
+
+        async function save(event) {
+          event.preventDefault();
+          const payload = {
+            title: String(fTitle.value || "").trim(),
+            category: String(fCategory.value || "").trim(),
+            fileUrl: String(fFile.value || "").trim(),
+            description: String(fDesc.value || "").trim(),
+            status: fStatus.value,
+          };
+          if (!payload.title || !payload.category) {
+            hint.textContent = "请填写标题与分类";
+            return;
+          }
+          saveBtn.disabled = true;
+          saveBtn.textContent = "保存中...";
+          try {
+            const url = editingId ? "/api/admin/learning-materials/" + editingId : "/api/admin/learning-materials";
+            const method = editingId ? "PUT" : "POST";
+            const res = await fetch(url, { method, headers: authHeaders(), body: JSON.stringify(payload) });
+            const data = await res.json().catch(function () { return {}; });
+            if (!res.ok) throw new Error((data && data.message) || "保存失败");
+            closeModal();
+            await refresh();
+          } catch (e) {
+            hint.textContent = (e && e.message) ? e.message : "保存失败";
+          } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = "保存";
+          }
+        }
+
+        async function updateStatus(id, nextStatus) {
+          await fetch("/api/admin/learning-materials/" + id + "/status", {
+            method: "PATCH",
+            headers: authHeaders(),
+            body: JSON.stringify({ status: nextStatus }),
+          });
+          await refresh();
+        }
+
+        async function del(id) {
+          if (!window.confirm("确认删除该资料吗？")) return;
+          await fetch("/api/admin/learning-materials/" + id, { method: "DELETE", headers: authHeaders() });
+          await refresh();
+        }
+
+        if (createBtn) createBtn.addEventListener("click", function () { openModal(null); });
+        if (closeModalBtn) closeModalBtn.addEventListener("click", closeModal);
+        if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
+        if (modal) modal.addEventListener("click", function (event) { if (event.target === modal) closeModal(); });
+        if (form) form.addEventListener("submit", save);
+
+        const filterButtons = Array.from(document.querySelectorAll("button[data-filter]"));
+        function refreshFilterUI() {
+          filterButtons.forEach(function (button) {
+            const key = button.getAttribute("data-filter") || "all";
+            if (key === currentFilter) {
+              button.className = "filter-btn rounded-xl bg-white/10 px-4 py-2 text-xs font-black text-ink/90";
+            } else {
+              button.className = "filter-btn rounded-xl px-4 py-2 text-xs font-black text-ink/60 hover:bg-white/5";
+            }
+          });
+        }
+        filterButtons.forEach(function (button) {
+          button.addEventListener("click", function () {
+            currentFilter = button.getAttribute("data-filter") || "all";
+            refreshFilterUI();
+            render();
+          });
+        });
+        refreshFilterUI();
+
+        if (table) {
+          table.addEventListener("click", function (event) {
+            const btn = event.target.closest("button[data-action]");
+            if (!btn) return;
+            const action = btn.getAttribute("data-action");
+            const id = btn.getAttribute("data-id");
+            const item = items.find((x) => x._id === id);
+            if (!id) return;
+            if (action === "edit" && item) openModal(item);
+            if (action === "status" && item) updateStatus(id, item.status === "published" ? "draft" : "published");
+            if (action === "delete") del(id);
+          });
+        }
+
+        refresh();
+      })();
+    </script>
+  </body>
+</html>

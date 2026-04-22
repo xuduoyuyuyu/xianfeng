@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+@source "../public/screens/admin-*.html";
+
+@theme {
+  --color-primary: #5e17eb;
+  --color-panel: var(--panel);
+  --color-panel2: var(--panel2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+
+  --color-signature-violet: #5e17eb;
+  --color-warm-gray: #7a746e;
+  --color-muted-teal: #5e8b8e;
+  --color-soft-teal: #e8f1f2;
+  --color-cream: #fcf9f1;
+}
+
+@layer base {
+  body {
+    font-family: "Noto Sans SC", "Plus Jakarta Sans", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: var(--panel);
+    color: var(--ink);
+    background-image: radial-gradient(var(--grid) 1px, transparent 1px);
+    background-size: 56px 56px;
+  }
+}
+
