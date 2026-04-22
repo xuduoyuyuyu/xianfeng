@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { adminApi, Program } from "../../services/api";
 
 type StatusFilter = "all" | "published" | "draft";
@@ -23,6 +23,14 @@ type FormState = {
   deepDiveTitle: string;
   curatedReadingRaw: string;
   status: "draft" | "published";
+};
+
+type TranscriptEditorRow = {
+  id: string;
+  time: string;
+  speaker: string;
+  text: string;
+  featured: boolean;
 };
 
 const EMPTY_FORM: FormState = {
@@ -51,6 +59,13 @@ const EMPTY_FORM: FormState = {
 const STATUS_LABEL: Record<Program["status"], string> = {
   draft: "草稿箱",
   published: "已发布",
+};
+
+const PARSE_STATUS_LABEL: Record<NonNullable<Program["parseStatus"]>, string> = {
+  idle: "待解析",
+  parsing: "解析中",
+  success: "解析完成",
+  failed: "解析失败",
 };
 
 function formatDate(date?: string): string {
@@ -109,6 +124,31 @@ function formatCuratedReadingForForm(curatedReading?: NonNullable<Program["deepD
   return curatedReading.map((item) => `${item.title}|${item.subtitle || ""}|${item.url || ""}`).join("\n");
 }
 
+function parseTranscriptRows(raw: string): TranscriptEditorRow[] {
+  const lines = raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  return lines.map((line, index) => {
+    const [time = "", speaker = "", text = "", featured = ""] = line.split("|").map((part) => part.trim());
+    return {
+      id: `${Date.now()}-${index}`,
+      time,
+      speaker,
+      text,
+      featured: featured === "featured" || featured === "1" || featured === "true",
+    };
+  });
+}
+
+function serializeTranscriptRows(rows: TranscriptEditorRow[]): string {
+  return rows
+    .map((row) => [row.time.trim(), row.speaker.trim(), row.text.trim(), row.featured ? "featured" : ""].filter(Boolean).join("|"))
+    .filter(Boolean)
+    .join("\n");
+}
+
 const AdminProgramsPage: React.FC = () => {
   const [items, setItems] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,6 +159,13 @@ const AdminProgramsPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [isUploadingAudio, setIsUploadingAudio] = useState(false);
+  const [parseHint, setParseHint] = useState<string>("");
+  const [parsingProgramId, setParsingProgramId] = useState<string | null>(null);
+  const [isTranscriptEditorOpen, setIsTranscriptEditorOpen] = useState(false);
+  const [transcriptRows, setTranscriptRows] = useState<TranscriptEditorRow[]>([]);
+  const audioInputRef = useRef<HTMLInputElement | null>(null);
+  const parsePollTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -200,13 +247,150 @@ const AdminProgramsPage: React.FC = () => {
 
   const closeModal = () => {
     setIsModalOpen(false);
+    setIsTranscriptEditorOpen(false);
+    setTranscriptRows([]);
     setEditingProgram(null);
     setForm(EMPTY_FORM);
   };
 
+  useEffect(() => {
+    return () => {
+      if (parsePollTimerRef.current !== null) {
+        window.clearInterval(parsePollTimerRef.current);
+        parsePollTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isModalOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (isTranscriptEditorOpen) {
+          setIsTranscriptEditorOpen(false);
+          return;
+        }
+        closeModal();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isModalOpen, isTranscriptEditorOpen]);
+
+  const openTranscriptEditor = () => {
+    const rows = parseTranscriptRows(form.transcriptRaw);
+    setTranscriptRows(rows.length > 0 ? rows : [{ id: `${Date.now()}-0`, time: "", speaker: "", text: "", featured: false }]);
+    setIsTranscriptEditorOpen(true);
+  };
+
+  const saveTranscriptEditor = () => {
+    setForm((prev) => ({
+      ...prev,
+      transcriptRaw: serializeTranscriptRows(transcriptRows),
+    }));
+    setIsTranscriptEditorOpen(false);
+  };
+
+  const updateTranscriptRow = (id: string, patch: Partial<TranscriptEditorRow>) => {
+    setTranscriptRows((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+  };
+
+  const addTranscriptRow = () => {
+    setTranscriptRows((prev) => [...prev, { id: `${Date.now()}-${prev.length}`, time: "", speaker: "", text: "", featured: false }]);
+  };
+
+  const removeTranscriptRow = (id: string) => {
+    setTranscriptRows((prev) => {
+      if (prev.length <= 1) return prev;
+      return prev.filter((row) => row.id !== id);
+    });
+  };
+
   const refreshList = async () => {
-    const response = await adminApi.getPrograms(statusFilter === "all" ? undefined : statusFilter);
-    setItems(response.data || []);
+    try {
+      const response = await adminApi.getPrograms(statusFilter === "all" ? undefined : statusFilter);
+      setItems(response.data || []);
+    } catch (loadError: any) {
+      setError(loadError?.response?.data?.message || loadError?.message || "刷新列表失败");
+    }
+  };
+
+  const startParsePolling = (programId: string) => {
+    if (parsePollTimerRef.current !== null) {
+      window.clearInterval(parsePollTimerRef.current);
+      parsePollTimerRef.current = null;
+    }
+    setParsingProgramId(programId);
+    parsePollTimerRef.current = window.setInterval(async () => {
+      try {
+        const response = await adminApi.getProgramParseStatus(programId);
+        const status = response.data?.parseStatus;
+        if (status === "parsing") {
+          setParseHint("AI 正在解析音频，请稍候...");
+          return;
+        }
+        if (parsePollTimerRef.current !== null) {
+          window.clearInterval(parsePollTimerRef.current);
+          parsePollTimerRef.current = null;
+        }
+        setParsingProgramId(null);
+        if (status === "success") {
+          setParseHint("解析完成，草稿内容已自动生成。");
+        } else if (status === "failed") {
+          setParseHint(`解析失败：${response.data?.parseError || "请稍后重试"}`);
+        } else {
+          setParseHint("");
+        }
+        await refreshList();
+      } catch (pollError: any) {
+        if (parsePollTimerRef.current !== null) {
+          window.clearInterval(parsePollTimerRef.current);
+          parsePollTimerRef.current = null;
+        }
+        setParsingProgramId(null);
+        setParseHint(pollError?.response?.data?.message || pollError?.message || "轮询解析状态失败");
+      }
+    }, 3000);
+  };
+
+  const handleAudioUpload = async (file: File) => {
+    try {
+      setError(null);
+      setIsUploadingAudio(true);
+      setParseHint("正在上传音频...");
+      const uploadRes = await adminApi.uploadProgramAudio(file);
+      setParseHint("上传成功，正在创建解析草稿...");
+      const createRes = await adminApi.createProgramFromAudio(uploadRes.data.url);
+      const programId = createRes.data?.programId;
+      if (programId) {
+        setParseHint("解析任务已启动，正在处理...");
+        await refreshList();
+        startParsePolling(programId);
+      } else {
+        setParseHint("任务已提交，请刷新列表查看状态。");
+      }
+    } catch (uploadError: any) {
+      setError(uploadError?.response?.data?.message || uploadError?.message || "上传并解析失败");
+      setParseHint("");
+    } finally {
+      setIsUploadingAudio(false);
+    }
+  };
+
+  const handleAudioFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    await handleAudioUpload(file);
+  };
+
+  const handleAudioDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const file = event.dataTransfer.files?.[0];
+    if (!file) return;
+    await handleAudioUpload(file);
   };
 
   const handleSave = async (event: React.FormEvent) => {
@@ -389,14 +573,29 @@ const AdminProgramsPage: React.FC = () => {
               </div>
               <span className="rounded-full bg-[#E8F1F2] px-4 py-1.5 text-sm font-bold text-[#5E8B8E]">待处理队列: {stats.draft} 份文件</span>
             </div>
-            <div className="group cursor-pointer rounded-3xl border-2 border-dashed border-stone-200 bg-[#FCF9F1]/30 p-16 text-center transition-all hover:border-[#5e17eb]/30 hover:bg-[#FCF9F1]/50" onClick={openCreate}>
+            <input ref={audioInputRef} type="file" accept="audio/*" className="hidden" onChange={handleAudioFileSelect} />
+            <div
+              className="group cursor-pointer rounded-3xl border-2 border-dashed border-stone-200 bg-[#FCF9F1]/30 p-16 text-center transition-all hover:border-[#5e17eb]/30 hover:bg-[#FCF9F1]/50"
+              onClick={() => audioInputRef.current?.click()}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={handleAudioDrop}
+            >
               <div className="mb-6 inline-flex h-24 w-24 items-center justify-center rounded-full bg-white shadow-sm transition-transform group-hover:scale-110">
                 <span className="material-symbols-outlined text-5xl text-[#5e17eb]/40">cloud_upload</span>
               </div>
               <p className="text-xl font-bold text-stone-800">
-                拖拽文件至此处，或 <span className="text-[#5e17eb] underline underline-offset-4">点击浏览</span>
+                拖拽音频到这里，或 <span className="text-[#5e17eb] underline underline-offset-4">点击上传解析</span>
               </p>
-              <p className="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-[#7A746E]">这里已联通真实后台能力，点击即可新增节目内容。</p>
+              <p className="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-[#7A746E]">
+                独立入口：上传后自动创建草稿并触发 AI 解析，解析完成后可直接进入编辑。
+              </p>
+              <div className="mt-5">
+                <span className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-bold text-[#5e17eb] shadow-sm">
+                  <span className={`h-2 w-2 rounded-full ${isUploadingAudio || parsingProgramId ? "bg-amber-500 animate-pulse" : "bg-emerald-500"}`}></span>
+                  {isUploadingAudio ? "上传中..." : parsingProgramId ? "解析中..." : "等待上传"}
+                </span>
+              </div>
+              {parseHint ? <p className="mx-auto mt-3 max-w-xl text-xs text-stone-500">{parseHint}</p> : null}
             </div>
           </div>
 
@@ -498,6 +697,17 @@ const AdminProgramsPage: React.FC = () => {
                           <div>
                             <div className="mb-0.5 font-bold text-stone-900">{row.title}</div>
                             <div className="text-[10px] font-medium tracking-widest text-[#7A746E]">UUID: {row._id.slice(-8).toUpperCase()}</div>
+                            {row.parseStatus && row.parseStatus !== "idle" ? (
+                              <div className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                row.parseStatus === "success"
+                                  ? "bg-emerald-50 text-emerald-700"
+                                  : row.parseStatus === "failed"
+                                  ? "bg-red-50 text-red-600"
+                                  : "bg-amber-50 text-amber-700"
+                              }`}>
+                                {PARSE_STATUS_LABEL[row.parseStatus]}
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       </td>
@@ -540,14 +750,25 @@ const AdminProgramsPage: React.FC = () => {
       </main>
 
       {isModalOpen ? (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 p-6 backdrop-blur-sm">
-          <div className="w-full max-w-3xl rounded-[2rem] bg-white p-8 shadow-2xl">
+        <div
+          className="fixed inset-0 z-[60] overflow-y-auto bg-black/30 p-4 backdrop-blur-sm md:p-6"
+          onClick={closeModal}
+        >
+          <div
+            className="mx-auto my-6 w-full max-w-3xl rounded-[2rem] bg-white p-6 shadow-2xl md:my-10 md:p-8"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="mb-6 flex items-center justify-between">
               <div>
                 <h3 className="text-2xl font-black text-stone-900">{editingProgram ? "编辑节目" : "新增节目"}</h3>
                 <p className="mt-1 text-sm text-[#7A746E]">保存后即可在后台继续发布，下架后前台详情页会自动同步。</p>
               </div>
-              <button className="material-symbols-outlined text-stone-400 transition-colors hover:text-stone-700" onClick={closeModal}>
+              <button
+                aria-label="关闭弹窗"
+                className="material-symbols-outlined text-stone-400 transition-colors hover:text-stone-700"
+                onClick={closeModal}
+                type="button"
+              >
                 close
               </button>
             </div>
@@ -588,6 +809,21 @@ const AdminProgramsPage: React.FC = () => {
                     value={form.transcriptRaw}
                     onChange={(event) => setForm((prev) => ({ ...prev, transcriptRaw: event.target.value }))}
                   />
+                  <div className="md:col-span-2 rounded-2xl border border-[#5e17eb]/20 bg-[#f7f3ff] px-4 py-3">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <p className="text-xs text-[#5b5491]">
+                        逐字稿建议在大视窗中校对。支持分行编辑、实时预览、标记 featured。
+                      </p>
+                      <button
+                        className="inline-flex items-center gap-2 rounded-full bg-[#5e17eb] px-4 py-2 text-xs font-bold text-white hover:bg-[#5112d1]"
+                        onClick={openTranscriptEditor}
+                        type="button"
+                      >
+                        <span className="material-symbols-outlined text-sm">splitscreen_right</span>
+                        打开逐字稿校对视窗
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -605,6 +841,107 @@ const AdminProgramsPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {isTranscriptEditorOpen ? (
+        <div className="fixed inset-0 z-[70] bg-black/40 p-3 backdrop-blur-sm md:p-6" onClick={() => setIsTranscriptEditorOpen(false)}>
+          <div
+            className="mx-auto flex h-full w-full max-w-[1600px] flex-col rounded-2xl bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4 md:px-8">
+              <div>
+                <h3 className="text-lg font-black text-stone-900">逐字稿校对视窗</h3>
+                <p className="text-xs text-stone-500">左侧逐条编辑，右侧实时预览，保存后回写到表单。</p>
+              </div>
+              <button
+                className="material-symbols-outlined text-stone-500 hover:text-stone-800"
+                onClick={() => setIsTranscriptEditorOpen(false)}
+                type="button"
+              >
+                close
+              </button>
+            </div>
+
+            <div className="grid flex-1 grid-cols-1 gap-0 overflow-hidden lg:grid-cols-2">
+              <div className="flex min-h-0 flex-col border-r border-stone-100">
+                <div className="flex items-center justify-between border-b border-stone-100 px-5 py-3 md:px-6">
+                  <div className="text-xs font-bold text-stone-500">逐条编辑（{transcriptRows.length} 条）</div>
+                  <button className="rounded-full border border-stone-200 px-3 py-1.5 text-xs font-bold text-stone-700 hover:border-[#5e17eb] hover:text-[#5e17eb]" onClick={addTranscriptRow} type="button">
+                    + 新增一条
+                  </button>
+                </div>
+                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 md:px-6">
+                  {transcriptRows.map((row, index) => (
+                    <div key={row.id} className="rounded-xl border border-stone-200 bg-stone-50/50 p-3">
+                      <div className="mb-2 flex items-center justify-between">
+                        <div className="text-xs font-bold text-stone-500">#{index + 1}</div>
+                        <button className="text-xs font-bold text-red-500 hover:text-red-600 disabled:opacity-40" disabled={transcriptRows.length <= 1} onClick={() => removeTranscriptRow(row.id)} type="button">
+                          删除
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                        <input
+                          className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm"
+                          placeholder="时间，如 03:48-04:07"
+                          value={row.time}
+                          onChange={(event) => updateTranscriptRow(row.id, { time: event.target.value })}
+                        />
+                        <input
+                          className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm"
+                          placeholder="说话人，如 jessie"
+                          value={row.speaker}
+                          onChange={(event) => updateTranscriptRow(row.id, { speaker: event.target.value })}
+                        />
+                      </div>
+                      <textarea
+                        className="mt-2 min-h-[90px] w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm"
+                        placeholder="发言内容"
+                        value={row.text}
+                        onChange={(event) => updateTranscriptRow(row.id, { text: event.target.value })}
+                      />
+                      <label className="mt-2 inline-flex items-center gap-2 text-xs font-medium text-stone-600">
+                        <input type="checkbox" checked={row.featured} onChange={(event) => updateTranscriptRow(row.id, { featured: event.target.checked })} />
+                        标记为 featured
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex min-h-0 flex-col">
+                <div className="border-b border-stone-100 px-5 py-3 text-xs font-bold text-stone-500 md:px-6">实时预览</div>
+                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 md:px-6">
+                  {transcriptRows.filter((row) => row.time || row.speaker || row.text).length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-stone-200 bg-stone-50 p-6 text-sm text-stone-400">暂无内容，请在左侧输入逐字稿。</div>
+                  ) : (
+                    transcriptRows
+                      .filter((row) => row.time || row.speaker || row.text)
+                      .map((row) => (
+                        <article key={row.id} className="rounded-xl border border-stone-200 bg-white p-4">
+                          <div className="mb-2 flex items-center gap-2 text-xs">
+                            <span className="rounded bg-stone-100 px-2 py-0.5 font-bold text-stone-600">{row.time || "--:--"}</span>
+                            <span className="font-semibold text-stone-700">{row.speaker || "未命名说话人"}</span>
+                            {row.featured ? <span className="rounded bg-[#5e17eb]/10 px-2 py-0.5 font-bold text-[#5e17eb]">featured</span> : null}
+                          </div>
+                          <p className="whitespace-pre-wrap text-sm leading-6 text-stone-700">{row.text || "（暂无内容）"}</p>
+                        </article>
+                      ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-stone-100 px-5 py-4 md:px-8">
+              <button className="rounded-full border border-stone-200 px-5 py-2.5 text-sm font-bold text-stone-700" onClick={() => setIsTranscriptEditorOpen(false)} type="button">
+                取消
+              </button>
+              <button className="rounded-full bg-[#5e17eb] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#5112d1]" onClick={saveTranscriptEditor} type="button">
+                保存逐字稿修改
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

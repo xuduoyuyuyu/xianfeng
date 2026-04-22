@@ -96,6 +96,10 @@ export interface Program {
   guest?: ProgramGuest;
   deepDive?: ProgramDeepDive;
   status: 'draft' | 'published';
+  parseStatus?: 'idle' | 'parsing' | 'success' | 'failed';
+  parseError?: string;
+  parseStartedAt?: string;
+  parseFinishedAt?: string;
   publishedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -159,6 +163,14 @@ export interface SystemInfo {
   };
 }
 
+export interface ProgramParseTask {
+  programId: string;
+  parseStatus: "idle" | "parsing" | "success" | "failed";
+  parseError?: string;
+  parseStartedAt?: string | null;
+  parseFinishedAt?: string | null;
+}
+
 export interface LoginResponse {
   token: string;
   user: User;
@@ -189,6 +201,19 @@ export const adminApi = {
   deleteProgram: (id: string) => api.delete(`/admin/programs/${id}`),
   updateProgramStatus: (id: string, status: 'draft' | 'published') => 
     api.patch<Program>(`/admin/programs/${id}/status`, { status }),
+  uploadProgramAudio: (file: File) => {
+    const formData = new FormData();
+    formData.append("audio", file);
+    return api.post<{ url: string; filename: string; originalName: string; mimeType: string; size: number }>(
+      "/admin/programs/upload-audio",
+      formData,
+      { headers: { "Content-Type": "multipart/form-data" } }
+    );
+  },
+  createProgramFromAudio: (uploadedAudioUrl: string) =>
+    api.post<ProgramParseTask>("/admin/programs/create-from-audio", { uploadedAudioUrl }),
+  triggerProgramParse: (id: string) => api.post<ProgramParseTask>(`/admin/programs/${id}/parse`),
+  getProgramParseStatus: (id: string) => api.get<ProgramParseTask>(`/admin/programs/${id}/parse-status`),
   
   // 书单管理
   getBooks: (status?: string) => api.get<Book[]>('/admin/books', { params: { status } }),

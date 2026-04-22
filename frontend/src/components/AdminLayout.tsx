@@ -1,8 +1,8 @@
-import React from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
-import { useSelector, useDispatch } from 'react-redux';
-import { RootState } from '../store';
-import { logout } from '../store/userSlice';
+import React from "react";
+import { Outlet, Link, useLocation } from "react-router-dom";
+import { useSelector, useDispatch } from "react-redux";
+import { RootState } from "../store";
+import { logout } from "../store/userSlice";
 
 const AdminLayout: React.FC = () => {
   const { user } = useSelector((state: RootState) => state.user);
@@ -15,6 +15,20 @@ const AdminLayout: React.FC = () => {
   };
 
   const isActive = (path: string) => location.pathname === path;
+  const navItemClass = (active: boolean) =>
+    `group flex items-center gap-3 px-4 py-3 rounded-xl border transition-all duration-200 ${
+      active
+        ? "bg-[#5e17eb] text-white border-[#5e17eb] shadow-[0_8px_18px_-8px_rgba(94,23,235,0.7)]"
+        : "bg-white text-stone-600 border-transparent hover:bg-[#f6f3ff] hover:text-[#4e18c9] hover:border-[#e8dcff]"
+    }`;
+
+  const navIconClass = (active: boolean) =>
+    `material-symbols-outlined text-[19px] transition-colors ${
+      active ? "text-white" : "text-stone-400 group-hover:text-[#5e17eb]"
+    }`;
+
+  const navTextClass = (active: boolean) =>
+    `text-sm transition-colors ${active ? "font-semibold text-white" : "font-medium text-stone-600 group-hover:text-[#4e18c9]"}`;
 
   return (
     <div className="min-h-screen bg-[#FAF8F6] flex">
@@ -26,72 +40,48 @@ const AdminLayout: React.FC = () => {
           </Link>
           <p className="text-xs text-stone-400 mt-1">管理控制台</p>
         </div>
-        <nav className="p-4 space-y-2">
+        <nav className="p-4 space-y-2.5">
           <Link
             to="/admin"
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-              isActive('/admin') 
-                ? 'bg-[#5e17eb] text-white' 
-                : 'text-stone-600 hover:bg-stone-50'
-            }`}
+            className={navItemClass(isActive("/admin"))}
           >
-            <span className="material-symbols-outlined">dashboard</span>
-            <span className="font-medium text-sm">总览</span>
+            <span className={navIconClass(isActive("/admin"))}>dashboard</span>
+            <span className={navTextClass(isActive("/admin"))}>总览</span>
           </Link>
           <Link
             to="/admin/programs"
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-              isActive('/admin/programs') 
-                ? 'bg-[#5e17eb] text-white' 
-                : 'text-stone-600 hover:bg-stone-50'
-            }`}
+            className={navItemClass(isActive("/admin/programs"))}
           >
-            <span className="material-symbols-outlined">podcasts</span>
-            <span className="font-medium text-sm">播客管理</span>
+            <span className={navIconClass(isActive("/admin/programs"))}>podcasts</span>
+            <span className={navTextClass(isActive("/admin/programs"))}>播客管理</span>
           </Link>
           <Link
             to="/admin/books"
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-              isActive('/admin/books') 
-                ? 'bg-[#5e17eb] text-white' 
-                : 'text-stone-600 hover:bg-stone-50'
-            }`}
+            className={navItemClass(isActive("/admin/books"))}
           >
-            <span className="material-symbols-outlined">menu_book</span>
-            <span className="font-medium text-sm">书单管理</span>
+            <span className={navIconClass(isActive("/admin/books"))}>menu_book</span>
+            <span className={navTextClass(isActive("/admin/books"))}>书单管理</span>
           </Link>
           <Link
             to="/admin/materials"
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-              isActive('/admin/materials') 
-                ? 'bg-[#5e17eb] text-white' 
-                : 'text-stone-600 hover:bg-stone-50'
-            }`}
+            className={navItemClass(isActive("/admin/materials"))}
           >
-            <span className="material-symbols-outlined">school</span>
-            <span className="font-medium text-sm">学习资料</span>
+            <span className={navIconClass(isActive("/admin/materials"))}>school</span>
+            <span className={navTextClass(isActive("/admin/materials"))}>学习资料</span>
           </Link>
           <Link
             to="/admin/users"
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-              isActive('/admin/users') 
-                ? 'bg-[#5e17eb] text-white' 
-                : 'text-stone-600 hover:bg-stone-50'
-            }`}
+            className={navItemClass(isActive("/admin/users"))}
           >
-            <span className="material-symbols-outlined">group</span>
-            <span className="font-medium text-sm">用户管理</span>
+            <span className={navIconClass(isActive("/admin/users"))}>group</span>
+            <span className={navTextClass(isActive("/admin/users"))}>用户管理</span>
           </Link>
           <Link
             to="/admin/system"
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-              isActive('/admin/system') 
-                ? 'bg-[#5e17eb] text-white' 
-                : 'text-stone-600 hover:bg-stone-50'
-            }`}
+            className={navItemClass(isActive("/admin/system"))}
           >
-            <span className="material-symbols-outlined">settings</span>
-            <span className="font-medium text-sm">系统信息</span>
+            <span className={navIconClass(isActive("/admin/system"))}>settings</span>
+            <span className={navTextClass(isActive("/admin/system"))}>系统信息</span>
           </Link>
         </nav>
       </aside>
