@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import ScreenPage from "./pages/ScreenPage";
 import AdminLoginPage from "./pages/admin/AdminLoginPage";
@@ -15,6 +15,36 @@ import AdminUsersPage from "./pages/admin/AdminUsersPage";
 import AdminSystemPage from "./pages/admin/AdminSystemPage";
 import AdminDictionaryPage from "./pages/admin/AdminDictionaryPage";
 
+const PublicScreenRouter: React.FC = () => {
+  const { pathname, search } = useLocation();
+
+  if (pathname === "/") {
+    return <Navigate to="/programs" replace />;
+  }
+
+  if (/^\/programs\/[^/]+$/.test(pathname)) {
+    const programId = pathname.split("/")[2] || "";
+    const src = `/screens/podcast-detail.html?programId=${encodeURIComponent(programId)}`;
+    return <ScreenPage src={src} title="播客详情" />;
+  }
+
+  const routeMap: Record<string, { src: string; title: string }> = {
+    "/programs": { src: "/screens/podcast-home.html", title: "播客首页" },
+    "/books": { src: "/screens/public-books.html", title: "推荐书单" },
+    "/materials": { src: "/screens/public-materials.html", title: "课程资料" },
+    "/articles": { src: "/screens/public-articles.html", title: "精选文稿" },
+    "/experts": { src: "/screens/public-experts.html", title: "专家采访" },
+    "/community": { src: "/screens/public-community.html", title: "学习社区" },
+  };
+
+  const match = routeMap[pathname];
+  if (!match) {
+    return <Navigate to="/programs" replace />;
+  }
+  const withQuery = search ? `${match.src}${search}` : match.src;
+  return <ScreenPage src={withQuery} title={match.title} />;
+};
+
 const App: React.FC = () => {
   const dispatch = useDispatch();
 
@@ -26,14 +56,6 @@ const App: React.FC = () => {
 
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/programs" replace />} />
-      <Route path="/programs" element={<ScreenPage src="/screens/podcast-home.html" title="播客首页" />} />
-      <Route path="/programs/:id" element={<ScreenPage src="/screens/podcast-detail.html" title="播客详情" />} />
-      <Route path="/books" element={<ScreenPage src="/screens/public-books.html" title="推荐书单" />} />
-      <Route path="/materials" element={<ScreenPage src="/screens/public-materials.html" title="课程资料" />} />
-      <Route path="/articles" element={<ScreenPage src="/screens/public-articles.html" title="精选文稿" />} />
-      <Route path="/experts" element={<ScreenPage src="/screens/public-experts.html" title="专家采访" />} />
-      <Route path="/community" element={<ScreenPage src="/screens/public-community.html" title="学习社区" />} />
       <Route path="/login" element={<UserLoginPage />} />
       <Route path="/admin/login" element={<AdminLoginPage />} />
       <Route
@@ -53,7 +75,7 @@ const App: React.FC = () => {
         <Route path="system" element={<AdminSystemPage />} />
         <Route path="*" element={<Navigate to="/admin" replace />} />
       </Route>
-      <Route path="*" element={<Navigate to="/programs" replace />} />
+      <Route path="*" element={<PublicScreenRouter />} />
     </Routes>
   );
 };

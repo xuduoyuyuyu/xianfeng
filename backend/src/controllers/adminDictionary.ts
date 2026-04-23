@@ -18,6 +18,17 @@ function escapeRegex(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function sanitizeProgramIds(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  return Array.from(
+    new Set(
+      input
+        .map((item) => asText(item))
+        .filter((id) => !!id && mongoose.Types.ObjectId.isValid(id))
+    )
+  );
+}
+
 export class AdminDictionaryController {
   async getAll(req: Request, res: Response): Promise<void> {
     try {
@@ -89,6 +100,12 @@ export class AdminDictionaryController {
         return;
       }
 
+      const requestedProgramIds = sanitizeProgramIds(req.body?.programIds);
+      const programs = requestedProgramIds.length
+        ? await Program.find({ _id: { $in: requestedProgramIds } }, { _id: 1 }).lean()
+        : [];
+      const validProgramIds = programs.map((program: any) => String(program._id));
+
       const entry = await EducationDictionaryEntry.create({
         term,
         normalizedTerm,
@@ -98,10 +115,17 @@ export class AdminDictionaryController {
           ? req.body.aliases.map((item: unknown) => asText(item)).filter(Boolean)
           : [],
         relatedEntryIds: [],
-        programIds: [],
+        programIds: validProgramIds.map((id) => new mongoose.Types.ObjectId(id)),
         createdFrom: "migration",
         status: req.body?.status === "hidden" ? "hidden" : "active",
       });
+
+      if (validProgramIds.length > 0) {
+        await Program.updateMany(
+          { _id: { $in: validProgramIds } },
+          { $addToSet: { dictionaryEntryIds: entry._id } }
+        );
+      }
 
       await recalculateAllRelatedDictionaryEntries();
       res.status(201).json(serializeDictionaryEntry(entry.toObject()));

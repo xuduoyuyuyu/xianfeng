@@ -15,6 +15,52 @@ const ScreenPage: React.FC<Props> = ({ src, title }) => {
   const frame0Ref = useRef<HTMLIFrameElement | null>(null);
   const frame1Ref = useRef<HTMLIFrameElement | null>(null);
 
+  function shouldInterceptPath(pathname: string): boolean {
+    return /^\/(programs(\/[^/]+)?|books|materials|articles|experts|community)$/.test(pathname);
+  }
+
+  function bindFrameNavigation(frame: HTMLIFrameElement | null): void {
+    const frameWindow = frame?.contentWindow;
+    const frameDocument = frameWindow?.document;
+    if (!frameWindow || !frameDocument) return;
+    if ((frameDocument as any).__xfNavBound) return;
+
+    const onClick = (event: MouseEvent) => {
+      if (event.defaultPrevented) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      if (event.button !== 0) return;
+
+      const target = event.target as Element | null;
+      const anchor = target?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!anchor) return;
+      if (anchor.target && anchor.target !== "_self") return;
+
+      const href = anchor.getAttribute("href") || "";
+      if (!href || href.startsWith("#") || href.startsWith("javascript:")) return;
+
+      let nextUrl: URL;
+      try {
+        nextUrl = new URL(href, window.location.origin);
+      } catch (_error) {
+        return;
+      }
+      if (nextUrl.origin !== window.location.origin) return;
+      if (!shouldInterceptPath(nextUrl.pathname)) return;
+
+      const nextPath = `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`;
+      const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      if (nextPath === currentPath) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      window.history.pushState({}, "", nextPath);
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    };
+
+    frameDocument.addEventListener("click", onClick, true);
+    (frameDocument as any).__xfNavBound = true;
+  }
+
   useEffect(() => {
     return () => {
       if (failSafeTimer.current) {
@@ -58,6 +104,7 @@ const ScreenPage: React.FC<Props> = ({ src, title }) => {
     const readyCheck = window.setTimeout(() => {
       if (loadingSlotRef.current !== slot) return;
       try {
+        bindFrameNavigation(target || null);
         if (target?.contentDocument?.readyState === "complete") {
           onFrameLoad(slot);
         }
@@ -79,6 +126,7 @@ const ScreenPage: React.FC<Props> = ({ src, title }) => {
   }, [loadingSlot]);
 
   function onFrameLoad(slot: 0 | 1) {
+    bindFrameNavigation(slot === 0 ? frame0Ref.current : frame1Ref.current);
     if (loadingSlot === null) return;
     if (slot !== loadingSlot) return;
     setActiveSlot(slot);

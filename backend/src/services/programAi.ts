@@ -287,7 +287,12 @@ function buildParagraphTranscriptFromTimedItems(items: TimedUtterance[], fallbac
     });
   }
 
-  const finalParagraphs = mergedParagraphs.slice(0, 18);
+  // Keep full transcript by default; optionally cap via env for extreme payloads.
+  const maxParagraphs = Number(process.env.AI_TRANSCRIPT_MAX_PARAGRAPHS || 0);
+  const finalParagraphs =
+    Number.isFinite(maxParagraphs) && maxParagraphs > 0
+      ? mergedParagraphs.slice(0, Math.floor(maxParagraphs))
+      : mergedParagraphs;
   const speakerLabels = resolveRoleLabels(finalParagraphs);
   const transcript = finalParagraphs.map((item, idx) => ({
     time: `${formatClock(item.startSec)}-${formatClock(item.endSec)}`,
@@ -315,7 +320,12 @@ function splitToTranscriptParagraphs(text: string, durationSeconds: number): Tra
   const paragraphs = grouped.length > 0 ? grouped : [normalized];
   const safeDuration = Math.max(60, durationSeconds || 120);
   const gap = Math.max(15, Math.floor(safeDuration / paragraphs.length));
-  return paragraphs.slice(0, 18).map((item, idx) => ({
+  const maxParagraphs = Number(process.env.AI_TRANSCRIPT_MAX_PARAGRAPHS || 0);
+  const outputParagraphs =
+    Number.isFinite(maxParagraphs) && maxParagraphs > 0
+      ? paragraphs.slice(0, Math.floor(maxParagraphs))
+      : paragraphs;
+  return outputParagraphs.map((item, idx) => ({
     time: `${formatClock(idx * gap)}-${formatClock(Math.min(safeDuration, (idx + 1) * gap))}`,
     speaker: idx % 2 === 0 ? "主持人" : "嘉宾",
     text: item.endsWith("。") ? item : `${item}。`,

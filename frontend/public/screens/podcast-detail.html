@@ -677,7 +677,8 @@
   function annotateGlossaryTerms(rawText, glossary, globalHitMap) {
     const hitMap = globalHitMap || {};
     const list = Array.isArray(glossary) ? glossary.slice() : [];
-    if (!list.length) return escapeHtml(String(rawText || ""));
+    const raw = String(rawText || "");
+    if (!list.length) return escapeHtml(raw);
     const variants = [];
     list.forEach(function (item) {
       const definition = String(item && item.definition || "").trim();
@@ -699,27 +700,42 @@
     variants.sort(function (a, b) {
       return String(b.label || "").length - String(a.label || "").length;
     });
-    let html = escapeHtml(String(rawText || ""));
-    for (let i = 0; i < variants.length; i += 1) {
-      const item = variants[i] || {};
-      const label = String(item.label || "").trim();
-      const definition = String(item.definition || "").trim();
-      if (!label || !definition) continue;
-      const escapedTerm = escapeRegex(escapeHtml(label));
-      const reg = new RegExp(escapedTerm, "g");
-      html = html.replace(reg, function () {
-        hitMap[label] = Number(hitMap[label] || 0) + 1;
-        const isFirst = hitMap[label] === 1 && !!item.isPrimary;
-        const className = isFirst ? "transcript-term-link transcript-term-link--primary" : "transcript-term-link";
-        const safeDefinition = escapeHtml(definition);
-        const sourceUrl = String(item.sourceUrl || "").trim();
-        const sourceLink = sourceUrl
-          ? '<a class="transcript-term-tooltip-link" href="' + escapeHtml(sourceUrl) + '" target="_blank" rel="noopener noreferrer">来源</a>'
-          : "";
-        return '<span class="transcript-term-anchor"><span class="' + className + '" title="术语解释">' + escapeHtml(label) + '</span><span class="transcript-term-tooltip"><span class="transcript-term-tooltip-title">' + escapeHtml(item.displayTerm || label) + "</span>" + safeDefinition + sourceLink + "</span></span>";
-      });
+    if (!variants.length) return escapeHtml(raw);
+    const chunks = [];
+    let cursor = 0;
+    while (cursor < raw.length) {
+      let nextMatch = null;
+      for (let i = 0; i < variants.length; i += 1) {
+        const item = variants[i] || {};
+        const label = String(item.label || "");
+        if (!label) continue;
+        const pos = raw.indexOf(label, cursor);
+        if (pos < 0) continue;
+        if (!nextMatch || pos < nextMatch.pos || (pos === nextMatch.pos && label.length > nextMatch.label.length)) {
+          nextMatch = { pos: pos, label: label, item: item };
+        }
+      }
+      if (!nextMatch) break;
+      if (nextMatch.pos > cursor) {
+        chunks.push(escapeHtml(raw.slice(cursor, nextMatch.pos)));
+      }
+      const matchedText = raw.slice(nextMatch.pos, nextMatch.pos + nextMatch.label.length);
+      const displayKey = String(nextMatch.item.displayTerm || nextMatch.label);
+      hitMap[displayKey] = Number(hitMap[displayKey] || 0) + 1;
+      const isFirst = hitMap[displayKey] === 1 && !!nextMatch.item.isPrimary;
+      const className = isFirst ? "transcript-term-link transcript-term-link--primary" : "transcript-term-link";
+      const safeDefinition = escapeHtml(String(nextMatch.item.definition || ""));
+      const sourceUrl = String(nextMatch.item.sourceUrl || "").trim();
+      const sourceLink = sourceUrl
+        ? '<a class="transcript-term-tooltip-link" href="' + escapeHtml(sourceUrl) + '" target="_blank" rel="noopener noreferrer">来源</a>'
+        : "";
+      chunks.push('<span class="transcript-term-anchor"><span class="' + className + '" title="术语解释">' + escapeHtml(matchedText) + '</span><span class="transcript-term-tooltip"><span class="transcript-term-tooltip-title">' + escapeHtml(nextMatch.item.displayTerm || nextMatch.label) + "</span>" + safeDefinition + sourceLink + "</span></span>");
+      cursor = nextMatch.pos + nextMatch.label.length;
     }
-    return html;
+    if (cursor < raw.length) {
+      chunks.push(escapeHtml(raw.slice(cursor)));
+    }
+    return chunks.join("");
   }
 
   function parseClockToSeconds(text) {
@@ -780,6 +796,10 @@
   }
 
   function getIdFromPath() {
+    try {
+      const queryId = new URLSearchParams(window.location.search).get("programId");
+      if (queryId) return queryId;
+    } catch (_error) {}
     const parts = window.location.pathname.split("/").filter(Boolean);
     return parts[parts.length - 1] || "";
   }
@@ -897,7 +917,7 @@
       return '<div class="transcript-row ' + (featured ? "relative group" : "group") + '" data-subtitle-index="' + index + '" data-start-sec="' + range.startSec + '" data-end-sec="' + range.endSec + '">' +
         (featured ? '<div class="absolute -left-12 -right-12 -top-6 -bottom-6 bg-primary/[0.03] rounded-2xl -z-10 opacity-0 group-hover:opacity-100 transition-opacity"></div>' : "") +
         '<div class="transcript-meta-grid grid grid-cols-[80px_minmax(0,1fr)] items-start gap-x-4">' +
-        '<div class="transcript-time-wrap text-left flex items-start"><span class="transcript-time block text-[10px] font-bold leading-[1] tracking-tight ' + (featured ? "text-primary" : "text-gray-400 group-hover:text-primary transition-colors") + '">' + (segment.time || "00:00-00:30") + "</span></div>" +
+        '<div class="transcript-time-wrap text-left flex items-start"><span class="transcript-time block whitespace-nowrap text-[10px] font-bold leading-[1] tracking-tight ' + (featured ? "text-primary" : "text-gray-400 group-hover:text-primary transition-colors") + '">' + (segment.time || "00:00-00:30") + "</span></div>" +
         '<div class="transcript-speaker-wrap text-left flex items-start">' +
         '<p class="transcript-speaker text-[10px] leading-[1] font-black tracking-widest text-primary/70 mt-0 mb-0"><span class="uppercase">' + escapeHtml(resolveSpeakerIdentity(segment.speaker).role) + '</span><span class="mx-1 text-primary/40">|</span><span class="normal-case">' + escapeHtml(resolveSpeakerIdentity(segment.speaker).name) + "</span></p></div>" +
         '<div class="transcript-gap"></div><div class="transcript-content-wrap text-left mt-2">' +

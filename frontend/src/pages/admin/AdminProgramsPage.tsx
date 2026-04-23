@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { adminApi, Program, ProgramAudioCompressionMeta } from "../../services/api";
-import { AudioCompressionError, AudioCompressionStage, compressAudioLossless } from "../../utils/audioCompression";
+import { adminApi, AdminEducationDictionaryEntry, Program } from "../../services/api";
 
 type StatusFilter = "all" | "published" | "draft";
 type FormState = {
@@ -34,7 +33,7 @@ type TranscriptEditorRow = {
   featured: boolean;
 };
 
-type UploadPhase = "idle" | "preparing" | "compressing" | "uploading" | "parsing" | "success" | "failed";
+type UploadPhase = "idle" | "uploading" | "parsing" | "success" | "failed";
 
 type UploadTask = {
   id: string;
@@ -43,7 +42,6 @@ type UploadTask = {
   progress: number;
   programId?: string;
   failureReason?: string;
-  compressedMeta?: ProgramAudioCompressionMeta | null;
 };
 
 type TranscriptValidationIssue = {
@@ -96,15 +94,10 @@ const PARSE_STATUS_LABEL: Record<NonNullable<Program["parseStatus"]>, string> = 
   failed: "解析失败",
 };
 
-const COMPRESS_STAGE_PROGRESS: Record<AudioCompressionStage, number> = {
-  preparing: 6,
-  compressing: 38,
-  finalizing: 60,
-};
-
-const UPLOAD_PROGRESS_START = 60;
+const UPLOAD_PROGRESS_START = 6;
 const UPLOAD_PROGRESS_END = 92;
 const PARSING_PROGRESS = 96;
+const PARSING_PROGRESS_MAX = 99;
 const UPLOAD_TASK_STORAGE_KEY = "admin-program-upload-task";
 const SPEAKER_SUGGESTIONS = ["主持人", "嘉宾1", "嘉宾2", "嘉宾"];
 
@@ -115,26 +108,11 @@ function formatDate(date?: string): string {
   return parsed.toLocaleDateString("zh-CN");
 }
 
-function resolveCompressionErrorMessage(error: unknown): string {
-  if (error instanceof AudioCompressionError) {
-    if (error.code === "UNSUPPORTED_BROWSER") return "当前浏览器不支持前端音频压缩，请使用最新版 Chrome/Safari 后重试。";
-    if (error.code === "INVALID_AUDIO_FILE") return "文件格式不正确，请选择音频文件后重试。";
-    if (error.code === "WASM_INIT_FAILED") return "压缩引擎初始化失败，请刷新页面后重试。";
-    if (error.code === "COMPRESS_FAILED") return "音频压缩失败，请重新选择文件或稍后重试。";
-  }
-  if (error && typeof error === "object" && "message" in error && typeof (error as any).message === "string") {
-    return (error as any).message;
-  }
-  return "压缩失败，请重新选择文件后重试。";
-}
-
 function buildUploadStageHint(phase: UploadPhase, progress: number): string {
-  if (phase === "preparing") return "正在准备压缩引擎...";
-  if (phase === "compressing") return `正在无损压缩音频（整体 ${progress}%）...`;
-  if (phase === "uploading") return `正在上传压缩产物（整体 ${progress}%）...`;
-  if (phase === "parsing") return "压缩上传完成，后台正在创建并解析草稿...";
+  if (phase === "uploading") return `正在上传音频文件（整体 ${progress}%）...`;
+  if (phase === "parsing") return `上传完成，正在解析内容（解析进度 ${progress}%）...`;
   if (phase === "success") return "解析完成，草稿内容已自动生成。";
-  if (phase === "failed") return "压缩上传失败，请重新选择文件后重试。";
+  if (phase === "failed") return "上传失败，请重新选择文件后重试。";
   return "";
 }
 
@@ -144,10 +122,8 @@ function mapUploadTransferProgress(percent: number): number {
 }
 
 function buildUploadTaskTitle(phase: Exclude<UploadPhase, "idle">, progress: number): string {
-  if (phase === "preparing") return "压缩准备中";
-  if (phase === "compressing") return `压缩中 ${progress}%`;
   if (phase === "uploading") return `上传中 ${progress}%`;
-  if (phase === "parsing") return "后台解析中";
+  if (phase === "parsing") return `解析中 ${progress}%`;
   if (phase === "success") return "解析完成";
   return "处理失败";
 }
@@ -174,13 +150,12 @@ function readStoredUploadTask(): UploadTask | null {
       progress: typeof parsed.progress === "number" ? parsed.progress : 0,
       programId: typeof parsed.programId === "string" ? parsed.programId : undefined,
       failureReason: typeof parsed.failureReason === "string" ? parsed.failureReason : "",
-      compressedMeta: parsed.compressedMeta || null,
     };
-    if (restoredTask.phase === "preparing" || restoredTask.phase === "compressing" || restoredTask.phase === "uploading") {
+    if (restoredTask.phase === "uploading") {
       return {
         ...restoredTask,
         phase: "failed",
-        failureReason: "页面刷新后，浏览器端压缩上传已中断，请重新上传。",
+        failureReason: "页面刷新后，上传任务已中断，请重新上传。",
       };
     }
     return restoredTask;
@@ -436,16 +411,24 @@ const AdminProgramsPage: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadPhase, setUploadPhase] = useState<UploadPhase>("idle");
   const [uploadFailureReason, setUploadFailureReason] = useState<string>("");
-  const [compressedMeta, setCompressedMeta] = useState<ProgramAudioCompressionMeta | null>(null);
   const [parseHint, setParseHint] = useState<string>("");
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [pendingAudioFile, setPendingAudioFile] = useState<File | null>(null);
   const [currentUploadTask, setCurrentUploadTask] = useState<UploadTask | null>(() => readStoredUploadTask());
   const [isTranscriptEditorOpen, setIsTranscriptEditorOpen] = useState(false);
   const [transcriptRows, setTranscriptRows] = useState<TranscriptEditorRow[]>([]);
+  const [isDictionaryDialogOpen, setIsDictionaryDialogOpen] = useState(false);
+  const [dictionaryLoading, setDictionaryLoading] = useState(false);
+  const [dictionarySaving, setDictionarySaving] = useState(false);
+  const [dictionaryCreating, setDictionaryCreating] = useState(false);
+  const [dictionarySearch, setDictionarySearch] = useState("");
+  const [newDictionaryTerm, setNewDictionaryTerm] = useState("");
+  const [newDictionaryDefinition, setNewDictionaryDefinition] = useState("");
+  const [dictionaryCandidates, setDictionaryCandidates] = useState<AdminEducationDictionaryEntry[]>([]);
+  const [selectedDictionaryEntryIds, setSelectedDictionaryEntryIds] = useState<string[]>([]);
   const audioInputRef = useRef<HTMLInputElement | null>(null);
   const parsePollTimerRef = useRef<number | null>(null);
-  const compressionProgressTimerRef = useRef<number | null>(null);
+  const parseProgressTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -521,6 +504,15 @@ const AdminProgramsPage: React.FC = () => {
   const closeModal = () => {
     setIsModalOpen(false);
     setIsTranscriptEditorOpen(false);
+    setIsDictionaryDialogOpen(false);
+    setDictionaryCandidates([]);
+    setDictionarySearch("");
+    setNewDictionaryTerm("");
+    setNewDictionaryDefinition("");
+    setSelectedDictionaryEntryIds([]);
+    setDictionarySaving(false);
+    setDictionaryCreating(false);
+    setDictionaryLoading(false);
     setTranscriptRows([]);
     setEditingProgram(null);
     setForm(EMPTY_FORM);
@@ -540,41 +532,41 @@ const AdminProgramsPage: React.FC = () => {
         window.clearInterval(parsePollTimerRef.current);
         parsePollTimerRef.current = null;
       }
-      if (compressionProgressTimerRef.current !== null) {
-        window.clearInterval(compressionProgressTimerRef.current);
-        compressionProgressTimerRef.current = null;
+      if (parseProgressTimerRef.current !== null) {
+        window.clearInterval(parseProgressTimerRef.current);
+        parseProgressTimerRef.current = null;
       }
     };
   }, []);
 
   useEffect(() => {
-    if (uploadPhase !== "compressing") {
-      if (compressionProgressTimerRef.current !== null) {
-        window.clearInterval(compressionProgressTimerRef.current);
-        compressionProgressTimerRef.current = null;
+    if (uploadPhase !== "parsing") {
+      if (parseProgressTimerRef.current !== null) {
+        window.clearInterval(parseProgressTimerRef.current);
+        parseProgressTimerRef.current = null;
       }
       return;
     }
-    if (compressionProgressTimerRef.current !== null) return;
-    compressionProgressTimerRef.current = window.setInterval(() => {
+    if (parseProgressTimerRef.current !== null) return;
+    parseProgressTimerRef.current = window.setInterval(() => {
       setUploadProgress((prev) => {
-        if (prev >= 58) return prev;
-        const next = Math.min(58, prev + (prev < 20 ? 2 : 1));
-        setCurrentUploadTask((task) =>
-          task && task.phase === "compressing" && task.progress < next
-            ? {
-                ...task,
-                progress: next,
-              }
-            : task
-        );
+        const next = Math.min(PARSING_PROGRESS_MAX, prev + 1);
+        if (next !== prev) {
+          setParseHint(buildUploadStageHint("parsing", next));
+        }
         return next;
       });
-    }, 900);
+      setCurrentUploadTask((prev) => {
+        if (!prev || prev.phase !== "parsing") return prev;
+        const next = Math.min(PARSING_PROGRESS_MAX, prev.progress + 1);
+        if (next === prev.progress) return prev;
+        return { ...prev, progress: next };
+      });
+    }, 1800);
     return () => {
-      if (compressionProgressTimerRef.current !== null) {
-        window.clearInterval(compressionProgressTimerRef.current);
-        compressionProgressTimerRef.current = null;
+      if (parseProgressTimerRef.current !== null) {
+        window.clearInterval(parseProgressTimerRef.current);
+        parseProgressTimerRef.current = null;
       }
     };
   }, [uploadPhase]);
@@ -596,6 +588,10 @@ const AdminProgramsPage: React.FC = () => {
     if (!isModalOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        if (isDictionaryDialogOpen) {
+          setIsDictionaryDialogOpen(false);
+          return;
+        }
         if (isTranscriptEditorOpen) {
           setIsTranscriptEditorOpen(false);
           return;
@@ -607,7 +603,7 @@ const AdminProgramsPage: React.FC = () => {
     return () => {
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [isModalOpen, isTranscriptEditorOpen]);
+  }, [isModalOpen, isTranscriptEditorOpen, isDictionaryDialogOpen]);
 
   const openTranscriptEditor = () => {
     const rows = parseTranscriptRows(form.transcriptRaw);
@@ -652,6 +648,33 @@ const AdminProgramsPage: React.FC = () => {
     setTranscriptRows((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
   };
 
+  const renameSpeakerFromRow = (id: string, nextSpeakerRaw: string) => {
+    setTranscriptRows((prev) => {
+      const targetIndex = prev.findIndex((row) => row.id === id);
+      if (targetIndex < 0) return prev;
+
+      const oldSpeaker = prev[targetIndex].speaker.trim();
+      const nextSpeaker = nextSpeakerRaw.trim();
+      const shouldPropagate = oldSpeaker.length > 0 && nextSpeaker.length > 0 && oldSpeaker !== nextSpeaker;
+
+      return prev.map((row, index) => {
+        if (row.id === id) {
+          return {
+            ...row,
+            speaker: nextSpeakerRaw,
+          };
+        }
+        if (shouldPropagate && index > targetIndex && row.speaker.trim() === oldSpeaker) {
+          return {
+            ...row,
+            speaker: nextSpeaker,
+          };
+        }
+        return row;
+      });
+    });
+  };
+
   const addTranscriptRow = () => {
     setTranscriptRows((prev) => [...prev, { id: `${Date.now()}-${prev.length}`, time: "", speaker: "", text: "", featured: false }]);
   };
@@ -682,8 +705,21 @@ const AdminProgramsPage: React.FC = () => {
         const response = await adminApi.getProgramParseStatus(programId);
         const status = response.data?.parseStatus;
         if (status === "parsing") {
-          setParseHint("AI 正在解析音频，请稍候...");
-          setCurrentUploadTask((prev) => (prev?.programId === programId ? { ...prev, phase: "parsing", progress: PARSING_PROGRESS } : prev));
+          setUploadPhase("parsing");
+          setUploadProgress((prev) => {
+            const next = Math.max(PARSING_PROGRESS, Math.min(PARSING_PROGRESS_MAX, prev));
+            setParseHint(buildUploadStageHint("parsing", next));
+            return next;
+          });
+          setCurrentUploadTask((prev) =>
+            prev?.programId === programId
+              ? {
+                  ...prev,
+                  phase: "parsing",
+                  progress: Math.max(PARSING_PROGRESS, Math.min(PARSING_PROGRESS_MAX, prev.progress)),
+                }
+              : prev
+          );
           return;
         }
         if (parsePollTimerRef.current !== null) {
@@ -728,71 +764,20 @@ const AdminProgramsPage: React.FC = () => {
       setIsUploadingAudio(true);
       setUploadProgress(0);
       setUploadFailureReason("");
-      setCompressedMeta(null);
       setCurrentUploadTask({
         id: taskId,
         fileName: file.name,
-        phase: "preparing",
-        progress: COMPRESS_STAGE_PROGRESS.preparing,
+        phase: "uploading",
+        progress: UPLOAD_PROGRESS_START,
         failureReason: "",
-        compressedMeta: null,
       });
 
-      setUploadPhase("preparing");
-      setParseHint(buildUploadStageHint("preparing", COMPRESS_STAGE_PROGRESS.preparing));
-      const compressedResult = await compressAudioLossless(
-        { file },
-        {
-          onStageChange: (stage) => {
-            const nextPhase = stage === "preparing" ? "preparing" : "compressing";
-            const nextProgress = COMPRESS_STAGE_PROGRESS[stage];
-            setUploadPhase(nextPhase);
-            setUploadProgress(nextProgress);
-            setParseHint(buildUploadStageHint(nextPhase, nextProgress));
-            setCurrentUploadTask((prev) =>
-              prev?.id === taskId
-                ? {
-                    ...prev,
-                    phase: nextPhase,
-                    progress: nextProgress,
-                  }
-                : prev
-            );
-          },
-          onProgress: (percent) => {
-            const nextProgress = Math.max(COMPRESS_STAGE_PROGRESS.preparing, Math.min(COMPRESS_STAGE_PROGRESS.finalizing, percent));
-            setUploadPhase("compressing");
-            setUploadProgress(nextProgress);
-            setParseHint(buildUploadStageHint("compressing", nextProgress));
-            setCurrentUploadTask((prev) =>
-              prev?.id === taskId
-                ? {
-                    ...prev,
-                    phase: "compressing",
-                    progress: nextProgress,
-                  }
-                : prev
-            );
-          },
-        }
-      );
-
-      setCompressedMeta(compressedResult.meta);
-      setCurrentUploadTask((prev) =>
-        prev?.id === taskId
-          ? {
-              ...prev,
-              compressedMeta: compressedResult.meta,
-              progress: UPLOAD_PROGRESS_START,
-            }
-          : prev
-      );
       setUploadPhase("uploading");
       setUploadProgress(UPLOAD_PROGRESS_START);
       setParseHint(buildUploadStageHint("uploading", UPLOAD_PROGRESS_START));
-      const uploadRes = await adminApi.uploadProgramAudio(compressedResult.file, {
+      const uploadRes = await adminApi.uploadProgramAudio(file, {
         sourceFileName: file.name,
-        compressionMeta: compressedResult.meta,
+        uploadSource: "passthrough",
         onProgress: (percent) => {
           const nextProgress = mapUploadTransferProgress(percent);
           setUploadProgress(nextProgress);
@@ -833,10 +818,7 @@ const AdminProgramsPage: React.FC = () => {
       }
       return true;
     } catch (uploadError: any) {
-      const isCompressionError = uploadError instanceof AudioCompressionError;
-      const message = isCompressionError
-        ? resolveCompressionErrorMessage(uploadError)
-        : uploadError?.response?.data?.message || uploadError?.message || "上传并解析失败";
+      const message = uploadError?.response?.data?.message || uploadError?.message || "上传并解析失败";
       setUploadPhase("failed");
       setUploadFailureReason(message);
       setError(message);
@@ -864,7 +846,6 @@ const AdminProgramsPage: React.FC = () => {
     setUploadFailureReason("");
     setUploadPhase("idle");
     setUploadProgress(0);
-    setCompressedMeta(null);
     await handleAudioUpload(file);
   };
 
@@ -934,14 +915,92 @@ const AdminProgramsPage: React.FC = () => {
     }
   };
 
-  const handleReimportDictionary = async (program: Program) => {
+  const loadDictionaryCandidates = async (searchValue = "") => {
+    setDictionaryLoading(true);
     try {
-      setError(null);
-      await adminApi.importDictionaryFromPrograms([program._id]);
+      const response = await adminApi.getDictionaryEntries({
+        search: searchValue.trim() || undefined,
+        status: "active",
+      });
+      setDictionaryCandidates(response.data || []);
+    } catch (loadError: any) {
+      setError(loadError?.response?.data?.message || loadError?.message || "加载词典失败");
+    } finally {
+      setDictionaryLoading(false);
+    }
+  };
+
+  const openDictionaryDialog = async () => {
+    if (!editingProgram) return;
+    const initialIds = Array.from(
+      new Set([...(editingProgram.dictionaryEntryIds || []), ...(editingProgram.dictionaryEntries || []).map((entry) => entry._id)])
+    );
+    setSelectedDictionaryEntryIds(initialIds);
+    setDictionarySearch("");
+    setNewDictionaryTerm("");
+    setNewDictionaryDefinition("");
+    setIsDictionaryDialogOpen(true);
+    await loadDictionaryCandidates("");
+  };
+
+  const toggleDictionarySelection = (entryId: string) => {
+    setSelectedDictionaryEntryIds((prev) => (prev.includes(entryId) ? prev.filter((id) => id !== entryId) : [...prev, entryId]));
+  };
+
+  const handleSaveDictionaryBinding = async () => {
+    if (!editingProgram || dictionarySaving) return;
+    setDictionarySaving(true);
+    setError(null);
+    try {
+      await adminApi.updateProgram(editingProgram._id, { dictionaryEntryIds: selectedDictionaryEntryIds });
+      const latest = await adminApi.getProgram(editingProgram._id);
+      setEditingProgram(latest.data);
       await refreshList();
-      setParseHint(`《${program.title}》的教育词典词条已重新导入。`);
-    } catch (importError: any) {
-      setError(importError?.response?.data?.message || importError?.message || "重新导入教育词典失败");
+      setParseHint(`词典已手动绑定 ${selectedDictionaryEntryIds.length} 个词条。`);
+      setIsDictionaryDialogOpen(false);
+    } catch (saveError: any) {
+      setError(saveError?.response?.data?.message || saveError?.message || "词典绑定保存失败");
+    } finally {
+      setDictionarySaving(false);
+    }
+  };
+
+  const handleCreateDictionaryEntry = async () => {
+    if (!editingProgram || dictionaryCreating) return;
+    const term = newDictionaryTerm.trim();
+    const definition = newDictionaryDefinition.trim();
+    if (!term || !definition) {
+      setError("请填写词条名称和释义后再创建");
+      return;
+    }
+    setDictionaryCreating(true);
+    setError(null);
+    try {
+      const createRes = await adminApi.createDictionaryEntry({
+        term,
+        definition,
+        status: "active",
+        programIds: [editingProgram._id],
+      });
+      const createdEntry = createRes.data;
+      setNewDictionaryTerm("");
+      setNewDictionaryDefinition("");
+      setSelectedDictionaryEntryIds((prev) =>
+        prev.includes(createdEntry._id) ? prev : [...prev, createdEntry._id]
+      );
+      setDictionaryCandidates((prev) => {
+        const exists = prev.some((entry) => entry._id === createdEntry._id);
+        if (exists) return prev;
+        return [createdEntry as AdminEducationDictionaryEntry, ...prev];
+      });
+      const latest = await adminApi.getProgram(editingProgram._id);
+      setEditingProgram(latest.data);
+      await refreshList();
+      setParseHint(`新词条《${createdEntry.term}》已创建并自动绑定到当前内容。`);
+    } catch (createError: any) {
+      setError(createError?.response?.data?.message || createError?.message || "新建词条失败");
+    } finally {
+      setDictionaryCreating(false);
     }
   };
 
@@ -1018,7 +1077,7 @@ const AdminProgramsPage: React.FC = () => {
                             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                               <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-3">
-                                  <span className="rounded-full bg-[#5e17eb]/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-[#5e17eb]">压缩上传任务</span>
+                                  <span className="rounded-full bg-[#5e17eb]/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-[#5e17eb]">上传任务</span>
                                   <span className={`rounded-full px-3 py-1 text-[11px] font-bold ${getUploadTaskTone(currentUploadTask.phase)}`}>
                                     {buildUploadTaskTitle(currentUploadTask.phase, currentUploadTask.progress)}
                                   </span>
@@ -1143,9 +1202,6 @@ const AdminProgramsPage: React.FC = () => {
                           </button>
                           <button className="rounded-full border border-stone-200 px-4 py-2 text-xs font-bold text-stone-700" onClick={() => handleToggleStatus(row)}>
                             {row.status === "published" ? "下架" : "发布"}
-                          </button>
-                          <button className="rounded-full border border-stone-200 px-4 py-2 text-xs font-bold text-stone-700" onClick={() => handleReimportDictionary(row)}>
-                            重新导词
                           </button>
                           <button className="rounded-full border border-red-100 px-4 py-2 text-xs font-bold text-red-500" onClick={() => handleDelete(row)}>
                             删除
@@ -1289,12 +1345,12 @@ const AdminProgramsPage: React.FC = () => {
                       </div>
                       {editingProgram ? (
                         <button
-                          className="inline-flex items-center gap-2 rounded-full border border-[#5e17eb]/20 bg-[#f7f3ff] px-4 py-2 text-xs font-bold text-[#5e17eb] hover:border-[#5e17eb] hover:bg-[#f1eaff]"
-                          onClick={() => handleReimportDictionary(editingProgram)}
+                          className="inline-flex items-center gap-2 rounded-full border border-[#5e17eb]/20 bg-white px-4 py-2 text-xs font-bold text-[#5e17eb] hover:border-[#5e17eb] hover:bg-[#f7f3ff]"
+                          onClick={openDictionaryDialog}
                           type="button"
                         >
-                          <span className="material-symbols-outlined text-sm">refresh</span>
-                          重新导入该节目词条
+                          <span className="material-symbols-outlined text-sm">menu_book</span>
+                          关联词典
                         </button>
                       ) : null}
                     </div>
@@ -1316,6 +1372,122 @@ const AdminProgramsPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {isDictionaryDialogOpen ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm" onClick={() => setIsDictionaryDialogOpen(false)}>
+          <div className="w-full max-w-3xl rounded-3xl bg-white p-5 shadow-2xl md:p-6" onClick={(event) => event.stopPropagation()}>
+            <div className="mb-4 flex items-start justify-between">
+              <div>
+                <h3 className="text-xl font-black text-stone-900">词典手动绑定</h3>
+                <p className="mt-1 text-xs text-stone-500">搜索并勾选词条，保存后即绑定到当前节目。</p>
+              </div>
+              <button className="material-symbols-outlined text-stone-400 hover:text-stone-700" onClick={() => setIsDictionaryDialogOpen(false)} type="button">
+                close
+              </button>
+            </div>
+
+            <div className="mb-3 flex gap-2">
+              <input
+                className="flex-1 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm"
+                placeholder="搜索词条（支持关键词）"
+                value={dictionarySearch}
+                onChange={(event) => setDictionarySearch(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    loadDictionaryCandidates(dictionarySearch);
+                  }
+                }}
+              />
+              <button
+                className="rounded-xl border border-[#5e17eb]/25 bg-[#f7f3ff] px-4 py-2 text-sm font-bold text-[#5e17eb] hover:bg-[#f1eaff]"
+                onClick={() => loadDictionaryCandidates(dictionarySearch)}
+                type="button"
+              >
+                搜索
+              </button>
+            </div>
+
+            <div className="mb-3 rounded-2xl border border-[#5e17eb]/15 bg-[#faf7ff] p-3">
+              <div className="text-xs font-bold text-[#5e17eb]">新建词条（自动绑定当前内容）</div>
+              <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-[200px_1fr_auto]">
+                <input
+                  className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm"
+                  placeholder="词条名称"
+                  value={newDictionaryTerm}
+                  onChange={(event) => setNewDictionaryTerm(event.target.value)}
+                />
+                <input
+                  className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm"
+                  placeholder="词条释义"
+                  value={newDictionaryDefinition}
+                  onChange={(event) => setNewDictionaryDefinition(event.target.value)}
+                />
+                <button
+                  className="rounded-xl bg-[#5e17eb] px-4 py-2 text-sm font-bold text-white hover:bg-[#5112d1] disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={handleCreateDictionaryEntry}
+                  disabled={dictionaryCreating}
+                  type="button"
+                >
+                  {dictionaryCreating ? "创建中..." : "新建并绑定"}
+                </button>
+              </div>
+            </div>
+
+            <div className="max-h-[360px] space-y-2 overflow-y-auto rounded-2xl border border-stone-200 bg-stone-50/70 p-3">
+              {dictionaryLoading ? (
+                <div className="rounded-xl bg-white px-3 py-3 text-sm text-stone-500">正在加载词典词条...</div>
+              ) : dictionaryCandidates.length === 0 ? (
+                <div className="rounded-xl bg-white px-3 py-3 text-sm text-stone-500">暂无匹配词条</div>
+              ) : (
+                dictionaryCandidates.map((entry) => {
+                  const checked = selectedDictionaryEntryIds.includes(entry._id);
+                  return (
+                    <label
+                      key={entry._id}
+                      className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 transition-colors ${
+                        checked ? "border-[#5e17eb]/40 bg-[#f7f3ff]" : "border-stone-200 bg-white hover:border-[#5e17eb]/20"
+                      }`}
+                    >
+                      <input
+                        className="mt-0.5"
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleDictionarySelection(entry._id)}
+                      />
+                      <div className="min-w-0">
+                        <div className="text-sm font-bold text-stone-900">{entry.term}</div>
+                        <div className="mt-1 text-xs leading-5 text-stone-600">{entry.definition}</div>
+                      </div>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <span className="text-xs text-stone-500">已选择 {selectedDictionaryEntryIds.length} 个词条</span>
+              <div className="flex items-center gap-2">
+                <button
+                  className="rounded-full border border-stone-200 px-4 py-2 text-sm font-bold text-stone-700"
+                  onClick={() => setIsDictionaryDialogOpen(false)}
+                  type="button"
+                >
+                  取消
+                </button>
+                <button
+                  className="rounded-full bg-[#5e17eb] px-5 py-2 text-sm font-bold text-white hover:bg-[#5112d1] disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={handleSaveDictionaryBinding}
+                  disabled={dictionarySaving}
+                  type="button"
+                >
+                  {dictionarySaving ? "保存中..." : "保存绑定"}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       ) : null}
@@ -1389,7 +1561,7 @@ const AdminProgramsPage: React.FC = () => {
                           className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm"
                           placeholder="说话人，如 主持人 / 嘉宾1"
                           value={row.speaker}
-                          onChange={(event) => updateTranscriptRow(row.id, { speaker: event.target.value })}
+                          onChange={(event) => renameSpeakerFromRow(row.id, event.target.value)}
                         />
                       </div>
                       <div className="mt-2 flex flex-wrap gap-2">
@@ -1401,7 +1573,7 @@ const AdminProgramsPage: React.FC = () => {
                                 ? "border-[#5e17eb] bg-[#f7f3ff] text-[#5e17eb]"
                                 : "border-stone-200 bg-white text-stone-500 hover:border-[#5e17eb]/30 hover:text-[#5e17eb]"
                             }`}
-                            onClick={() => updateTranscriptRow(row.id, { speaker: label })}
+                            onClick={() => renameSpeakerFromRow(row.id, label)}
                             type="button"
                           >
                             {label}
@@ -1477,8 +1649,8 @@ const AdminProgramsPage: React.FC = () => {
           <div className="w-full max-w-[760px] rounded-3xl bg-white p-6 shadow-2xl md:p-8" onClick={(event) => event.stopPropagation()}>
             <div className="mb-5 flex items-start justify-between">
               <div>
-                <h3 className="text-2xl font-black text-stone-900">压缩上传并解析</h3>
-                <p className="mt-1 text-sm text-stone-500">选中文件后立即开始压缩上传，关闭弹窗后也会继续在后台执行，并在列表里展示进度。</p>
+                <h3 className="text-2xl font-black text-stone-900">上传并解析</h3>
+                <p className="mt-1 text-sm text-stone-500">选中文件后立即开始上传，关闭弹窗后也会继续在后台执行，并在列表里展示进度。</p>
               </div>
               <button className="material-symbols-outlined text-stone-400 hover:text-stone-700" onClick={closeUploadDialog} type="button">
                 close
@@ -1501,16 +1673,8 @@ const AdminProgramsPage: React.FC = () => {
                 <div className="h-full rounded-full bg-[#5e17eb] transition-all" style={{ width: `${uploadProgress}%` }} />
               </div>
               <div className="mt-2 text-xs text-stone-500">
-                {parseHint || (isUploadingAudio ? buildUploadStageHint(uploadPhase, uploadProgress) || `${uploadProgress}%` : "请选择音频文件后自动开始压缩上传")}
+                {parseHint || (isUploadingAudio ? buildUploadStageHint(uploadPhase, uploadProgress) || `${uploadProgress}%` : "请选择音频文件后自动开始上传")}
               </div>
-              {compressedMeta ? (
-                <div className="mt-2 rounded-xl bg-white px-3 py-2 text-[11px] text-stone-600">
-                  压缩结果：{(compressedMeta.originalSize / 1024 / 1024).toFixed(2)}MB → {(compressedMeta.compressedSize / 1024 / 1024).toFixed(2)}MB（比例 {(
-                    compressedMeta.compressionRatio * 100
-                  ).toFixed(1)}
-                  %）
-                </div>
-              ) : null}
             </div>
 
             {uploadFailureReason ? <p className="mt-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600">失败原因：{uploadFailureReason}</p> : null}
@@ -1534,12 +1698,10 @@ const AdminProgramsPage: React.FC = () => {
                 type="button"
               >
                 {isUploadingAudio
-                  ? uploadPhase === "compressing" || uploadPhase === "preparing"
-                    ? "压缩中..."
-                    : uploadPhase === "uploading"
+                  ? uploadPhase === "uploading"
                     ? "上传中..."
                     : "处理中..."
-                  : "压缩上传"}
+                  : "开始上传"}
               </button>
             </div>
           </div>
@@ -1553,7 +1715,7 @@ const AdminProgramsPage: React.FC = () => {
         type="button"
       >
         <span className="material-symbols-outlined text-[18px]">graphic_eq</span>
-        {isUploadingAudio ? `压缩上传中 ${uploadProgress}%` : "压缩上传"}
+        {isUploadingAudio ? `上传中 ${uploadProgress}%` : "上传音频"}
       </button>
 
     </div>

@@ -213,20 +213,10 @@ export interface DictionaryImportResult {
   importedPrograms: number;
 }
 
-export interface ProgramAudioCompressionMeta {
-  strategy: "ffmpeg_wasm_flac";
-  outputFormat: "flac";
-  originalName: string;
-  originalMimeType: string;
-  originalSize: number;
-  compressedSize: number;
-  compressionRatio: number;
-}
-
 export interface UploadProgramAudioOptions {
   onProgress?: (percent: number) => void;
   sourceFileName?: string;
-  compressionMeta?: ProgramAudioCompressionMeta;
+  uploadSource?: "passthrough";
 }
 
 export interface LoginResponse {
@@ -259,21 +249,20 @@ export const adminApi = {
   deleteProgram: (id: string) => api.delete(`/admin/programs/${id}`),
   updateProgramStatus: (id: string, status: 'draft' | 'published') => 
     api.patch<Program>(`/admin/programs/${id}/status`, { status }),
-  uploadProgramAudio: (compressedFile: File, options?: UploadProgramAudioOptions) => {
-    const { onProgress, sourceFileName, compressionMeta } = options || {};
+  uploadProgramAudio: (audioFile: File, options?: UploadProgramAudioOptions) => {
+    const { onProgress, sourceFileName, uploadSource = "passthrough" } = options || {};
     const formData = new FormData();
-    formData.append("audio", compressedFile);
-    formData.append("uploadSource", "compressed");
+    formData.append("audio", audioFile);
+    formData.append("uploadSource", uploadSource);
     if (sourceFileName) {
       formData.append("sourceFileName", sourceFileName);
-    }
-    if (compressionMeta) {
-      formData.append("compressionMeta", JSON.stringify(compressionMeta));
     }
     return api.post<{ url: string; filename: string; originalName: string; mimeType: string; size: number }>(
       "/admin/programs/upload-audio",
       formData,
       {
+        // Large audio uploads can easily exceed the global 10s timeout.
+        timeout: 10 * 60 * 1000,
         headers: { "Content-Type": "multipart/form-data" },
         onUploadProgress: (event) => {
           if (!onProgress || !event.total) return;
