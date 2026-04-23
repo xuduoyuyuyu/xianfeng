@@ -49,6 +49,8 @@ interface ProgramTermGlossaryItem {
   sourceUrl?: string;
 }
 
+type ProgramDictionaryEntryId = mongoose.Types.ObjectId;
+
 interface Program extends mongoose.Document {
   title: string;
   description: string;
@@ -57,6 +59,7 @@ interface Program extends mongoose.Document {
   summary?: ProgramSummary;
   transcript?: TranscriptSegment[];
   termGlossary?: ProgramTermGlossaryItem[];
+  dictionaryEntryIds?: ProgramDictionaryEntryId[];
   guest?: ProgramGuest;
   deepDive?: ProgramDeepDive;
   status: ContentStatus;
@@ -101,6 +104,12 @@ const programSchema = new mongoose.Schema(
         term: { type: String, required: true },
         definition: { type: String, required: true },
         sourceUrl: { type: String, default: "" },
+      },
+    ],
+    dictionaryEntryIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "EducationDictionaryEntry",
       },
     ],
     guest: {

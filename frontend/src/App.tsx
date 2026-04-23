@@ -13,6 +13,7 @@ import AdminBooksPage from "./pages/admin/AdminBooksPage";
 import AdminMaterialsPage from "./pages/admin/AdminMaterialsPage";
 import AdminUsersPage from "./pages/admin/AdminUsersPage";
 import AdminSystemPage from "./pages/admin/AdminSystemPage";
+import AdminDictionaryPage from "./pages/admin/AdminDictionaryPage";
 
 const App: React.FC = () => {
   const dispatch = useDispatch();
@@ -45,6 +46,7 @@ const App: React.FC = () => {
       >
         <Route index element={<AdminDashboardPage />} />
         <Route path="programs" element={<AdminProgramsPage />} />
+        <Route path="dictionary" element={<AdminDictionaryPage />} />
         <Route path="books" element={<AdminBooksPage />} />
         <Route path="materials" element={<AdminMaterialsPage />} />
         <Route path="users" element={<AdminUsersPage />} />

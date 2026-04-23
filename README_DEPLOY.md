@@ -16,6 +16,7 @@
 - `.env.production.example`：生产环境变量模板
 - `scripts/deploy/bootstrap-server.sh`：服务器首次克隆脚本
 - `scripts/deploy/update-server.sh`：服务器日常更新脚本
+- `scripts/deploy/deploy-from-local.sh`：本地一键触发服务器更新
 
 ## 1. 先处理当前仓库结构
 
@@ -110,6 +111,23 @@ cd /opt/xianfeng
 1. 检查服务器工作区是否干净，避免把线上临时改动冲掉
 2. 拉取 `origin/main`
 3. 执行 `docker compose --env-file .env.production up -d --build`
+
+如果你想从自己电脑上一条命令完成“推送 + 服务器更新”，可以直接用：
+
+```bash
+./scripts/deploy/deploy-from-local.sh root@你的服务器IP /opt/xianfeng main
+```
+
+它会自动做两件事：
+
+1. 先把当前分支推到 GitHub
+2. 再通过 SSH 登录服务器执行 `update-server.sh`
+
+使用前提：
+
+- 你的电脑可以 `ssh` 到服务器
+- 服务器上已经完成首次部署
+- 本地工作区是干净的，没有未提交改动
 
 ## 4. 当前部署细节
 

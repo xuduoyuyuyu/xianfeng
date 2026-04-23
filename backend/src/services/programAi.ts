@@ -66,6 +66,105 @@ function formatClock(seconds: number): string {
   return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 }
 
+function normalizeSpeakerToken(value: unknown): string {
+  return asText(value).toLowerCase().replace(/[\s_-]+/g, "");
+}
+
+function isExplicitHostSpeaker(value: unknown): boolean {
+  const normalized = normalizeSpeakerToken(value);
+  if (!normalized) return false;
+  return /主持|host|speakera|主持人a|主持人b|anchor|mc|jessie/.test(normalized);
+}
+
+function isExplicitGuestSpeaker(value: unknown): boolean {
+  const normalized = normalizeSpeakerToken(value);
+  if (!normalized) return false;
+  return /嘉宾|guest|speakerb|expert|老师|博士/.test(normalized);
+}
+
+function looksLikeHostParagraph(text: string): boolean {
+  const normalized = asText(text).replace(/\s+/g, "");
+  if (!normalized) return false;
+  return /欢迎回到|欢迎来到|今天我们|这一期|本期节目|接下来我们|我想追问|我想请教|先聊聊|大家好|感谢来到/.test(normalized);
+}
+
+function looksLikeQuestionPrompt(text: string): boolean {
+  const normalized = asText(text);
+  if (!normalized) return false;
+  return /[？?]/.test(normalized) || /为什么|怎么|如何|能不能|可不可以|是不是|请你|请您|想请教/.test(normalized);
+}
+
+function getTimedUtteranceSpeakerKey(item: TimedUtterance, index: number): string {
+  const rawSpeaker = asText(item.speaker);
+  if (rawSpeaker) return rawSpeaker;
+  return index === 0 ? "__unknown_lead__" : "__unknown__";
+}
+
+function resolveRoleLabels(
+  paragraphs: Array<{ startSec: number; endSec: number; speakerKey: string; text: string }>
+): string[] {
+  const firstSeenKeys: string[] = [];
+  const keyCounts = new Map<string, number>();
+  const hostScores = new Map<string, number>();
+
+  for (const paragraph of paragraphs) {
+    if (!firstSeenKeys.includes(paragraph.speakerKey)) {
+      firstSeenKeys.push(paragraph.speakerKey);
+    }
+    keyCounts.set(paragraph.speakerKey, (keyCounts.get(paragraph.speakerKey) || 0) + 1);
+    const hostScoreBoost =
+      (isExplicitHostSpeaker(paragraph.speakerKey) ? 5 : 0) +
+      (looksLikeHostParagraph(paragraph.text) ? 3 : 0) +
+      (looksLikeQuestionPrompt(paragraph.text) ? 1 : 0);
+    hostScores.set(paragraph.speakerKey, (hostScores.get(paragraph.speakerKey) || 0) + hostScoreBoost);
+  }
+
+  let hostKey = "";
+  let hostKeyScore = 0;
+  for (const key of firstSeenKeys) {
+    const score = hostScores.get(key) || 0;
+    if (score > hostKeyScore) {
+      hostKey = key;
+      hostKeyScore = score;
+    }
+  }
+
+  if (!hostKey && paragraphs[0] && looksLikeHostParagraph(paragraphs[0].text)) {
+    hostKey = paragraphs[0].speakerKey;
+  }
+
+  const guestLabelMap = new Map<string, string>();
+  let guestIndex = 1;
+
+  return paragraphs.map((paragraph, index) => {
+    if (paragraph.speakerKey === hostKey && hostKeyScore > 0) {
+      return "主持人";
+    }
+
+    const explicitSpeaker = paragraph.speakerKey;
+    if (isExplicitHostSpeaker(explicitSpeaker)) {
+      return "主持人";
+    }
+
+    const isUnknownSpeaker = explicitSpeaker.startsWith("__unknown");
+
+    if (!guestLabelMap.has(explicitSpeaker) && !isUnknownSpeaker) {
+      guestLabelMap.set(explicitSpeaker, `嘉宾${guestIndex}`);
+      guestIndex += 1;
+    }
+
+    if (guestLabelMap.has(explicitSpeaker)) {
+      return guestLabelMap.get(explicitSpeaker)!;
+    }
+
+    if (index === 0 && !hostKeyScore && looksLikeHostParagraph(paragraph.text)) {
+      return "主持人";
+    }
+
+    return guestIndex <= 1 || isUnknownSpeaker ? "嘉宾" : `嘉宾${Math.max(1, guestIndex - 1)}`;
+  });
+}
+
 function titleFromAudioPath(filePath: string): string {
   const basename = path.basename(filePath, path.extname(filePath));
   const normalized = basename
@@ -132,7 +231,7 @@ function buildParagraphTranscriptFromTimedItems(items: TimedUtterance[], fallbac
       startSec: Math.max(0, Math.floor(Number(item.startSec) || 0)),
       endSec: Math.max(0, Math.floor(Number(item.endSec) || 0)),
       text: asText(item.text),
-      speaker: asText(item.speaker) || "嘉宾",
+      speakerKey: getTimedUtteranceSpeakerKey(item, Math.max(0, Math.floor(Number(item.startSec) || 0))),
     }))
     .filter((item) => !!item.text && !isFillerOnlyText(item.text))
     .sort((a, b) => a.startSec - b.startSec);
@@ -143,13 +242,13 @@ function buildParagraphTranscriptFromTimedItems(items: TimedUtterance[], fallbac
   const maxParagraphSentences = 4;
   const maxGapSeconds = 3;
 
-  const paragraphs: Array<{ startSec: number; endSec: number; speaker: string; texts: string[] }> = [];
-  let current: { startSec: number; endSec: number; speaker: string; texts: string[] } | null = null;
+  const paragraphs: Array<{ startSec: number; endSec: number; speakerKey: string; texts: string[] }> = [];
+  let current: { startSec: number; endSec: number; speakerKey: string; texts: string[] } | null = null;
 
   for (const item of normalizedItems) {
     const safeEnd = item.endSec > item.startSec ? item.endSec : item.startSec + 4;
     if (!current) {
-      current = { startSec: item.startSec, endSec: safeEnd, speaker: item.speaker, texts: [item.text] };
+      current = { startSec: item.startSec, endSec: safeEnd, speakerKey: item.speakerKey, texts: [item.text] };
       continue;
     }
     const currentText = current.texts.join("");
@@ -158,10 +257,10 @@ function buildParagraphTranscriptFromTimedItems(items: TimedUtterance[], fallbac
       gapSeconds > maxGapSeconds ||
       currentText.length >= maxParagraphChars ||
       current.texts.length >= maxParagraphSentences ||
-      (item.speaker !== current.speaker && currentText.length >= minParagraphChars);
+      (item.speakerKey !== current.speakerKey && currentText.length >= minParagraphChars);
     if (shouldBreak) {
       paragraphs.push(current);
-      current = { startSec: item.startSec, endSec: safeEnd, speaker: item.speaker, texts: [item.text] };
+      current = { startSec: item.startSec, endSec: safeEnd, speakerKey: item.speakerKey, texts: [item.text] };
       continue;
     }
     current.endSec = Math.max(current.endSec, safeEnd);
@@ -169,7 +268,7 @@ function buildParagraphTranscriptFromTimedItems(items: TimedUtterance[], fallbac
   }
   if (current) paragraphs.push(current);
 
-  const mergedParagraphs: Array<{ startSec: number; endSec: number; speaker: string; text: string }> = [];
+  const mergedParagraphs: Array<{ startSec: number; endSec: number; speakerKey: string; text: string }> = [];
   for (const paragraph of paragraphs) {
     const text = paragraph.texts.join(" ").replace(/\s+/g, " ").trim();
     if (!text) continue;
@@ -183,14 +282,16 @@ function buildParagraphTranscriptFromTimedItems(items: TimedUtterance[], fallbac
     mergedParagraphs.push({
       startSec: paragraph.startSec,
       endSec: paragraph.endSec,
-      speaker: paragraph.speaker || "嘉宾",
+      speakerKey: paragraph.speakerKey,
       text,
     });
   }
 
-  const transcript = mergedParagraphs.slice(0, 18).map((item, idx) => ({
+  const finalParagraphs = mergedParagraphs.slice(0, 18);
+  const speakerLabels = resolveRoleLabels(finalParagraphs);
+  const transcript = finalParagraphs.map((item, idx) => ({
     time: `${formatClock(item.startSec)}-${formatClock(item.endSec)}`,
-    speaker: item.speaker || "嘉宾",
+    speaker: speakerLabels[idx] || "嘉宾",
     text: item.text,
     featured: idx < 2,
   }));
@@ -426,7 +527,7 @@ class OpenAIProgramAiProvider implements ProgramAiProvider {
           startSec: Math.max(0, Math.floor(safeStart)),
           endSec: Math.max(Math.floor(safeStart) + 1, Math.floor(safeEnd)),
           text: asText(segment?.text),
-          speaker: "嘉宾",
+          speaker: asText(segment?.speaker) || asText(segment?.speaker_id) || "",
         };
       }),
       Number(json?.duration) || 0
@@ -608,7 +709,12 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
         return {
           startSec: Math.max(0, Math.floor(startMs / 1000)),
           endSec: Math.max(Math.floor(startMs / 1000) + 1, Math.floor(endMs / 1000)),
-          speaker: idx % 2 === 0 ? "主持人" : "嘉宾",
+          speaker:
+            asText(item?.speaker) ||
+            asText(item?.speaker_id) ||
+            asText(item?.spk) ||
+            asText(item?.speaker_label) ||
+            "",
           text: asText(item?.text),
         };
       })
@@ -726,7 +832,12 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
         return {
           startSec: Math.max(0, Math.floor(startMs / 1000)),
           endSec: Math.max(Math.floor(startMs / 1000) + 1, Math.floor(endMs / 1000)),
-          speaker: idx % 2 === 0 ? "主持人" : "嘉宾",
+          speaker:
+            asText(item?.speaker) ||
+            asText(item?.speaker_id) ||
+            asText(item?.spk) ||
+            asText(item?.speaker_label) ||
+            "",
           text: asText(item?.text),
         };
       }),

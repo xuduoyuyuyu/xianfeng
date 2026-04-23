@@ -1,6 +1,9 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// In production the Nginx gateway proxies `/api` on the same origin.
+// Falling back to a relative path keeps deployed domains working even when
+// no explicit VITE_API_URL is injected at build time.
+const API_BASE_URL = (import.meta.env.VITE_API_URL || '').trim();
 
 // 创建 axios 实例
 const api: AxiosInstance = axios.create({
@@ -73,6 +76,39 @@ export interface ProgramTermGlossaryItem {
   sourceUrl?: string;
 }
 
+export interface EducationDictionaryEntry {
+  _id: string;
+  term: string;
+  normalizedTerm: string;
+  definition: string;
+  sourceUrl?: string;
+  aliases: string[];
+  relatedEntryIds: string[];
+  programIds: string[];
+  createdFrom: "ai_program" | "migration";
+  status: "active" | "hidden";
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AdminEducationDictionaryEntry extends EducationDictionaryEntry {
+  programCount?: number;
+  relatedEntries?: Array<{
+    _id: string;
+    term: string;
+    status: "active" | "hidden";
+  }>;
+}
+
+export interface DictionaryRelatedProgram {
+  _id: string;
+  title: string;
+  status: "draft" | "published";
+  coverImage?: string;
+  publishedAt?: string | null;
+  updatedAt?: string | null;
+}
+
 export interface CuratedReadingItem {
   title: string;
   subtitle?: string;
@@ -93,6 +129,8 @@ export interface Program {
   summary?: ProgramSummary;
   transcript?: TranscriptSegment[];
   termGlossary?: ProgramTermGlossaryItem[];
+  dictionaryEntryIds?: string[];
+  dictionaryEntries?: EducationDictionaryEntry[];
   guest?: ProgramGuest;
   deepDive?: ProgramDeepDive;
   status: 'draft' | 'published';
@@ -171,6 +209,26 @@ export interface ProgramParseTask {
   parseFinishedAt?: string | null;
 }
 
+export interface DictionaryImportResult {
+  importedPrograms: number;
+}
+
+export interface ProgramAudioCompressionMeta {
+  strategy: "ffmpeg_wasm_flac";
+  outputFormat: "flac";
+  originalName: string;
+  originalMimeType: string;
+  originalSize: number;
+  compressedSize: number;
+  compressionRatio: number;
+}
+
+export interface UploadProgramAudioOptions {
+  onProgress?: (percent: number) => void;
+  sourceFileName?: string;
+  compressionMeta?: ProgramAudioCompressionMeta;
+}
+
 export interface LoginResponse {
   token: string;
   user: User;
@@ -201,19 +259,47 @@ export const adminApi = {
   deleteProgram: (id: string) => api.delete(`/admin/programs/${id}`),
   updateProgramStatus: (id: string, status: 'draft' | 'published') => 
     api.patch<Program>(`/admin/programs/${id}/status`, { status }),
-  uploadProgramAudio: (file: File) => {
+  uploadProgramAudio: (compressedFile: File, options?: UploadProgramAudioOptions) => {
+    const { onProgress, sourceFileName, compressionMeta } = options || {};
     const formData = new FormData();
-    formData.append("audio", file);
+    formData.append("audio", compressedFile);
+    formData.append("uploadSource", "compressed");
+    if (sourceFileName) {
+      formData.append("sourceFileName", sourceFileName);
+    }
+    if (compressionMeta) {
+      formData.append("compressionMeta", JSON.stringify(compressionMeta));
+    }
     return api.post<{ url: string; filename: string; originalName: string; mimeType: string; size: number }>(
       "/admin/programs/upload-audio",
       formData,
-      { headers: { "Content-Type": "multipart/form-data" } }
+      {
+        headers: { "Content-Type": "multipart/form-data" },
+        onUploadProgress: (event) => {
+          if (!onProgress || !event.total) return;
+          const percent = Math.max(0, Math.min(100, Math.round((event.loaded / event.total) * 100)));
+          onProgress(percent);
+        },
+      }
     );
   },
   createProgramFromAudio: (uploadedAudioUrl: string) =>
     api.post<ProgramParseTask>("/admin/programs/create-from-audio", { uploadedAudioUrl }),
   triggerProgramParse: (id: string) => api.post<ProgramParseTask>(`/admin/programs/${id}/parse`),
   getProgramParseStatus: (id: string) => api.get<ProgramParseTask>(`/admin/programs/${id}/parse-status`),
+
+  getDictionaryEntries: (params?: { search?: string; status?: string }) =>
+    api.get<AdminEducationDictionaryEntry[]>("/admin/dictionary", { params }),
+  getDictionaryEntry: (id: string) => api.get<AdminEducationDictionaryEntry>(`/admin/dictionary/${id}`),
+  createDictionaryEntry: (data: Partial<AdminEducationDictionaryEntry>) =>
+    api.post<AdminEducationDictionaryEntry>("/admin/dictionary", data),
+  updateDictionaryEntry: (id: string, data: Partial<AdminEducationDictionaryEntry>) =>
+    api.put<AdminEducationDictionaryEntry>(`/admin/dictionary/${id}`, data),
+  updateDictionaryEntryStatus: (id: string, status: "active" | "hidden") =>
+    api.patch<AdminEducationDictionaryEntry>(`/admin/dictionary/${id}/status`, { status }),
+  importDictionaryFromPrograms: (programIds: string[]) =>
+    api.post<DictionaryImportResult>("/admin/dictionary/import-from-programs", { programIds }),
+  getDictionaryEntryPrograms: (id: string) => api.get<DictionaryRelatedProgram[]>(`/admin/dictionary/${id}/programs`),
   
   // 书单管理
   getBooks: (status?: string) => api.get<Book[]>('/admin/books', { params: { status } }),

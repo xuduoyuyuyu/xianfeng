@@ -14,6 +14,7 @@ import adminProgramRoutes from "./routes/adminProgram";
 import adminBookRoutes from "./routes/adminBook";
 import adminLearningMaterialRoutes from "./routes/adminLearningMaterial";
 import adminSystemRoutes from "./routes/adminSystem";
+import adminDictionaryRoutes from "./routes/adminDictionary";
 
 dotenv.config();
 
@@ -67,6 +68,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/admin/programs", adminProgramRoutes);
 app.use("/api/admin/books", adminBookRoutes);
 app.use("/api/admin/learning-materials", adminLearningMaterialRoutes);
+app.use("/api/admin/dictionary", adminDictionaryRoutes);
 app.use("/api/admin", adminSystemRoutes);
 
 const uploadsDir = path.join(process.cwd(), "uploads");

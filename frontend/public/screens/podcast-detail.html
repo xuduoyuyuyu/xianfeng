@@ -678,27 +678,45 @@
     const hitMap = globalHitMap || {};
     const list = Array.isArray(glossary) ? glossary.slice() : [];
     if (!list.length) return escapeHtml(String(rawText || ""));
-    list.sort(function (a, b) {
-      return String((b && b.term) || "").length - String((a && a.term) || "").length;
+    const variants = [];
+    list.forEach(function (item) {
+      const definition = String(item && item.definition || "").trim();
+      const term = String(item && item.term || "").trim();
+      if (!term || !definition) return;
+      const aliases = Array.isArray(item && item.aliases) ? item.aliases : [];
+      [term].concat(aliases).forEach(function (candidate, index) {
+        const label = String(candidate || "").trim();
+        if (!label) return;
+        variants.push({
+          label: label,
+          displayTerm: term,
+          definition: definition,
+          sourceUrl: String(item && item.sourceUrl || "").trim(),
+          isPrimary: index === 0,
+        });
+      });
+    });
+    variants.sort(function (a, b) {
+      return String(b.label || "").length - String(a.label || "").length;
     });
     let html = escapeHtml(String(rawText || ""));
-    for (let i = 0; i < list.length; i += 1) {
-      const item = list[i] || {};
-      const term = String(item.term || "").trim();
+    for (let i = 0; i < variants.length; i += 1) {
+      const item = variants[i] || {};
+      const label = String(item.label || "").trim();
       const definition = String(item.definition || "").trim();
-      if (!term || !definition) continue;
-      const escapedTerm = escapeRegex(escapeHtml(term));
+      if (!label || !definition) continue;
+      const escapedTerm = escapeRegex(escapeHtml(label));
       const reg = new RegExp(escapedTerm, "g");
       html = html.replace(reg, function () {
-        hitMap[term] = Number(hitMap[term] || 0) + 1;
-        const isFirst = hitMap[term] === 1;
+        hitMap[label] = Number(hitMap[label] || 0) + 1;
+        const isFirst = hitMap[label] === 1 && !!item.isPrimary;
         const className = isFirst ? "transcript-term-link transcript-term-link--primary" : "transcript-term-link";
         const safeDefinition = escapeHtml(definition);
         const sourceUrl = String(item.sourceUrl || "").trim();
         const sourceLink = sourceUrl
           ? '<a class="transcript-term-tooltip-link" href="' + escapeHtml(sourceUrl) + '" target="_blank" rel="noopener noreferrer">来源</a>'
           : "";
-        return '<span class="transcript-term-anchor"><span class="' + className + '" title="术语解释">' + escapeHtml(term) + '</span><span class="transcript-term-tooltip"><span class="transcript-term-tooltip-title">' + escapeHtml(term) + "</span>" + safeDefinition + sourceLink + "</span></span>";
+        return '<span class="transcript-term-anchor"><span class="' + className + '" title="术语解释">' + escapeHtml(label) + '</span><span class="transcript-term-tooltip"><span class="transcript-term-tooltip-title">' + escapeHtml(item.displayTerm || label) + "</span>" + safeDefinition + sourceLink + "</span></span>";
       });
     }
     return html;
@@ -946,9 +964,38 @@
     }
   }
 
-  function renderRelated(currentId, programs) {
+  function buildDictionaryRelatedPrograms(program, programs) {
+    const currentId = String(program && program._id || "");
+    const dictionaryEntries = Array.isArray(program && program.dictionaryEntries) ? program.dictionaryEntries : [];
+    const relatedIds = [];
+    dictionaryEntries.forEach(function (entry) {
+      const ids = Array.isArray(entry && entry.programIds) ? entry.programIds : [];
+      ids.forEach(function (id) {
+        const normalizedId = String(id || "");
+        if (!normalizedId || normalizedId === currentId || relatedIds.indexOf(normalizedId) >= 0) return;
+        relatedIds.push(normalizedId);
+      });
+    });
+    const byId = {};
+    (programs || []).forEach(function (item) {
+      if (item && item._id) byId[String(item._id)] = item;
+    });
+    return relatedIds
+      .map(function (id) { return byId[id]; })
+      .filter(Boolean)
+      .sort(function (a, b) {
+        return new Date(b.publishedAt || b.createdAt || 0).getTime() - new Date(a.publishedAt || a.createdAt || 0).getTime();
+      })
+      .slice(0, 4);
+  }
+
+  function renderRelated(program, programs) {
     const list = document.getElementById("related-programs-list");
-    const others = (programs || []).filter(function (item) { return item._id !== currentId; }).slice(0, 4);
+    const others = buildDictionaryRelatedPrograms(program, programs);
+    if (!others.length) {
+      list.innerHTML = '<div class="rounded-2xl border border-dashed border-stone-200 bg-stone-50 px-4 py-5 text-sm leading-6 text-stone-500">当前词典尚未为这期节目聚合出相关节目，等更多节目共现后会自动出现。</div>';
+      return;
+    }
     list.innerHTML = others.map(function (item, index) {
       return '<a class="group block cursor-pointer pb-6 border-b border-gray-50 last:border-0" href="/programs/' + item._id + '">' +
         '<span class="sidebar-episode-num text-xs mb-1.5 block">EP. ' + String(index + 1).padStart(2, "0") + "</span>" +
@@ -1063,7 +1110,9 @@
       return items;
     })(transcriptRaw);
     transcriptState.source = transcript.length ? transcript : transcriptFallback(program);
-    transcriptState.glossary = Array.isArray(program.termGlossary) ? program.termGlossary : [];
+    transcriptState.glossary = Array.isArray(program.dictionaryEntries) && program.dictionaryEntries.length
+      ? program.dictionaryEntries
+      : (Array.isArray(program.termGlossary) ? program.termGlossary : []);
     renderTranscript(transcriptState.source);
 
     const guest = program.guest || {};
@@ -1083,7 +1132,7 @@
       return "<a" + href + ' class="group block cursor-pointer"><h4 class="text-xs font-bold text-on-surface group-hover:text-primary transition-colors leading-snug break-words">' + (item.title || "") + '</h4><p class="text-[10px] text-gray-400 mt-1 break-all">' + (item.subtitle || "") + "</p></a>";
     }).join("");
 
-    renderRelated(program._id, programs);
+    renderRelated(program, programs);
     requestDeepDiveFloatingUpdate();
     syncFavoriteButton(program);
   }

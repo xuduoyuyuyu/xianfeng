@@ -4,6 +4,7 @@ import path from "path";
 import Program from "../models/Program";
 import { resolveProgramAiProvider } from "../services/programAi";
 import mongoose from "mongoose";
+import { attachDictionaryEntriesToPrograms, removeProgramFromDictionary, syncProgramDictionaryEntries } from "../services/educationDictionary";
 
 function statusUpdatePayload(status: "draft" | "published") {
   if (status === "published") {
@@ -197,6 +198,14 @@ function sanitizeTermGlossary(input: unknown) {
       sourceUrl: asText(item?.sourceUrl),
     }))
     .filter((item) => item.term && item.definition);
+}
+
+async function buildProgramResponse(program: any, extra: Record<string, any> = {}) {
+  const attached = await attachDictionaryEntriesToPrograms(program, false);
+  return {
+    ...attached,
+    ...extra,
+  };
 }
 
 function sanitizeProgramPayload(payload: any, requireEpisode: boolean) {
@@ -442,6 +451,9 @@ async function runAsyncParseTask(
     const status = aiResult.aiStatus === "generated" ? "success" : "failed";
     const parsePatch = parseMetaPatch(status, aiResult.aiMessage || "");
     await Program.findByIdAndUpdate(programId, { ...payload, ...parsePatch }, { new: false });
+    if (payload.termGlossary !== undefined) {
+      await syncProgramDictionaryEntries(programId, payload.termGlossary, "ai_program");
+    }
   } catch (error: any) {
     await Program.findByIdAndUpdate(
       programId,
@@ -506,7 +518,7 @@ export class ProgramController {
       const programs = await Program.find({ status: "published" }).sort({
         publishedAt: -1,
       });
-      res.status(200).json(programs);
+      res.status(200).json(await attachDictionaryEntriesToPrograms(programs, false));
     } catch (error) {
       res.status(500).json({ message: "获取节目列表失败", error });
     }
@@ -520,7 +532,7 @@ export class ProgramController {
         res.status(404).json({ message: "节目不存在或未上架" });
         return;
       }
-      res.status(200).json(program);
+      res.status(200).json(await attachDictionaryEntriesToPrograms(program, false));
     } catch (error) {
       res.status(500).json({ message: "获取节目失败", error });
     }
@@ -532,7 +544,7 @@ export class ProgramController {
       const filter =
         status === "draft" || status === "published" ? { status } : {};
       const programs = await Program.find(filter).sort({ updatedAt: -1 });
-      res.status(200).json(programs);
+      res.status(200).json(await attachDictionaryEntriesToPrograms(programs, true));
     } catch (error) {
       res.status(500).json({ message: "获取管理节目列表失败", error });
     }
@@ -546,7 +558,7 @@ export class ProgramController {
         res.status(404).json({ message: "节目不存在" });
         return;
       }
-      res.status(200).json(program);
+      res.status(200).json(await attachDictionaryEntriesToPrograms(program, true));
     } catch (error) {
       res.status(500).json({ message: "获取节目失败", error });
     }
@@ -565,10 +577,20 @@ export class ProgramController {
       }
       const program = new Program(payload);
       await program.save();
-      const json = program.toObject();
-      (json as any).aiStatus = aiResult.aiStatus || "skipped";
-      (json as any).aiMessage = aiResult.aiMessage || "";
-      res.status(201).json(json);
+      if (payload.termGlossary !== undefined) {
+        await syncProgramDictionaryEntries(String(program._id), payload.termGlossary, "ai_program");
+      }
+      const latestProgram = await Program.findById(program._id);
+      if (!latestProgram) {
+        res.status(500).json({ message: "节目创建成功，但读取结果失败" });
+        return;
+      }
+      res.status(201).json(
+        await buildProgramResponse(latestProgram, {
+          aiStatus: aiResult.aiStatus || "skipped",
+          aiMessage: aiResult.aiMessage || "",
+        })
+      );
     } catch (error: any) {
       res.status(400).json({ message: error?.message || "创建节目失败", error });
     }
@@ -594,10 +616,20 @@ export class ProgramController {
         res.status(404).json({ message: "节目不存在" });
         return;
       }
-      const json = program.toObject();
-      (json as any).aiStatus = aiResult.aiStatus || "skipped";
-      (json as any).aiMessage = aiResult.aiMessage || "";
-      res.status(200).json(json);
+      if (payload.termGlossary !== undefined) {
+        await syncProgramDictionaryEntries(String(program._id), payload.termGlossary, "ai_program");
+      }
+      const latestProgram = await Program.findById(program._id);
+      if (!latestProgram) {
+        res.status(500).json({ message: "节目更新成功，但读取结果失败" });
+        return;
+      }
+      res.status(200).json(
+        await buildProgramResponse(latestProgram, {
+          aiStatus: aiResult.aiStatus || "skipped",
+          aiMessage: aiResult.aiMessage || "",
+        })
+      );
     } catch (error: any) {
       res.status(400).json({ message: error?.message || "更新节目失败", error });
     }
@@ -764,7 +796,7 @@ export class ProgramController {
         res.status(404).json({ message: "节目不存在" });
         return;
       }
-      res.status(200).json(program);
+      res.status(200).json(await attachDictionaryEntriesToPrograms(program, true));
     } catch (error) {
       res.status(400).json({ message: "更新节目状态失败", error });
     }
@@ -778,6 +810,7 @@ export class ProgramController {
         res.status(404).json({ message: "节目不存在" });
         return;
       }
+      await removeProgramFromDictionary(String(program._id));
       res.status(200).json({ message: "节目删除成功" });
     } catch (error) {
       res.status(500).json({ message: "删除节目失败", error });

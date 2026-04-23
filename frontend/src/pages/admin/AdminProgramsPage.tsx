@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { adminApi, Program } from "../../services/api";
+import { adminApi, Program, ProgramAudioCompressionMeta } from "../../services/api";
+import { AudioCompressionError, AudioCompressionStage, compressAudioLossless } from "../../utils/audioCompression";
 
 type StatusFilter = "all" | "published" | "draft";
 type FormState = {
@@ -31,6 +32,33 @@ type TranscriptEditorRow = {
   speaker: string;
   text: string;
   featured: boolean;
+};
+
+type UploadPhase = "idle" | "preparing" | "compressing" | "uploading" | "parsing" | "success" | "failed";
+
+type UploadTask = {
+  id: string;
+  fileName: string;
+  phase: Exclude<UploadPhase, "idle">;
+  progress: number;
+  programId?: string;
+  failureReason?: string;
+  compressedMeta?: ProgramAudioCompressionMeta | null;
+};
+
+type TranscriptValidationIssue = {
+  type:
+    | "missing_time"
+    | "invalid_time"
+    | "missing_speaker"
+    | "missing_text"
+    | "time_overlap"
+    | "short_text"
+    | "long_paragraph"
+    | "merge_recommended";
+  severity: "warning" | "info";
+  message: string;
+  rowIndex: number;
 };
 
 const EMPTY_FORM: FormState = {
@@ -68,11 +96,219 @@ const PARSE_STATUS_LABEL: Record<NonNullable<Program["parseStatus"]>, string> = 
   failed: "解析失败",
 };
 
+const COMPRESS_STAGE_PROGRESS: Record<AudioCompressionStage, number> = {
+  preparing: 6,
+  compressing: 38,
+  finalizing: 60,
+};
+
+const UPLOAD_PROGRESS_START = 60;
+const UPLOAD_PROGRESS_END = 92;
+const PARSING_PROGRESS = 96;
+const UPLOAD_TASK_STORAGE_KEY = "admin-program-upload-task";
+const SPEAKER_SUGGESTIONS = ["主持人", "嘉宾1", "嘉宾2", "嘉宾"];
+
 function formatDate(date?: string): string {
   if (!date) return "-";
   const parsed = new Date(date);
   if (Number.isNaN(parsed.getTime())) return "-";
   return parsed.toLocaleDateString("zh-CN");
+}
+
+function resolveCompressionErrorMessage(error: unknown): string {
+  if (error instanceof AudioCompressionError) {
+    if (error.code === "UNSUPPORTED_BROWSER") return "当前浏览器不支持前端音频压缩，请使用最新版 Chrome/Safari 后重试。";
+    if (error.code === "INVALID_AUDIO_FILE") return "文件格式不正确，请选择音频文件后重试。";
+    if (error.code === "WASM_INIT_FAILED") return "压缩引擎初始化失败，请刷新页面后重试。";
+    if (error.code === "COMPRESS_FAILED") return "音频压缩失败，请重新选择文件或稍后重试。";
+  }
+  if (error && typeof error === "object" && "message" in error && typeof (error as any).message === "string") {
+    return (error as any).message;
+  }
+  return "压缩失败，请重新选择文件后重试。";
+}
+
+function buildUploadStageHint(phase: UploadPhase, progress: number): string {
+  if (phase === "preparing") return "正在准备压缩引擎...";
+  if (phase === "compressing") return `正在无损压缩音频（整体 ${progress}%）...`;
+  if (phase === "uploading") return `正在上传压缩产物（整体 ${progress}%）...`;
+  if (phase === "parsing") return "压缩上传完成，后台正在创建并解析草稿...";
+  if (phase === "success") return "解析完成，草稿内容已自动生成。";
+  if (phase === "failed") return "压缩上传失败，请重新选择文件后重试。";
+  return "";
+}
+
+function mapUploadTransferProgress(percent: number): number {
+  const safePercent = Math.max(0, Math.min(100, percent));
+  return Math.round(UPLOAD_PROGRESS_START + ((UPLOAD_PROGRESS_END - UPLOAD_PROGRESS_START) * safePercent) / 100);
+}
+
+function buildUploadTaskTitle(phase: Exclude<UploadPhase, "idle">, progress: number): string {
+  if (phase === "preparing") return "压缩准备中";
+  if (phase === "compressing") return `压缩中 ${progress}%`;
+  if (phase === "uploading") return `上传中 ${progress}%`;
+  if (phase === "parsing") return "后台解析中";
+  if (phase === "success") return "解析完成";
+  return "处理失败";
+}
+
+function getUploadTaskTone(phase: Exclude<UploadPhase, "idle">): string {
+  if (phase === "success") return "bg-emerald-50 text-emerald-700";
+  if (phase === "failed") return "bg-red-50 text-red-600";
+  return "bg-amber-50 text-amber-700";
+}
+
+function readStoredUploadTask(): UploadTask | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(UPLOAD_TASK_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<UploadTask>;
+    if (!parsed || typeof parsed.id !== "string" || typeof parsed.fileName !== "string" || typeof parsed.phase !== "string") {
+      return null;
+    }
+    const restoredTask: UploadTask = {
+      id: parsed.id,
+      fileName: parsed.fileName,
+      phase: parsed.phase as Exclude<UploadPhase, "idle">,
+      progress: typeof parsed.progress === "number" ? parsed.progress : 0,
+      programId: typeof parsed.programId === "string" ? parsed.programId : undefined,
+      failureReason: typeof parsed.failureReason === "string" ? parsed.failureReason : "",
+      compressedMeta: parsed.compressedMeta || null,
+    };
+    if (restoredTask.phase === "preparing" || restoredTask.phase === "compressing" || restoredTask.phase === "uploading") {
+      return {
+        ...restoredTask,
+        phase: "failed",
+        failureReason: "页面刷新后，浏览器端压缩上传已中断，请重新上传。",
+      };
+    }
+    return restoredTask;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function persistUploadTask(task: UploadTask | null): void {
+  if (typeof window === "undefined") return;
+  if (!task) {
+    window.localStorage.removeItem(UPLOAD_TASK_STORAGE_KEY);
+    return;
+  }
+  window.localStorage.setItem(UPLOAD_TASK_STORAGE_KEY, JSON.stringify(task));
+}
+
+function normalizeTranscriptValidationText(value: string): string {
+  return value.trim().replace(/[，。！？、,.!?\s~～…]/g, "").toLowerCase();
+}
+
+function isLikelyFillerText(value: string): boolean {
+  const normalized = normalizeTranscriptValidationText(value);
+  if (!normalized) return true;
+  const fillers = new Set([
+    "嗯",
+    "嗯嗯",
+    "啊",
+    "啊啊",
+    "哦",
+    "呃",
+    "对",
+    "对对",
+    "好的",
+    "好",
+    "是",
+    "是的",
+    "然后",
+    "然后呢",
+    "就是",
+  ]);
+  if (fillers.has(normalized)) return true;
+  return normalized.length <= 3 && /^([嗯啊哦呃对是好行])+$/.test(normalized);
+}
+
+function parseClockToSeconds(value: string): number | null {
+  const raw = value.trim();
+  if (!raw) return null;
+  if (/^\d+(\.\d+)?$/.test(raw)) return Math.max(0, Number(raw));
+  const parts = raw.split(":").map((item) => Number(item));
+  if (parts.some((item) => Number.isNaN(item))) return null;
+  if (parts.length === 2) return Math.max(0, parts[0] * 60 + parts[1]);
+  if (parts.length === 3) return Math.max(0, parts[0] * 3600 + parts[1] * 60 + parts[2]);
+  return null;
+}
+
+function parseTranscriptTimeRange(value: string): { start: number | null; end: number | null } {
+  const raw = value.trim();
+  if (!raw) return { start: null, end: null };
+  const [startRaw = "", endRaw = ""] = raw.split("-").map((item) => item.trim());
+  return {
+    start: parseClockToSeconds(startRaw),
+    end: parseClockToSeconds(endRaw),
+  };
+}
+
+function validateTranscriptRows(rows: TranscriptEditorRow[]): TranscriptValidationIssue[] {
+  const issues: TranscriptValidationIssue[] = [];
+
+  rows.forEach((row, index) => {
+    const time = row.time.trim();
+    const speaker = row.speaker.trim();
+    const text = row.text.trim();
+    const { start, end } = parseTranscriptTimeRange(time);
+
+    if (!time) {
+      issues.push({ type: "missing_time", severity: "warning", message: "缺少时间范围，建议补成 00:00-00:12 这类格式。", rowIndex: index });
+    } else if (!Number.isFinite(start) || !Number.isFinite(end) || (end as number) <= (start as number)) {
+      issues.push({ type: "invalid_time", severity: "warning", message: "时间范围无法解析，或结束时间早于开始时间。", rowIndex: index });
+    }
+
+    if (!speaker) {
+      issues.push({ type: "missing_speaker", severity: "warning", message: "缺少发言人，建议明确为主持人 / 嘉宾1 / 嘉宾2。", rowIndex: index });
+    }
+
+    if (!text) {
+      issues.push({ type: "missing_text", severity: "warning", message: "这一段没有正文内容。", rowIndex: index });
+    } else {
+      const compactLength = normalizeTranscriptValidationText(text).length;
+      if (compactLength > 0 && (compactLength <= 6 || isLikelyFillerText(text))) {
+        issues.push({ type: "short_text", severity: "info", message: "内容较短，疑似语气词或碎片句，可考虑并入前后段落。", rowIndex: index });
+      }
+      const sentenceCount = (text.match(/[。！？!?]/g) || []).length;
+      if (compactLength >= 140 || sentenceCount >= 5) {
+        issues.push({ type: "long_paragraph", severity: "info", message: "段落偏长，建议检查是否需要拆成两段。", rowIndex: index });
+      }
+    }
+  });
+
+  rows.forEach((row, index) => {
+    if (index === 0) return;
+    const prev = rows[index - 1];
+    const currentRange = parseTranscriptTimeRange(row.time);
+    const prevRange = parseTranscriptTimeRange(prev.time);
+
+    if (
+      Number.isFinite(prevRange.end) &&
+      Number.isFinite(currentRange.start) &&
+      (currentRange.start as number) < (prevRange.end as number)
+    ) {
+      issues.push({ type: "time_overlap", severity: "warning", message: "与上一段时间重叠，建议校正起止时间。", rowIndex: index });
+    }
+
+    if (
+      prev.speaker.trim() &&
+      row.speaker.trim() &&
+      prev.speaker.trim() === row.speaker.trim() &&
+      Number.isFinite(prevRange.end) &&
+      Number.isFinite(currentRange.start) &&
+      (currentRange.start as number) - (prevRange.end as number) <= 4 &&
+      prev.text.trim() &&
+      row.text.trim()
+    ) {
+      issues.push({ type: "merge_recommended", severity: "info", message: "与上一段发言人相同且时间连续，可考虑合并。", rowIndex: index });
+    }
+  });
+
+  return issues;
 }
 
 function parseTranscript(raw: string): Program["transcript"] {
@@ -149,23 +385,67 @@ function serializeTranscriptRows(rows: TranscriptEditorRow[]): string {
     .join("\n");
 }
 
+function buildProgramPayload(form: FormState) {
+  return {
+    title: form.title,
+    description: form.description,
+    coverImage: form.coverImage,
+    status: form.status,
+    episodes: [
+      {
+        title: form.episodeTitle,
+        duration: form.episodeDuration,
+        url: form.episodeUrl,
+      },
+    ],
+    summary: {
+      headline: form.summaryHeadline.trim(),
+      body: form.summaryBody.trim(),
+      highlightLabel: form.summaryHighlightLabel.trim(),
+      highlightText: form.summaryHighlightText.trim(),
+      tags: form.summaryTags
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+    },
+    transcript: parseTranscript(form.transcriptRaw),
+    guest: {
+      name: form.guestName.trim(),
+      title: form.guestTitle.trim(),
+      bio: form.guestBio.trim(),
+      avatar: form.guestAvatar.trim(),
+      profileUrl: form.guestProfileUrl.trim(),
+    },
+    deepDive: {
+      sectionTitle: form.deepDiveTitle.trim(),
+      curatedReading: parseCuratedReading(form.curatedReadingRaw),
+    },
+  };
+}
+
 const AdminProgramsPage: React.FC = () => {
   const [items, setItems] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [keyword, setKeyword] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [isUploadingAudio, setIsUploadingAudio] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadPhase, setUploadPhase] = useState<UploadPhase>("idle");
+  const [uploadFailureReason, setUploadFailureReason] = useState<string>("");
+  const [compressedMeta, setCompressedMeta] = useState<ProgramAudioCompressionMeta | null>(null);
   const [parseHint, setParseHint] = useState<string>("");
-  const [parsingProgramId, setParsingProgramId] = useState<string | null>(null);
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+  const [pendingAudioFile, setPendingAudioFile] = useState<File | null>(null);
+  const [currentUploadTask, setCurrentUploadTask] = useState<UploadTask | null>(() => readStoredUploadTask());
   const [isTranscriptEditorOpen, setIsTranscriptEditorOpen] = useState(false);
   const [transcriptRows, setTranscriptRows] = useState<TranscriptEditorRow[]>([]);
   const audioInputRef = useRef<HTMLInputElement | null>(null);
   const parsePollTimerRef = useRef<number | null>(null);
+  const compressionProgressTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -195,28 +475,21 @@ const AdminProgramsPage: React.FC = () => {
     };
   }, [statusFilter]);
 
-  const filteredItems = useMemo(() => {
-    const normalizedKeyword = keyword.trim().toLowerCase();
-    if (!normalizedKeyword) return items;
-    return items.filter((item) =>
-      `${item.title} ${item.description} ${item.episodes[0]?.title || ""}`.toLowerCase().includes(normalizedKeyword)
-    );
-  }, [items, keyword]);
+  useEffect(() => {
+    persistUploadTask(currentUploadTask);
+  }, [currentUploadTask]);
 
-  const stats = useMemo(() => {
-    const total = items.length;
-    const published = items.filter((item) => item.status === "published").length;
-    const draft = items.filter((item) => item.status === "draft").length;
-    const today = new Date().toDateString();
-    const todayCount = items.filter((item) => new Date(item.createdAt).toDateString() === today).length;
-    return { total, published, draft, todayCount };
-  }, [items]);
-
-  const openCreate = () => {
-    setEditingProgram(null);
-    setForm(EMPTY_FORM);
-    setIsModalOpen(true);
-  };
+  const filteredItems = useMemo(() => items, [items]);
+  const transcriptPreviewRows = useMemo(() => parseTranscriptRows(form.transcriptRaw), [form.transcriptRaw]);
+  const transcriptFormIssues = useMemo(() => validateTranscriptRows(transcriptPreviewRows), [transcriptPreviewRows]);
+  const transcriptEditorIssues = useMemo(() => validateTranscriptRows(transcriptRows), [transcriptRows]);
+  const transcriptEditorIssuesByRow = useMemo(() => {
+    const grouped = new Map<number, TranscriptValidationIssue[]>();
+    transcriptEditorIssues.forEach((issue) => {
+      grouped.set(issue.rowIndex, [...(grouped.get(issue.rowIndex) || []), issue]);
+    });
+    return grouped;
+  }, [transcriptEditorIssues]);
 
   const openEdit = (program: Program) => {
     setEditingProgram(program);
@@ -253,14 +526,71 @@ const AdminProgramsPage: React.FC = () => {
     setForm(EMPTY_FORM);
   };
 
+  const openUploadDialog = () => {
+    setIsUploadDialogOpen(true);
+  };
+
+  const closeUploadDialog = () => {
+    setIsUploadDialogOpen(false);
+  };
+
   useEffect(() => {
     return () => {
       if (parsePollTimerRef.current !== null) {
         window.clearInterval(parsePollTimerRef.current);
         parsePollTimerRef.current = null;
       }
+      if (compressionProgressTimerRef.current !== null) {
+        window.clearInterval(compressionProgressTimerRef.current);
+        compressionProgressTimerRef.current = null;
+      }
     };
   }, []);
+
+  useEffect(() => {
+    if (uploadPhase !== "compressing") {
+      if (compressionProgressTimerRef.current !== null) {
+        window.clearInterval(compressionProgressTimerRef.current);
+        compressionProgressTimerRef.current = null;
+      }
+      return;
+    }
+    if (compressionProgressTimerRef.current !== null) return;
+    compressionProgressTimerRef.current = window.setInterval(() => {
+      setUploadProgress((prev) => {
+        if (prev >= 58) return prev;
+        const next = Math.min(58, prev + (prev < 20 ? 2 : 1));
+        setCurrentUploadTask((task) =>
+          task && task.phase === "compressing" && task.progress < next
+            ? {
+                ...task,
+                progress: next,
+              }
+            : task
+        );
+        return next;
+      });
+    }, 900);
+    return () => {
+      if (compressionProgressTimerRef.current !== null) {
+        window.clearInterval(compressionProgressTimerRef.current);
+        compressionProgressTimerRef.current = null;
+      }
+    };
+  }, [uploadPhase]);
+
+  useEffect(() => {
+    if (!currentUploadTask || isUploadingAudio) return;
+    if (currentUploadTask.phase === "failed" && currentUploadTask.failureReason) {
+      setUploadFailureReason(currentUploadTask.failureReason);
+      setParseHint(currentUploadTask.failureReason);
+      return;
+    }
+    if (currentUploadTask.phase === "parsing" && currentUploadTask.programId) {
+      setParseHint("已恢复后台解析任务，正在同步最新状态...");
+      startParsePolling(currentUploadTask.programId);
+    }
+  }, [currentUploadTask, isUploadingAudio]);
 
   useEffect(() => {
     if (!isModalOpen) return;
@@ -285,12 +615,37 @@ const AdminProgramsPage: React.FC = () => {
     setIsTranscriptEditorOpen(true);
   };
 
-  const saveTranscriptEditor = () => {
-    setForm((prev) => ({
-      ...prev,
-      transcriptRaw: serializeTranscriptRows(transcriptRows),
-    }));
-    setIsTranscriptEditorOpen(false);
+  const saveTranscriptEditor = async () => {
+    const nextTranscriptRaw = serializeTranscriptRows(transcriptRows);
+    const nextIssues = validateTranscriptRows(transcriptRows);
+
+    if (!editingProgram) {
+      setForm((prev) => ({
+        ...prev,
+        transcriptRaw: nextTranscriptRaw,
+      }));
+      setIsTranscriptEditorOpen(false);
+      setParseHint(nextIssues.length > 0 ? `逐字稿已回写到表单，当前有 ${nextIssues.length} 条校验提示可继续优化。` : "");
+      return;
+    }
+
+    const nextForm: FormState = {
+      ...form,
+      transcriptRaw: nextTranscriptRaw,
+    };
+
+    setSaving(true);
+    setError(null);
+    try {
+      await adminApi.updateProgram(editingProgram._id, buildProgramPayload(nextForm));
+      await refreshList();
+      closeModal();
+      setParseHint(nextIssues.length > 0 ? `逐字稿已保存，并保留 ${nextIssues.length} 条校验提示供继续优化。` : "逐字稿已保存并同步到节目内容。");
+    } catch (saveError: any) {
+      setError(saveError?.response?.data?.message || saveError?.message || "保存逐字稿失败");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const updateTranscriptRow = (id: string, patch: Partial<TranscriptEditorRow>) => {
@@ -322,24 +677,36 @@ const AdminProgramsPage: React.FC = () => {
       window.clearInterval(parsePollTimerRef.current);
       parsePollTimerRef.current = null;
     }
-    setParsingProgramId(programId);
     parsePollTimerRef.current = window.setInterval(async () => {
       try {
         const response = await adminApi.getProgramParseStatus(programId);
         const status = response.data?.parseStatus;
         if (status === "parsing") {
           setParseHint("AI 正在解析音频，请稍候...");
+          setCurrentUploadTask((prev) => (prev?.programId === programId ? { ...prev, phase: "parsing", progress: PARSING_PROGRESS } : prev));
           return;
         }
         if (parsePollTimerRef.current !== null) {
           window.clearInterval(parsePollTimerRef.current);
           parsePollTimerRef.current = null;
         }
-        setParsingProgramId(null);
         if (status === "success") {
           setParseHint("解析完成，草稿内容已自动生成。");
+          setCurrentUploadTask((prev) =>
+            prev?.programId === programId ? { ...prev, phase: "success", progress: 100, failureReason: "" } : prev
+          );
         } else if (status === "failed") {
           setParseHint(`解析失败：${response.data?.parseError || "请稍后重试"}`);
+          setCurrentUploadTask((prev) =>
+            prev?.programId === programId
+              ? {
+                  ...prev,
+                  phase: "failed",
+                  progress: PARSING_PROGRESS,
+                  failureReason: response.data?.parseError || "请稍后重试",
+                }
+              : prev
+          );
         } else {
           setParseHint("");
         }
@@ -349,31 +716,141 @@ const AdminProgramsPage: React.FC = () => {
           window.clearInterval(parsePollTimerRef.current);
           parsePollTimerRef.current = null;
         }
-        setParsingProgramId(null);
         setParseHint(pollError?.response?.data?.message || pollError?.message || "轮询解析状态失败");
       }
     }, 3000);
   };
 
-  const handleAudioUpload = async (file: File) => {
+  const handleAudioUpload = async (file: File): Promise<boolean> => {
+    const taskId = `${Date.now()}`;
     try {
       setError(null);
       setIsUploadingAudio(true);
-      setParseHint("正在上传音频...");
-      const uploadRes = await adminApi.uploadProgramAudio(file);
-      setParseHint("上传成功，正在创建解析草稿...");
+      setUploadProgress(0);
+      setUploadFailureReason("");
+      setCompressedMeta(null);
+      setCurrentUploadTask({
+        id: taskId,
+        fileName: file.name,
+        phase: "preparing",
+        progress: COMPRESS_STAGE_PROGRESS.preparing,
+        failureReason: "",
+        compressedMeta: null,
+      });
+
+      setUploadPhase("preparing");
+      setParseHint(buildUploadStageHint("preparing", COMPRESS_STAGE_PROGRESS.preparing));
+      const compressedResult = await compressAudioLossless(
+        { file },
+        {
+          onStageChange: (stage) => {
+            const nextPhase = stage === "preparing" ? "preparing" : "compressing";
+            const nextProgress = COMPRESS_STAGE_PROGRESS[stage];
+            setUploadPhase(nextPhase);
+            setUploadProgress(nextProgress);
+            setParseHint(buildUploadStageHint(nextPhase, nextProgress));
+            setCurrentUploadTask((prev) =>
+              prev?.id === taskId
+                ? {
+                    ...prev,
+                    phase: nextPhase,
+                    progress: nextProgress,
+                  }
+                : prev
+            );
+          },
+          onProgress: (percent) => {
+            const nextProgress = Math.max(COMPRESS_STAGE_PROGRESS.preparing, Math.min(COMPRESS_STAGE_PROGRESS.finalizing, percent));
+            setUploadPhase("compressing");
+            setUploadProgress(nextProgress);
+            setParseHint(buildUploadStageHint("compressing", nextProgress));
+            setCurrentUploadTask((prev) =>
+              prev?.id === taskId
+                ? {
+                    ...prev,
+                    phase: "compressing",
+                    progress: nextProgress,
+                  }
+                : prev
+            );
+          },
+        }
+      );
+
+      setCompressedMeta(compressedResult.meta);
+      setCurrentUploadTask((prev) =>
+        prev?.id === taskId
+          ? {
+              ...prev,
+              compressedMeta: compressedResult.meta,
+              progress: UPLOAD_PROGRESS_START,
+            }
+          : prev
+      );
+      setUploadPhase("uploading");
+      setUploadProgress(UPLOAD_PROGRESS_START);
+      setParseHint(buildUploadStageHint("uploading", UPLOAD_PROGRESS_START));
+      const uploadRes = await adminApi.uploadProgramAudio(compressedResult.file, {
+        sourceFileName: file.name,
+        compressionMeta: compressedResult.meta,
+        onProgress: (percent) => {
+          const nextProgress = mapUploadTransferProgress(percent);
+          setUploadProgress(nextProgress);
+          setParseHint(buildUploadStageHint("uploading", nextProgress));
+          setCurrentUploadTask((prev) =>
+            prev?.id === taskId
+              ? {
+                  ...prev,
+                  phase: "uploading",
+                  progress: nextProgress,
+                }
+              : prev
+          );
+        },
+      });
+      setUploadPhase("parsing");
+      setUploadProgress(PARSING_PROGRESS);
+      setParseHint(buildUploadStageHint("parsing", PARSING_PROGRESS));
       const createRes = await adminApi.createProgramFromAudio(uploadRes.data.url);
       const programId = createRes.data?.programId;
+      setCurrentUploadTask((prev) =>
+        prev?.id === taskId
+          ? {
+              ...prev,
+              phase: "parsing",
+              progress: PARSING_PROGRESS,
+              programId,
+            }
+          : prev
+      );
       if (programId) {
         setParseHint("解析任务已启动，正在处理...");
         await refreshList();
         startParsePolling(programId);
+        setIsUploadDialogOpen(false);
       } else {
         setParseHint("任务已提交，请刷新列表查看状态。");
       }
+      return true;
     } catch (uploadError: any) {
-      setError(uploadError?.response?.data?.message || uploadError?.message || "上传并解析失败");
-      setParseHint("");
+      const isCompressionError = uploadError instanceof AudioCompressionError;
+      const message = isCompressionError
+        ? resolveCompressionErrorMessage(uploadError)
+        : uploadError?.response?.data?.message || uploadError?.message || "上传并解析失败";
+      setUploadPhase("failed");
+      setUploadFailureReason(message);
+      setError(message);
+      setParseHint(message);
+      setCurrentUploadTask((prev) =>
+        prev?.id === taskId
+          ? {
+              ...prev,
+              phase: "failed",
+              failureReason: message,
+            }
+          : prev
+      );
+      return false;
     } finally {
       setIsUploadingAudio(false);
     }
@@ -383,56 +860,43 @@ const AdminProgramsPage: React.FC = () => {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    setPendingAudioFile(file);
+    setUploadFailureReason("");
+    setUploadPhase("idle");
+    setUploadProgress(0);
+    setCompressedMeta(null);
     await handleAudioUpload(file);
   };
 
-  const handleAudioDrop = async (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    const file = event.dataTransfer.files?.[0];
-    if (!file) return;
-    await handleAudioUpload(file);
+  const handleStartParseFromDialog = async () => {
+    if (isUploadingAudio) return;
+    audioInputRef.current?.click();
   };
+
+  const handleRetryUpload = async () => {
+    if (!pendingAudioFile || isUploadingAudio) return;
+    await handleAudioUpload(pendingAudioFile);
+  };
+
+  const handleReupload = () => {
+    if (isUploadingAudio) return;
+    setIsUploadDialogOpen(true);
+    audioInputRef.current?.click();
+  };
+
+  const shouldShowStandaloneUploadTask = useMemo(() => {
+    if (!currentUploadTask) return false;
+    if (!currentUploadTask.programId) return true;
+    return !filteredItems.some((item) => item._id === currentUploadTask.programId);
+  }, [currentUploadTask, filteredItems]);
 
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
     setSaving(true);
     setError(null);
 
-    const payload = {
-      title: form.title,
-      description: form.description,
-      coverImage: form.coverImage,
-      status: form.status,
-      episodes: [
-        {
-          title: form.episodeTitle,
-          duration: form.episodeDuration,
-          url: form.episodeUrl,
-        },
-      ],
-      summary: {
-        headline: form.summaryHeadline.trim(),
-        body: form.summaryBody.trim(),
-        highlightLabel: form.summaryHighlightLabel.trim(),
-        highlightText: form.summaryHighlightText.trim(),
-        tags: form.summaryTags
-          .split(",")
-          .map((tag) => tag.trim())
-          .filter(Boolean),
-      },
-      transcript: parseTranscript(form.transcriptRaw),
-      guest: {
-        name: form.guestName.trim(),
-        title: form.guestTitle.trim(),
-        bio: form.guestBio.trim(),
-        avatar: form.guestAvatar.trim(),
-        profileUrl: form.guestProfileUrl.trim(),
-      },
-      deepDive: {
-        sectionTitle: form.deepDiveTitle.trim(),
-        curatedReading: parseCuratedReading(form.curatedReadingRaw),
-      },
-    };
+    const payload = buildProgramPayload(form);
+    const nextIssues = validateTranscriptRows(parseTranscriptRows(form.transcriptRaw));
 
     try {
       if (editingProgram) {
@@ -442,6 +906,7 @@ const AdminProgramsPage: React.FC = () => {
       }
       await refreshList();
       closeModal();
+      setParseHint(nextIssues.length > 0 ? `节目已保存，逐字稿还有 ${nextIssues.length} 条校验提示。` : "");
     } catch (saveError: any) {
       setError(saveError?.response?.data?.message || saveError?.message || "保存失败");
     } finally {
@@ -469,174 +934,34 @@ const AdminProgramsPage: React.FC = () => {
     }
   };
 
+  const handleReimportDictionary = async (program: Program) => {
+    try {
+      setError(null);
+      await adminApi.importDictionaryFromPrograms([program._id]);
+      await refreshList();
+      setParseHint(`《${program.title}》的教育词典词条已重新导入。`);
+    } catch (importError: any) {
+      setError(importError?.response?.data?.message || importError?.message || "重新导入教育词典失败");
+    }
+  };
+
   return (
     <div className="space-y-12 font-['Noto_Sans_SC','Plus_Jakarta_Sans',sans-serif] text-[#2D2926]">
       <style>{`
         .pearl-card {
           background: #ffffff;
           border: 1px solid rgba(122, 116, 110, 0.1);
-          box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.04);
-          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .pearl-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 40px 80px -20px rgba(99, 14, 212, 0.08);
-          border-color: rgba(99, 14, 212, 0.15);
-        }
-        .editorial-shadow {
-          box-shadow: 0 20px 40px -15px rgba(94, 139, 142, 0.15);
         }
         .gradient-violet {
           background: linear-gradient(135deg, #5e17eb 0%, #5e17eb 100%);
         }
       `}</style>
-      <main className="space-y-12">
-        <header className="flex flex-col items-end justify-between gap-8 md:flex-row">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-[#5E8B8E]">
-              <span className="h-[1px] w-8 bg-[#5E8B8E]"></span>
-              管理面板
-            </div>
-            <h1 className="text-5xl font-black tracking-tight text-stone-900">资源库总览</h1>
-            <p className="text-xl font-light text-[#7A746E]">一处上传，多维流转。为中国家长提供有温度的教育内容。</p>
-          </div>
-          <button className="editorial-shadow gradient-violet flex items-center gap-3 rounded-full px-10 py-5 font-bold text-white transition-all hover:scale-105" onClick={openCreate}>
-            <span className="material-symbols-outlined text-2xl">add_circle</span>
-            新增教育资源
-          </button>
-        </header>
+      <main className="space-y-8">
+        <input ref={audioInputRef} type="file" accept="audio/*" className="hidden" onChange={handleAudioFileSelect} />
 
         {error ? (
           <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm text-red-600">{error}</div>
         ) : null}
-
-        <section className="grid grid-cols-1 gap-8 md:grid-cols-4">
-          <div className="pearl-card flex h-52 flex-col justify-between rounded-2xl p-10">
-            <div>
-              <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-[#FCF9F1]">
-                <span className="material-symbols-outlined text-[#5E8B8E]">inventory_2</span>
-              </div>
-              <h3 className="text-sm font-medium text-[#7A746E]">累计资源总数</h3>
-            </div>
-            <div className="flex items-baseline justify-between">
-              <span className="text-4xl font-black tracking-tighter">{stats.total}</span>
-              <span className="rounded bg-emerald-50 px-2 py-0.5 text-sm font-bold text-emerald-600">+{stats.published}</span>
-            </div>
-          </div>
-          <div className="pearl-card flex h-52 flex-col justify-between rounded-2xl p-10">
-            <div>
-              <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-[#E8F1F2]">
-                <span className="material-symbols-outlined text-[#5E8B8E]">hub</span>
-              </div>
-              <h3 className="text-sm font-medium text-[#7A746E]">多维关联总计</h3>
-            </div>
-            <div className="flex items-baseline justify-between">
-              <span className="text-4xl font-black tracking-tighter">{stats.total * 4}</span>
-              <span className="text-sm font-bold text-emerald-600">+{stats.published * 2}</span>
-            </div>
-          </div>
-          <div className="pearl-card flex h-52 flex-col justify-between rounded-2xl p-10">
-            <div>
-              <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-stone-100">
-                <span className="material-symbols-outlined text-[#7A746E]">upload_file</span>
-              </div>
-              <h3 className="text-sm font-medium text-[#7A746E]">今日新增资源</h3>
-            </div>
-            <div className="flex items-baseline justify-between">
-              <span className="text-4xl font-black tracking-tighter">{stats.todayCount}</span>
-              <span className="text-xs font-medium text-stone-400">额度 500</span>
-            </div>
-          </div>
-          <div className="editorial-shadow gradient-violet relative flex h-52 flex-col justify-between overflow-hidden rounded-2xl p-10 text-white">
-            <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10 blur-2xl"></div>
-            <div>
-              <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-white/20">
-                <span className="material-symbols-outlined text-white" style={{ fontVariationSettings: "'FILL' 1" }}>
-                  auto_awesome
-                </span>
-              </div>
-              <h3 className="text-sm font-medium opacity-80">内容存储健康度</h3>
-            </div>
-            <div className="relative z-10 flex items-baseline justify-between">
-              <span className="text-4xl font-black tracking-tighter">99.9%</span>
-              <span className="rounded-full bg-white/20 px-3 py-1 text-[10px] font-black uppercase tracking-widest">正常运行</span>
-            </div>
-          </div>
-        </section>
-
-        <section className="grid grid-cols-1 gap-10 lg:grid-cols-3">
-          <div className="pearl-card lg:col-span-2 space-y-10 rounded-[2.5rem] p-12">
-            <div className="flex items-end justify-between">
-              <div className="space-y-1">
-                <h2 className="text-3xl font-black text-stone-900">内容发布中心</h2>
-                <p className="text-[#7A746E]">轻松拖拽，将您的教育洞察传递给千家万户</p>
-              </div>
-              <span className="rounded-full bg-[#E8F1F2] px-4 py-1.5 text-sm font-bold text-[#5E8B8E]">待处理队列: {stats.draft} 份文件</span>
-            </div>
-            <input ref={audioInputRef} type="file" accept="audio/*" className="hidden" onChange={handleAudioFileSelect} />
-            <div
-              className="group cursor-pointer rounded-3xl border-2 border-dashed border-stone-200 bg-[#FCF9F1]/30 p-16 text-center transition-all hover:border-[#5e17eb]/30 hover:bg-[#FCF9F1]/50"
-              onClick={() => audioInputRef.current?.click()}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={handleAudioDrop}
-            >
-              <div className="mb-6 inline-flex h-24 w-24 items-center justify-center rounded-full bg-white shadow-sm transition-transform group-hover:scale-110">
-                <span className="material-symbols-outlined text-5xl text-[#5e17eb]/40">cloud_upload</span>
-              </div>
-              <p className="text-xl font-bold text-stone-800">
-                拖拽音频到这里，或 <span className="text-[#5e17eb] underline underline-offset-4">点击上传解析</span>
-              </p>
-              <p className="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-[#7A746E]">
-                独立入口：上传后自动创建草稿并触发 AI 解析，解析完成后可直接进入编辑。
-              </p>
-              <div className="mt-5">
-                <span className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-bold text-[#5e17eb] shadow-sm">
-                  <span className={`h-2 w-2 rounded-full ${isUploadingAudio || parsingProgramId ? "bg-amber-500 animate-pulse" : "bg-emerald-500"}`}></span>
-                  {isUploadingAudio ? "上传中..." : parsingProgramId ? "解析中..." : "等待上传"}
-                </span>
-              </div>
-              {parseHint ? <p className="mx-auto mt-3 max-w-xl text-xs text-stone-500">{parseHint}</p> : null}
-            </div>
-          </div>
-
-          <div className="pearl-card relative flex flex-col overflow-hidden rounded-[2.5rem] bg-stone-50/50 p-12">
-            <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-[#5E8B8E]/5 blur-3xl"></div>
-            <div className="mb-10">
-              <h2 className="mb-3 text-2xl font-black">多维属性关联</h2>
-              <p className="text-sm leading-relaxed text-[#7A746E]">一处发布，即刻同步至不同的教育路径与家长触点。</p>
-            </div>
-            <div className="flex-grow space-y-8">
-              <div className="space-y-4">
-                <label className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.15em] text-[#5E8B8E]">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#5E8B8E]"></span>
-                  当前状态分布
-                </label>
-                <div className="flex flex-wrap gap-2.5">
-                  <span className="rounded-xl border border-stone-200 bg-white px-4 py-2 text-xs font-bold text-stone-700">已发布 {stats.published}</span>
-                  <span className="rounded-xl border border-stone-200 bg-white px-4 py-2 text-xs font-bold text-stone-700">草稿 {stats.draft}</span>
-                  <button className="rounded-xl border border-dashed border-[#5e17eb]/30 bg-[#5e17eb]/5 px-4 py-2 text-xs font-bold text-[#5e17eb]" onClick={() => setStatusFilter("draft")}>
-                    查看草稿
-                  </button>
-                </div>
-              </div>
-              <div className="space-y-4">
-                <label className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.15em] text-[#5E8B8E]">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#5E8B8E]"></span>
-                  节目搜索
-                </label>
-                <div className="relative">
-                  <input
-                    className="w-full rounded-2xl border border-stone-200 bg-white px-5 py-3.5 text-sm transition-all focus:border-[#5e17eb] focus:ring-4 focus:ring-[#5e17eb]/5"
-                    placeholder="搜索节目标题或单集标题"
-                    value={keyword}
-                    onChange={(event) => setKeyword(event.target.value)}
-                  />
-                  <span className="material-symbols-outlined pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-stone-400">search</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
 
         <section className="pearl-card overflow-hidden rounded-[2.5rem] border-stone-200/60">
           <div className="flex flex-col items-center justify-between gap-6 border-b border-stone-100 bg-white/50 p-10 md:flex-row">
@@ -649,7 +974,7 @@ const AdminProgramsPage: React.FC = () => {
                 {(["all", "published", "draft"] as StatusFilter[]).map((filter) => (
                   <button
                     key={filter}
-                    className={`rounded-xl px-6 py-2 text-xs font-bold transition-colors ${statusFilter === filter ? "bg-white text-stone-800 shadow-sm" : "text-[#7A746E] hover:text-stone-800"}`}
+                    className={`rounded-xl px-6 py-2 text-xs font-bold ${statusFilter === filter ? "bg-white text-stone-800" : "text-[#7A746E]"}`}
                     onClick={() => setStatusFilter(filter)}
                   >
                     {filter === "all" ? "全部内容" : filter === "published" ? "已发布" : "草稿箱"}
@@ -678,18 +1003,61 @@ const AdminProgramsPage: React.FC = () => {
                       正在加载节目数据...
                     </td>
                   </tr>
-                ) : filteredItems.length === 0 ? (
+                ) : filteredItems.length === 0 && !shouldShowStandaloneUploadTask ? (
                   <tr>
                     <td className="px-10 py-10 text-sm text-stone-500" colSpan={6}>
                       暂无匹配内容
                     </td>
                   </tr>
                 ) : (
-                  filteredItems.map((row) => (
-                    <tr key={row._id} className="transition-colors hover:bg-[#FCF9F1]/40">
+                  <>
+                    {shouldShowStandaloneUploadTask && currentUploadTask ? (
+                      <tr className="bg-[#faf7ff]" key={`upload-task-${currentUploadTask.id}`}>
+                        <td className="px-10 py-6" colSpan={6}>
+                          <div className="rounded-[1.75rem] border border-[#5e17eb]/15 bg-white px-6 py-5">
+                            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-3">
+                                  <span className="rounded-full bg-[#5e17eb]/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-[#5e17eb]">压缩上传任务</span>
+                                  <span className={`rounded-full px-3 py-1 text-[11px] font-bold ${getUploadTaskTone(currentUploadTask.phase)}`}>
+                                    {buildUploadTaskTitle(currentUploadTask.phase, currentUploadTask.progress)}
+                                  </span>
+                                  {currentUploadTask.phase === "failed" ? (
+                                    <button
+                                      className="rounded-full border border-[#5e17eb]/20 px-3 py-1 text-[11px] font-bold text-[#5e17eb]"
+                                      onClick={handleReupload}
+                                      type="button"
+                                    >
+                                      重新上传
+                                    </button>
+                                  ) : null}
+                                </div>
+                                <div className="mt-2 truncate text-sm font-bold text-stone-900">{currentUploadTask.fileName}</div>
+                                <div className="mt-1 text-xs text-stone-500">
+                                  {currentUploadTask.failureReason || buildUploadStageHint(currentUploadTask.phase, currentUploadTask.progress)}
+                                </div>
+                              </div>
+                              <div className="w-full max-w-[320px]">
+                                <div className="h-2.5 overflow-hidden rounded-full bg-stone-200">
+                                  <div className={`h-full rounded-full transition-all ${currentUploadTask.phase === "failed" ? "bg-red-400" : currentUploadTask.phase === "success" ? "bg-emerald-500" : "bg-[#5e17eb]"}`} style={{ width: `${currentUploadTask.progress}%` }} />
+                                </div>
+                                <div className="mt-2 flex items-center justify-between text-[11px] font-bold text-stone-500">
+                                  <span>{currentUploadTask.programId ? "草稿已创建" : "草稿待创建"}</span>
+                                  <span>{currentUploadTask.progress}%</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+                    {filteredItems.map((row) => {
+                      const rowUploadTask = currentUploadTask?.programId === row._id ? currentUploadTask : null;
+                      return (
+                    <tr key={row._id}>
                       <td className="px-10 py-7">
                         <div className="flex items-center gap-5">
-                          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#5e17eb]/5 text-[#5e17eb] shadow-sm">
+                          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#5e17eb]/5 text-[#5e17eb]">
                             <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
                               mic
                             </span>
@@ -708,6 +1076,36 @@ const AdminProgramsPage: React.FC = () => {
                                 {PARSE_STATUS_LABEL[row.parseStatus]}
                               </div>
                             ) : null}
+                            {rowUploadTask ? (
+                              <div className="mt-3 max-w-[340px] rounded-2xl border border-[#5e17eb]/15 bg-[#faf7ff] px-3 py-3">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="text-[11px] font-bold text-[#5e17eb]">{buildUploadTaskTitle(rowUploadTask.phase, rowUploadTask.progress)}</div>
+                                  <div className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${getUploadTaskTone(rowUploadTask.phase)}`}>
+                                    {rowUploadTask.phase === "failed" ? "需处理" : rowUploadTask.phase === "success" ? "已完成" : "进行中"}
+                                  </div>
+                                </div>
+                                <div className="mt-2 h-2 overflow-hidden rounded-full bg-white">
+                                  <div
+                                    className={`h-full rounded-full transition-all ${rowUploadTask.phase === "failed" ? "bg-red-400" : rowUploadTask.phase === "success" ? "bg-emerald-500" : "bg-[#5e17eb]"}`}
+                                    style={{ width: `${rowUploadTask.progress}%` }}
+                                  />
+                                </div>
+                                <div className="mt-2 text-[11px] text-stone-500">
+                                  {rowUploadTask.failureReason || buildUploadStageHint(rowUploadTask.phase, rowUploadTask.progress)}
+                                </div>
+                                {rowUploadTask.phase === "failed" ? (
+                                  <div className="mt-3">
+                                    <button
+                                      className="rounded-full border border-[#5e17eb]/20 px-3 py-1 text-[11px] font-bold text-[#5e17eb]"
+                                      onClick={handleReupload}
+                                      type="button"
+                                    >
+                                      重新上传
+                                    </button>
+                                  </div>
+                                ) : null}
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       </td>
@@ -715,10 +1113,21 @@ const AdminProgramsPage: React.FC = () => {
                         <span className="text-sm font-medium text-stone-600">音频资源 / MP3</span>
                       </td>
                       <td className="px-10 py-7">
-                        <div className="flex -space-x-2">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-stone-100 text-[9px] font-black text-stone-600">EP</div>
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#E8F1F2] text-[9px] font-black text-[#5E8B8E]">{row.episodes.length || 1}</div>
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#5e17eb]/10 text-[9px] font-black text-[#5e17eb]">{row.status === "published" ? "ON" : "OFF"}</div>
+                        <div className="flex items-center gap-3">
+                          <div className="flex -space-x-2">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-stone-100 text-[9px] font-black text-stone-600">EP</div>
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#E8F1F2] text-[9px] font-black text-[#5E8B8E]">{row.episodes.length || 1}</div>
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#5e17eb]/10 text-[9px] font-black text-[#5e17eb]">{row.status === "published" ? "ON" : "OFF"}</div>
+                          </div>
+                          <div className="text-xs text-stone-500">
+                            {(row.dictionaryEntries || []).length > 0 ? (
+                              <span className="rounded-full bg-[#f7f3ff] px-3 py-1 font-bold text-[#5e17eb]">
+                                {(row.dictionaryEntries || []).length} 个词条
+                              </span>
+                            ) : (
+                              <span>待导入词条</span>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="px-10 py-7 text-center">
@@ -729,19 +1138,24 @@ const AdminProgramsPage: React.FC = () => {
                       <td className="px-10 py-7 text-sm font-bold text-stone-500">{formatDate(row.publishedAt || row.createdAt)}</td>
                       <td className="px-10 py-7">
                         <div className="flex justify-end gap-2">
-                          <button className="rounded-full border border-stone-200 px-4 py-2 text-xs font-bold text-stone-700 transition-colors hover:border-[#5e17eb] hover:text-[#5e17eb]" onClick={() => openEdit(row)}>
+                          <button className="rounded-full border border-stone-200 px-4 py-2 text-xs font-bold text-stone-700" onClick={() => openEdit(row)}>
                             编辑
                           </button>
-                          <button className="rounded-full border border-stone-200 px-4 py-2 text-xs font-bold text-stone-700 transition-colors hover:border-[#5e17eb] hover:text-[#5e17eb]" onClick={() => handleToggleStatus(row)}>
+                          <button className="rounded-full border border-stone-200 px-4 py-2 text-xs font-bold text-stone-700" onClick={() => handleToggleStatus(row)}>
                             {row.status === "published" ? "下架" : "发布"}
                           </button>
-                          <button className="rounded-full border border-red-100 px-4 py-2 text-xs font-bold text-red-500 transition-colors hover:bg-red-50" onClick={() => handleDelete(row)}>
+                          <button className="rounded-full border border-stone-200 px-4 py-2 text-xs font-bold text-stone-700" onClick={() => handleReimportDictionary(row)}>
+                            重新导词
+                          </button>
+                          <button className="rounded-full border border-red-100 px-4 py-2 text-xs font-bold text-red-500" onClick={() => handleDelete(row)}>
                             删除
                           </button>
                         </div>
                       </td>
                     </tr>
-                  ))
+                      );
+                    })}
+                  </>
                 )}
               </tbody>
             </table>
@@ -824,6 +1238,67 @@ const AdminProgramsPage: React.FC = () => {
                       </button>
                     </div>
                   </div>
+                  <div className="md:col-span-2 rounded-2xl border border-stone-200 bg-stone-50/70 px-4 py-4">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-widest text-[#7A746E]">逐字稿校验</p>
+                        <p className="mt-2 text-sm text-stone-600">
+                          {transcriptFormIssues.length > 0
+                            ? `当前检测到 ${transcriptFormIssues.length} 条软校验提示，保存不会被拦截。`
+                            : "当前未发现明显的逐字稿结构问题。"}
+                        </p>
+                      </div>
+                      {transcriptFormIssues.length > 0 ? (
+                        <span className="inline-flex rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
+                          {transcriptFormIssues.filter((issue) => issue.severity === "warning").length} 条警告 / {transcriptFormIssues.filter((issue) => issue.severity === "info").length} 条建议
+                        </span>
+                      ) : (
+                        <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                          校验通过
+                        </span>
+                      )}
+                    </div>
+                    {transcriptFormIssues.length > 0 ? (
+                      <div className="mt-3 space-y-2">
+                        {transcriptFormIssues.slice(0, 6).map((issue, index) => (
+                          <div
+                            key={`${issue.type}-${issue.rowIndex}-${index}`}
+                            className={`rounded-xl px-3 py-2 text-xs ${
+                              issue.severity === "warning" ? "bg-amber-50 text-amber-800" : "bg-stone-100 text-stone-600"
+                            }`}
+                          >
+                            第 {issue.rowIndex + 1} 段：{issue.message}
+                          </div>
+                        ))}
+                        {transcriptFormIssues.length > 6 ? (
+                          <div className="text-xs text-stone-500">其余 {transcriptFormIssues.length - 6} 条可在“逐字稿校对视窗”里继续查看。</div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="md:col-span-2 rounded-2xl border border-stone-200 bg-white px-4 py-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-widest text-[#7A746E]">教育词典关联</p>
+                        <p className="mt-2 text-sm text-stone-600">
+                          当前已关联 {(editingProgram?.dictionaryEntries || []).length} 个词条。
+                          {(editingProgram?.dictionaryEntries || []).length > 0
+                            ? ` ${editingProgram?.dictionaryEntries?.slice(0, 6).map((entry) => entry.term).join("、")}`
+                            : " 保存节目后可从 AI 术语结果自动入库。"}
+                        </p>
+                      </div>
+                      {editingProgram ? (
+                        <button
+                          className="inline-flex items-center gap-2 rounded-full border border-[#5e17eb]/20 bg-[#f7f3ff] px-4 py-2 text-xs font-bold text-[#5e17eb] hover:border-[#5e17eb] hover:bg-[#f1eaff]"
+                          onClick={() => handleReimportDictionary(editingProgram)}
+                          type="button"
+                        >
+                          <span className="material-symbols-outlined text-sm">refresh</span>
+                          重新导入该节目词条
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -873,9 +1348,30 @@ const AdminProgramsPage: React.FC = () => {
                     + 新增一条
                   </button>
                 </div>
+                <div className="border-b border-stone-100 bg-stone-50/70 px-5 py-3 md:px-6">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-xs font-bold text-stone-600">
+                      {transcriptEditorIssues.length > 0 ? `检测到 ${transcriptEditorIssues.length} 条软校验提示` : "当前未发现明显问题"}
+                    </span>
+                    <span className="rounded-full bg-white px-3 py-1 text-[11px] font-bold text-stone-500">
+                      警告 {transcriptEditorIssues.filter((issue) => issue.severity === "warning").length} / 建议 {transcriptEditorIssues.filter((issue) => issue.severity === "info").length}
+                    </span>
+                  </div>
+                </div>
                 <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 md:px-6">
-                  {transcriptRows.map((row, index) => (
-                    <div key={row.id} className="rounded-xl border border-stone-200 bg-stone-50/50 p-3">
+                  {transcriptRows.map((row, index) => {
+                    const rowIssues = transcriptEditorIssuesByRow.get(index) || [];
+                    return (
+                    <div
+                      key={row.id}
+                      className={`rounded-xl border p-3 ${
+                        rowIssues.some((issue) => issue.severity === "warning")
+                          ? "border-amber-300 bg-amber-50/60"
+                          : rowIssues.length > 0
+                          ? "border-stone-300 bg-stone-50"
+                          : "border-stone-200 bg-stone-50/50"
+                      }`}
+                    >
                       <div className="mb-2 flex items-center justify-between">
                         <div className="text-xs font-bold text-stone-500">#{index + 1}</div>
                         <button className="text-xs font-bold text-red-500 hover:text-red-600 disabled:opacity-40" disabled={transcriptRows.length <= 1} onClick={() => removeTranscriptRow(row.id)} type="button">
@@ -891,10 +1387,26 @@ const AdminProgramsPage: React.FC = () => {
                         />
                         <input
                           className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm"
-                          placeholder="说话人，如 jessie"
+                          placeholder="说话人，如 主持人 / 嘉宾1"
                           value={row.speaker}
                           onChange={(event) => updateTranscriptRow(row.id, { speaker: event.target.value })}
                         />
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {SPEAKER_SUGGESTIONS.map((label) => (
+                          <button
+                            key={`${row.id}-${label}`}
+                            className={`rounded-full border px-3 py-1 text-[11px] font-bold ${
+                              row.speaker.trim() === label
+                                ? "border-[#5e17eb] bg-[#f7f3ff] text-[#5e17eb]"
+                                : "border-stone-200 bg-white text-stone-500 hover:border-[#5e17eb]/30 hover:text-[#5e17eb]"
+                            }`}
+                            onClick={() => updateTranscriptRow(row.id, { speaker: label })}
+                            type="button"
+                          >
+                            {label}
+                          </button>
+                        ))}
                       </div>
                       <textarea
                         className="mt-2 min-h-[90px] w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm"
@@ -906,8 +1418,22 @@ const AdminProgramsPage: React.FC = () => {
                         <input type="checkbox" checked={row.featured} onChange={(event) => updateTranscriptRow(row.id, { featured: event.target.checked })} />
                         标记为 featured
                       </label>
+                      {rowIssues.length > 0 ? (
+                        <div className="mt-3 space-y-2">
+                          {rowIssues.map((issue, issueIndex) => (
+                            <div
+                              key={`${row.id}-${issue.type}-${issueIndex}`}
+                              className={`rounded-lg px-3 py-2 text-[11px] ${
+                                issue.severity === "warning" ? "bg-amber-100 text-amber-800" : "bg-white text-stone-600"
+                              }`}
+                            >
+                              {issue.message}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
-                  ))}
+                  )})}
                 </div>
               </div>
 
@@ -938,13 +1464,97 @@ const AdminProgramsPage: React.FC = () => {
               <button className="rounded-full border border-stone-200 px-5 py-2.5 text-sm font-bold text-stone-700" onClick={() => setIsTranscriptEditorOpen(false)} type="button">
                 取消
               </button>
-              <button className="rounded-full bg-[#5e17eb] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#5112d1]" onClick={saveTranscriptEditor} type="button">
-                保存逐字稿修改
+              <button className="rounded-full bg-[#5e17eb] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#5112d1] disabled:cursor-not-allowed disabled:opacity-60" onClick={saveTranscriptEditor} disabled={saving} type="button">
+                {saving ? "保存中..." : "保存逐字稿并返回列表"}
               </button>
             </div>
           </div>
         </div>
       ) : null}
+
+      {isUploadDialogOpen ? (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center bg-[#0b1020]/55 p-4 backdrop-blur-md" onClick={closeUploadDialog}>
+          <div className="w-full max-w-[760px] rounded-3xl bg-white p-6 shadow-2xl md:p-8" onClick={(event) => event.stopPropagation()}>
+            <div className="mb-5 flex items-start justify-between">
+              <div>
+                <h3 className="text-2xl font-black text-stone-900">压缩上传并解析</h3>
+                <p className="mt-1 text-sm text-stone-500">选中文件后立即开始压缩上传，关闭弹窗后也会继续在后台执行，并在列表里展示进度。</p>
+              </div>
+              <button className="material-symbols-outlined text-stone-400 hover:text-stone-700" onClick={closeUploadDialog} type="button">
+                close
+              </button>
+            </div>
+
+            <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  className="rounded-full bg-[#5e17eb] px-4 py-2 text-xs font-bold text-white hover:bg-[#5112d1] disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={isUploadingAudio}
+                  onClick={() => audioInputRef.current?.click()}
+                  type="button"
+                >
+                  {pendingAudioFile ? "重新选择" : "选择文件"}
+                </button>
+                <span className="text-xs text-stone-500">{pendingAudioFile ? pendingAudioFile.name : "未选择任何文件"}</span>
+              </div>
+              <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-stone-200">
+                <div className="h-full rounded-full bg-[#5e17eb] transition-all" style={{ width: `${uploadProgress}%` }} />
+              </div>
+              <div className="mt-2 text-xs text-stone-500">
+                {parseHint || (isUploadingAudio ? buildUploadStageHint(uploadPhase, uploadProgress) || `${uploadProgress}%` : "请选择音频文件后自动开始压缩上传")}
+              </div>
+              {compressedMeta ? (
+                <div className="mt-2 rounded-xl bg-white px-3 py-2 text-[11px] text-stone-600">
+                  压缩结果：{(compressedMeta.originalSize / 1024 / 1024).toFixed(2)}MB → {(compressedMeta.compressedSize / 1024 / 1024).toFixed(2)}MB（比例 {(
+                    compressedMeta.compressionRatio * 100
+                  ).toFixed(1)}
+                  %）
+                </div>
+              ) : null}
+            </div>
+
+            {uploadFailureReason ? <p className="mt-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600">失败原因：{uploadFailureReason}</p> : null}
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button className="rounded-full border border-stone-200 px-5 py-2.5 text-sm font-bold text-stone-700 hover:bg-stone-50" onClick={closeUploadDialog} type="button">
+                {isUploadingAudio ? "后台继续" : "关闭"}
+              </button>
+              <button
+                className="rounded-full border border-[#5e17eb]/30 px-5 py-2.5 text-sm font-bold text-[#5e17eb] hover:bg-[#f4efff] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={!pendingAudioFile || isUploadingAudio}
+                onClick={handleRetryUpload}
+                type="button"
+              >
+                失败重试
+              </button>
+              <button
+                className="rounded-full bg-[#c7bbff] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#5e17eb] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isUploadingAudio}
+                onClick={handleStartParseFromDialog}
+                type="button"
+              >
+                {isUploadingAudio
+                  ? uploadPhase === "compressing" || uploadPhase === "preparing"
+                    ? "压缩中..."
+                    : uploadPhase === "uploading"
+                    ? "上传中..."
+                    : "处理中..."
+                  : "压缩上传"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <button
+        className="fixed bottom-8 right-8 z-50 inline-flex items-center gap-2.5 rounded-full border border-[#6c47ff] bg-[#4f22ff] px-6 py-3.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-70"
+        disabled={isUploadingAudio}
+        onClick={openUploadDialog}
+        type="button"
+      >
+        <span className="material-symbols-outlined text-[18px]">graphic_eq</span>
+        {isUploadingAudio ? `压缩上传中 ${uploadProgress}%` : "压缩上传"}
+      </button>
 
     </div>
   );

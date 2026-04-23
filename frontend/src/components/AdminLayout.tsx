@@ -56,6 +56,13 @@ const AdminLayout: React.FC = () => {
             <span className={navTextClass(isActive("/admin/programs"))}>播客管理</span>
           </Link>
           <Link
+            to="/admin/dictionary"
+            className={navItemClass(isActive("/admin/dictionary"))}
+          >
+            <span className={navIconClass(isActive("/admin/dictionary"))}>dictionary</span>
+            <span className={navTextClass(isActive("/admin/dictionary"))}>教育词典</span>
+          </Link>
+          <Link
             to="/admin/books"
             className={navItemClass(isActive("/admin/books"))}
           >
