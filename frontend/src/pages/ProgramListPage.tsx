@@ -157,6 +157,10 @@ const ProgramListPage: React.FC = () => {
                         <span className="material-symbols-outlined text-lg">description</span>
                         逐字稿
                       </span>
+                      <span className="flex items-center gap-2 rounded-xl border border-[#5e17eb]/30 bg-[#5e17eb]/5 px-6 py-3 text-sm font-bold text-[#5e17eb] transition-all">
+                        <span className="material-symbols-outlined text-lg">auto_awesome</span>
+                        AI速览/纪要/Shownotes
+                      </span>
                       <span className="flex items-center gap-2 rounded-xl border border-[#e2e8f0] px-6 py-3 text-sm font-bold text-[#1a1a1b] transition-all">
                         <span className="material-symbols-outlined text-lg">menu_book</span>
                         书单
@@ -189,6 +193,10 @@ const ProgramListPage: React.FC = () => {
                 <span className="flex items-center gap-2 rounded-xl bg-[#5e17eb] px-6 py-3 text-sm font-bold text-white shadow-md transition-all">
                   <span className="material-symbols-outlined text-lg">description</span>
                   阅读稿件
+                </span>
+                <span className="flex items-center gap-2 rounded-xl border border-[#5e17eb]/30 bg-[#5e17eb]/5 px-6 py-3 text-sm font-bold text-[#5e17eb] shadow-md transition-all">
+                  <span className="material-symbols-outlined text-lg">auto_awesome</span>
+                  AI内容增强
                 </span>
               </article>
               </Link>

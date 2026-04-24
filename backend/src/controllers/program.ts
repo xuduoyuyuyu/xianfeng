@@ -5,6 +5,7 @@ import Program from "../models/Program";
 import { resolveProgramAiProvider } from "../services/programAi";
 import mongoose from "mongoose";
 import { attachDictionaryEntriesToPrograms, removeProgramFromDictionary, syncProgramDictionaryEntries } from "../services/educationDictionary";
+import { buildShowNotesKeyMomentsText, getShowNotesDefaultTemplate, renderShowNotesTemplate, truncateByChars } from "../services/showNotes";
 
 function statusUpdatePayload(status: "draft" | "published") {
   if (status === "published") {
@@ -19,6 +20,28 @@ function asText(value: unknown): string {
 
 function hasText(value: unknown): boolean {
   return asText(value).length > 0;
+}
+
+function normalizeProgramCode(value: unknown): string {
+  const raw = asText(value).toLowerCase();
+  if (!raw) return "";
+  return raw.replace(/\s+/g, "").replace(/[^a-z0-9_-]/g, "");
+}
+
+async function buildNextProgramCode(): Promise<string> {
+  const rows = await Program.find(
+    { programCode: { $regex: /^ep\d+$/i } },
+    { programCode: 1 }
+  ).lean();
+  let maxNo = 0;
+  for (const row of rows) {
+    const code = normalizeProgramCode((row as any)?.programCode);
+    const match = code.match(/^ep(\d+)$/);
+    if (!match) continue;
+    const num = Number(match[1]);
+    if (Number.isFinite(num) && num > maxNo) maxNo = num;
+  }
+  return `ep${maxNo + 1}`;
 }
 
 function parseClockToSeconds(value: unknown): number | null {
@@ -200,10 +223,72 @@ function sanitizeTermGlossary(input: unknown) {
     .filter((item) => item.term && item.definition);
 }
 
+function sanitizeQuickView(input: unknown) {
+  if (!Array.isArray(input)) return [];
+  const normalized = input
+    .map((item: any, index: number) => {
+      const startRaw = asText(item?.startTime || item?.start || item?.from);
+      const endRaw = asText(item?.endTime || item?.end || item?.to);
+      const label = asText(item?.timeRangeLabel || item?.timeRange || item?.time);
+      const tokens = label.match(/\d{1,2}:\d{2}(?::\d{2})?/g) || [];
+      let startSec = parseClockToSeconds(startRaw) ?? parseClockToSeconds(tokens[0]);
+      let endSec = parseClockToSeconds(endRaw) ?? parseClockToSeconds(tokens[1]);
+      if (!Number.isFinite(startSec) && Number.isFinite(endSec)) startSec = Math.max(0, (endSec as number) - 90);
+      if (!Number.isFinite(startSec)) startSec = index * 300;
+      if (!Number.isFinite(endSec) || (endSec as number) <= (startSec as number)) {
+        endSec = (startSec as number) + 90;
+      }
+      const summary = truncateByChars(item?.summary || item?.text, 300);
+      if (!summary) return null;
+      const startTime = formatClockRange(startSec as number);
+      const endTime = formatClockRange(endSec as number);
+      return {
+        startTime,
+        endTime,
+        timeRangeLabel: `${startTime}-${endTime}`,
+        summary,
+        __startSec: startSec as number,
+      };
+    })
+    .filter(Boolean) as Array<{ startTime: string; endTime: string; timeRangeLabel: string; summary: string; __startSec: number }>;
+  normalized.sort((a, b) => a.__startSec - b.__startSec);
+  return normalized.slice(0, 12).map(({ __startSec, ...item }) => item);
+}
+
+function sanitizeShowNotesKeyMoments(input: unknown) {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((item: any) => ({
+      time: asText(item?.time || item?.range),
+      point: truncateByChars(item?.point || item?.title || item?.summary, 120),
+    }))
+    .filter((item) => item.time && item.point)
+    .slice(0, 20);
+}
+
+function sanitizeContentPack(input: unknown) {
+  const raw = input || {};
+  const quickView = sanitizeQuickView((raw as any)?.quickView);
+  const minutesText = truncateByChars((raw as any)?.minutes?.text, 1000);
+  const showNotes = {
+    guide: truncateByChars((raw as any)?.showNotes?.guide, 300),
+    guestIntro: truncateByChars((raw as any)?.showNotes?.guestIntro, 300),
+    keyMoments: sanitizeShowNotesKeyMoments((raw as any)?.showNotes?.keyMoments),
+    renderedText: asText((raw as any)?.showNotes?.renderedText),
+    templateOverride: asText((raw as any)?.showNotes?.templateOverride),
+  };
+  return {
+    quickView,
+    minutes: { text: minutesText },
+    showNotes,
+  };
+}
+
 async function buildProgramResponse(program: any, extra: Record<string, any> = {}) {
   const attached = await attachDictionaryEntriesToPrograms(program, false);
+  const withShowNotes = await applyShowNotesRendering(attached);
   return {
-    ...attached,
+    ...withShowNotes,
     ...extra,
   };
 }
@@ -212,6 +297,9 @@ function sanitizeProgramPayload(payload: any, requireEpisode: boolean) {
   const cleaned = { ...payload };
   delete cleaned.autoGenerate;
   delete cleaned.uploadedAudioUrl;
+  if (cleaned.programCode !== undefined) {
+    cleaned.programCode = normalizeProgramCode(cleaned.programCode);
+  }
 
   if (cleaned.summary) {
     cleaned.summary = {
@@ -248,6 +336,10 @@ function sanitizeProgramPayload(payload: any, requireEpisode: boolean) {
     };
   }
 
+  if (cleaned.contentPack !== undefined) {
+    cleaned.contentPack = sanitizeContentPack(cleaned.contentPack);
+  }
+
   if (cleaned.episodes !== undefined) {
     const episodes = Array.isArray(cleaned.episodes) ? cleaned.episodes : [];
     const sanitizedEpisodes = episodes
@@ -280,6 +372,26 @@ function mergePreferManualText(manual: unknown, generated: unknown): string {
 function mergePreferManualArray<T>(manual: T[] | undefined, generated: T[] | undefined): T[] {
   if (Array.isArray(manual) && manual.length > 0) return manual;
   return Array.isArray(generated) ? generated : [];
+}
+
+function mergeContentPack(manual: any, generated: any) {
+  const manualPack = manual || {};
+  const generatedPack = generated || {};
+  const manualShowNotes = manualPack.showNotes || {};
+  const generatedShowNotes = generatedPack.showNotes || {};
+  return {
+    quickView: mergePreferManualArray(manualPack.quickView, generatedPack.quickView),
+    minutes: {
+      text: mergePreferManualText(manualPack.minutes?.text, generatedPack.minutes?.text),
+    },
+    showNotes: {
+      guide: mergePreferManualText(manualShowNotes.guide, generatedShowNotes.guide),
+      guestIntro: mergePreferManualText(manualShowNotes.guestIntro, generatedShowNotes.guestIntro),
+      keyMoments: mergePreferManualArray(manualShowNotes.keyMoments, generatedShowNotes.keyMoments),
+      renderedText: mergePreferManualText(manualShowNotes.renderedText, generatedShowNotes.renderedText),
+      templateOverride: mergePreferManualText(manualShowNotes.templateOverride, generatedShowNotes.templateOverride),
+    },
+  };
 }
 
 function mergeAiIntoPayload(payload: any, generated: any, transcript: any[]) {
@@ -316,6 +428,8 @@ function mergeAiIntoPayload(payload: any, generated: any, transcript: any[]) {
     sectionTitle: mergePreferManualText(next.deepDive?.sectionTitle, generated?.deepDive?.sectionTitle),
     curatedReading: mergePreferManualArray(next.deepDive?.curatedReading, generated?.deepDive?.curatedReading),
   };
+
+  next.contentPack = mergeContentPack(next.contentPack, generated?.contentPack);
 
   return next;
 }
@@ -380,15 +494,67 @@ function ensureBaseFieldsFromGenerated(payload: any, generated: any, transcript:
   };
 }
 
+async function applyShowNotesRendering(payload: any, defaultTemplate?: string) {
+  const next = { ...(payload || {}) };
+  const contentPack = sanitizeContentPack(next.contentPack || {});
+  const showNotes = contentPack.showNotes || {};
+  const quickView = Array.isArray(contentPack.quickView) ? contentPack.quickView : [];
+  const fallbackKeyMoments = quickView
+    .slice(0, 8)
+    .map((item: any) => ({ time: asText(item?.timeRangeLabel), point: truncateByChars(item?.summary, 90) }))
+    .filter((item: any) => item.time && item.point);
+  const keyMoments = Array.isArray(showNotes.keyMoments) && showNotes.keyMoments.length > 0
+    ? showNotes.keyMoments
+    : fallbackKeyMoments;
+  const guide = asText(showNotes.guide) || asText(next?.summary?.body);
+  const guestName = asText(next?.guest?.name) || "节目特邀嘉宾";
+  const guestIntro = asText(showNotes.guestIntro) || `${guestName}，围绕本期主题提供实操经验与关键洞察。`;
+  const minutesText = asText(contentPack?.minutes?.text) || asText(next?.summary?.body);
+  const templateOverride = asText(showNotes.templateOverride);
+  const template = templateOverride || defaultTemplate || (await getShowNotesDefaultTemplate());
+  const renderedText = renderShowNotesTemplate({
+    template,
+    programTitle: asText(next?.title),
+    guestName,
+    guide,
+    guestIntro,
+    keyMomentsText: buildShowNotesKeyMomentsText(keyMoments),
+    minutes: minutesText,
+  });
+
+  next.contentPack = {
+    ...contentPack,
+    minutes: {
+      text: truncateByChars(minutesText, 1000),
+    },
+    showNotes: {
+      guide: truncateByChars(guide, 300),
+      guestIntro: truncateByChars(guestIntro, 300),
+      keyMoments: sanitizeShowNotesKeyMoments(keyMoments),
+      renderedText,
+      templateOverride,
+    },
+  };
+  return next;
+}
+
 const parsingProgramIds = new Set<string>();
 
-function parseMetaPatch(status: "idle" | "parsing" | "success" | "failed", message = "") {
+function parseMetaPatch(
+  status: "idle" | "parsing" | "success" | "failed",
+  message = "",
+  progress = 0,
+  stage = "idle"
+) {
+  const safeProgress = Math.max(0, Math.min(100, Math.floor(progress)));
   if (status === "parsing") {
     return {
       parseStatus: "parsing",
       parseStartedAt: new Date(),
       parseFinishedAt: null,
       parseError: "",
+      parseProgress: safeProgress,
+      parseStage: stage || "queued",
     };
   }
   if (status === "success") {
@@ -396,6 +562,8 @@ function parseMetaPatch(status: "idle" | "parsing" | "success" | "failed", messa
       parseStatus: "success",
       parseFinishedAt: new Date(),
       parseError: "",
+      parseProgress: 100,
+      parseStage: "completed",
     };
   }
   if (status === "failed") {
@@ -403,11 +571,15 @@ function parseMetaPatch(status: "idle" | "parsing" | "success" | "failed", messa
       parseStatus: "failed",
       parseFinishedAt: new Date(),
       parseError: message || "解析失败",
+      parseProgress: safeProgress > 0 ? safeProgress : 100,
+      parseStage: stage || "failed",
     };
   }
   return {
     parseStatus: "idle",
     parseError: "",
+    parseProgress: 0,
+    parseStage: "idle",
   };
 }
 
@@ -435,7 +607,7 @@ async function runAsyncParseTask(
   if (parsingProgramIds.has(programId)) return;
   parsingProgramIds.add(programId);
   try {
-    await Program.findByIdAndUpdate(programId, parseMetaPatch("parsing"), { new: false });
+    await Program.findByIdAndUpdate(programId, parseMetaPatch("parsing", "", 5, "queued"), { new: false });
     const currentProgram = await Program.findById(programId);
     if (!currentProgram) {
       parsingProgramIds.delete(programId);
@@ -446,10 +618,22 @@ async function runAsyncParseTask(
       uploadedAudioUrl,
       options
     );
-    const aiResult = await tryAutoGenerate(sourcePayload);
-    const payload = sanitizeProgramPayload(aiResult.payload, false);
+    const aiResult = await tryAutoGenerate(sourcePayload, async (progress, stage) => {
+      await Program.findByIdAndUpdate(
+        programId,
+        {
+          parseStatus: "parsing",
+          parseProgress: Math.max(0, Math.min(99, Math.floor(progress))),
+          parseStage: asText(stage) || "parsing",
+          parseError: "",
+        },
+        { new: false }
+      );
+    });
+    await Program.findByIdAndUpdate(programId, { parseProgress: 96, parseStage: "saving" }, { new: false });
+    const payload = await applyShowNotesRendering(sanitizeProgramPayload(aiResult.payload, false));
     const status = aiResult.aiStatus === "generated" ? "success" : "failed";
-    const parsePatch = parseMetaPatch(status, aiResult.aiMessage || "");
+    const parsePatch = parseMetaPatch(status, aiResult.aiMessage || "", status === "failed" ? 100 : 100, status === "failed" ? "failed" : "completed");
     await Program.findByIdAndUpdate(programId, { ...payload, ...parsePatch }, { new: false });
     if (payload.termGlossary !== undefined) {
       await syncProgramDictionaryEntries(programId, payload.termGlossary, "ai_program");
@@ -457,7 +641,7 @@ async function runAsyncParseTask(
   } catch (error: any) {
     await Program.findByIdAndUpdate(
       programId,
-      parseMetaPatch("failed", error?.message || "解析任务执行失败"),
+      parseMetaPatch("failed", error?.message || "解析任务执行失败", 100, "failed"),
       { new: false }
     );
   } finally {
@@ -475,7 +659,10 @@ function startAsyncParseTask(
   }, 0);
 }
 
-async function tryAutoGenerate(payload: any): Promise<{ payload: any; aiStatus?: string; aiMessage?: string }> {
+async function tryAutoGenerate(
+  payload: any,
+  onProgress?: (progress: number, stage: string) => Promise<void> | void
+): Promise<{ payload: any; aiStatus?: string; aiMessage?: string }> {
   const autoGenerate = payload.autoGenerate === true || payload.autoGenerate === "true";
   if (!autoGenerate) {
     return { payload, aiStatus: "skipped" };
@@ -491,10 +678,14 @@ async function tryAutoGenerate(payload: any): Promise<{ payload: any; aiStatus?:
 
   try {
     const provider = resolveProgramAiProvider();
+    await onProgress?.(12, "transcribing");
     console.log("[ai-program] start transcription", { localFilePath });
     const transcription = await provider.transcribeAudio(localFilePath, { sourceUrl: uploadedAudioUrl });
+    await onProgress?.(62, "transcribed");
     console.log("[ai-program] transcription done", { segments: transcription.transcript.length });
+    await onProgress?.(76, "extracting");
     const generated = await provider.extractProgramMetadata(transcription);
+    await onProgress?.(90, "extracted");
     console.log("[ai-program] metadata extraction done");
     const merged = mergeAiIntoPayload(payload, generated, transcription.transcript);
     const mergedWithBase = ensureBaseFieldsFromGenerated(merged, generated, transcription.transcript);
@@ -504,10 +695,40 @@ async function tryAutoGenerate(payload: any): Promise<{ payload: any; aiStatus?:
     const fallbackPayload = ensureBaseFieldFallbackOnAiFailure(
       ensureEpisodeFallbackOnAiFailure(payload, uploadedAudioUrl)
     );
+    const message = asText(error?.message || "AI 生成失败");
+    const lowerMessage = message.toLowerCase();
+    const isTransientAiFailure =
+      lowerMessage.includes("http 5") ||
+      lowerMessage.includes("timeout") ||
+      lowerMessage.includes("timed out") ||
+      lowerMessage.includes("gateway") ||
+      lowerMessage.includes("upstream") ||
+      lowerMessage.includes("not granted") ||
+      lowerMessage.includes("服务不可用");
+    if (isTransientAiFailure) {
+      return {
+        payload: {
+          ...fallbackPayload,
+          transcript:
+            Array.isArray(fallbackPayload?.transcript) && fallbackPayload.transcript.length > 0
+              ? fallbackPayload.transcript
+              : [
+                  {
+                    time: "00:00-00:08",
+                    speaker: "系统提示",
+                    text: "自动转写服务暂时不可用，已保留音频资源，请稍后点击“重新上传”重试解析。",
+                    featured: false,
+                  },
+                ],
+        },
+        aiStatus: "generated",
+        aiMessage: "外部转写服务波动，已生成待补内容草稿",
+      };
+    }
     return {
       payload: fallbackPayload,
       aiStatus: "failed",
-      aiMessage: error?.message || "AI 生成失败",
+      aiMessage: message,
     };
   }
 }
@@ -518,7 +739,9 @@ export class ProgramController {
       const programs = await Program.find({ status: "published" }).sort({
         publishedAt: -1,
       });
-      res.status(200).json(await attachDictionaryEntriesToPrograms(programs, false));
+      const attached = await attachDictionaryEntriesToPrograms(programs, false);
+      const template = await getShowNotesDefaultTemplate();
+      res.status(200).json(await Promise.all((attached as any[]).map((item) => applyShowNotesRendering(item, template))));
     } catch (error) {
       res.status(500).json({ message: "获取节目列表失败", error });
     }
@@ -527,12 +750,16 @@ export class ProgramController {
   async getByIdPublic(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const program = await Program.findOne({ _id: id, status: "published" });
+      const query = mongoose.Types.ObjectId.isValid(id)
+        ? { _id: id, status: "published" as const }
+        : { programCode: normalizeProgramCode(id), status: "published" as const };
+      const program = await Program.findOne(query);
       if (!program) {
         res.status(404).json({ message: "节目不存在或未上架" });
         return;
       }
-      res.status(200).json(await attachDictionaryEntriesToPrograms(program, false));
+      const attached = await attachDictionaryEntriesToPrograms(program, false);
+      res.status(200).json(await applyShowNotesRendering(attached));
     } catch (error) {
       res.status(500).json({ message: "获取节目失败", error });
     }
@@ -544,7 +771,9 @@ export class ProgramController {
       const filter =
         status === "draft" || status === "published" ? { status } : {};
       const programs = await Program.find(filter).sort({ updatedAt: -1 });
-      res.status(200).json(await attachDictionaryEntriesToPrograms(programs, true));
+      const attached = await attachDictionaryEntriesToPrograms(programs, true);
+      const template = await getShowNotesDefaultTemplate();
+      res.status(200).json(await Promise.all((attached as any[]).map((item) => applyShowNotesRendering(item, template))));
     } catch (error) {
       res.status(500).json({ message: "获取管理节目列表失败", error });
     }
@@ -558,7 +787,8 @@ export class ProgramController {
         res.status(404).json({ message: "节目不存在" });
         return;
       }
-      res.status(200).json(await attachDictionaryEntriesToPrograms(program, true));
+      const attached = await attachDictionaryEntriesToPrograms(program, true);
+      res.status(200).json(await applyShowNotesRendering(attached));
     } catch (error) {
       res.status(500).json({ message: "获取节目失败", error });
     }
@@ -567,7 +797,10 @@ export class ProgramController {
   async create(req: Request, res: Response): Promise<void> {
     try {
       const aiResult = await tryAutoGenerate(req.body || {});
-      const payload = sanitizeProgramPayload(aiResult.payload, true);
+      const payload = await applyShowNotesRendering(sanitizeProgramPayload(aiResult.payload, true));
+      if (!hasText(payload.programCode)) {
+        payload.programCode = await buildNextProgramCode();
+      }
       if (payload.status && !["draft", "published"].includes(payload.status)) {
         res.status(400).json({ message: "无效的状态值" });
         return;
@@ -592,6 +825,10 @@ export class ProgramController {
         })
       );
     } catch (error: any) {
+      if (error?.code === 11000 && String(Object.keys(error?.keyPattern || {})[0] || "") === "programCode") {
+        res.status(400).json({ message: "节目编号已存在，请换一个，例如 ep12", error });
+        return;
+      }
       res.status(400).json({ message: error?.message || "创建节目失败", error });
     }
   }
@@ -600,7 +837,7 @@ export class ProgramController {
     try {
       const { id } = req.params;
       const aiResult = await tryAutoGenerate(req.body || {});
-      const payload = sanitizeProgramPayload(aiResult.payload, false);
+      const payload = await applyShowNotesRendering(sanitizeProgramPayload(aiResult.payload, false));
       if (payload.status && !["draft", "published"].includes(payload.status)) {
         res.status(400).json({ message: "无效的状态值" });
         return;
@@ -631,6 +868,10 @@ export class ProgramController {
         })
       );
     } catch (error: any) {
+      if (error?.code === 11000 && String(Object.keys(error?.keyPattern || {})[0] || "") === "programCode") {
+        res.status(400).json({ message: "节目编号已存在，请换一个，例如 ep12", error });
+        return;
+      }
       res.status(400).json({ message: error?.message || "更新节目失败", error });
     }
   }
@@ -691,19 +932,23 @@ export class ProgramController {
       }
       const now = new Date();
       const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
+      const nextCode = await buildNextProgramCode();
       const program = new Program({
+        programCode: nextCode,
         title: `待解析节目-${stamp}`,
         description: "音频已上传，正在解析中。",
         coverImage: "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?q=80&w=1200&auto=format&fit=crop",
         episodes: [{ title: "待解析", duration: "待解析", url: uploadedAudioUrl }],
         status: "draft",
-        ...parseMetaPatch("parsing"),
+        ...parseMetaPatch("parsing", "", 5, "queued"),
       });
       await program.save();
       startAsyncParseTask(String(program._id), uploadedAudioUrl);
       res.status(201).json({
         programId: String(program._id),
         parseStatus: "parsing",
+        parseStage: "queued",
+        parseProgress: 5,
       });
     } catch (error: any) {
       res.status(400).json({ message: error?.message || "创建解析草稿失败", error });
@@ -743,13 +988,13 @@ export class ProgramController {
       await Program.findByIdAndUpdate(
         id,
         {
-          ...parseMetaPatch("parsing"),
+          ...parseMetaPatch("parsing", "", 5, "queued"),
           transcript: [],
         },
         { new: false }
       );
       startAsyncParseTask(id, uploadedAudioUrl, { forceTranscriptRegenerate: true });
-      res.status(202).json({ programId: id, parseStatus: "parsing" });
+      res.status(202).json({ programId: id, parseStatus: "parsing", parseStage: "queued", parseProgress: 5 });
     } catch (error: any) {
       res.status(500).json({ message: error?.message || "触发解析失败", error });
     }
@@ -770,6 +1015,8 @@ export class ProgramController {
       res.status(200).json({
         programId: String(program._id),
         parseStatus: program.parseStatus || "idle",
+        parseStage: asText((program as any).parseStage) || "idle",
+        parseProgress: Number((program as any).parseProgress) || 0,
         parseError: program.parseError || "",
         parseStartedAt: program.parseStartedAt || null,
         parseFinishedAt: program.parseFinishedAt || null,
@@ -796,7 +1043,8 @@ export class ProgramController {
         res.status(404).json({ message: "节目不存在" });
         return;
       }
-      res.status(200).json(await attachDictionaryEntriesToPrograms(program, true));
+      const attached = await attachDictionaryEntriesToPrograms(program, true);
+      res.status(200).json(await applyShowNotesRendering(attached));
     } catch (error) {
       res.status(400).json({ message: "更新节目状态失败", error });
     }

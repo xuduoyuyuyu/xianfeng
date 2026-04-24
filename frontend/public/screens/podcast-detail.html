@@ -73,6 +73,12 @@
         .transcript-tools {
             padding: 0;
         }
+        .detail-view-toolbar {
+            display: none;
+        }
+        .detail-view-toolbar.is-visible {
+            display: flex;
+        }
         .transcript-search-pill {
             border: 1px solid rgba(17, 10, 8, 0.14);
             background: #fff;
@@ -83,6 +89,17 @@
         .transcript-search-pill:focus-within {
             border-color: rgba(94, 23, 235, 0.38);
             box-shadow: 0 4px 12px rgba(94, 23, 235, 0.12);
+        }
+        #transcript-search-input {
+            appearance: none;
+            -webkit-appearance: none;
+            outline: none;
+            box-shadow: none;
+        }
+        #transcript-search-input:focus,
+        #transcript-search-input:focus-visible {
+            outline: none;
+            box-shadow: none;
         }
         .transcript-tool-btn {
             border: 1px solid rgba(17, 10, 8, 0.14);
@@ -104,20 +121,46 @@
             color: #5e17eb;
             box-shadow: 0 6px 16px rgba(94, 23, 235, 0.14);
         }
+        .detail-view-switch {
+            border: 1px solid rgba(17, 10, 8, 0.10);
+            background: rgba(250, 250, 250, 0.42);
+            box-shadow: inset 0 0 0 1px rgba(17, 10, 8, 0.015);
+            overflow: hidden;
+        }
+        .detail-view-switch .transcript-tool-btn {
+            height: 44px;
+            min-width: 108px;
+            border: 0;
+            background: transparent;
+            box-shadow: none;
+            color: rgba(33, 26, 24, 0.72);
+            font-size: 16px;
+            font-weight: 500;
+            letter-spacing: 0;
+            white-space: nowrap;
+        }
+        .detail-view-switch .transcript-tool-btn:hover {
+            transform: none;
+            box-shadow: none;
+            color: #5e17eb;
+        }
+        .detail-view-switch .transcript-tool-btn.is-active {
+            background: #5e17eb;
+            color: #fff;
+            box-shadow: 0 10px 24px rgba(94, 23, 235, 0.22);
+        }
         .transcript-row {
             transition: background-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
             border-radius: 14px;
         }
         .transcript-body {
-            display: inline-block;
+            display: block;
             max-width: 100%;
-            border-bottom: 2px solid transparent;
-            padding-bottom: 2px;
             border-radius: 0;
-            transition: border-color 140ms ease;
+            transition: box-shadow 140ms ease;
         }
         .transcript-body.is-playing {
-            border-bottom-color: rgba(94, 23, 235, 0.95);
+            box-shadow: inset 0 -2px 0 rgba(94, 23, 235, 0.95);
         }
         .transcript-time.is-playing {
             color: rgba(94, 23, 235, 0.98) !important;
@@ -125,6 +168,9 @@
         }
         .transcript-speaker {
             transition: color 140ms ease, opacity 140ms ease;
+            line-height: 1.25;
+            white-space: normal;
+            word-break: break-word;
         }
         .transcript-row:hover .transcript-speaker {
             color: #5e17eb;
@@ -267,26 +313,8 @@
             #transcript-list {
                 gap: 26px;
             }
-            .transcript-meta-grid {
-                grid-template-columns: minmax(0, 1fr) !important;
-                row-gap: 6px;
-            }
-            .transcript-time-wrap,
-            .transcript-speaker-wrap,
-            .transcript-content-wrap {
-                grid-column: 1 / -1;
-            }
-            .transcript-gap {
-                display: none;
-            }
             .transcript-time {
                 font-size: 11px;
-            }
-            .transcript-speaker {
-                margin-bottom: 2px;
-            }
-            .transcript-content-wrap {
-                margin-top: 0 !important;
             }
             #floating-back-to-top-btn {
                 right: 14px;
@@ -338,13 +366,13 @@
 <span id="program-meta" class="truncate text-white/70 text-sm font-medium">45 分钟 • 2024年5月12日 发布</span>
 </div>
 <div class="flex items-center gap-3">
-<button id="hero-favorite-btn" class="shrink-0 w-14 h-14 rounded-full border border-white/40 bg-white/[0.12] backdrop-blur-md text-white hover:bg-white/[0.22] hover:-translate-y-0.5 transition-all shadow-[0_8px_18px_rgba(17,10,8,0.18)] flex items-center justify-center" aria-label="收藏节目">
+<button id="hero-favorite-btn" type="button" class="shrink-0 w-14 h-14 rounded-full border border-white/40 bg-white/[0.12] backdrop-blur-md text-white hover:bg-white/[0.22] hover:-translate-y-0.5 transition-all shadow-[0_8px_18px_rgba(17,10,8,0.18)] flex items-center justify-center" aria-label="收藏节目">
 <span id="hero-favorite-icon" class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 0, 'wght' 600, 'GRAD' 0, 'opsz' 24;">bookmark_add</span>
 </button>
-<button id="hero-share-btn" class="shrink-0 w-14 h-14 rounded-full border border-white/40 bg-white/[0.12] backdrop-blur-md text-white hover:bg-white/[0.22] hover:-translate-y-0.5 transition-all shadow-[0_8px_18px_rgba(17,10,8,0.18)] flex items-center justify-center" aria-label="转发节目">
+<button id="hero-share-btn" type="button" class="shrink-0 w-14 h-14 rounded-full border border-white/40 bg-white/[0.12] backdrop-blur-md text-white hover:bg-white/[0.22] hover:-translate-y-0.5 transition-all shadow-[0_8px_18px_rgba(17,10,8,0.18)] flex items-center justify-center" aria-label="转发节目">
 <span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 0, 'wght' 600, 'GRAD' 0, 'opsz' 24;">ios_share</span>
 </button>
-<button id="hero-play-btn" class="shrink-0 h-14 bg-white text-primary px-10 rounded-full font-black text-sm tracking-[0.03em] flex items-center gap-2.5 hover:-translate-y-0.5 transition-all shadow-[0_14px_28px_rgba(17,10,8,0.2)] border border-white/80">
+<button id="hero-play-btn" type="button" class="shrink-0 h-14 bg-white text-primary px-10 rounded-full font-black text-sm tracking-[0.03em] flex items-center gap-2.5 hover:-translate-y-0.5 transition-all shadow-[0_14px_28px_rgba(17,10,8,0.2)] border border-white/80">
 <span id="hero-play-icon" class="material-symbols-outlined text-[22px]" style="font-variation-settings: 'FILL' 1, 'wght' 700, 'GRAD' 0, 'opsz' 24;">play_arrow</span>
                         立即收听
                     </button>
@@ -378,13 +406,13 @@
                             物理空间对儿童神经发育具有深远影响。通过优化室内光线与色彩，可以显著降低处于发育期大脑的应激激素水平，提升核心专注力。
                         </p>
 </div>
-<div class="flex items-center gap-4">
+<div class="flex flex-col gap-3">
 <div class="flex-1 p-5 rounded-2xl bg-primary/5 border border-primary/10">
 <p class="text-sm text-on-surface leading-normal">
 <span id="summary-highlight-label" class="font-black text-primary">低摩擦环境：</span><span id="summary-highlight-text"> 减少视觉和听觉干扰的空间，引导进入更稳定的情绪状态，并为未来的深度学习奠定神经生物学基础。</span>
                             </p>
 </div>
-<div id="summary-tags" class="flex flex-col gap-2 shrink-0">
+<div id="summary-tags" class="flex flex-wrap gap-2">
 <span class="px-3 py-1 rounded-xl bg-gray-100 text-[10px] font-bold text-gray-500 whitespace-nowrap">神经可塑性</span>
 <span class="px-3 py-1 rounded-xl bg-gray-100 text-[10px] font-bold text-gray-500 whitespace-nowrap">环境心理学</span>
 </div>
@@ -398,15 +426,19 @@
 <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start lg:items-stretch">
 <div class="lg:col-span-8 space-y-16">
 <section id="transcript-section" class="bg-white/95 rounded-3xl p-8 md:p-12 shadow-sm border border-gray-200">
-<div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-12">
-<h2 class="h-14 text-3xl font-black tracking-tight flex items-center gap-4 text-on-surface shrink-0">
-<span class="w-2 h-10 bg-primary rounded-xl"></span>
-                        逐字稿
-                    </h2>
-<div class="transcript-tools flex flex-wrap lg:flex-nowrap items-center gap-2">
-<label class="transcript-search-pill h-10 flex items-center gap-2 px-4 min-w-[220px] lg:w-[320px]">
+<div class="mb-8 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+<div class="detail-view-switch inline-flex w-fit rounded-full p-1">
+<button id="detail-mode-quickview" type="button" class="transcript-tool-btn is-active inline-flex items-center justify-center rounded-full px-7">
+速览
+</button>
+<button id="detail-mode-transcript" type="button" class="transcript-tool-btn inline-flex items-center justify-center rounded-full px-7">
+逐字稿
+</button>
+</div>
+<div id="detail-view-toolbar" class="detail-view-toolbar flex-wrap xl:flex-nowrap items-center gap-2">
+<label class="transcript-search-pill h-10 flex items-center gap-2 px-4 min-w-[180px] lg:w-[260px]">
 <span class="material-symbols-outlined text-on-surface/70 text-[20px]" style="font-variation-settings: 'FILL' 0, 'wght' 650, 'GRAD' 0, 'opsz' 24;">search</span>
-<input id="transcript-search-input" type="text" placeholder="搜索逐字稿" class="w-full bg-transparent border-none focus:ring-0 text-sm text-on-surface placeholder:text-on-surface-variant/60"/>
+<input id="transcript-search-input" type="text" placeholder="搜索逐字稿" class="w-full bg-transparent border-none focus:ring-0 text-xs text-on-surface placeholder:text-on-surface-variant/60"/>
 </label>
 <button id="transcript-featured-btn" type="button" class="transcript-tool-btn h-10 shrink-0 px-5 text-xs font-medium inline-flex items-center gap-2">
 <span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;">stars</span>精华
@@ -416,35 +448,24 @@
 </button>
 </div>
 </div>
-<div id="transcript-list" class="space-y-10 w-full">
-<div class="flex gap-4 group">
-<div class="flex-shrink-0 w-20 pt-1 text-left">
-<span class="text-[11px] font-bold text-gray-400 group-hover:text-primary transition-colors tracking-tighter">00:00</span>
-</div>
-<div class="flex-1">
-<p class="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-2">主持人</p>
-<p class="text-base leading-relaxed text-on-surface/80">欢迎回到《家长先疯》。今天我们请到了著名的儿童发展专家埃琳娜·罗西博士。我们将讨论环境因素如何潜移默化地影响或阻碍孩子的注意力集中。</p>
+<div id="quickview-panel">
+<div id="quickview-list" class="space-y-4">
+<div class="py-3 text-sm text-stone-500">解析完成后将显示分段速览。</div>
 </div>
 </div>
-<div class="flex gap-4 relative group">
-<div class="absolute -left-12 -right-12 -top-6 -bottom-6 bg-primary/[0.03] rounded-2xl -z-10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-<div class="flex-shrink-0 w-20 pt-1 text-left">
-<span class="text-[11px] font-bold text-primary tracking-tighter">02:45</span>
+<div id="transcript-panel" class="hidden">
+<div id="transcript-list" class="space-y-4 w-full">
+<div class="transcript-row group py-3">
+<div class="mb-2 text-xs font-black text-primary">00:00-00:45 <span class="text-primary/35">·</span> <span class="text-primary/70">主持人</span></div>
+<p class="transcript-body text-sm leading-relaxed text-on-surface">欢迎回到《家长先疯》。今天我们请到了著名的儿童发展专家埃琳娜·罗西博士。我们将讨论环境因素如何潜移默化地影响或阻碍孩子的注意力集中。</p>
 </div>
-<div class="flex-1">
-<p class="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-2">埃琳娜·罗西 博士</p>
-<div class="border-l-4 border-primary/20 pl-6 py-2">
-<p class="text-base leading-relaxed text-on-surface font-semibold">谢谢你的邀请。当我们谈论孩子环境中的“珍珠般”清晰度时，我们实际上是在谈论减少视觉摩擦。想象一个光线柔和而非刺眼的房间——这实际上能降低发育中大脑的皮质醇水平。</p>
+<div class="transcript-row group py-3">
+<div class="mb-2 text-xs font-black text-primary">00:45-02:45 <span class="text-primary/35">·</span> <span class="text-primary/70">嘉宾</span></div>
+<p class="transcript-body text-sm leading-relaxed text-on-surface">谢谢你的邀请。当我们谈论孩子环境中的“珍珠般”清晰度时，我们实际上是在谈论减少视觉摩擦。想象一个光线柔和而非刺眼的房间，这实际上能降低发育中大脑的皮质醇水平。</p>
 </div>
-</div>
-</div>
-<div class="flex gap-4 group">
-<div class="flex-shrink-0 w-20 pt-1 text-left">
-<span class="text-[11px] font-bold text-gray-400 group-hover:text-primary transition-colors tracking-tighter">04:12</span>
-</div>
-<div class="flex-1">
-<p class="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-2">主持人</p>
-<p class="text-base leading-relaxed text-on-surface/80">这是一个非常迷人的观点。您能详细说明一下特定的颜色，比如柔和的紫罗兰色或珍珠白，是如何参与这种情绪调节的吗？</p>
+<div class="transcript-row group py-3">
+<div class="mb-2 text-xs font-black text-primary">02:45-04:12 <span class="text-primary/35">·</span> <span class="text-primary/70">主持人</span></div>
+<p class="transcript-body text-sm leading-relaxed text-on-surface">这是一个非常迷人的观点。您能详细说明一下特定的颜色，比如柔和的紫罗兰色或珍珠白，是如何参与这种情绪调节的吗？</p>
 </div>
 </div>
 </div>
@@ -458,13 +479,15 @@
 <div class="absolute -bottom-2 -right-2 bg-primary text-white p-1.5 rounded-2xl shadow-lg">
 <span class="material-symbols-outlined text-sm">verified</span>
 </div>
+<span id="guest-avatar-count" class="hidden absolute -top-2 -right-2 rounded-full bg-primary text-white text-[10px] font-black px-2 py-1 shadow-md"></span>
 </div>
 <h3 id="guest-name" class="text-2xl font-black text-on-surface mb-1">埃琳娜·罗西 博士</h3>
+<div id="guest-roster" class="hidden mb-3 flex flex-wrap items-center justify-center gap-2"></div>
 <p id="guest-title" class="text-[10px] text-primary font-black tracking-widest uppercase mb-6">儿童 development 神经科学家</p>
 <p id="guest-bio" class="text-sm text-on-surface-variant/70 leading-relaxed mb-8">
                     斯坦福医学院 clinical 教授，《宁静的孩子》作者。专注研究感官环境对学龄前儿童认知路径的重塑作用。
                 </p>
-<button id="guest-profile-btn" class="w-full py-4 rounded-2xl bg-primary text-white text-xs font-black shadow-lg shadow-primary/20 hover:opacity-90 transition-all flex items-center justify-center gap-2">
+<button id="guest-profile-btn" type="button" class="w-full py-4 rounded-2xl bg-primary text-white text-xs font-black shadow-lg shadow-primary/20 hover:opacity-90 transition-all flex items-center justify-center gap-2">
 <span class="material-symbols-outlined text-base">person_search</span>
                     查看完整学术档案
                 </button>
@@ -525,7 +548,7 @@
 </aside>
 </div>
 </main>
-<button id="floating-back-to-top-btn" aria-label="返回上方" class="fixed right-6 bottom-36 z-[95] w-14 h-14 rounded-xl bg-primary text-white shadow-xl shadow-primary/30 hover:scale-105 active:scale-95 transition-all flex items-center justify-center">
+<button id="floating-back-to-top-btn" type="button" aria-label="返回上方" class="fixed right-6 bottom-36 z-[95] w-14 h-14 rounded-full bg-primary text-white shadow-xl shadow-primary/30 hover:scale-105 active:scale-95 transition-all flex items-center justify-center">
 <span class="material-symbols-outlined text-2xl" style="font-variation-settings: 'FILL' 1;">vertical_align_top</span>
 </button>
 <div class="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-48px)] max-w-5xl z-[100]">
@@ -543,13 +566,13 @@
 </div>
 </div>
 <div class="flex items-center gap-6 px-4 shrink-0">
-<button id="player-rewind-btn" class="text-on-surface/40 hover:text-primary transition-colors">
+<button id="player-rewind-btn" type="button" class="text-on-surface/40 hover:text-primary transition-colors">
 <span class="material-symbols-outlined text-xl">replay_10</span>
 </button>
-<button id="player-play-btn" class="w-12 h-12 rounded-xl bg-primary text-white flex items-center justify-center shadow-lg shadow-primary/30 hover:scale-105 active:scale-95 transition-all">
+<button id="player-play-btn" type="button" class="w-12 h-12 rounded-full bg-primary text-white flex items-center justify-center shadow-lg shadow-primary/30 hover:scale-105 active:scale-95 transition-all">
 <span id="player-play-icon" class="material-symbols-outlined text-2xl" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
 </button>
-<button id="player-forward-btn" class="text-on-surface/40 hover:text-primary transition-colors">
+<button id="player-forward-btn" type="button" class="text-on-surface/40 hover:text-primary transition-colors">
 <span class="material-symbols-outlined text-xl">forward_30</span>
 </button>
 </div>
@@ -563,13 +586,13 @@
 <span id="player-duration-time" class="text-[9px] font-mono font-bold text-on-surface/40">00:00</span>
 </div>
 <div class="flex items-center gap-3">
-<button id="player-subtitle-btn" class="player-subtitle-btn px-3 py-1 rounded-xl bg-white/30 border border-white/20 text-[10px] font-bold text-on-surface hover:bg-white/50 transition-all shadow-sm">
+<button id="player-subtitle-btn" type="button" class="player-subtitle-btn px-3 py-1 rounded-xl bg-white/30 border border-white/20 text-[10px] font-bold text-on-surface hover:bg-white/50 transition-all shadow-sm">
                     字幕
                 </button>
-<button id="player-speed-btn" class="px-3 py-1 rounded-xl bg-white/30 border border-white/20 text-[9px] font-black text-on-surface hover:bg-white/50 transition-all shadow-sm">
+<button id="player-speed-btn" type="button" class="px-3 py-1 rounded-xl bg-white/30 border border-white/20 text-[9px] font-black text-on-surface hover:bg-white/50 transition-all shadow-sm">
                     1.5x
                 </button>
-<button id="player-volume-btn" class="text-on-surface/60 hover:text-primary transition-colors">
+<button id="player-volume-btn" type="button" class="text-on-surface/60 hover:text-primary transition-colors">
 <span class="material-symbols-outlined text-xl">volume_up</span>
 </button>
 </div>
@@ -626,6 +649,9 @@
   const favoriteState = {
     isFavorite: false,
   };
+  const detailViewState = {
+    mode: "quickview",
+  };
   function formatDate(value) {
     if (!value) return "未发布";
     const d = new Date(value);
@@ -672,6 +698,32 @@
       return { role: "嘉宾", name: raw.replace(/嘉宾/g, "").trim() || raw };
     }
     return { role: "嘉宾", name: raw };
+  }
+
+  function splitGuestNames(rawName) {
+    const raw = String(rawName || "").trim();
+    if (!raw) return [];
+    return raw
+      .split(/[、,，/&|和与]/g)
+      .map(function (item) { return item.trim(); })
+      .filter(Boolean);
+  }
+
+  function buildGuestRoster(program, transcriptRows) {
+    const names = [];
+    const pushUnique = function (name) {
+      const n = String(name || "").trim();
+      if (!n) return;
+      if (names.indexOf(n) >= 0) return;
+      names.push(n);
+    };
+    splitGuestNames(program && program.guest && program.guest.name).forEach(pushUnique);
+    (Array.isArray(transcriptRows) ? transcriptRows : []).forEach(function (row) {
+      const identity = resolveSpeakerIdentity(row && row.speaker);
+      if (!identity || identity.role !== "嘉宾") return;
+      splitGuestNames(identity.name).forEach(pushUnique);
+    });
+    return names.slice(0, 8);
   }
 
   function annotateGlossaryTerms(rawText, glossary, globalHitMap) {
@@ -808,6 +860,29 @@
     return String(value || "").toLowerCase();
   }
 
+  function resolvePlayableAudioUrl(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    try {
+      const parsed = new URL(raw, window.location.origin);
+      const path = parsed.pathname || "";
+      const isUploadedAudio = /\/uploads\/audio\//.test(path);
+      const isLocalLikeHost =
+        ["localhost", "127.0.0.1", "0.0.0.0", "backend"].indexOf(parsed.hostname || "") >= 0;
+
+      if (isUploadedAudio) {
+        return window.location.origin + path + (parsed.search || "");
+      }
+      if (isLocalLikeHost && parsed.hostname !== window.location.hostname) {
+        return window.location.origin + path + (parsed.search || "");
+      }
+      return parsed.toString();
+    } catch (_error) {
+      if (raw.startsWith("/")) return window.location.origin + raw;
+      return raw;
+    }
+  }
+
   function isTestProgram(program) {
     const title = normalizeText(program && program.title);
     return (
@@ -820,6 +895,8 @@
   function findProgramByRouteId(programs, routeId) {
     const list = Array.isArray(programs) ? programs : [];
     if (!list.length) return null;
+    const byCode = list.find(function (item) { return String(item && item.programCode || "").toLowerCase() === String(routeId || "").toLowerCase(); });
+    if (byCode) return byCode;
     const exact = list.find(function (item) { return String(item && item._id) === String(routeId); });
     if (exact) return exact;
     if (!isNumericId(routeId)) return null;
@@ -881,6 +958,12 @@
     );
   }
 
+  function hasPlayableEpisodeUrl(program) {
+    const episode = program && program.episodes && program.episodes[0];
+    const playable = resolvePlayableAudioUrl(episode && episode.url);
+    return !!String(playable || "").trim();
+  }
+
   function hasText(value) {
     return String(value || "").trim().length > 0;
   }
@@ -895,7 +978,7 @@
 
   function renderTranscript(items) {
     const list = document.getElementById("transcript-list");
-    const textClass = transcriptState.largeFont ? "text-[1.125rem]" : "text-base";
+    const textClass = transcriptState.largeFont ? "text-base" : "text-sm";
     const itemsToRender = (Array.isArray(items) ? items : []).filter(function (segment) {
       if (transcriptState.featuredOnly && !segment.featured) return false;
       if (!transcriptState.query) return true;
@@ -914,17 +997,18 @@
       const featured = !!segment.featured;
       const nextSegment = itemsToRender[index + 1];
       const range = getSegmentRange(segment, nextSegment);
+      const speakerIdentity = resolveSpeakerIdentity(segment.speaker);
+      const speakerName = String(speakerIdentity.name || "").trim();
+      const speakerLabel = speakerName && speakerName !== speakerIdentity.role
+        ? speakerIdentity.role + " " + speakerName
+        : speakerIdentity.role;
       return '<div class="transcript-row ' + (featured ? "relative group" : "group") + '" data-subtitle-index="' + index + '" data-start-sec="' + range.startSec + '" data-end-sec="' + range.endSec + '">' +
-        (featured ? '<div class="absolute -left-12 -right-12 -top-6 -bottom-6 bg-primary/[0.03] rounded-2xl -z-10 opacity-0 group-hover:opacity-100 transition-opacity"></div>' : "") +
-        '<div class="transcript-meta-grid grid grid-cols-[80px_minmax(0,1fr)] items-start gap-x-4">' +
-        '<div class="transcript-time-wrap text-left flex items-start"><span class="transcript-time block whitespace-nowrap text-[10px] font-bold leading-[1] tracking-tight ' + (featured ? "text-primary" : "text-gray-400 group-hover:text-primary transition-colors") + '">' + (segment.time || "00:00-00:30") + "</span></div>" +
-        '<div class="transcript-speaker-wrap text-left flex items-start">' +
-        '<p class="transcript-speaker text-[10px] leading-[1] font-black tracking-widest text-primary/70 mt-0 mb-0"><span class="uppercase">' + escapeHtml(resolveSpeakerIdentity(segment.speaker).role) + '</span><span class="mx-1 text-primary/40">|</span><span class="normal-case">' + escapeHtml(resolveSpeakerIdentity(segment.speaker).name) + "</span></p></div>" +
-        '<div class="transcript-gap"></div><div class="transcript-content-wrap text-left mt-2">' +
-        (featured
-          ? '<div class="border-l-4 border-primary/20 pl-6 py-2"><p class="transcript-body ' + textClass + ' leading-relaxed text-on-surface font-semibold">' + (transcriptState.query ? highlightText(segment.text || "", transcriptState.query) : annotateGlossaryTerms(segment.text || "", transcriptState.glossary, termHitMap)) + "</p></div>"
-          : '<p class="transcript-body ' + textClass + ' leading-relaxed text-on-surface/80">' + (transcriptState.query ? highlightText(segment.text || "", transcriptState.query) : annotateGlossaryTerms(segment.text || "", transcriptState.glossary, termHitMap)) + "</p>") +
-        "</div></div></div>";
+        '<div class="py-3">' +
+        '<div class="mb-2 text-xs font-black text-primary text-left transcript-time">' + escapeHtml(segment.time || "00:00-00:30") + ' <span class="text-primary/35">·</span> <span class="text-primary">' + escapeHtml(speakerLabel || "嘉宾") + "</span></div>" +
+        '<p class="transcript-body ' + textClass + ' leading-relaxed text-left text-on-surface">' +
+        (transcriptState.query ? highlightText(segment.text || "", transcriptState.query) : annotateGlossaryTerms(segment.text || "", transcriptState.glossary, termHitMap)) +
+        "</p>" +
+        "</div></div>";
     }).join("");
     if (transcriptState.subtitleEnabled) {
       requestAnimationFrame(function () {
@@ -1017,11 +1101,46 @@
       return;
     }
     list.innerHTML = others.map(function (item, index) {
-      return '<a class="group block cursor-pointer pb-6 border-b border-gray-50 last:border-0" href="/programs/' + item._id + '">' +
-        '<span class="sidebar-episode-num text-xs mb-1.5 block">EP. ' + String(index + 1).padStart(2, "0") + "</span>" +
+      const routeId = item.programCode || item._id;
+      return '<a class="group block cursor-pointer pb-6 border-b border-gray-50 last:border-0" href="/programs/' + routeId + '">' +
+        '<span class="sidebar-episode-num text-xs mb-1.5 block">EP. ' + String(item.programCode || String(index + 1).padStart(2, "0")).toUpperCase() + "</span>" +
         '<h4 class="text-[13px] font-bold text-on-surface group-hover:text-primary transition-colors leading-tight mb-2">' + (item.title || "") + "</h4>" +
         '<p class="text-[11px] text-on-surface-variant/70 leading-relaxed">' + (item.description || "") + "</p></a>";
     }).join("");
+  }
+
+  function renderContentPack(program, transcript) {
+    const contentPack = program && program.contentPack ? program.contentPack : {};
+    const quickView = Array.isArray(contentPack.quickView) && contentPack.quickView.length
+      ? contentPack.quickView
+      : (Array.isArray(transcript) ? transcript.slice(0, 10).map(function (item) {
+          return {
+            timeRangeLabel: String(item && item.time || ""),
+            summary: String(item && item.text || "").slice(0, 280),
+          };
+        }) : []);
+    const quickViewList = document.getElementById("quickview-list");
+    if (quickViewList) {
+      quickViewList.innerHTML = quickView.length
+        ? quickView.map(function (item) {
+            return '<div class="py-3"><div class="text-xs font-black text-primary mb-2">' + escapeHtml(item.timeRangeLabel || "") + '</div><p class="text-sm leading-relaxed text-on-surface">' + escapeHtml(item.summary || "") + "</p></div>";
+          }).join("")
+        : '<div class="py-3 text-sm text-stone-500">暂无速览内容，解析后将自动生成。</div>';
+    }
+  }
+
+  function setDetailViewMode(mode) {
+    detailViewState.mode = mode === "transcript" ? "transcript" : "quickview";
+    const quickPanel = document.getElementById("quickview-panel");
+    const transcriptPanel = document.getElementById("transcript-panel");
+    const toolbar = document.getElementById("detail-view-toolbar");
+    const quickBtn = document.getElementById("detail-mode-quickview");
+    const transcriptBtn = document.getElementById("detail-mode-transcript");
+    if (quickPanel) quickPanel.classList.toggle("hidden", detailViewState.mode !== "quickview");
+    if (transcriptPanel) transcriptPanel.classList.toggle("hidden", detailViewState.mode !== "transcript");
+    if (toolbar) toolbar.classList.toggle("is-visible", detailViewState.mode === "transcript");
+    if (quickBtn) quickBtn.classList.toggle("is-active", detailViewState.mode === "quickview");
+    if (transcriptBtn) transcriptBtn.classList.toggle("is-active", detailViewState.mode === "transcript");
   }
 
   function applyProgram(program, programs) {
@@ -1034,19 +1153,24 @@
     document.getElementById("player-title").textContent = program.title || "";
     document.getElementById("program-description").textContent = program.description || "";
     const episode = (program.episodes && program.episodes[0]) || {};
-    playerState.currentEpisode = episode;
-    document.getElementById("program-episode-badge").textContent = episode.title ? "EPISODE 01" : "EPISODE --";
+    const resolvedEpisodeUrl = resolvePlayableAudioUrl(episode.url);
+    playerState.currentEpisode = {
+      ...episode,
+      url: resolvedEpisodeUrl,
+    };
+    const codeLabel = String(program.programCode || "").toUpperCase();
+    document.getElementById("program-episode-badge").textContent = codeLabel ? ("EPISODE " + codeLabel) : (episode.title ? "EPISODE 01" : "EPISODE --");
     document.getElementById("program-meta").textContent = (episode.duration || "45 分钟") + " • " + formatDate(program.publishedAt || program.createdAt) + " 发布";
-    document.getElementById("player-episode-label").textContent = episode.title ? "EP. 01" : "EP. --";
+    document.getElementById("player-episode-label").textContent = codeLabel ? ("EP. " + codeLabel) : (episode.title ? "EP. 01" : "EP. --");
     document.getElementById("player-subtitle").textContent = episode.title || "暂无音频";
-    if (audio.src !== (episode && episode.url ? episode.url : "")) {
+    if (audio.src !== (resolvedEpisodeUrl || "")) {
       audio.pause();
       playerState.isPlaying = false;
       playerState.currentTime = 0;
       playerState.duration = 0;
       setPlayButtons(false);
       updateProgressUI();
-      audio.src = episode && episode.url ? episode.url : "";
+      audio.src = resolvedEpisodeUrl || "";
       syncPlaybackRate();
       audio.load();
     }
@@ -1134,12 +1258,40 @@
       ? program.dictionaryEntries
       : (Array.isArray(program.termGlossary) ? program.termGlossary : []);
     renderTranscript(transcriptState.source);
+    renderContentPack(program, transcriptState.source);
 
     const guest = program.guest || {};
-    document.getElementById("guest-name").textContent = guest.name || "节目特邀嘉宾";
-    document.getElementById("guest-title").textContent = guest.title || "教育与成长观察者";
+    const guestRoster = buildGuestRoster(program, transcript);
+    const primaryGuestName = guestRoster[0] || guest.name || "节目特邀嘉宾";
+    document.getElementById("guest-name").textContent = primaryGuestName;
+    document.getElementById("guest-title").textContent = guestRoster.length > 1 ? ("本期嘉宾 " + guestRoster.length + " 位") : (guest.title || "教育与成长观察者");
     document.getElementById("guest-bio").textContent = guest.bio || "围绕家庭关系、成长节奏与学习环境，提炼节目中的关键视角。";
     document.getElementById("guest-avatar").src = guest.avatar || FALLBACK_COVER;
+    const guestRosterEl = document.getElementById("guest-roster");
+    if (guestRosterEl) {
+      if (guestRoster.length > 1) {
+        guestRosterEl.classList.remove("hidden");
+        guestRosterEl.innerHTML = guestRoster.map(function (name, idx) {
+          const cls = idx === 0
+            ? "bg-primary/12 text-primary border-primary/20"
+            : "bg-stone-100 text-stone-700 border-stone-200";
+          return '<span class="inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-bold ' + cls + '">' + escapeHtml(name) + "</span>";
+        }).join("");
+      } else {
+        guestRosterEl.classList.add("hidden");
+        guestRosterEl.innerHTML = "";
+      }
+    }
+    const guestAvatarCountEl = document.getElementById("guest-avatar-count");
+    if (guestAvatarCountEl) {
+      if (guestRoster.length > 1) {
+        guestAvatarCountEl.classList.remove("hidden");
+        guestAvatarCountEl.textContent = "+" + String(guestRoster.length - 1);
+      } else {
+        guestAvatarCountEl.classList.add("hidden");
+        guestAvatarCountEl.textContent = "";
+      }
+    }
     document.getElementById("guest-profile-btn").onclick = function () {
       if (guest.profileUrl) window.open(guest.profileUrl, "_blank", "noopener,noreferrer");
     };
@@ -1208,14 +1360,19 @@
     }
   }
 
-  async function togglePlay() {
+  async function togglePlay(event) {
+    if (event && typeof event.preventDefault === "function") event.preventDefault();
+    if (event && typeof event.stopPropagation === "function") event.stopPropagation();
     const episode = playerState.currentEpisode || {};
-    if (!episode.url) return;
+    if (!episode.url) {
+      alert("当前节目缺少可播放音频链接。");
+      return;
+    }
     if (audio.paused) {
       try {
         await audio.play();
       } catch (_error) {
-        window.open(episode.url, "_blank", "noopener,noreferrer");
+        alert("音频暂时无法播放，请稍后重试。");
       }
     } else {
       audio.pause();
@@ -1260,10 +1417,10 @@
     let isSeeking = false;
     const track = document.getElementById("player-progress-track");
 
-    document.getElementById("hero-play-btn").addEventListener("click", togglePlay);
-    document.getElementById("player-play-btn").addEventListener("click", togglePlay);
-    document.getElementById("player-rewind-btn").addEventListener("click", function () { seekBy(-10); });
-    document.getElementById("player-forward-btn").addEventListener("click", function () { seekBy(30); });
+    document.getElementById("hero-play-btn").addEventListener("click", function (event) { togglePlay(event); });
+    document.getElementById("player-play-btn").addEventListener("click", function (event) { togglePlay(event); });
+    document.getElementById("player-rewind-btn").addEventListener("click", function (event) { event.preventDefault(); seekBy(-10); });
+    document.getElementById("player-forward-btn").addEventListener("click", function (event) { event.preventDefault(); seekBy(30); });
     track.addEventListener("click", seekToClick);
     track.addEventListener("mousedown", function (event) {
       isSeeking = true;
@@ -1291,10 +1448,11 @@
       isSeeking = false;
     });
 
-    document.getElementById("player-speed-btn").addEventListener("click", toggleSpeed);
+    document.getElementById("player-speed-btn").addEventListener("click", function (event) { event.preventDefault(); toggleSpeed(); });
     const subtitleBtn = document.getElementById("player-subtitle-btn");
     if (subtitleBtn) {
-      subtitleBtn.addEventListener("click", function () {
+      subtitleBtn.addEventListener("click", function (event) {
+        event.preventDefault();
         transcriptState.subtitleEnabled = !transcriptState.subtitleEnabled;
         syncSubtitleButton();
         if (!transcriptState.subtitleEnabled) {
@@ -1305,11 +1463,24 @@
       });
       syncSubtitleButton();
     }
-    document.getElementById("player-volume-btn").addEventListener("click", togglePlay);
+    document.getElementById("player-volume-btn").addEventListener("click", function (event) { togglePlay(event); });
     const heroFavoriteBtn = document.getElementById("hero-favorite-btn");
     if (heroFavoriteBtn) heroFavoriteBtn.addEventListener("click", toggleFavorite);
     const heroShareBtn = document.getElementById("hero-share-btn");
     if (heroShareBtn) heroShareBtn.addEventListener("click", shareProgram);
+    const detailModeQuickBtn = document.getElementById("detail-mode-quickview");
+    const detailModeTranscriptBtn = document.getElementById("detail-mode-transcript");
+    if (detailModeQuickBtn) {
+      detailModeQuickBtn.addEventListener("click", function () {
+        setDetailViewMode("quickview");
+      });
+    }
+    if (detailModeTranscriptBtn) {
+      detailModeTranscriptBtn.addEventListener("click", function () {
+        setDetailViewMode("transcript");
+      });
+    }
+    setDetailViewMode(detailViewState.mode);
     const transcriptSearchInput = document.getElementById("transcript-search-input");
     if (transcriptSearchInput) {
       transcriptSearchInput.addEventListener("input", function () {
@@ -1336,7 +1507,8 @@
     syncTranscriptToolState(transcriptFeaturedBtn, transcriptFontBtn);
     const backToTopBtn = document.getElementById("floating-back-to-top-btn");
     if (backToTopBtn) {
-      backToTopBtn.addEventListener("click", function () {
+      backToTopBtn.addEventListener("click", function (event) {
+        event.preventDefault();
         const target = document.getElementById("transcript-section");
         if (target) {
           const rect = target.getBoundingClientRect();
@@ -1347,7 +1519,6 @@
         window.scrollTo({ top: 0, behavior: "smooth" });
       });
     }
-
     audio.addEventListener("timeupdate", function () {
       playerState.currentTime = audio.currentTime || 0;
       updateProgressUI();
@@ -1368,6 +1539,11 @@
     audio.addEventListener("ended", function () {
       playerState.isPlaying = false;
       setPlayButtons(false);
+    });
+    audio.addEventListener("error", function () {
+      const failingUrl = (playerState.currentEpisode && playerState.currentEpisode.url) || audio.currentSrc || "";
+      console.warn("audio load error", failingUrl);
+      alert("音频加载失败，请确认该节目音频文件存在且可访问。");
     });
   }
 
@@ -1526,6 +1702,10 @@
         program = lookupPrograms.find(hasParsedContent) || null;
       }
       if (!program) program = pickBestProgram(lookupPrograms) || lookupPrograms[0];
+      if (program && !hasPlayableEpisodeUrl(program)) {
+        const fallbackPlayable = lookupPrograms.find(hasPlayableEpisodeUrl);
+        if (fallbackPlayable) program = fallbackPlayable;
+      }
       if (!program) return;
       applyProgram(program, lookupPrograms);
     } catch (error) {

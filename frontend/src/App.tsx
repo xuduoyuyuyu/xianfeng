@@ -17,6 +17,7 @@ import AdminDictionaryPage from "./pages/admin/AdminDictionaryPage";
 
 const PublicScreenRouter: React.FC = () => {
   const { pathname, search } = useLocation();
+  const screenRev = "20260424-ep3-ui";
 
   if (pathname === "/") {
     return <Navigate to="/programs" replace />;
@@ -24,7 +25,7 @@ const PublicScreenRouter: React.FC = () => {
 
   if (/^\/programs\/[^/]+$/.test(pathname)) {
     const programId = pathname.split("/")[2] || "";
-    const src = `/screens/podcast-detail.html?programId=${encodeURIComponent(programId)}`;
+    const src = `/screens/podcast-detail.html?programId=${encodeURIComponent(programId)}&v=${screenRev}`;
     return <ScreenPage src={src} title="播客详情" />;
   }
 
@@ -41,7 +42,8 @@ const PublicScreenRouter: React.FC = () => {
   if (!match) {
     return <Navigate to="/programs" replace />;
   }
-  const withQuery = search ? `${match.src}${search}` : match.src;
+  const joiner = search ? "&" : "?";
+  const withQuery = `${search ? `${match.src}${search}` : match.src}${joiner}v=${screenRev}`;
   return <ScreenPage src={withQuery} title={match.title} />;
 };
 

@@ -43,6 +43,36 @@ interface ProgramDeepDive {
   curatedReading?: CuratedReadingItem[];
 }
 
+interface ProgramQuickViewItem {
+  startTime: string;
+  endTime: string;
+  timeRangeLabel: string;
+  summary: string;
+}
+
+interface ProgramMinutes {
+  text: string;
+}
+
+interface ProgramShowNotesKeyMoment {
+  time: string;
+  point: string;
+}
+
+interface ProgramShowNotes {
+  guide: string;
+  guestIntro: string;
+  keyMoments: ProgramShowNotesKeyMoment[];
+  renderedText: string;
+  templateOverride?: string;
+}
+
+interface ProgramContentPack {
+  quickView?: ProgramQuickViewItem[];
+  minutes?: ProgramMinutes;
+  showNotes?: ProgramShowNotes;
+}
+
 interface ProgramTermGlossaryItem {
   term: string;
   definition: string;
@@ -52,6 +82,7 @@ interface ProgramTermGlossaryItem {
 type ProgramDictionaryEntryId = mongoose.Types.ObjectId;
 
 interface Program extends mongoose.Document {
+  programCode?: string;
   title: string;
   description: string;
   coverImage: string;
@@ -62,9 +93,12 @@ interface Program extends mongoose.Document {
   dictionaryEntryIds?: ProgramDictionaryEntryId[];
   guest?: ProgramGuest;
   deepDive?: ProgramDeepDive;
+  contentPack?: ProgramContentPack;
   status: ContentStatus;
   publishedAt?: Date;
   parseStatus?: ParseStatus;
+  parseStage?: string;
+  parseProgress?: number;
   parseStartedAt?: Date;
   parseFinishedAt?: Date;
   parseError?: string;
@@ -74,6 +108,15 @@ interface Program extends mongoose.Document {
 
 const programSchema = new mongoose.Schema(
   {
+    programCode: {
+      type: String,
+      default: "",
+      trim: true,
+      lowercase: true,
+      unique: true,
+      sparse: true,
+      index: true,
+    },
     title: { type: String, required: true, unique: true },
     description: { type: String, required: true },
     coverImage: { type: String, required: true },
@@ -129,6 +172,31 @@ const programSchema = new mongoose.Schema(
         },
       ],
     },
+    contentPack: {
+      quickView: [
+        {
+          startTime: { type: String, default: "" },
+          endTime: { type: String, default: "" },
+          timeRangeLabel: { type: String, default: "" },
+          summary: { type: String, default: "" },
+        },
+      ],
+      minutes: {
+        text: { type: String, default: "" },
+      },
+      showNotes: {
+        guide: { type: String, default: "" },
+        guestIntro: { type: String, default: "" },
+        keyMoments: [
+          {
+            time: { type: String, default: "" },
+            point: { type: String, default: "" },
+          },
+        ],
+        renderedText: { type: String, default: "" },
+        templateOverride: { type: String, default: "" },
+      },
+    },
     status: {
       type: String,
       enum: ["draft", "published"],
@@ -142,6 +210,8 @@ const programSchema = new mongoose.Schema(
       default: "idle",
       index: true,
     },
+    parseStage: { type: String, default: "idle" },
+    parseProgress: { type: Number, default: 0 },
     parseStartedAt: { type: Date, default: null },
     parseFinishedAt: { type: Date, default: null },
     parseError: { type: String, default: "" },

@@ -51,16 +51,24 @@ export class UserController {
         }
       }
       const { username, password, role, city, region, childGrade } = req.body;
-      const existingUser = await User.findOne({ username });
+      const safeUsername = typeof username === "string" ? username.trim() : "";
+      const safePassword = typeof password === "string" ? password.trim() : "";
+      if (!safeUsername || !safePassword) {
+        res.status(400).json({ message: "请填写用户名和密码" });
+        return;
+      }
+      const existingUser = await User.findOne({ username: safeUsername });
       if (existingUser) {
         res.status(400).json({ message: "用户名已存在" });
         return;
       }
-      const hashedPassword = await bcryptjs.hash(password, 10);
+      const isAdminCreator = req.user?.role === "admin";
+      const safeRole = isAdminCreator && role === "admin" ? "admin" : "user";
+      const hashedPassword = await bcryptjs.hash(safePassword, 10);
       const user = new User({
-        username,
+        username: safeUsername,
         password: hashedPassword,
-        role: role || "user",
+        role: safeRole,
         city: typeof city === "string" ? city : "",
         region: typeof region === "string" ? region : "",
         childGrade: typeof childGrade === "string" ? childGrade : "",
@@ -69,6 +77,7 @@ export class UserController {
       res.status(201).json({
         message: "用户注册成功",
         user: {
+          _id: user._id,
           id: user._id,
           username: user.username,
           role: user.role,
@@ -132,6 +141,10 @@ export class UserController {
         user.username = username.trim();
       }
       if (typeof role === "string" && (role === "admin" || role === "user")) {
+        if (String(req.user.id) === String(id) && role !== "admin") {
+          res.status(400).json({ message: "不能取消当前登录账号的管理员权限" });
+          return;
+        }
         user.role = role;
       }
       if (typeof city === "string") user.city = city;

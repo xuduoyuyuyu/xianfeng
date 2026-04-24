@@ -39,6 +39,17 @@ type ProgramAiResult = {
     sectionTitle?: string;
     curatedReading?: Array<{ title: string; subtitle?: string; url?: string }>;
   };
+  contentPack?: {
+    quickView?: Array<{ startTime?: string; endTime?: string; timeRangeLabel?: string; summary?: string }>;
+    minutes?: { text?: string };
+    showNotes?: {
+      guide?: string;
+      guestIntro?: string;
+      keyMoments?: Array<{ time?: string; point?: string }>;
+      renderedText?: string;
+      templateOverride?: string;
+    };
+  };
 };
 
 export type ProgramAiProvider = {
@@ -49,10 +60,11 @@ export type ProgramAiProvider = {
   extractProgramMetadata(input: { transcript: TranscriptSegment[]; plainText: string; durationSeconds: number }): Promise<ProgramAiResult>;
 };
 
-type ArkMetadataConfig = {
+type MetadataLlmConfig = {
   apiKey: string;
   modelId: string;
   baseUrl: string;
+  providerName: string;
 };
 
 function asText(value: unknown): string {
@@ -64,6 +76,94 @@ function formatClock(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+}
+
+function parseClockToSeconds(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, value);
+  const raw = asText(value);
+  if (!raw) return null;
+  if (/^\d+(\.\d+)?$/.test(raw)) return Math.max(0, Number(raw));
+  const parts = raw.split(":").map((item) => Number(item));
+  if (parts.some((item) => Number.isNaN(item))) return null;
+  if (parts.length === 2) return Math.max(0, parts[0] * 60 + parts[1]);
+  if (parts.length === 3) return Math.max(0, parts[0] * 3600 + parts[1] * 60 + parts[2]);
+  return null;
+}
+
+function truncateByChars(value: unknown, maxChars: number): string {
+  const text = asText(value);
+  if (text.length <= maxChars) return text;
+  return text.slice(0, Math.max(0, maxChars)).trim();
+}
+
+function normalizeQuickView(
+  input: unknown,
+  transcript: TranscriptSegment[],
+  durationSeconds: number
+): Array<{ startTime: string; endTime: string; timeRangeLabel: string; summary: string }> {
+  const list = Array.isArray(input) ? input : [];
+  const fallbackTranscript = Array.isArray(transcript) ? transcript : [];
+  const fromTranscript = fallbackTranscript
+    .slice(0, 12)
+    .map((item) => {
+      const token = String(item?.time || "").match(/\d{1,2}:\d{2}(?::\d{2})?/g) || [];
+      const start = token[0] || "00:00";
+      const end = token[1] || start;
+      return {
+        startTime: start,
+        endTime: end,
+        timeRangeLabel: `${start}-${end}`,
+        summary: truncateByChars(item?.text, 280),
+      };
+    })
+    .filter((item) => item.summary);
+  const source = list.length > 0 ? list : fromTranscript;
+
+  const normalized = source
+    .map((item: any, index: number) => {
+      const startToken = asText(item?.startTime || item?.start || item?.from || item?.timeStart);
+      const endToken = asText(item?.endTime || item?.end || item?.to || item?.timeEnd);
+      const labelToken = asText(item?.timeRangeLabel || item?.time || item?.range);
+      const labelTokens = labelToken.match(/\d{1,2}:\d{2}(?::\d{2})?/g) || [];
+      let startSec = parseClockToSeconds(startToken) ?? parseClockToSeconds(labelTokens[0]);
+      let endSec = parseClockToSeconds(endToken) ?? parseClockToSeconds(labelTokens[1]);
+      if (!Number.isFinite(startSec) && Number.isFinite(endSec)) startSec = Math.max(0, (endSec as number) - 90);
+      if (!Number.isFinite(startSec)) startSec = Math.max(0, index * 300);
+      if (!Number.isFinite(endSec) || (endSec as number) <= (startSec as number)) {
+        endSec = Math.min(Math.max((startSec as number) + 90, (startSec as number) + 30), Math.max(120, durationSeconds || 0));
+      }
+      const summary = truncateByChars(item?.summary || item?.text || item?.point, 300);
+      if (!summary) return null;
+      const startTime = formatClock(startSec as number);
+      const endTime = formatClock(endSec as number);
+      return {
+        startTime,
+        endTime,
+        timeRangeLabel: `${startTime}-${endTime}`,
+        summary,
+        startSec: startSec as number,
+      };
+    })
+    .filter(Boolean) as Array<{ startTime: string; endTime: string; timeRangeLabel: string; summary: string; startSec: number }>;
+
+  normalized.sort((a, b) => a.startSec - b.startSec);
+  return normalized.slice(0, 12).map((item) => ({
+    startTime: item.startTime,
+    endTime: item.endTime,
+    timeRangeLabel: item.timeRangeLabel,
+    summary: item.summary,
+  }));
+}
+
+function normalizeShowNotesKeyMoments(input: unknown): Array<{ time: string; point: string }> {
+  const list = Array.isArray(input) ? input : [];
+  return list
+    .map((item: any) => ({
+      time: asText(item?.time || item?.range || item?.timestamp),
+      point: truncateByChars(item?.point || item?.title || item?.summary, 120),
+    }))
+    .filter((item) => item.time && item.point)
+    .slice(0, 20);
 }
 
 function normalizeSpeakerToken(value: unknown): string {
@@ -217,12 +317,42 @@ function isFillerOnlyText(value: string): boolean {
   return false;
 }
 
+function isLikelyLyricText(value: string): boolean {
+  const raw = asText(value);
+  if (!raw) return true;
+  if (/[♪♫🎵]/u.test(raw)) return true;
+  if (/作词|作曲|编曲|演唱|歌词|副歌|主歌|music/i.test(raw)) return true;
+  const lines = raw
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length >= 3) {
+    const unique = new Set(lines.map((line) => line.replace(/[，。！？、,.!?\s~～…]/g, "")));
+    if (unique.size <= Math.max(1, Math.floor(lines.length / 2))) return true;
+  }
+  return false;
+}
+
 function isMeaningfulText(value: string): boolean {
   const normalized = normalizeFillerCheckText(value);
   if (!normalized) return false;
   if (isFillerOnlyText(value)) return false;
+  if (isLikelyLyricText(value)) return false;
   if (normalized.length >= 10) return true;
   return /[0-9a-z\u4e00-\u9fa5]{6,}/u.test(normalized);
+}
+
+function scoreFeaturedParagraph(text: string): number {
+  const normalized = asText(text);
+  if (!normalized) return -1;
+  let score = 0;
+  const compactLength = normalizeFillerCheckText(normalized).length;
+  if (compactLength >= 40) score += 3;
+  if (compactLength >= 70) score += 2;
+  if (/[。！？!?]/.test(normalized)) score += 1;
+  if (/关键|核心|总结|结论|建议|方法|步骤|重点|模型|原则|框架/.test(normalized)) score += 3;
+  if (/就是|那个|然后|嗯|啊/.test(normalized) && compactLength < 20) score -= 2;
+  return score;
 }
 
 function buildParagraphTranscriptFromTimedItems(items: TimedUtterance[], fallbackDurationSeconds = 180): TranscriptSegment[] {
@@ -233,7 +363,7 @@ function buildParagraphTranscriptFromTimedItems(items: TimedUtterance[], fallbac
       text: asText(item.text),
       speakerKey: getTimedUtteranceSpeakerKey(item, Math.max(0, Math.floor(Number(item.startSec) || 0))),
     }))
-    .filter((item) => !!item.text && !isFillerOnlyText(item.text))
+    .filter((item) => !!item.text && !isFillerOnlyText(item.text) && !isLikelyLyricText(item.text))
     .sort((a, b) => a.startSec - b.startSec);
   if (!normalizedItems.length) return [];
 
@@ -294,11 +424,17 @@ function buildParagraphTranscriptFromTimedItems(items: TimedUtterance[], fallbac
       ? mergedParagraphs.slice(0, Math.floor(maxParagraphs))
       : mergedParagraphs;
   const speakerLabels = resolveRoleLabels(finalParagraphs);
+  const ranked = finalParagraphs
+    .map((item, idx) => ({ idx, score: scoreFeaturedParagraph(item.text) }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 2);
+  const featuredIndexes = new Set(ranked.map((item) => item.idx));
   const transcript = finalParagraphs.map((item, idx) => ({
     time: `${formatClock(item.startSec)}-${formatClock(item.endSec)}`,
     speaker: speakerLabels[idx] || "嘉宾",
     text: item.text,
-    featured: idx < 2,
+    featured: featuredIndexes.has(idx),
   }));
   if (transcript.length > 0) return transcript;
 
@@ -313,9 +449,11 @@ function splitToTranscriptParagraphs(text: string, durationSeconds: number): Tra
     .map((item) => item.trim())
     .filter(Boolean);
   const segments = pieces.length > 0 ? pieces : [normalized];
+  const filteredSegments = segments.filter((item) => !isLikelyLyricText(item));
+  const effectiveSegments = filteredSegments.length > 0 ? filteredSegments : segments;
   const grouped: string[] = [];
-  for (let i = 0; i < segments.length; i += 3) {
-    grouped.push(segments.slice(i, i + 3).join("。"));
+  for (let i = 0; i < effectiveSegments.length; i += 3) {
+    grouped.push(effectiveSegments.slice(i, i + 3).join("。"));
   }
   const paragraphs = grouped.length > 0 ? grouped : [normalized];
   const safeDuration = Math.max(60, durationSeconds || 120);
@@ -325,11 +463,17 @@ function splitToTranscriptParagraphs(text: string, durationSeconds: number): Tra
     Number.isFinite(maxParagraphs) && maxParagraphs > 0
       ? paragraphs.slice(0, Math.floor(maxParagraphs))
       : paragraphs;
+  const ranked = outputParagraphs
+    .map((item, idx) => ({ idx, score: scoreFeaturedParagraph(item) }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 2);
+  const featuredIndexes = new Set(ranked.map((item) => item.idx));
   return outputParagraphs.map((item, idx) => ({
     time: `${formatClock(idx * gap)}-${formatClock(Math.min(safeDuration, (idx + 1) * gap))}`,
     speaker: idx % 2 === 0 ? "主持人" : "嘉宾",
     text: item.endsWith("。") ? item : `${item}。`,
-    featured: idx < 2,
+    featured: featuredIndexes.has(idx),
   }));
 }
 
@@ -343,6 +487,15 @@ function buildHeuristicMetadata(input: {
   const firstLine = asText(input.transcript[0]?.text) || asText(input.plainText).slice(0, 40);
   const secondLine = asText(input.transcript[1]?.text) || "";
   const summaryBody = [firstLine, secondLine].filter(Boolean).join(" ");
+  const quickView = normalizeQuickView([], input.transcript, input.durationSeconds);
+  const minutesText = truncateByChars(
+    [summaryBody, asText(input.plainText).slice(0, 800)].filter(Boolean).join("\n\n"),
+    1000
+  );
+  const keyMoments = quickView.slice(0, 6).map((item) => ({
+    time: item.timeRangeLabel,
+    point: truncateByChars(item.summary, 90),
+  }));
   return {
     episodeTitle: fallbackTitle,
     episodeDuration: `${Math.max(1, Math.round((input.durationSeconds || 180) / 60))} 分钟`,
@@ -372,24 +525,24 @@ function buildHeuristicMetadata(input: {
         { title: "家庭沟通节奏设计", subtitle: "每周复盘模板", url: "" },
       ],
     },
+    contentPack: {
+      quickView,
+      minutes: {
+        text: minutesText || "本期内容围绕真实教育场景展开，重点是把讨论沉淀为可执行的家庭行动清单。",
+      },
+      showNotes: {
+        guide: truncateByChars(summaryBody || firstLine, 220),
+        guestIntro: "节目特邀嘉宾，围绕家庭教育与成长实践展开分享。",
+        keyMoments,
+        renderedText: "",
+        templateOverride: "",
+      },
+    },
   };
 }
 
-function resolveArkMetadataConfig(): ArkMetadataConfig | null {
-  const apiKey = asText(process.env.ARK_API_KEY);
-  const modelId = asText(process.env.ARK_MODEL_ID) || asText(process.env.VOLCENGINE_ARK_ENDPOINT_ID);
-  const baseUrl = asText(process.env.ARK_BASE_URL) || "https://ark.cn-beijing.volces.com/api/v3";
-  if (!apiKey || !modelId) return null;
-  return { apiKey, modelId, baseUrl };
-}
-
-async function extractMetadataWithArk(
-  input: { transcript: TranscriptSegment[]; plainText: string; durationSeconds: number },
-  fallbackTitle: string
-): Promise<ProgramAiResult | null> {
-  const config = resolveArkMetadataConfig();
-  if (!config) return null;
-  const prompt = [
+function buildMetadataPrompt(input: { plainText: string }): string {
+  return [
     "你是播客内容运营助手。请根据文本提取节目详情页结构化字段。",
     "只输出 JSON，不要输出任何解释。",
     "JSON 结构：",
@@ -398,17 +551,120 @@ async function extractMetadataWithArk(
     '  "summary": { "headline": "", "body": "", "highlightLabel": "", "highlightText": "", "tags": [""] },',
     '  "termGlossary": [{ "term": "术语", "definition": "通俗解释", "sourceUrl": "可选链接" }],',
     '  "guest": { "name": "", "title": "", "bio": "", "avatar": "", "profileUrl": "" },',
-    '  "deepDive": { "sectionTitle": "", "curatedReading": [{ "title": "", "subtitle": "", "url": "" }] }',
+    '  "deepDive": { "sectionTitle": "", "curatedReading": [{ "title": "", "subtitle": "", "url": "" }] },',
+    '  "contentPack": {',
+    '    "quickView": [{ "startTime": "01:23", "endTime": "03:40", "timeRangeLabel": "01:23-03:40", "summary": "" }],',
+    '    "minutes": { "text": "" },',
+    '    "showNotes": {',
+    '      "guide": "",',
+    '      "guestIntro": "",',
+    '      "keyMoments": [{ "time": "01:23-03:40", "point": "" }],',
+    '      "templateOverride": ""',
+    "    }",
+    "  }",
     "}",
     "规则：",
     "1) 中文表达，简洁专业。",
     "2) tags 返回 2-5 个。",
     "3) 无法确定嘉宾姓名时使用“节目特邀嘉宾”。",
     "4) 术语表 termGlossary 返回 3-10 个，definition 用一句话解释，避免空值。",
+    "5) quickView 生成 5-12 段，按时间递增，每段 summary 不超过 300 字。",
+    "6) minutes.text 为整期纪要，不基于时间戳，控制在 1000 字以内。",
+    "7) showNotes.keyMoments 使用“时间 + 要点”，要点尽量可直接转发。",
     "",
     "文本内容：",
     input.plainText.slice(0, 12000),
   ].join("\n");
+}
+
+function normalizeMetadataResult(
+  parsed: any,
+  input: { durationSeconds: number; transcript?: TranscriptSegment[] },
+  fallbackTitle: string
+): ProgramAiResult {
+  const quickView = normalizeQuickView(parsed?.contentPack?.quickView, input.transcript || [], input.durationSeconds);
+  const minutesText = truncateByChars(parsed?.contentPack?.minutes?.text, 1000);
+  const showNotesKeyMoments = normalizeShowNotesKeyMoments(parsed?.contentPack?.showNotes?.keyMoments);
+  return {
+    episodeTitle: asText(parsed?.episodeTitle) || fallbackTitle,
+    episodeDuration: `${Math.max(1, Math.round((input.durationSeconds || 180) / 60))} 分钟`,
+    summary: {
+      headline: asText(parsed?.summary?.headline),
+      body: asText(parsed?.summary?.body),
+      highlightLabel: asText(parsed?.summary?.highlightLabel),
+      highlightText: asText(parsed?.summary?.highlightText),
+      tags: Array.isArray(parsed?.summary?.tags)
+        ? parsed.summary.tags.map((item: unknown) => asText(item)).filter(Boolean).slice(0, 8)
+        : [],
+    },
+    termGlossary: Array.isArray(parsed?.termGlossary)
+      ? parsed.termGlossary
+          .map((item: any) => ({
+            term: asText(item?.term),
+            definition: asText(item?.definition),
+            sourceUrl: asText(item?.sourceUrl),
+          }))
+          .filter((item: { term: string; definition: string }) => !!item.term && !!item.definition)
+          .slice(0, 20)
+      : [],
+    guest: {
+      name: asText(parsed?.guest?.name),
+      title: asText(parsed?.guest?.title),
+      bio: asText(parsed?.guest?.bio),
+      avatar: asText(parsed?.guest?.avatar),
+      profileUrl: asText(parsed?.guest?.profileUrl),
+    },
+    deepDive: {
+      sectionTitle: asText(parsed?.deepDive?.sectionTitle),
+      curatedReading: Array.isArray(parsed?.deepDive?.curatedReading)
+        ? parsed.deepDive.curatedReading
+            .map((item: any) => ({
+              title: asText(item?.title),
+              subtitle: asText(item?.subtitle),
+              url: asText(item?.url),
+            }))
+            .filter((item: { title: string }) => !!item.title)
+        : [],
+    },
+    contentPack: {
+      quickView,
+      minutes: {
+        text: minutesText,
+      },
+      showNotes: {
+        guide: truncateByChars(parsed?.contentPack?.showNotes?.guide, 260),
+        guestIntro: truncateByChars(parsed?.contentPack?.showNotes?.guestIntro, 260),
+        keyMoments: showNotesKeyMoments,
+        renderedText: "",
+        templateOverride: asText(parsed?.contentPack?.showNotes?.templateOverride),
+      },
+    },
+  };
+}
+
+function resolveDeepSeekMetadataConfig(): MetadataLlmConfig | null {
+  const apiKey = asText(process.env.DEEPSEEK_API_KEY);
+  const modelId = asText(process.env.DEEPSEEK_MODEL_ID) || "jiahewanshi";
+  const baseUrl = asText(process.env.DEEPSEEK_BASE_URL) || "https://api.deepseek.com";
+  if (!apiKey || !modelId) return null;
+  return { apiKey, modelId, baseUrl, providerName: "DeepSeek" };
+}
+
+function resolveArkMetadataConfig(): MetadataLlmConfig | null {
+  const apiKey = asText(process.env.ARK_API_KEY);
+  const modelId = asText(process.env.ARK_MODEL_ID) || asText(process.env.VOLCENGINE_ARK_ENDPOINT_ID);
+  const baseUrl = asText(process.env.ARK_BASE_URL) || "https://ark.cn-beijing.volces.com/api/v3";
+  if (!apiKey || !modelId) return null;
+  return { apiKey, modelId, baseUrl, providerName: "Ark" };
+}
+
+async function extractMetadataWithOpenAiCompatibleProvider(
+  input: { transcript: TranscriptSegment[]; plainText: string; durationSeconds: number },
+  fallbackTitle: string,
+  config: MetadataLlmConfig | null
+): Promise<ProgramAiResult | null> {
+  if (!config) return null;
+  const prompt = buildMetadataPrompt(input);
 
   try {
     const endpoint = config.baseUrl.replace(/\/$/, "") + "/chat/completions";
@@ -423,7 +679,7 @@ async function extractMetadataWithArk(
         temperature: 0.2,
         response_format: { type: "json_object" },
         messages: [
-          { role: "system", content: "你是教育播客内容运营助手，只输出 JSON。" },
+          { role: "system", content: `你是教育播客内容运营助手，通过 ${config.providerName} 只输出 JSON。` },
           { role: "user", content: prompt },
         ],
       }),
@@ -440,62 +696,42 @@ async function extractMetadataWithArk(
     } catch (_error) {
       return null;
     }
-    return {
-      episodeTitle: asText(parsed?.episodeTitle) || fallbackTitle,
-      episodeDuration: `${Math.max(1, Math.round((input.durationSeconds || 180) / 60))} 分钟`,
-      summary: {
-        headline: asText(parsed?.summary?.headline),
-        body: asText(parsed?.summary?.body),
-        highlightLabel: asText(parsed?.summary?.highlightLabel),
-        highlightText: asText(parsed?.summary?.highlightText),
-        tags: Array.isArray(parsed?.summary?.tags)
-          ? parsed.summary.tags.map((item: unknown) => asText(item)).filter(Boolean).slice(0, 8)
-          : [],
-      },
-      termGlossary: Array.isArray(parsed?.termGlossary)
-        ? parsed.termGlossary
-            .map((item: any) => ({
-              term: asText(item?.term),
-              definition: asText(item?.definition),
-              sourceUrl: asText(item?.sourceUrl),
-            }))
-            .filter((item: { term: string; definition: string }) => !!item.term && !!item.definition)
-            .slice(0, 20)
-        : [],
-      guest: {
-        name: asText(parsed?.guest?.name),
-        title: asText(parsed?.guest?.title),
-        bio: asText(parsed?.guest?.bio),
-        avatar: asText(parsed?.guest?.avatar),
-        profileUrl: asText(parsed?.guest?.profileUrl),
-      },
-      deepDive: {
-        sectionTitle: asText(parsed?.deepDive?.sectionTitle),
-        curatedReading: Array.isArray(parsed?.deepDive?.curatedReading)
-          ? parsed.deepDive.curatedReading
-              .map((item: any) => ({
-                title: asText(item?.title),
-                subtitle: asText(item?.subtitle),
-                url: asText(item?.url),
-              }))
-              .filter((item: { title: string }) => !!item.title)
-          : [],
-      },
-    };
+    return normalizeMetadataResult(parsed, input, fallbackTitle);
   } catch (_error) {
     return null;
   }
 }
 
+async function extractMetadataWithDeepSeek(
+  input: { transcript: TranscriptSegment[]; plainText: string; durationSeconds: number },
+  fallbackTitle: string
+): Promise<ProgramAiResult | null> {
+  return extractMetadataWithOpenAiCompatibleProvider(input, fallbackTitle, resolveDeepSeekMetadataConfig());
+}
+
+async function extractMetadataWithArk(
+  input: { transcript: TranscriptSegment[]; plainText: string; durationSeconds: number },
+  fallbackTitle: string
+): Promise<ProgramAiResult | null> {
+  return extractMetadataWithOpenAiCompatibleProvider(input, fallbackTitle, resolveArkMetadataConfig());
+}
+
+async function extractMetadataWithPreferredTextProvider(
+  input: { transcript: TranscriptSegment[]; plainText: string; durationSeconds: number },
+  fallbackTitle: string
+): Promise<ProgramAiResult | null> {
+  const deepSeekResult = await extractMetadataWithDeepSeek(input, fallbackTitle);
+  if (deepSeekResult) return deepSeekResult;
+  return extractMetadataWithArk(input, fallbackTitle);
+}
+
 class OpenAIProgramAiProvider implements ProgramAiProvider {
   private readonly apiKey: string;
   private readonly transcribeModel: string;
-  private readonly textModel: string;
 
   constructor() {
     this.apiKey = asText(process.env.OPENAI_API_KEY);
     this.transcribeModel = asText(process.env.AI_TRANSCRIBE_MODEL) || "gpt-4o-mini-transcribe";
-    this.textModel = asText(process.env.AI_TEXT_MODEL) || "gpt-4o-mini";
   }
 
   private headers() {
@@ -548,105 +784,12 @@ class OpenAIProgramAiProvider implements ProgramAiProvider {
   }
 
   async extractProgramMetadata(input: { transcript: TranscriptSegment[]; plainText: string; durationSeconds: number }): Promise<ProgramAiResult> {
-    if (!this.apiKey) {
-      throw new Error("OPENAI_API_KEY 未配置");
-    }
-    const prompt = [
-      "请基于以下播客逐字稿内容，输出用于内容发布的结构化 JSON。",
-      "只返回合法 JSON，不要输出其它文本。",
-      "JSON 结构：",
-      "{",
-      '  "episodeTitle": "单集标题",',
-      '  "summary": { "headline": "", "body": "", "highlightLabel": "", "highlightText": "", "tags": [""] },',
-      '  "termGlossary": [{ "term": "术语", "definition": "通俗解释", "sourceUrl": "可选链接" }],',
-      '  "guest": { "name": "", "title": "", "bio": "", "avatar": "", "profileUrl": "" },',
-      '  "deepDive": { "sectionTitle": "", "curatedReading": [{ "title": "", "subtitle": "", "url": "" }] }',
-      "}",
-      "字段要求：",
-      "1) 保持中文表达；2) tags 控制在 2-5 个；3) 若无法判断嘉宾姓名可使用“节目特邀嘉宾”；4) termGlossary 给出 3-10 个术语及一句话解释。",
-      "",
-      "逐字稿：",
-      input.plainText.slice(0, 12000),
-    ].join("\n");
-
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        ...this.headers(),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: this.textModel,
-        temperature: 0.2,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: "你是教育播客内容运营助手，只输出 JSON。" },
-          { role: "user", content: prompt },
-        ],
-      }),
+    const generated = await extractMetadataWithPreferredTextProvider(input, "AI 自动生成：家校协同实践");
+    if (generated) return generated;
+    return buildHeuristicMetadata({
+      ...input,
+      fallbackTitle: "AI 自动生成：家校协同实践",
     });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`元信息提取失败: ${text}`);
-    }
-    const json: any = await response.json();
-    const content = asText(json?.choices?.[0]?.message?.content);
-    if (!content) {
-      return {};
-    }
-    let parsed: any = {};
-    try {
-      parsed = JSON.parse(content);
-    } catch (_error) {
-      return {};
-    }
-
-    return {
-      episodeTitle: asText(parsed?.episodeTitle),
-      episodeDuration: input.durationSeconds > 0 ? `${Math.max(1, Math.round(input.durationSeconds / 60))} 分钟` : "",
-      summary: {
-        headline: asText(parsed?.summary?.headline),
-        body: asText(parsed?.summary?.body),
-        highlightLabel: asText(parsed?.summary?.highlightLabel),
-        highlightText: asText(parsed?.summary?.highlightText),
-        tags: Array.isArray(parsed?.summary?.tags)
-          ? parsed.summary.tags
-              .map((item: unknown) => asText(item))
-              .filter((item: string) => !!item)
-              .slice(0, 8)
-          : [],
-      },
-      termGlossary: Array.isArray(parsed?.termGlossary)
-        ? parsed.termGlossary
-            .map((item: any) => ({
-              term: asText(item?.term),
-              definition: asText(item?.definition),
-              sourceUrl: asText(item?.sourceUrl),
-            }))
-            .filter((item: { term: string; definition: string }) => item.term && item.definition)
-            .slice(0, 20)
-        : [],
-      guest: {
-        name: asText(parsed?.guest?.name),
-        title: asText(parsed?.guest?.title),
-        bio: asText(parsed?.guest?.bio),
-        avatar: asText(parsed?.guest?.avatar),
-        profileUrl: asText(parsed?.guest?.profileUrl),
-      },
-      deepDive: {
-        sectionTitle: asText(parsed?.deepDive?.sectionTitle),
-        curatedReading: Array.isArray(parsed?.deepDive?.curatedReading)
-          ? parsed.deepDive.curatedReading
-              .map((item: any) => ({
-                title: asText(item?.title),
-                subtitle: asText(item?.subtitle),
-                url: asText(item?.url),
-              }))
-              .filter((item: { title: string }) => item.title)
-          : [],
-      },
-    };
   }
 }
 
@@ -656,6 +799,7 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
   private readonly apiKey: string;
   private readonly resourceIds: string[];
   private readonly mode: string;
+  private readonly publicBaseUrl: string;
 
   constructor() {
     this.appId = asText(process.env.VOLCENGINE_APP_ID);
@@ -667,6 +811,7 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
       .filter(Boolean);
     this.resourceIds = parsedIds.length > 0 ? parsedIds : ["volc.bigasr.auc_turbo", "volc.bigasr.auc"];
     this.mode = asText(process.env.VOLCENGINE_MODE) || "auto";
+    this.publicBaseUrl = asText(process.env.VOLCENGINE_PUBLIC_BASE_URL) || asText(process.env.PUBLIC_BASE_URL);
   }
 
   private detectFormat(filePath: string): string {
@@ -709,6 +854,31 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
     } catch (_error) {
       return true;
     }
+  }
+
+  private toPublicSourceUrl(sourceUrl: string): string {
+    const raw = asText(sourceUrl);
+    if (!raw) return "";
+    const publicBase = asText(this.publicBaseUrl);
+    try {
+      const parsed = new URL(raw);
+      if (!this.isLocalUrl(raw)) return parsed.toString();
+      if (!publicBase) return parsed.toString();
+      return new URL(`${parsed.pathname}${parsed.search}${parsed.hash}`, publicBase).toString();
+    } catch (_error) {
+      if (!publicBase) return raw;
+      const normalizedPath = raw.startsWith("/") ? raw : `/${raw}`;
+      try {
+        return new URL(normalizedPath, publicBase).toString();
+      } catch (_secondError) {
+        return raw;
+      }
+    }
+  }
+
+  private isPayloadTooLarge(response: Response, message: string): boolean {
+    const normalized = message.toLowerCase();
+    return response.status === 413 || normalized.includes("payload too large") || normalized.includes("request entity too large");
   }
 
   private normalizeUtterances(utterances: any[]): TranscriptSegment[] {
@@ -790,6 +960,8 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
 
   async transcribeAudio(filePath: string, options?: { sourceUrl?: string }): Promise<{ transcript: TranscriptSegment[]; plainText: string; durationSeconds: number }> {
     const bytes = await fs.readFile(filePath);
+    const sourceUrl = this.toPublicSourceUrl(asText(options?.sourceUrl));
+    const isLocalSourceUrl = this.isLocalUrl(sourceUrl);
     const payload = {
       user: { uid: this.appId || "podcast-admin" },
       audio: {
@@ -805,33 +977,74 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
     let json: any = {};
     let lastErrorMessage = "";
     for (const resourceId of this.resourceIds) {
-      if (this.shouldUseStandard(resourceId)) {
+      if (this.shouldUseStandard(resourceId) && !isLocalSourceUrl) {
         try {
-          return await this.transcribeByStandard(asText(options?.sourceUrl), resourceId);
+          return await this.transcribeByStandard(sourceUrl, resourceId);
         } catch (error: any) {
           lastErrorMessage = asText(error?.message);
           continue;
         }
       }
-      const requestId = randomUUID();
-      const response = await fetch("https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash", {
-        method: "POST",
-        headers: this.buildHeaders(requestId, resourceId),
-        body: JSON.stringify(payload),
-      });
-      json = await response.json().catch(() => ({}));
-      const statusCode = asText((response.headers.get("X-Api-Status-Code") || json?.code || "").toString());
-      if (response.ok && (!statusCode || statusCode === "20000000")) {
-        lastErrorMessage = "";
+      let shouldTryNextResource = false;
+      const maxAttempts = 3;
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        const requestId = randomUUID();
+        const response = await fetch("https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash", {
+          method: "POST",
+          headers: this.buildHeaders(requestId, resourceId),
+          body: JSON.stringify(payload),
+        });
+        json = await response.json().catch(() => ({}));
+        const statusCode = asText((response.headers.get("X-Api-Status-Code") || json?.code || "").toString());
+        if (response.ok && (!statusCode || statusCode === "20000000")) {
+          lastErrorMessage = "";
+          shouldTryNextResource = false;
+          break;
+        }
+        const message = asText(response.headers.get("X-Api-Message")) || asText(json?.message) || asText(json?.msg) || `HTTP ${response.status}`;
+        lastErrorMessage = `[resource_id=${resourceId}] ${message}`;
+        const lowerMessage = message.toLowerCase();
+        const isPermissionIssue = lowerMessage.includes("not granted");
+        const isPayloadTooLarge = this.isPayloadTooLarge(response, message);
+        if (isPayloadTooLarge && !isLocalSourceUrl) {
+          try {
+            return await this.transcribeByStandard(sourceUrl, resourceId);
+          } catch (error: any) {
+            lastErrorMessage = `[resource_id=${resourceId}] flash 请求体过大，标准版 fallback 失败: ${asText(error?.message) || message}`;
+          }
+        } else if (isPayloadTooLarge && isLocalSourceUrl) {
+          lastErrorMessage = `[resource_id=${resourceId}] flash 请求体过大（HTTP 413）；请配置 VOLCENGINE_PUBLIC_BASE_URL 为公网域名以启用标准版 URL 转写`;
+        }
+        const isTransientGatewayIssue =
+          response.status >= 500 ||
+          lowerMessage.includes("timeout") ||
+          lowerMessage.includes("timed out") ||
+          lowerMessage.includes("gateway") ||
+          lowerMessage.includes("bad gateway") ||
+          lowerMessage.includes("upstream");
+        if (isTransientGatewayIssue && attempt < maxAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+          continue;
+        }
+        shouldTryNextResource = isPermissionIssue || isTransientGatewayIssue || isPayloadTooLarge;
         break;
       }
-      const message = asText(response.headers.get("X-Api-Message")) || asText(json?.message) || asText(json?.msg) || `HTTP ${response.status}`;
-      lastErrorMessage = `[resource_id=${resourceId}] ${message}`;
-      if (!message.toLowerCase().includes("not granted")) {
+      if (!lastErrorMessage) {
+        break;
+      }
+      if (!shouldTryNextResource) {
         break;
       }
     }
     if (lastErrorMessage) {
+      if (asText(process.env.OPENAI_API_KEY)) {
+        try {
+          const openAiFallback = new OpenAIProgramAiProvider();
+          return await openAiFallback.transcribeAudio(filePath);
+        } catch (_fallbackError) {
+          // ignore fallback errors and return original volcengine error for clearer diagnosis
+        }
+      }
       throw new Error(`火山语音转写失败: ${lastErrorMessage}`);
     }
     const utterances = Array.isArray(json?.result?.utterances) ? json.result.utterances : [];
@@ -864,10 +1077,8 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
     plainText: string;
     durationSeconds: number;
   }): Promise<ProgramAiResult> {
-    const arkResult = await extractMetadataWithArk(input, "火山语音解析节目");
-    if (arkResult) {
-      return arkResult;
-    }
+    const generated = await extractMetadataWithPreferredTextProvider(input, "火山语音解析节目");
+    if (generated) return generated;
     return buildHeuristicMetadata({
       ...input,
       fallbackTitle: "火山语音解析节目",
@@ -894,10 +1105,8 @@ class MockProgramAiProvider implements ProgramAiProvider {
   }
 
   async extractProgramMetadata(input: { transcript: TranscriptSegment[]; plainText: string; durationSeconds: number }): Promise<ProgramAiResult> {
-    const arkResult = await extractMetadataWithArk(input, "AI 自动生成：家校协同实践");
-    if (arkResult) {
-      return arkResult;
-    }
+    const generated = await extractMetadataWithPreferredTextProvider(input, "AI 自动生成：家校协同实践");
+    if (generated) return generated;
     return buildHeuristicMetadata({
       ...input,
       fallbackTitle: "AI 自动生成：家校协同实践",

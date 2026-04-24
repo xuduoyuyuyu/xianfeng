@@ -120,8 +120,39 @@ export interface ProgramDeepDive {
   curatedReading?: CuratedReadingItem[];
 }
 
+export interface ProgramQuickViewItem {
+  startTime: string;
+  endTime: string;
+  timeRangeLabel: string;
+  summary: string;
+}
+
+export interface ProgramMinutes {
+  text: string;
+}
+
+export interface ProgramShowNotesKeyMoment {
+  time: string;
+  point: string;
+}
+
+export interface ProgramShowNotes {
+  guide: string;
+  guestIntro: string;
+  keyMoments: ProgramShowNotesKeyMoment[];
+  renderedText?: string;
+  templateOverride?: string;
+}
+
+export interface ProgramContentPack {
+  quickView?: ProgramQuickViewItem[];
+  minutes?: ProgramMinutes;
+  showNotes?: ProgramShowNotes;
+}
+
 export interface Program {
   _id: string;
+  programCode?: string;
   title: string;
   description: string;
   coverImage: string;
@@ -133,8 +164,11 @@ export interface Program {
   dictionaryEntries?: EducationDictionaryEntry[];
   guest?: ProgramGuest;
   deepDive?: ProgramDeepDive;
+  contentPack?: ProgramContentPack;
   status: 'draft' | 'published';
   parseStatus?: 'idle' | 'parsing' | 'success' | 'failed';
+  parseStage?: string;
+  parseProgress?: number;
   parseError?: string;
   parseStartedAt?: string;
   parseFinishedAt?: string;
@@ -186,6 +220,7 @@ export interface SystemInfo {
   env: {
     allowPublicRegister: boolean;
     corsOrigin?: string;
+    showNotesDefaultTemplate?: string;
   };
   mongo: {
     readyState: number;
@@ -201,9 +236,16 @@ export interface SystemInfo {
   };
 }
 
+export interface ShowNotesTemplateConfig {
+  template: string;
+  fallbackTemplate: string;
+}
+
 export interface ProgramParseTask {
   programId: string;
   parseStatus: "idle" | "parsing" | "success" | "failed";
+  parseStage?: string;
+  parseProgress?: number;
   parseError?: string;
   parseStartedAt?: string | null;
   parseFinishedAt?: string | null;
@@ -272,6 +314,23 @@ export const adminApi = {
       }
     );
   },
+  uploadProgramImage: (imageFile: File, onProgress?: (percent: number) => void) => {
+    const formData = new FormData();
+    formData.append("image", imageFile);
+    return api.post<{ url: string; filename: string; originalName: string; mimeType: string; size: number }>(
+      "/admin/programs/upload-image",
+      formData,
+      {
+        timeout: 2 * 60 * 1000,
+        headers: { "Content-Type": "multipart/form-data" },
+        onUploadProgress: (event) => {
+          if (!onProgress || !event.total) return;
+          const percent = Math.max(0, Math.min(100, Math.round((event.loaded / event.total) * 100)));
+          onProgress(percent);
+        },
+      }
+    );
+  },
   createProgramFromAudio: (uploadedAudioUrl: string) =>
     api.post<ProgramParseTask>("/admin/programs/create-from-audio", { uploadedAudioUrl }),
   triggerProgramParse: (id: string) => api.post<ProgramParseTask>(`/admin/programs/${id}/parse`),
@@ -309,10 +368,14 @@ export const adminApi = {
     api.patch<LearningMaterial>(`/admin/learning-materials/${id}/status`, { status }),
 
   getUsers: () => api.get<User[]>('/users'),
+  createUser: (data: Partial<User> & { password: string }) => api.post<{ message: string; user: User }>('/users/register', data),
   updateUser: (id: string, data: Partial<User> & { password?: string }) => api.put<User>(`/users/${id}`, data),
   deleteUser: (id: string) => api.delete(`/users/${id}`),
 
   getSystemInfo: () => api.get<SystemInfo>('/admin/system-info'),
+  getShowNotesTemplate: () => api.get<ShowNotesTemplateConfig>("/admin/show-notes-template"),
+  updateShowNotesTemplate: (template: string) =>
+    api.put<ShowNotesTemplateConfig>("/admin/show-notes-template", { template }),
 };
 
 // 用户 API

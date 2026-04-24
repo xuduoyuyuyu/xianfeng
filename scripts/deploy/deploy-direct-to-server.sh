@@ -3,13 +3,13 @@
 set -euo pipefail
 
 SERVER_HOST="${1:-}"
-SERVER_PATH="${2:-/opt/knowledge-base}"
+SERVER_PATH="${2:-/opt/xianfeng}"
 BRANCH="${3:-$(git rev-parse --abbrev-ref HEAD)}"
 PUSH_FIRST="${PUSH_FIRST:-true}"
 
 if [[ -z "${SERVER_HOST}" ]]; then
   echo "用法: $0 <server-host> [server-path] [branch]"
-  echo "示例: $0 root@14.103.106.216 /opt/knowledge-base main"
+  echo "示例: $0 root@14.103.106.216 /opt/xianfeng main"
   exit 1
 fi
 
@@ -40,7 +40,7 @@ fi
 echo "同步当前代码到服务器: ${SERVER_HOST}:${SERVER_PATH}"
 git archive --format=tar HEAD | ssh "${SERVER_HOST}" "mkdir -p '${SERVER_PATH}' && tar -xf - -C '${SERVER_PATH}'"
 
-echo "在服务器上重建并启动容器"
-ssh "${SERVER_HOST}" "cd '${SERVER_PATH}' && docker compose --env-file .env.production up -d --build --remove-orphans"
+echo "在服务器上重建并启动容器（生产配置）"
+ssh "${SERVER_HOST}" "cd '${SERVER_PATH}' && docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.production up -d --build --remove-orphans"
 
 echo "部署完成"

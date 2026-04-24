@@ -165,6 +165,7 @@ const ProgramDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [contentViewMode, setContentViewMode] = useState<"quickview" | "transcript">("quickview");
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -190,6 +191,21 @@ const ProgramDetailPage: React.FC = () => {
     program?.deepDive?.curatedReading && program.deepDive.curatedReading.length > 0
       ? program.deepDive.curatedReading
       : [{ title: "《家庭教育中的低摩擦沟通》", subtitle: "围绕节目主题延展出的实用阅读线索" }];
+  const quickView = (program?.contentPack?.quickView || []).filter((item) => item?.summary).slice(0, 12);
+  const minutesText = program?.contentPack?.minutes?.text || summaryBody;
+  const showNotesText = program?.contentPack?.showNotes?.renderedText || [
+    "导引",
+    program?.contentPack?.showNotes?.guide || summaryBody,
+    "",
+    "嘉宾介绍",
+    program?.contentPack?.showNotes?.guestIntro || `${guestName}，围绕本期主题分享经验与实操建议。`,
+    "",
+    "重点时间戳",
+    ...(program?.contentPack?.showNotes?.keyMoments || []).map((item) => `- ${item.time} ${item.point}`),
+    "",
+    "本期纪要",
+    minutesText,
+  ].join("\n");
 
   useEffect(() => {
     let active = true;
@@ -343,6 +359,35 @@ const ProgramDetailPage: React.FC = () => {
     }
   };
 
+  const copyShowNotes = async () => {
+    const text = showNotesText.trim();
+    if (!text) return;
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    document.body.removeChild(textarea);
+  };
+
+  const jumpToSection = (id: string) => {
+    const target = document.getElementById(id);
+    if (!target) return;
+    const rect = target.getBoundingClientRect();
+    const top = window.scrollY + rect.top - 86;
+    window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  };
+
+  const jumpToContentView = (mode: "quickview" | "transcript") => {
+    setContentViewMode(mode);
+    const sectionId = mode === "quickview" ? "quickview-section" : "transcript-section";
+    jumpToSection(sectionId);
+  };
+
   const progressRatio = duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0;
   const heroImage = program?.coverImage || COVER_FALLBACK;
   const episodeDuration = currentEpisode?.duration || "45 分钟";
@@ -461,14 +506,14 @@ const ProgramDetailPage: React.FC = () => {
                   </h3>
                   <p className="text-sm leading-relaxed text-[#53433f] md:text-[15px]">{summaryBody}</p>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex flex-col gap-3">
                   <div className="flex-1 rounded-xl border border-[#5e17eb]/10 bg-[#5e17eb]/5 p-5">
                     <p className="text-sm leading-normal text-[#211a18]">
                       <span className="font-black text-[#5e17eb]">{summaryHighlightLabel}：</span>
                       {summaryHighlightText}
                     </p>
                   </div>
-                  <div className="flex shrink-0 flex-col gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {(summaryTags.length > 0 ? summaryTags : ["神经可塑性", "环境心理学"]).map((tag) => (
                       <span key={tag} className="whitespace-nowrap rounded-full bg-gray-100 px-3 py-1 text-[10px] font-bold text-gray-500">
                         {tag}
@@ -480,44 +525,84 @@ const ProgramDetailPage: React.FC = () => {
             </div>
           </div>
         </section>
+        <section className="mt-6 bg-transparent">
+          <div className="flex flex-col gap-3">
+            <div className="inline-flex w-fit items-center overflow-hidden rounded-full border border-stone-200 bg-[#fafafa] p-1 shadow-[inset_0_0_0_1px_rgba(17,10,8,0.03)]">
+              {[
+                { key: "quickview", label: "速览" },
+                { key: "transcript", label: "逐字稿" },
+              ].map((item) => {
+                const isActive = contentViewMode === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    className={`min-w-[96px] rounded-full px-7 py-2.5 text-xl font-medium tracking-normal transition-colors ${
+                      isActive ? "bg-[#5e17eb] text-white shadow-[0_10px_24px_rgba(94,23,235,0.22)]" : "text-[#211a18]/70 hover:text-[#5e17eb]"
+                    }`}
+                    onClick={() => jumpToContentView(item.key as "quickview" | "transcript")}
+                    type="button"
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </section>
       </div>
 
       <main className="mx-auto grid max-w-7xl grid-cols-1 items-start gap-12 px-6 py-16 lg:grid-cols-12">
         <div className="space-y-16 lg:col-span-8">
-          <section className="rounded-xl border border-gray-100 bg-white p-8 shadow-[0_4px_24px_rgba(0,0,0,0.03)] md:p-12">
-            <div className="mb-12 flex items-center justify-between">
-              <h2 className="flex items-center gap-4 text-3xl font-black tracking-tight text-[#211a18]">
-                <span className="h-10 w-2 rounded-full bg-[#5e17eb]"></span>
-                逐字稿
-              </h2>
-              <div className="flex gap-3">
-                <button className="flex items-center gap-2 rounded-full border border-[#5e17eb]/20 bg-[#5e17eb]/5 px-5 py-2.5 text-xs font-bold text-[#5e17eb] transition-colors hover:bg-[#5e17eb]/10" onClick={() => downloadTranscript(program, transcriptSegments)}>
-                  <span className="material-symbols-outlined text-lg">download</span>
-                  下载文稿
-                </button>
+          <section id="quickview-section" className="rounded-xl border border-gray-100 bg-white p-8 shadow-[0_4px_24px_rgba(0,0,0,0.03)] md:p-12">
+            <div className="mb-6 flex items-center gap-3">
+              <span className="material-symbols-outlined text-xl text-[#5e17eb]">view_timeline</span>
+              <h2 className="text-2xl font-black tracking-tight text-[#211a18]">速览</h2>
+            </div>
+            {quickView.length > 0 ? (
+              <div className="space-y-4">
+                {quickView.map((item) => (
+                  <div key={`${item.timeRangeLabel}-${item.summary.slice(0, 8)}`} className="py-3">
+                    <div className="mb-2 text-xs font-black text-[#5e17eb]">{item.timeRangeLabel || `${item.startTime}-${item.endTime}`}</div>
+                    <p className="text-sm leading-relaxed text-[#211a18]/85">{item.summary}</p>
+                  </div>
+                ))}
               </div>
-            </div>
+            ) : (
+              <p className="text-sm text-[#53433f]">暂无速览内容，解析后将自动生成。</p>
+            )}
+          </section>
 
-            <div className="mx-auto max-w-3xl space-y-12">
-              {transcriptSegments.map((segment) => (
-                <div key={`${segment.time}-${segment.speaker}`} className={`group flex gap-10 ${segment.featured ? "relative" : ""}`}>
-                  {segment.featured ? <div className="absolute -inset-x-12 -inset-y-6 -z-10 rounded-2xl bg-[#5e17eb]/[0.03] opacity-0 transition-opacity group-hover:opacity-100"></div> : null}
-                  <div className="w-12 flex-shrink-0 pt-1 text-right">
-                    <span className={`text-[11px] font-bold tracking-tighter ${segment.featured ? "text-[#5e17eb]" : "text-gray-400 transition-colors group-hover:text-[#5e17eb]"}`}>{segment.time}</span>
-                  </div>
-                  <div className="flex-1">
-                    <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-[#5e17eb]/60">{segment.speaker}</p>
-                    {segment.featured ? (
-                      <div className="border-l-4 border-[#5e17eb]/20 py-2 pl-6">
-                        <p className="text-base font-semibold leading-relaxed text-[#211a18]">{segment.text}</p>
-                      </div>
-                    ) : (
-                      <p className="text-base leading-relaxed text-[#211a18]/80">{segment.text}</p>
-                    )}
-                  </div>
-                </div>
-              ))}
+          <section id="shownotes-section" className="rounded-xl border border-gray-100 bg-white p-8 shadow-[0_4px_24px_rgba(0,0,0,0.03)] md:p-12">
+            <div className="mb-6 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-xl text-[#5e17eb]">description</span>
+                <h2 className="text-2xl font-black tracking-tight text-[#211a18]">Show Notes</h2>
+              </div>
+              <button className="rounded-full border border-[#5e17eb]/20 bg-[#5e17eb]/5 px-4 py-2 text-xs font-bold text-[#5e17eb] hover:bg-[#5e17eb]/10" onClick={copyShowNotes}>
+                一键复制
+              </button>
             </div>
+            <pre className="max-h-[420px] overflow-auto whitespace-pre-wrap rounded-2xl border border-stone-200 bg-stone-50 p-4 text-xs leading-relaxed text-[#211a18]">{showNotesText || "暂无 Show Notes 内容。"}</pre>
+          </section>
+
+          <section id="transcript-section" className="rounded-xl border border-gray-100 bg-white p-8 shadow-[0_4px_24px_rgba(0,0,0,0.03)] md:p-12">
+            <div className="mb-6 flex items-center gap-3">
+              <span className="material-symbols-outlined text-xl text-[#5e17eb]">description</span>
+              <h2 className="text-2xl font-black tracking-tight text-[#211a18]">逐字稿</h2>
+            </div>
+            {transcriptSegments.length > 0 ? (
+              <div className="space-y-4">
+                {transcriptSegments.map((segment) => (
+                  <div key={`${segment.time}-${segment.speaker}-${segment.text.slice(0, 8)}`} className="py-3">
+                    <div className="mb-2 text-xs font-black text-[#5e17eb]">{segment.time}</div>
+                    {segment.speaker ? <p className="mb-1 text-[11px] font-bold text-[#5e17eb]/70">{segment.speaker}</p> : null}
+                    <p className={`text-sm leading-relaxed ${segment.featured ? "font-semibold text-[#211a18]" : "text-[#211a18]/85"}`}>{segment.text}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-[#53433f]">暂无逐字稿内容，解析后将自动生成。</p>
+            )}
           </section>
         </div>
 

@@ -40,9 +40,10 @@ const allowedOrigins = corsOrigin
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
+const localDevOriginPattern = /^https?:\/\/(localhost|127\.0\.0\.1|home\.localhost)(:\d+)?$/;
 
 function isLocalDevOrigin(origin: string): boolean {
-  return /^http:\/\/(localhost|127\.0\.0\.1|home\.localhost):\d+$/.test(origin);
+  return localDevOriginPattern.test(origin);
 }
 
 const finalAllowedOrigins = Array.from(new Set([...allowedOrigins]));

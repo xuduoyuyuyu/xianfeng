@@ -60,6 +60,9 @@
 <button class="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-primary-purple text-white text-sm font-bold hover:bg-primary-hover transition-all shadow-md">
 <span class="material-symbols-outlined text-lg">description</span> 逐字稿
                                 </button>
+<button class="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl border border-primary-purple/30 bg-primary-purple/5 text-primary-purple hover:bg-primary-purple/10 transition-all text-sm font-bold">
+<span class="material-symbols-outlined text-lg">auto_awesome</span> AI速览/纪要/Shownotes
+                                </button>
 <button class="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl border border-outline-light text-on-surface hover:border-primary-purple transition-all text-sm font-bold">
 <span class="material-symbols-outlined text-lg">menu_book</span> 书单
                                 </button>
@@ -85,6 +88,9 @@
 <div class="flex flex-wrap gap-3">
 <button class="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-primary-purple text-white text-sm font-bold hover:bg-primary-hover transition-all shadow-md">
 <span class="material-symbols-outlined text-lg">description</span> 逐字稿
+                                </button>
+<button class="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl border border-primary-purple/30 bg-primary-purple/5 text-primary-purple hover:bg-primary-purple/10 transition-all text-sm font-bold">
+<span class="material-symbols-outlined text-lg">auto_awesome</span> AI速览/纪要/Shownotes
                                 </button>
 <button class="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl border border-outline-light text-on-surface hover:border-primary-purple transition-all text-sm font-bold">
 <span class="material-symbols-outlined text-lg">record_voice_over</span> 采访
@@ -155,9 +161,11 @@
 
   function renderLargeCard(program, index) {
     const episode = (program.episodes && program.episodes[0]) || {};
+    const routeId = safeText(program.programCode || program._id);
+    const badge = safeText((program.programCode || ("ep" + String(index + 1))).toUpperCase());
     const isPrimary = index === 0;
     return (
-      '<a href="/programs/' + safeText(program._id) + '" class="block">' +
+      '<a href="/programs/' + routeId + '" class="block">' +
       '<article class="magazine-card p-5 sm:p-10 rounded-3xl group cursor-pointer">' +
         '<div class="flex flex-col xl:flex-row gap-6 sm:gap-10">' +
           '<div class="w-full xl:w-[420px] h-[220px] sm:h-[300px] rounded-2xl overflow-hidden flex-shrink-0 shadow-lg relative">' +
@@ -165,13 +173,14 @@
           "</div>" +
           '<div class="flex-1 flex flex-col justify-center">' +
             '<div class="flex items-center gap-4 mb-4">' +
-              '<span class="text-[10px] px-3 py-1 rounded-lg ' + (isPrimary ? "bg-primary-purple/10 text-primary-purple" : "bg-slate-100 text-on-surface-variant") + ' font-bold tracking-widest uppercase">EPISODE ' + String(index + 1).padStart(2, "0") + "</span>" +
+              '<span class="text-[10px] px-3 py-1 rounded-lg ' + (isPrimary ? "bg-primary-purple/10 text-primary-purple" : "bg-slate-100 text-on-surface-variant") + ' font-bold tracking-widest uppercase">EPISODE ' + badge + "</span>" +
               '<span class="text-xs text-on-surface-variant font-medium">' + fmtDate(program.publishedAt || program.createdAt) + "</span>" +
             "</div>" +
             '<h2 class="text-[1.6rem] sm:text-3xl font-extrabold mb-4 group-hover:text-primary-purple transition-colors leading-tight">' + safeText(program.title) + "</h2>" +
             '<p class="text-on-surface-variant text-sm sm:text-base mb-6 sm:mb-8 leading-relaxed line-clamp-2">' + safeText(program.description || "") + "</p>" +
             '<div class="flex flex-wrap gap-3">' +
               '<span class="inline-flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-primary-purple text-white text-sm font-bold shadow-md"><span class="material-symbols-outlined text-lg">description</span> 逐字稿</span>' +
+              '<span class="inline-flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl border border-primary-purple/30 bg-primary-purple/5 text-primary-purple text-sm font-bold"><span class="material-symbols-outlined text-lg">auto_awesome</span> AI速览/纪要/Shownotes</span>' +
               '<span class="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl border border-outline-light text-on-surface text-sm font-bold"><span class="material-symbols-outlined text-lg">menu_book</span> 书单</span>' +
               '<span class="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl border border-outline-light text-on-surface text-sm font-bold"><span class="material-symbols-outlined text-lg">school</span> 课程</span>' +
             "</div>" +
@@ -184,8 +193,9 @@
 
   function renderCompactCard(program, index) {
     const episode = (program.episodes && program.episodes[0]) || {};
+    const routeId = safeText(program.programCode || program._id);
     return (
-      '<a href="/programs/' + safeText(program._id) + '" class="block">' +
+      '<a href="/programs/' + routeId + '" class="block">' +
       '<article class="magazine-card p-5 sm:p-6 rounded-2xl group flex flex-col md:flex-row items-center justify-between gap-6 cursor-pointer">' +
         '<div class="flex items-center gap-6">' +
           '<span class="text-2xl font-black text-slate-200 w-12 text-center group-hover:text-primary-purple/20 transition-colors">' + String(index + 1).padStart(2, "0") + "</span>" +
@@ -199,6 +209,7 @@
           "</div>" +
         "</div>" +
         '<span class="inline-flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-primary-purple text-white rounded-xl transition-all font-bold text-sm shadow-md"><span class="material-symbols-outlined text-lg">description</span> 阅读稿件</span>' +
+        '<span class="inline-flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 border border-primary-purple/30 bg-primary-purple/5 text-primary-purple rounded-xl transition-all font-bold text-sm shadow-md"><span class="material-symbols-outlined text-lg">auto_awesome</span> AI内容增强</span>' +
       "</article>" +
       "</a>"
     );

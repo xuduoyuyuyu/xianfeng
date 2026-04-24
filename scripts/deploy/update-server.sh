@@ -32,8 +32,8 @@ git fetch "${DEPLOY_REMOTE}" "${DEPLOY_BRANCH}"
 git checkout "${DEPLOY_BRANCH}"
 git pull --ff-only "${DEPLOY_REMOTE}" "${DEPLOY_BRANCH}"
 
-echo "重建并启动容器"
-docker compose --env-file "${ENV_FILE}" up -d --build --remove-orphans
+echo "重建并启动容器（生产配置）"
+docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file "${ENV_FILE}" up -d --build --remove-orphans
 
 echo "当前服务状态"
-docker compose --env-file "${ENV_FILE}" ps
+docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file "${ENV_FILE}" ps

@@ -6,6 +6,7 @@ import Program from "../models/Program";
 import Book from "../models/Book";
 import LearningMaterial from "../models/LearningMaterial";
 import User from "../models/User";
+import { getDefaultShowNotesTemplate, getShowNotesDefaultTemplate, saveShowNotesDefaultTemplate } from "../services/showNotes";
 
 const router = express.Router();
 
@@ -34,6 +35,7 @@ router.get("/system-info", authenticate, requireAdmin, async (_req, res) => {
       env: {
         allowPublicRegister: process.env.ALLOW_PUBLIC_REGISTER === "true",
         corsOrigin: process.env.CORS_ORIGIN || "",
+        showNotesDefaultTemplate: await getShowNotesDefaultTemplate(),
       },
       mongo: mongoMeta,
       stats: {
@@ -48,5 +50,29 @@ router.get("/system-info", authenticate, requireAdmin, async (_req, res) => {
   }
 });
 
-export default router;
+router.get("/show-notes-template", authenticate, requireAdmin, async (_req, res) => {
+  try {
+    const template = await getShowNotesDefaultTemplate();
+    res.status(200).json({
+      template,
+      fallbackTemplate: getDefaultShowNotesTemplate(),
+    });
+  } catch (error) {
+    res.status(500).json({ message: "获取 Shownotes 模板失败", error });
+  }
+});
 
+router.put("/show-notes-template", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const template = typeof req.body?.template === "string" ? req.body.template : "";
+    const saved = await saveShowNotesDefaultTemplate(template);
+    res.status(200).json({
+      template: saved,
+      fallbackTemplate: getDefaultShowNotesTemplate(),
+    });
+  } catch (error) {
+    res.status(500).json({ message: "保存 Shownotes 模板失败", error });
+  }
+});
+
+export default router;

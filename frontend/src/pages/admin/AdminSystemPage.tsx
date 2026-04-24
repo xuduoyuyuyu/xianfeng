@@ -25,8 +25,8 @@ const AdminSystemPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await adminApi.getSystemInfo();
-      setInfo(response.data);
+      const infoResp = await adminApi.getSystemInfo();
+      setInfo(infoResp.data);
     } catch (loadError: any) {
       setError(loadError?.response?.data?.message || loadError?.message || "获取系统信息失败");
     } finally {
@@ -185,6 +185,7 @@ const AdminSystemPage: React.FC = () => {
               </div>
             </div>
           </div>
+
         </div>
       ) : null}
     </div>
@@ -192,4 +193,3 @@ const AdminSystemPage: React.FC = () => {
 };
 
 export default AdminSystemPage;
-
