@@ -1120,28 +1120,28 @@
           };
         }) : []);
     const quickViewList = document.getElementById("quickview-list");
-    if (quickViewList) {
-      quickViewList.innerHTML = quickView.length
-        ? quickView.map(function (item) {
-            return '<div class="py-3"><div class="text-xs font-black text-primary mb-2">' + escapeHtml(item.timeRangeLabel || "") + '</div><p class="text-sm leading-relaxed text-on-surface">' + escapeHtml(item.summary || "") + "</p></div>";
-          }).join("")
-        : '<div class="py-3 text-sm text-stone-500">暂无速览内容，解析后将自动生成。</div>';
-    }
-  }
+	    if (quickViewList) {
+	      quickViewList.innerHTML = quickView.length
+	        ? quickView.map(function (item) {
+	            return '<div class="py-3"><div class="text-xs font-black text-primary mb-2">' + escapeHtml(item.timeRangeLabel || "") + '</div><p class="text-sm leading-relaxed text-on-surface">' + escapeHtml(item.summary || "") + "</p></div>";
+	          }).join("")
+	        : '<div class="py-3 text-sm text-stone-500">暂无速览内容，解析后将自动生成。</div>';
+	    }
+	  }
 
-  function setDetailViewMode(mode) {
-    detailViewState.mode = mode === "transcript" ? "transcript" : "quickview";
-    const quickPanel = document.getElementById("quickview-panel");
-    const transcriptPanel = document.getElementById("transcript-panel");
-    const toolbar = document.getElementById("detail-view-toolbar");
-    const quickBtn = document.getElementById("detail-mode-quickview");
-    const transcriptBtn = document.getElementById("detail-mode-transcript");
-    if (quickPanel) quickPanel.classList.toggle("hidden", detailViewState.mode !== "quickview");
-    if (transcriptPanel) transcriptPanel.classList.toggle("hidden", detailViewState.mode !== "transcript");
-    if (toolbar) toolbar.classList.toggle("is-visible", detailViewState.mode === "transcript");
-    if (quickBtn) quickBtn.classList.toggle("is-active", detailViewState.mode === "quickview");
-    if (transcriptBtn) transcriptBtn.classList.toggle("is-active", detailViewState.mode === "transcript");
-  }
+	  function setDetailViewMode(mode) {
+	    detailViewState.mode = mode === "transcript" ? "transcript" : "quickview";
+	    const quickPanel = document.getElementById("quickview-panel");
+	    const transcriptPanel = document.getElementById("transcript-panel");
+	    const toolbar = document.getElementById("detail-view-toolbar");
+	    const quickBtn = document.getElementById("detail-mode-quickview");
+	    const transcriptBtn = document.getElementById("detail-mode-transcript");
+	    if (quickPanel) quickPanel.classList.toggle("hidden", detailViewState.mode !== "quickview");
+	    if (transcriptPanel) transcriptPanel.classList.toggle("hidden", detailViewState.mode !== "transcript");
+	    if (toolbar) toolbar.classList.toggle("is-visible", detailViewState.mode === "transcript");
+	    if (quickBtn) quickBtn.classList.toggle("is-active", detailViewState.mode === "quickview");
+	    if (transcriptBtn) transcriptBtn.classList.toggle("is-active", detailViewState.mode === "transcript");
+	  }
 
   function applyProgram(program, programs) {
     playerState.currentProgram = program;
@@ -1468,16 +1468,16 @@
     if (heroFavoriteBtn) heroFavoriteBtn.addEventListener("click", toggleFavorite);
     const heroShareBtn = document.getElementById("hero-share-btn");
     if (heroShareBtn) heroShareBtn.addEventListener("click", shareProgram);
-    const detailModeQuickBtn = document.getElementById("detail-mode-quickview");
-    const detailModeTranscriptBtn = document.getElementById("detail-mode-transcript");
-    if (detailModeQuickBtn) {
-      detailModeQuickBtn.addEventListener("click", function () {
-        setDetailViewMode("quickview");
-      });
-    }
-    if (detailModeTranscriptBtn) {
-      detailModeTranscriptBtn.addEventListener("click", function () {
-        setDetailViewMode("transcript");
+	    const detailModeQuickBtn = document.getElementById("detail-mode-quickview");
+	    const detailModeTranscriptBtn = document.getElementById("detail-mode-transcript");
+	    if (detailModeQuickBtn) {
+	      detailModeQuickBtn.addEventListener("click", function () {
+	        setDetailViewMode("quickview");
+	      });
+	    }
+	    if (detailModeTranscriptBtn) {
+	      detailModeTranscriptBtn.addEventListener("click", function () {
+	        setDetailViewMode("transcript");
       });
     }
     setDetailViewMode(detailViewState.mode);

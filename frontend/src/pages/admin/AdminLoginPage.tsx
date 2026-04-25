@@ -36,12 +36,19 @@ const AdminLoginPage: React.FC = () => {
           min-height: 100vh;
           position: relative;
           overflow: hidden;
-          background:
-            radial-gradient(1200px 700px at 50% 40%, rgba(44, 80, 255, 0.18), transparent 60%),
-            radial-gradient(700px 500px at 50% 50%, rgba(107, 61, 240, 0.14), transparent 70%),
-            #030712;
+          background: #f7f2ff;
           font-family: "Noto Sans SC", "Plus Jakarta Sans", sans-serif;
-          color: #e5e7eb;
+          color: #1f2937;
+        }
+        .adm-login-bg {
+          position: fixed;
+          inset: 0;
+          background-image:
+            linear-gradient(to right, rgba(138,99,255,0.10) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(138,99,255,0.10) 1px, transparent 1px),
+            radial-gradient(circle at 15% 20%, rgba(186,141,255,0.22), transparent 38%),
+            radial-gradient(circle at 85% 80%, rgba(116,82,255,0.16), transparent 45%);
+          background-size: 40px 40px, 40px 40px, 100% 100%, 100% 100%;
         }
         .adm-login-wrap {
           position: relative;
@@ -55,26 +62,36 @@ const AdminLoginPage: React.FC = () => {
           width: 100%;
           max-width: 460px;
           border-radius: 18px;
-          border: 1px solid rgba(148, 163, 184, 0.2);
-          background: rgba(10, 18, 34, 0.72);
-          box-shadow: 0 0 0 1px rgba(129, 140, 248, 0.1), 0 24px 80px rgba(2, 6, 23, 0.8);
-          backdrop-filter: blur(10px);
+          border: 1px solid #e2e8f0;
+          background: rgba(255, 255, 255, 0.94);
+          box-shadow: 0 24px 70px rgba(15, 23, 42, 0.12);
+          backdrop-filter: blur(12px);
           padding: 26px;
         }
-        .adm-card-logo {
-          margin-bottom: 8px;
+        .adm-card-brand {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          margin-bottom: 20px;
           text-align: center;
         }
+        .adm-card-logo {
+          display: flex;
+          justify-content: center;
+          width: 100%;
+          margin-bottom: 8px;
+        }
         .adm-card-logo img {
+          display: block;
           height: 42px;
           width: auto;
           object-fit: contain;
         }
         .adm-card-subtitle {
           text-align: center;
-          margin: 0 0 20px;
+          margin: 0;
           font-size: 13px;
-          color: #93a4c5;
+          color: #64748b;
           letter-spacing: 0.04em;
         }
         .adm-field {
@@ -87,14 +104,14 @@ const AdminLoginPage: React.FC = () => {
           font-weight: 700;
           letter-spacing: 0.12em;
           text-transform: uppercase;
-          color: #9aa7c5;
+          color: #64748b;
         }
         .adm-input-wrap {
           display: flex;
           align-items: center;
-          border: 1px solid rgba(148, 163, 184, 0.2);
+          border: 1px solid #d8e0ec;
           border-radius: 12px;
-          background: rgba(10, 18, 34, 0.65);
+          background: #f8fafc;
           padding: 11px 12px;
         }
         .adm-input-wrap:focus-within {
@@ -103,7 +120,7 @@ const AdminLoginPage: React.FC = () => {
         }
         .adm-icon {
           margin-right: 8px;
-          color: #7f8fb2;
+          color: #7c8aa5;
           font-size: 20px;
         }
         .adm-input {
@@ -111,20 +128,29 @@ const AdminLoginPage: React.FC = () => {
           border: none;
           outline: none;
           font-size: 14px;
-          color: #e5e7eb;
+          color: #172033;
           background: transparent;
+          appearance: none;
+          box-shadow: none;
         }
         .adm-input::placeholder {
-          color: #64748b;
+          color: #94a3b8;
+        }
+        .adm-input:-webkit-autofill,
+        .adm-input:-webkit-autofill:hover,
+        .adm-input:-webkit-autofill:focus {
+          -webkit-text-fill-color: #172033;
+          box-shadow: 0 0 0 1000px #f8fafc inset;
+          transition: background-color 9999s ease-out;
         }
         .adm-error {
           margin: 8px 0 12px;
-          border: 1px solid rgba(239, 68, 68, 0.35);
-          background: rgba(127, 29, 29, 0.3);
+          border: 1px solid rgba(239, 68, 68, 0.28);
+          background: #fef2f2;
           border-radius: 10px;
           padding: 10px 12px;
           font-size: 13px;
-          color: #fecaca;
+          color: #b91c1c;
         }
         .adm-submit {
           width: 100%;
@@ -147,10 +173,10 @@ const AdminLoginPage: React.FC = () => {
           margin-top: 18px;
           text-align: center;
           font-size: 11px;
-          color: #7d8cae;
+          color: #64748b;
         }
         .adm-link {
-          color: #8f8fff;
+          color: #5e17eb;
           text-decoration: none;
         }
         .adm-back {
@@ -159,16 +185,19 @@ const AdminLoginPage: React.FC = () => {
           font-size: 12px;
         }
         .adm-back a {
-          color: #8fa0c8;
+          color: #64748b;
           text-decoration: none;
         }
       `}</style>
+      <div className="adm-login-bg" />
       <div className="adm-login-wrap">
         <div className="adm-card">
-          <div className="adm-card-logo">
-            <img alt="家长先疯" src="/assets/logo.png" />
+          <div className="adm-card-brand">
+            <div className="adm-card-logo">
+              <img alt="家长先疯" src="/assets/logo.png" />
+            </div>
+            <p className="adm-card-subtitle">家长先疯管理后台 · Admin Console</p>
           </div>
-          <p className="adm-card-subtitle">家长先疯管理后台 · Admin Console</p>
           <form onSubmit={handleSubmit}>
             <div className="adm-field">
               <label className="adm-label">管理账号</label>

@@ -17,6 +17,7 @@ export function isTransientAiGenerationFailure(message: unknown): boolean {
     "http 5",
     "timeout",
     "timed out",
+    "超时",
     "gateway",
     "upstream",
     "not granted",

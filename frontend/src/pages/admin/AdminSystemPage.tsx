@@ -46,6 +46,13 @@ const AdminSystemPage: React.FC = () => {
     if (state === 3) return { label: "断开中", tone: "bg-stone-100 text-stone-600" };
     return { label: "未知", tone: "bg-stone-100 text-stone-600" };
   }, [info?.mongo?.readyState]);
+  const volcengine = info?.env.ai?.volcengine;
+  const volcengineReady = Boolean(
+    volcengine &&
+      info?.env.ai?.provider === "volcengine" &&
+      ((volcengine.activeAuth === "apiKey" && volcengine.apiKeySet) ||
+        (volcengine.activeAuth === "appAccessToken" && volcengine.appIdSet && volcengine.accessTokenSet))
+  );
 
   return (
     <div className="space-y-8">
@@ -184,6 +191,46 @@ const AdminSystemPage: React.FC = () => {
                 <div className="mt-2 text-3xl font-black text-stone-900">{info.stats.users}</div>
               </div>
             </div>
+          </div>
+
+          <div className="bg-white rounded-2xl p-8 border border-stone-100 shadow-sm space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-black text-stone-900">AI 解析配置</h2>
+              <span className={`px-3 py-1 rounded-full text-[10px] font-black ${volcengineReady ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                {info.env.ai?.provider || "mock"}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <div className="rounded-2xl border border-stone-100 bg-stone-50/50 p-5">
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500">AUTH MODE</div>
+                <div className="mt-2 text-sm font-bold text-stone-900">{volcengine?.activeAuth === "apiKey" ? "X-Api-Key" : "App ID + Access Token"}</div>
+              </div>
+              <div className="rounded-2xl border border-stone-100 bg-stone-50/50 p-5">
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500">RESOURCE ID</div>
+                <div className="mt-2 break-words text-sm font-bold text-stone-900">{volcengine?.resourceId || "-"}</div>
+              </div>
+              <div className="rounded-2xl border border-stone-100 bg-stone-50/50 p-5">
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500">MODE</div>
+                <div className="mt-2 text-sm font-bold text-stone-900">{volcengine?.mode || "-"}</div>
+              </div>
+              <div className="rounded-2xl border border-stone-100 bg-stone-50/50 p-5">
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500">PUBLIC BASE URL</div>
+                <div className="mt-2 break-words text-sm font-bold text-stone-900">{volcengine?.publicBaseUrl || "-"}</div>
+              </div>
+              <div className="rounded-2xl border border-stone-100 bg-stone-50/50 p-5">
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500">X-API-KEY</div>
+                <div className="mt-2 text-sm font-bold text-stone-900">{volcengine?.apiKeySet ? `已设置 ${volcengine.apiKeyPreview}` : "未设置"}</div>
+              </div>
+              <div className="rounded-2xl border border-stone-100 bg-stone-50/50 p-5">
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500">SECRET KEY</div>
+                <div className="mt-2 text-sm font-bold text-stone-900">{volcengine?.secretKeySet ? `已设置 ${volcengine.secretKeyPreview}` : "未设置"}</div>
+              </div>
+            </div>
+            {volcengine?.apiKeySet ? (
+              <div className="rounded-2xl border border-amber-100 bg-amber-50 px-5 py-4 text-sm font-semibold text-amber-800">
+                当前请求会优先使用 VOLCENGINE_API_KEY 作为 X-Api-Key；如果火山返回 Invalid X-Api-Key，请清空该项或填入火山控制台对应的 API Key。
+              </div>
+            ) : null}
           </div>
 
         </div>

@@ -1,6 +1,9 @@
 import assert from "assert";
 import {
+  getVolcengineFlashMaxLocalBytes,
   normalizeVolcenginePublicSourceUrl,
+  shouldContinueVolcengineStandardPolling,
+  shouldAttemptVolcengineFlashEndpoint,
   shouldUseVolcengineStandardEndpoint,
 } from "./programAi";
 
@@ -22,5 +25,11 @@ assert.equal(
 
 assert.equal(shouldUseVolcengineStandardEndpoint("volc.bigasr.auc", "flash"), true);
 assert.equal(shouldUseVolcengineStandardEndpoint("volc.bigasr.auc_turbo", "flash"), false);
+assert.equal(shouldAttemptVolcengineFlashEndpoint("volc.bigasr.auc", "flash"), false);
+assert.equal(shouldAttemptVolcengineFlashEndpoint("volc.bigasr.auc_turbo", "flash"), true);
+assert.equal(getVolcengineFlashMaxLocalBytes(), 25 * 1024 * 1024);
+assert.equal(shouldContinueVolcengineStandardPolling("20000001"), true);
+assert.equal(shouldContinueVolcengineStandardPolling("20000002"), true);
+assert.equal(shouldContinueVolcengineStandardPolling("20000000"), false);
 
 console.log("programAi volcengine helper tests passed");

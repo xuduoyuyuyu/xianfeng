@@ -221,6 +221,21 @@ export interface SystemInfo {
     allowPublicRegister: boolean;
     corsOrigin?: string;
     showNotesDefaultTemplate?: string;
+    ai?: {
+      provider: string;
+      volcengine?: {
+        appIdSet: boolean;
+        accessTokenSet: boolean;
+        apiKeySet: boolean;
+        secretKeySet: boolean;
+        activeAuth: "apiKey" | "appAccessToken";
+        resourceId: string;
+        mode: string;
+        publicBaseUrl: string;
+        apiKeyPreview: string;
+        secretKeyPreview: string;
+      };
+    };
   };
   mongo: {
     readyState: number;
@@ -331,8 +346,8 @@ export const adminApi = {
       }
     );
   },
-  createProgramFromAudio: (uploadedAudioUrl: string) =>
-    api.post<ProgramParseTask>("/admin/programs/create-from-audio", { uploadedAudioUrl }),
+  createProgramFromAudio: (uploadedAudioUrl: string, sourceFileName?: string) =>
+    api.post<ProgramParseTask>("/admin/programs/create-from-audio", { uploadedAudioUrl, sourceFileName }),
   triggerProgramParse: (id: string) => api.post<ProgramParseTask>(`/admin/programs/${id}/parse`),
   getProgramParseStatus: (id: string) => api.get<ProgramParseTask>(`/admin/programs/${id}/parse-status`),
 

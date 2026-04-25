@@ -465,6 +465,7 @@
   let currentFilter = "all";
   let uploadedAudioUrl = "";
   let preParseUploadedAudioUrl = "";
+  let preParseSelectedFileName = "";
   let currentUploadXhr = null;
   let currentImageUploadXhr = null;
   let parsePollingTimer = null;
@@ -754,6 +755,7 @@
       }
       const formData = new FormData();
       formData.append("audio", file);
+      formData.append("sourceFileName", file.name);
       const endpoints = getUploadEndpointCandidates("/api/admin/programs/upload-audio");
       let endpointIndex = 0;
       let lastError = "";
@@ -1359,6 +1361,7 @@
 
   function openAudioParseModal() {
     preParseUploadedAudioUrl = "";
+    preParseSelectedFileName = "";
     audioParseFileInput.value = "";
     setPreParseProgress(0);
     setPreParseStatus("请选择音频文件", "normal");
@@ -1383,7 +1386,7 @@
       const response = await fetch("/api/admin/programs/create-from-audio", {
         method: "POST",
         headers: authHeaders(),
-        body: JSON.stringify({ uploadedAudioUrl: preParseUploadedAudioUrl }),
+        body: JSON.stringify({ uploadedAudioUrl: preParseUploadedAudioUrl, sourceFileName: preParseSelectedFileName }),
       });
       const data = await response.json().catch(function () { return {}; });
       if (!response.ok) {
@@ -1479,11 +1482,13 @@
       const file = audioParseFileInput.files && audioParseFileInput.files[0];
       if (!file) {
         preParseUploadedAudioUrl = "";
+        preParseSelectedFileName = "";
         setPreParseProgress(0);
         setPreParseStatus("请选择音频文件", "normal");
         startAudioParseBtn.classList.add("opacity-40", "pointer-events-none");
         return;
       }
+      preParseSelectedFileName = file.name;
       uploadAudioForPreParse(file);
     });
   }

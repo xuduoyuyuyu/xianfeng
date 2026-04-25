@@ -45,6 +45,31 @@ async function buildNextProgramCode(): Promise<string> {
   return `ep${maxNo + 1}`;
 }
 
+function buildPendingProgramTitle(now = new Date()): string {
+  const stamp = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+    "-",
+    String(now.getHours()).padStart(2, "0"),
+    String(now.getMinutes()).padStart(2, "0"),
+    String(now.getSeconds()).padStart(2, "0"),
+  ].join("");
+  const suffix = Math.random().toString(36).slice(2, 6);
+  return `待解析节目-${stamp}-${suffix}`;
+}
+
+function buildProgramTitleFromSourceFileName(value: unknown): string {
+  const raw = asText(value);
+  if (!raw) return "";
+  const parsedName = path.parse(raw).name || raw;
+  const normalized = parsedName
+    .replace(/^\d{10,}[-_ ]+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return truncateByChars(normalized, 80);
+}
+
 function parseClockToSeconds(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, value);
   const raw = asText(value);
@@ -463,16 +488,61 @@ function ensureEpisodeFallbackOnAiFailure(payload: any, uploadedAudioUrl: string
   };
 }
 
-function ensureBaseFieldFallbackOnAiFailure(payload: any) {
-  const now = new Date();
-  const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
+function shouldClearAiFieldsAfterParseFailure(payload: any): boolean {
+  const title = asText(payload?.title);
+  return title.startsWith("待解析节目-") || payload?.parseStatus === "parsing";
+}
+
+function buildParseFailurePayload(payload: any, uploadedAudioUrl: string) {
+  const withEpisode = ensureEpisodeFallbackOnAiFailure(payload, uploadedAudioUrl);
+  if (!shouldClearAiFieldsAfterParseFailure(withEpisode)) {
+    return withEpisode;
+  }
+  const {
+    summary: _summary,
+    contentPack: _contentPack,
+    deepDive: _deepDive,
+    guest: _guest,
+    termGlossary: _termGlossary,
+    transcript: _transcript,
+    dictionaryEntryIds: _dictionaryEntryIds,
+    ...rest
+  } = withEpisode;
   return {
-    ...payload,
-    title: asText(payload?.title) || `AI解析节目-${stamp}`,
-    description: asText(payload?.description) || "基于上传音频自动创建，等待 AI 解析与运营优化。",
-    coverImage:
-      asText(payload?.coverImage) ||
-      "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?q=80&w=1200&auto=format&fit=crop",
+    ...rest,
+    description: asText(rest.description) || "音频已上传，正在解析中。",
+    summary: {
+      headline: "",
+      body: "",
+      highlightLabel: "",
+      highlightText: "",
+      tags: [],
+    },
+    transcript: [],
+    termGlossary: [],
+    dictionaryEntryIds: [],
+    guest: {
+      name: "",
+      title: "",
+      bio: "",
+      avatar: "",
+      profileUrl: "",
+    },
+    deepDive: {
+      sectionTitle: "",
+      curatedReading: [],
+    },
+    contentPack: {
+      quickView: [],
+      minutes: { text: "" },
+      showNotes: {
+        guide: "",
+        guestIntro: "",
+        keyMoments: [],
+        renderedText: "",
+        templateOverride: "",
+      },
+    },
   };
 }
 
@@ -693,34 +763,14 @@ async function tryAutoGenerate(
     return { payload: mergedWithBase, aiStatus: "generated" };
   } catch (error: any) {
     console.error("[ai-program] generation failed", error);
-    const fallbackPayload = ensureBaseFieldFallbackOnAiFailure(
-      ensureEpisodeFallbackOnAiFailure(payload, uploadedAudioUrl)
-    );
+    const fallbackPayload = buildParseFailurePayload(payload, uploadedAudioUrl);
     const message = asText(error?.message || "AI 生成失败");
-    if (isTransientAiGenerationFailure(message)) {
-      return {
-        payload: {
-          ...fallbackPayload,
-          transcript:
-            Array.isArray(fallbackPayload?.transcript) && fallbackPayload.transcript.length > 0
-              ? fallbackPayload.transcript
-              : [
-                  {
-                    time: "00:00-00:08",
-                    speaker: "系统提示",
-                    text: "自动转写服务暂时不可用，已保留音频资源，请稍后点击“重新上传”重试解析。",
-                    featured: false,
-                  },
-                ],
-        },
-        aiStatus: "generated",
-        aiMessage: "外部转写服务波动，已生成待补内容草稿",
-      };
-    }
     return {
       payload: fallbackPayload,
       aiStatus: "failed",
-      aiMessage: message,
+      aiMessage: isTransientAiGenerationFailure(message)
+        ? `${message}；已保留音频资源，未写入自动生成内容`
+        : message,
     };
   }
 }
@@ -741,7 +791,7 @@ export class ProgramController {
 
   async getByIdPublic(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = asText(req.params.id);
       const query = mongoose.Types.ObjectId.isValid(id)
         ? { _id: id, status: "published" as const }
         : { programCode: normalizeProgramCode(id), status: "published" as const };
@@ -877,10 +927,11 @@ export class ProgramController {
       }
       const host = `${req.protocol}://${req.get("host")}`;
       const audioUrl = `${host}/uploads/audio/${file.filename}`;
+      const sourceFileName = asText(req.body?.sourceFileName);
       res.status(201).json({
         url: audioUrl,
         filename: file.filename,
-        originalName: file.originalname,
+        originalName: sourceFileName || file.originalname,
         mimeType: file.mimetype,
         size: file.size,
       });
@@ -913,6 +964,7 @@ export class ProgramController {
   async createFromAudio(req: Request, res: Response): Promise<void> {
     try {
       const uploadedAudioUrl = asText(req.body?.uploadedAudioUrl);
+      const sourceTitle = buildProgramTitleFromSourceFileName(req.body?.sourceFileName || req.body?.originalName);
       if (!uploadedAudioUrl) {
         res.status(400).json({ message: "缺少 uploadedAudioUrl" });
         return;
@@ -922,15 +974,13 @@ export class ProgramController {
         res.status(400).json({ message: "仅支持后台已上传的音频地址" });
         return;
       }
-      const now = new Date();
-      const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
       const nextCode = await buildNextProgramCode();
       const program = new Program({
         programCode: nextCode,
-        title: `待解析节目-${stamp}`,
+        title: sourceTitle || buildPendingProgramTitle(),
         description: "音频已上传，正在解析中。",
         coverImage: "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?q=80&w=1200&auto=format&fit=crop",
-        episodes: [{ title: "待解析", duration: "待解析", url: uploadedAudioUrl }],
+        episodes: [{ title: sourceTitle || "待解析", duration: "待解析", url: uploadedAudioUrl }],
         status: "draft",
         ...parseMetaPatch("parsing", "", 5, "queued"),
       });

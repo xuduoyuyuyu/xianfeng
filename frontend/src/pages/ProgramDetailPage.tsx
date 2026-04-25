@@ -384,8 +384,7 @@ const ProgramDetailPage: React.FC = () => {
 
   const jumpToContentView = (mode: "quickview" | "transcript") => {
     setContentViewMode(mode);
-    const sectionId = mode === "quickview" ? "quickview-section" : "transcript-section";
-    jumpToSection(sectionId);
+    jumpToSection("content-section");
   };
 
   const progressRatio = duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0;
@@ -553,12 +552,17 @@ const ProgramDetailPage: React.FC = () => {
 
       <main className="mx-auto grid max-w-7xl grid-cols-1 items-start gap-12 px-6 py-16 lg:grid-cols-12">
         <div className="space-y-16 lg:col-span-8">
-          <section id="quickview-section" className="rounded-xl border border-gray-100 bg-white p-8 shadow-[0_4px_24px_rgba(0,0,0,0.03)] md:p-12">
+          <section id="content-section" className="rounded-xl border border-gray-100 bg-white p-8 shadow-[0_4px_24px_rgba(0,0,0,0.03)] md:p-12">
             <div className="mb-6 flex items-center gap-3">
-              <span className="material-symbols-outlined text-xl text-[#5e17eb]">view_timeline</span>
-              <h2 className="text-2xl font-black tracking-tight text-[#211a18]">速览</h2>
+              <span className="material-symbols-outlined text-xl text-[#5e17eb]">
+                {contentViewMode === "transcript" ? "description" : "view_timeline"}
+              </span>
+              <h2 className="text-2xl font-black tracking-tight text-[#211a18]">
+                {contentViewMode === "transcript" ? "逐字稿" : "速览"}
+              </h2>
             </div>
-            {quickView.length > 0 ? (
+
+            {contentViewMode === "quickview" && quickView.length > 0 ? (
               <div className="space-y-4">
                 {quickView.map((item) => (
                   <div key={`${item.timeRangeLabel}-${item.summary.slice(0, 8)}`} className="py-3">
@@ -567,9 +571,25 @@ const ProgramDetailPage: React.FC = () => {
                   </div>
                 ))}
               </div>
-            ) : (
+            ) : null}
+            {contentViewMode === "quickview" && quickView.length === 0 ? (
               <p className="text-sm text-[#53433f]">暂无速览内容，解析后将自动生成。</p>
-            )}
+            ) : null}
+
+            {contentViewMode === "transcript" && transcriptSegments.length > 0 ? (
+              <div className="space-y-4">
+                {transcriptSegments.map((segment) => (
+                  <div key={`${segment.time}-${segment.speaker}-${segment.text.slice(0, 8)}`} className="py-3">
+                    <div className="mb-2 text-xs font-black text-[#5e17eb]">{segment.time}</div>
+                    {segment.speaker ? <p className="mb-1 text-[11px] font-bold text-[#5e17eb]/70">{segment.speaker}</p> : null}
+                    <p className={`text-sm leading-relaxed ${segment.featured ? "font-semibold text-[#211a18]" : "text-[#211a18]/85"}`}>{segment.text}</p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {contentViewMode === "transcript" && transcriptSegments.length === 0 ? (
+              <p className="text-sm text-[#53433f]">暂无逐字稿内容，解析后将自动生成。</p>
+            ) : null}
           </section>
 
           <section id="shownotes-section" className="rounded-xl border border-gray-100 bg-white p-8 shadow-[0_4px_24px_rgba(0,0,0,0.03)] md:p-12">
@@ -583,26 +603,6 @@ const ProgramDetailPage: React.FC = () => {
               </button>
             </div>
             <pre className="max-h-[420px] overflow-auto whitespace-pre-wrap rounded-2xl border border-stone-200 bg-stone-50 p-4 text-xs leading-relaxed text-[#211a18]">{showNotesText || "暂无 Show Notes 内容。"}</pre>
-          </section>
-
-          <section id="transcript-section" className="rounded-xl border border-gray-100 bg-white p-8 shadow-[0_4px_24px_rgba(0,0,0,0.03)] md:p-12">
-            <div className="mb-6 flex items-center gap-3">
-              <span className="material-symbols-outlined text-xl text-[#5e17eb]">description</span>
-              <h2 className="text-2xl font-black tracking-tight text-[#211a18]">逐字稿</h2>
-            </div>
-            {transcriptSegments.length > 0 ? (
-              <div className="space-y-4">
-                {transcriptSegments.map((segment) => (
-                  <div key={`${segment.time}-${segment.speaker}-${segment.text.slice(0, 8)}`} className="py-3">
-                    <div className="mb-2 text-xs font-black text-[#5e17eb]">{segment.time}</div>
-                    {segment.speaker ? <p className="mb-1 text-[11px] font-bold text-[#5e17eb]/70">{segment.speaker}</p> : null}
-                    <p className={`text-sm leading-relaxed ${segment.featured ? "font-semibold text-[#211a18]" : "text-[#211a18]/85"}`}>{segment.text}</p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-[#53433f]">暂无逐字稿内容，解析后将自动生成。</p>
-            )}
           </section>
         </div>
 

@@ -50,6 +50,7 @@ type UploadTask = {
   progress: number;
   programId?: string;
   failureReason?: string;
+  parseStage?: string;
 };
 
 type TranscriptValidationIssue = {
@@ -115,6 +116,20 @@ const PARSING_PROGRESS = 12;
 const UPLOAD_TASK_STORAGE_KEY = "admin-program-upload-task";
 const SPEAKER_SUGGESTIONS = ["主持人", "嘉宾1", "嘉宾2", "嘉宾"];
 
+function getParseStageLabel(stage = ""): string {
+  const stageMap: Record<string, string> = {
+    queued: "排队中",
+    transcribing: "语音转写中",
+    transcribed: "转写完成，整理文本中",
+    extracting: "提取结构信息中",
+    extracted: "结构提取完成",
+    saving: "写入草稿中",
+    completed: "解析完成",
+    failed: "解析失败",
+  };
+  return stageMap[stage.trim()] || "解析中";
+}
+
 function formatDate(date?: string): string {
   if (!date) return "-";
   const parsed = new Date(date);
@@ -125,16 +140,7 @@ function formatDate(date?: string): string {
 function buildUploadStageHint(phase: UploadPhase, progress: number, stage = ""): string {
   if (phase === "uploading") return `正在上传音频文件（整体 ${progress}%）...`;
   if (phase === "parsing") {
-    const stageMap: Record<string, string> = {
-      queued: "排队中",
-      transcribing: "语音转写中",
-      transcribed: "转写完成，整理文本中",
-      extracting: "提取结构信息中",
-      extracted: "结构提取完成",
-      saving: "写入草稿中",
-      completed: "解析完成",
-    };
-    const stageLabel = stageMap[(stage || "").trim()] || "解析中";
+    const stageLabel = getParseStageLabel(stage);
     return `上传完成，${stageLabel}（解析进度 ${progress}%）...`;
   }
   if (phase === "success") return "解析完成，草稿内容已自动生成。";
@@ -152,6 +158,15 @@ function buildUploadTaskTitle(phase: Exclude<UploadPhase, "idle">, progress: num
   if (phase === "parsing") return `解析中 ${progress}%`;
   if (phase === "success") return "解析完成";
   return "处理失败";
+}
+
+function extractRequestErrorMessage(error: any, fallback: string): string {
+  const data = error?.response?.data;
+  if (typeof data === "string" && data.trim()) return data.trim();
+  if (typeof data?.message === "string" && data.message.trim()) return data.message.trim();
+  if (typeof data?.error === "string" && data.error.trim()) return data.error.trim();
+  if (typeof error?.message === "string" && error.message.trim()) return error.message.trim();
+  return fallback;
 }
 
 function getUploadTaskTone(phase: Exclude<UploadPhase, "idle">): string {
@@ -176,6 +191,7 @@ function readStoredUploadTask(): UploadTask | null {
       progress: typeof parsed.progress === "number" ? parsed.progress : 0,
       programId: typeof parsed.programId === "string" ? parsed.programId : undefined,
       failureReason: typeof parsed.failureReason === "string" ? parsed.failureReason : "",
+      parseStage: typeof parsed.parseStage === "string" ? parsed.parseStage : "",
     };
     if (restoredTask.phase === "uploading") {
       return {
@@ -574,6 +590,46 @@ const AdminProgramsPage: React.FC = () => {
     persistUploadTask(currentUploadTask);
   }, [currentUploadTask]);
 
+  useEffect(() => {
+    if (!currentUploadTask?.programId) return;
+    const row = items.find((item) => item._id === currentUploadTask.programId);
+    if (!row?.parseStatus) return;
+    if (row.parseStatus === "success") {
+      setCurrentUploadTask((prev) =>
+        prev?.programId === row._id ? { ...prev, phase: "success", progress: 100, failureReason: "", parseStage: "completed" } : prev
+      );
+      return;
+    }
+    if (row.parseStatus === "failed") {
+      setCurrentUploadTask((prev) =>
+        prev?.programId === row._id
+          ? {
+              ...prev,
+              phase: "failed",
+              progress: Number(row.parseProgress) || PARSING_PROGRESS,
+              failureReason: row.parseError || "解析失败，请检查配置后重试。",
+              parseStage: row.parseStage || "failed",
+            }
+          : prev
+      );
+      return;
+    }
+    if (row.parseStatus === "parsing") {
+      const rawProgress = Number(row.parseProgress);
+      setCurrentUploadTask((prev) =>
+        prev?.programId === row._id
+          ? {
+              ...prev,
+              phase: "parsing",
+              progress: Number.isFinite(rawProgress) ? Math.max(0, Math.min(99, Math.floor(rawProgress))) : prev.progress,
+              failureReason: "",
+              parseStage: row.parseStage || prev.parseStage,
+            }
+          : prev
+      );
+    }
+  }, [items, currentUploadTask?.programId]);
+
   const filteredItems = useMemo(() => items, [items]);
   const transcriptEditorIssues = useMemo(() => validateTranscriptRows(transcriptRows), [transcriptRows]);
   const transcriptEditorIssuesByRow = useMemo(() => {
@@ -814,6 +870,8 @@ const AdminProgramsPage: React.FC = () => {
                   ...prev,
                   phase: "parsing",
                   progress: backendProgress,
+                  parseStage: stage,
+                  failureReason: "",
                 }
               : prev
           );
@@ -893,7 +951,7 @@ const AdminProgramsPage: React.FC = () => {
       setUploadPhase("parsing");
       setUploadProgress(PARSING_PROGRESS);
       setParseHint(buildUploadStageHint("parsing", PARSING_PROGRESS));
-      const createRes = await adminApi.createProgramFromAudio(uploadRes.data.url);
+      const createRes = await adminApi.createProgramFromAudio(uploadRes.data.url, file.name);
       const programId = createRes.data?.programId;
       setCurrentUploadTask((prev) =>
         prev?.id === taskId
@@ -902,6 +960,7 @@ const AdminProgramsPage: React.FC = () => {
               phase: "parsing",
               progress: PARSING_PROGRESS,
               programId,
+              parseStage: createRes.data?.parseStage || "queued",
             }
           : prev
       );
@@ -915,7 +974,7 @@ const AdminProgramsPage: React.FC = () => {
       }
       return true;
     } catch (uploadError: any) {
-      const message = uploadError?.response?.data?.message || uploadError?.message || "上传并解析失败";
+      const message = extractRequestErrorMessage(uploadError, "上传并解析失败");
       setUploadPhase("failed");
       setUploadFailureReason(message);
       setError(message);
@@ -974,6 +1033,7 @@ const AdminProgramsPage: React.FC = () => {
         phase: "parsing",
         progress: Number.isFinite(progress) ? progress : PARSING_PROGRESS,
         programId: program._id,
+        parseStage: response.data?.parseStage || "queued",
       });
       setParseHint("已触发重新解析，正在处理...");
       await refreshList();
@@ -1353,7 +1413,7 @@ const AdminProgramsPage: React.FC = () => {
                                 </div>
                                 <div className="mt-2 truncate text-sm font-bold text-stone-900">{currentUploadTask.fileName}</div>
                                 <div className="mt-1 text-xs text-stone-500">
-                                  {currentUploadTask.failureReason || buildUploadStageHint(currentUploadTask.phase, currentUploadTask.progress)}
+                                  {currentUploadTask.failureReason || buildUploadStageHint(currentUploadTask.phase, currentUploadTask.progress, currentUploadTask.parseStage)}
                                 </div>
                               </div>
                               <div className="w-full max-w-[320px]">
@@ -1389,26 +1449,25 @@ const AdminProgramsPage: React.FC = () => {
                             </div>
                             <div className="text-[15px] font-bold leading-[1.25] text-stone-900">{row.title}</div>
                             {rowUploadTask && rowUploadTask.phase !== "success" ? (
-                              <div className="mt-3 max-w-[340px] rounded-2xl border border-[#5e17eb]/15 bg-[#faf7ff] px-3 py-3">
-                                <div className="flex items-center justify-between gap-3">
-                                  <div className="text-[11px] font-bold text-[#5e17eb]">{buildUploadTaskTitle(rowUploadTask.phase, rowUploadTask.progress)}</div>
-                                  <div className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${getUploadTaskTone(rowUploadTask.phase)}`}>
-                                    {rowUploadTask.phase === "failed" ? "需处理" : "进行中"}
+                              <div className="mt-2 max-w-[300px]">
+                                <div className="flex items-center gap-2">
+                                  <div className={`text-[11px] font-bold ${rowUploadTask.phase === "failed" ? "text-red-500" : "text-[#5e17eb]"}`}>
+                                    {rowUploadTask.phase === "parsing" ? getParseStageLabel(rowUploadTask.parseStage) : buildUploadTaskTitle(rowUploadTask.phase, rowUploadTask.progress)}
                                   </div>
                                 </div>
-                                <div className="mt-2 h-2 overflow-hidden rounded-full bg-white">
+                                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-stone-100">
                                   <div
                                     className={`h-full rounded-full transition-all ${rowUploadTask.phase === "failed" ? "bg-red-400" : "bg-[#5e17eb]"}`}
                                     style={{ width: `${rowUploadTask.progress}%` }}
                                   />
                                 </div>
-                                <div className="mt-2 text-[11px] text-stone-500">
-                                  {rowUploadTask.failureReason || buildUploadStageHint(rowUploadTask.phase, rowUploadTask.progress)}
+                                <div className="mt-1.5 line-clamp-2 text-[11px] leading-4 text-stone-500">
+                                  {rowUploadTask.failureReason || buildUploadStageHint(rowUploadTask.phase, rowUploadTask.progress, rowUploadTask.parseStage)}
                                 </div>
                                 {rowUploadTask.phase === "failed" ? (
-                                  <div className="mt-3">
+                                  <div className="mt-2">
                                     <button
-                                      className="rounded-full border border-[#5e17eb]/20 px-3 py-1 text-[11px] font-bold text-[#5e17eb]"
+                                      className="inline-flex items-center rounded-full bg-[#f7f3ff] px-2.5 py-0.5 !text-[10px] !font-bold leading-none whitespace-nowrap text-[#5e17eb] transition-colors hover:bg-[#efe5ff]"
                                       onClick={() => handleReparse(row)}
                                       type="button"
                                     >

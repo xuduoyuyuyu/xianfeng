@@ -121,11 +121,10 @@ export const PodcastSidebarSubscribe: React.FC = () => {
 
 export const PodcastHomeFooter: React.FC = () => {
   return (
-    <footer className="border-t border-[#e2e8f0] bg-white px-12 py-12">
-      <div className="mx-auto flex max-w-[1440px] flex-col items-center justify-between gap-8 lg:flex-row">
-        <div className="flex flex-col items-center gap-2 lg:items-start">
-          <img alt="家长先疯" className="h-10 w-auto object-contain" src="/assets/logo.png" />
-          <p className="text-xs text-[#64748b]">© 2024 Luminous Mentor. 专注家庭教育深度知识沉淀。</p>
+    <footer className="border-t border-[#e2e8f0] bg-white px-8 py-12">
+      <div className="mx-auto flex max-w-[1440px] flex-col items-start justify-between gap-8 lg:flex-row lg:items-center">
+        <div className="flex flex-col items-center">
+          <img alt="家和万事 服务家庭 智慧决策" className="h-25 w-auto object-contain" src="/assets/jiahe-logo.png" />
         </div>
         <div className="flex flex-wrap justify-center gap-8 text-xs font-bold text-[#64748b]">
           <a className="transition-all hover:text-[#5e17eb]" href="#">

@@ -168,8 +168,11 @@ const UserLoginPage: React.FC = () => {
         .brand {
           text-align: center;
           margin-bottom: 18px;
+          display: flex;
+          justify-content: center;
         }
         .brand img {
+          display: block;
           height: 40px;
           width: auto;
           object-fit: contain;
@@ -284,17 +287,6 @@ const UserLoginPage: React.FC = () => {
           text-decoration: none;
           border-bottom: 2px solid rgba(47,63,105,0.25);
         }
-        .admin-link {
-          margin-top: 10px;
-          text-align: center;
-          font-size: 12px;
-          color: #7d8aa7;
-        }
-        .admin-link a {
-          color: #5b3cf0;
-          text-decoration: none;
-          font-weight: 700;
-        }
         @media (max-width: 1280px) {
           .phone-title { font-size: 68px; }
           .phone-desc { font-size: 26px; }
@@ -312,7 +304,6 @@ const UserLoginPage: React.FC = () => {
           .input, .country, .code-btn { font-size: 15px; border-radius: 14px; }
           .submit-btn { font-size: 16px; border-radius: 14px; }
           .policy { font-size: 14px; }
-          .admin-link { font-size: 13px; }
           .code-btn { min-width: 140px; }
         }
         @media (max-width: 768px) {
@@ -383,7 +374,7 @@ const UserLoginPage: React.FC = () => {
             padding: 8px 10px;
             margin-bottom: 8px;
           }
-          .policy, .admin-link {
+          .policy {
             font-size: 11px;
           }
         }
@@ -449,9 +440,6 @@ const UserLoginPage: React.FC = () => {
           </form>
           <div className="policy">
             登录视为您已阅读并同意 <a href="#">服务条款</a> 和 <a href="#">隐私政策</a>
-          </div>
-          <div className="admin-link">
-            管理员请前往 <Link to="/admin/login">管理后台登录</Link>
           </div>
         </div>
       </div>

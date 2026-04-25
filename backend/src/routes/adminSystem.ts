@@ -10,6 +10,17 @@ import { getDefaultShowNotesTemplate, getShowNotesDefaultTemplate, saveShowNotes
 
 const router = express.Router();
 
+function hasEnv(name: string): boolean {
+  return typeof process.env[name] === "string" && process.env[name]!.trim().length > 0;
+}
+
+function envPreview(name: string): string {
+  const value = typeof process.env[name] === "string" ? process.env[name]!.trim() : "";
+  if (!value) return "";
+  if (value.length <= 8) return "****";
+  return `${value.slice(0, 4)}...${value.slice(-4)}`;
+}
+
 router.get("/system-info", authenticate, requireAdmin, async (_req, res) => {
   try {
     const [programs, books, materials, users] = await Promise.all([
@@ -36,6 +47,21 @@ router.get("/system-info", authenticate, requireAdmin, async (_req, res) => {
         allowPublicRegister: process.env.ALLOW_PUBLIC_REGISTER === "true",
         corsOrigin: process.env.CORS_ORIGIN || "",
         showNotesDefaultTemplate: await getShowNotesDefaultTemplate(),
+        ai: {
+          provider: process.env.AI_PROVIDER || "mock",
+          volcengine: {
+            appIdSet: hasEnv("VOLCENGINE_APP_ID"),
+            accessTokenSet: hasEnv("VOLCENGINE_ACCESS_TOKEN"),
+            apiKeySet: hasEnv("VOLCENGINE_API_KEY"),
+            secretKeySet: hasEnv("VOLCENGINE_SECRET_KEY"),
+            activeAuth: hasEnv("VOLCENGINE_API_KEY") ? "apiKey" : "appAccessToken",
+            resourceId: process.env.VOLCENGINE_RESOURCE_ID || "",
+            mode: process.env.VOLCENGINE_MODE || "",
+            publicBaseUrl: process.env.VOLCENGINE_PUBLIC_BASE_URL || process.env.PUBLIC_BASE_URL || "",
+            apiKeyPreview: envPreview("VOLCENGINE_API_KEY"),
+            secretKeyPreview: envPreview("VOLCENGINE_SECRET_KEY"),
+          },
+        },
       },
       mongo: mongoMeta,
       stats: {

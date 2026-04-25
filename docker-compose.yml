@@ -37,13 +37,14 @@ services:
       - VOLCENGINE_RESOURCE_ID=${VOLCENGINE_RESOURCE_ID:-volc.bigasr.auc_turbo,volc.bigasr.auc}
       - VOLCENGINE_MODE=${VOLCENGINE_MODE:-flash}
       - VOLCENGINE_PUBLIC_BASE_URL=${VOLCENGINE_PUBLIC_BASE_URL:-}
+      - VOLCENGINE_FETCH_TIMEOUT_MS=${VOLCENGINE_FETCH_TIMEOUT_MS:-180000}
       - ARK_API_KEY=${ARK_API_KEY:-}
       - ARK_MODEL_ID=${ARK_MODEL_ID:-}
       - ARK_BASE_URL=${ARK_BASE_URL:-https://ark.cn-beijing.volces.com/api/v3}
     depends_on:
       - mongo
     volumes:
-      - backend_uploads:/app/uploads
+      - ./backend/uploads:/app/uploads
 
   frontend:
     build:
@@ -70,4 +71,3 @@ services:
 
 volumes:
   mongo_data:
-  backend_uploads:

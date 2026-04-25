@@ -110,6 +110,43 @@ export function shouldUseVolcengineStandardEndpoint(resourceId: string, mode: st
   return normalizedResourceId === "volc.bigasr.auc";
 }
 
+export function shouldAttemptVolcengineFlashEndpoint(resourceId: string, mode: string): boolean {
+  return !shouldUseVolcengineStandardEndpoint(resourceId, mode);
+}
+
+function getVolcengineFetchTimeoutMs(): number {
+  const timeoutMs = Number(process.env.VOLCENGINE_FETCH_TIMEOUT_MS);
+  if (Number.isFinite(timeoutMs) && timeoutMs >= 5000) return Math.floor(timeoutMs);
+  return 180000;
+}
+
+export function getVolcengineFlashMaxLocalBytes(): number {
+  const maxBytes = Number(process.env.VOLCENGINE_FLASH_MAX_LOCAL_BYTES);
+  if (Number.isFinite(maxBytes) && maxBytes > 0) return Math.floor(maxBytes);
+  return 25 * 1024 * 1024;
+}
+
+export function shouldContinueVolcengineStandardPolling(statusCode: string): boolean {
+  const normalized = asText(statusCode);
+  return normalized === "20000001" || normalized === "20000002";
+}
+
+async function fetchVolcengine(url: string, init: RequestInit): Promise<Response> {
+  const timeoutMs = getVolcengineFetchTimeoutMs();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: init.signal || controller.signal });
+  } catch (error: any) {
+    if (error?.name === "AbortError") {
+      throw new Error(`火山请求超时（${Math.round(timeoutMs / 1000)}秒）: ${url}`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function formatClock(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "00:00";
   const mins = Math.floor(seconds / 60);
@@ -922,7 +959,7 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
     }
     const requestId = randomUUID();
     const headers = this.buildHeaders(requestId, resourceId);
-    const submitResp = await fetch("https://openspeech.bytedance.com/api/v3/auc/bigmodel/submit", {
+    const submitResp = await fetchVolcengine("https://openspeech.bytedance.com/api/v3/auc/bigmodel/submit", {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -943,8 +980,9 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
     }
 
     let lastJson: any = {};
-    for (let i = 0; i < 30; i += 1) {
-      const queryResp = await fetch("https://openspeech.bytedance.com/api/v3/auc/bigmodel/query", {
+    const deadlineAt = Date.now() + Math.max(getVolcengineFetchTimeoutMs(), 60000);
+    for (let i = 0; Date.now() < deadlineAt; i += 1) {
+      const queryResp = await fetchVolcengine("https://openspeech.bytedance.com/api/v3/auc/bigmodel/query", {
         method: "POST",
         headers,
         body: JSON.stringify({}),
@@ -952,6 +990,10 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
       const queryJson: any = await queryResp.json().catch(() => ({}));
       lastJson = queryJson;
       const queryCode = asText((queryResp.headers.get("X-Api-Status-Code") || queryJson?.code || "").toString());
+      if (shouldContinueVolcengineStandardPolling(queryCode)) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        continue;
+      }
       if (!queryResp.ok || (queryCode && queryCode !== "20000000")) {
         const msg = asText(queryResp.headers.get("X-Api-Message")) || asText(queryJson?.message) || asText(queryJson?.msg) || `HTTP ${queryResp.status}`;
         throw new Error(`[resource_id=${resourceId}] 标准版查询失败: ${msg}`);
@@ -980,6 +1022,12 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
     const bytes = await fs.readFile(filePath);
     const sourceUrl = this.toPublicSourceUrl(asText(options?.sourceUrl));
     const isLocalSourceUrl = this.isLocalUrl(sourceUrl);
+    const maxFlashLocalBytes = getVolcengineFlashMaxLocalBytes();
+    if (isLocalSourceUrl && bytes.length > maxFlashLocalBytes) {
+      throw new Error(
+        `火山请求超时风险：本地音频 ${Math.round(bytes.length / 1024 / 1024)}MB 超过 flash 直传建议上限 ${Math.round(maxFlashLocalBytes / 1024 / 1024)}MB；请配置 VOLCENGINE_PUBLIC_BASE_URL 使用公网 URL 转写，或上传更小音频`
+      );
+    }
     const payload = {
       user: { uid: this.appId || "podcast-admin" },
       audio: {
@@ -1003,11 +1051,17 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
           continue;
         }
       }
+      if (!shouldAttemptVolcengineFlashEndpoint(resourceId, this.mode)) {
+        if (!lastErrorMessage) {
+          lastErrorMessage = `[resource_id=${resourceId}] 标准版需要公网可访问音频 URL；请配置 VOLCENGINE_PUBLIC_BASE_URL 为公网域名`;
+        }
+        continue;
+      }
       let shouldTryNextResource = false;
       const maxAttempts = 3;
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
         const requestId = randomUUID();
-        const response = await fetch("https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash", {
+        const response = await fetchVolcengine("https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash", {
           method: "POST",
           headers: this.buildHeaders(requestId, resourceId),
           body: JSON.stringify(payload),
