@@ -15,6 +15,7 @@ tmp/
 backend/node_modules/
 backend/npm-cache/
 backend/.npm-cache/
+backend/dist/
 frontend/node_modules/
 frontend/npm-cache/
 frontend/.vite/

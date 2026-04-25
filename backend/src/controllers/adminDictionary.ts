@@ -136,7 +136,7 @@ export class AdminDictionaryController {
 
   async update(req: Request, res: Response): Promise<void> {
     try {
-      const updated = await updateDictionaryEntry(req.params.id, req.body || {});
+      const updated = await updateDictionaryEntry(asText(req.params.id), req.body || {});
       res.status(200).json(updated);
     } catch (error: any) {
       res.status(400).json({ message: error?.message || "更新词条失败", error });
@@ -150,7 +150,7 @@ export class AdminDictionaryController {
         res.status(400).json({ message: "状态仅支持 active 或 hidden" });
         return;
       }
-      const updated = await updateDictionaryEntry(req.params.id, { status });
+      const updated = await updateDictionaryEntry(asText(req.params.id), { status });
       res.status(200).json(updated);
     } catch (error: any) {
       res.status(400).json({ message: error?.message || "更新词条状态失败", error });

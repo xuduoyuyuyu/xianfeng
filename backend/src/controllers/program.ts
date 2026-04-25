@@ -568,7 +568,7 @@ function ensureBaseFieldsFromGenerated(payload: any, generated: any, transcript:
 async function applyShowNotesRendering(payload: any, defaultTemplate?: string) {
   const next = { ...(payload || {}) };
   const contentPack = sanitizeContentPack(next.contentPack || {});
-  const showNotes = contentPack.showNotes || {};
+  const showNotes = (contentPack.showNotes || {}) as any;
   const quickView = Array.isArray(contentPack.quickView) ? contentPack.quickView : [];
   const fallbackKeyMoments = quickView
     .slice(0, 8)
