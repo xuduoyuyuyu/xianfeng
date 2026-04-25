@@ -6,6 +6,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ENV_FILE="${ENV_FILE:-.env.production}"
 DEPLOY_REMOTE="${DEPLOY_REMOTE:-origin}"
 DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
+DEPLOY_GIT_RETRIES="${DEPLOY_GIT_RETRIES:-5}"
+DEPLOY_GIT_RETRY_SLEEP_SEC="${DEPLOY_GIT_RETRY_SLEEP_SEC:-3}"
 
 cd "${ROOT_DIR}"
 
@@ -40,6 +42,22 @@ sync_backend_env() {
   fi
 }
 
+git_network_retry() {
+  local attempt=1
+  while true; do
+    if git -c http.version=HTTP/1.1 "$@"; then
+      return 0
+    fi
+    if [[ "${attempt}" -ge "${DEPLOY_GIT_RETRIES}" ]]; then
+      echo "git 命令重试失败（${attempt}/${DEPLOY_GIT_RETRIES}）：git $*"
+      return 1
+    fi
+    echo "git 命令失败，${DEPLOY_GIT_RETRY_SLEEP_SEC}s 后重试（${attempt}/${DEPLOY_GIT_RETRIES}）：git $*"
+    sleep "${DEPLOY_GIT_RETRY_SLEEP_SEC}"
+    attempt=$((attempt + 1))
+  done
+}
+
 DIRTY_FILES="$(git status --porcelain --untracked-files=no)"
 if [[ -n "${DIRTY_FILES}" ]]; then
   echo "服务器工作区存在未提交改动，已停止自动更新："
@@ -48,9 +66,9 @@ if [[ -n "${DIRTY_FILES}" ]]; then
 fi
 
 echo "同步代码: ${DEPLOY_REMOTE}/${DEPLOY_BRANCH}"
-git fetch "${DEPLOY_REMOTE}" "${DEPLOY_BRANCH}"
+git_network_retry fetch "${DEPLOY_REMOTE}" "${DEPLOY_BRANCH}"
 git checkout "${DEPLOY_BRANCH}"
-git pull --ff-only "${DEPLOY_REMOTE}" "${DEPLOY_BRANCH}"
+git_network_retry pull --ff-only "${DEPLOY_REMOTE}" "${DEPLOY_BRANCH}"
 
 sync_backend_env
 
