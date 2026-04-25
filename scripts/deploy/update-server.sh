@@ -20,6 +20,26 @@ if [[ ! -f "${ENV_FILE}" ]]; then
   exit 1
 fi
 
+BACKEND_ENV_FILE="${BACKEND_ENV_FILE:-backend/.env}"
+
+sync_backend_env() {
+  local source_env="${ENV_FILE}"
+  local target_env="${BACKEND_ENV_FILE}"
+
+  if [[ ! -f "${target_env}" ]]; then
+    echo "缺少 ${target_env}，从 ${source_env} 创建"
+    cp "${source_env}" "${target_env}"
+    chmod 600 "${target_env}" || true
+    return
+  fi
+
+  if ! cmp -s "${source_env}" "${target_env}"; then
+    echo "同步 ${source_env} 到 ${target_env}"
+    cp "${source_env}" "${target_env}"
+    chmod 600 "${target_env}" || true
+  fi
+}
+
 DIRTY_FILES="$(git status --porcelain --untracked-files=no)"
 if [[ -n "${DIRTY_FILES}" ]]; then
   echo "服务器工作区存在未提交改动，已停止自动更新："
@@ -31,6 +51,8 @@ echo "同步代码: ${DEPLOY_REMOTE}/${DEPLOY_BRANCH}"
 git fetch "${DEPLOY_REMOTE}" "${DEPLOY_BRANCH}"
 git checkout "${DEPLOY_BRANCH}"
 git pull --ff-only "${DEPLOY_REMOTE}" "${DEPLOY_BRANCH}"
+
+sync_backend_env
 
 echo "重建并启动容器（生产配置）"
 docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file "${ENV_FILE}" up -d --build --remove-orphans
