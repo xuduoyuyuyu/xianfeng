@@ -70,7 +70,7 @@ async function ensureProgram() {
 }
 
 async function main() {
-  const uri = process.env.MONGODB_URI || "mongodb://127.0.0.1:60014/knowledge-base";
+  const uri = process.env.MONGODB_URI || "mongodb://127.0.0.1:60014/xianfeng";
   await mongoose.connect(uri);
   await ensureAdmin();
   await ensureProgram();

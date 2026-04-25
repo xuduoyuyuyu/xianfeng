@@ -5,7 +5,7 @@ async function main() {
     instance: {
       ip: "127.0.0.1",
       port: 60014,
-      dbName: "knowledge-base",
+      dbName: "xianfeng",
     },
   });
 

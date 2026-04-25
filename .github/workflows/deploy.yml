@@ -18,11 +18,16 @@ jobs:
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
+          host: 14.103.106.216
+          username: root
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ secrets.DEPLOY_PORT || 22 }}
           script_stop: true
           script: |
-            cd "${{ secrets.DEPLOY_PATH || '/opt/knowledge-base' }}"
+            DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/opt/xianfeng' }}"
+            OLD_DEPLOY_PATH="/opt/knowledge""-base"
+            if [ "${DEPLOY_PATH}" = "/opt/xianfeng" ] && [ ! -d "${DEPLOY_PATH}" ] && [ -d "${OLD_DEPLOY_PATH}" ]; then
+              mv "${OLD_DEPLOY_PATH}" "${DEPLOY_PATH}"
+            fi
+            cd "${DEPLOY_PATH}"
             DEPLOY_BRANCH=main ./scripts/deploy/update-server.sh

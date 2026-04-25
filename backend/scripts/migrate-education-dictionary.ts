@@ -5,7 +5,7 @@ import { migrateExistingProgramGlossaries } from "../src/services/educationDicti
 dotenv.config();
 
 async function main() {
-  const mongoUri = process.env.MONGODB_URI || "mongodb://localhost:27017/knowledge-base";
+  const mongoUri = process.env.MONGODB_URI || "mongodb://localhost:27017/xianfeng";
   await mongoose.connect(mongoUri);
   const result = await migrateExistingProgramGlossaries();
   console.log(`[dictionary-migrate] migrated programs: ${result.migratedPrograms}`);

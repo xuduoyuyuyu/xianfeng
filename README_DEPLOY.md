@@ -85,6 +85,19 @@ cd /opt/xianfeng
 
 ## 3. 日常发布流程（生产）
 
+仓库已配置 GitHub Actions 自动发布：每次推送 `main` 后，会自动 SSH 到 `root@14.103.106.216`，进入 `/opt/xianfeng` 并执行 `scripts/deploy/update-server.sh`。
+
+首次启用自动发布前，需要在 GitHub 仓库 Settings → Secrets and variables → Actions 中配置：
+
+- `DEPLOY_SSH_KEY`：可登录 `root@14.103.106.216` 的私钥
+
+可选覆盖项：
+
+- `DEPLOY_PATH`：默认 `/opt/xianfeng`
+- `DEPLOY_PORT`：默认 `22`
+
+如果服务器仍保留旧项目目录，第一次自动发布会将它迁移为 `/opt/xianfeng`。
+
 本地提交：
 
 ```bash
@@ -93,7 +106,7 @@ git commit -m "feat: xxx"
 git push origin main
 ```
 
-服务器更新：
+推送后 GitHub Actions 会自动完成服务器更新。需要手动兜底时，也可以登录服务器执行：
 
 ```bash
 ssh <你的服务器>

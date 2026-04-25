@@ -89,7 +89,7 @@ app.use((error: any, _req: express.Request, res: express.Response, next: express
 });
 
 mongoose
-  .connect(process.env.MONGODB_URI || "mongodb://localhost:27017/knowledge-base")
+  .connect(process.env.MONGODB_URI || "mongodb://localhost:27017/xianfeng")
   .then(() => console.log("MongoDB connected"))
   .catch((error) => console.error("MongoDB connection error:", error));
 

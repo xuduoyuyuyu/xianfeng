@@ -26,7 +26,7 @@ function parseCsvLine(line) {
 }
 
 (async () => {
-  const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:60014/knowledge-base';
+  const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:60014/xianfeng';
   const csvPath = process.env.CSV_PATH || '/Users/QUAN/Downloads/家长先疯_学习资料_表格.csv';
   await mongoose.connect(uri);
 
