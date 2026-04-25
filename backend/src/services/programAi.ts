@@ -71,6 +71,45 @@ function asText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function isLocalSourceUrl(url: string): boolean {
+  if (!url) return true;
+  try {
+    const u = new URL(url);
+    return ["localhost", "127.0.0.1", "0.0.0.0"].includes(u.hostname) || u.hostname.endsWith("_backend");
+  } catch (_error) {
+    return true;
+  }
+}
+
+export function normalizeVolcenginePublicSourceUrl(sourceUrl: string, publicBaseUrl: string): string {
+  const raw = asText(sourceUrl);
+  const publicBase = asText(publicBaseUrl);
+  if (!raw) return "";
+  try {
+    const parsed = new URL(raw);
+    if (publicBase && (isLocalSourceUrl(raw) || parsed.pathname.startsWith("/uploads/"))) {
+      return new URL(`${parsed.pathname}${parsed.search}${parsed.hash}`, publicBase).toString();
+    }
+    return parsed.toString();
+  } catch (_error) {
+    if (!publicBase) return raw;
+    const normalizedPath = raw.startsWith("/") ? raw : `/${raw}`;
+    try {
+      return new URL(normalizedPath, publicBase).toString();
+    } catch (_secondError) {
+      return raw;
+    }
+  }
+}
+
+export function shouldUseVolcengineStandardEndpoint(resourceId: string, mode: string): boolean {
+  const normalizedMode = asText(mode).toLowerCase();
+  const normalizedResourceId = asText(resourceId);
+  if (normalizedMode === "standard") return true;
+  if (/^Speech_Recognition_Seed_/i.test(normalizedResourceId)) return true;
+  return normalizedResourceId === "volc.bigasr.auc";
+}
+
 function formatClock(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "00:00";
   const mins = Math.floor(seconds / 60);
@@ -841,39 +880,15 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
   }
 
   private shouldUseStandard(resourceId: string): boolean {
-    if (this.mode === "standard") return true;
-    if (this.mode === "flash") return false;
-    return /^Speech_Recognition_Seed_/i.test(resourceId);
+    return shouldUseVolcengineStandardEndpoint(resourceId, this.mode);
   }
 
   private isLocalUrl(url: string): boolean {
-    if (!url) return true;
-    try {
-      const u = new URL(url);
-      return ["localhost", "127.0.0.1", "0.0.0.0"].includes(u.hostname);
-    } catch (_error) {
-      return true;
-    }
+    return isLocalSourceUrl(url);
   }
 
   private toPublicSourceUrl(sourceUrl: string): string {
-    const raw = asText(sourceUrl);
-    if (!raw) return "";
-    const publicBase = asText(this.publicBaseUrl);
-    try {
-      const parsed = new URL(raw);
-      if (!this.isLocalUrl(raw)) return parsed.toString();
-      if (!publicBase) return parsed.toString();
-      return new URL(`${parsed.pathname}${parsed.search}${parsed.hash}`, publicBase).toString();
-    } catch (_error) {
-      if (!publicBase) return raw;
-      const normalizedPath = raw.startsWith("/") ? raw : `/${raw}`;
-      try {
-        return new URL(normalizedPath, publicBase).toString();
-      } catch (_secondError) {
-        return raw;
-      }
-    }
+    return normalizeVolcenginePublicSourceUrl(sourceUrl, this.publicBaseUrl);
   }
 
   private isPayloadTooLarge(response: Response, message: string): boolean {
@@ -955,6 +970,9 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
     const plainText = asText(lastJson?.result?.text) || transcript.map((item) => item.text).join(" ");
     const durationMs = Number(lastJson?.audio_info?.duration) || Number(lastJson?.result?.additions?.duration) || 0;
     const durationSeconds = durationMs > 1000 ? Math.round(durationMs / 1000) : 0;
+    if (!plainText && transcript.length === 0) {
+      throw new Error(`[resource_id=${resourceId}] 标准版返回空转写结果，请检查音频 URL 是否公网可访问: ${sourceUrl}`);
+    }
     return { transcript: transcript.length ? transcript : splitToTranscriptParagraphs(plainText, durationSeconds || 180), plainText, durationSeconds: durationSeconds || 180 };
   }
 
@@ -1069,6 +1087,9 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
     const plainText = asText(json?.result?.text) || transcript.map((item: TranscriptSegment) => item.text).join(" ");
     const durationMs = Number(json?.audio_info?.duration) || Number(json?.result?.additions?.duration) || 0;
     const durationSeconds = durationMs > 1000 ? Math.round(durationMs / 1000) : estimateDurationFromBytes(bytes.length);
+    if (!plainText && transcript.length === 0) {
+      throw new Error("火山语音转写失败: flash 返回空转写结果，请检查资源 ID、鉴权配置和音频格式");
+    }
     return { transcript: transcript.length ? transcript : splitToTranscriptParagraphs(plainText, durationSeconds), plainText, durationSeconds };
   }
 

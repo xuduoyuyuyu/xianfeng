@@ -25,9 +25,5 @@ jobs:
           script_stop: true
           script: |
             DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/opt/xianfeng' }}"
-            OLD_DEPLOY_PATH="/opt/knowledge""-base"
-            if [ "${DEPLOY_PATH}" = "/opt/xianfeng" ] && [ ! -d "${DEPLOY_PATH}" ] && [ -d "${OLD_DEPLOY_PATH}" ]; then
-              mv "${OLD_DEPLOY_PATH}" "${DEPLOY_PATH}"
-            fi
             cd "${DEPLOY_PATH}"
             DEPLOY_BRANCH=main ./scripts/deploy/update-server.sh

@@ -6,6 +6,7 @@ import { resolveProgramAiProvider } from "../services/programAi";
 import mongoose from "mongoose";
 import { attachDictionaryEntriesToPrograms, removeProgramFromDictionary, syncProgramDictionaryEntries } from "../services/educationDictionary";
 import { buildShowNotesKeyMomentsText, getShowNotesDefaultTemplate, renderShowNotesTemplate, truncateByChars } from "../services/showNotes";
+import { isTransientAiGenerationFailure } from "../utils/aiFailure";
 
 function statusUpdatePayload(status: "draft" | "published") {
   if (status === "published") {
@@ -696,16 +697,7 @@ async function tryAutoGenerate(
       ensureEpisodeFallbackOnAiFailure(payload, uploadedAudioUrl)
     );
     const message = asText(error?.message || "AI 生成失败");
-    const lowerMessage = message.toLowerCase();
-    const isTransientAiFailure =
-      lowerMessage.includes("http 5") ||
-      lowerMessage.includes("timeout") ||
-      lowerMessage.includes("timed out") ||
-      lowerMessage.includes("gateway") ||
-      lowerMessage.includes("upstream") ||
-      lowerMessage.includes("not granted") ||
-      lowerMessage.includes("服务不可用");
-    if (isTransientAiFailure) {
+    if (isTransientAiGenerationFailure(message)) {
       return {
         payload: {
           ...fallbackPayload,
