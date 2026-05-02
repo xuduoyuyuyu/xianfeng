@@ -36,7 +36,7 @@ const PublicScreenRouter: React.FC = () => {
   }
 
   if (pathname === "/programs/list") {
-    return <Navigate to="/programs" replace />;
+    return <Navigate to={`${search ? `/programs${search}` : "/programs"}`} replace />;
   }
 
   if (/^\/programs\/[^/]+$/.test(pathname)) {
