@@ -4,6 +4,7 @@ import EducationDictionaryEntry from "../models/EducationDictionaryEntry";
 import Program from "../models/Program";
 import {
   importDictionaryEntriesFromPrograms,
+  isHighQualityEducationTerm,
   normalizeDictionaryTerm,
   recalculateAllRelatedDictionaryEntries,
   serializeDictionaryEntry,
@@ -46,8 +47,9 @@ export class AdminDictionaryController {
       }
 
       const entries = await EducationDictionaryEntry.find(filter).sort({ updatedAt: -1 }).lean();
+      const filtered = entries.filter((entry: any) => isHighQualityEducationTerm(entry?.term));
       res.status(200).json(
-        entries.map((entry: any) => ({
+        filtered.map((entry: any) => ({
           ...serializeDictionaryEntry(entry),
           programCount: Array.isArray(entry.programIds) ? entry.programIds.length : 0,
         }))
@@ -91,6 +93,10 @@ export class AdminDictionaryController {
 
       if (!term || !definition || !normalizedTerm) {
         res.status(400).json({ message: "词条名称和释义不能为空" });
+        return;
+      }
+      if (!isHighQualityEducationTerm(term)) {
+        res.status(400).json({ message: "词条不符合教育词典质量规则，请使用教育相关术语" });
         return;
       }
 

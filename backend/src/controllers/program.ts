@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import Program from "../models/Program";
@@ -10,12 +11,30 @@ import { buildShowNotesKeyMomentsText, getShowNotesDefaultTemplate, renderShowNo
 import { isTransientAiGenerationFailure } from "../utils/aiFailure";
 import { AuthenticatedRequest } from "../middlewares/auth";
 import { createAgentTask } from "../services/agentTaskDispatcher";
+import { createInboxMessage } from "../services/adminInbox";
 
 function statusUpdatePayload(status: "draft" | "published") {
   if (status === "published") {
     return { status, publishedAt: new Date() };
   }
   return { status, publishedAt: null };
+}
+
+function previewSecret(): string {
+  return process.env.PROGRAM_PREVIEW_SECRET || process.env.JWT_SECRET || "program-preview-dev-secret";
+}
+
+function signPreviewToken(input: { idOrCode: string; exp: number }): string {
+  const payload = `${input.idOrCode}:${input.exp}`;
+  return crypto.createHmac("sha256", previewSecret()).update(payload).digest("hex");
+}
+
+function safeCompare(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  const aa = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (aa.length !== bb.length) return false;
+  return crypto.timingSafeEqual(aa, bb);
 }
 
 function asText(value: unknown): string {
@@ -755,6 +774,7 @@ async function applyShowNotesRendering(payload: any, defaultTemplate?: string) {
 }
 
 const parsingProgramIds = new Set<string>();
+const STALE_PARSE_TIMEOUT_MS = 30 * 60 * 1000;
 
 function parseMetaPatch(
   status: "idle" | "parsing" | "success" | "failed",
@@ -821,6 +841,7 @@ async function runAsyncParseTask(
   options?: { forceTranscriptRegenerate?: boolean }
 ) {
   if (parsingProgramIds.has(programId)) return;
+  const parseRunId = crypto.randomUUID();
   parsingProgramIds.add(programId);
   try {
     await Program.findByIdAndUpdate(programId, parseMetaPatch("parsing", "", 5, "queued"), { new: false });
@@ -851,6 +872,22 @@ async function runAsyncParseTask(
     const status = aiResult.aiStatus === "generated" ? "success" : "failed";
     const parsePatch = parseMetaPatch(status, aiResult.aiMessage || "", status === "failed" ? 100 : 100, status === "failed" ? "failed" : "completed");
     await Program.findByIdAndUpdate(programId, { ...payload, ...parsePatch }, { new: false });
+    await createInboxMessage({
+      sourceType: "program_parse_task",
+      sourceId: parseRunId,
+      taskType: "program_parse",
+      taskStatus: status === "success" ? "succeeded" : "failed",
+      targetType: "program",
+      targetId: programId,
+      summary: status === "success" ? "节目解析完成，可查看逐字稿与摘要结果。" : (aiResult.aiMessage || "节目解析失败"),
+      payload: {
+        programId,
+        parseRunId,
+        parseStatus: status,
+        parseMessage: aiResult.aiMessage || "",
+        parsePatch,
+      },
+    }).catch(() => {});
     if (payload.termGlossary !== undefined) {
       await syncProgramDictionaryEntries(programId, payload.termGlossary, "ai_program");
     }
@@ -869,6 +906,21 @@ async function runAsyncParseTask(
       parseMetaPatch("failed", error?.message || "解析任务执行失败", 100, "failed"),
       { new: false }
     );
+    await createInboxMessage({
+      sourceType: "program_parse_task",
+      sourceId: parseRunId,
+      taskType: "program_parse",
+      taskStatus: "failed",
+      targetType: "program",
+      targetId: programId,
+      summary: error?.message || "解析任务执行失败",
+      payload: {
+        programId,
+        parseRunId,
+        parseStatus: "failed",
+        parseMessage: error?.message || "解析任务执行失败",
+      },
+    }).catch(() => {});
   } finally {
     parsingProgramIds.delete(programId);
   }
@@ -1079,6 +1131,8 @@ export class ProgramController {
     try {
       const programs = await Program.find({ status: "published" }).sort({
         publishedAt: -1,
+        createdAt: -1,
+        _id: -1,
       });
       const attached = await attachDictionaryEntriesToPrograms(programs, false);
       const attachedGuests = await attachGuestBindingsToPrograms(attached);
@@ -1092,13 +1146,30 @@ export class ProgramController {
   async getByIdPublic(req: Request, res: Response): Promise<void> {
     try {
       const id = asText(req.params.id);
-      const query = mongoose.Types.ObjectId.isValid(id)
-        ? { _id: id, status: "published" as const }
-        : { programCode: normalizeProgramCode(id), status: "published" as const };
-      const program = await Program.findOne(query);
+      const previewSig = asText(req.query.preview);
+      const previewExp = Number(req.query.exp);
+      const isPreviewCandidate = !!previewSig && Number.isFinite(previewExp);
+      const baseQuery = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { programCode: normalizeProgramCode(id) };
+      const program = await Program.findOne(baseQuery);
       if (!program) {
         res.status(404).json({ message: "节目不存在或未上架" });
         return;
+      }
+      if (program.status !== "published") {
+        if (!isPreviewCandidate) {
+          res.status(404).json({ message: "节目不存在或未上架" });
+          return;
+        }
+        const safeExp = Math.floor(previewExp);
+        if (safeExp < Math.floor(Date.now() / 1000)) {
+          res.status(403).json({ message: "预览链接已过期" });
+          return;
+        }
+        const expected = signPreviewToken({ idOrCode: id, exp: safeExp });
+        if (!safeCompare(expected, previewSig)) {
+          res.status(403).json({ message: "预览链接无效" });
+          return;
+        }
       }
       const attached = await attachDictionaryEntriesToPrograms(program, false);
       const attachedGuest = await attachGuestBindingsToPrograms(attached);
@@ -1160,6 +1231,31 @@ export class ProgramController {
     }
   }
 
+  async createPreviewLink(req: Request, res: Response): Promise<void> {
+    try {
+      const id = asText(req.params.id);
+      if (!id) {
+        res.status(400).json({ message: "缺少节目ID" });
+        return;
+      }
+      const ttlHoursRaw = Number(req.body?.ttlHours);
+      const ttlHours = Number.isFinite(ttlHoursRaw) ? Math.max(1, Math.min(24 * 30, Math.floor(ttlHoursRaw))) : 72;
+      const query = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { programCode: normalizeProgramCode(id) };
+      const program = await Program.findOne(query).lean();
+      if (!program) {
+        res.status(404).json({ message: "节目不存在" });
+        return;
+      }
+      const idOrCode = asText((program as any).programCode) || String((program as any)._id);
+      const exp = Math.floor(Date.now() / 1000) + ttlHours * 3600;
+      const preview = signPreviewToken({ idOrCode, exp });
+      const path = `/programs/${encodeURIComponent(idOrCode)}?preview=${preview}&exp=${exp}`;
+      res.status(200).json({ path, idOrCode, exp, ttlHours });
+    } catch (error) {
+      res.status(500).json({ message: "生成预览链接失败", error });
+    }
+  }
+
   async getByIdAdmin(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
@@ -1190,7 +1286,8 @@ export class ProgramController {
         return;
       }
       if (payload.status === "published" && !payload.publishedAt) {
-        payload.publishedAt = new Date();
+        // Keep original publish time for already published programs; only stamp when first publishing.
+        payload.publishedAt = existing.status === "published" ? existing.publishedAt || new Date() : new Date();
       }
       const program = new Program(payload);
       await program.save();
@@ -1366,8 +1463,18 @@ export class ProgramController {
         return;
       }
       if (program.parseStatus === "parsing" || parsingProgramIds.has(id)) {
-        res.status(409).json({ message: "解析任务进行中，请稍后刷新状态", parseStatus: "parsing" });
-        return;
+        const parseStartedAt = program.parseStartedAt ? new Date(program.parseStartedAt).getTime() : 0;
+        const now = Date.now();
+        const isStale = !parsingProgramIds.has(id) && parseStartedAt > 0 && now - parseStartedAt >= STALE_PARSE_TIMEOUT_MS;
+        if (!isStale) {
+          res.status(409).json({ message: "解析任务进行中，请稍后刷新状态", parseStatus: "parsing" });
+          return;
+        }
+        await Program.findByIdAndUpdate(
+          id,
+          parseMetaPatch("failed", "解析任务超时未完成，已自动回收，请重新解析", 100, "failed"),
+          { new: false }
+        );
       }
       const uploadedAudioUrl = asText(program?.episodes?.[0]?.url);
       if (!uploadedAudioUrl) {

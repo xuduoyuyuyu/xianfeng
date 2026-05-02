@@ -41,9 +41,16 @@ router.post("/chat", async (req, res) => {
       }))
       .filter((m: any) => (m.role === "user" || m.role === "assistant" || m.role === "system") && m.content);
 
+    const backendSystemPrompt = String(
+      store?.prompts?.chat_manager_agent?.current?.system_prompt || "",
+    ).trim();
+
     const userPrompt = prompt || String(history[history.length - 1]?.content || "");
+    // Do not allow client-side system messages to override server-managed persona.
+    const clientHistory = history.filter((m: any) => m.role !== "system");
     const finalMessages = [
-      ...history.slice(-12),
+      ...(backendSystemPrompt ? [{ role: "system", content: backendSystemPrompt }] : []),
+      ...clientHistory.slice(-12),
       ...(prompt ? [{ role: "user", content: userPrompt }] : []),
     ];
     const endpoint = `${baseUrl.replace(/\/+$/, "")}/v1/chat/completions`;

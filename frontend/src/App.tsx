@@ -19,6 +19,7 @@ import AdminDictionaryPage from "./pages/admin/AdminDictionaryPage";
 import AdminGuestsPage from "./pages/admin/AdminGuestsPage";
 import AdminAgentsPage from "./pages/admin/AdminAgentsPage";
 import AdminAgentsChatPage from "./pages/admin/AdminAgentsChatPage";
+import AdminInboxPage from "./pages/admin/AdminInboxPage";
 import ProgramListPage from "./pages/ProgramListPage";
 
 const PublicScreenRouter: React.FC = () => {
@@ -31,16 +32,21 @@ const PublicScreenRouter: React.FC = () => {
   }
 
   if (pathname === "/programs") {
-    return <ScreenPage src={`/wel/index.html?v=${screenRev}&cb=${cacheBust}`} title="wel 首页架构" />;
+    return <ProgramListPage />;
   }
 
   if (pathname === "/programs/list") {
-    return <ProgramListPage />;
+    return <Navigate to="/programs" replace />;
   }
 
   if (/^\/programs\/[^/]+$/.test(pathname)) {
     const programId = pathname.split("/")[2] || "";
-    const src = `/wel/index.html?page=podcast-detail&programId=${encodeURIComponent(programId)}&v=${screenRev}&cb=${cacheBust}`;
+    const incoming = new URLSearchParams(search || "");
+    const preview = String(incoming.get("preview") || "").trim();
+    const exp = String(incoming.get("exp") || "").trim();
+    const previewParams =
+      preview && exp ? `&preview=${encodeURIComponent(preview)}&exp=${encodeURIComponent(exp)}` : "";
+    const src = `/wel/index.html?page=podcast-detail&programId=${encodeURIComponent(programId)}${previewParams}&v=${screenRev}&cb=${cacheBust}`;
     return <ScreenPage src={src} title="播客详情（框架内）" />;
   }
 
@@ -94,6 +100,7 @@ const App: React.FC = () => {
         <Route path="agents" element={<AdminAgentsPage />} />
         <Route path="agents/:botId/chat" element={<AdminAgentsChatPage />} />
         <Route path="multi-agents" element={<AdminMultiAgentsPage />} />
+        <Route path="inbox" element={<AdminInboxPage />} />
         <Route path="*" element={<Navigate to="/admin" replace />} />
       </Route>
       <Route path="*" element={<PublicScreenRouter />} />

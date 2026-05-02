@@ -277,8 +277,11 @@
             transform: translateY(4px);
             transition: opacity 120ms ease, transform 120ms ease;
         }
-        .transcript-term-anchor:hover .transcript-term-tooltip {
+        .transcript-term-anchor:hover .transcript-term-tooltip,
+        .transcript-term-anchor:focus-within .transcript-term-tooltip,
+        .transcript-term-anchor.is-open .transcript-term-tooltip {
             opacity: 1;
+            pointer-events: auto;
             transform: translateY(0);
         }
         .transcript-term-tooltip-title {
@@ -339,10 +342,13 @@
             border-radius: 1rem;
             border: 1px dashed #e7e5e4;
             background: #fafaf9;
-            padding: 20px 24px;
+            padding: 20px 0;
             font-size: 14px;
             line-height: 1.75;
             color: #78716c;
+            text-align: justify;
+            text-justify: inter-ideograph;
+            text-align-last: left;
         }
         .related-item {
             display: block;
@@ -747,6 +753,7 @@
   const detailViewState = {
     mode: "quickview",
   };
+  let activeTermAnchor = null;
   const guestViewState = {
     guests: [],
     activeIndex: 0,
@@ -1097,6 +1104,22 @@
     document.getElementById("player-play-icon").textContent = isPlaying ? "pause" : "play_arrow";
   }
 
+  function closeOpenTermTooltip() {
+    if (!activeTermAnchor || !activeTermAnchor.classList) return;
+    activeTermAnchor.classList.remove("is-open");
+    activeTermAnchor = null;
+  }
+
+  function toggleTermTooltip(anchor) {
+    if (!anchor || !anchor.classList) return;
+    if (activeTermAnchor && activeTermAnchor !== anchor) {
+      activeTermAnchor.classList.remove("is-open");
+    }
+    const willOpen = !anchor.classList.contains("is-open");
+    anchor.classList.toggle("is-open", willOpen);
+    activeTermAnchor = willOpen ? anchor : null;
+  }
+
   function updateProgressUI() {
     const current = playerState.currentTime;
     const duration = playerState.duration;
@@ -1365,9 +1388,6 @@
       const raw = String((itemsToRender[idx] && itemsToRender[idx].text) || "");
       node.setAttribute("data-subtitle-text", encodeURIComponent(raw));
       node.setAttribute("data-static-html", node.innerHTML);
-      if (!transcriptState.subtitleEnabled) {
-        renderTranscriptBodyPlainChars(node);
-      }
     });
     if (transcriptState.subtitleEnabled) {
       requestAnimationFrame(function () {
@@ -1378,6 +1398,11 @@
 
   function restoreTranscriptBody(body) {
     if (!body) return;
+    const staticHtml = body.getAttribute("data-static-html");
+    if (staticHtml) {
+      body.innerHTML = staticHtml;
+      return;
+    }
     renderTranscriptBodyPlainChars(body);
   }
 
@@ -1508,24 +1533,46 @@
       .slice(0, 3);
   }
 
+  function normalizeReadingToken(raw) {
+    return String(raw || "")
+      .trim()
+      .toLowerCase()
+      .replace(/^延伸阅读[:：]\s*/, "")
+      .replace(/[，。！？、,.!?~\s]/g, "");
+  }
+
+  function buildDictionaryTermSet(program) {
+    const set = new Set();
+    const dictEntries = Array.isArray(program && program.dictionaryEntries) ? program.dictionaryEntries : [];
+    const termGlossary = Array.isArray(program && program.termGlossary) ? program.termGlossary : [];
+    dictEntries.concat(termGlossary).forEach(function (entry) {
+      const key = normalizeReadingToken(entry && entry.term);
+      if (key) set.add(key);
+    });
+    return set;
+  }
+
+  function isDictionaryLikeCuratedItem(item, dictTermSet) {
+    const title = String(item && item.title || "").trim();
+    if (!title) return true;
+    const hasReadingPrefix = /^延伸阅读[:：]\s*/.test(title);
+    const normalizedTitle = normalizeReadingToken(title);
+    if (!normalizedTitle) return true;
+    if (dictTermSet && dictTermSet.has(normalizedTitle)) return true;
+    // 历史错误数据常是“延伸阅读：术语 + 固定副标题”
+    if (hasReadingPrefix) {
+      const stripped = title.replace(/^延伸阅读[:：]\s*/, "").trim();
+      const subtitle = String(item && item.subtitle || "").trim();
+      const looksLikeTemplateSubtitle = subtitle === "概念入门与背景梳理" || subtitle === "案例与应用实践";
+      const shortTerm = Array.from(stripped).length <= 12 && !/[《》]/.test(stripped);
+      if (looksLikeTemplateSubtitle && shortTerm) return true;
+    }
+    return false;
+  }
+
   function renderRelated(program, programs) {
     const list = document.getElementById("related-programs-list");
     if (!list) return;
-    function dedupeDictionaryTerms(detail) {
-      const map = new Map();
-      const dictEntries = Array.isArray(detail && detail.dictionaryEntries) ? detail.dictionaryEntries : [];
-      const termGlossary = Array.isArray(detail && detail.termGlossary) ? detail.termGlossary : [];
-      dictEntries.concat(termGlossary).forEach(function (entry) {
-        const term = String(entry && entry.term || "").trim();
-        const definition = String(entry && entry.definition || "").trim();
-        const sourceUrl = String(entry && entry.sourceUrl || "").trim();
-        if (!term || !definition) return;
-        const key = term.toLowerCase().replace(/\s+/g, " ");
-        if (map.has(key)) return;
-        map.set(key, { term: term, definition: definition, sourceUrl: sourceUrl });
-      });
-      return Array.from(map.values());
-    }
     function compactText15(raw) {
       const text = String(raw || "").replace(/\s+/g, "").trim();
       if (!text) return "音频已上传";
@@ -1543,21 +1590,7 @@
     }
     const others = buildDictionaryRelatedPrograms(program, programs);
     if (!others.length) {
-      const terms = dedupeDictionaryTerms(program).slice(0, 6);
-      if (!terms.length) {
-        list.innerHTML = '<div class="related-empty-card">当前词典尚未为这期节目聚合出相关节目，等更多节目共现后会自动出现。</div>';
-        return;
-      }
-      list.innerHTML = terms.map(function (item) {
-        const sourceLink = item.sourceUrl
-          ? '<a class="related-item-meta-text text-primary hover:underline" href="' + escapeHtml(item.sourceUrl) + '" target="_blank" rel="noopener noreferrer">来源</a>'
-          : "";
-        return '<div class="related-item">' +
-          '<h4 class="related-item-title deep-dive-content-title">' + escapeHtml(item.term || "") + "</h4>" +
-          '<p class="related-item-desc deep-dive-content-desc"><span class="related-item-meta-text">' + escapeHtml(item.definition || "") + "</span></p>" +
-          sourceLink +
-          "</div>";
-      }).join("");
+      list.innerHTML = '<div class="related-empty-card">当前暂无可推荐的关联节目，后续会随节目共现自动更新。</div>';
       return;
     }
     list.innerHTML = others.map(function (item, index) {
@@ -1751,7 +1784,14 @@
 
     const deepDive = program.deepDive || {};
     document.getElementById("deep-dive-title").textContent = deepDive.sectionTitle || "深度挖掘 Deep Dive";
-    const reading = Array.isArray(deepDive.curatedReading) && deepDive.curatedReading.length ? deepDive.curatedReading : [{ title: "《家庭教育中的低摩擦沟通》", subtitle: "围绕节目主题延展出的实用阅读线索" }];
+    const readingRaw = Array.isArray(deepDive.curatedReading) && deepDive.curatedReading.length ? deepDive.curatedReading : [];
+    const dictTermSet = buildDictionaryTermSet(program);
+    const readingFiltered = readingRaw.filter(function (item) {
+      return !isDictionaryLikeCuratedItem(item, dictTermSet);
+    });
+    const reading = readingFiltered.length
+      ? readingFiltered
+      : [{ title: "《家庭教育中的低摩擦沟通》", subtitle: "围绕节目主题延展出的实用阅读线索" }];
     document.getElementById("curated-reading-list").innerHTML = reading.map(function (item) {
       const href = item.url ? ' href="' + item.url + '" target="_blank" rel="noopener noreferrer"' : "";
       return "<a" + href + ' class="group block cursor-pointer"><h4 class="deep-dive-content-title text-on-surface group-hover:text-primary transition-colors leading-snug break-words">' + (item.title || "") + '</h4><p class="deep-dive-content-desc text-gray-400 mt-1 break-all">' + (item.subtitle || "") + "</p></a>";
@@ -1923,9 +1963,22 @@
       transcriptList.addEventListener("click", function (event) {
         const target = event.target;
         if (!target || !target.closest) return;
+        const termAnchor = target.closest(".transcript-term-anchor");
+        if (termAnchor) {
+          const sourceLink = target.closest(".transcript-term-tooltip-link");
+          if (!sourceLink) {
+            event.preventDefault();
+            event.stopPropagation();
+            toggleTermTooltip(termAnchor);
+          }
+          return;
+        }
+        if (!transcriptState.subtitleEnabled) return;
         const charEl = target.closest(".subtitle-char");
-        if (!charEl) return;
-        const at = Number(charEl.getAttribute("data-char-at") || "0");
+        const rowEl = target.closest(".transcript-row");
+        const at = charEl
+          ? Number(charEl.getAttribute("data-char-at") || "0")
+          : Number((rowEl && rowEl.getAttribute("data-start-sec")) || "0");
         if (!Number.isFinite(at)) return;
         audio.currentTime = Math.max(0, at);
         playerState.currentTime = audio.currentTime || 0;
@@ -1936,6 +1989,14 @@
         }
       });
     }
+    document.addEventListener("click", function (event) {
+      const target = event.target;
+      if (target && target.closest && target.closest(".transcript-term-anchor")) return;
+      closeOpenTermTooltip();
+    });
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") closeOpenTermTooltip();
+    });
     document.getElementById("player-volume-btn").addEventListener("click", function (event) { togglePlay(event); });
     const heroFavoriteBtn = document.getElementById("hero-favorite-btn");
     if (heroFavoriteBtn) heroFavoriteBtn.addEventListener("click", toggleFavorite);

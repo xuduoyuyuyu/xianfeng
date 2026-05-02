@@ -13,7 +13,7 @@ const AdminLayout: React.FC = () => {
     }`;
 
   const navIconClass = (active: boolean) =>
-    `material-symbols-outlined text-[10px] transition-colors ${
+    `material-symbols-outlined text-[7px] transition-colors ${
       active ? "text-white" : "text-stone-400 group-hover:text-[#5e17eb]"
     }`;
 
@@ -66,10 +66,17 @@ const AdminLayout: React.FC = () => {
           </section>
 
           <section>
-            <p className="px-1 mb-1.5 text-[11px] font-bold tracking-[0.08em] text-stone-400 uppercase">设置</p>
+            <p className="px-1 mb-1.5 text-[11px] font-bold tracking-[0.08em] text-stone-400 uppercase">AI</p>
             <div className="space-y-1">
               {renderNavItem("/admin/agents", "smart_toy", "Agents")}
               {renderNavItem("/admin/multi-agents", "hub", "multi-agents")}
+            </div>
+          </section>
+
+          <section>
+            <p className="px-1 mb-1.5 text-[11px] font-bold tracking-[0.08em] text-stone-400 uppercase">设置</p>
+            <div className="space-y-1">
+              {renderNavItem("/admin/inbox", "mail", "站内信")}
               {renderNavItem("/admin/system", "settings", "系统信息")}
             </div>
           </section>

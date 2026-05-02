@@ -12,6 +12,7 @@ const AdminFrameRouter: React.FC = () => {
     "/admin/books": { src: "/screens/admin-books.html", title: "内容管理 / 书单" },
     "/admin/materials": { src: "/screens/admin-materials.html", title: "内容管理 / 学习资料" },
     "/admin/users": { src: "/screens/admin-users.html", title: "用户管理" },
+    "/admin/inbox": { src: "/screens/admin-inbox.html", title: "站内信" },
     "/admin/system": { src: "/screens/admin-system.html", title: "系统信息" },
   };
 
@@ -22,4 +23,3 @@ const AdminFrameRouter: React.FC = () => {
 };
 
 export default AdminFrameRouter;
-

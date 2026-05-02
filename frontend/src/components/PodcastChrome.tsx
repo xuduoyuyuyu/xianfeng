@@ -11,7 +11,7 @@ export const PodcastHomeNav: React.FC = () => {
       <div className="mx-auto flex h-20 w-full max-w-6xl items-center justify-between px-8">
         <div className="flex items-center gap-12">
           <Link to="/programs">
-            <img alt="家长先疯" className="h-12 w-auto object-contain" src="/assets/logo.png" />
+            <img alt="家长先疯" className="h-[62px] w-auto object-contain" src="/assets/logo.png" />
           </Link>
           <div className="hidden items-center gap-8 xl:flex">
             <div className="flex gap-8 border-r border-[#e2e8f0] pr-8">
@@ -66,7 +66,7 @@ export const PodcastDetailNav: React.FC<NavProps> = () => {
       <div className="mx-auto flex h-full w-full max-w-screen-2xl items-center justify-between px-6">
         <div className="flex items-center gap-10">
           <Link to="/programs">
-            <img alt="家长先疯" className="h-10 w-auto object-contain" src="/assets/logo.png" />
+            <img alt="家长先疯" className="h-[52px] w-auto object-contain" src="/assets/logo.png" />
           </Link>
           <div className="hidden gap-8 md:flex">
             <a className="text-sm font-medium text-[#53433f] transition-colors hover:text-[#5e17eb]" href="#">

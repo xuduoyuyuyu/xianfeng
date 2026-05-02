@@ -9,6 +9,20 @@ interface Program {
   title?: string;
   description?: string;
   coverImage?: string;
+  summary?: {
+    tags?: string[];
+  };
+  transcript?: Array<{ text?: string }>;
+  termGlossary?: Array<{ term?: string }>;
+  dictionaryEntries?: Array<{ term?: string }>;
+  deepDive?: {
+    curatedReading?: Array<{ title?: string }>;
+  };
+  contentPack?: {
+    quickView?: Array<{ summary?: string }>;
+    minutes?: { text?: string };
+    showNotes?: { renderedText?: string };
+  };
   publishedAt?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -30,13 +44,17 @@ function safeText(value?: string) {
 }
 
 function getProgramTimestamp(program: Program) {
-  const value = program.publishedAt || program.createdAt || program.updatedAt;
+  const value = program.publishedAt || program.createdAt;
   const timestamp = Date.parse(value || "");
   return Number.isNaN(timestamp) ? 0 : timestamp;
 }
 
 function escapeRegExp(text: string) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function hasNonEmptyText(value?: string) {
+  return String(value || "").trim().length > 0;
 }
 
 const ProgramListPage: React.FC = () => {
@@ -110,6 +128,21 @@ const ProgramListPage: React.FC = () => {
     const routeId = safeText(program.programCode || program._id);
     const badge = safeText((program.programCode || "ep" + String(index + 1)).toUpperCase());
     const detailHref = `/programs/${routeId}`;
+    const hasTranscript = Array.isArray(program.transcript) && program.transcript.length > 0;
+    const hasDictionary = (Array.isArray(program.dictionaryEntries) ? program.dictionaryEntries : []).some((entry) =>
+      hasNonEmptyText(entry?.term),
+    );
+    const hasReading = (Array.isArray(program.deepDive?.curatedReading) ? program.deepDive?.curatedReading : []).some((item) =>
+      hasNonEmptyText(item?.title),
+    );
+    const programTags = Array.isArray(program.summary?.tags)
+      ? program.summary!.tags!.map((tag) => String(tag || "").trim()).filter(Boolean).slice(0, 4)
+      : [];
+    const contentPills = [
+      hasTranscript ? { icon: "description", label: "逐字稿" } : null,
+      hasDictionary ? { icon: "book_2", label: "教育词典" } : null,
+      hasReading ? { icon: "menu_book", label: "书单" } : null,
+    ].filter(Boolean) as Array<{ icon: string; label: string }>;
     return (
       <a
         key={program._id}
@@ -136,7 +169,7 @@ const ProgramListPage: React.FC = () => {
             </div>
             <div className="flex flex-col justify-center xl:w-[574px]">
               <div className="mb-3 flex items-center gap-3">
-                <span className="rounded-md bg-[#5e17eb]/10 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-[#5e17eb]">
+                <span className="inline-flex items-center rounded-full bg-[#5e17eb]/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest text-[#5e17eb]">
                   EPISODE {highlightText(badge)}
                 </span>
                 <span className="text-[11px] font-medium text-[#64748b]">
@@ -149,20 +182,31 @@ const ProgramListPage: React.FC = () => {
               <p className="mb-4 line-clamp-2 text-xs leading-relaxed text-[#64748b] sm:mb-6 sm:text-sm">
                 {highlightText(program.description || "")}
               </p>
-              <div className="flex flex-wrap gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#5e17eb] px-3 py-2 text-xs font-bold text-white shadow-sm sm:px-4 sm:py-2.5">
-                  <span className="material-symbols-outlined text-base">description</span> 逐字稿
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-lg border border-[#5e17eb]/30 bg-[#5e17eb]/5 px-3 py-2 text-xs font-bold text-[#5e17eb] sm:px-4 sm:py-2.5">
-                  <span className="material-symbols-outlined text-base">auto_awesome</span> AI速览/纪要/Shownotes
-                </span>
-                <span className="flex items-center gap-1.5 rounded-lg border border-[#e2e8f0] px-3 py-2 text-xs font-bold text-[#1a1a1b] sm:px-4 sm:py-2.5">
-                  <span className="material-symbols-outlined text-base">menu_book</span> 书单
-                </span>
-                <span className="flex items-center gap-1.5 rounded-lg border border-[#e2e8f0] px-3 py-2 text-xs font-bold text-[#1a1a1b] sm:px-4 sm:py-2.5">
-                  <span className="material-symbols-outlined text-base">school</span> 课程
-                </span>
-              </div>
+              {programTags.length > 0 ? (
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  {programTags.map((tag, tagIndex) => (
+                    <span
+                      key={`${program._id}-tag-${tagIndex}`}
+                      className="inline-flex items-center rounded-full border border-[#5e17eb]/20 bg-[#5e17eb]/5 px-2.5 py-1 text-[10px] font-bold text-[#5e17eb]"
+                    >
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              {contentPills.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {contentPills.map((pill) => (
+                    <span
+                      key={`${program._id}-${pill.label}`}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-[#e2e8f0] bg-white px-3 py-1.5 text-xs font-bold text-[#1a1a1b] sm:px-3.5"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">{pill.icon}</span>
+                      {pill.label}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
         </article>

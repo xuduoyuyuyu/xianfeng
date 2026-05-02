@@ -17,6 +17,30 @@ type DictionaryEntryInput = {
   aliases: string[];
 };
 
+const CHINESE_SENTENCE_NEGATIVE_PATTERN =
+  /(包括|但是|不过|因为|所以|如果|那么|然后|事实上|大多数人|不具备|并不构成|这个能力|这个问题|这个事情|这件事|这个内容)/;
+const ENGLISH_ALLOWED_TERMS = new Set([
+  "AI",
+  "AIGC",
+  "GPT",
+  "LLM",
+  "STEM",
+  "STEAM",
+  "IB",
+  "AP",
+  "SAT",
+  "ACT",
+  "TOEFL",
+  "IELTS",
+  "PBL",
+  "SEL",
+  "ADHD",
+  "ABA",
+]);
+const EDU_TERM_KEYWORD_PATTERN =
+  /(教育|学习|教学|课程|课堂|学校|家校|教师|学生|学科|认知|记忆|专注|执行功能|神经可塑性|心理|发展|成长|评估|反馈|动机|阅读|写作|数学|语文|英语|科学|双减|素养|思维|干预|训练|能力|策略|方法|理论|模型|机制|元认知|项目式学习|差异化教学)/;
+const CHINESE_FILLER_PATTERN = /^(?:[啊呀嗯哦呃哎欸诶唉哈喂啦呢嘛吧]{1,6}|对{2,}|嗯{2,}|呃{2,})$/;
+
 function asText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -27,6 +51,21 @@ function uniqueStrings(values: string[]) {
 
 export function normalizeDictionaryTerm(value: unknown): string {
   return asText(value).toLowerCase().replace(/\s+/g, "");
+}
+
+export function isHighQualityEducationTerm(value: unknown): boolean {
+  const term = asText(value);
+  if (!term) return false;
+  if (term.length < 2 || term.length > 24) return false;
+  if (CHINESE_FILLER_PATTERN.test(term)) return false;
+  if (/[。！？；：，,.!?;:]/.test(term)) return false;
+  if (CHINESE_SENTENCE_NEGATIVE_PATTERN.test(term)) return false;
+  if (/^[A-Za-z][A-Za-z0-9\-]{1,20}$/.test(term)) {
+    return ENGLISH_ALLOWED_TERMS.has(term.toUpperCase());
+  }
+  if (term.length >= 10 && !EDU_TERM_KEYWORD_PATTERN.test(term)) return false;
+  if (!EDU_TERM_KEYWORD_PATTERN.test(term) && term.length >= 8) return false;
+  return true;
 }
 
 function sanitizeAliases(input: unknown, normalizedTerm: string): string[] {
@@ -47,6 +86,7 @@ export function sanitizeDictionaryGlossary(input: unknown): DictionaryEntryInput
     const definition = asText(item?.definition);
     const normalizedTerm = normalizeDictionaryTerm(term);
     if (!normalizedTerm || !term || !definition) continue;
+    if (!isHighQualityEducationTerm(term)) continue;
 
     const nextItem: DictionaryEntryInput = {
       term,
@@ -258,7 +298,8 @@ export async function attachDictionaryEntriesToPrograms<T extends any>(programs:
     ...(includeHidden ? {} : { status: "active" }),
   }).lean();
 
-  const entryMap = new Map(dictionaryEntries.map((entry: any) => [String(entry._id), serializeDictionaryEntry(entry)]));
+  const filteredEntries = dictionaryEntries.filter((entry: any) => isHighQualityEducationTerm(entry?.term));
+  const entryMap = new Map(filteredEntries.map((entry: any) => [String(entry._id), serializeDictionaryEntry(entry)]));
 
   const attachOne = (program: any) => {
     const rawProgram = typeof program?.toObject === "function" ? program.toObject() : { ...program };
@@ -293,6 +334,9 @@ export async function updateDictionaryEntry(
   const nextNormalizedTerm = normalizeDictionaryTerm(nextTerm);
   if (!nextNormalizedTerm) {
     throw new Error("词条名称不能为空");
+  }
+  if (!isHighQualityEducationTerm(nextTerm)) {
+    throw new Error("词条不符合教育词典质量规则，请使用教育相关术语");
   }
 
   const duplicate = await EducationDictionaryEntry.findOne({

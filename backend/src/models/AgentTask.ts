@@ -3,7 +3,8 @@ import mongoose from "mongoose";
 export type AgentTaskType =
   | "proofread_transcript"
   | "enrich_program_content"
-  | "enrich_guest_profile";
+  | "enrich_guest_profile"
+  | "generate_program_artwork";
 
 export type AgentTaskTargetType = "program" | "guest";
 
@@ -39,7 +40,7 @@ const agentTaskSchema = new mongoose.Schema(
   {
     taskType: {
       type: String,
-      enum: ["proofread_transcript", "enrich_program_content", "enrich_guest_profile"],
+      enum: ["proofread_transcript", "enrich_program_content", "enrich_guest_profile", "generate_program_artwork"],
       required: true,
       index: true,
     },

@@ -161,11 +161,33 @@
     });
   }
 
+  function hasNonEmptyText(value) {
+    return String(value || "").trim().length > 0;
+  }
+
   function renderLargeCard(program, index) {
     const episode = (program.episodes && program.episodes[0]) || {};
     const routeId = safeText(program.programCode || program._id);
     const badge = safeText((program.programCode || ("ep" + String(index + 1))).toUpperCase());
     const isPrimary = index === 0;
+    const hasTranscript = Array.isArray(program.transcript) && program.transcript.length > 0;
+    const hasDictionary = (Array.isArray(program.dictionaryEntries) ? program.dictionaryEntries : []).some(function (entry) {
+      return hasNonEmptyText(entry && entry.term);
+    });
+    const hasReading = (Array.isArray(program.deepDive && program.deepDive.curatedReading) ? program.deepDive.curatedReading : []).some(function (item) {
+      return hasNonEmptyText(item && item.title);
+    });
+    const contentPills = [
+      hasTranscript
+        ? '<span class="inline-flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-primary-purple text-white text-sm font-bold shadow-md"><span class="material-symbols-outlined text-lg">description</span> 逐字稿</span>'
+        : "",
+      hasDictionary
+        ? '<span class="inline-flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl border border-outline-light text-on-surface text-sm font-bold"><span class="material-symbols-outlined text-lg">book_2</span> 教育词典</span>'
+        : "",
+      hasReading
+        ? '<span class="inline-flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl border border-outline-light text-on-surface text-sm font-bold"><span class="material-symbols-outlined text-lg">menu_book</span> 书单</span>'
+        : "",
+    ].filter(Boolean).join("");
     return (
       '<a href="/programs/' + routeId + '" class="block">' +
       '<article class="magazine-card p-5 sm:p-10 rounded-3xl group cursor-pointer">' +
@@ -181,10 +203,8 @@
             '<h2 class="text-[1.6rem] sm:text-3xl font-extrabold mb-4 group-hover:text-primary-purple transition-colors leading-tight">' + safeText(program.title) + "</h2>" +
             '<p class="text-on-surface-variant text-sm sm:text-base mb-6 sm:mb-8 leading-relaxed line-clamp-2">' + safeText(program.description || "") + "</p>" +
             '<div class="flex flex-wrap gap-3">' +
-              '<span class="inline-flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-primary-purple text-white text-sm font-bold shadow-md"><span class="material-symbols-outlined text-lg">description</span> 逐字稿</span>' +
               '<span class="inline-flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl border border-primary-purple/30 bg-primary-purple/5 text-primary-purple text-sm font-bold"><span class="material-symbols-outlined text-lg">auto_awesome</span> AI速览/纪要/Shownotes</span>' +
-              '<span class="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl border border-outline-light text-on-surface text-sm font-bold"><span class="material-symbols-outlined text-lg">menu_book</span> 书单</span>' +
-              '<span class="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl border border-outline-light text-on-surface text-sm font-bold"><span class="material-symbols-outlined text-lg">school</span> 课程</span>' +
+              contentPills +
             "</div>" +
           "</div>" +
         "</div>" +

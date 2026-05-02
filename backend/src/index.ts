@@ -18,6 +18,7 @@ import adminMultiAgentsRoutes from "./routes/adminMultiAgents";
 import adminDictionaryRoutes from "./routes/adminDictionary";
 import adminGuestRoutes from "./routes/adminGuest";
 import adminAgentTaskRoutes from "./routes/adminAgentTasks";
+import adminInboxRoutes from "./routes/adminInbox";
 import tutorbotRoutes from "./routes/tutorbot";
 import aiCompatRoutes from "./routes/aiCompat";
 import { UserController } from "./controllers/user";
@@ -87,6 +88,7 @@ app.use("/api/admin/guests", adminGuestRoutes);
 app.use("/api/admin", adminSystemRoutes);
 app.use("/api/admin", adminMultiAgentsRoutes);
 app.use("/api/admin", adminAgentTaskRoutes);
+app.use("/api/admin", adminInboxRoutes);
 app.use("/api/v1/tutorbot", tutorbotRoutes);
 app.use("/api/ai", aiCompatRoutes);
 

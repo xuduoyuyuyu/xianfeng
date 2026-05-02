@@ -1,9 +1,22 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { apiUrl } from "../../lib/api";
 
 type Msg = { role: "user" | "assistant"; content: string; ts?: string };
 
 const BOT_ID = "xiaowanzi_debug_bot";
+
+function isReadReceiptMessage(content: string): boolean {
+  const text = String(content || "").trim();
+  if (!text) return false;
+  if (!text.includes("我已读取")) return false;
+  return (
+    text.includes("你可以直接点下方") ||
+    text.includes("本期词典") ||
+    text.includes("嘉宾介绍") ||
+    text.includes("延伸阅读") ||
+    text.includes("内容推荐")
+  );
+}
 
 function getAuthHeaders(): Record<string, string> {
   const token = localStorage.getItem("token") || "";
@@ -16,6 +29,10 @@ const XiaowanziWidget: React.FC = () => {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [statusText, setStatusText] = useState("● 随时可用");
+  const [hasHistoryMessages, setHasHistoryMessages] = useState(false);
+  const msgContainerRef = useRef<HTMLDivElement | null>(null);
+  const latestMsgRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const avatar = useMemo(() => "/assets/wel-avatar/no-hat.png", []);
 
   async function ensureBotReady() {
@@ -52,8 +69,13 @@ const XiaowanziWidget: React.FC = () => {
     if (!res.ok) return;
     const data = await res.json();
     if (Array.isArray(data) && data.length) {
-      setMessages(data as Msg[]);
+      const filtered = (data as Msg[]).filter((m) => !isReadReceiptMessage(m.content));
+      setHasHistoryMessages(filtered.length > 0);
+      setMessages(filtered.length ? filtered : [{ role: "assistant", content: "你好，我是小玩子 ✨", ts: new Date().toISOString() }]);
+      return;
     }
+    setHasHistoryMessages(false);
+    setMessages([{ role: "assistant", content: "你好，我是小玩子 ✨", ts: new Date().toISOString() }]);
   }
 
   useEffect(() => {
@@ -63,6 +85,21 @@ const XiaowanziWidget: React.FC = () => {
       if (ok) await reloadHistory();
     })();
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const container = msgContainerRef.current;
+    if (!container) return;
+    requestAnimationFrame(() => {
+      if (hasHistoryMessages && latestMsgRef.current) {
+        const top = latestMsgRef.current.offsetTop - container.offsetTop;
+        container.scrollTo({ top: Math.max(0, top) });
+        return;
+      }
+      container.scrollTo({ top: container.scrollHeight });
+      inputRef.current?.focus();
+    });
+  }, [open, messages, hasHistoryMessages]);
 
   async function sendMessage(text?: string) {
     const content = (text ?? input).trim();
@@ -137,9 +174,13 @@ const XiaowanziWidget: React.FC = () => {
             </div>
             <button className="aip-close" onClick={() => setOpen(false)} type="button">close</button>
           </div>
-          <div className="aip-msgs" id="aip-msgs">
+          <div className="aip-msgs" id="aip-msgs" ref={msgContainerRef}>
             {messages.map((m, idx) => (
-              <div key={`${idx}-${m.ts || ""}`} className={`aip-msg ${m.role}`}>
+              <div
+                key={`${idx}-${m.ts || ""}`}
+                className={`aip-msg ${m.role}`}
+                ref={idx === messages.length - 1 ? latestMsgRef : null}
+              >
                 <div className="aip-bubble">{m.content}</div>
               </div>
             ))}
@@ -151,7 +192,7 @@ const XiaowanziWidget: React.FC = () => {
             <button className="aip-sc" type="button" onClick={() => void sendMessage("请给我今天的学习建议")}>📅 今日建议</button>
           </div>
           <div className="aip-input-row">
-            <textarea className="aip-input" id="aip-input" rows={1} placeholder="问我任何学习问题…" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={onInputKeyDown} />
+            <textarea ref={inputRef} className="aip-input" id="aip-input" rows={1} placeholder="问我任何学习问题…" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={onInputKeyDown} />
             <button className="aip-send" id="aip-send" type="button" onClick={() => void sendMessage()} disabled={sending}>{sending ? "..." : "send"}</button>
           </div>
         </div>

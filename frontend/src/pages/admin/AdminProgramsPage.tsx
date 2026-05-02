@@ -114,6 +114,18 @@ const PARSING_PROGRESS = 12;
 const UPLOAD_TASK_STORAGE_KEY = "admin-program-upload-task";
 const SPEAKER_SUGGESTIONS = ["主持人", "嘉宾1", "嘉宾2", "嘉宾"];
 const PROGRAMS_PAGE_SIZE = 20;
+const EDIT_MODAL_BUTTON_BASE = "rounded-full px-4 py-1.5 text-xs font-bold transition-colors disabled:opacity-60";
+const ARTWORK_STYLE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "cinematic_poster", label: "电影级光影（强对比）" },
+  { value: "editorial_brutalist", label: "Brutalist 冲击构图（硬朗块面）" },
+  { value: "neo_noir", label: "新黑色霓虹（情绪张力）" },
+  { value: "swiss_grid", label: "瑞士秩序网格（理性结构）" },
+  { value: "collage_manifesto", label: "拼贴宣言（多层纹理）" },
+];
+const ARTWORK_STYLE_LABEL_MAP = ARTWORK_STYLE_OPTIONS.reduce<Record<string, string>>((acc, item) => {
+  acc[item.value] = item.label;
+  return acc;
+}, {});
 
 function getParseStageLabel(stage = ""): string {
   const stageMap: Record<string, string> = {
@@ -541,8 +553,11 @@ const AdminProgramsPage: React.FC = () => {
   const [guestSearch, setGuestSearch] = useState("");
   const [guestCandidates, setGuestCandidates] = useState<Guest[]>([]);
   const [guestBindingRows, setGuestBindingRows] = useState<EditableGuestBinding[]>([]);
+  const [dragGuestId, setDragGuestId] = useState("");
   const [programAgentTasks, setProgramAgentTasks] = useState<AgentTask[]>([]);
   const [programAgentLoading, setProgramAgentLoading] = useState(false);
+  const [applyArtworkLoading, setApplyArtworkLoading] = useState(false);
+  const [artworkStyle, setArtworkStyle] = useState<string>("cinematic_poster");
   const [parseEditorTab, setParseEditorTab] = useState<ParseEditorTab>("quickview");
   const audioInputRef = useRef<HTMLInputElement | null>(null);
   const coverImageInputRef = useRef<HTMLInputElement | null>(null);
@@ -655,6 +670,21 @@ const AdminProgramsPage: React.FC = () => {
       })
       .slice(0, 20);
   }, [guestCandidates, guestSearch]);
+  const orderedGuestCandidates = useMemo(() => {
+    const orderMap = new Map(guestBindingRows.map((item, idx) => [item.guestId, Number(item.order) || idx + 1]));
+    const list = [...filteredGuestCandidates];
+    list.sort((a, b) => {
+      const aOrder = orderMap.get(a._id);
+      const bOrder = orderMap.get(b._id);
+      const aBound = Number.isFinite(aOrder as number);
+      const bBound = Number.isFinite(bOrder as number);
+      if (aBound && bBound) return (aOrder as number) - (bOrder as number);
+      if (aBound) return -1;
+      if (bBound) return 1;
+      return (a.name || "").localeCompare(b.name || "");
+    });
+    return list;
+  }, [filteredGuestCandidates, guestBindingRows]);
   const transcriptEditorIssues = useMemo(() => validateTranscriptRows(transcriptRows), [transcriptRows]);
   const transcriptEditorIssuesByRow = useMemo(() => {
     const grouped = new Map<number, TranscriptValidationIssue[]>();
@@ -671,6 +701,21 @@ const AdminProgramsPage: React.FC = () => {
     () => programAgentTasks.find((item) => item.taskType === "enrich_program_content") || null,
     [programAgentTasks]
   );
+  const latestArtworkTask = useMemo(
+    () => programAgentTasks.find((item) => item.taskType === "generate_program_artwork") || null,
+    [programAgentTasks]
+  );
+
+  const artworkTaskStatusText = useMemo(() => {
+    if (!latestArtworkTask) return "暂无任务记录";
+    const applied = latestArtworkTask.output?.applied === true;
+    const base = latestArtworkTask.status;
+    const summary = latestArtworkTask.outputSummary ? ` · ${latestArtworkTask.outputSummary}` : "";
+    const styleKey = String(latestArtworkTask.output?.artworkStyle || "").trim();
+    const styleText = styleKey ? ` · 风格:${ARTWORK_STYLE_LABEL_MAP[styleKey] || styleKey}` : "";
+    if (base === "succeeded" && !applied) return `succeeded(未应用)${styleText}${summary}`;
+    return `${base}${styleText}${summary}`;
+  }, [latestArtworkTask]);
 
   const loadProgramAgentTasks = async (programId: string) => {
     setProgramAgentLoading(true);
@@ -712,7 +757,13 @@ const AdminProgramsPage: React.FC = () => {
         targetId: editingProgram._id,
         options,
       });
-      setParseHint(taskType === "proofread_transcript" ? "已触发文稿校对任务。" : "已触发资料收集任务。");
+      setParseHint(
+        taskType === "proofread_transcript"
+          ? "已触发文稿校对任务。"
+          : taskType === "enrich_program_content"
+            ? "已触发资料收集任务。"
+            : "已触发配图生成任务。"
+      );
       await loadProgramAgentTasks(editingProgram._id);
       await refreshEditingProgram(editingProgram._id);
     } catch (taskError: any) {
@@ -733,6 +784,29 @@ const AdminProgramsPage: React.FC = () => {
       setError(taskError?.response?.data?.message || taskError?.message || "重试任务失败");
     } finally {
       setProgramAgentLoading(false);
+    }
+  };
+
+  const applyArtworkCandidate = async () => {
+    if (!editingProgram?._id || !latestArtworkTask) return;
+    const candidateUrl = String(latestArtworkTask.output?.generatedCoverImage || "").trim();
+    if (!candidateUrl) {
+      setError("当前任务没有可应用的候选封面 URL");
+      return;
+    }
+    setApplyArtworkLoading(true);
+    setError(null);
+    try {
+      await adminApi.updateProgram(editingProgram._id, { coverImage: candidateUrl });
+      setForm((prev) => ({ ...prev, coverImage: candidateUrl }));
+      setParseHint("已应用本次配图候选封面。");
+      window.alert("已应用本次配图。");
+      await refreshEditingProgram(editingProgram._id);
+      await loadProgramAgentTasks(editingProgram._id);
+    } catch (applyError: any) {
+      setError(applyError?.response?.data?.message || applyError?.message || "应用配图失败");
+    } finally {
+      setApplyArtworkLoading(false);
     }
   };
 
@@ -824,6 +898,43 @@ const AdminProgramsPage: React.FC = () => {
   const openContentEnhancement = (program: Program) => {
     loadProgramIntoForm(program);
     setParseEditorTab("quickview");
+  };
+
+  const copyPreviewLink = async (program: Program) => {
+    const id = (program._id || "").trim();
+    if (!id) {
+      setError("无法生成预览链接：缺少节目ID");
+      return;
+    }
+    try {
+      const response = await adminApi.createProgramPreviewLink(id, 72);
+      const path = String(response.data?.path || "").trim();
+      if (!path) {
+        setError("生成预览链接失败");
+        return;
+      }
+      const previewUrl = `${window.location.origin}${path}`;
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(previewUrl);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = previewUrl;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      setError(null);
+      setParseHint(`预览链接已复制：${previewUrl}`);
+      window.alert("预览链接已复制，并已为你打开预览页面。");
+      window.open(previewUrl, "_blank", "noopener,noreferrer");
+    } catch (previewError: any) {
+      const detail = previewError?.response?.data?.message || previewError?.message || "复制失败";
+      setError(`${detail}，请重试`);
+    }
   };
 
   const closeModal = () => {
@@ -1027,17 +1138,25 @@ const AdminProgramsPage: React.FC = () => {
     );
   };
 
-  const moveGuestBindingRow = (guestId: string, direction: -1 | 1) => {
+  const toggleGuestBinding = (guest: Guest) => {
+    const exists = guestBindingRows.some((item) => item.guestId === guest._id);
+    if (exists) {
+      removeGuestBindingRow(guest._id);
+      return;
+    }
+    addGuestBindingRow(guest);
+  };
+
+  const reorderGuestBindingRows = (fromGuestId: string, toGuestId: string) => {
+    if (!fromGuestId || !toGuestId || fromGuestId === toGuestId) return;
     setGuestBindingRows((prev) => {
-      const idx = prev.findIndex((item) => item.guestId === guestId);
-      if (idx < 0) return prev;
-      const nextIdx = idx + direction;
-      if (nextIdx < 0 || nextIdx >= prev.length) return prev;
-      const cloned = prev.slice();
-      const tmp = cloned[idx];
-      cloned[idx] = cloned[nextIdx];
-      cloned[nextIdx] = tmp;
-      return cloned.map((item, i) => ({ ...item, order: i + 1 }));
+      const list = prev.slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+      const fromIdx = list.findIndex((item) => item.guestId === fromGuestId);
+      const toIdx = list.findIndex((item) => item.guestId === toGuestId);
+      if (fromIdx < 0 || toIdx < 0) return prev;
+      const [moved] = list.splice(fromIdx, 1);
+      list.splice(toIdx, 0, moved);
+      return list.map((item, idx) => ({ ...item, order: idx + 1 }));
     });
   };
 
@@ -1554,43 +1673,6 @@ const AdminProgramsPage: React.FC = () => {
         </div>
 
         <section className="pearl-card overflow-hidden rounded-[2.5rem] border-stone-200/60">
-
-          {editingProgram && !isModalOpen ? (
-            <div className="border-b border-stone-100 bg-stone-50/40 p-8">
-              <div className="space-y-5">
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[0.2em] text-[#5e17eb]">Manuscript</p>
-                    <h3 className="mt-2 text-xl font-black text-stone-900">{editingProgram.title}</h3>
-                    <p className="mt-1 text-xs font-bold text-stone-500">编号：{(editingProgram.programCode || editingProgram._id.slice(-8)).toUpperCase()}</p>
-                  </div>
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      className="rounded-full border border-stone-200 bg-white px-5 py-2.5 text-sm font-bold text-stone-700 hover:border-[#5e17eb] hover:text-[#5e17eb]"
-                      onClick={() => {
-                        setEditingProgram(null);
-                        setForm(EMPTY_FORM);
-                        setParseEditorTab("quickview");
-                      }}
-                      type="button"
-                    >
-                      收起文稿
-                    </button>
-                    <button
-                      className="rounded-full bg-[#5e17eb] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#5112d1] disabled:cursor-not-allowed disabled:opacity-60"
-                      disabled={saving}
-                      onClick={handleSaveContentEnhancement}
-                      type="button"
-                    >
-                      {saving ? "保存中..." : "保存文稿"}
-                    </button>
-                  </div>
-                </div>
-                {renderContentEnhancementFields()}
-              </div>
-            </div>
-          ) : null}
-
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead className="bg-stone-50/50 text-[10px] font-bold tracking-[0.08em] text-[#8A847E]">
@@ -1660,129 +1742,181 @@ const AdminProgramsPage: React.FC = () => {
                     ) : null}
                     {items.map((row) => {
                       const rowUploadTask = currentUploadTask?.programId === row._id ? currentUploadTask : null;
+                      const isInlineEditingRow = !!editingProgram && !isModalOpen && editingProgram._id === row._id;
                       return (
-                    <tr key={row._id}>
-                      <td className="px-10 py-6">
-                        <div className="flex items-center gap-5">
-                          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#5e17eb]/5 text-[#5e17eb]">
-                            <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-                              mic
-                            </span>
-                          </div>
-                          <div className="min-w-0">
-                            <div className="mb-1 flex items-center gap-2">
-                              <div className="text-[11px] font-medium tracking-[0.08em] text-[#7A746E] whitespace-nowrap">
-                                编号: {(row.programCode || row._id.slice(-8)).toUpperCase()}
-                              </div>
-                            </div>
-                            <div className="text-[15px] font-bold leading-[1.25] text-stone-900">{row.title}</div>
-                            {rowUploadTask && rowUploadTask.phase !== "success" ? (
-                              <div className="mt-2 max-w-[300px]">
-                                <div className="flex items-center gap-2">
-                                  <div className={`text-[11px] font-bold ${rowUploadTask.phase === "failed" ? "text-red-500" : "text-[#5e17eb]"}`}>
-                                    {rowUploadTask.phase === "parsing" ? getParseStageLabel(rowUploadTask.parseStage) : buildUploadTaskTitle(rowUploadTask.phase, rowUploadTask.progress)}
+                        <React.Fragment key={row._id}>
+                          <tr>
+                            <td className="px-10 py-6">
+                              <div className="flex items-center gap-5">
+                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#5e17eb]/5 text-[#5e17eb]">
+                                  <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                                    mic
+                                  </span>
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="mb-1 flex items-center gap-2">
+                                    <div className="text-[11px] font-medium tracking-[0.08em] text-[#7A746E] whitespace-nowrap">
+                                      编号: {(row.programCode || row._id.slice(-8)).toUpperCase()}
+                                    </div>
                                   </div>
+                                  <div className="text-[15px] font-bold leading-[1.25] text-stone-900">{row.title}</div>
+                                  {rowUploadTask && rowUploadTask.phase !== "success" ? (
+                                    <div className="mt-2 max-w-[300px]">
+                                      <div className="flex items-center gap-2">
+                                        <div className={`text-[11px] font-bold ${rowUploadTask.phase === "failed" ? "text-red-500" : "text-[#5e17eb]"}`}>
+                                          {rowUploadTask.phase === "parsing" ? getParseStageLabel(rowUploadTask.parseStage) : buildUploadTaskTitle(rowUploadTask.phase, rowUploadTask.progress)}
+                                        </div>
+                                      </div>
+                                      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-stone-100">
+                                        <div
+                                          className={`h-full rounded-full transition-all ${rowUploadTask.phase === "failed" ? "bg-red-400" : "bg-[#5e17eb]"}`}
+                                          style={{ width: `${rowUploadTask.progress}%` }}
+                                        />
+                                      </div>
+                                      <div className="mt-1.5 line-clamp-2 text-[11px] leading-4 text-stone-500">
+                                        {rowUploadTask.failureReason || buildUploadStageHint(rowUploadTask.phase, rowUploadTask.progress, rowUploadTask.parseStage)}
+                                      </div>
+                                      {rowUploadTask.phase === "failed" ? (
+                                        <div className="mt-2">
+                                          <button
+                                            className="inline-flex items-center rounded-full bg-[#f7f3ff] px-[13px] py-[3px] !text-[13px] !font-bold leading-none whitespace-nowrap text-[#5e17eb] transition-colors hover:bg-[#efe5ff]"
+                                            onClick={() => handleReparse(row)}
+                                            type="button"
+                                          >
+                                            重新解析
+                                          </button>
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
                                 </div>
-                                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-stone-100">
-                                  <div
-                                    className={`h-full rounded-full transition-all ${rowUploadTask.phase === "failed" ? "bg-red-400" : "bg-[#5e17eb]"}`}
-                                    style={{ width: `${rowUploadTask.progress}%` }}
-                                  />
-                                </div>
-                                <div className="mt-1.5 line-clamp-2 text-[11px] leading-4 text-stone-500">
-                                  {rowUploadTask.failureReason || buildUploadStageHint(rowUploadTask.phase, rowUploadTask.progress, rowUploadTask.parseStage)}
-                                </div>
-                                {rowUploadTask.phase === "failed" ? (
-                                  <div className="mt-2">
-                                    <button
-                                      className="inline-flex items-center rounded-full bg-[#f7f3ff] px-2.5 py-0.5 !text-[10px] !font-bold leading-none whitespace-nowrap text-[#5e17eb] transition-colors hover:bg-[#efe5ff]"
-                                      onClick={() => handleReparse(row)}
-                                      type="button"
-                                    >
-                                      重新解析
-                                    </button>
-                                  </div>
-                                ) : null}
                               </div>
-                            ) : null}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-10 py-6 text-center">
-                        <div className="flex items-center justify-center gap-0">
-                          <span
-                            className={`inline-flex h-7 min-w-9 items-center justify-center rounded-full px-2 text-[10px] font-bold ${
-                              row.status === "published" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
-                            }`}
-                          >
-                            {row.status === "published" ? "ON" : "OFF"}
-                          </span>
-                          <div className="-ml-px text-xs text-stone-500 whitespace-nowrap">
-                            {(row.dictionaryEntries || []).length > 0 ? (
-                              <span className="inline-flex items-center rounded-full bg-[#f7f3ff] px-3 py-1 text-[11px] font-semibold text-[#5e17eb]">
-                                {(row.dictionaryEntries || []).length} 个词条
+                            </td>
+                            <td className="px-10 py-6 text-center">
+                              <div className="flex items-center justify-center gap-0">
+                                <span
+                                  className={`inline-flex h-7 min-w-9 items-center justify-center rounded-full px-2 text-[10px] font-bold ${
+                                    row.status === "published" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
+                                  }`}
+                                >
+                                  {row.status === "published" ? "ON" : "OFF"}
+                                </span>
+                                <div className="-ml-px text-xs text-stone-500 whitespace-nowrap">
+                                  {(row.dictionaryEntries || []).length > 0 ? (
+                                    <span className="inline-flex items-center rounded-full bg-[#f7f3ff] px-3 py-1 text-[11px] font-semibold text-[#5e17eb]">
+                                      {(row.dictionaryEntries || []).length} 个词条
+                                    </span>
+                                  ) : (
+                                    <span className="text-[11px] text-stone-400">待导入词条</span>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-10 py-6 text-center">
+                              <span className={`inline-flex items-center justify-center whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-semibold ${row.status === "published" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                                {STATUS_LABEL[row.status]}
                               </span>
-                            ) : (
-                              <span className="text-[11px] text-stone-400">待导入词条</span>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-10 py-6 text-center">
-                        <span className={`inline-flex items-center justify-center whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-semibold ${row.status === "published" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                          {STATUS_LABEL[row.status]}
-                        </span>
-                      </td>
-                      <td className="px-10 py-6 text-center text-[14px] font-semibold text-stone-500">{formatDate(row.publishedAt || row.createdAt)}</td>
-                      <td className="px-10 py-6 text-center">
-                        {row.parseStatus && row.parseStatus !== "idle" ? (
-                          <button
-                            className="inline-flex items-center rounded-full bg-[#f7f3ff] px-2.5 py-0.5 !text-[10px] !font-bold leading-none whitespace-nowrap text-[#5e17eb] transition-colors hover:bg-[#efe5ff] disabled:cursor-not-allowed disabled:opacity-60"
-                            onClick={() => handleReparse(row)}
-                            disabled={row.parseStatus === "parsing"}
-                            type="button"
-                          >
-                            {row.parseStatus === "parsing" ? "解析中" : "重新解析"}
-                          </button>
-                        ) : (
-                          <span className="text-[11px] font-semibold text-stone-300">-</span>
-                        )}
-                      </td>
-                      <td className="min-w-[460px] px-10 py-6 text-center">
-                        <div className="flex items-center justify-center gap-2 whitespace-nowrap">
-                          <div className="grid grid-cols-2 gap-2">
-                            <button
-                              className="shrink-0 whitespace-nowrap rounded-full border border-stone-200 px-3 py-0.5 font-semibold text-stone-700 transition-colors hover:bg-stone-50"
-                              style={{ fontSize: "12px" }}
-                              onClick={() => openEdit(row)}
-                            >
-                              编辑
-                            </button>
-                            <button
-                              className="shrink-0 whitespace-nowrap rounded-full border border-[#5e17eb]/20 bg-[#f7f3ff] px-3 py-0.5 font-semibold text-[#5e17eb] transition-colors hover:bg-[#efe5ff]"
-                              style={{ fontSize: "12px" }}
-                              onClick={() => openContentEnhancement(row)}
-                            >
-                              文稿
-                            </button>
-                            <button
-                              className="shrink-0 whitespace-nowrap rounded-full border border-stone-200 px-3 py-0.5 font-semibold text-stone-700 transition-colors hover:bg-stone-50"
-                              style={{ fontSize: "12px" }}
-                              onClick={() => handleToggleStatus(row)}
-                            >
-                              {row.status === "published" ? "下架" : "发布"}
-                            </button>
-                            <button
-                              className="shrink-0 whitespace-nowrap rounded-full border border-red-100 px-3 py-0.5 font-semibold text-red-500 transition-colors hover:bg-red-50"
-                              style={{ fontSize: "12px" }}
-                              onClick={() => handleDelete(row)}
-                            >
-                              删除
-                            </button>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
+                            </td>
+                            <td className="px-10 py-6 text-center text-[14px] font-semibold text-stone-500">{formatDate(row.publishedAt || row.createdAt)}</td>
+                            <td className="px-10 py-6 text-center">
+                              {row.parseStatus && row.parseStatus !== "idle" ? (
+                                <button
+                                  className="inline-flex items-center rounded-full bg-[#f7f3ff] px-[13px] py-[3px] !text-[13px] !font-bold leading-none whitespace-nowrap text-[#5e17eb] transition-colors hover:bg-[#efe5ff] disabled:cursor-not-allowed disabled:opacity-60"
+                                  onClick={() => handleReparse(row)}
+                                  disabled={row.parseStatus === "parsing"}
+                                  type="button"
+                                >
+                                  {row.parseStatus === "parsing" ? "解析中" : "重新解析"}
+                                </button>
+                              ) : (
+                                <span className="text-[11px] font-semibold text-stone-300">-</span>
+                              )}
+                            </td>
+                            <td className="min-w-[460px] px-10 py-6 text-center">
+                              <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                                <div className="grid grid-cols-3 gap-2">
+                                  <button
+                                    className="shrink-0 whitespace-nowrap rounded-full border border-stone-200 px-3 py-0.5 font-semibold text-stone-700 transition-colors hover:bg-stone-50"
+                                    style={{ fontSize: "12px" }}
+                                    onClick={() => openEdit(row)}
+                                  >
+                                    编辑
+                                  </button>
+                                  <button
+                                    className="shrink-0 whitespace-nowrap rounded-full border border-[#5e17eb]/20 bg-[#f7f3ff] px-3 py-0.5 font-semibold text-[#5e17eb] transition-colors hover:bg-[#efe5ff]"
+                                    style={{ fontSize: "12px" }}
+                                    onClick={() => openContentEnhancement(row)}
+                                  >
+                                    文稿
+                                  </button>
+                                  <button
+                                    className="shrink-0 whitespace-nowrap rounded-full border border-[#2563eb]/20 bg-[#eff6ff] px-3 py-0.5 font-semibold text-[#2563eb] transition-colors hover:bg-[#dbeafe]"
+                                    style={{ fontSize: "12px" }}
+                                    onClick={() => copyPreviewLink(row)}
+                                    type="button"
+                                  >
+                                    预览
+                                  </button>
+                                  <button
+                                    className={`shrink-0 whitespace-nowrap rounded-full px-3 py-0.5 font-semibold transition-colors ${
+                                      row.status === "published"
+                                        ? "border border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
+                                        : "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                                    }`}
+                                    style={{ fontSize: "12px" }}
+                                    onClick={() => handleToggleStatus(row)}
+                                  >
+                                    {row.status === "published" ? "下架" : "发布"}
+                                  </button>
+                                  <button
+                                    className="shrink-0 whitespace-nowrap rounded-full border border-stone-200 bg-stone-100 px-3 py-0.5 font-semibold text-stone-500 transition-colors hover:border-[#ff1f1f] hover:bg-[#ff1f1f] hover:text-white"
+                                    style={{ fontSize: "12px" }}
+                                    onClick={() => handleDelete(row)}
+                                  >
+                                    删除
+                                  </button>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                          {isInlineEditingRow ? (
+                            <tr>
+                              <td colSpan={6} className="bg-stone-50/40 px-10 py-8">
+                                <div className="space-y-5 rounded-[1.5rem] border border-stone-200/80 bg-white p-6">
+                                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                    <div>
+                                      <p className="text-xs font-black uppercase tracking-[0.2em] text-[#5e17eb]">Manuscript</p>
+                                      <h3 className="mt-2 text-xl font-black text-stone-900">{editingProgram.title}</h3>
+                                      <p className="mt-1 text-xs font-bold text-stone-500">编号：{(editingProgram.programCode || editingProgram._id.slice(-8)).toUpperCase()}</p>
+                                    </div>
+                                    <div className="flex flex-wrap gap-3">
+                                      <button
+                                        className="rounded-full border border-stone-200 bg-white px-5 py-2.5 text-sm font-bold text-stone-700 hover:border-[#5e17eb] hover:text-[#5e17eb]"
+                                        onClick={() => {
+                                          setEditingProgram(null);
+                                          setForm(EMPTY_FORM);
+                                          setParseEditorTab("quickview");
+                                        }}
+                                        type="button"
+                                      >
+                                        收起文稿
+                                      </button>
+                                      <button
+                                        className="rounded-full bg-[#5e17eb] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#5112d1] disabled:cursor-not-allowed disabled:opacity-60"
+                                        disabled={saving}
+                                        onClick={handleSaveContentEnhancement}
+                                        type="button"
+                                      >
+                                        {saving ? "保存中..." : "保存文稿"}
+                                      </button>
+                                    </div>
+                                  </div>
+                                  {renderContentEnhancementFields()}
+                                </div>
+                              </td>
+                            </tr>
+                          ) : null}
+                        </React.Fragment>
                       );
                     })}
                   </>
@@ -1847,7 +1981,7 @@ const AdminProgramsPage: React.FC = () => {
                 <input className="w-full bg-transparent text-sm outline-none admin-form-input" placeholder="封面图片 URL" required value={form.coverImage} onChange={(event) => setForm((prev) => ({ ...prev, coverImage: event.target.value }))} />
                 <div className="mt-2 flex items-center justify-between">
                   <span className="text-[11px] text-stone-500">前台链接将使用：{`/programs/${form.programCode || "ep1"}`}</span>
-                  <button className="rounded-full border border-[#5e17eb]/20 px-3 py-1 text-[11px] font-bold text-[#5e17eb]" type="button" onClick={() => coverImageInputRef.current?.click()}>
+                  <button className={`${EDIT_MODAL_BUTTON_BASE} border border-[#5e17eb]/20 text-[#5e17eb] hover:bg-[#f7f3ff]`} type="button" onClick={() => coverImageInputRef.current?.click()}>
                     上传封面
                   </button>
                 </div>
@@ -1892,10 +2026,10 @@ const AdminProgramsPage: React.FC = () => {
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                       <div>
                         <p className="text-xs font-black uppercase tracking-widest text-[#7A746E]">先疯智库关联</p>
-                        <p className="mt-2 text-xs text-stone-500">可关联多个嘉宾，支持顺序与角色；前台详情页优先按这里渲染。</p>
+                        <p className="mt-2 text-xs text-stone-500">点击按钮切换关联状态；已关联项可在列表中拖拽调整顺序。</p>
                       </div>
                       <button
-                        className="rounded-full border border-[#5e17eb]/20 px-3 py-1 text-[11px] font-bold text-[#5e17eb]"
+                        className={`${EDIT_MODAL_BUTTON_BASE} border border-[#5e17eb]/20 text-[#5e17eb] hover:bg-[#f7f3ff]`}
                         onClick={() => loadGuestCandidates(guestSearch)}
                         type="button"
                       >
@@ -1911,61 +2045,49 @@ const AdminProgramsPage: React.FC = () => {
                       />
                     </div>
                     <div className="mt-3 max-h-40 overflow-y-auto rounded-xl border border-stone-100 bg-stone-50 p-2">
-                      {filteredGuestCandidates.length === 0 ? (
+                      {orderedGuestCandidates.length === 0 ? (
                         <div className="px-2 py-3 text-xs text-stone-400">暂无可关联嘉宾，请先在“先疯智库”新建。</div>
                       ) : (
-                        filteredGuestCandidates.map((guest) => {
-                          const disabled = guestBindingRows.some((item) => item.guestId === guest._id);
+                        orderedGuestCandidates.map((guest) => {
+                          const linked = guestBindingRows.some((item) => item.guestId === guest._id);
                           return (
                             <button
                               key={guest._id}
-                              className={`mb-1 flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs ${disabled ? "bg-stone-100 text-stone-400" : "bg-white text-stone-700 hover:bg-[#f7f3ff]"}`}
-                              disabled={disabled}
-                              onClick={() => addGuestBindingRow(guest)}
+                              className={`mb-1 flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs ${
+                                linked ? "bg-[#f7f3ff] text-stone-700" : "bg-white text-stone-700 hover:bg-[#f7f3ff]"
+                              }`}
+                              draggable={linked}
+                              onDragStart={() => {
+                                if (!linked) return;
+                                setDragGuestId(guest._id);
+                              }}
+                              onDragOver={(event) => {
+                                if (!linked || !dragGuestId) return;
+                                event.preventDefault();
+                              }}
+                              onDrop={(event) => {
+                                if (!linked || !dragGuestId) return;
+                                event.preventDefault();
+                                reorderGuestBindingRows(dragGuestId, guest._id);
+                                setDragGuestId("");
+                              }}
+                              onDragEnd={() => setDragGuestId("")}
+                              onClick={() => toggleGuestBinding(guest)}
                               type="button"
                             >
                               <span>{guest.name}{guest.title ? ` · ${guest.title}` : ""}</span>
                               <span
                                 className={`inline-flex min-w-[68px] items-center justify-center rounded-full px-3 py-1 text-[11px] font-bold ${
-                                  disabled
-                                    ? "border border-[#5e17eb]/20 bg-[#5e17eb]/10 text-[#5e17eb]/65"
+                                  linked
+                                    ? "border border-[#5e17eb]/20 bg-[#5e17eb]/10 text-[#5e17eb]"
                                     : "border border-[#5e17eb]/35 bg-[#5e17eb] text-white"
                                 }`}
                               >
-                                {disabled ? "已关联" : "关联"}
+                                {linked ? "已关联" : "关联"}
                               </span>
                             </button>
                           );
                         })
-                      )}
-                    </div>
-                    <div className="mt-3 space-y-2">
-                      {guestBindingRows.length === 0 ? (
-                        <div className="rounded-lg border border-dashed border-stone-200 px-3 py-2 text-xs text-stone-400">当前未关联嘉宾，请从先疯智库选择并关联。</div>
-                      ) : (
-                        guestBindingRows
-                          .slice()
-                          .sort((a, b) => a.order - b.order)
-                          .map((item, idx) => (
-                            <div key={item.guestId} className="flex flex-col gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 py-3 md:flex-row md:items-center">
-                              <div className="flex-1 text-sm font-bold text-stone-800">{item.guest?.name || item.guestId}</div>
-                              <input
-                                className="w-full rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs md:w-40 admin-form-input"
-                                placeholder="角色，如 main_guest"
-                                value={item.role}
-                                onChange={(event) =>
-                                  setGuestBindingRows((prev) =>
-                                    prev.map((row) => (row.guestId === item.guestId ? { ...row, role: event.target.value } : row))
-                                  )
-                                }
-                              />
-                              <div className="flex items-center gap-1">
-                                <button className="rounded-full border border-stone-200 px-2 py-1 text-[11px]" disabled={idx === 0} onClick={() => moveGuestBindingRow(item.guestId, -1)} type="button">上移</button>
-                                <button className="rounded-full border border-stone-200 px-2 py-1 text-[11px]" disabled={idx === guestBindingRows.length - 1} onClick={() => moveGuestBindingRow(item.guestId, 1)} type="button">下移</button>
-                                <button className="rounded-full border border-red-100 px-2 py-1 text-[11px] text-red-500" onClick={() => removeGuestBindingRow(item.guestId)} type="button">移除</button>
-                              </div>
-                            </div>
-                          ))
                       )}
                     </div>
                   </div>
@@ -1990,7 +2112,7 @@ const AdminProgramsPage: React.FC = () => {
                       </div>
                       {editingProgram ? (
                         <button
-                          className="inline-flex items-center gap-2 rounded-full border border-[#5e17eb]/20 bg-white px-4 py-2 text-xs font-bold text-[#5e17eb] hover:border-[#5e17eb] hover:bg-[#f7f3ff]"
+                          className={`inline-flex items-center gap-2 ${EDIT_MODAL_BUTTON_BASE} border border-[#5e17eb]/20 bg-white text-[#5e17eb] hover:border-[#5e17eb] hover:bg-[#f7f3ff]`}
                           onClick={openDictionaryDialog}
                           type="button"
                         >
@@ -2003,42 +2125,26 @@ const AdminProgramsPage: React.FC = () => {
 
                   {editingProgram ? (
                     <div className="md:col-span-2 rounded-2xl border border-stone-200 bg-white px-4 py-4">
-                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div>
                         <div>
                           <p className="text-xs font-black uppercase tracking-widest text-[#7A746E]">Agent 工作台</p>
-                          <p className="mt-1 text-xs text-stone-500">统一调度：文稿校对自动触发；资料收集支持手动触发与重试。</p>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            className="rounded-full border border-[#5e17eb]/25 bg-white px-3 py-1.5 text-xs font-bold text-[#5e17eb] hover:bg-[#f7f3ff] disabled:opacity-60"
-                            type="button"
-                            disabled={programAgentLoading}
-                            onClick={() => triggerProgramTask("proofread_transcript")}
-                          >
-                            重新校对
-                          </button>
-                          <button
-                            className="rounded-full border border-[#5e17eb]/25 bg-white px-3 py-1.5 text-xs font-bold text-[#5e17eb] hover:bg-[#f7f3ff] disabled:opacity-60"
-                            type="button"
-                            disabled={programAgentLoading}
-                            onClick={() => triggerProgramTask("enrich_program_content", { forceOverwrite: false })}
-                          >
-                            资料收集
-                          </button>
-                          <button
-                            className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 hover:bg-amber-100 disabled:opacity-60"
-                            type="button"
-                            disabled={programAgentLoading}
-                            onClick={() => triggerProgramTask("enrich_program_content", { forceOverwrite: true })}
-                          >
-                            强制覆盖收集
-                          </button>
+                          <p className="mt-1 text-xs text-stone-500">统一调度：文稿校对自动触发；资料收集与配图生成支持分板块触发与重试。</p>
                         </div>
                       </div>
 
-                      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
                         <div className="rounded-xl border border-stone-100 bg-stone-50 px-3 py-2 text-xs text-stone-600">
-                          <p className="font-bold text-stone-700">文稿校对任务</p>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-bold text-stone-700">文稿校对任务</p>
+                            <button
+                              className={`${EDIT_MODAL_BUTTON_BASE} border border-[#5e17eb]/25 bg-white text-[#5e17eb] hover:bg-[#f7f3ff]`}
+                              type="button"
+                              disabled={programAgentLoading}
+                              onClick={() => triggerProgramTask("proofread_transcript")}
+                            >
+                              开始校对
+                            </button>
+                          </div>
                           <p className="mt-1">
                             {latestProofreadTask
                               ? `${latestProofreadTask.status}${latestProofreadTask.outputSummary ? ` · ${latestProofreadTask.outputSummary}` : ""}`
@@ -2047,7 +2153,7 @@ const AdminProgramsPage: React.FC = () => {
                           {latestProofreadTask?.status === "failed" ? (
                             <button
                               type="button"
-                              className="mt-2 rounded-full border border-red-200 px-3 py-1 text-[11px] font-bold text-red-600"
+                              className={`mt-2 ${EDIT_MODAL_BUTTON_BASE} border border-red-200 text-red-600 hover:bg-red-50`}
                               onClick={() => retryProgramTask(latestProofreadTask._id)}
                             >
                               重试
@@ -2055,7 +2161,17 @@ const AdminProgramsPage: React.FC = () => {
                           ) : null}
                         </div>
                         <div className="rounded-xl border border-stone-100 bg-stone-50 px-3 py-2 text-xs text-stone-600">
-                          <p className="font-bold text-stone-700">资料收集任务</p>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-bold text-stone-700">资料收集任务</p>
+                            <button
+                              className={`${EDIT_MODAL_BUTTON_BASE} border border-[#5e17eb]/25 bg-white text-[#5e17eb] hover:bg-[#f7f3ff]`}
+                              type="button"
+                              disabled={programAgentLoading}
+                              onClick={() => triggerProgramTask("enrich_program_content", { forceOverwrite: false })}
+                            >
+                              开始收集
+                            </button>
+                          </div>
                           <p className="mt-1">
                             {latestEnrichmentTask
                               ? `${latestEnrichmentTask.status}${latestEnrichmentTask.outputSummary ? ` · ${latestEnrichmentTask.outputSummary}` : ""}`
@@ -2064,8 +2180,72 @@ const AdminProgramsPage: React.FC = () => {
                           {latestEnrichmentTask?.status === "failed" ? (
                             <button
                               type="button"
-                              className="mt-2 rounded-full border border-red-200 px-3 py-1 text-[11px] font-bold text-red-600"
+                              className={`mt-2 ${EDIT_MODAL_BUTTON_BASE} border border-red-200 text-red-600 hover:bg-red-50`}
                               onClick={() => retryProgramTask(latestEnrichmentTask._id)}
+                            >
+                              重试
+                            </button>
+                          ) : null}
+                        </div>
+                        <div className="rounded-xl border border-stone-100 bg-stone-50 px-3 py-2 text-xs text-stone-600">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-bold text-stone-700">配图生成任务</p>
+                            <button
+                              className={`${EDIT_MODAL_BUTTON_BASE} border border-[#5e17eb]/25 bg-white text-[#5e17eb] hover:bg-[#f7f3ff]`}
+                              type="button"
+                              disabled={programAgentLoading}
+                              onClick={() => triggerProgramTask("generate_program_artwork", { forceOverwrite: false, artworkStyle })}
+                            >
+                              开始配图
+                            </button>
+                          </div>
+                          <div className="mt-2">
+                            <select
+                              value={artworkStyle}
+                              onChange={(event) => setArtworkStyle(event.target.value)}
+                              className="w-full rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-[11px] text-stone-700"
+                            >
+                              {ARTWORK_STYLE_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))}
+                            </select>
+                            <p className="mt-1 text-[10px] text-stone-500">
+                              仅控制视觉风格；系统会基于节目关键词与解析内容做抽象构图，不叠加标题文字。
+                            </p>
+                          </div>
+                          <p className="mt-1">
+                            {artworkTaskStatusText}
+                          </p>
+                          {String(latestArtworkTask?.output?.generatedCoverImage || "").trim() ? (
+                            <div className="mt-2 flex items-center gap-2">
+                              <button
+                                type="button"
+                                className={`${EDIT_MODAL_BUTTON_BASE} border border-[#5e17eb]/25 bg-white text-[#5e17eb] hover:bg-[#f7f3ff]`}
+                                onClick={() => {
+                                  const url = String(latestArtworkTask?.output?.generatedCoverImage || "").trim();
+                                  if (!url) return;
+                                  window.open(url, "_blank", "noopener,noreferrer");
+                                }}
+                              >
+                                预览
+                              </button>
+                              {latestArtworkTask?.status === "succeeded" && latestArtworkTask?.output?.applied !== true ? (
+                                <button
+                                  type="button"
+                                  className={`${EDIT_MODAL_BUTTON_BASE} border border-[#5e17eb]/25 bg-white text-[#5e17eb] hover:bg-[#f7f3ff]`}
+                                  disabled={applyArtworkLoading}
+                                  onClick={applyArtworkCandidate}
+                                >
+                                  {applyArtworkLoading ? "应用中..." : "应用"}
+                                </button>
+                              ) : null}
+                            </div>
+                          ) : null}
+                          {latestArtworkTask?.status === "failed" ? (
+                            <button
+                              type="button"
+                              className={`mt-2 ${EDIT_MODAL_BUTTON_BASE} border border-red-200 text-red-600 hover:bg-red-50`}
+                              onClick={() => retryProgramTask(latestArtworkTask._id)}
                             >
                               重试
                             </button>
@@ -2085,7 +2265,7 @@ const AdminProgramsPage: React.FC = () => {
                               type="button"
                               disabled={programAgentLoading}
                               onClick={acceptProofread}
-                              className="rounded-full bg-[#5e17eb] px-4 py-1.5 text-xs font-bold text-white disabled:opacity-60"
+                              className={`${EDIT_MODAL_BUTTON_BASE} bg-[#5e17eb] text-white hover:bg-[#4a12ba]`}
                             >
                               接受整篇替换
                             </button>

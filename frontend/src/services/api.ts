@@ -343,9 +343,16 @@ export interface ProgramParseTask {
   parseFinishedAt?: string | null;
 }
 
+export interface ProgramPreviewLinkResponse {
+  path: string;
+  idOrCode: string;
+  exp: number;
+  ttlHours: number;
+}
+
 export interface AgentTask {
   _id: string;
-  taskType: "proofread_transcript" | "enrich_program_content" | "enrich_guest_profile";
+  taskType: "proofread_transcript" | "enrich_program_content" | "enrich_guest_profile" | "generate_program_artwork";
   targetType: "program" | "guest";
   targetId: string;
   status: "queued" | "running" | "succeeded" | "failed" | "canceled";
@@ -362,6 +369,36 @@ export interface AgentTask {
   output?: Record<string, any>;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface InboxMessage {
+  _id: string;
+  sourceType: "agent_task" | "program_parse_task";
+  sourceId: string;
+  taskType: "proofread_transcript" | "enrich_program_content" | "enrich_guest_profile" | "generate_program_artwork" | "program_parse";
+  taskStatus: "succeeded" | "failed" | "canceled";
+  targetType: "program" | "guest";
+  targetId: string;
+  targetTitle?: string;
+  title: string;
+  summary?: string;
+  payload?: Record<string, any>;
+  isRead: boolean;
+  readAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface InboxQueryParams {
+  page?: number;
+  pageSize?: number;
+  task_type?: InboxMessage["taskType"];
+  status?: InboxMessage["taskStatus"];
+  source_type?: InboxMessage["sourceType"];
+  target_type?: InboxMessage["targetType"];
+  is_read?: boolean;
+  date_from?: string;
+  date_to?: string;
 }
 
 export interface AdminProgramListResponse {
@@ -457,6 +494,8 @@ export const adminApi = {
   createProgramFromAudio: (uploadedAudioUrl: string, sourceFileName?: string) =>
     api.post<ProgramParseTask>("/admin/programs/create-from-audio", { uploadedAudioUrl, sourceFileName }),
   triggerProgramParse: (id: string) => api.post<ProgramParseTask>(`/admin/programs/${id}/parse`),
+  createProgramPreviewLink: (id: string, ttlHours = 72) =>
+    api.post<ProgramPreviewLinkResponse>(`/admin/programs/${id}/preview-link`, { ttlHours }),
   getProgramParseStatus: (id: string) => api.get<ProgramParseTask>(`/admin/programs/${id}/parse-status`),
   acceptProgramProofread: (id: string) => api.post<Program>(`/admin/programs/${id}/proofread/accept`),
 
@@ -476,6 +515,11 @@ export const adminApi = {
     limit?: number;
   }) => api.get<{ items: AgentTask[] }>("/admin/agent-tasks", { params }),
   retryAgentTask: (id: string) => api.post<AgentTask>(`/admin/agent-tasks/${id}/retry`),
+  listInboxMessages: (params?: InboxQueryParams) =>
+    api.get<{ items: InboxMessage[]; page: number; pageSize: number; total: number; unreadCount: number }>("/admin/inbox", { params }),
+  getInboxMessage: (id: string) => api.get<InboxMessage>(`/admin/inbox/${id}`),
+  markInboxMessageRead: (id: string) => api.patch<{ ok: boolean; item: InboxMessage }>(`/admin/inbox/${id}/read`, {}),
+  markAllInboxRead: () => api.patch<{ ok: boolean }>("/admin/inbox/read-all", {}),
 
   getDictionaryEntries: (params?: { search?: string; status?: string }) =>
     api.get<AdminEducationDictionaryEntry[]>("/admin/dictionary", { params }),

@@ -8,6 +8,7 @@ import AgentTaskModel, {
 import Program from "../models/Program";
 import GuestModel from "../models/Guest";
 import { syncProgramDictionaryEntries } from "./educationDictionary";
+import { createInboxMessage } from "./adminInbox";
 
 type CreateTaskInput = {
   taskType: AgentTaskType;
@@ -69,6 +70,225 @@ function readingSourceUrl(keyword: string): string {
   return `https://www.bing.com/search?q=${encodeURIComponent(keyword)}`;
 }
 
+type ArtworkStyle =
+  | "cinematic_poster"
+  | "editorial_brutalist"
+  | "neo_noir"
+  | "swiss_grid"
+  | "collage_manifesto";
+
+function normalizeArtworkStyle(value: unknown): ArtworkStyle {
+  const raw = asText(value).toLowerCase();
+  // new design-style presets
+  if (raw === "editorial_brutalist") return "editorial_brutalist";
+  if (raw === "neo_noir") return "neo_noir";
+  if (raw === "swiss_grid") return "swiss_grid";
+  if (raw === "collage_manifesto") return "collage_manifesto";
+  if (raw === "cinematic_poster") return "cinematic_poster";
+  // backward compatibility for old content-style values
+  if (raw === "parenting_case") return "collage_manifesto";
+  if (raw === "methodology") return "swiss_grid";
+  if (raw === "data_shock") return "editorial_brutalist";
+  if (raw === "future_school") return "neo_noir";
+  return "cinematic_poster";
+}
+
+function styleLabel(style: ArtworkStyle): string {
+  if (style === "editorial_brutalist") return "Brutalist 编辑风";
+  if (style === "neo_noir") return "新黑色霓虹风";
+  if (style === "swiss_grid") return "瑞士网格风";
+  if (style === "collage_manifesto") return "拼贴宣言风";
+  return "电影海报风";
+}
+
+function pickArtworkTheme(style: ArtworkStyle) {
+  const styleMap: Record<ArtworkStyle, { palette: [string, string, string]; accent: string; textMain: string; textSub: string }> = {
+    cinematic_poster: { palette: ["#0B1020", "#1E1B4B", "#312E81"], accent: "#8B5CF6", textMain: "#F8FAFC", textSub: "#C7D2FE" },
+    collage_manifesto: { palette: ["#3F0D12", "#6A040F", "#9D0208"], accent: "#FF6B6B", textMain: "#FFF8F1", textSub: "#FFD7BA" },
+    swiss_grid: { palette: ["#052E16", "#0F766E", "#115E59"], accent: "#2DD4BF", textMain: "#ECFEFF", textSub: "#99F6E4" },
+    editorial_brutalist: { palette: ["#172554", "#1D4ED8", "#1E40AF"], accent: "#F59E0B", textMain: "#EFF6FF", textSub: "#BFDBFE" },
+    neo_noir: { palette: ["#111827", "#0F172A", "#1E293B"], accent: "#22D3EE", textMain: "#E0F2FE", textSub: "#A5F3FC" },
+  };
+  return styleMap[style];
+}
+
+function pickSemanticMotif(keywords: string[]) {
+  const text = keywords.join(" ");
+  if (/(困局|焦虑|压力|内耗|迷茫|冲突)/.test(text)) return "maze";
+  if (/(成长|孩子|亲子|家庭|陪伴)/.test(text)) return "orbit";
+  if (/(方法|策略|体系|框架|模型|步骤)/.test(text)) return "blueprint";
+  if (/(精神|心理|情绪|安全感|自我)/.test(text)) return "pulse";
+  return "signal";
+}
+
+function clipByChars(value: string, max = 28): string {
+  const text = asText(value);
+  if (text.length <= max) return text;
+  return `${text.slice(0, max).trim()}...`;
+}
+
+function pickInsightLine(summary: string, fallback: string): string {
+  const clean = asText(summary).replace(/\s+/g, " ");
+  const candidates = clean.split(/[。！？!?；;]/).map((x) => asText(x)).filter(Boolean);
+  const first = candidates.find((x) => x.length >= 10) || candidates[0] || fallback;
+  return clipByChars(first, 34);
+}
+
+function buildMotifSvg(motif: string, accent: string): string {
+  if (motif === "maze") {
+    return `
+  <path d="M690 160 H960 V430 H760 V260 H890 V360 H820 V300 H750 V500 H1000" stroke="${accent}" stroke-width="12" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+  <circle cx="1000" cy="500" r="10" fill="${accent}"/>`;
+  }
+  if (motif === "orbit") {
+    return `
+  <circle cx="855" cy="300" r="110" stroke="${accent}" stroke-width="10" fill="none" opacity="0.9"/>
+  <circle cx="855" cy="300" r="70" stroke="${accent}" stroke-width="6" fill="none" opacity="0.65"/>
+  <circle cx="930" cy="235" r="14" fill="${accent}"/>
+  <circle cx="785" cy="358" r="10" fill="${accent}" opacity="0.8"/>`;
+  }
+  if (motif === "blueprint") {
+    return `
+  <rect x="700" y="160" width="300" height="280" rx="28" stroke="${accent}" stroke-width="8" fill="none" opacity="0.9"/>
+  <line x1="730" y1="220" x2="970" y2="220" stroke="${accent}" stroke-width="6" opacity="0.8"/>
+  <line x1="730" y1="276" x2="930" y2="276" stroke="${accent}" stroke-width="6" opacity="0.65"/>
+  <line x1="730" y1="332" x2="890" y2="332" stroke="${accent}" stroke-width="6" opacity="0.5"/>`;
+  }
+  if (motif === "pulse") {
+    return `
+  <path d="M690 320 H760 L790 250 L840 400 L880 300 H1010" stroke="${accent}" stroke-width="12" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+  <circle cx="1010" cy="300" r="10" fill="${accent}"/>`;
+  }
+  return `
+  <path d="M700 410 L800 280 L880 360 L980 220" stroke="${accent}" stroke-width="12" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+  <circle cx="980" cy="220" r="12" fill="${accent}"/>`;
+}
+
+function buildArtworkSourceUrl(input: {
+  semanticCore: string[];
+  parsedSignals: string[];
+  style: ArtworkStyle;
+}): string {
+  const semanticCore = (Array.isArray(input.semanticCore) ? input.semanticCore : []).filter(Boolean).slice(0, 6);
+  const parsedSignals = (Array.isArray(input.parsedSignals) ? input.parsedSignals : []).filter(Boolean).slice(0, 10);
+  const keywords = [...semanticCore, ...parsedSignals];
+  const theme = pickArtworkTheme(input.style);
+  const motif = pickSemanticMotif(keywords);
+  const nodeCount = Math.max(4, Math.min(12, semanticCore.length + Math.ceil(parsedSignals.length / 2)));
+  const ringCount = Math.max(2, Math.min(5, Math.ceil(parsedSignals.length / 2)));
+  const strokeDensity = Math.max(4, Math.min(10, Math.ceil(keywords.length / 2)));
+  const motifSvg = buildMotifSvg(motif, theme.accent);
+  const networkLines = Array.from({ length: strokeDensity })
+    .map((_, i) => {
+      const startX = 700 + ((i * 73) % 280);
+      const startY = 170 + ((i * 97) % 320);
+      const endX = 700 + (((i + 3) * 91) % 280);
+      const endY = 170 + (((i + 5) * 67) % 320);
+      const opacity = 0.25 + ((i % 4) * 0.12);
+      return `<line x1="${startX}" y1="${startY}" x2="${endX}" y2="${endY}" stroke="${theme.accent}" stroke-width="3" opacity="${opacity.toFixed(2)}"/>`;
+    })
+    .join("");
+  const semanticNodes = Array.from({ length: nodeCount })
+    .map((_, i) => {
+      const cx = 720 + ((i * 61) % 250);
+      const cy = 190 + ((i * 83) % 280);
+      const r = 6 + (i % 4) * 3;
+      const opacity = 0.35 + ((i % 5) * 0.1);
+      return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${theme.accent}" opacity="${opacity.toFixed(2)}"/>`;
+    })
+    .join("");
+  const parsedRings = Array.from({ length: ringCount })
+    .map((_, i) => {
+      const cx = 220 + i * 150;
+      const cy = 520 - i * 26;
+      const r = 68 + i * 18;
+      const opacity = 0.08 + i * 0.05;
+      return `<circle cx="${cx}" cy="${cy}" r="${r}" stroke="${theme.textSub}" stroke-width="2" fill="none" opacity="${opacity.toFixed(2)}"/>`;
+    })
+    .join("");
+  const svg = `
+<svg width="1072" height="714" viewBox="0 0 1072 714" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="${theme.palette[0]}"/>
+      <stop offset="55%" stop-color="${theme.palette[1]}"/>
+      <stop offset="100%" stop-color="${theme.palette[2]}"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.08"/>
+    </linearGradient>
+  </defs>
+  <rect width="1072" height="714" fill="url(#bg)"/>
+  <rect x="36" y="36" width="1000" height="642" rx="42" fill="url(#glass)" stroke="#FFFFFF" stroke-opacity="0.18"/>
+  <rect x="70" y="76" width="600" height="562" rx="30" fill="#070C17" fill-opacity="0.30"/>
+  <rect x="106" y="116" width="190" height="20" rx="10" fill="${theme.accent}" fill-opacity="0.25"/>
+  <rect x="106" y="162" width="420" height="34" rx="17" fill="${theme.textMain}" fill-opacity="0.14"/>
+  <rect x="106" y="214" width="360" height="22" rx="11" fill="${theme.textSub}" fill-opacity="0.16"/>
+  <rect x="106" y="262" width="280" height="22" rx="11" fill="${theme.textSub}" fill-opacity="0.13"/>
+  <rect x="106" y="312" width="510" height="10" rx="5" fill="${theme.accent}" fill-opacity="0.22"/>
+  <rect x="106" y="340" width="460" height="10" rx="5" fill="${theme.accent}" fill-opacity="0.17"/>
+  <rect x="106" y="368" width="380" height="10" rx="5" fill="${theme.accent}" fill-opacity="0.14"/>
+  ${parsedRings}
+  ${motifSvg}
+  ${networkLines}
+  ${semanticNodes}
+  <rect x="106" y="560" width="520" height="18" rx="9" fill="${theme.textMain}" fill-opacity="0.08"/>
+  <rect x="106" y="590" width="440" height="12" rx="6" fill="${theme.textSub}" fill-opacity="0.1"/>
+</svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+async function collectParsedSignals(program: any): Promise<string[]> {
+  const scoreMap = new Map<string, number>();
+  const push = (term: unknown, weight = 1) => {
+    const text = asText(term);
+    if (!text) return;
+    scoreMap.set(text, (scoreMap.get(text) || 0) + weight);
+  };
+
+  const tags = Array.isArray(program?.summary?.tags) ? program.summary.tags : [];
+  for (const tag of tags) push(tag, 3);
+
+  const glossary = Array.isArray(program?.termGlossary) ? program.termGlossary : [];
+  for (const item of glossary) push((item as any)?.term, 4);
+
+  const dictionaryEntries = Array.isArray(program?.dictionaryEntries) ? program.dictionaryEntries : [];
+  for (const item of dictionaryEntries) push((item as any)?.term, 3);
+
+  const curatedReading = Array.isArray(program?.deepDive?.curatedReading) ? program.deepDive.curatedReading : [];
+  for (const item of curatedReading) {
+    push((item as any)?.title, 2);
+    push((item as any)?.subtitle, 1);
+  }
+
+  const keyMoments = Array.isArray(program?.contentPack?.showNotes?.keyMoments) ? program.contentPack.showNotes.keyMoments : [];
+  for (const item of keyMoments) {
+    push((item as any)?.title, 2);
+    push((item as any)?.detail, 1);
+  }
+
+  const quickView = Array.isArray(program?.contentPack?.quickView) ? program.contentPack.quickView : [];
+  for (const item of quickView) {
+    push((item as any)?.label, 2);
+    push((item as any)?.value, 1);
+  }
+
+  const parsedText = [
+    asText(program?.summary?.body),
+    JSON.stringify(program?.deepDive || {}),
+    JSON.stringify(program?.contentPack || {}),
+    JSON.stringify(program?.termGlossary || []),
+  ].join("\n");
+  const extracted = extractCandidateTerms(parsedText).slice(0, 12);
+  for (const item of extracted) push(item, 1);
+
+  return Array.from(scoreMap.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 12)
+    .map(([term]) => term);
+}
+
 export function extractCandidateTerms(rawText: string): string[] {
   const text = normalizeSpaces(rawText);
   if (!text) return [];
@@ -96,19 +316,130 @@ export function extractCandidateTerms(rawText: string): string[] {
     "问题",
     "方法",
     "内容",
+    "还有",
+    "这个时候",
+    "这种",
+    "那个时候",
+    "然后呢",
+    "其实",
+    "比如说",
+    "可以说",
+    "来说",
+    "的话",
+    "以及",
+    "这样",
+    "那样",
+    "就是这样",
+    "对吧",
+    "对吗",
+    "哎呀",
+    "哎哟",
+    "嗯嗯",
+    "呃呃",
+    "哈哈",
+    "呵呵",
+    "对对",
+    "对对对",
+    "来讲",
+    "这一块",
   ]);
+  const fillerTokenPattern = /^(?:[啊呀嗯哦呃哎欸诶唉哈喂啦呢嘛吧]+|[对嗯啊哦呃哈]{2,}|[A-Za-z]{1,2})$/;
+  const repeatedCharPattern = /^([\u4e00-\u9fa5A-Za-z])\1{1,}$/;
+  const englishStopwords = new Set([
+    "THE",
+    "AND",
+    "FOR",
+    "WITH",
+    "THIS",
+    "THAT",
+    "FROM",
+    "INTO",
+    "ABOUT",
+    "THERE",
+    "THEIR",
+    "THEM",
+    "THEY",
+    "WHAT",
+    "WHEN",
+    "WHERE",
+    "WHICH",
+    "WOULD",
+    "COULD",
+    "SHOULD",
+    "HAVE",
+    "HAS",
+    "HAD",
+    "WERE",
+    "WAS",
+    "YOU",
+    "YOUR",
+    "OURS",
+  ]);
+  const knownShortEduTerms = new Set(["双减", "家校", "德育", "智育", "美育", "体育"]);
+
+  function shouldKeepChineseToken(token: string): boolean {
+    if (!token) return false;
+    if (stopwords.has(token)) return false;
+    if (fillerTokenPattern.test(token)) return false;
+    if (repeatedCharPattern.test(token)) return false;
+    if (token.length <= 2 && !knownShortEduTerms.has(token)) return false;
+    return true;
+  }
+
+  function cleanChineseToken(token: string): string {
+    if (!token) return "";
+    const explicitMatch = token.match(
+      /(神经可塑性|执行功能|家校协同|学习策略|专注力|双减政策|双减|元认知|成长型思维|项目式学习|差异化教学)/
+    );
+    if (explicitMatch?.[0]) return explicitMatch[0];
+
+    return token
+      .replace(/^(我们|你们|他们|其实|主要|关于|对于|围绕|提到|讨论|聊聊|以及|还有|孩子的|家长的|本期|这一期)+/g, "")
+      .replace(/^(和|与|及|并|会|将|把|对|在|从|向|给|还|又|就|来|去|说|讲)+/g, "")
+      .replace(/(这个问题|这个话题|这一块|这一点)$/g, "")
+      .trim();
+  }
 
   const counts = new Map<string, number>();
-  const chinese = text.match(/[\u4e00-\u9fa5]{2,8}/g) || [];
-  for (const token of chinese) {
-    if (stopwords.has(token)) continue;
-    counts.set(token, (counts.get(token) || 0) + 1);
+  const addCount = (value: string) => {
+    if (!value) return;
+    counts.set(value, (counts.get(value) || 0) + 1);
+  };
+
+  const normalizedChineseText = text.replace(/[，。！？；：“”‘’（）()、]/g, " ");
+  const explicitPattern = /(神经可塑性|执行功能|家校协同|学习策略|专注力|双减政策|双减|元认知|成长型思维|项目式学习|差异化教学)/g;
+  const suffixPattern =
+    /[\u4e00-\u9fa5]{2,12}(?:能力|素养|思维|策略|课程|教育|心理|发展|训练|模型|机制|理论|方法|协同|政策|干预|评估|反馈|动机|认知|记忆|专注力|执行功能|可塑性)/g;
+
+  const explicitMatches = normalizedChineseText.match(explicitPattern) || [];
+  for (const token of explicitMatches) {
+    const cleanedToken = cleanChineseToken(token);
+    if (!shouldKeepChineseToken(cleanedToken)) continue;
+    addCount(cleanedToken);
   }
+
+  const suffixMatches = normalizedChineseText.match(suffixPattern) || [];
+  for (const token of suffixMatches) {
+    const cleanedToken = cleanChineseToken(token);
+    if (!shouldKeepChineseToken(cleanedToken)) continue;
+    addCount(cleanedToken);
+  }
+
+  // Conservative fallback for short Chinese chunks when no better term patterns are found.
+  if (counts.size === 0) {
+    const chinese = normalizedChineseText.match(/[\u4e00-\u9fa5]{2,8}/g) || [];
+    for (const token of chinese) {
+      const cleanedToken = cleanChineseToken(token);
+      if (!shouldKeepChineseToken(cleanedToken)) continue;
+      addCount(cleanedToken);
+    }
+  }
+
   const english = text.match(/\b[A-Za-z][A-Za-z0-9\-]{2,20}\b/g) || [];
   for (const token of english) {
     const cleaned = token.toUpperCase();
-    if (["THE", "AND", "FOR", "WITH", "THIS", "THAT"].includes(cleaned)) continue;
-    counts.set(cleaned, (counts.get(cleaned) || 0) + 1);
+    if (englishStopwords.has(cleaned)) continue;
+    addCount(cleaned);
   }
 
   return Array.from(counts.entries())
@@ -370,10 +701,64 @@ async function runGuestProfileTask(task: any) {
   };
 }
 
+async function runProgramArtworkTask(task: any) {
+  const program = await Program.findById(task.targetId);
+  if (!program) throw new Error("节目不存在");
+
+  const forceOverwrite = task?.options?.forceOverwrite === true;
+  const title = asText((program as any)?.title);
+  const tags = Array.isArray((program as any)?.summary?.tags) ? (program as any).summary.tags : [];
+  const summaryText = asText((program as any)?.summary?.body);
+  const transcriptText = (Array.isArray((program as any)?.transcript) ? (program as any)?.transcript : [])
+    .map((x: any) => asText(x?.text))
+    .filter(Boolean)
+    .join(" ");
+  const terms = extractCandidateTerms(`${title} ${summaryText} ${transcriptText}`).slice(0, 8);
+  const keyword = asText(tags[0]) || terms[0] || title || "教育";
+  const parsedSignals = await collectParsedSignals(program);
+  const artworkStyle = normalizeArtworkStyle(task?.options?.artworkStyle);
+  const generatedUrl = buildArtworkSourceUrl({
+    semanticCore: tags.length ? tags.slice(0, 6) : terms.slice(0, 6),
+    parsedSignals,
+    style: artworkStyle,
+  });
+  const currentCover = asText((program as any)?.coverImage);
+  const shouldApplyCover = forceOverwrite || !currentCover;
+
+  if (shouldApplyCover) {
+    await Program.findByIdAndUpdate(
+      task.targetId,
+      {
+        $set: {
+          coverImage: generatedUrl,
+        },
+      },
+      { new: false }
+    );
+  }
+
+  return {
+    outputSummary: shouldApplyCover
+      ? `配图 agent 已按「${styleLabel(artworkStyle)}」基于关键词与解析内容抽象生成并应用封面。`
+      : `配图 agent 已按「${styleLabel(artworkStyle)}」基于关键词与解析内容抽象生成候选封面（未覆盖现有封面）。`,
+    output: {
+      forceOverwrite,
+      artworkStyle,
+      generatedCoverImage: generatedUrl,
+      previousCoverImage: currentCover,
+      applied: shouldApplyCover,
+      keyword,
+      semanticCore: tags.length ? tags.slice(0, 6) : terms.slice(0, 6),
+      parsedSignals,
+    },
+  };
+}
+
 async function runTaskByType(task: any): Promise<{ outputSummary: string; output: Record<string, any> }> {
   if (task.taskType === "proofread_transcript") return runProofreadTask(task);
   if (task.taskType === "enrich_program_content") return runProgramEnrichmentTask(task);
   if (task.taskType === "enrich_guest_profile") return runGuestProfileTask(task);
+  if (task.taskType === "generate_program_artwork") return runProgramArtworkTask(task);
   throw new Error(`未知任务类型: ${task.taskType}`);
 }
 
@@ -404,7 +789,7 @@ async function processOneTask(): Promise<void> {
 
     try {
       const result = await runTaskByType(task);
-      await AgentTaskModel.findByIdAndUpdate(task._id, {
+      const nextTask = await AgentTaskModel.findByIdAndUpdate(task._id, {
         $set: {
           status: "succeeded",
           progress: 100,
@@ -414,10 +799,30 @@ async function processOneTask(): Promise<void> {
           finishedAt: new Date(),
           lockToken: "",
         },
-      });
+      }, { new: true });
+      if (nextTask) {
+        await createInboxMessage({
+          sourceType: "agent_task",
+          sourceId: String(nextTask._id),
+          taskType: nextTask.taskType as any,
+          taskStatus: "succeeded",
+          targetType: nextTask.targetType as any,
+          targetId: String(nextTask.targetId),
+          summary: asText(nextTask.outputSummary),
+          payload: {
+            taskId: String(nextTask._id),
+            taskType: nextTask.taskType,
+            targetType: nextTask.targetType,
+            targetId: String(nextTask.targetId),
+            outputSummary: asText(nextTask.outputSummary),
+            output: nextTask.output || {},
+            finishedAt: nextTask.finishedAt || null,
+          },
+        }).catch(() => {});
+      }
     } catch (error: any) {
       const message = asText(error?.message) || "任务执行失败";
-      await AgentTaskModel.findByIdAndUpdate(task._id, {
+      const nextTask = await AgentTaskModel.findByIdAndUpdate(task._id, {
         $set: {
           status: "failed",
           progress: 100,
@@ -427,7 +832,27 @@ async function processOneTask(): Promise<void> {
           lockToken: "",
         },
         $inc: { retries: 1 },
-      });
+      }, { new: true });
+      if (nextTask) {
+        await createInboxMessage({
+          sourceType: "agent_task",
+          sourceId: String(nextTask._id),
+          taskType: nextTask.taskType as any,
+          taskStatus: "failed",
+          targetType: nextTask.targetType as any,
+          targetId: String(nextTask.targetId),
+          summary: asText(nextTask.lastError) || "任务执行失败",
+          payload: {
+            taskId: String(nextTask._id),
+            taskType: nextTask.taskType,
+            targetType: nextTask.targetType,
+            targetId: String(nextTask.targetId),
+            lastError: asText(nextTask.lastError),
+            retries: Number(nextTask.retries || 0),
+            finishedAt: nextTask.finishedAt || null,
+          },
+        }).catch(() => {});
+      }
     }
   } finally {
     working = false;

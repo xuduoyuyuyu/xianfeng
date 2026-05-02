@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ScreenPage from "../ScreenPage";
 
-type AdminPageKey = "dashboard" | "programs" | "books" | "materials" | "users" | "system";
+type AdminPageKey = "dashboard" | "programs" | "books" | "materials" | "users" | "inbox" | "system";
 
 const AdminShellPage: React.FC = () => {
   const navigate = useNavigate();
@@ -18,6 +18,7 @@ const AdminShellPage: React.FC = () => {
       books: { src: "/screens/admin-books.html", title: "内容管理 / 书单" },
       materials: { src: "/screens/admin-materials.html", title: "内容管理 / 学习资料" },
       users: { src: "/screens/admin-users.html", title: "用户管理" },
+      inbox: { src: "/screens/admin-inbox.html", title: "站内信" },
       system: { src: "/screens/admin-system.html", title: "系统信息" },
     };
     return map[page];
@@ -36,7 +37,7 @@ const AdminShellPage: React.FC = () => {
       if (data.type === "admin:switch") {
         const key = data.key as AdminPageKey;
         if (!key) return;
-        if (!["dashboard", "programs", "books", "materials", "users", "system"].includes(key)) return;
+        if (!["dashboard", "programs", "books", "materials", "users", "inbox", "system"].includes(key)) return;
         setPage(key);
         return;
       }
@@ -56,4 +57,3 @@ const AdminShellPage: React.FC = () => {
 };
 
 export default AdminShellPage;
-

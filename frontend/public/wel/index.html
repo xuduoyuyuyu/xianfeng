@@ -255,6 +255,22 @@ button{cursor:pointer;font:inherit}
 .pf.on{display:block}
 .lbar{position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--p),#a855f7,#06b6d4,var(--p));background-size:200% 100%;animation:lba 1s linear infinite;z-index:9;display:none}
 .lbar.on{display:block}@keyframes lba{0%{background-position:0%}100%{background-position:200%}}
+.preview-banner{
+  position:fixed;top:56px;left:50%;transform:translateX(-50%);
+  z-index:160;
+  display:none;
+  align-items:center;gap:8px;
+  padding:8px 14px;
+  border-radius:999px;
+  background:linear-gradient(135deg,#fff7ed,#ffedd5);
+  border:1px solid #fb923c;
+  color:#9a3412;
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:.08em;
+  box-shadow:0 10px 24px rgba(154,52,18,.15);
+}
+.preview-banner.show{display:flex}
 /* ── AI 悬浮助手 ───────────────────────── */
 #ai-fab{
   position:fixed !important;
@@ -837,8 +853,8 @@ body.page-zhongkao #ai-fab{
       <div class="aip-title">小玩子</div>
       <div class="aip-status" id="aip-status">● 随时可用</div>
     </div>
-    <button class="aip-enlarge" id="aip-enlarge" onclick="toggleAIPanelSize()">open_in_full</button>
-    <button class="aip-close" onclick="toggleAI()">close</button>
+    <button class="aip-enlarge" id="aip-enlarge" data-ms-icon="open_in_full" data-ms-fallback="⛶" onclick="toggleAIPanelSize()">open_in_full</button>
+    <button class="aip-close" data-ms-icon="close" data-ms-fallback="×" onclick="toggleAI()">close</button>
   </div>
   <div class="aip-msgs" id="aip-msgs"></div>
   <div class="aip-shortcuts" id="aip-shortcuts">
@@ -856,7 +872,7 @@ body.page-zhongkao #ai-fab{
   <div class="aip-temp-history-panel" id="aip-temp-history-panel">
     <div class="aip-temp-history-head">
       <div class="aip-temp-history-title">临时会话历史</div>
-      <button class="aip-temp-history-close" onclick="toggleTempSessionHistoryPanel(false)">close</button>
+      <button class="aip-temp-history-close" data-ms-icon="close" data-ms-fallback="×" onclick="toggleTempSessionHistoryPanel(false)">close</button>
     </div>
     <div class="aip-temp-history-list" id="aip-temp-history-list"></div>
   </div>
@@ -931,7 +947,7 @@ body.page-zhongkao #ai-fab{
 <div id="app">
   <div id="tb">
     <div class="tb-logo" onclick="go(61)">
-      <img src="/assets/logo.png" alt="Logo" style="height:22px" />
+      <img src="/assets/logo.png" alt="Logo" style="height:29px" />
     </div>
     <nav class="tb-nav" id="tb-nav"></nav>
     <div class="tb-right">
@@ -1181,6 +1197,19 @@ function applyMsFallback() {
   document.body.classList.add('no-ms-font');
   document.querySelectorAll('.arr').forEach(el => { el.textContent = '▾'; });
   document.querySelectorAll('.sg-arr, .lsarr').forEach(el => { el.textContent = '›'; });
+  document.querySelectorAll('[data-ms-icon][data-ms-fallback]').forEach(el => {
+    const fallback = String(el.getAttribute('data-ms-fallback') || '').trim();
+    if (!fallback) return;
+    el.textContent = fallback;
+  });
+}
+
+function restoreMsFallbackTargets() {
+  document.querySelectorAll('[data-ms-icon]').forEach(el => {
+    const icon = String(el.getAttribute('data-ms-icon') || '').trim();
+    if (!icon) return;
+    el.textContent = icon;
+  });
 }
 
 function ensureMsFontOrFallback() {
@@ -1192,6 +1221,7 @@ function ensureMsFontOrFallback() {
   const ok = () => document.fonts.check('12px "Material Symbols Rounded"');
   if (ok()) {
     document.body.classList.remove('no-ms-font');
+    restoreMsFallbackTargets();
     return;
   }
   let tries = 0;
@@ -1200,6 +1230,7 @@ function ensureMsFontOrFallback() {
     if (ok()) {
       clearInterval(timer);
       document.body.classList.remove('no-ms-font');
+      restoreMsFallbackTargets();
       return;
     }
     if (tries >= 20) {
@@ -1420,6 +1451,32 @@ function getCurrentPodcastProgramId() {
   }
 }
 
+function getCurrentPodcastPreviewParams() {
+  try {
+    const sp = new URLSearchParams(window.location.search || '');
+    const preview = String(sp.get('preview') || '').trim();
+    const exp = String(sp.get('exp') || '').trim();
+    if (!preview || !exp) return null;
+    return { preview, exp };
+  } catch (e) {
+    return null;
+  }
+}
+
+function syncPodcastPreviewBanner() {
+  let banner = document.getElementById('podcast-preview-banner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'podcast-preview-banner';
+    banner.className = 'preview-banner';
+    banner.innerHTML = '<span class="ms" style="font-size:15px">visibility</span><span>预览版本，仅供内部查看</span>';
+    document.body.appendChild(banner);
+  }
+  const preview = getCurrentPodcastPreviewParams();
+  const visible = Number(curId) === 62 && !!preview;
+  banner.classList.toggle('show', visible);
+}
+
 function normalizeTermKey(v) {
   return String(v || '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
@@ -1512,7 +1569,9 @@ async function ensurePodcastAIContext(force = false) {
   AI_PODCAST_CTX.loading = true;
   AI_PODCAST_CTX.programId = pid;
   try {
-    const detail = await api('GET', `/api/programs/${encodeURIComponent(pid)}`);
+    const preview = getCurrentPodcastPreviewParams();
+    const qs = preview ? `?preview=${encodeURIComponent(preview.preview)}&exp=${encodeURIComponent(preview.exp)}` : '';
+    const detail = await api('GET', `/api/programs/${encodeURIComponent(pid)}${qs}`);
     AI_PODCAST_CTX.detail = detail || null;
     AI_PODCAST_CTX.ready = true;
     try {
@@ -1656,6 +1715,28 @@ function getAIDynamicShortcuts(ctx) {
 function getCurrentPageTempContext() {
   const pg = PAGES[curId] || {};
   const pageName = String(pg.l || '').trim() || `页面${curId}`;
+  if (Number(curId) === 62) {
+    const brief = getPodcastAIContextBrief() || {};
+    const title = String(brief.title || '').trim();
+    const tags = Array.isArray(brief.tags) ? brief.tags : [];
+    const guests = Array.isArray(brief.guests) ? brief.guests : [];
+    const pid = String(brief.programId || getCurrentPodcastProgramId() || '').trim();
+    return {
+      page: pageName,
+      source: 'podcast_detail',
+      source_page_id: Number(curId || 0),
+      program_id: pid,
+      scope_key: pid ? `podcast:${pid}` : `page:${Number(curId || 0)}`,
+      title: title || pageName,
+      overview: title
+        ? `当前为播客详情《${title}》，小玩子围绕该节目做词典、嘉宾、延伸阅读和内容推荐。`
+        : `当前为播客详情页，小玩子将围绕当前节目提供词典、嘉宾、延伸阅读和内容推荐。`,
+      chapters_count: 0,
+      nodes_count: Number(brief.glossaryCount || 0),
+      chapter_highlights: tags.slice(0, 6),
+      knowledge_highlights: guests.slice(0, 6)
+    };
+  }
   try {
     const frame = FR[curId];
     const w = frame && frame.contentWindow ? frame.contentWindow : null;
@@ -1734,15 +1815,30 @@ function startPageTempSession(payload, seedPrompt = '', autoSend = false) {
   }
   aiTempSession.active = true;
   aiTempSession.context = normalized;
-  aiTempSession.sessionLog = {
-    id: `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-    started_at: Date.now(),
-    context: normalized,
-    messages: []
-  };
-  aiHistory = [];
+  const existed = findTempSessionRecordByScopeKey(normalized.scope_key);
+  if (existed) {
+    aiTempSession.sessionLog = {
+      id: existed.id || `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      started_at: Number(existed.started_at || Date.now()),
+      context: normalized,
+      messages: Array.isArray(existed.messages) ? existed.messages.slice(-60) : []
+    };
+    aiHistory = (Array.isArray(existed.messages) ? existed.messages : []).map(m => ({
+      role: m && m.role === 'assistant' ? 'assistant' : 'user',
+      content: String((m && m.content) || '').slice(0, AI_HISTORY_MSG_MAX),
+      ts: Number((m && m.ts) || Date.now())
+    })).filter(m => m.content);
+  } else {
+    aiTempSession.sessionLog = {
+      id: `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      started_at: Date.now(),
+      context: normalized,
+      messages: []
+    };
+    aiHistory = [];
+  }
   renderAIHistoryToUI();
-  addMsg('ai', buildTempSessionIntro(normalized), { persist: false });
+  if (!existed) addMsg('ai', buildTempSessionIntro(normalized), { persist: false });
   const inp = $id('aip-input');
   if (inp) {
     inp.placeholder = '当前页临时会话中：继续提问本页内容…';
@@ -1818,7 +1914,13 @@ function escapeHTML(v) {
 function upsertTempSessionRecord(record) {
   if (!record || !record.id) return;
   const list = Array.isArray(aiTempSessionHistory) ? aiTempSessionHistory : [];
-  const next = list.filter(x => x && x.id !== record.id);
+  const scopeKey = String(record?.context?.scope_key || '').trim();
+  const next = list.filter(x => {
+    if (!x) return false;
+    if (x.id === record.id) return false;
+    if (scopeKey && String(x?.context?.scope_key || '').trim() === scopeKey) return false;
+    return true;
+  });
   next.unshift(record);
   aiTempSessionHistory = next.slice(0, AI_TEMP_HISTORY_MAX);
   saveTempSessionHistoryToStorage();
@@ -1860,7 +1962,7 @@ function renderTempSessionHistoryPanel() {
   listEl.innerHTML = arr.map((item, idx) => {
     const context = item.context || {};
     const title = item.title || context.title || context.page || '当前页面';
-    const sub = [context.subject || '', context.grade || ''].filter(Boolean).join(' · ');
+    const sub = [context.subject || '', context.grade || '', context.program_id ? `节目ID:${context.program_id}` : ''].filter(Boolean).join(' · ');
     const meta = `${formatTempSessionWhen(item.started_at)} · ${Number(item.message_count || 0)} 条消息`;
     return `<button class="aip-temp-item" data-temp-idx="${idx}">
       <div class="aip-temp-item-title">${escapeHTML(title)}</div>
@@ -1956,6 +2058,13 @@ function openTempSessionRecordByIndex(idx) {
   renderAIShortcuts();
 }
 
+function findTempSessionRecordByScopeKey(scopeKey) {
+  const key = String(scopeKey || '').trim();
+  if (!key) return null;
+  const arr = Array.isArray(aiTempSessionHistory) ? aiTempSessionHistory : [];
+  return arr.find(item => String(item?.context?.scope_key || '').trim() === key) || null;
+}
+
 function renderAIDynamicHint(ctx) {
   const now = Date.now();
   const z = ctx?.zhongkao;
@@ -2016,7 +2125,10 @@ function syncAIDynamicContext(force = false) {
     if (aiTempSession.active && aiTempSession.context) {
       const sid = Number(aiTempSession.context.source_page_id || 0);
       const nid = Number(ctx?.pageId || 0);
-      if (sid && nid && sid !== nid) {
+      const sidProgram = String(aiTempSession.context.program_id || '').trim();
+      const nidProgram = String(ctx?.podcast?.programId || '').trim();
+      const crossProgram = sid === 62 && nid === 62 && sidProgram && nidProgram && sidProgram !== nidProgram;
+      if ((sid && nid && sid !== nid) || crossProgram) {
         endPageTempSession({ restore: true });
       }
     }
@@ -2597,6 +2709,7 @@ function go(id, extra={}) {
   }
   syncAIProfileUI();
   syncAIDynamicContext(true);
+  syncPodcastPreviewBanner();
   applyMobileFocusMode();
   syncRegisterGuideVisibility();
   
@@ -6072,9 +6185,12 @@ function renderAIShortcuts() {
   const ctx = getAIContextSnapshot();
   const head = getPageTempShortcut(ctx);
   const dynamic = getAIDynamicShortcuts(ctx);
-  const buttons = Number(ctx?.pageId) === 62
-    ? dynamic
-    : [...(Array.isArray(head) ? head : []), ...dynamic, ...(profile.shortcuts || [])];
+  const isNoCurrentPageContext = Number(ctx?.pageId) !== 62 && !aiTempSession.active;
+  const buttons = isNoCurrentPageContext
+    ? []
+    : (Number(ctx?.pageId) === 62
+      ? dynamic
+      : [...(Array.isArray(head) ? head : []), ...dynamic, ...(profile.shortcuts || [])]);
   wrap.innerHTML = buttons.map((it, i) => {
     if (it && it.iconOnly) {
       const tip = escapeHTML(it.tip || '当前页临时问');
@@ -6312,6 +6428,7 @@ function loadAIHistoryFromStorage() {
       const content = (it && it.content) ? String(it.content) : '';
       if (!role || !content) return null;
       if (role !== 'user' && role !== 'assistant') return null;
+      if (role === 'assistant' && shouldHideAIReadReceipt(content)) return null;
       return { role, content: content.slice(0, AI_HISTORY_MSG_MAX), ts: Number(it.ts || 0) || 0 };
     }).filter(Boolean);
     aiHistory = cleaned.slice(-AI_HISTORY_MAX);
@@ -6435,8 +6552,24 @@ function toggleAI() {
     syncAIDynamicContext(true);
     if (aiHistory.length === 0) aiGreet();
     setAIIdleStatus();
-    setTimeout(() => $id('aip-input')?.focus(), 100);
+    setTimeout(() => positionAIOnOpen(), 60);
   }
+}
+
+function positionAIOnOpen() {
+  const wrap = $id('aip-msgs');
+  if (!wrap) return;
+  const hasHistory = Array.isArray(aiHistory) && aiHistory.length > 0;
+  if (hasHistory) {
+    const last = wrap.lastElementChild;
+    if (last) {
+      const top = Math.max(0, last.offsetTop - wrap.offsetTop);
+      wrap.scrollTop = top;
+      return;
+    }
+  }
+  wrap.scrollTop = wrap.scrollHeight;
+  $id('aip-input')?.focus();
 }
 
 function collapseAI() {
@@ -6448,7 +6581,14 @@ function collapseAI() {
   toggleTempSessionHistoryPanel(false);
   renderAIShortcuts();
   const btn = $id('aip-enlarge');
-  if (btn) btn.textContent = 'open_in_full';
+  if (btn) {
+    btn.setAttribute('data-ms-icon', 'open_in_full');
+    if (document.body.classList.contains('no-ms-font')) {
+      btn.textContent = btn.getAttribute('data-ms-fallback') || '⛶';
+    } else {
+      btn.textContent = 'open_in_full';
+    }
+  }
 }
 
 function toggleAIPanelSize() {
@@ -6459,7 +6599,15 @@ function toggleAIPanelSize() {
   $id('ai-panel-backdrop')?.classList.toggle('show', aiPanelMax);
   if (!aiPanelMax) toggleTempSessionHistoryPanel(false);
   const btn = $id('aip-enlarge');
-  if (btn) btn.textContent = aiPanelMax ? 'close_fullscreen' : 'open_in_full';
+  if (btn) {
+    const nextIcon = aiPanelMax ? 'close_fullscreen' : 'open_in_full';
+    btn.setAttribute('data-ms-icon', nextIcon);
+    if (document.body.classList.contains('no-ms-font')) {
+      btn.textContent = btn.getAttribute('data-ms-fallback') || '⛶';
+    } else {
+      btn.textContent = nextIcon;
+    }
+  }
   renderAIShortcuts();
   if (aiPanelMax) setTimeout(() => $id('aip-input')?.focus(), 50);
 }
@@ -6474,11 +6622,13 @@ function aiGreet() {
 }
 
 function addMsg(role, text, opts = {}) {
+  const msgText = String(text || '');
+  if (role === 'ai' && shouldHideAIReadReceipt(msgText)) return null;
   const wrap = $id('aip-msgs');
   const d = document.createElement('div');
   d.className = `aip-msg ${role}`;
   // simple markdown: **bold**, newlines
-  d.innerHTML = text
+  d.innerHTML = msgText
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
     .replace(/\n/g,'<br>');
@@ -6488,7 +6638,7 @@ function addMsg(role, text, opts = {}) {
   const persist = opts && opts.persist === false ? false : (!aiTempSession.active);
   if (history && (role === 'user' || role === 'ai')) {
     const r = role === 'ai' ? 'assistant' : 'user';
-    const content = String(text || '').slice(0, AI_HISTORY_MSG_MAX);
+    const content = msgText.slice(0, AI_HISTORY_MSG_MAX);
     aiHistory = (aiHistory || []).concat([{ role: r, content, ts: Date.now() }]).slice(-AI_HISTORY_MAX);
     if (aiTempSession.active && aiTempSession.sessionLog) {
       const msgs = Array.isArray(aiTempSession.sessionLog.messages) ? aiTempSession.sessionLog.messages : [];
@@ -6498,6 +6648,19 @@ function addMsg(role, text, opts = {}) {
     if (persist) saveAIHistoryToStorage();
   }
   return d;
+}
+
+function shouldHideAIReadReceipt(text) {
+  const t = String(text || '').trim();
+  if (!t) return false;
+  if (!t.includes('已读取')) return false;
+  return (
+    t.includes('你可以直接点下方') ||
+    t.includes('本期词典') ||
+    t.includes('嘉宾介绍') ||
+    t.includes('延伸阅读') ||
+    t.includes('内容推荐')
+  );
 }
 
 function showTypingDots() {
@@ -6557,10 +6720,16 @@ function sanitizeAITempText(v, maxLen = 200) {
 
 function normalizeAITempContext(raw) {
   const payload = raw && typeof raw === 'object' ? raw : {};
+  const sourcePageId = Number(payload.source_page_id || curId || 0);
+  const programId = sanitizeAITempText(payload.program_id || payload.programId || '', 64);
+  const scopeKey = sanitizeAITempText(payload.scope_key || payload.scopeKey || '', 120);
+  const normalizedScopeKey = scopeKey || (sourcePageId === 62 && programId ? `podcast:${programId}` : `page:${sourcePageId}`);
   return {
     page: sanitizeAITempText(payload.page || payload.pageName || '', 40) || '当前页面',
-    source_page_id: Number(payload.source_page_id || curId || 0),
+    source_page_id: sourcePageId,
     title: sanitizeAITempText(payload.title || '', 100),
+    program_id: programId,
+    scope_key: normalizedScopeKey,
     subject: sanitizeAITempText(payload.subject || '', 20),
     grade: sanitizeAITempText(payload.grade || '', 20),
     overview: sanitizeAITempText(payload.overview || '', 260),
@@ -6584,7 +6753,7 @@ function setAIIdleStatus() {
   const base = profile.status || '● 随时可用';
   const ctx = getAIContextSnapshot();
   if (Number(ctx?.pageId) === 62 && ctx?.podcast?.ready && ctx?.podcast?.title) {
-    statusEl.textContent = `● 已读取《${ctx.podcast.title}》`;
+    statusEl.textContent = '● 已读取当前页';
     return;
   }
   statusEl.textContent = hasAITempContext() ? `${base} · 当前页临时会话中` : base;
@@ -6603,6 +6772,7 @@ function buildAITempSessionSystemBlock(ctx) {
   if (!ctx) return '';
   const lines = ['当前处于“页面临时会话”模式，请只围绕该页面内容回答。'];
   if (ctx.page) lines.push(`页面=${ctx.page}`);
+  if (ctx.program_id) lines.push(`节目ID=${ctx.program_id}`);
   if (ctx.title) lines.push(`教材=${ctx.title}`);
   if (ctx.subject) lines.push(`学科=${ctx.subject}`);
   if (ctx.grade) lines.push(`年级=${ctx.grade}`);
