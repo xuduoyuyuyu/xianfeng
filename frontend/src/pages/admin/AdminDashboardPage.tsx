@@ -86,13 +86,9 @@ const AdminDashboardPage: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div className="flex items-center gap-2 text-[#5E8B8E] font-bold tracking-[0.2em] text-xs uppercase">
-        <span className="w-8 h-[1px] bg-[#5E8B8E]"></span>
-        管理面板
+      <div className="admin-toolbar">
+        <h1 className="text-4xl font-black text-stone-900">数据概览</h1>
       </div>
-      <h1 className="text-5xl font-black tracking-tight text-stone-900">总览</h1>
-      <p className="text-stone-500 text-xl font-light">欢迎回来，查看您的内容管理数据。</p>
 
       {/* 统计卡片 */}
       {loading ? (
@@ -130,21 +126,21 @@ const AdminDashboardPage: React.FC = () => {
         <div className="flex flex-wrap gap-4">
           <Link
             to="/admin/programs"
-            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#5e17eb] text-white text-sm font-bold hover:bg-[#5e17eb]/90 transition-all shadow-md"
+            className="admin-pill-btn admin-pill-btn-primary"
           >
             <span className="material-symbols-outlined">add</span>
             新建节目
           </Link>
           <Link
             to="/admin/books"
-            className="flex items-center gap-2 px-6 py-3 rounded-xl border border-stone-200 text-stone-700 hover:border-[#5e17eb] hover:text-[#5e17eb] transition-all text-sm font-bold"
+            className="admin-pill-btn admin-pill-btn-secondary"
           >
             <span className="material-symbols-outlined">add</span>
             新建书单
           </Link>
           <Link
             to="/admin/materials"
-            className="flex items-center gap-2 px-6 py-3 rounded-xl border border-stone-200 text-stone-700 hover:border-[#5e17eb] hover:text-[#5e17eb] transition-all text-sm font-bold"
+            className="admin-pill-btn admin-pill-btn-secondary"
           >
             <span className="material-symbols-outlined">add</span>
             上传资料

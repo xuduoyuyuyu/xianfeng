@@ -5,6 +5,7 @@ import {
   DictionaryRelatedProgram,
   Program,
 } from "../../services/api";
+import TopAlert from "../../components/TopAlert";
 
 type StatusFilter = "all" | "active" | "hidden";
 
@@ -23,6 +24,7 @@ const EMPTY_FORM: FormState = {
   aliases: "",
   status: "active",
 };
+const PAGE_SIZE = 20;
 
 function formatDate(value?: string | null) {
   if (!value) return "-";
@@ -48,11 +50,12 @@ const AdminDictionaryPage: React.FC = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const filteredPrograms = useMemo(() => {
-    if (!importQuery.trim()) return programOptions.slice(0, 24);
+    if (!importQuery.trim()) return programOptions.slice(0, 20);
     const keyword = importQuery.trim().toLowerCase();
-    return programOptions.filter((program) => program.title.toLowerCase().includes(keyword)).slice(0, 24);
+    return programOptions.filter((program) => program.title.toLowerCase().includes(keyword)).slice(0, 20);
   }, [programOptions, importQuery]);
 
   async function loadEntries() {
@@ -73,6 +76,10 @@ const AdminDictionaryPage: React.FC = () => {
 
   useEffect(() => {
     loadEntries();
+  }, [query, statusFilter]);
+
+  useEffect(() => {
+    setCurrentPage(1);
   }, [query, statusFilter]);
 
   useEffect(() => {
@@ -205,75 +212,74 @@ const AdminDictionaryPage: React.FC = () => {
     }
   };
 
+  const totalItems = items.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  const pagedItems = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return items.slice(start, start + PAGE_SIZE);
+  }, [items, currentPage]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
   return (
     <div className="space-y-8 font-['Noto_Sans_SC','Plus_Jakarta_Sans',sans-serif] text-[#2D2926]">
-      {error ? <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm text-red-600">{error}</div> : null}
+      <TopAlert message={error} onClose={() => setError(null)} />
 
-      <section className="rounded-[2rem] border border-stone-200 bg-white p-8 shadow-sm">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="text-xs font-black uppercase tracking-[0.24em] text-[#5e17eb]">Education Dictionary</div>
-            <h2 className="mt-3 text-3xl font-black text-stone-900">教育词典</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-stone-500">
-              统一维护节目术语、释义、别名、相关词和关联节目。AI 解析出的词条会自动入库，这里负责人工校正与补导入。
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <button
-              className="rounded-full border border-[#5e17eb]/20 bg-[#f7f3ff] px-5 py-3 text-sm font-bold text-[#5e17eb] hover:border-[#5e17eb] hover:bg-[#f1eaff]"
-              onClick={() => setIsImportOpen(true)}
-              type="button"
-            >
-              从节目导入
-            </button>
-            <button
-              className="rounded-full bg-[#5e17eb] px-5 py-3 text-sm font-bold text-white hover:bg-[#5112d1]"
-              onClick={openCreate}
-              type="button"
-            >
-              新建词条
-            </button>
-          </div>
+      <div className="admin-toolbar">
+        <div className="flex flex-1 flex-col gap-3 md:flex-row">
+          <input
+            className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-input"
+            placeholder="搜索词条、释义或别名"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          <select
+            className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-select"
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+          >
+            <option value="all">全部状态</option>
+            <option value="active">仅看启用</option>
+            <option value="hidden">仅看隐藏</option>
+          </select>
         </div>
-      </section>
-
-      <section className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-1 flex-col gap-3 md:flex-row">
-            <input
-              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm"
-              placeholder="搜索词条、释义或别名"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-            <select
-              className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm"
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
-            >
-              <option value="all">全部状态</option>
-              <option value="active">仅看启用</option>
-              <option value="hidden">仅看隐藏</option>
-            </select>
-          </div>
+        <div className="flex items-center gap-3">
           <div className="rounded-full bg-stone-100 px-4 py-2 text-xs font-black uppercase tracking-[0.2em] text-stone-500">
             {items.length} 条词条
           </div>
+          <button
+            className="admin-pill-btn admin-pill-btn-secondary"
+            onClick={() => setIsImportOpen(true)}
+            type="button"
+          >
+            从节目导入
+          </button>
+          <button
+            className="admin-pill-btn admin-pill-btn-primary"
+            onClick={openCreate}
+            type="button"
+          >
+            新建词条
+          </button>
         </div>
+      </div>
 
-        <div className="mt-6 overflow-x-auto">
-          <table className="w-full text-left">
+      <section className="rounded-[2rem] border border-stone-200 bg-white p-6">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1120px] text-left">
             <thead className="bg-stone-50 text-[11px] font-black uppercase tracking-[0.2em] text-stone-500">
               <tr>
                 <th className="px-5 py-4">词条</th>
                 <th className="px-5 py-4">释义摘要</th>
-                <th className="px-5 py-4">关联节目</th>
-                <th className="px-5 py-4">状态</th>
-                <th className="px-5 py-4">更新时间</th>
-                <th className="px-5 py-4 text-right">操作</th>
+                <th className="px-5 py-4 whitespace-nowrap">关联节目</th>
+                <th className="px-5 py-4 whitespace-nowrap">状态</th>
+                <th className="px-5 py-4 whitespace-nowrap">更新时间</th>
+                <th className="px-5 py-4 text-right whitespace-nowrap">操作</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-stone-100">
+            <tbody className="divide-y divide-[rgba(148,163,184,0.16)]">
               {loading ? (
                 <tr>
                   <td className="px-5 py-6 text-sm text-stone-500" colSpan={6}>
@@ -287,7 +293,7 @@ const AdminDictionaryPage: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                items.map((item) => (
+                pagedItems.map((item) => (
                   <tr key={item._id} className="hover:bg-stone-50/60">
                     <td className="px-5 py-5">
                       <div className="font-bold text-stone-900">{item.term}</div>
@@ -298,35 +304,35 @@ const AdminDictionaryPage: React.FC = () => {
                     <td className="px-5 py-5 text-sm leading-6 text-stone-600">
                       {(item.definition || "").slice(0, 90) || "暂无释义"}
                     </td>
-                    <td className="px-5 py-5 text-sm font-semibold text-stone-700">{item.programCount || 0} 个节目</td>
+                    <td className="px-5 py-5 text-sm font-semibold text-stone-700 whitespace-nowrap">{item.programCount || 0} 个节目</td>
                     <td className="px-5 py-5">
                       <span
-                        className={`rounded-full px-3 py-1 text-xs font-black ${
+                        className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-black ${
                           item.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-stone-100 text-stone-500"
                         }`}
                       >
                         {item.status === "active" ? "启用中" : "已隐藏"}
                       </span>
                     </td>
-                    <td className="px-5 py-5 text-sm text-stone-500">{formatDate(item.updatedAt)}</td>
+                    <td className="px-5 py-5 text-sm text-stone-500 whitespace-nowrap">{formatDate(item.updatedAt)}</td>
                     <td className="px-5 py-5">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex shrink-0 justify-end gap-2 whitespace-nowrap">
                         <button
-                          className="rounded-full border border-stone-200 px-4 py-2 text-xs font-bold text-stone-700 hover:border-[#5e17eb] hover:text-[#5e17eb]"
+                          className="rounded-full border border-stone-200 px-4 py-2 text-xs font-bold whitespace-nowrap text-stone-700 hover:border-[#5e17eb] hover:text-[#5e17eb]"
                           onClick={() => openDetail(item)}
                           type="button"
                         >
                           详情
                         </button>
                         <button
-                          className="rounded-full border border-stone-200 px-4 py-2 text-xs font-bold text-stone-700 hover:border-[#5e17eb] hover:text-[#5e17eb]"
+                          className="rounded-full border border-stone-200 px-4 py-2 text-xs font-bold whitespace-nowrap text-stone-700 hover:border-[#5e17eb] hover:text-[#5e17eb]"
                           onClick={() => openEdit(item)}
                           type="button"
                         >
                           编辑
                         </button>
                         <button
-                          className="rounded-full border border-stone-200 px-4 py-2 text-xs font-bold text-stone-700 hover:border-[#5e17eb] hover:text-[#5e17eb]"
+                          className="rounded-full border border-stone-200 px-4 py-2 text-xs font-bold whitespace-nowrap text-stone-700 hover:border-[#5e17eb] hover:text-[#5e17eb]"
                           onClick={() => handleStatusToggle(item)}
                           type="button"
                         >
@@ -340,6 +346,29 @@ const AdminDictionaryPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+        {!loading && totalItems > 0 ? (
+          <div className="mt-4 flex items-center justify-between border-t border-stone-100 pt-4 text-sm text-stone-500">
+            <div>第 {currentPage}/{totalPages} 页，每页 {PAGE_SIZE} 条，共 {totalItems} 条</div>
+            <div className="flex gap-2">
+              <button
+                className="rounded-full border border-stone-200 px-4 py-2 text-xs font-bold text-stone-700 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                type="button"
+              >
+                上一页
+              </button>
+              <button
+                className="rounded-full border border-stone-200 px-4 py-2 text-xs font-bold text-stone-700 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                type="button"
+              >
+                下一页
+              </button>
+            </div>
+          </div>
+        ) : null}
       </section>
 
       {isFormOpen ? (
@@ -356,33 +385,33 @@ const AdminDictionaryPage: React.FC = () => {
             </div>
             <form className="grid grid-cols-1 gap-4" onSubmit={handleSave}>
               <input
-                className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm"
+                className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-input"
                 placeholder="词条名称"
                 required
                 value={form.term}
                 onChange={(event) => setForm((prev) => ({ ...prev, term: event.target.value }))}
               />
               <textarea
-                className="min-h-[120px] rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm"
+                className="min-h-[120px] rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-textarea"
                 placeholder="词条释义"
                 required
                 value={form.definition}
                 onChange={(event) => setForm((prev) => ({ ...prev, definition: event.target.value }))}
               />
               <input
-                className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm"
+                className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-input"
                 placeholder="来源链接（可选）"
                 value={form.sourceUrl}
                 onChange={(event) => setForm((prev) => ({ ...prev, sourceUrl: event.target.value }))}
               />
               <input
-                className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm"
+                className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-input"
                 placeholder="别名（逗号分隔）"
                 value={form.aliases}
                 onChange={(event) => setForm((prev) => ({ ...prev, aliases: event.target.value }))}
               />
               <select
-                className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm"
+                className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-select"
                 value={form.status}
                 onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value as "active" | "hidden" }))}
               >
@@ -482,7 +511,7 @@ const AdminDictionaryPage: React.FC = () => {
             </div>
 
             <input
-              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm"
+              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-input"
               placeholder="搜索节目标题"
               value={importQuery}
               onChange={(event) => setImportQuery(event.target.value)}

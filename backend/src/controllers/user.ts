@@ -6,12 +6,134 @@ import dotenv from "dotenv";
 import { AuthenticatedRequest } from "../middlewares/auth";
 
 dotenv.config();
+const smsCodeStore = new Map<string, { code: string; expiresAt: number }>();
+
+function normalizeMobile(input: unknown): string {
+  return String(input || "").replace(/\D/g, "").slice(-11);
+}
+
+function buildWelProfile(user: any) {
+  const safeName = String(user.name || user.username || "用户");
+  return {
+    id: user._id,
+    username: user.username,
+    role: user.role,
+    mobile: user.mobile || "",
+    name: safeName,
+    grade: user.grade || user.childGrade || "",
+    city: user.city || "",
+    level: Number(user.level || 1),
+    xp: Number(user.xp || 0),
+    streak: Number(user.streak || 0),
+    avatar_initial: String(user.avatar_initial || safeName[0] || "探"),
+    avatar_image: user.avatar_image || "",
+  };
+}
 
 function canPublicRegister(): boolean {
   return process.env.ALLOW_PUBLIC_REGISTER === "true";
 }
 
 export class UserController {
+  async sendMobileCode(req: Request, res: Response): Promise<void> {
+    const mobile = normalizeMobile(req.body?.mobile);
+    if (!/^1\d{10}$/.test(mobile)) {
+      res.status(400).json({ error: "请输入正确的11位手机号" });
+      return;
+    }
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    smsCodeStore.set(mobile, { code, expiresAt: Date.now() + 10 * 60 * 1000 });
+    res.status(200).json({ ok: true, debugCode: code });
+  }
+
+  async mobileAuth(req: Request, res: Response): Promise<void> {
+    try {
+      const mobile = normalizeMobile(req.body?.mobile);
+      const code = String(req.body?.code || "").trim();
+      if (!/^1\d{10}$/.test(mobile)) {
+        res.status(400).json({ error: "请输入正确的11位手机号" });
+        return;
+      }
+      const rec = smsCodeStore.get(mobile);
+      if (!rec || rec.expiresAt < Date.now() || rec.code !== code) {
+        res.status(400).json({ error: "验证码错误或已过期" });
+        return;
+      }
+      smsCodeStore.delete(mobile);
+
+      let user = await User.findOne({ mobile });
+      if (!user) {
+        const username = `u${mobile}`;
+        const password = await bcryptjs.hash(`mob-${mobile}-${Date.now()}`, 10);
+        user = new User({
+          username,
+          password,
+          mobile,
+          name: username,
+          grade: "初中八年级",
+          role: "user",
+          level: 1,
+          xp: 0,
+          streak: 0,
+          avatar_initial: "探",
+          avatar_image: "",
+        });
+        await user.save();
+      }
+
+      const expiresIn = (process.env.JWT_EXPIRES_IN || "7d") as jwt.SignOptions["expiresIn"];
+      const token = jwt.sign(
+        { id: user._id, role: user.role },
+        (process.env.JWT_SECRET || "your-secret-key") as jwt.Secret,
+        { expiresIn }
+      );
+      res.status(200).json({ token, user: buildWelProfile(user) });
+    } catch (error) {
+      res.status(500).json({ error: "登录失败", message: String((error as Error)?.message || error) });
+    }
+  }
+
+  async meCompat(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: "未登录或登录已过期" });
+        return;
+      }
+      const user = await User.findById(req.user.id);
+      if (!user) {
+        res.status(404).json({ error: "用户不存在" });
+        return;
+      }
+      res.status(200).json(buildWelProfile(user));
+    } catch (error) {
+      res.status(500).json({ error: "获取用户信息失败", message: String((error as Error)?.message || error) });
+    }
+  }
+
+  async patchMeCompat(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: "未登录或登录已过期" });
+        return;
+      }
+      const user = await User.findById(req.user.id);
+      if (!user) {
+        res.status(404).json({ error: "用户不存在" });
+        return;
+      }
+      const body = req.body || {};
+      if (typeof body.name === "string") user.name = body.name.trim();
+      if (typeof body.city === "string") user.city = body.city.trim();
+      if (typeof body.grade === "string") user.grade = body.grade.trim();
+      if (typeof body.avatar_initial === "string") user.avatar_initial = body.avatar_initial.trim().slice(0, 2) || "探";
+      if (typeof body.avatar_image === "string") user.avatar_image = body.avatar_image.trim();
+      await user.save();
+      res.status(200).json(buildWelProfile(user));
+    } catch (error) {
+      res.status(500).json({ error: "更新资料失败", message: String((error as Error)?.message || error) });
+    }
+  }
+
   async login(req: Request, res: Response): Promise<void> {
     try {
       const { username, password } = req.body;

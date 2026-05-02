@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>wel 错题归因功能收敛版</title>
+<script src="/wel/vendor/tailwindcdn.forms.container-queries.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#7f13ec",
+                        "background-light": "#fdfdfd",
+                        "pearl-white": "#fcfcfc",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "Noto Sans SC", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "3xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(127, 19, 236, 0.1);
+        }
+        .glow-button {
+            background: #7f13ec;
+            box-shadow: 0 0 15px rgba(127, 19, 236, 0.4);
+        }
+        .secondary-button {
+            border: 1px solid rgba(127, 19, 236, 0.3);
+            color: #7f13ec;
+            background: white;
+        }
+        .secondary-button:hover {
+            background: rgba(127, 19, 236, 0.05);
+            border-color: #7f13ec;
+        }
+        .toggle-button-active {
+            border: 1.5px solid #7f13ec;
+            color: #7f13ec;
+            background: rgba(127, 19, 236, 0.08);
+            box-shadow: 0 0 10px rgba(127, 19, 236, 0.15);
+        }
+        .thin-icon {
+            font-variation-settings: 'wght' 200, 'opsz' 24;
+            color: #7f13ec;
+        }
+        .map-bg {
+            background-image: radial-gradient(circle at 2px 2px, #f0e8f8 1px, transparent 0);
+            background-size: 32px 32px;
+        }
+        body {
+            font-family: 'Noto Sans SC', 'Space Grotesk', sans-serif;
+        }
+        .knowledge-tag {
+            border: 1px solid rgba(127, 19, 236, 0.3);
+            color: #7f13ec;
+            background: rgba(127, 19, 236, 0.02);
+            box-shadow: 0 0 8px rgba(127, 19, 236, 0.1);
+            padding: 2px 10px;
+            border-radius: 9999px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .ai-attribution-btn {
+            background: #7f13ec;
+            color: white;
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+            transition: all 0.3s;
+        }
+        .ai-attribution-btn:hover {
+            box-shadow: 0 0 20px rgba(127, 19, 236, 0.5);
+        }
+        .core-repair-btn {
+            position: relative;
+            border: 1.5px solid #7f13ec;
+            color: #7f13ec;
+            background: transparent;
+            padding: 5px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+            transition: all 0.3s;
+            overflow: hidden;
+        }
+        @keyframes breathing {
+            0% { box-shadow: 0 0 2px rgba(127, 19, 236, 0.2); border-color: rgba(127, 19, 236, 0.4); }
+            50% { box-shadow: 0 0 12px rgba(127, 19, 236, 0.6); border-color: rgba(127, 19, 236, 1); }
+            100% { box-shadow: 0 0 2px rgba(127, 19, 236, 0.2); border-color: rgba(127, 19, 236, 0.4); }
+        }
+        .core-repair-btn {
+            animation: breathing 3s infinite ease-in-out;
+        }
+        .core-repair-btn:hover {
+            background: rgba(127, 19, 236, 0.05);
+        }
+        .list-row {
+            transition: background-color 0.2s;
+            border-bottom: 1px solid rgba(0,0,0,0.04);
+        }
+        .list-row:hover {
+            background-color: rgba(127, 19, 236, 0.02);
+        }
+        .knowledge-group-header {
+            background: linear-gradient(90deg, rgba(127, 19, 236, 0.08) 0%, rgba(127, 19, 236, 0.02) 100%);
+            border-left: 3px solid #7f13ec;
+        }
+    </style>
+</head>
+<body class="bg-pearl-white text-slate-900 font-display">
+<div class="relative flex min-h-screen w-full flex-col overflow-x-hidden">
+<div class="flex flex-1">
+<main class="flex-1 bg-pearl-white map-bg overflow-y-auto px-8 py-10">
+<div class="flex flex-col gap-6">
+<div class="flex items-center justify-between mb-2">
+<div class="flex items-center gap-4">
+<h3 class="text-xl font-bold text-slate-800 tracking-tight">错题归因</h3>
+<div class="flex gap-2">
+<select data-wl-subject class="px-3 py-1 bg-white border border-slate-200 rounded-full text-xs text-slate-600 cursor-pointer hover:border-primary focus:ring-0">
+<option value="all">全部</option>
+</select>
+<button data-wl-status class="px-3 py-1 bg-white border border-slate-200 rounded-full text-xs text-slate-600 cursor-pointer font-medium">待归因</button>
+</div>
+</div>
+<div class="flex items-center gap-4 text-sm text-slate-500">
+<button data-wl-import class="glow-button flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold text-white transition-all">
+<span class="material-symbols-outlined text-base !text-white !filter-none">upload_file</span>
+<span>错题录入</span>
+</button>
+<button data-wl-group class="toggle-button-active flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold transition-all">
+<span class="material-symbols-outlined text-base thin-icon">account_tree</span>
+<span>按知识点聚合</span>
+</button>
+</div>
+</div>
+<div class="glass-card rounded-2xl overflow-hidden border border-slate-100">
+<div class="grid grid-cols-12 gap-4 px-6 py-3 bg-slate-50/50 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
+<div class="col-span-2">来源</div>
+<div class="col-span-3">题目摘要</div>
+<div class="col-span-2">学科</div>
+<div class="col-span-2">错误原因</div>
+<div class="col-span-1 text-center">录入日期</div>
+<div class="col-span-2 text-right">操作</div>
+</div>
+<div class="divide-y divide-slate-100/50">
+<div class="knowledge-group-header px-6 py-2.5 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-lg">folder_open</span>
+<h4 class="text-sm font-bold text-slate-800">立体几何 <span class="text-xs font-normal text-primary/60 ml-1">(12)</span></h4>
+</div>
+<div class="grid grid-cols-12 gap-4 px-6 py-5 items-center list-row">
+<div class="col-span-2">
+<span class="px-2 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold rounded border border-blue-100">来自上传试卷</span>
+</div>
+<div class="col-span-4">
+<p class="text-sm text-slate-700 font-medium truncate pr-4">已知四棱锥 P-ABCD 的底面是边长为 2 的正方形，PA 垂直于底面...</p>
+</div>
+<div class="col-span-2 flex flex-wrap gap-2">
+<span class="knowledge-tag">立体几何</span>
+<span class="knowledge-tag">空间向量</span>
+</div>
+<div class="col-span-1 text-[11px] text-slate-400 text-center">2023-10-24</div>
+<div class="col-span-3 flex justify-end gap-2.5">
+<button class="ai-attribution-btn">
+<span class="material-symbols-outlined text-sm !font-bold">bolt</span>
+        AI 深度归因
+    </button>
+<button class="core-repair-btn">
+<span class="material-symbols-outlined text-sm !font-bold">diamond</span>
+        点击修复
+    </button>
+</div>
+</div>
+<div class="knowledge-group-header px-6 py-2.5 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-lg">folder_open</span>
+<h4 class="text-sm font-bold text-slate-800">欧姆定律 <span class="text-xs font-normal text-primary/60 ml-1">(8)</span></h4>
+</div>
+<div class="grid grid-cols-12 gap-4 px-6 py-5 items-center list-row">
+<div class="col-span-2">
+<span class="px-2 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded border border-emerald-100">系统同步测评</span>
+</div>
+<div class="col-span-4">
+<p class="text-sm text-slate-700 font-medium truncate pr-4">在如图所示的电路中，电源电压保持不变，当开关 S 闭合后...</p>
+</div>
+<div class="col-span-2 flex flex-wrap gap-2">
+<span class="knowledge-tag">欧姆定律</span>
+</div>
+<div class="col-span-1 text-[11px] text-slate-400 text-center">2023-10-23</div>
+<div class="col-span-3 flex justify-end gap-2.5">
+<button class="ai-attribution-btn">
+<span class="material-symbols-outlined text-sm !font-bold">bolt</span>
+        AI 深度归因
+    </button>
+<button class="core-repair-btn">
+<span class="material-symbols-outlined text-sm !font-bold">diamond</span>
+        点击修复
+    </button>
+</div>
+</div>
+<div class="knowledge-group-header px-6 py-2.5 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-lg">folder_open</span>
+<h4 class="text-sm font-bold text-slate-800">氧化还原 <span class="text-xs font-normal text-primary/60 ml-1">(15)</span></h4>
+</div>
+<div class="grid grid-cols-12 gap-4 px-6 py-5 items-center list-row">
+<div class="col-span-2">
+<span class="px-2 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold rounded border border-blue-100">来自上传试卷</span>
+</div>
+<div class="col-span-4">
+<p class="text-sm text-slate-700 font-medium truncate pr-4">下列离子方程式中，正确的是：A. 向氯化亚铁溶液中通入氯气...</p>
+</div>
+<div class="col-span-2 flex flex-wrap gap-2">
+<span class="knowledge-tag">氧化还原</span>
+<span class="knowledge-tag">离子反应</span>
+</div>
+<div class="col-span-1 text-[11px] text-slate-400 text-center">2023-10-22</div>
+<div class="col-span-3 flex justify-end gap-2.5">
+<button class="ai-attribution-btn">
+<span class="material-symbols-outlined text-sm !font-bold">bolt</span>
+        AI 深度归因
+    </button>
+<button class="core-repair-btn">
+<span class="material-symbols-outlined text-sm !font-bold">diamond</span>
+        点击修复
+    </button>
+</div>
+</div>
+<div class="knowledge-group-header px-6 py-2.5 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-lg">folder_open</span>
+<h4 class="text-sm font-bold text-slate-800">现代文阅读 <span class="text-xs font-normal text-primary/60 ml-1">(5)</span></h4>
+</div>
+<div class="grid grid-cols-12 gap-4 px-6 py-5 items-center list-row">
+<div class="col-span-2">
+<span class="px-2 py-1 bg-amber-50 text-amber-600 text-[10px] font-bold rounded border border-amber-100">拍照搜题导入</span>
+</div>
+<div class="col-span-4">
+<p class="text-sm text-slate-700 font-medium truncate pr-4">阅读下面的一段文字，完成后面题目。在人类文明的进程中...</p>
+</div>
+<div class="col-span-2 flex flex-wrap gap-2">
+<span class="knowledge-tag">现代文阅读</span>
+</div>
+<div class="col-span-1 text-[11px] text-slate-400 text-center">2023-10-21</div>
+<div class="col-span-3 flex justify-end gap-2.5">
+<button class="ai-attribution-btn">
+<span class="material-symbols-outlined text-sm !font-bold">bolt</span>
+        AI 深度归因
+    </button>
+<button class="core-repair-btn">
+<span class="material-symbols-outlined text-sm !font-bold">diamond</span>
+        点击修复
+    </button>
+</div>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between mt-4">
+<p data-wl-summary class="text-xs text-slate-400 font-medium">共 0 条记录，每页显示 15 条</p>
+<div data-wl-pager class="flex items-center gap-3">
+<button data-wl-page-prev class="size-9 glass-card rounded-lg flex items-center justify-center text-slate-400 hover:text-primary transition-all">
+<span class="material-symbols-outlined text-xl thin-icon">chevron_left</span>
+</button>
+<div data-wl-page-list class="flex items-center gap-1">
+<span class="size-9 bg-primary text-white text-xs font-bold rounded-lg flex items-center justify-center">1</span>
+</div>
+<button data-wl-page-next class="size-9 glass-card rounded-lg flex items-center justify-center text-slate-400 hover:text-primary transition-all">
+<span class="material-symbols-outlined text-xl thin-icon">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+</div>
+</div>
+
+</body></html>

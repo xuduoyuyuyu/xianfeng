@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { adminApi, Book } from '../../services/api';
+const PAGE_SIZE = 20;
 
 const AdminBooksPage: React.FC = () => {
   const [books, setBooks] = useState<Book[]>([]);
@@ -7,6 +8,7 @@ const AdminBooksPage: React.FC = () => {
   const [filter, setFilter] = useState<'all' | 'published' | 'draft'>('all');
   const [showModal, setShowModal] = useState(false);
   const [editingBook, setEditingBook] = useState<Book | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const [formData, setFormData] = useState({
     title: '',
     author: '',
@@ -25,12 +27,23 @@ const AdminBooksPage: React.FC = () => {
       const status = filter === 'all' ? undefined : filter;
       const response = await adminApi.getBooks(status);
       setBooks(response.data);
+      setCurrentPage(1);
     } catch (error) {
       console.error('获取书单列表失败:', error);
     } finally {
       setLoading(false);
     }
   };
+
+  const totalPages = Math.max(1, Math.ceil(books.length / PAGE_SIZE));
+  const pagedBooks = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return books.slice(start, start + PAGE_SIZE);
+  }, [books, currentPage]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   const handleCreate = () => {
     setEditingBook(null);
@@ -92,20 +105,13 @@ const AdminBooksPage: React.FC = () => {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-8">
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-[#5E8B8E] font-bold tracking-[0.2em] text-xs uppercase">
-            <span className="w-8 h-[1px] bg-[#5E8B8E]"></span>
-            管理面板
-          </div>
-          <h1 className="text-5xl font-black tracking-tight text-stone-900">书单管理</h1>
-          <p className="text-stone-500 text-xl font-light">管理您的书单资源。</p>
-        </div>
+      <div className="admin-toolbar">
+        <div />
         <button
           onClick={handleCreate}
-          className="px-10 py-5 bg-gradient-to-r from-[#5e17eb] to-[#5e17eb] text-white rounded-full font-bold flex items-center gap-3 shadow-lg hover:scale-105 transition-all"
+          className="admin-pill-btn admin-pill-btn-primary"
         >
-          <span className="material-symbols-outlined text-2xl">add_circle</span>
+          <span className="material-symbols-outlined text-base">add_circle</span>
           新增书单
         </button>
       </div>
@@ -188,7 +194,7 @@ const AdminBooksPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
-                {books.map((book) => (
+                {pagedBooks.map((book) => (
                   <tr key={book._id} className="hover:bg-stone-50/50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-4">
@@ -245,6 +251,29 @@ const AdminBooksPage: React.FC = () => {
               <div className="text-center py-16 text-stone-400">
                 <span className="material-symbols-outlined text-6xl mb-4">inbox</span>
                 <p>暂无书单</p>
+              </div>
+            )}
+            {books.length > 0 && (
+              <div className="flex items-center justify-between border-t border-stone-100 px-6 py-4 text-sm text-stone-500">
+                <div>第 {currentPage}/{totalPages} 页，每页 {PAGE_SIZE} 条，共 {books.length} 条</div>
+                <div className="flex gap-2">
+                  <button
+                    className="rounded-xl border border-stone-200 px-3 py-2 text-xs font-bold text-stone-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={currentPage <= 1}
+                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                    type="button"
+                  >
+                    上一页
+                  </button>
+                  <button
+                    className="rounded-xl border border-stone-200 px-3 py-2 text-xs font-bold text-stone-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                    type="button"
+                  >
+                    下一页
+                  </button>
+                </div>
               </div>
             )}
           </div>

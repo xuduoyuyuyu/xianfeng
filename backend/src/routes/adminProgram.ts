@@ -86,6 +86,7 @@ router.post("/upload-image", (req, res, next) => {
 router.post("/create-from-audio", programController.createFromAudio);
 router.post("/:id/parse", programController.triggerParse);
 router.get("/:id/parse-status", programController.getParseStatus);
+router.post("/:id/proofread/accept", (req, res) => programController.acceptProofread(req as any, res));
 router.get("/:id", programController.getByIdAdmin);
 router.post("/", programController.create);
 router.put("/:id", programController.update);

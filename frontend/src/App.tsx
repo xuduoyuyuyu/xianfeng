@@ -12,25 +12,39 @@ import AdminProgramsPage from "./pages/admin/AdminProgramsPage";
 import AdminBooksPage from "./pages/admin/AdminBooksPage";
 import AdminMaterialsPage from "./pages/admin/AdminMaterialsPage";
 import AdminUsersPage from "./pages/admin/AdminUsersPage";
+import AdminUserPortraitPage from "./pages/admin/AdminUserPortraitPage";
 import AdminSystemPage from "./pages/admin/AdminSystemPage";
+import AdminMultiAgentsPage from "./pages/admin/AdminMultiAgentsPage";
 import AdminDictionaryPage from "./pages/admin/AdminDictionaryPage";
+import AdminGuestsPage from "./pages/admin/AdminGuestsPage";
+import AdminAgentsPage from "./pages/admin/AdminAgentsPage";
+import AdminAgentsChatPage from "./pages/admin/AdminAgentsChatPage";
+import ProgramListPage from "./pages/ProgramListPage";
 
 const PublicScreenRouter: React.FC = () => {
   const { pathname, search } = useLocation();
-  const screenRev = "20260424-ep3-ui";
+  const screenRev = "20260502-podcast-home-force-refresh-1";
+  const cacheBust = String(Date.now());
 
   if (pathname === "/") {
     return <Navigate to="/programs" replace />;
   }
 
+  if (pathname === "/programs") {
+    return <ScreenPage src={`/wel/index.html?v=${screenRev}&cb=${cacheBust}`} title="wel 首页架构" />;
+  }
+
+  if (pathname === "/programs/list") {
+    return <ProgramListPage />;
+  }
+
   if (/^\/programs\/[^/]+$/.test(pathname)) {
     const programId = pathname.split("/")[2] || "";
-    const src = `/screens/podcast-detail.html?programId=${encodeURIComponent(programId)}&v=${screenRev}`;
-    return <ScreenPage src={src} title="播客详情" />;
+    const src = `/wel/index.html?page=podcast-detail&programId=${encodeURIComponent(programId)}&v=${screenRev}&cb=${cacheBust}`;
+    return <ScreenPage src={src} title="播客详情（框架内）" />;
   }
 
   const routeMap: Record<string, { src: string; title: string }> = {
-    "/programs": { src: "/screens/podcast-home.html", title: "播客首页" },
     "/books": { src: "/screens/public-books.html", title: "推荐书单" },
     "/materials": { src: "/screens/public-materials.html", title: "课程资料" },
     "/articles": { src: "/screens/public-articles.html", title: "精选文稿" },
@@ -71,10 +85,15 @@ const App: React.FC = () => {
         <Route index element={<AdminDashboardPage />} />
         <Route path="programs" element={<AdminProgramsPage />} />
         <Route path="dictionary" element={<AdminDictionaryPage />} />
+        <Route path="guests" element={<AdminGuestsPage />} />
         <Route path="books" element={<AdminBooksPage />} />
         <Route path="materials" element={<AdminMaterialsPage />} />
         <Route path="users" element={<AdminUsersPage />} />
+        <Route path="user-portrait" element={<AdminUserPortraitPage />} />
         <Route path="system" element={<AdminSystemPage />} />
+        <Route path="agents" element={<AdminAgentsPage />} />
+        <Route path="agents/:botId/chat" element={<AdminAgentsChatPage />} />
+        <Route path="multi-agents" element={<AdminMultiAgentsPage />} />
         <Route path="*" element={<Navigate to="/admin" replace />} />
       </Route>
       <Route path="*" element={<PublicScreenRouter />} />

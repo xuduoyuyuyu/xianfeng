@@ -8,7 +8,7 @@ type NavProps = {
 export const PodcastHomeNav: React.FC = () => {
   return (
     <nav className="fixed top-0 z-50 w-full border-b border-[#e2e8f0] bg-white/80 backdrop-blur-xl">
-      <div className="mx-auto flex h-20 w-full max-w-[1440px] items-center justify-between px-8">
+      <div className="mx-auto flex h-20 w-full max-w-6xl items-center justify-between px-8">
         <div className="flex items-center gap-12">
           <Link to="/programs">
             <img alt="家长先疯" className="h-12 w-auto object-contain" src="/assets/logo.png" />
@@ -121,10 +121,10 @@ export const PodcastSidebarSubscribe: React.FC = () => {
 
 export const PodcastHomeFooter: React.FC = () => {
   return (
-    <footer className="border-t border-[#e2e8f0] bg-white px-8 py-12">
-      <div className="mx-auto flex max-w-[1440px] flex-col items-start justify-between gap-8 lg:flex-row lg:items-center">
+    <footer className="border-t border-[#e2e8f0] bg-white px-8 py-7">
+      <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-8 lg:flex-row lg:items-center">
         <div className="flex flex-col items-center">
-          <img alt="家和万事 服务家庭 智慧决策" className="h-25 w-auto object-contain" src="/assets/jiahe-logo.png" />
+          <img alt="家和万事 服务家庭 智慧决策" className="h-[30px] w-auto object-contain" src="/assets/jiahe-logo.png" />
         </div>
         <div className="flex flex-wrap justify-center gap-8 text-xs font-bold text-[#64748b]">
           <a className="transition-all hover:text-[#5e17eb]" href="#">

@@ -118,6 +118,10 @@
           <span class="material-symbols-outlined text-[20px]">school</span>
           学习资料
         </a>
+        <a data-nav="guests" href="/admin/guests" class="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-ink/90 hover:bg-white/5">
+          <span class="material-symbols-outlined text-[20px]">group</span>
+          先疯智库
+        </a>
         <div class="mt-6 mb-3 px-2 text-[11px] font-black uppercase tracking-[0.22em] text-muted/70">系统</div>
         <a data-nav="users" href="/admin/users" class="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-ink/90 hover:bg-white/5">
           <span class="material-symbols-outlined text-[20px]">group</span>
@@ -147,11 +151,12 @@
 
   <main class="ml-[280px] min-h-screen px-10 py-8">
     <header class="mb-7 flex items-center justify-between">
-      <div class="space-y-1">
-        <div class="text-[11px] font-black uppercase tracking-[0.26em] text-muted/70">先疯管理</div>
-        <div class="text-3xl font-black tracking-tight">播客管理</div>
-      </div>
+      <div></div>
       <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 rounded-[var(--r-pill)] border border-line bg-panel2/60 px-2 py-1">
+          <input id="program-search-input" class="w-[220px] bg-transparent px-2 py-1 text-sm text-ink/85 outline-none" placeholder="搜索节目标题 / 编号" />
+          <button id="program-search-btn" class="rounded-[var(--r-pill)] bg-white/10 px-3 py-1.5 text-xs font-black text-ink/85 hover:bg-white/15" type="button">搜索</button>
+        </div>
         <div class="theme-toggle flex border border-line bg-panel2/60">
           <button id="theme-dark-btn" type="button" class="flex h-11 w-11 items-center justify-center border-r border-line text-ink/70 hover:text-ink" aria-label="深色模式">
             <span class="material-symbols-outlined text-[20px]">dark_mode</span>
@@ -170,12 +175,7 @@
 
     <section class="pearl-card rounded-[var(--r-shell)] overflow-hidden">
       <div class="p-7 border-b border-line flex justify-between items-center bg-panel/30">
-        <div class="flex items-center gap-3">
-          <div class="flex h-10 w-10 items-center justify-center rounded-[var(--r-item)] bg-white/10 text-ink/70">
-            <span class="material-symbols-outlined text-[20px]">podcasts</span>
-          </div>
-          <h1 class="text-xl font-black tracking-tight text-ink/90">内容管理 / 播客</h1>
-        </div>
+        <div></div>
         <button id="open-program-modal-btn" class="rounded-[var(--r-control)] bg-primary px-5 py-3 text-sm font-black text-white hover:opacity-95" type="button">
           <span class="material-symbols-outlined mr-2 align-[-4px] text-[20px]">add_circle</span>
           新增节目
@@ -194,8 +194,16 @@
               <th class="px-8 py-5 text-right">操作</th>
             </tr>
           </thead>
-          <tbody id="program-table-body" class="divide-y divide-white/5"></tbody>
+          <tbody id="program-table-body" class="divide-y divide-transparent"></tbody>
         </table>
+      </div>
+      <div class="flex items-center justify-between border-t border-line px-8 py-4 text-xs font-bold text-ink/70">
+        <div id="program-pagination-summary">正在显示 0-0 项，共 0 项资源</div>
+        <div class="flex items-center gap-2">
+          <button id="program-prev-page-btn" type="button" class="rounded-[var(--r-pill)] border border-line px-3 py-1.5 text-xs font-black hover:bg-white/5">上一页</button>
+          <span id="program-page-indicator">第 1/1 页</span>
+          <button id="program-next-page-btn" type="button" class="rounded-[var(--r-pill)] border border-line px-3 py-1.5 text-xs font-black hover:bg-white/5">下一页</button>
+        </div>
       </div>
     </section>
   </main>
@@ -221,17 +229,17 @@
 <button id="close-program-modal-btn" class="material-symbols-outlined text-stone-400">close</button>
 </div>
 <form id="program-form" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-<input name="title" class="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm" placeholder="节目标题（可留空，AI 自动生成）"/>
+<input name="title" class="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-input" placeholder="节目标题（可留空，AI 自动生成）"/>
 <div class="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm">
-<input name="coverImage" class="w-full border-0 bg-transparent p-0 text-sm focus:ring-0" placeholder="封面图片 URL（可留空）"/>
+<input name="coverImage" class="w-full border-0 bg-transparent p-0 text-sm focus:ring-0 admin-form-input" placeholder="封面图片 URL（可留空）"/>
 <div class="mt-2 flex items-center gap-2">
 <input id="cover-image-upload-input" accept="image/*" class="block text-[11px] text-stone-600 file:mr-2 file:rounded-full file:border-0 file:bg-signature-violet/10 file:px-3 file:py-1.5 file:text-[11px] file:font-bold file:text-signature-violet" type="file"/>
 </div>
 <div id="cover-image-upload-status" class="mt-1 text-[11px] font-bold text-warm-gray">未上传封面图片</div>
 </div>
-<input name="episodeTitle" class="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm" placeholder="单集标题（可留空，AI 自动生成）"/>
-<input name="episodeDuration" class="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm" placeholder="时长（如 45 分钟，可留空）"/>
-<input name="episodeUrl" class="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm md:col-span-2" placeholder="音频 URL（上传后自动填充）"/>
+<input name="episodeTitle" class="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-input" placeholder="单集标题（可留空，AI 自动生成）"/>
+<input name="episodeDuration" class="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-input" placeholder="时长（如 45 分钟，可留空）"/>
+<input name="episodeUrl" class="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm md:col-span-2 admin-form-input" placeholder="音频 URL（上传后自动填充）"/>
 <div class="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm md:col-span-2">
 <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
 <div class="flex items-center gap-3">
@@ -244,38 +252,36 @@
 </div>
 <div id="audio-upload-progress-text" class="mt-1 text-[11px] font-bold text-warm-gray">0%</div>
 </div>
-<textarea name="description" class="min-h-[120px] rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm md:col-span-2" placeholder="节目简介（可留空，AI 自动生成）"></textarea>
+<textarea name="description" class="min-h-[120px] rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm md:col-span-2 admin-form-textarea" placeholder="节目简介（可留空，AI 自动生成）"></textarea>
 
 <div class="rounded-2xl border border-stone-100 bg-stone-50/60 p-4 md:col-span-2">
 <p class="mb-3 text-[11px] font-black uppercase tracking-[0.15em] text-muted-teal">播客详情页字段配置</p>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-<input name="summaryHeadline" class="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm" placeholder="摘要标题"/>
-<input name="summaryHighlightLabel" class="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm" placeholder="摘要亮点标签"/>
-<textarea name="summaryBody" class="min-h-[88px] rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm md:col-span-2" placeholder="摘要正文"></textarea>
-<textarea name="summaryHighlightText" class="min-h-[88px] rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm md:col-span-2" placeholder="摘要亮点文本"></textarea>
-<input name="summaryTags" class="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm md:col-span-2" placeholder="摘要标签（逗号分隔）"/>
+<input name="summaryHeadline" class="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm admin-form-input" placeholder="摘要标题"/>
+<input name="summaryHighlightLabel" class="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm admin-form-input" placeholder="摘要亮点标签"/>
+<textarea name="summaryBody" class="min-h-[88px] rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm md:col-span-2 admin-form-textarea" placeholder="摘要正文"></textarea>
+<textarea name="summaryHighlightText" class="min-h-[88px] rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm md:col-span-2 admin-form-textarea" placeholder="摘要亮点文本"></textarea>
+<input name="summaryTags" class="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm md:col-span-2 admin-form-input" placeholder="摘要标签（逗号分隔）"/>
 
-<input name="guestName" class="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm" placeholder="嘉宾姓名"/>
-<input name="guestTitle" class="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm" placeholder="嘉宾头衔"/>
-<div class="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm">
-<input name="guestAvatar" class="w-full border-0 bg-transparent p-0 text-sm focus:ring-0" placeholder="嘉宾头像 URL"/>
-<div class="mt-2 flex items-center gap-2">
-<input id="guest-avatar-upload-input" accept="image/*" class="block text-[11px] text-stone-600 file:mr-2 file:rounded-full file:border-0 file:bg-signature-violet/10 file:px-3 file:py-1.5 file:text-[11px] file:font-bold file:text-signature-violet" type="file"/>
+<div class="rounded-2xl border border-stone-200 bg-white px-4 py-4 text-sm md:col-span-2">
+<p class="text-[11px] font-black uppercase tracking-[0.15em] text-muted-teal">先疯智库绑定（多嘉宾）</p>
+<div class="mt-2 flex gap-2">
+<input id="guest-binding-search" class="flex-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm admin-form-input" placeholder="搜索嘉宾姓名 / 头衔"/>
+<button id="guest-binding-refresh-btn" type="button" class="rounded-xl border border-signature-violet/20 bg-signature-violet/5 px-3 py-2 text-xs font-bold text-signature-violet">刷新</button>
 </div>
-<div id="guest-avatar-upload-status" class="mt-1 text-[11px] font-bold text-warm-gray">未上传嘉宾头像</div>
+<div id="guest-binding-candidates" class="mt-2 max-h-36 overflow-y-auto rounded-xl border border-stone-100 bg-stone-50 p-2 text-xs text-stone-600"></div>
+<div id="guest-binding-list" class="mt-2 space-y-2"></div>
 </div>
-<input name="guestProfileUrl" class="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm" placeholder="嘉宾档案链接 URL（可选）"/>
-<textarea name="guestBio" class="min-h-[88px] rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm md:col-span-2" placeholder="嘉宾简介"></textarea>
 
-<input name="deepDiveTitle" class="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm md:col-span-2" placeholder="深度挖掘模块标题"/>
-<textarea name="curatedReadingRaw" class="min-h-[96px] rounded-2xl border border-stone-200 bg-white px-4 py-3 text-xs font-mono md:col-span-2" placeholder="推荐阅读：每行 标题|副标题|链接URL"></textarea>
-<textarea name="transcriptRaw" class="min-h-[120px] rounded-2xl border border-stone-200 bg-white px-4 py-3 text-xs font-mono md:col-span-2" placeholder="逐字稿：每行 时间|说话人|内容|featured(可选)"></textarea>
-<textarea name="speakerAliasRaw" class="min-h-[84px] rounded-2xl border border-stone-200 bg-white px-4 py-3 text-xs font-mono md:col-span-2" placeholder="说话人展示名映射（可选）：每行 原始说话人|展示名&#10;示例：主持人A|Jessie&#10;示例：主持人B|阿力"></textarea>
-<textarea name="termGlossaryRaw" class="min-h-[96px] rounded-2xl border border-stone-200 bg-white px-4 py-3 text-xs font-mono md:col-span-2" placeholder="术语表（AI可自动生成，可手动修改）：每行 术语|解释|链接(可选)&#10;示例：保研|本科阶段通过推免方式获得研究生录取资格。|"></textarea>
+<input name="deepDiveTitle" class="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm md:col-span-2 admin-form-input" placeholder="深度挖掘模块标题"/>
+<textarea name="curatedReadingRaw" class="min-h-[96px] rounded-2xl border border-stone-200 bg-white px-4 py-3 text-xs font-mono md:col-span-2 admin-form-textarea" placeholder="推荐阅读：每行 标题|副标题|链接URL"></textarea>
+<textarea name="transcriptRaw" class="min-h-[120px] rounded-2xl border border-stone-200 bg-white px-4 py-3 text-xs font-mono md:col-span-2 admin-form-textarea" placeholder="逐字稿：每行 时间|说话人|内容|featured(可选)"></textarea>
+<textarea name="speakerAliasRaw" class="min-h-[84px] rounded-2xl border border-stone-200 bg-white px-4 py-3 text-xs font-mono md:col-span-2 admin-form-textarea" placeholder="说话人展示名映射（可选）：每行 原始说话人|展示名&#10;示例：主持人A|Jessie&#10;示例：主持人B|阿力"></textarea>
+<textarea name="termGlossaryRaw" class="min-h-[96px] rounded-2xl border border-stone-200 bg-white px-4 py-3 text-xs font-mono md:col-span-2 admin-form-textarea" placeholder="术语表（AI可自动生成，可手动修改）：每行 术语|解释|链接(可选)&#10;示例：保研|本科阶段通过推免方式获得研究生录取资格。|"></textarea>
 </div>
 </div>
 
-<select name="status" class="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm md:col-span-2">
+<select name="status" class="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm md:col-span-2 admin-form-select">
 <option value="draft">保存为草稿</option>
 <option value="published">直接发布</option>
 </select>
@@ -415,6 +421,7 @@
         "/admin/programs": "programs",
         "/admin/books": "books",
         "/admin/materials": "materials",
+        "/admin/guests": "guests",
         "/admin/users": "users",
         "/admin/system": "system",
       };
@@ -450,19 +457,29 @@
   const audioUploadProgressText = document.getElementById("audio-upload-progress-text");
   const coverImageUploadInput = document.getElementById("cover-image-upload-input");
   const coverImageUploadStatus = document.getElementById("cover-image-upload-status");
-  const guestAvatarUploadInput = document.getElementById("guest-avatar-upload-input");
-  const guestAvatarUploadStatus = document.getElementById("guest-avatar-upload-status");
   const aiGenerateBtn = document.getElementById("ai-generate-btn");
   const aiGenerateStatus = document.getElementById("ai-generate-status");
+  const guestBindingSearch = document.getElementById("guest-binding-search");
+  const guestBindingRefreshBtn = document.getElementById("guest-binding-refresh-btn");
+  const guestBindingCandidatesEl = document.getElementById("guest-binding-candidates");
+  const guestBindingListEl = document.getElementById("guest-binding-list");
   const audioParseFileInput = document.getElementById("audio-parse-file-input");
   const audioParseProgressBar = document.getElementById("audio-parse-progress-bar");
   const audioParseProgressText = document.getElementById("audio-parse-progress-text");
   const audioParseStatus = document.getElementById("audio-parse-status");
   const startAudioParseBtn = document.getElementById("start-audio-parse-btn");
+  const programSearchInput = document.getElementById("program-search-input");
+  const programSearchBtn = document.getElementById("program-search-btn");
+  const prevPageBtn = document.getElementById("program-prev-page-btn");
+  const nextPageBtn = document.getElementById("program-next-page-btn");
+  const pageIndicatorEl = document.getElementById("program-page-indicator");
 
   let programs = [];
   let editingId = null;
   let currentFilter = "all";
+  let currentPage = 1;
+  const pageSize = 20;
+  let searchKeyword = "";
   let uploadedAudioUrl = "";
   let preParseUploadedAudioUrl = "";
   let preParseSelectedFileName = "";
@@ -472,6 +489,8 @@
   let listParsePollingTimer = null;
   let isLoadingPrograms = false;
   let formDirtySinceOpen = false;
+  let guestCandidates = [];
+  let guestBindings = [];
 
   function authHeaders() {
     return {
@@ -509,6 +528,50 @@
       map[parts[0]] = parts[1];
     }
     return map;
+  }
+
+  function renderGuestBindingCandidates() {
+    if (!guestBindingCandidatesEl) return;
+    const keyword = String((guestBindingSearch && guestBindingSearch.value) || "").trim().toLowerCase();
+    const filtered = guestCandidates.filter(function (item) {
+      const name = String(item && item.name || "").toLowerCase();
+      const title = String(item && item.title || "").toLowerCase();
+      return !keyword || name.indexOf(keyword) >= 0 || title.indexOf(keyword) >= 0;
+    }).slice(0, 20);
+    if (!filtered.length) {
+      guestBindingCandidatesEl.innerHTML = '<div class="px-2 py-2 text-stone-400">暂无可绑定嘉宾，请先到“先疯智库”创建。</div>';
+      return;
+    }
+    guestBindingCandidatesEl.innerHTML = filtered.map(function (item) {
+      const guestId = String(item && item._id || "");
+      const exists = guestBindings.some(function (binding) { return binding.guestId === guestId; });
+      return '<button type="button" data-guest-id="' + guestId + '" class="mb-1 flex w-full items-center justify-between rounded-lg px-2 py-2 text-left ' + (exists ? "bg-stone-100 text-stone-400" : "bg-white hover:bg-signature-violet/5") + '" ' + (exists ? "disabled" : "") + '><span>' + (item.name || "未命名嘉宾") + (item.title ? (" · " + item.title) : "") + '</span><span class="font-bold">' + (exists ? "已绑定" : "绑定") + "</span></button>";
+    }).join("");
+  }
+
+  function renderGuestBindingList() {
+    if (!guestBindingListEl) return;
+    if (!guestBindings.length) {
+      guestBindingListEl.innerHTML = '<div class="rounded-lg border border-dashed border-stone-200 px-3 py-2 text-xs text-stone-400">当前未绑定嘉宾，请从先疯智库选择并绑定。</div>';
+      return;
+    }
+    guestBindings.sort(function (a, b) { return a.order - b.order; });
+    guestBindingListEl.innerHTML = guestBindings.map(function (binding, idx) {
+      const name = (binding.guest && binding.guest.name) || binding.guestId;
+      return '<div class="flex flex-col gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 py-3 md:flex-row md:items-center"><div class="flex-1 text-sm font-bold text-stone-800">' + name + '</div><input data-role-guest-id="' + binding.guestId + '" class="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs md:w-40 admin-form-input" value="' + (binding.role || "main_guest") + '" placeholder="角色"/><div class="flex items-center gap-1"><button type="button" data-move-up="' + binding.guestId + '" class="rounded-full border border-stone-200 px-2 py-1 text-[11px]" ' + (idx === 0 ? "disabled" : "") + '>上移</button><button type="button" data-move-down="' + binding.guestId + '" class="rounded-full border border-stone-200 px-2 py-1 text-[11px]" ' + (idx === guestBindings.length - 1 ? "disabled" : "") + '>下移</button><button type="button" data-remove-guest-id="' + binding.guestId + '" class="rounded-full border border-red-100 px-2 py-1 text-[11px] text-red-500">移除</button></div></div>';
+    }).join("");
+  }
+
+  async function loadGuestCandidates() {
+    try {
+      const response = await fetch("/api/admin/guests?status=active", { headers: authHeaders() });
+      if (!response.ok) throw new Error("加载嘉宾库失败");
+      guestCandidates = await response.json();
+      renderGuestBindingCandidates();
+    } catch (_error) {
+      guestCandidates = [];
+      renderGuestBindingCandidates();
+    }
   }
 
   function buildSpeakerAliasTemplate(transcript) {
@@ -593,12 +656,12 @@
 
   function getProgramCapability(program) {
     const episode = (program && program.episodes && program.episodes[0]) || {};
-    const guest = (program && program.guest) || {};
+    const guestBindings = Array.isArray(program && program.guestBindings) ? program.guestBindings : [];
     const transcript = Array.isArray(program && program.transcript) ? program.transcript : [];
     return {
       playable: hasText(episode.url),
       transcript: transcript.some((item) => hasText(item.time) && hasText(item.speaker) && hasText(item.text)),
-      guest: hasText(guest.name) && hasText(guest.title) && hasText(guest.avatar),
+      guest: guestBindings.length > 0,
     };
   }
 
@@ -691,7 +754,7 @@
   }
 
   function setImageUploadStatus(type, message, tone) {
-    const target = type === "guest" ? guestAvatarUploadStatus : coverImageUploadStatus;
+    const target = coverImageUploadStatus;
     if (!target) return;
     target.textContent = message;
     if (tone === "success") {
@@ -946,16 +1009,12 @@
       currentImageUploadXhr = null;
     }
     if (type === "cover" && coverImageUploadInput) coverImageUploadInput.disabled = true;
-    if (type === "guest" && guestAvatarUploadInput) guestAvatarUploadInput.disabled = true;
     setImageUploadStatus(type, "上传中...", "normal");
     try {
       const data = await uploadImageViaXhr(file);
       const imageUrl = (data && data.url) || "";
       if (type === "cover" && imageUrl) {
         form.coverImage.value = imageUrl;
-      }
-      if (type === "guest" && imageUrl) {
-        form.guestAvatar.value = imageUrl;
       }
       setImageUploadStatus(type, "上传成功：" + ((data && data.originalName) || file.name), "success");
       refreshCapabilityHints();
@@ -965,7 +1024,6 @@
     } finally {
       currentImageUploadXhr = null;
       if (type === "cover" && coverImageUploadInput) coverImageUploadInput.disabled = false;
-      if (type === "guest" && guestAvatarUploadInput) guestAvatarUploadInput.disabled = false;
     }
   }
 
@@ -976,11 +1034,7 @@
         const parts = line.split("|").map((p) => p.trim());
         return { time: parts[0], speaker: parts[1], text: parts[2] };
       }),
-      guest: {
-        name: form.guestName.value,
-        title: form.guestTitle.value,
-        avatar: form.guestAvatar.value,
-      },
+      guestBindings: guestBindings,
       deepDive: {
         sectionTitle: form.deepDiveTitle.value,
       },
@@ -1085,7 +1139,6 @@
     setAiStatus("", "normal");
     setAudioUploadStatus("未上传音频文件", "normal");
     setImageUploadStatus("cover", "未上传封面图片", "normal");
-    setImageUploadStatus("guest", "未上传嘉宾头像", "normal");
     setUploadProgress(0);
     if (program) {
       form.title.value = program.title || "";
@@ -1100,11 +1153,17 @@
       form.summaryHighlightLabel.value = (program.summary && program.summary.highlightLabel) || "";
       form.summaryHighlightText.value = (program.summary && program.summary.highlightText) || "";
       form.summaryTags.value = ((program.summary && program.summary.tags) || []).join(", ");
-      form.guestName.value = (program.guest && program.guest.name) || "";
-      form.guestTitle.value = (program.guest && program.guest.title) || "";
-      form.guestBio.value = (program.guest && program.guest.bio) || "";
-      form.guestAvatar.value = (program.guest && program.guest.avatar) || "";
-      form.guestProfileUrl.value = (program.guest && program.guest.profileUrl) || "";
+      guestBindings = (Array.isArray(program.guestBindings) ? program.guestBindings : [])
+        .map(function (item, idx) {
+          return {
+            guestId: String(item && item.guestId || ""),
+            order: Number(item && item.order) || (idx + 1),
+            role: String(item && item.role || "main_guest"),
+            guest: item && item.guest ? item.guest : null,
+          };
+        })
+        .filter(function (item) { return !!item.guestId; })
+        .sort(function (a, b) { return a.order - b.order; });
       form.deepDiveTitle.value = (program.deepDive && program.deepDive.sectionTitle) || "";
       form.curatedReadingRaw.value = ((program.deepDive && program.deepDive.curatedReading) || [])
         .map((item) => [item.title || "", item.subtitle || "", item.url || ""].join("|"))
@@ -1120,8 +1179,11 @@
       setAudioUploadStatus(hasText(uploadedAudioUrl) ? "已配置音频 URL" : "未上传音频文件", hasText(uploadedAudioUrl) ? "success" : "normal");
       setUploadProgress(hasText(uploadedAudioUrl) ? 100 : 0);
       setImageUploadStatus("cover", hasText(form.coverImage.value) ? "已配置封面图片 URL" : "未上传封面图片", hasText(form.coverImage.value) ? "success" : "normal");
-      setImageUploadStatus("guest", hasText(form.guestAvatar.value) ? "已配置嘉宾头像 URL" : "未上传嘉宾头像", hasText(form.guestAvatar.value) ? "success" : "normal");
+    } else {
+      guestBindings = [];
     }
+    renderGuestBindingCandidates();
+    renderGuestBindingList();
     setParseStatusUI(program || { parseStatus: "idle", parseError: "" });
     setPreviewState(editingId);
     refreshCapabilityHints();
@@ -1142,15 +1204,36 @@
   }
 
   function renderRows() {
-    const visiblePrograms = programs.filter((row) => currentFilter === "all" ? true : row.status === currentFilter);
-    if (!visiblePrograms.length) {
+    const visiblePrograms = programs.filter((row) => {
+      const statusMatched = currentFilter === "all" ? true : row.status === currentFilter;
+      if (!statusMatched) return false;
+      const keyword = searchKeyword.trim().toLowerCase();
+      if (!keyword) return true;
+      const title = String(row && row.title || "").toLowerCase();
+      const code = String(row && row.programCode || "").toLowerCase();
+      const idSuffix = String(row && row._id || "").slice(-8).toLowerCase();
+      return title.indexOf(keyword) >= 0 || code.indexOf(keyword) >= 0 || idSuffix.indexOf(keyword) >= 0;
+    });
+    const totalFiltered = visiblePrograms.length;
+    const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+    if (currentPage > totalPages) currentPage = totalPages;
+    if (currentPage < 1) currentPage = 1;
+    const start = (currentPage - 1) * pageSize;
+    const end = start + pageSize;
+    const pageRows = visiblePrograms.slice(start, end);
+    if (!pageRows.length) {
       tableBody.innerHTML = '<tr><td colspan="7" class="px-10 py-12 text-sm text-stone-500">暂无节目数据</td></tr>';
       if (summaryEl) {
-        summaryEl.textContent = "正在显示 0-0 项，共 " + programs.length + " 项资源";
+        summaryEl.textContent = "正在显示 0-0 项，共 " + totalFiltered + " 项资源";
       }
+      if (pageIndicatorEl) {
+        pageIndicatorEl.textContent = "第 " + currentPage + "/" + totalPages + " 页";
+      }
+      if (prevPageBtn) prevPageBtn.disabled = true;
+      if (nextPageBtn) nextPageBtn.disabled = true;
       return;
     }
-    tableBody.innerHTML = visiblePrograms
+    tableBody.innerHTML = pageRows
       .map((row) => {
         const statusClass = row.status === "published" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700";
         const statusText = row.status === "published" ? "已发布" : "草稿箱";
@@ -1172,8 +1255,13 @@
       })
       .join("");
     if (summaryEl) {
-      summaryEl.textContent = "正在显示 1-" + visiblePrograms.length + " 项，共 " + programs.length + " 项资源";
+      summaryEl.textContent = "正在显示 " + (start + 1) + "-" + Math.min(end, totalFiltered) + " 项，共 " + totalFiltered + " 项资源";
     }
+    if (pageIndicatorEl) {
+      pageIndicatorEl.textContent = "第 " + currentPage + "/" + totalPages + " 页";
+    }
+    if (prevPageBtn) prevPageBtn.disabled = currentPage <= 1;
+    if (nextPageBtn) nextPageBtn.disabled = currentPage >= totalPages;
     refreshRelatedHint();
   }
 
@@ -1229,6 +1317,12 @@
       saveBtn.textContent = "保存";
       return;
     }
+    if (!Array.isArray(guestBindings) || guestBindings.length === 0) {
+      alert("请至少从先疯智库绑定 1 位嘉宾后再保存。");
+      saveBtn.disabled = false;
+      saveBtn.textContent = "保存";
+      return;
+    }
 
     const transcriptCheck = validateStructuredLines(form.transcriptRaw.value, 3);
     if (!transcriptCheck.ok) {
@@ -1253,7 +1347,7 @@
     // episodes[0].title/duration/url
     // summary.headline/body/highlightLabel/highlightText/tags
     // transcript[]
-    // guest.name/title/bio/avatar/profileUrl
+    // guestBindings[]（先疯智库绑定）
     // deepDive.sectionTitle/curatedReading[]
     const speakerAliasMap = parseSpeakerAliasMap(form.speakerAliasRaw.value);
 
@@ -1276,13 +1370,16 @@
         highlightText: form.summaryHighlightText.value.trim(),
         tags: form.summaryTags.value.split(",").map((s) => s.trim()).filter(Boolean),
       },
-      guest: {
-        name: form.guestName.value.trim(),
-        title: form.guestTitle.value.trim(),
-        bio: form.guestBio.value.trim(),
-        avatar: form.guestAvatar.value.trim(),
-        profileUrl: form.guestProfileUrl.value.trim(),
-      },
+      guestBindings: guestBindings
+        .slice()
+        .sort(function (a, b) { return a.order - b.order; })
+        .map(function (item, idx) {
+          return {
+            guestId: item.guestId,
+            order: idx + 1,
+            role: String(item.role || "main_guest").trim() || "main_guest",
+          };
+        }),
       deepDive: {
         sectionTitle: form.deepDiveTitle.value.trim(),
         curatedReading: parseLines(form.curatedReadingRaw.value, function (line) {
@@ -1467,14 +1564,77 @@
       uploadImageFile(file, "cover");
     });
   }
-  if (guestAvatarUploadInput) {
-    guestAvatarUploadInput.addEventListener("change", function () {
-      const file = guestAvatarUploadInput.files && guestAvatarUploadInput.files[0];
-      if (!file) {
-        setImageUploadStatus("guest", hasText(form.guestAvatar.value) ? "已配置嘉宾头像 URL" : "未上传嘉宾头像", hasText(form.guestAvatar.value) ? "success" : "normal");
+  if (guestBindingRefreshBtn) {
+    guestBindingRefreshBtn.addEventListener("click", function () {
+      loadGuestCandidates();
+    });
+  }
+  if (guestBindingSearch) {
+    guestBindingSearch.addEventListener("input", renderGuestBindingCandidates);
+  }
+  if (guestBindingCandidatesEl) {
+    guestBindingCandidatesEl.addEventListener("click", function (event) {
+      const target = event.target && event.target.closest ? event.target.closest("button[data-guest-id]") : null;
+      if (!target) return;
+      const guestId = target.getAttribute("data-guest-id");
+      if (!guestId) return;
+      if (guestBindings.some(function (item) { return item.guestId === guestId; })) return;
+      const guest = guestCandidates.find(function (item) { return String(item && item._id || "") === guestId; }) || null;
+      guestBindings.push({
+        guestId: guestId,
+        order: guestBindings.length + 1,
+        role: "main_guest",
+        guest: guest,
+      });
+      renderGuestBindingCandidates();
+      renderGuestBindingList();
+    });
+  }
+  if (guestBindingListEl) {
+    guestBindingListEl.addEventListener("input", function (event) {
+      const input = event.target;
+      if (!input || !input.matches || !input.matches("input[data-role-guest-id]")) return;
+      const guestId = input.getAttribute("data-role-guest-id");
+      if (!guestId) return;
+      const row = guestBindings.find(function (item) { return item.guestId === guestId; });
+      if (!row) return;
+      row.role = String(input.value || "");
+    });
+    guestBindingListEl.addEventListener("click", function (event) {
+      const target = event.target && event.target.closest ? event.target.closest("button") : null;
+      if (!target) return;
+      const removeId = target.getAttribute("data-remove-guest-id");
+      if (removeId) {
+        guestBindings = guestBindings.filter(function (item) { return item.guestId !== removeId; }).map(function (item, idx) {
+          return { ...item, order: idx + 1 };
+        });
+        renderGuestBindingCandidates();
+        renderGuestBindingList();
         return;
       }
-      uploadImageFile(file, "guest");
+      const upId = target.getAttribute("data-move-up");
+      if (upId) {
+        const idx = guestBindings.findIndex(function (item) { return item.guestId === upId; });
+        if (idx > 0) {
+          const tmp = guestBindings[idx - 1];
+          guestBindings[idx - 1] = guestBindings[idx];
+          guestBindings[idx] = tmp;
+          guestBindings = guestBindings.map(function (item, orderIdx) { return { ...item, order: orderIdx + 1 }; });
+          renderGuestBindingList();
+        }
+        return;
+      }
+      const downId = target.getAttribute("data-move-down");
+      if (downId) {
+        const idx = guestBindings.findIndex(function (item) { return item.guestId === downId; });
+        if (idx >= 0 && idx < guestBindings.length - 1) {
+          const tmp = guestBindings[idx + 1];
+          guestBindings[idx + 1] = guestBindings[idx];
+          guestBindings[idx] = tmp;
+          guestBindings = guestBindings.map(function (item, orderIdx) { return { ...item, order: orderIdx + 1 }; });
+          renderGuestBindingList();
+        }
+      }
     });
   }
   if (audioParseFileInput) {
@@ -1533,10 +1693,40 @@
     button.addEventListener("click", function () {
       const next = button.getAttribute("data-filter") || "all";
       currentFilter = next;
+      currentPage = 1;
       refreshFilterUI();
       renderRows();
     });
   });
+  if (programSearchBtn) {
+    programSearchBtn.addEventListener("click", function () {
+      searchKeyword = String(programSearchInput && programSearchInput.value || "").trim();
+      currentPage = 1;
+      renderRows();
+    });
+  }
+  if (programSearchInput) {
+    programSearchInput.addEventListener("keydown", function (event) {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      searchKeyword = String(programSearchInput.value || "").trim();
+      currentPage = 1;
+      renderRows();
+    });
+  }
+  if (prevPageBtn) {
+    prevPageBtn.addEventListener("click", function () {
+      if (currentPage <= 1) return;
+      currentPage -= 1;
+      renderRows();
+    });
+  }
+  if (nextPageBtn) {
+    nextPageBtn.addEventListener("click", function () {
+      currentPage += 1;
+      renderRows();
+    });
+  }
   closeBtn.addEventListener("click", closeModal);
   cancelBtn.addEventListener("click", closeModal);
   modal.addEventListener("click", function (event) {
@@ -1556,6 +1746,7 @@
   setPreviewState(null);
   refreshCapabilityHints();
   loadPrograms();
+  loadGuestCandidates();
 })();
 </script>
 </body></html>

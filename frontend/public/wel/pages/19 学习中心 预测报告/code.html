@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="/wel/vendor/tailwindcdn.forms.container-queries.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#7f13ec",
+                        "electric-violet": "#8f00ff",
+                        "background-pearl": "#fcfbfc",
+                        "warning-violet": "#4c1d95",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "system-ui", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        .glass-overlay {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+        }
+        .constellation-node {
+            background: white;
+            border: 2px solid rgba(143, 0, 255, 0.2);
+            box-shadow: 0 0 15px rgba(143, 0, 255, 0.1);
+        }
+        .warning-aura {
+            box-shadow: 0 0 0 0 rgba(76, 29, 149, 0.6);
+            animation: pulse-aura 2.5s infinite;
+            border-color: #4c1d95 !important;
+        }
+        @keyframes pulse-aura {
+            0% { box-shadow: 0 0 0 0 rgba(76, 29, 149, 0.7); }
+            70% { box-shadow: 0 0 0 20px rgba(76, 29, 149, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(76, 29, 149, 0); }
+        }
+        .constellation-line {
+            background: linear-gradient(90deg, transparent, #8f00ff, transparent);
+            height: 1px;
+            opacity: 0.3;
+            box-shadow: 0 0 8px #8f00ff;
+        }
+        .neon-button {
+            box-shadow: 0 0 20px rgba(143, 0, 255, 0.5), inset 0 0 10px rgba(255, 255, 255, 0.2);
+            text-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+        }
+        .insight-card {
+            background: rgba(255, 255, 255, 0.6);
+            border-left: 4px solid #8f00ff;
+        }
+        .floating-label {
+            text-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+    </style>
+</head>
+<body class="bg-background-pearl font-display text-slate-900 min-h-screen overflow-hidden">
+<div class="fixed inset-0 z-[100] flex flex-col bg-background-pearl/90">
+<div class="absolute top-8 left-8 z-10">
+<div class="flex items-center gap-2 opacity-60">
+<svg class="size-6 text-primary" fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path d="M42.1739 20.1739L27.8261 5.82609C29.1366 7.13663 28.3989 10.1876 26.2002 13.7654C24.8538 15.9564 22.9595 18.3449 20.6522 20.6522C18.3449 22.9595 15.9564 24.8538 13.7654 26.2002C10.1876 28.3989 7.13663 29.1366 5.82609 27.8261L20.1739 42.1739C21.4845 43.4845 24.5355 42.7467 28.1133 40.548C30.3042 39.2016 32.6927 37.3073 35 35C37.3073 32.6927 39.2016 30.3042 40.548 28.1133C42.7467 24.5355 43.4845 21.4845 42.1739 20.1739Z" fill="currentColor"></path>
+</svg>
+<img src="/logo.png" alt="Logo" class="h-6" />
+</div>
+</div>
+<div class="flex-1 relative flex overflow-hidden">
+<div class="flex-1 relative flex items-center justify-center p-20">
+<div class="absolute inset-0 overflow-hidden pointer-events-none opacity-20">
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] border border-primary/10 rounded-full"></div>
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] border border-primary/5 rounded-full"></div>
+</div>
+<div class="relative w-full h-full max-w-4xl flex items-center justify-center">
+<div class="z-20 size-32 rounded-full constellation-node flex flex-col items-center justify-center p-4 text-center">
+<span class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Main Topic</span>
+<span class="text-sm font-bold text-slate-800 leading-tight">牛顿动力学</span>
+</div>
+<div class="absolute top-[45%] left-[15%] w-[25%] constellation-line rotate-[20deg]"></div>
+<div class="absolute top-[55%] left-[20%] w-[20%] constellation-line rotate-[-15deg]"></div>
+<div class="absolute top-[35%] right-[15%] w-[30%] constellation-line rotate-[-10deg]"></div>
+<div class="absolute bottom-[30%] right-[25%] w-[15%] constellation-line rotate-[45deg]"></div>
+<div class="absolute top-[30%] left-[10%] z-20 size-24 rounded-full constellation-node flex items-center justify-center text-xs text-slate-500 font-medium">
+                        重力
+                    </div>
+<div class="absolute top-[55%] left-[5%] z-20 size-28 rounded-full constellation-node warning-aura flex flex-col items-center justify-center text-center p-4">
+<span class="material-symbols-outlined text-violet-900 text-lg mb-1">priority_high</span>
+<span class="text-xs font-bold text-violet-900">受力分析</span>
+</div>
+<div class="absolute top-[20%] right-[15%] z-20 size-24 rounded-full constellation-node flex items-center justify-center text-xs text-slate-500 font-medium">
+                        加速度
+                    </div>
+<div class="absolute bottom-[20%] right-[10%] z-20 size-32 rounded-full constellation-node warning-aura flex flex-col items-center justify-center text-center p-4">
+<span class="material-symbols-outlined text-violet-900 text-lg mb-1">psychology</span>
+<span class="text-xs font-bold text-violet-900">非惯性系</span>
+</div>
+<div class="absolute bottom-[10%] left-[30%] z-20 size-20 rounded-full constellation-node flex items-center justify-center text-xs text-slate-500 font-medium">
+                        摩擦力
+                    </div>
+</div>
+<div class="absolute bottom-12 left-1/2 -translate-x-1/2 text-center">
+<h3 class="text-2xl font-black text-slate-900 tracking-widest uppercase">Knowledge Constellation</h3>
+<p class="text-sm text-slate-400 mt-2">知识星图：AI 实时预测路径</p>
+</div>
+</div>
+<div class="w-[450px] glass-overlay border-l border-primary/10 p-10 flex flex-col gap-8 z-30">
+<header>
+<div class="flex items-center gap-3 mb-2">
+<div class="size-2 rounded-full bg-electric-violet shadow-[0_0_8px_#8f00ff]"></div>
+<h2 class="text-xs font-bold text-electric-violet uppercase tracking-[0.2em]">Prediction Insights</h2>
+</div>
+<h1 class="text-3xl font-extrabold text-slate-900">预判洞察报告</h1>
+</header>
+<div class="space-y-6 flex-1 overflow-y-auto pr-4">
+<section>
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-violet-900">format_list_bulleted</span>
+<h3 class="font-bold text-slate-800">FOUNDATION WEAKNESS</h3>
+<span class="ml-auto text-[10px] font-bold text-violet-600 bg-violet-100 px-2 py-0.5 rounded">基础薄弱点</span>
+</div>
+<div class="insight-card p-5 rounded-xl">
+<h4 class="font-bold text-slate-800 text-sm mb-2">复杂系统受力分解</h4>
+<p class="text-xs text-slate-500 leading-relaxed">
+                                模型检测到你在处理“连接体”问题时，对内力与外力的界定存在模糊。这可能导致在接下来的“动量守恒”章节中遇到严重理解障碍。
+                            </p>
+</div>
+</section>
+<section>
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-violet-900">hub</span>
+<h3 class="font-bold text-slate-800">LOGIC BARRIER</h3>
+<span class="ml-auto text-[10px] font-bold text-violet-600 bg-violet-100 px-2 py-0.5 rounded">逻辑障碍</span>
+</div>
+<div class="insight-card p-5 rounded-xl">
+<h4 class="font-bold text-slate-800 text-sm mb-2">参照系转换逻辑</h4>
+<p class="text-xs text-slate-500 leading-relaxed">
+                                预测显示，当你面对变加速运动时，倾向于使用静态公式。建议通过“矢量合成可视化”练习来打通这一逻辑瓶颈。
+                            </p>
+</div>
+</section>
+<section class="mt-auto">
+<div class="bg-primary/5 rounded-2xl p-6 border border-primary/10">
+<div class="flex items-center justify-between mb-4">
+<span class="text-xs font-bold text-slate-600">预测准确度</span>
+<span class="text-xs font-black text-electric-violet">94.2%</span>
+</div>
+<div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+<div class="bg-electric-violet h-full w-[94%]"></div>
+</div>
+<p class="text-[10px] text-slate-400 mt-3 italic">基于近 14 天学习行为及 200+ 相似认知模型分析得出。</p>
+</div>
+</section>
+</div>
+<div class="pt-6">
+<button class="neon-button w-full bg-electric-violet text-white font-bold py-5 rounded-2xl flex items-center justify-center gap-3 hover:brightness-110 transition-all active:scale-[0.98]">
+<span class="material-symbols-outlined">bolt</span>
+<span class="tracking-widest">START PRE-EMPTIVE SYNC</span>
+<span class="text-sm opacity-80">(开启预判同步练习)</span>
+</button>
+<button class="w-full mt-4 text-xs text-slate-400 hover:text-slate-600 transition-colors font-medium">
+                        暂不同步，继续浏览图谱
+                    </button>
+</div>
+</div>
+</div>
+<footer class="h-16 border-t border-primary/5 px-8 flex items-center justify-between glass-overlay z-40">
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2">
+<div class="size-3 rounded-full border-2 border-violet-900 warning-aura"></div>
+<span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">High Difficulty Warning</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="size-3 rounded-full border-2 border-primary/20 bg-white"></div>
+<span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Mastered Node</span>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex -space-x-2">
+<div class="size-8 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-[10px] font-bold">JD</div>
+<div class="size-8 rounded-full bg-primary/20 border-2 border-white flex items-center justify-center text-[10px] font-bold text-primary">AI</div>
+</div>
+<span class="text-xs text-slate-400 italic">智² 实时预判引擎已就绪</span>
+</div>
+</footer>
+</div>
+
+</body></html>

@@ -177,10 +177,7 @@
 
       <main class="ml-[280px] min-h-screen px-10 py-8">
         <header class="mb-7 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div class="space-y-1">
-            <div class="text-[11px] font-black uppercase tracking-[0.26em] text-muted/70">先疯管理</div>
-            <div class="text-3xl font-black tracking-tight">用户管理</div>
-          </div>
+          <div></div>
           <div class="flex flex-wrap items-center gap-3">
             <div class="theme-toggle flex overflow-hidden rounded-2xl border border-line bg-panel2/60">
               <button id="theme-dark-btn" type="button" class="flex h-11 w-11 items-center justify-center border-r border-line text-ink/70 hover:text-ink" aria-label="深色模式">
@@ -193,7 +190,7 @@
             <div class="relative">
               <input
                 id="search-input"
-                class="w-[320px] rounded-2xl border border-line bg-panel2/60 px-5 py-3 text-sm font-bold text-ink/90 placeholder:text-muted/70 focus:border-primary/60 focus:ring-4 focus:ring-primary/10"
+                class="w-[320px] rounded-2xl border border-line bg-panel2/60 px-5 py-3 text-sm font-bold text-ink/90 placeholder:text-muted/70 focus:border-primary/60 focus:ring-4 focus:ring-primary/10 admin-form-input"
                 placeholder="搜索用户名、城市、区域、年级..."
                 type="text"
               />
@@ -246,15 +243,15 @@
         </div>
 
         <form id="user-form" class="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <input id="field-username" class="rounded-2xl border border-line bg-panel/60 px-5 py-3 text-sm font-bold text-ink/90 placeholder:text-muted/70" placeholder="用户名" />
-          <select id="field-role" class="rounded-2xl border border-line bg-panel/60 px-5 py-3 text-sm font-bold text-ink/90">
+          <input id="field-username" class="rounded-2xl border border-line bg-panel/60 px-5 py-3 text-sm font-bold text-ink/90 placeholder:text-muted/70 admin-form-input" placeholder="用户名" />
+          <select id="field-role" class="rounded-2xl border border-line bg-panel/60 px-5 py-3 text-sm font-bold text-ink/90 admin-form-select">
             <option value="user">普通用户</option>
             <option value="admin">管理员</option>
           </select>
-          <input id="field-city" class="rounded-2xl border border-line bg-panel/60 px-5 py-3 text-sm font-bold text-ink/90 placeholder:text-muted/70" placeholder="城市（如 上海）" />
-          <input id="field-region" class="rounded-2xl border border-line bg-panel/60 px-5 py-3 text-sm font-bold text-ink/90 placeholder:text-muted/70" placeholder="区域（如 浦东新区）" />
-          <input id="field-grade" class="rounded-2xl border border-line bg-panel/60 px-5 py-3 text-sm font-bold text-ink/90 placeholder:text-muted/70 md:col-span-2" placeholder="孩子年级（如 小学一年级）" />
-          <input id="field-password" class="rounded-2xl border border-line bg-panel/60 px-5 py-3 text-sm font-bold text-ink/90 placeholder:text-muted/70 md:col-span-2" placeholder="密码（编辑时留空表示不修改）" type="password" />
+          <input id="field-city" class="rounded-2xl border border-line bg-panel/60 px-5 py-3 text-sm font-bold text-ink/90 placeholder:text-muted/70 admin-form-input" placeholder="城市（如 上海）" />
+          <input id="field-region" class="rounded-2xl border border-line bg-panel/60 px-5 py-3 text-sm font-bold text-ink/90 placeholder:text-muted/70 admin-form-input" placeholder="区域（如 浦东新区）" />
+          <input id="field-grade" class="rounded-2xl border border-line bg-panel/60 px-5 py-3 text-sm font-bold text-ink/90 placeholder:text-muted/70 md:col-span-2 admin-form-input" placeholder="孩子年级（如 小学一年级）" />
+          <input id="field-password" class="rounded-2xl border border-line bg-panel/60 px-5 py-3 text-sm font-bold text-ink/90 placeholder:text-muted/70 md:col-span-2 admin-form-input" placeholder="密码（编辑时留空表示不修改）" type="password" />
           <div class="mt-2 flex justify-end gap-3 md:col-span-2">
             <button id="cancel-btn" type="button" class="rounded-2xl border border-line bg-panel/60 px-5 py-3 text-sm font-black text-ink/80 hover:bg-white/5">取消</button>
             <button id="save-btn" type="submit" class="rounded-2xl bg-primary px-6 py-3 text-sm font-black text-white hover:opacity-95">保存</button>

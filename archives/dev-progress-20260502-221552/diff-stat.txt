@@ -1,0 +1,41 @@
+ backend/src/controllers/program.ts                 |  371 +-
+ backend/src/controllers/user.ts                    |  122 +
+ backend/src/index.ts                               |   22 +
+ backend/src/models/Program.ts                      |   89 +
+ backend/src/models/User.ts                         |   16 +
+ backend/src/routes/adminProgram.ts                 |    1 +
+ backend/src/routes/adminSystem.ts                  |   19 +
+ backend/src/routes/program.ts                      |    1 +
+ backend/src/routes/user.ts                         |    5 +-
+ deploy/nginx.local.conf                            |    3 -
+ docker-compose.yml                                 |   18 -
+ frontend/public/assets/jiahe-logo.png              |  Bin 40199 -> 65167 bytes
+ frontend/public/screens/admin-books.html           |   12 +-
+ frontend/public/screens/admin-materials.html       |   10 +-
+ frontend/public/screens/admin-programs.html        |  351 +-
+ frontend/public/screens/admin-system.html          |    5 +-
+ frontend/public/screens/admin-users.html           |   19 +-
+ frontend/public/screens/admin.css                  | 5502 +++++++++++++++++--
+ frontend/public/screens/podcast-detail.html        | 1723 ------
+ frontend/public/screens/podcast-home.html          |   70 +-
+ frontend/public/screens/public.css                 | 5503 ++++++++++++++++++--
+ frontend/src/App.tsx                               |   27 +-
+ frontend/src/admin-screens.css                     |   51 +
+ frontend/src/components/AdminLayout.tsx            |  133 +-
+ frontend/src/components/PodcastChrome.tsx          |    8 +-
+ frontend/src/pages/ProgramDetailPage.tsx           |  735 ---
+ frontend/src/pages/ProgramListPage.tsx             |  386 +-
+ frontend/src/pages/ScreenPage.tsx                  |    4 +-
+ frontend/src/pages/admin/AdminBooksPage.tsx        |   55 +-
+ frontend/src/pages/admin/AdminDashboardPage.tsx    |   14 +-
+ frontend/src/pages/admin/AdminDictionaryPage.tsx   |  171 +-
+ frontend/src/pages/admin/AdminMaterialsPage.tsx    |   55 +-
+ frontend/src/pages/admin/AdminProgramsPage.tsx     |  712 ++-
+ frontend/src/pages/admin/AdminSystemPage.tsx       |  356 +-
+ frontend/src/pages/admin/AdminUsersPage.tsx        |   92 +-
+ frontend/src/services/api.ts                       |  145 +-
+ frontend/src/styles.css                            |   88 +-
+ frontend/vite.config.ts                            |    4 +
+ .../code.html"                                     |  364 --
+ .../screen.png"                                    |  Bin 420250 -> 0 bytes
+ 40 files changed, 12974 insertions(+), 4288 deletions(-)

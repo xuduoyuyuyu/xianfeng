@@ -7,7 +7,10 @@ const router = express.Router();
 const userController = new UserController();
 
 router.post("/login", userController.login);
-router.get("/me", authenticate, userController.me);
+router.post("/sms/send-code", userController.sendMobileCode);
+router.post("/auth/mobile", userController.mobileAuth);
+router.get("/me", authenticate, userController.meCompat);
+router.patch("/me", authenticate, userController.patchMeCompat);
 router.get("/", authenticate, requireAdmin, userController.getAll);
 router.post("/register", optionalAuthenticate, userController.register);
 router.put("/:id", authenticate, requireAdmin, userController.update);

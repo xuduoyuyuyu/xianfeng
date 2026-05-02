@@ -77,9 +77,46 @@ interface ProgramTermGlossaryItem {
   term: string;
   definition: string;
   sourceUrl?: string;
+  aliases?: string[];
 }
 
 type ProgramDictionaryEntryId = mongoose.Types.ObjectId;
+type ProgramGuestId = mongoose.Types.ObjectId;
+
+interface ProgramGuestBinding {
+  guestId: ProgramGuestId;
+  order: number;
+  role: string;
+}
+
+interface AgentProofreadReport {
+  typoCount?: number;
+  punctuationChanges?: number;
+  terminologyWarnings?: number;
+  summary?: string;
+}
+
+interface AgentProofreadOutput {
+  taskId?: mongoose.Types.ObjectId;
+  generatedAt?: Date;
+  correctedTranscript?: TranscriptSegment[];
+  report?: AgentProofreadReport;
+  acceptedAt?: Date;
+  acceptedBy?: string;
+}
+
+interface AgentProgramEnrichmentOutput {
+  taskId?: mongoose.Types.ObjectId;
+  generatedAt?: Date;
+  forceOverwrite?: boolean;
+  suggestedGlossary?: ProgramTermGlossaryItem[];
+  suggestedReadings?: CuratedReadingItem[];
+}
+
+interface ProgramAgentOutputs {
+  proofread?: AgentProofreadOutput;
+  enrichment?: AgentProgramEnrichmentOutput;
+}
 
 interface Program extends mongoose.Document {
   programCode?: string;
@@ -91,9 +128,11 @@ interface Program extends mongoose.Document {
   transcript?: TranscriptSegment[];
   termGlossary?: ProgramTermGlossaryItem[];
   dictionaryEntryIds?: ProgramDictionaryEntryId[];
+  guestBindings?: ProgramGuestBinding[];
   guest?: ProgramGuest;
   deepDive?: ProgramDeepDive;
   contentPack?: ProgramContentPack;
+  agentOutputs?: ProgramAgentOutputs;
   status: ContentStatus;
   publishedAt?: Date;
   parseStatus?: ParseStatus;
@@ -147,12 +186,20 @@ const programSchema = new mongoose.Schema(
         term: { type: String, required: true },
         definition: { type: String, required: true },
         sourceUrl: { type: String, default: "" },
+        aliases: [{ type: String }],
       },
     ],
     dictionaryEntryIds: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "EducationDictionaryEntry",
+      },
+    ],
+    guestBindings: [
+      {
+        guestId: { type: mongoose.Schema.Types.ObjectId, ref: "Guest", required: true },
+        order: { type: Number, default: 1 },
+        role: { type: String, default: "main_guest" },
       },
     ],
     guest: {
@@ -195,6 +242,48 @@ const programSchema = new mongoose.Schema(
         ],
         renderedText: { type: String, default: "" },
         templateOverride: { type: String, default: "" },
+      },
+    },
+    agentOutputs: {
+      proofread: {
+        taskId: { type: mongoose.Schema.Types.ObjectId, ref: "AgentTask", default: null },
+        generatedAt: { type: Date, default: null },
+        correctedTranscript: [
+          {
+            time: { type: String, required: true },
+            speaker: { type: String, required: true },
+            text: { type: String, required: true },
+            featured: { type: Boolean, default: false },
+          },
+        ],
+        report: {
+          typoCount: { type: Number, default: 0 },
+          punctuationChanges: { type: Number, default: 0 },
+          terminologyWarnings: { type: Number, default: 0 },
+          summary: { type: String, default: "" },
+        },
+        acceptedAt: { type: Date, default: null },
+        acceptedBy: { type: String, default: "" },
+      },
+      enrichment: {
+        taskId: { type: mongoose.Schema.Types.ObjectId, ref: "AgentTask", default: null },
+        generatedAt: { type: Date, default: null },
+        forceOverwrite: { type: Boolean, default: false },
+        suggestedGlossary: [
+          {
+            term: { type: String, required: true },
+            definition: { type: String, required: true },
+            sourceUrl: { type: String, default: "" },
+            aliases: [{ type: String }],
+          },
+        ],
+        suggestedReadings: [
+          {
+            title: { type: String, required: true },
+            subtitle: { type: String, default: "" },
+            url: { type: String, default: "" },
+          },
+        ],
       },
     },
     status: {

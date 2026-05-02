@@ -1,0 +1,69 @@
+ M backend/src/controllers/program.ts
+ M backend/src/controllers/user.ts
+ M backend/src/index.ts
+ M backend/src/models/Program.ts
+ M backend/src/models/User.ts
+ M backend/src/routes/adminProgram.ts
+ M backend/src/routes/adminSystem.ts
+ M backend/src/routes/program.ts
+ M backend/src/routes/user.ts
+ M deploy/nginx.local.conf
+ M docker-compose.yml
+ M frontend/public/assets/jiahe-logo.png
+ M frontend/public/screens/admin-books.html
+ M frontend/public/screens/admin-materials.html
+ M frontend/public/screens/admin-programs.html
+ M frontend/public/screens/admin-system.html
+ M frontend/public/screens/admin-users.html
+ M frontend/public/screens/admin.css
+ D frontend/public/screens/podcast-detail.html
+ M frontend/public/screens/podcast-home.html
+ M frontend/public/screens/public.css
+ M frontend/src/App.tsx
+ M frontend/src/admin-screens.css
+ M frontend/src/components/AdminLayout.tsx
+ M frontend/src/components/PodcastChrome.tsx
+ D frontend/src/pages/ProgramDetailPage.tsx
+ M frontend/src/pages/ProgramListPage.tsx
+ M frontend/src/pages/ScreenPage.tsx
+ M frontend/src/pages/admin/AdminBooksPage.tsx
+ M frontend/src/pages/admin/AdminDashboardPage.tsx
+ M frontend/src/pages/admin/AdminDictionaryPage.tsx
+ M frontend/src/pages/admin/AdminMaterialsPage.tsx
+ M frontend/src/pages/admin/AdminProgramsPage.tsx
+ M frontend/src/pages/admin/AdminSystemPage.tsx
+ M frontend/src/pages/admin/AdminUsersPage.tsx
+ M frontend/src/services/api.ts
+ M frontend/src/styles.css
+ M frontend/vite.config.ts
+ D "\346\222\255\345\256\242\350\257\246\346\203\205\351\241\265/code.html"
+ D "\346\222\255\345\256\242\350\257\246\346\203\205\351\241\265/screen.png"
+?? CLAUDE.md
+?? archives/
+?? backend/data/
+?? backend/src/controllers/adminGuest.ts
+?? backend/src/models/AgentTask.ts
+?? backend/src/models/Guest.ts
+?? backend/src/routes/adminAgentTasks.ts
+?? backend/src/routes/adminGuest.ts
+?? backend/src/routes/adminMultiAgents.ts
+?? backend/src/routes/aiCompat.ts
+?? backend/src/routes/tutorbot.ts
+?? backend/src/services/agentModelRegistry.ts
+?? backend/src/services/agentTaskDispatcher.ts
+?? backend/src/services/tutorbotManager.ts
+?? frontend/public/admin.html
+?? frontend/public/assets/temp-chat-logo.svg
+?? frontend/public/assets/wel-avatar/
+?? "frontend/public/screens/\350\257\246\346\203\205\351\241\265\346\234\200\347\273\210\347\211\210.html"
+?? frontend/public/server.py
+?? frontend/public/wel/
+?? frontend/src/components/TopAlert.tsx
+?? frontend/src/components/WelTopNav.tsx
+?? frontend/src/lib/
+?? frontend/src/pages/admin/AdminAgentsChatPage.tsx
+?? frontend/src/pages/admin/AdminAgentsPage.tsx
+?? frontend/src/pages/admin/AdminGuestsPage.tsx
+?? frontend/src/pages/admin/AdminMultiAgentsPage.tsx
+?? frontend/src/pages/admin/AdminUserPortraitPage.tsx
+?? frontend/src/wel/

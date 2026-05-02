@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import { adminApi, User } from "../../services/api";
+import TopAlert from "../../components/TopAlert";
 import { RootState } from "../../store";
 
 type EditableUser = Pick<User, "_id" | "username" | "role" | "city" | "region" | "childGrade">;
@@ -42,6 +43,7 @@ function toEditableUser(row: User): EditableUser {
 
 const inputClass =
   "rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-900 caret-[#5e17eb] placeholder:text-stone-400 focus:border-[#5e17eb] focus:ring-4 focus:ring-[#5e17eb]/5";
+const PAGE_SIZE = 20;
 
 const AdminUsersPage: React.FC = () => {
   const { user } = useSelector((state: RootState) => state.user);
@@ -58,6 +60,7 @@ const AdminUsersPage: React.FC = () => {
   const [form, setForm] = useState<UserFormState>(EMPTY_USER_FORM);
   const [resetTarget, setResetTarget] = useState<EditableUser | null>(null);
   const [resetPassword, setResetPassword] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const loadUsers = async () => {
     setLoading(true);
@@ -81,6 +84,20 @@ const AdminUsersPage: React.FC = () => {
     if (!key) return items;
     return items.filter((row) => `${row.username} ${row.role} ${row.city || ""} ${row.region || ""} ${row.childGrade || ""}`.toLowerCase().includes(key));
   }, [items, keyword]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE));
+  const pagedItems = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredItems.slice(start, start + PAGE_SIZE);
+  }, [filteredItems, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [keyword]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   const stats = useMemo(() => {
     const total = items.length;
@@ -223,40 +240,22 @@ const AdminUsersPage: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-[#5E8B8E] font-bold tracking-[0.2em] text-xs uppercase">
-            <span className="w-8 h-[1px] bg-[#5E8B8E]"></span>
-            管理面板
-          </div>
-          <h1 className="text-5xl font-black tracking-tight text-stone-900">用户管理</h1>
-          <p className="text-stone-500 text-xl font-light">维护后台账号、普通用户资料与密码。</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={loadUsers}
-            className="px-6 py-3 rounded-xl border border-stone-200 text-stone-700 hover:border-[#5e17eb] hover:text-[#5e17eb] transition-all text-sm font-bold flex items-center gap-2"
-            disabled={loading}
-            type="button"
-          >
-            <span className="material-symbols-outlined text-base">refresh</span>
-            刷新
-          </button>
-          <button
-            onClick={openCreate}
-            className="px-6 py-3 rounded-xl bg-[#5e17eb] text-white hover:bg-[#5112d1] transition-all text-sm font-bold flex items-center gap-2 shadow-[0_10px_24px_rgba(94,23,235,0.18)]"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-base">person_add</span>
-            新建用户
-          </button>
-        </div>
+      <div className="admin-toolbar">
+        <div />
+        <button
+          onClick={openCreate}
+          className="admin-pill-btn admin-pill-btn-primary"
+          type="button"
+        >
+          <span className="material-symbols-outlined text-base">person_add</span>
+          新建用户
+        </button>
       </div>
 
-      {error ? <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm text-red-600">{error}</div> : null}
+      <TopAlert message={error} onClose={() => setError(null)} />
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <div className="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm">
+        <div className="bg-white rounded-2xl p-6 border border-stone-100">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 bg-[#5e17eb]/10 rounded-xl flex items-center justify-center text-[#5e17eb]">
               <span className="material-symbols-outlined">group</span>
@@ -267,7 +266,7 @@ const AdminUsersPage: React.FC = () => {
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm">
+        <div className="bg-white rounded-2xl p-6 border border-stone-100">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600">
               <span className="material-symbols-outlined">verified_user</span>
@@ -278,7 +277,7 @@ const AdminUsersPage: React.FC = () => {
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm">
+        <div className="bg-white rounded-2xl p-6 border border-stone-100">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 bg-stone-100 rounded-xl flex items-center justify-center text-stone-600">
               <span className="material-symbols-outlined">person</span>
@@ -291,8 +290,8 @@ const AdminUsersPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
-        <div className="flex flex-col gap-4 border-b border-stone-100 bg-stone-50/50 px-6 py-5 md:flex-row md:items-center md:justify-between">
+      <div className="bg-white rounded-2xl border border-stone-100 overflow-hidden">
+        <div className="flex flex-col gap-4 border-b border-stone-100 px-6 py-5 md:flex-row md:items-center md:justify-between">
           <div className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500">用户列表</div>
           <div className="relative">
             <input
@@ -326,7 +325,7 @@ const AdminUsersPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
-                {filteredItems.map((row) => {
+                {pagedItems.map((row) => {
                   const saving = savingId === row._id;
                   const deleting = deletingId === row._id;
                   const isMe = myId && String(myId) === String(row._id);
@@ -419,6 +418,29 @@ const AdminUsersPage: React.FC = () => {
             ) : null}
           </div>
         )}
+        {!loading && filteredItems.length > 0 ? (
+          <div className="flex items-center justify-between border-t border-stone-100 px-6 py-4 text-sm text-stone-500">
+            <div>第 {currentPage}/{totalPages} 页，每页 {PAGE_SIZE} 条，共 {filteredItems.length} 条</div>
+            <div className="flex gap-2">
+              <button
+                className="rounded-xl border border-stone-200 px-3 py-2 text-xs font-bold text-stone-700 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                type="button"
+              >
+                上一页
+              </button>
+              <button
+                className="rounded-xl border border-stone-200 px-3 py-2 text-xs font-bold text-stone-700 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                type="button"
+              >
+                下一页
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {modalMode ? (

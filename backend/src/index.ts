@@ -14,11 +14,20 @@ import adminProgramRoutes from "./routes/adminProgram";
 import adminBookRoutes from "./routes/adminBook";
 import adminLearningMaterialRoutes from "./routes/adminLearningMaterial";
 import adminSystemRoutes from "./routes/adminSystem";
+import adminMultiAgentsRoutes from "./routes/adminMultiAgents";
 import adminDictionaryRoutes from "./routes/adminDictionary";
+import adminGuestRoutes from "./routes/adminGuest";
+import adminAgentTaskRoutes from "./routes/adminAgentTasks";
+import tutorbotRoutes from "./routes/tutorbot";
+import aiCompatRoutes from "./routes/aiCompat";
+import { UserController } from "./controllers/user";
+import { authenticate } from "./middlewares/auth";
+import { startAgentTaskDispatcher } from "./services/agentTaskDispatcher";
 
 dotenv.config();
 
 const app = express();
+const userController = new UserController();
 const PORT = process.env.PORT || 3001;
 
 const swaggerOptions = {
@@ -66,11 +75,20 @@ app.use("/api/programs", programRoutes);
 app.use("/api/books", bookRoutes);
 app.use("/api/learning-materials", learningMaterialRoutes);
 app.use("/api/users", userRoutes);
+app.post("/api/sms/send-code", (req, res) => userController.sendMobileCode(req, res));
+app.post("/api/auth/mobile", (req, res) => userController.mobileAuth(req, res));
+app.get("/api/me", authenticate, (req, res) => userController.meCompat(req as any, res));
+app.patch("/api/me", authenticate, (req, res) => userController.patchMeCompat(req as any, res));
 app.use("/api/admin/programs", adminProgramRoutes);
 app.use("/api/admin/books", adminBookRoutes);
 app.use("/api/admin/learning-materials", adminLearningMaterialRoutes);
 app.use("/api/admin/dictionary", adminDictionaryRoutes);
+app.use("/api/admin/guests", adminGuestRoutes);
 app.use("/api/admin", adminSystemRoutes);
+app.use("/api/admin", adminMultiAgentsRoutes);
+app.use("/api/admin", adminAgentTaskRoutes);
+app.use("/api/v1/tutorbot", tutorbotRoutes);
+app.use("/api/ai", aiCompatRoutes);
 
 const uploadsDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadsDir)) {
@@ -95,6 +113,10 @@ mongoose
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+});
+
+startAgentTaskDispatcher().catch((error) => {
+  console.error("Failed to start agent task dispatcher:", error);
 });
 
 export default app;

@@ -70,10 +70,44 @@ export interface ProgramGuest {
   profileUrl?: string;
 }
 
+export interface Guest {
+  _id: string;
+  name: string;
+  normalizedName: string;
+  title: string;
+  bio: string;
+  avatar: string;
+  profileUrl?: string;
+  profileMarkdown?: string;
+  profileReferences?: Array<{ title?: string; url: string; note?: string }>;
+  profileAvatarCandidates?: Array<{ url: string; label?: string; sourceUrl?: string }>;
+  profileGeneratedAt?: string | null;
+  status: "active" | "inactive";
+  programCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface GuestBoundProgram {
+  _id: string;
+  title: string;
+  programCode?: string;
+  status: "draft" | "published";
+  updatedAt?: string | null;
+}
+
+export interface ProgramGuestBinding {
+  guestId: string;
+  order: number;
+  role: string;
+  guest?: Guest | null;
+}
+
 export interface ProgramTermGlossaryItem {
   term: string;
   definition: string;
   sourceUrl?: string;
+  aliases?: string[];
 }
 
 export interface EducationDictionaryEntry {
@@ -163,8 +197,32 @@ export interface Program {
   dictionaryEntryIds?: string[];
   dictionaryEntries?: EducationDictionaryEntry[];
   guest?: ProgramGuest;
+  guests?: ProgramGuest[];
+  guestBindings?: ProgramGuestBinding[];
   deepDive?: ProgramDeepDive;
   contentPack?: ProgramContentPack;
+  agentOutputs?: {
+    proofread?: {
+      taskId?: string;
+      generatedAt?: string | null;
+      correctedTranscript?: TranscriptSegment[];
+      report?: {
+        typoCount?: number;
+        punctuationChanges?: number;
+        terminologyWarnings?: number;
+        summary?: string;
+      };
+      acceptedAt?: string | null;
+      acceptedBy?: string;
+    };
+    enrichment?: {
+      taskId?: string;
+      generatedAt?: string | null;
+      forceOverwrite?: boolean;
+      suggestedGlossary?: ProgramTermGlossaryItem[];
+      suggestedReadings?: CuratedReadingItem[];
+    };
+  };
   status: 'draft' | 'published';
   parseStatus?: 'idle' | 'parsing' | 'success' | 'failed';
   parseStage?: string;
@@ -223,6 +281,11 @@ export interface SystemInfo {
     showNotesDefaultTemplate?: string;
     ai?: {
       provider: string;
+      modelRegistrySummary?: {
+        total: number;
+        enabled: number;
+        byProvider: Record<string, number>;
+      };
       volcengine?: {
         appIdSet: boolean;
         accessTokenSet: boolean;
@@ -251,6 +314,20 @@ export interface SystemInfo {
   };
 }
 
+export interface ModelRegistryItem {
+  id: string;
+  name: string;
+  provider: string;
+  model_name: string;
+  api_key_preview?: string;
+  base_url: string;
+  enabled: boolean;
+  capabilities: Array<"chat" | "reasoning" | "asr" | "extract" | string>;
+  meta: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ShowNotesTemplateConfig {
   template: string;
   fallbackTemplate: string;
@@ -264,6 +341,35 @@ export interface ProgramParseTask {
   parseError?: string;
   parseStartedAt?: string | null;
   parseFinishedAt?: string | null;
+}
+
+export interface AgentTask {
+  _id: string;
+  taskType: "proofread_transcript" | "enrich_program_content" | "enrich_guest_profile";
+  targetType: "program" | "guest";
+  targetId: string;
+  status: "queued" | "running" | "succeeded" | "failed" | "canceled";
+  options?: Record<string, any>;
+  retries: number;
+  maxRetries: number;
+  progress: number;
+  stage?: string;
+  createdBy?: string;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  lastError?: string;
+  outputSummary?: string;
+  output?: Record<string, any>;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AdminProgramListResponse {
+  items: Program[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
 }
 
 export interface DictionaryImportResult {
@@ -300,6 +406,8 @@ export const publicApi = {
 export const adminApi = {
   // 节目管理
   getPrograms: (status?: string) => api.get<Program[]>('/admin/programs', { params: { status } }),
+  getProgramsPaged: (params?: { status?: string; search?: string; page?: number; pageSize?: number }) =>
+    api.get<AdminProgramListResponse>('/admin/programs', { params }),
   getProgram: (id: string) => api.get<Program>(`/admin/programs/${id}`),
   createProgram: (data: Partial<Program>) => api.post<Program>('/admin/programs', data),
   updateProgram: (id: string, data: Partial<Program>) => api.put<Program>(`/admin/programs/${id}`, data),
@@ -336,7 +444,7 @@ export const adminApi = {
       "/admin/programs/upload-image",
       formData,
       {
-        timeout: 2 * 60 * 1000,
+        timeout: 60 * 1000,
         headers: { "Content-Type": "multipart/form-data" },
         onUploadProgress: (event) => {
           if (!onProgress || !event.total) return;
@@ -350,6 +458,24 @@ export const adminApi = {
     api.post<ProgramParseTask>("/admin/programs/create-from-audio", { uploadedAudioUrl, sourceFileName }),
   triggerProgramParse: (id: string) => api.post<ProgramParseTask>(`/admin/programs/${id}/parse`),
   getProgramParseStatus: (id: string) => api.get<ProgramParseTask>(`/admin/programs/${id}/parse-status`),
+  acceptProgramProofread: (id: string) => api.post<Program>(`/admin/programs/${id}/proofread/accept`),
+
+  createAgentTask: (data: {
+    taskType: AgentTask["taskType"];
+    targetType: AgentTask["targetType"];
+    targetId: string;
+    options?: Record<string, any>;
+    maxRetries?: number;
+  }) => api.post<AgentTask>("/admin/agent-tasks", data),
+  getAgentTask: (id: string) => api.get<AgentTask>(`/admin/agent-tasks/${id}`),
+  listAgentTasks: (params?: {
+    taskType?: AgentTask["taskType"];
+    targetType?: AgentTask["targetType"];
+    targetId?: string;
+    status?: AgentTask["status"];
+    limit?: number;
+  }) => api.get<{ items: AgentTask[] }>("/admin/agent-tasks", { params }),
+  retryAgentTask: (id: string) => api.post<AgentTask>(`/admin/agent-tasks/${id}/retry`),
 
   getDictionaryEntries: (params?: { search?: string; status?: string }) =>
     api.get<AdminEducationDictionaryEntry[]>("/admin/dictionary", { params }),
@@ -363,6 +489,17 @@ export const adminApi = {
   importDictionaryFromPrograms: (programIds: string[]) =>
     api.post<DictionaryImportResult>("/admin/dictionary/import-from-programs", { programIds }),
   getDictionaryEntryPrograms: (id: string) => api.get<DictionaryRelatedProgram[]>(`/admin/dictionary/${id}/programs`),
+  getGuests: (params?: { search?: string; status?: "active" | "inactive" }) => api.get<Guest[]>("/admin/guests", { params }),
+  getGuest: (id: string) => api.get<Guest>(`/admin/guests/${id}`),
+  getGuestProgramBindings: (id: string, params?: { search?: string }) =>
+    api.get<{ items: GuestBoundProgram[] }>(`/admin/guests/${id}/program-bindings`, { params }),
+  updateGuestProgramBindings: (id: string, programIds: string[]) =>
+    api.put<{ ok: boolean; guest?: Guest; programIds: string[] }>(`/admin/guests/${id}/program-bindings`, { programIds }),
+  createGuest: (data: Partial<Guest>) => api.post<Guest>("/admin/guests", data),
+  updateGuest: (id: string, data: Partial<Guest>) => api.put<Guest>(`/admin/guests/${id}`, data),
+  updateGuestStatus: (id: string, status: "active" | "inactive") =>
+    api.patch<Guest>(`/admin/guests/${id}/status`, { status }),
+  deleteGuest: (id: string) => api.delete(`/admin/guests/${id}`),
   
   // 书单管理
   getBooks: (status?: string) => api.get<Book[]>('/admin/books', { params: { status } }),
@@ -388,6 +525,12 @@ export const adminApi = {
   deleteUser: (id: string) => api.delete(`/users/${id}`),
 
   getSystemInfo: () => api.get<SystemInfo>('/admin/system-info'),
+  getModelRegistry: () => api.get<{ items: ModelRegistryItem[] }>("/admin/mgmt/model-registry"),
+  createModelRegistryItem: (data: Partial<ModelRegistryItem> & { api_key?: string }) =>
+    api.post<{ ok: boolean; item: ModelRegistryItem }>("/admin/mgmt/model-registry", data),
+  updateModelRegistryItem: (id: string, data: Partial<ModelRegistryItem> & { api_key?: string }) =>
+    api.put<{ ok: boolean; item: ModelRegistryItem }>(`/admin/mgmt/model-registry/${encodeURIComponent(id)}`, data),
+  deleteModelRegistryItem: (id: string) => api.delete<{ ok: boolean }>(`/admin/mgmt/model-registry/${encodeURIComponent(id)}`),
   getShowNotesTemplate: () => api.get<ShowNotesTemplateConfig>("/admin/show-notes-template"),
   updateShowNotesTemplate: (template: string) =>
     api.put<ShowNotesTemplateConfig>("/admin/show-notes-template", { template }),

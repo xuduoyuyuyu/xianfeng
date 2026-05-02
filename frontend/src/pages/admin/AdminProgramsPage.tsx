@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { adminApi, AdminEducationDictionaryEntry, Program } from "../../services/api";
+import { adminApi, AdminEducationDictionaryEntry, AgentTask, Guest, Program, ProgramGuestBinding } from "../../services/api";
+import TopAlert from "../../components/TopAlert";
 
 type StatusFilter = "all" | "published" | "draft";
 type ParseEditorTab = "quickview" | "transcript";
@@ -23,11 +24,6 @@ type FormState = {
   showNotesGuestIntro: string;
   showNotesKeyMomentsRaw: string;
   showNotesTemplateOverride: string;
-  guestName: string;
-  guestTitle: string;
-  guestBio: string;
-  guestAvatar: string;
-  guestProfileUrl: string;
   deepDiveTitle: string;
   curatedReadingRaw: string;
   status: "draft" | "published";
@@ -68,6 +64,13 @@ type TranscriptValidationIssue = {
   rowIndex: number;
 };
 
+type EditableGuestBinding = {
+  guestId: string;
+  order: number;
+  role: string;
+  guest?: Guest | null;
+};
+
 const EMPTY_FORM: FormState = {
   programCode: "",
   title: "",
@@ -88,11 +91,6 @@ const EMPTY_FORM: FormState = {
   showNotesGuestIntro: "",
   showNotesKeyMomentsRaw: "",
   showNotesTemplateOverride: "",
-  guestName: "",
-  guestTitle: "",
-  guestBio: "",
-  guestAvatar: "",
-  guestProfileUrl: "",
   deepDiveTitle: "",
   curatedReadingRaw: "",
   status: "draft",
@@ -115,6 +113,7 @@ const UPLOAD_PROGRESS_END = 92;
 const PARSING_PROGRESS = 12;
 const UPLOAD_TASK_STORAGE_KEY = "admin-program-upload-task";
 const SPEAKER_SUGGESTIONS = ["主持人", "嘉宾1", "嘉宾2", "嘉宾"];
+const PROGRAMS_PAGE_SIZE = 20;
 
 function getParseStageLabel(stage = ""): string {
   const stageMap: Record<string, string> = {
@@ -455,29 +454,11 @@ function serializeTranscriptRows(rows: TranscriptEditorRow[]): string {
     .join("\n");
 }
 
-function replaceSpeakerLabel(raw: string, fromLabels: string[], toLabel: string): string {
-  const target = toLabel.trim();
-  if (!target) return raw;
-  const fromSet = new Set(fromLabels.map((item) => item.trim()).filter(Boolean));
-  if (!fromSet.size) return raw;
-  return raw
-    .split("\n")
-    .map((line) => {
-      const parts = line.split("|");
-      if (parts.length < 3) return line;
-      const currentSpeaker = (parts[1] || "").trim();
-      if (!fromSet.has(currentSpeaker)) return line;
-      parts[1] = target;
-      return parts.join("|");
-    })
-    .join("\n");
-}
-
-function buildProgramPayload(form: FormState) {
+function buildProgramPayload(form: FormState, guestBindings: Array<{ guestId: string; order: number; role: string }> = []) {
   return {
     programCode: form.programCode.trim(),
     title: form.title,
-    description: form.description,
+    description: (form.description || "").slice(0, 120),
     coverImage: form.coverImage,
     status: form.status,
     episodes: [
@@ -498,13 +479,13 @@ function buildProgramPayload(form: FormState) {
         .filter(Boolean),
     },
     transcript: parseTranscript(form.transcriptRaw),
-    guest: {
-      name: form.guestName.trim(),
-      title: form.guestTitle.trim(),
-      bio: form.guestBio.trim(),
-      avatar: form.guestAvatar.trim(),
-      profileUrl: form.guestProfileUrl.trim(),
-    },
+    guestBindings: guestBindings
+      .map((item, idx) => ({
+        guestId: item.guestId,
+        order: Number(item.order) > 0 ? Number(item.order) : idx + 1,
+        role: (item.role || "main_guest").trim() || "main_guest",
+      }))
+      .filter((item) => !!item.guestId),
     deepDive: {
       sectionTitle: form.deepDiveTitle.trim(),
       curatedReading: parseCuratedReading(form.curatedReadingRaw),
@@ -530,6 +511,11 @@ const AdminProgramsPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [searchInput, setSearchInput] = useState("");
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -552,10 +538,14 @@ const AdminProgramsPage: React.FC = () => {
   const [newDictionaryDefinition, setNewDictionaryDefinition] = useState("");
   const [dictionaryCandidates, setDictionaryCandidates] = useState<AdminEducationDictionaryEntry[]>([]);
   const [selectedDictionaryEntryIds, setSelectedDictionaryEntryIds] = useState<string[]>([]);
+  const [guestSearch, setGuestSearch] = useState("");
+  const [guestCandidates, setGuestCandidates] = useState<Guest[]>([]);
+  const [guestBindingRows, setGuestBindingRows] = useState<EditableGuestBinding[]>([]);
+  const [programAgentTasks, setProgramAgentTasks] = useState<AgentTask[]>([]);
+  const [programAgentLoading, setProgramAgentLoading] = useState(false);
   const [parseEditorTab, setParseEditorTab] = useState<ParseEditorTab>("quickview");
   const audioInputRef = useRef<HTMLInputElement | null>(null);
   const coverImageInputRef = useRef<HTMLInputElement | null>(null);
-  const guestAvatarInputRef = useRef<HTMLInputElement | null>(null);
   const parsePollTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -565,9 +555,17 @@ const AdminProgramsPage: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const response = await adminApi.getPrograms(statusFilter === "all" ? undefined : statusFilter);
+        const response = await adminApi.getProgramsPaged({
+          status: statusFilter === "all" ? undefined : statusFilter,
+          search: searchKeyword.trim() || undefined,
+          page: currentPage,
+          pageSize: PROGRAMS_PAGE_SIZE,
+        });
         if (active) {
-          setItems(response.data || []);
+          setItems(response.data?.items || []);
+          setTotalItems(Number(response.data?.total) || 0);
+          setCurrentPage(Number(response.data?.page) || 1);
+          setTotalPages(Math.max(1, Number(response.data?.totalPages) || 1));
         }
       } catch (loadError: any) {
         if (active) {
@@ -584,7 +582,11 @@ const AdminProgramsPage: React.FC = () => {
     return () => {
       active = false;
     };
-  }, [statusFilter]);
+  }, [statusFilter, searchKeyword, currentPage]);
+
+  useEffect(() => {
+    loadGuestCandidates("");
+  }, []);
 
   useEffect(() => {
     persistUploadTask(currentUploadTask);
@@ -630,7 +632,29 @@ const AdminProgramsPage: React.FC = () => {
     }
   }, [items, currentUploadTask?.programId]);
 
-  const filteredItems = useMemo(() => items, [items]);
+  useEffect(() => {
+    if (!isModalOpen || !editingProgram?._id) return;
+    const hasRunningTask = programAgentTasks.some((task) => task.status === "queued" || task.status === "running");
+    if (!hasRunningTask) return;
+    const timer = window.setInterval(() => {
+      loadProgramAgentTasks(editingProgram._id);
+      refreshEditingProgram(editingProgram._id).catch(() => {});
+    }, 2500);
+    return () => window.clearInterval(timer);
+  }, [isModalOpen, editingProgram?._id, programAgentTasks]);
+
+  const filteredGuestCandidates = useMemo(() => {
+    const keyword = guestSearch.trim().toLowerCase();
+    const source = guestCandidates || [];
+    if (!keyword) return source.slice(0, 20);
+    return source
+      .filter((item) => {
+        const name = (item.name || "").toLowerCase();
+        const title = (item.title || "").toLowerCase();
+        return name.includes(keyword) || title.includes(keyword);
+      })
+      .slice(0, 20);
+  }, [guestCandidates, guestSearch]);
   const transcriptEditorIssues = useMemo(() => validateTranscriptRows(transcriptRows), [transcriptRows]);
   const transcriptEditorIssuesByRow = useMemo(() => {
     const grouped = new Map<number, TranscriptValidationIssue[]>();
@@ -639,6 +663,98 @@ const AdminProgramsPage: React.FC = () => {
     });
     return grouped;
   }, [transcriptEditorIssues]);
+  const latestProofreadTask = useMemo(
+    () => programAgentTasks.find((item) => item.taskType === "proofread_transcript") || null,
+    [programAgentTasks]
+  );
+  const latestEnrichmentTask = useMemo(
+    () => programAgentTasks.find((item) => item.taskType === "enrich_program_content") || null,
+    [programAgentTasks]
+  );
+
+  const loadProgramAgentTasks = async (programId: string) => {
+    setProgramAgentLoading(true);
+    try {
+      const response = await adminApi.listAgentTasks({
+        targetType: "program",
+        targetId: programId,
+        limit: 20,
+      });
+      setProgramAgentTasks(response.data?.items || []);
+    } catch {
+      setProgramAgentTasks([]);
+    } finally {
+      setProgramAgentLoading(false);
+    }
+  };
+
+  const refreshEditingProgram = async (programId: string) => {
+    const response = await adminApi.getProgram(programId);
+    setEditingProgram(response.data);
+    setForm((prev) => ({
+      ...prev,
+      transcriptRaw: formatTranscriptForForm(response.data.transcript),
+      curatedReadingRaw: formatCuratedReadingForForm(response.data.deepDive?.curatedReading),
+    }));
+  };
+
+  const triggerProgramTask = async (
+    taskType: AgentTask["taskType"],
+    options: Record<string, any> = {}
+  ) => {
+    if (!editingProgram?._id) return;
+    setProgramAgentLoading(true);
+    setError(null);
+    try {
+      await adminApi.createAgentTask({
+        taskType,
+        targetType: "program",
+        targetId: editingProgram._id,
+        options,
+      });
+      setParseHint(taskType === "proofread_transcript" ? "已触发文稿校对任务。" : "已触发资料收集任务。");
+      await loadProgramAgentTasks(editingProgram._id);
+      await refreshEditingProgram(editingProgram._id);
+    } catch (taskError: any) {
+      setError(taskError?.response?.data?.message || taskError?.message || "触发任务失败");
+    } finally {
+      setProgramAgentLoading(false);
+    }
+  };
+
+  const retryProgramTask = async (taskId: string) => {
+    if (!editingProgram?._id || !taskId) return;
+    setProgramAgentLoading(true);
+    try {
+      await adminApi.retryAgentTask(taskId);
+      await loadProgramAgentTasks(editingProgram._id);
+      await refreshEditingProgram(editingProgram._id);
+    } catch (taskError: any) {
+      setError(taskError?.response?.data?.message || taskError?.message || "重试任务失败");
+    } finally {
+      setProgramAgentLoading(false);
+    }
+  };
+
+  const acceptProofread = async () => {
+    if (!editingProgram?._id) return;
+    setProgramAgentLoading(true);
+    try {
+      await adminApi.acceptProgramProofread(editingProgram._id);
+      const response = await adminApi.getProgram(editingProgram._id);
+      setEditingProgram(response.data);
+      setForm((prev) => ({
+        ...prev,
+        transcriptRaw: formatTranscriptForForm(response.data.transcript),
+      }));
+      setParseHint("已接受校对结果并替换当前逐字稿。");
+      await loadProgramAgentTasks(editingProgram._id);
+    } catch (acceptError: any) {
+      setError(acceptError?.response?.data?.message || acceptError?.message || "接受校对失败");
+    } finally {
+      setProgramAgentLoading(false);
+    }
+  };
 
   const loadProgramIntoForm = (program: Program) => {
     setEditingProgram(program);
@@ -662,19 +778,45 @@ const AdminProgramsPage: React.FC = () => {
       showNotesGuestIntro: program.contentPack?.showNotes?.guestIntro || "",
       showNotesKeyMomentsRaw: formatShowNotesKeyMomentsForForm(program.contentPack?.showNotes?.keyMoments),
       showNotesTemplateOverride: program.contentPack?.showNotes?.templateOverride || "",
-      guestName: program.guest?.name || "",
-      guestTitle: program.guest?.title || "",
-      guestBio: program.guest?.bio || "",
-      guestAvatar: program.guest?.avatar || "",
-      guestProfileUrl: program.guest?.profileUrl || "",
       deepDiveTitle: program.deepDive?.sectionTitle || "",
       curatedReadingRaw: formatCuratedReadingForForm(program.deepDive?.curatedReading),
       status: program.status,
     });
+    const fromBindings = (program.guestBindings || [])
+      .map((item) => ({
+        guestId: item.guestId,
+        order: Number(item.order) || 1,
+        role: item.role || "main_guest",
+        guest: item.guest || null,
+      }))
+      .sort((a, b) => a.order - b.order);
+    if (fromBindings.length > 0) {
+      setGuestBindingRows(fromBindings);
+    } else if (program.guest?.name) {
+      setGuestBindingRows([]);
+    } else {
+      setGuestBindingRows([]);
+    }
   };
 
   const openEdit = (program: Program) => {
     loadProgramIntoForm(program);
+    loadGuestCandidates("");
+    loadProgramAgentTasks(program._id);
+    setIsModalOpen(true);
+    setParseEditorTab("quickview");
+  };
+
+  const openCreate = () => {
+    setEditingProgram(null);
+    setForm(EMPTY_FORM);
+    setGuestBindingRows([]);
+    setGuestSearch("");
+    setDictionaryCandidates([]);
+    setDictionarySearch("");
+    setSelectedDictionaryEntryIds([]);
+    setProgramAgentTasks([]);
+    loadGuestCandidates("");
     setIsModalOpen(true);
     setParseEditorTab("quickview");
   };
@@ -693,12 +835,16 @@ const AdminProgramsPage: React.FC = () => {
     setNewDictionaryTerm("");
     setNewDictionaryDefinition("");
     setSelectedDictionaryEntryIds([]);
+    setGuestBindingRows([]);
+    setGuestSearch("");
     setDictionarySaving(false);
     setDictionaryCreating(false);
     setDictionaryLoading(false);
     setTranscriptRows([]);
     setEditingProgram(null);
     setForm(EMPTY_FORM);
+    setProgramAgentTasks([]);
+    setProgramAgentLoading(false);
     setParseEditorTab("quickview");
   };
 
@@ -781,7 +927,7 @@ const AdminProgramsPage: React.FC = () => {
     setSaving(true);
     setError(null);
     try {
-      await adminApi.updateProgram(editingProgram._id, buildProgramPayload(nextForm));
+      await adminApi.updateProgram(editingProgram._id, buildProgramPayload(nextForm, guestBindingRows));
       setForm(nextForm);
       await refreshList();
       if (isModalOpen) {
@@ -841,11 +987,58 @@ const AdminProgramsPage: React.FC = () => {
 
   const refreshList = async () => {
     try {
-      const response = await adminApi.getPrograms(statusFilter === "all" ? undefined : statusFilter);
-      setItems(response.data || []);
+      const response = await adminApi.getProgramsPaged({
+        status: statusFilter === "all" ? undefined : statusFilter,
+        search: searchKeyword.trim() || undefined,
+        page: currentPage,
+        pageSize: PROGRAMS_PAGE_SIZE,
+      });
+      setItems(response.data?.items || []);
+      setTotalItems(Number(response.data?.total) || 0);
+      setCurrentPage(Number(response.data?.page) || 1);
+      setTotalPages(Math.max(1, Number(response.data?.totalPages) || 1));
     } catch (loadError: any) {
       setError(loadError?.response?.data?.message || loadError?.message || "刷新列表失败");
     }
+  };
+
+  const loadGuestCandidates = async (searchValue = "") => {
+    try {
+      const res = await adminApi.getGuests({ search: searchValue.trim() || undefined, status: "active" });
+      setGuestCandidates(res.data || []);
+    } catch (loadError: any) {
+      setError(loadError?.response?.data?.message || loadError?.message || "加载嘉宾库失败");
+    }
+  };
+
+  const addGuestBindingRow = (guest: Guest) => {
+    setGuestBindingRows((prev) => {
+      if (prev.some((item) => item.guestId === guest._id)) return prev;
+      const nextOrder = prev.length + 1;
+      return [...prev, { guestId: guest._id, order: nextOrder, role: "main_guest", guest }];
+    });
+  };
+
+  const removeGuestBindingRow = (guestId: string) => {
+    setGuestBindingRows((prev) =>
+      prev
+        .filter((item) => item.guestId !== guestId)
+        .map((item, idx) => ({ ...item, order: idx + 1 }))
+    );
+  };
+
+  const moveGuestBindingRow = (guestId: string, direction: -1 | 1) => {
+    setGuestBindingRows((prev) => {
+      const idx = prev.findIndex((item) => item.guestId === guestId);
+      if (idx < 0) return prev;
+      const nextIdx = idx + direction;
+      if (nextIdx < 0 || nextIdx >= prev.length) return prev;
+      const cloned = prev.slice();
+      const tmp = cloned[idx];
+      cloned[idx] = cloned[nextIdx];
+      cloned[nextIdx] = tmp;
+      return cloned.map((item, i) => ({ ...item, order: i + 1 }));
+    });
   };
 
   const startParsePolling = (programId: string) => {
@@ -1043,7 +1236,7 @@ const AdminProgramsPage: React.FC = () => {
     }
   };
 
-  const handleImageUpload = async (file: File, target: "coverImage" | "guestAvatar") => {
+  const handleImageUpload = async (file: File, target: "coverImage") => {
     if (!file) return;
     try {
       const response = await adminApi.uploadProgramImage(file);
@@ -1059,15 +1252,20 @@ const AdminProgramsPage: React.FC = () => {
     if (!currentUploadTask) return false;
     if (currentUploadTask.phase === "success") return false;
     if (!currentUploadTask.programId) return true;
-    return !filteredItems.some((item) => item._id === currentUploadTask.programId);
-  }, [currentUploadTask, filteredItems]);
+    return !items.some((item) => item._id === currentUploadTask.programId);
+  }, [currentUploadTask, items]);
 
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
     setSaving(true);
     setError(null);
+    if (guestBindingRows.length === 0) {
+      setSaving(false);
+      setError("请至少从先疯智库关联 1 位嘉宾后再保存。");
+      return;
+    }
 
-    const payload = buildProgramPayload(form);
+    const payload = buildProgramPayload(form, guestBindingRows);
     const nextIssues = validateTranscriptRows(parseTranscriptRows(form.transcriptRaw));
 
     try {
@@ -1097,7 +1295,7 @@ const AdminProgramsPage: React.FC = () => {
     const nextIssues = validateTranscriptRows(parseTranscriptRows(form.transcriptRaw));
 
     try {
-      await adminApi.updateProgram(editingProgram._id, buildProgramPayload(form));
+      await adminApi.updateProgram(editingProgram._id, buildProgramPayload(form, guestBindingRows));
       await refreshList();
       setParseHint(nextIssues.length > 0 ? `文稿已保存，逐字稿还有 ${nextIssues.length} 条校验提示。` : "文稿已保存。");
     } catch (saveError: any) {
@@ -1121,10 +1319,23 @@ const AdminProgramsPage: React.FC = () => {
     if (!window.confirm(`确认删除《${program.title}》吗？`)) return;
     try {
       await adminApi.deleteProgram(program._id);
+      if (items.length === 1 && currentPage > 1) {
+        setCurrentPage((prev) => Math.max(1, prev - 1));
+      }
       await refreshList();
     } catch (deleteError: any) {
       setError(deleteError?.response?.data?.message || deleteError?.message || "删除失败");
     }
+  };
+
+  const handleSearch = () => {
+    setCurrentPage(1);
+    setSearchKeyword(searchInput.trim());
+  };
+
+  const handleStatusFilterChange = (filter: StatusFilter) => {
+    setCurrentPage(1);
+    setStatusFilter(filter);
   };
 
   const loadDictionaryCandidates = async (searchValue = "") => {
@@ -1242,7 +1453,7 @@ const AdminProgramsPage: React.FC = () => {
 
         {parseEditorTab === "quickview" ? (
           <textarea
-            className="min-h-[220px] w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 font-mono text-sm"
+            className="min-h-[220px] w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 font-mono text-sm admin-form-textarea"
             placeholder={"速览（每行一条）：开始-结束|摘要\n示例：01:23-03:40|讨论家庭规则建立的底层逻辑。"}
             value={form.quickViewRaw}
             onChange={(event) => setForm((prev) => ({ ...prev, quickViewRaw: event.target.value }))}
@@ -1252,7 +1463,7 @@ const AdminProgramsPage: React.FC = () => {
         {parseEditorTab === "transcript" ? (
           <div className="space-y-4">
             <textarea
-              className="min-h-[220px] w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 font-mono text-sm"
+              className="min-h-[220px] w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 font-mono text-sm admin-form-textarea"
               placeholder={"逐字稿（每行一条）：时间|说话人|内容|featured(可选)\n示例：02:45|嘉宾|核心观点...|featured"}
               value={form.transcriptRaw}
               onChange={(event) => setForm((prev) => ({ ...prev, transcriptRaw: event.target.value }))}
@@ -1278,7 +1489,7 @@ const AdminProgramsPage: React.FC = () => {
   );
 
   return (
-    <div className="space-y-12 font-['Noto_Sans_SC','Plus_Jakarta_Sans',sans-serif] text-[#2D2926]">
+    <div className="space-y-12 overflow-x-hidden font-['Noto_Sans_SC','Plus_Jakarta_Sans',sans-serif] text-[#2D2926]">
       <style>{`
         .pearl-card {
           background: #ffffff;
@@ -1291,41 +1502,58 @@ const AdminProgramsPage: React.FC = () => {
       <main className="space-y-8">
         <input ref={audioInputRef} type="file" accept="audio/*" className="hidden" onChange={handleAudioFileSelect} />
 
-        {error ? (
-          <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm text-red-600">{error}</div>
-        ) : null}
+        <TopAlert message={error} onClose={() => setError(null)} />
 
-        <section className="pearl-card overflow-hidden rounded-[2.5rem] border-stone-200/60">
-          <div className="flex flex-col items-center justify-between gap-5 border-b border-stone-100 bg-white/50 p-8 md:flex-row">
-            <div className="flex items-center gap-5">
-              <h2 className="text-[26px] font-black tracking-tight text-stone-900">内容资源清单</h2>
-              <span className="rounded-full bg-stone-100 px-4 py-1.5 text-[11px] font-black uppercase tracking-widest text-[#7A746E]">{filteredItems.length} 项内容</span>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="flex rounded-2xl bg-stone-100 p-1">
-                {(["all", "published", "draft"] as StatusFilter[]).map((filter) => (
-                  <button
-                    key={filter}
-                    className={`rounded-xl px-5 py-1.5 text-[11px] font-semibold whitespace-nowrap ${statusFilter === filter ? "bg-white text-stone-800 shadow-[0_1px_2px_rgba(0,0,0,0.04)]" : "text-[#7A746E]"}`}
-                    onClick={() => setStatusFilter(filter)}
-                  >
-                    {filter === "all" ? "全部内容" : filter === "published" ? "已发布" : "草稿箱"}
-                  </button>
-                ))}
-              </div>
-              <div className="mx-1 h-8 w-px bg-stone-200" />
+        <div className="admin-toolbar">
+          <div className="flex items-center gap-5">
+            <span className="rounded-full bg-stone-100 px-4 py-1.5 text-[11px] font-black uppercase tracking-widest text-[#7A746E]">{totalItems} 项内容</span>
+          </div>
+          <div className="flex max-w-full flex-wrap items-center justify-end gap-3">
+            <div className="flex items-center gap-2 rounded-2xl border border-stone-200 bg-white px-2 py-1.5">
+              <input
+                className="w-[180px] bg-transparent px-2 text-sm text-stone-700 outline-none admin-form-input"
+                placeholder="搜索节目标题/编号"
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    handleSearch();
+                  }
+                }}
+              />
               <button
-                aria-label="上传并解析"
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-[#5e17eb] bg-[#5e17eb] text-white shadow-[0_10px_24px_rgba(94,23,235,0.18)] transition-all hover:bg-[#5112d1] hover:border-[#5112d1] disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={isUploadingAudio}
-                onClick={openUploadDialog}
-                title="上传并解析"
+                className="rounded-xl bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-700 hover:bg-stone-200"
+                onClick={handleSearch}
                 type="button"
               >
-                <span className="material-symbols-outlined text-xl">{isUploadingAudio ? "hourglass_top" : "upload_file"}</span>
+                搜索
               </button>
             </div>
+            <div className="flex rounded-2xl bg-stone-100 p-1">
+              {(["all", "published", "draft"] as StatusFilter[]).map((filter) => (
+                <button
+                  key={filter}
+                  className={`rounded-xl px-5 py-1.5 text-[11px] font-semibold whitespace-nowrap ${statusFilter === filter ? "bg-white text-stone-800 shadow-[0_1px_2px_rgba(0,0,0,0.04)]" : "text-[#7A746E]"}`}
+                  onClick={() => handleStatusFilterChange(filter)}
+                >
+                  {filter === "all" ? "全部内容" : filter === "published" ? "已发布" : "草稿箱"}
+                </button>
+              ))}
+            </div>
+            <div className="mx-1 h-8 w-px bg-stone-200" />
+            <button
+              className="admin-pill-btn admin-pill-btn-primary"
+              onClick={openUploadDialog}
+              type="button"
+            >
+              <span className="material-symbols-outlined text-base">add_circle</span>
+              新增节目
+            </button>
           </div>
+        </div>
+
+        <section className="pearl-card overflow-hidden rounded-[2.5rem] border-stone-200/60">
 
           {editingProgram && !isModalOpen ? (
             <div className="border-b border-stone-100 bg-stone-50/40 p-8">
@@ -1375,14 +1603,14 @@ const AdminProgramsPage: React.FC = () => {
                   <th className="min-w-[460px] px-10 py-5 text-center">操作</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-stone-100">
+              <tbody className="divide-y divide-[rgba(148,163,184,0.16)]">
                 {loading ? (
                   <tr>
                     <td className="px-10 py-10 text-sm text-stone-500" colSpan={6}>
                       正在加载节目数据...
                     </td>
                   </tr>
-                ) : filteredItems.length === 0 && !shouldShowStandaloneUploadTask ? (
+                ) : items.length === 0 && !shouldShowStandaloneUploadTask ? (
                   <tr>
                     <td className="px-10 py-10 text-sm text-stone-500" colSpan={6}>
                       暂无匹配内容
@@ -1430,7 +1658,7 @@ const AdminProgramsPage: React.FC = () => {
                         </td>
                       </tr>
                     ) : null}
-                    {filteredItems.map((row) => {
+                    {items.map((row) => {
                       const rowUploadTask = currentUploadTask?.programId === row._id ? currentUploadTask : null;
                       return (
                     <tr key={row._id}>
@@ -1563,6 +1791,29 @@ const AdminProgramsPage: React.FC = () => {
             </table>
           </div>
         </section>
+        <div className="flex flex-col items-center justify-between gap-3 px-2 text-sm text-stone-600 md:flex-row">
+          <div>
+            第 {currentPage}/{totalPages} 页，每页 {PROGRAMS_PAGE_SIZE} 条，共 {totalItems} 条
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              className="rounded-xl border border-stone-200 px-3 py-1.5 font-semibold text-stone-700 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={currentPage <= 1 || loading}
+              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              type="button"
+            >
+              上一页
+            </button>
+            <button
+              className="rounded-xl border border-stone-200 px-3 py-1.5 font-semibold text-stone-700 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={currentPage >= totalPages || loading}
+              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+              type="button"
+            >
+              下一页
+            </button>
+          </div>
+        </div>
       </main>
 
       {isModalOpen ? (
@@ -1590,10 +1841,10 @@ const AdminProgramsPage: React.FC = () => {
             </div>
 
             <form className="grid grid-cols-1 gap-4 md:grid-cols-2" onSubmit={handleSave}>
-              <input className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm" placeholder="节目标题" required value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} />
-              <input className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm" placeholder="节目编号（如 ep1）" required value={form.programCode} onChange={(event) => setForm((prev) => ({ ...prev, programCode: event.target.value.toLowerCase().replace(/\s+/g, "") }))} />
+              <input className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-input" placeholder="节目标题" required value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} />
+              <input className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-input" placeholder="节目编号（如 ep1）" required value={form.programCode} onChange={(event) => setForm((prev) => ({ ...prev, programCode: event.target.value.toLowerCase().replace(/\s+/g, "") }))} />
               <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm md:col-span-2">
-                <input className="w-full bg-transparent text-sm outline-none" placeholder="封面图片 URL" required value={form.coverImage} onChange={(event) => setForm((prev) => ({ ...prev, coverImage: event.target.value }))} />
+                <input className="w-full bg-transparent text-sm outline-none admin-form-input" placeholder="封面图片 URL" required value={form.coverImage} onChange={(event) => setForm((prev) => ({ ...prev, coverImage: event.target.value }))} />
                 <div className="mt-2 flex items-center justify-between">
                   <span className="text-[11px] text-stone-500">前台链接将使用：{`/programs/${form.programCode || "ep1"}`}</span>
                   <button className="rounded-full border border-[#5e17eb]/20 px-3 py-1 text-[11px] font-bold text-[#5e17eb]" type="button" onClick={() => coverImageInputRef.current?.click()}>
@@ -1613,64 +1864,115 @@ const AdminProgramsPage: React.FC = () => {
                   }}
                 />
               </div>
-              <input className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm" placeholder="单集标题" required value={form.episodeTitle} onChange={(event) => setForm((prev) => ({ ...prev, episodeTitle: event.target.value }))} />
-              <input className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm" placeholder="时长（如 45分钟）" required value={form.episodeDuration} onChange={(event) => setForm((prev) => ({ ...prev, episodeDuration: event.target.value }))} />
-              <input className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm md:col-span-2" placeholder="音频 URL" required value={form.episodeUrl} onChange={(event) => setForm((prev) => ({ ...prev, episodeUrl: event.target.value }))} />
-              <textarea className="min-h-[140px] rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm md:col-span-2" placeholder="节目简介" required value={form.description} onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))} />
+              <input className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-input" placeholder="单集标题" required value={form.episodeTitle} onChange={(event) => setForm((prev) => ({ ...prev, episodeTitle: event.target.value }))} />
+              <input className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-input" placeholder="时长（如 45分钟）" required value={form.episodeDuration} onChange={(event) => setForm((prev) => ({ ...prev, episodeDuration: event.target.value }))} />
+              <input className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm md:col-span-2 admin-form-input" placeholder="音频 URL" required value={form.episodeUrl} onChange={(event) => setForm((prev) => ({ ...prev, episodeUrl: event.target.value }))} />
+              <div className="md:col-span-2">
+                <textarea
+                  className="min-h-[140px] w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-textarea"
+                  placeholder="节目简介（最多120字）"
+                  required
+                  maxLength={120}
+                  value={form.description}
+                  onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value.slice(0, 120) }))}
+                />
+                <div className="mt-1 text-right text-xs text-stone-400">{(form.description || "").length}/120</div>
+              </div>
 
               <div className="mt-2 rounded-2xl border border-stone-100 bg-stone-50/50 p-4 md:col-span-2">
                 <p className="mb-3 text-xs font-black uppercase tracking-widest text-[#7A746E]">详情页功能配置</p>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <input className="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm" placeholder="摘要标题（如：感官环境的神经学重塑）" value={form.summaryHeadline} onChange={(event) => setForm((prev) => ({ ...prev, summaryHeadline: event.target.value }))} />
-                  <input className="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm" placeholder="摘要亮点标签（如：低摩擦环境）" value={form.summaryHighlightLabel} onChange={(event) => setForm((prev) => ({ ...prev, summaryHighlightLabel: event.target.value }))} />
-                  <textarea className="min-h-[90px] rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm md:col-span-2" placeholder="摘要正文" value={form.summaryBody} onChange={(event) => setForm((prev) => ({ ...prev, summaryBody: event.target.value }))} />
-                  <textarea className="min-h-[90px] rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm md:col-span-2" placeholder="摘要亮点说明" value={form.summaryHighlightText} onChange={(event) => setForm((prev) => ({ ...prev, summaryHighlightText: event.target.value }))} />
-                  <input className="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm md:col-span-2" placeholder="摘要标签（逗号分隔，如：神经可塑性, 环境心理学）" value={form.summaryTags} onChange={(event) => setForm((prev) => ({ ...prev, summaryTags: event.target.value }))} />
+                  <input className="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm admin-form-input" placeholder="摘要标题（如：感官环境的神经学重塑）" value={form.summaryHeadline} onChange={(event) => setForm((prev) => ({ ...prev, summaryHeadline: event.target.value }))} />
+                  <input className="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm admin-form-input" placeholder="摘要亮点标签（如：低摩擦环境）" value={form.summaryHighlightLabel} onChange={(event) => setForm((prev) => ({ ...prev, summaryHighlightLabel: event.target.value }))} />
+                  <textarea className="min-h-[90px] rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm md:col-span-2 admin-form-textarea" placeholder="摘要正文" value={form.summaryBody} onChange={(event) => setForm((prev) => ({ ...prev, summaryBody: event.target.value }))} />
+                  <textarea className="min-h-[90px] rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm md:col-span-2 admin-form-textarea" placeholder="摘要亮点说明" value={form.summaryHighlightText} onChange={(event) => setForm((prev) => ({ ...prev, summaryHighlightText: event.target.value }))} />
+                  <input className="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm md:col-span-2 admin-form-input" placeholder="摘要标签（逗号分隔，如：神经可塑性, 环境心理学）" value={form.summaryTags} onChange={(event) => setForm((prev) => ({ ...prev, summaryTags: event.target.value }))} />
 
-                  <input
-                    className="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm"
-                    placeholder="嘉宾姓名"
-                    value={form.guestName}
-                    onChange={(event) =>
-                      setForm((prev) => {
-                        const nextName = event.target.value.trim();
-                        const oldName = prev.guestName.trim();
-                        const fromLabels = [oldName, "嘉宾", "嘉宾1", "guest", "guest1"].filter(Boolean);
-                        return {
-                          ...prev,
-                          guestName: event.target.value,
-                          transcriptRaw: nextName ? replaceSpeakerLabel(prev.transcriptRaw, fromLabels, nextName) : prev.transcriptRaw,
-                        };
-                      })
-                    }
-                  />
-                  <input className="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm" placeholder="嘉宾头衔" value={form.guestTitle} onChange={(event) => setForm((prev) => ({ ...prev, guestTitle: event.target.value }))} />
-                  <div className="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm">
-                    <input className="w-full bg-transparent text-sm outline-none" placeholder="嘉宾头像 URL" value={form.guestAvatar} onChange={(event) => setForm((prev) => ({ ...prev, guestAvatar: event.target.value }))} />
-                    <div className="mt-2 flex justify-end">
-                      <button className="rounded-full border border-[#5e17eb]/20 px-3 py-1 text-[11px] font-bold text-[#5e17eb]" type="button" onClick={() => guestAvatarInputRef.current?.click()}>
-                        上传头像
+                  <div className="md:col-span-2 rounded-2xl border border-stone-200 bg-white px-4 py-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-widest text-[#7A746E]">先疯智库关联</p>
+                        <p className="mt-2 text-xs text-stone-500">可关联多个嘉宾，支持顺序与角色；前台详情页优先按这里渲染。</p>
+                      </div>
+                      <button
+                        className="rounded-full border border-[#5e17eb]/20 px-3 py-1 text-[11px] font-bold text-[#5e17eb]"
+                        onClick={() => loadGuestCandidates(guestSearch)}
+                        type="button"
+                      >
+                        刷新嘉宾库
                       </button>
                     </div>
-                    <input
-                      ref={guestAvatarInputRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        event.target.value = "";
-                        if (!file) return;
-                        handleImageUpload(file, "guestAvatar");
-                      }}
-                    />
+                    <div className="mt-3 flex gap-2">
+                      <input
+                        className="flex-1 rounded-xl border border-stone-200 px-3 py-2 text-sm admin-form-input"
+                        placeholder="搜索嘉宾姓名/头衔"
+                        value={guestSearch}
+                        onChange={(event) => setGuestSearch(event.target.value)}
+                      />
+                    </div>
+                    <div className="mt-3 max-h-40 overflow-y-auto rounded-xl border border-stone-100 bg-stone-50 p-2">
+                      {filteredGuestCandidates.length === 0 ? (
+                        <div className="px-2 py-3 text-xs text-stone-400">暂无可关联嘉宾，请先在“先疯智库”新建。</div>
+                      ) : (
+                        filteredGuestCandidates.map((guest) => {
+                          const disabled = guestBindingRows.some((item) => item.guestId === guest._id);
+                          return (
+                            <button
+                              key={guest._id}
+                              className={`mb-1 flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs ${disabled ? "bg-stone-100 text-stone-400" : "bg-white text-stone-700 hover:bg-[#f7f3ff]"}`}
+                              disabled={disabled}
+                              onClick={() => addGuestBindingRow(guest)}
+                              type="button"
+                            >
+                              <span>{guest.name}{guest.title ? ` · ${guest.title}` : ""}</span>
+                              <span
+                                className={`inline-flex min-w-[68px] items-center justify-center rounded-full px-3 py-1 text-[11px] font-bold ${
+                                  disabled
+                                    ? "border border-[#5e17eb]/20 bg-[#5e17eb]/10 text-[#5e17eb]/65"
+                                    : "border border-[#5e17eb]/35 bg-[#5e17eb] text-white"
+                                }`}
+                              >
+                                {disabled ? "已关联" : "关联"}
+                              </span>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {guestBindingRows.length === 0 ? (
+                        <div className="rounded-lg border border-dashed border-stone-200 px-3 py-2 text-xs text-stone-400">当前未关联嘉宾，请从先疯智库选择并关联。</div>
+                      ) : (
+                        guestBindingRows
+                          .slice()
+                          .sort((a, b) => a.order - b.order)
+                          .map((item, idx) => (
+                            <div key={item.guestId} className="flex flex-col gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 py-3 md:flex-row md:items-center">
+                              <div className="flex-1 text-sm font-bold text-stone-800">{item.guest?.name || item.guestId}</div>
+                              <input
+                                className="w-full rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs md:w-40 admin-form-input"
+                                placeholder="角色，如 main_guest"
+                                value={item.role}
+                                onChange={(event) =>
+                                  setGuestBindingRows((prev) =>
+                                    prev.map((row) => (row.guestId === item.guestId ? { ...row, role: event.target.value } : row))
+                                  )
+                                }
+                              />
+                              <div className="flex items-center gap-1">
+                                <button className="rounded-full border border-stone-200 px-2 py-1 text-[11px]" disabled={idx === 0} onClick={() => moveGuestBindingRow(item.guestId, -1)} type="button">上移</button>
+                                <button className="rounded-full border border-stone-200 px-2 py-1 text-[11px]" disabled={idx === guestBindingRows.length - 1} onClick={() => moveGuestBindingRow(item.guestId, 1)} type="button">下移</button>
+                                <button className="rounded-full border border-red-100 px-2 py-1 text-[11px] text-red-500" onClick={() => removeGuestBindingRow(item.guestId)} type="button">移除</button>
+                              </div>
+                            </div>
+                          ))
+                      )}
+                    </div>
                   </div>
-                  <input className="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm" placeholder="嘉宾档案链接 URL（可选）" value={form.guestProfileUrl} onChange={(event) => setForm((prev) => ({ ...prev, guestProfileUrl: event.target.value }))} />
-                  <textarea className="min-h-[90px] rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm md:col-span-2" placeholder="嘉宾简介" value={form.guestBio} onChange={(event) => setForm((prev) => ({ ...prev, guestBio: event.target.value }))} />
 
-                  <input className="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm md:col-span-2" placeholder="深度挖掘模块标题（如：深度挖掘 Deep Dive）" value={form.deepDiveTitle} onChange={(event) => setForm((prev) => ({ ...prev, deepDiveTitle: event.target.value }))} />
+                  <input className="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm md:col-span-2 admin-form-input" placeholder="深度挖掘模块标题（如：深度挖掘 Deep Dive）" value={form.deepDiveTitle} onChange={(event) => setForm((prev) => ({ ...prev, deepDiveTitle: event.target.value }))} />
                   <textarea
-                    className="min-h-[110px] rounded-2xl border border-stone-200 bg-white px-4 py-3 font-mono text-xs md:col-span-2"
+                    className="min-h-[110px] rounded-2xl border border-stone-200 bg-white px-4 py-3 font-mono text-xs md:col-span-2 admin-form-textarea"
                     placeholder={"推荐阅读（每行一条）：标题|副标题|链接URL"}
                     value={form.curatedReadingRaw}
                     onChange={(event) => setForm((prev) => ({ ...prev, curatedReadingRaw: event.target.value }))}
@@ -1698,10 +2000,112 @@ const AdminProgramsPage: React.FC = () => {
                       ) : null}
                     </div>
                   </div>
+
+                  {editingProgram ? (
+                    <div className="md:col-span-2 rounded-2xl border border-stone-200 bg-white px-4 py-4">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-widest text-[#7A746E]">Agent 工作台</p>
+                          <p className="mt-1 text-xs text-stone-500">统一调度：文稿校对自动触发；资料收集支持手动触发与重试。</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            className="rounded-full border border-[#5e17eb]/25 bg-white px-3 py-1.5 text-xs font-bold text-[#5e17eb] hover:bg-[#f7f3ff] disabled:opacity-60"
+                            type="button"
+                            disabled={programAgentLoading}
+                            onClick={() => triggerProgramTask("proofread_transcript")}
+                          >
+                            重新校对
+                          </button>
+                          <button
+                            className="rounded-full border border-[#5e17eb]/25 bg-white px-3 py-1.5 text-xs font-bold text-[#5e17eb] hover:bg-[#f7f3ff] disabled:opacity-60"
+                            type="button"
+                            disabled={programAgentLoading}
+                            onClick={() => triggerProgramTask("enrich_program_content", { forceOverwrite: false })}
+                          >
+                            资料收集
+                          </button>
+                          <button
+                            className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 hover:bg-amber-100 disabled:opacity-60"
+                            type="button"
+                            disabled={programAgentLoading}
+                            onClick={() => triggerProgramTask("enrich_program_content", { forceOverwrite: true })}
+                          >
+                            强制覆盖收集
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <div className="rounded-xl border border-stone-100 bg-stone-50 px-3 py-2 text-xs text-stone-600">
+                          <p className="font-bold text-stone-700">文稿校对任务</p>
+                          <p className="mt-1">
+                            {latestProofreadTask
+                              ? `${latestProofreadTask.status}${latestProofreadTask.outputSummary ? ` · ${latestProofreadTask.outputSummary}` : ""}`
+                              : "暂无任务记录"}
+                          </p>
+                          {latestProofreadTask?.status === "failed" ? (
+                            <button
+                              type="button"
+                              className="mt-2 rounded-full border border-red-200 px-3 py-1 text-[11px] font-bold text-red-600"
+                              onClick={() => retryProgramTask(latestProofreadTask._id)}
+                            >
+                              重试
+                            </button>
+                          ) : null}
+                        </div>
+                        <div className="rounded-xl border border-stone-100 bg-stone-50 px-3 py-2 text-xs text-stone-600">
+                          <p className="font-bold text-stone-700">资料收集任务</p>
+                          <p className="mt-1">
+                            {latestEnrichmentTask
+                              ? `${latestEnrichmentTask.status}${latestEnrichmentTask.outputSummary ? ` · ${latestEnrichmentTask.outputSummary}` : ""}`
+                              : "暂无任务记录"}
+                          </p>
+                          {latestEnrichmentTask?.status === "failed" ? (
+                            <button
+                              type="button"
+                              className="mt-2 rounded-full border border-red-200 px-3 py-1 text-[11px] font-bold text-red-600"
+                              onClick={() => retryProgramTask(latestEnrichmentTask._id)}
+                            >
+                              重试
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {(editingProgram.agentOutputs?.proofread?.correctedTranscript || []).length > 0 ? (
+                        <div className="mt-3 rounded-xl border border-[#5e17eb]/20 bg-[#faf7ff] px-3 py-3">
+                          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                            <div className="text-xs text-stone-700">
+                              <span className="font-bold">校对报告：</span>
+                              {editingProgram.agentOutputs?.proofread?.report?.summary || "已生成可应用的整篇校对稿。"}
+                              {editingProgram.agentOutputs?.proofread?.acceptedAt ? "（已接受）" : ""}
+                            </div>
+                            <button
+                              type="button"
+                              disabled={programAgentLoading}
+                              onClick={acceptProofread}
+                              className="rounded-full bg-[#5e17eb] px-4 py-1.5 text-xs font-bold text-white disabled:opacity-60"
+                            >
+                              接受整篇替换
+                            </button>
+                          </div>
+                          <details className="mt-2 text-xs text-stone-600">
+                            <summary className="cursor-pointer font-bold text-[#5e17eb]">查看校对稿预览</summary>
+                            <textarea
+                              className="mt-2 min-h-[160px] w-full rounded-lg border border-stone-200 bg-white p-2 font-mono text-[11px]"
+                              value={formatTranscriptForForm(editingProgram.agentOutputs?.proofread?.correctedTranscript)}
+                              readOnly
+                            />
+                          </details>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
-              <select className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm md:col-span-2" value={form.status} onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value as "draft" | "published" }))}>
+              <select className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm md:col-span-2 admin-form-select" value={form.status} onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value as "draft" | "published" }))}>
                 <option value="draft">保存为草稿</option>
                 <option value="published">直接发布</option>
               </select>
@@ -1724,8 +2128,8 @@ const AdminProgramsPage: React.FC = () => {
           <div className="w-full max-w-3xl rounded-3xl bg-white p-5 shadow-2xl md:p-6" onClick={(event) => event.stopPropagation()}>
             <div className="mb-4 flex items-start justify-between">
               <div>
-                <h3 className="text-xl font-black text-stone-900">词典手动绑定</h3>
-                <p className="mt-1 text-xs text-stone-500">搜索并勾选词条，保存后即绑定到当前节目。</p>
+                <h3 className="text-xl font-black text-stone-900">词典手动关联</h3>
+                <p className="mt-1 text-xs text-stone-500">搜索并勾选词条，保存后即关联到当前节目。</p>
               </div>
               <button className="material-symbols-outlined text-stone-400 hover:text-stone-700" onClick={() => setIsDictionaryDialogOpen(false)} type="button">
                 close
@@ -1734,7 +2138,7 @@ const AdminProgramsPage: React.FC = () => {
 
             <div className="mb-3 flex gap-2">
               <input
-                className="flex-1 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm"
+                className="flex-1 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm admin-form-input"
                 placeholder="搜索词条（支持关键词）"
                 value={dictionarySearch}
                 onChange={(event) => setDictionarySearch(event.target.value)}
@@ -1755,16 +2159,16 @@ const AdminProgramsPage: React.FC = () => {
             </div>
 
             <div className="mb-3 rounded-2xl border border-[#5e17eb]/15 bg-[#faf7ff] p-3">
-              <div className="text-xs font-bold text-[#5e17eb]">新建词条（自动绑定当前内容）</div>
+              <div className="text-xs font-bold text-[#5e17eb]">新建词条（自动关联当前内容）</div>
               <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-[200px_1fr_auto]">
                 <input
-                  className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm"
+                  className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm admin-form-input"
                   placeholder="词条名称"
                   value={newDictionaryTerm}
                   onChange={(event) => setNewDictionaryTerm(event.target.value)}
                 />
                 <input
-                  className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm"
+                  className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm admin-form-input"
                   placeholder="词条释义"
                   value={newDictionaryDefinition}
                   onChange={(event) => setNewDictionaryDefinition(event.target.value)}
@@ -1775,7 +2179,7 @@ const AdminProgramsPage: React.FC = () => {
                   disabled={dictionaryCreating}
                   type="button"
                 >
-                  {dictionaryCreating ? "创建中..." : "新建并绑定"}
+                  {dictionaryCreating ? "创建中..." : "新建并关联"}
                 </button>
               </div>
             </div>
@@ -1827,7 +2231,7 @@ const AdminProgramsPage: React.FC = () => {
                   disabled={dictionarySaving}
                   type="button"
                 >
-                  {dictionarySaving ? "保存中..." : "保存绑定"}
+                  {dictionarySaving ? "保存中..." : "保存关联"}
                 </button>
               </div>
             </div>
@@ -1854,6 +2258,33 @@ const AdminProgramsPage: React.FC = () => {
                 close
               </button>
             </div>
+
+            {(editingProgram?.agentOutputs?.proofread?.correctedTranscript || []).length > 0 ? (
+              <div className="border-b border-[#5e17eb]/15 bg-[#faf7ff] px-5 py-3 md:px-8">
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <div className="text-xs text-stone-700">
+                    <span className="font-bold">校对结果可用：</span>
+                    {editingProgram?.agentOutputs?.proofread?.report?.summary || "已生成整篇替换稿。"}
+                  </div>
+                  <button
+                    type="button"
+                    className="rounded-full bg-[#5e17eb] px-4 py-1.5 text-xs font-bold text-white disabled:opacity-60"
+                    disabled={programAgentLoading}
+                    onClick={acceptProofread}
+                  >
+                    接受整篇替换
+                  </button>
+                </div>
+                <details className="mt-2 text-xs text-stone-600">
+                  <summary className="cursor-pointer font-bold text-[#5e17eb]">查看校对稿（整篇）</summary>
+                  <textarea
+                    className="mt-2 min-h-[120px] w-full rounded-lg border border-stone-200 bg-white p-2 font-mono text-[11px]"
+                    value={formatTranscriptForForm(editingProgram?.agentOutputs?.proofread?.correctedTranscript)}
+                    readOnly
+                  />
+                </details>
+              </div>
+            ) : null}
 
             <div className="grid flex-1 grid-cols-1 gap-0 overflow-hidden lg:grid-cols-2">
               <div className="flex min-h-0 flex-col border-r border-stone-100">
@@ -1895,13 +2326,13 @@ const AdminProgramsPage: React.FC = () => {
                       </div>
                       <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                         <input
-                          className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm"
+                          className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm admin-form-input"
                           placeholder="时间，如 03:48-04:07"
                           value={row.time}
                           onChange={(event) => updateTranscriptRow(row.id, { time: event.target.value })}
                         />
                         <input
-                          className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm"
+                          className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm admin-form-input"
                           placeholder="说话人，如 主持人 / 嘉宾1"
                           value={row.speaker}
                           onChange={(event) => renameSpeakerFromRow(row.id, event.target.value)}
@@ -1924,7 +2355,7 @@ const AdminProgramsPage: React.FC = () => {
                         ))}
                       </div>
                       <textarea
-                        className="mt-2 min-h-[90px] w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm"
+                        className="mt-2 min-h-[90px] w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm admin-form-textarea"
                         placeholder="发言内容"
                         value={row.text}
                         onChange={(event) => updateTranscriptRow(row.id, { text: event.target.value })}

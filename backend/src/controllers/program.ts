@@ -2,11 +2,14 @@ import { Request, Response } from "express";
 import fs from "fs";
 import path from "path";
 import Program from "../models/Program";
+import GuestModel from "../models/Guest";
 import { resolveProgramAiProvider } from "../services/programAi";
 import mongoose from "mongoose";
 import { attachDictionaryEntriesToPrograms, removeProgramFromDictionary, syncProgramDictionaryEntries } from "../services/educationDictionary";
 import { buildShowNotesKeyMomentsText, getShowNotesDefaultTemplate, renderShowNotesTemplate, truncateByChars } from "../services/showNotes";
 import { isTransientAiGenerationFailure } from "../utils/aiFailure";
+import { AuthenticatedRequest } from "../middlewares/auth";
+import { createAgentTask } from "../services/agentTaskDispatcher";
 
 function statusUpdatePayload(status: "draft" | "published") {
   if (status === "published") {
@@ -19,6 +22,15 @@ function asText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function asObjectIdText(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (value instanceof mongoose.Types.ObjectId) return value.toHexString();
+  if (value && typeof (value as any).toHexString === "function") {
+    return String((value as any).toHexString()).trim();
+  }
+  return "";
+}
+
 function hasText(value: unknown): boolean {
   return asText(value).length > 0;
 }
@@ -27,6 +39,10 @@ function normalizeProgramCode(value: unknown): string {
   const raw = asText(value).toLowerCase();
   if (!raw) return "";
   return raw.replace(/\s+/g, "").replace(/[^a-z0-9_-]/g, "");
+}
+
+function normalizeGuestName(value: unknown): string {
+  return asText(value).toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 async function buildNextProgramCode(): Promise<string> {
@@ -245,6 +261,9 @@ function sanitizeTermGlossary(input: unknown) {
       term: asText(item?.term),
       definition: asText(item?.definition),
       sourceUrl: asText(item?.sourceUrl),
+      aliases: Array.isArray(item?.aliases)
+        ? item.aliases.map((alias: unknown) => asText(alias)).filter(Boolean).slice(0, 12)
+        : [],
     }))
     .filter((item) => item.term && item.definition);
 }
@@ -310,9 +329,75 @@ function sanitizeContentPack(input: unknown) {
   };
 }
 
+function sanitizeGuestBindings(input: unknown) {
+  if (!Array.isArray(input)) return [];
+  const byGuestId = new Map<string, { guestId: string; order: number; role: string }>();
+  input.forEach((item: any, idx: number) => {
+    const guestId = asObjectIdText(item?.guestId);
+    if (!guestId || !mongoose.Types.ObjectId.isValid(guestId)) return;
+    const orderRaw = Number(item?.order);
+    const order = Number.isFinite(orderRaw) && orderRaw > 0 ? Math.floor(orderRaw) : (idx + 1);
+    const role = asText(item?.role) || "main_guest";
+    if (!byGuestId.has(guestId)) {
+      byGuestId.set(guestId, { guestId, order, role });
+    }
+  });
+  return Array.from(byGuestId.values())
+    .sort((a, b) => a.order - b.order)
+    .map((item, idx) => ({ ...item, order: idx + 1 }));
+}
+
+async function attachGuestBindingsToPrograms(programOrPrograms: any): Promise<any> {
+  const rows = Array.isArray(programOrPrograms) ? programOrPrograms : [programOrPrograms];
+  const normalizedRows = rows.map((row) => (typeof row?.toObject === "function" ? row.toObject() : { ...(row || {}) }));
+  const guestIds = Array.from(
+    new Set(
+      normalizedRows.flatMap((row) =>
+        (Array.isArray(row?.guestBindings) ? row.guestBindings : [])
+          .map((binding: any) => asObjectIdText(binding?.guestId))
+          .filter((id: string) => !!id && mongoose.Types.ObjectId.isValid(id))
+      )
+    )
+  );
+  if (!guestIds.length) {
+    return Array.isArray(programOrPrograms) ? normalizedRows : normalizedRows[0];
+  }
+  const guests = await GuestModel.find({ _id: { $in: guestIds } }).lean();
+  const guestMap = new Map(guests.map((guest: any) => [String(guest._id), {
+    _id: String(guest._id),
+    name: guest.name || "",
+    title: guest.title || "",
+    bio: guest.bio || "",
+    avatar: guest.avatar || "",
+    profileUrl: guest.profileUrl || "",
+    status: guest.status || "active",
+  }]));
+  const enriched = normalizedRows.map((row) => {
+    const bindings = Array.isArray(row?.guestBindings) ? row.guestBindings : [];
+    return {
+      ...row,
+      guestBindings: bindings
+        .map((binding: any, idx: number) => {
+          const guestId = asObjectIdText(binding?.guestId);
+          if (!guestId) return null;
+          return {
+            guestId,
+            order: Number(binding?.order) || (idx + 1),
+            role: asText(binding?.role) || "main_guest",
+            guest: guestMap.get(guestId) || null,
+          };
+        })
+        .filter(Boolean)
+        .sort((a: any, b: any) => a.order - b.order),
+    };
+  });
+  return Array.isArray(programOrPrograms) ? enriched : enriched[0];
+}
+
 async function buildProgramResponse(program: any, extra: Record<string, any> = {}) {
   const attached = await attachDictionaryEntriesToPrograms(program, false);
-  const withShowNotes = await applyShowNotesRendering(attached);
+  const withGuestBindings = await attachGuestBindingsToPrograms(attached);
+  const withShowNotes = await applyShowNotesRendering(withGuestBindings);
   return {
     ...withShowNotes,
     ...extra,
@@ -353,6 +438,10 @@ function sanitizeProgramPayload(payload: any, requireEpisode: boolean) {
       avatar: asText(cleaned.guest.avatar),
       profileUrl: asText(cleaned.guest.profileUrl),
     };
+  }
+
+  if (cleaned.guestBindings !== undefined) {
+    cleaned.guestBindings = sanitizeGuestBindings(cleaned.guestBindings);
   }
 
   if (cleaned.deepDive) {
@@ -565,6 +654,62 @@ function ensureBaseFieldsFromGenerated(payload: any, generated: any, transcript:
   };
 }
 
+async function validateGuestBindingsOrThrow(bindings: Array<{ guestId: string; order: number; role: string }>) {
+  if (!Array.isArray(bindings) || bindings.length === 0) return;
+  const guestIds = Array.from(new Set(bindings.map((item) => asText(item.guestId)).filter(Boolean)));
+  const guests = await GuestModel.find({ _id: { $in: guestIds } }, { _id: 1, status: 1 }).lean();
+  const guestMap = new Map(guests.map((guest: any) => [String(guest._id), guest]));
+  for (const guestId of guestIds) {
+    if (!guestMap.has(guestId)) {
+      throw new Error(`嘉宾不存在：${guestId}`);
+    }
+    const guest = guestMap.get(guestId);
+    if (guest?.status !== "active") {
+      throw new Error(`嘉宾已停用，无法新增绑定：${guestId}`);
+    }
+  }
+}
+
+async function ensureGuestBindingsWithLazyMigration(payload: any, existingProgram?: any) {
+  const hasIncomingBindings = Array.isArray(payload?.guestBindings) && payload.guestBindings.length > 0;
+  if (hasIncomingBindings) return payload;
+  const existingBindings = Array.isArray(existingProgram?.guestBindings) ? existingProgram.guestBindings : [];
+  if (existingBindings.length > 0) {
+    return {
+      ...payload,
+      guestBindings: existingBindings
+        .map((item: any) => ({
+          guestId: asObjectIdText(item?.guestId || item?.guest?._id),
+          order: Number(item?.order) || 1,
+          role: asText(item?.role) || "main_guest",
+        }))
+        .filter((item: any) => item.guestId && mongoose.Types.ObjectId.isValid(item.guestId)),
+    };
+  }
+  const legacyGuest = payload?.guest || existingProgram?.guest || {};
+  const guestName = asText(legacyGuest?.name);
+  const normalizedName = normalizeGuestName(guestName);
+  if (!guestName || !normalizedName) return payload;
+  let guest = await GuestModel.findOne({ normalizedName }).lean();
+  if (!guest) {
+    guest = (
+      await GuestModel.create({
+        name: guestName,
+        normalizedName,
+        title: asText(legacyGuest?.title),
+        bio: asText(legacyGuest?.bio),
+        avatar: asText(legacyGuest?.avatar),
+        profileUrl: asText(legacyGuest?.profileUrl),
+        status: "active",
+      })
+    ).toObject();
+  }
+  return {
+    ...payload,
+    guestBindings: [{ guestId: String(guest._id), order: 1, role: "main_guest" }],
+  };
+}
+
 async function applyShowNotesRendering(payload: any, defaultTemplate?: string) {
   const next = { ...(payload || {}) };
   const contentPack = sanitizeContentPack(next.contentPack || {});
@@ -709,6 +854,15 @@ async function runAsyncParseTask(
     if (payload.termGlossary !== undefined) {
       await syncProgramDictionaryEntries(programId, payload.termGlossary, "ai_program");
     }
+    if (status === "success") {
+      await createAgentTask({
+        taskType: "proofread_transcript",
+        targetType: "program",
+        targetId: programId,
+        options: { trigger: "auto_after_parse" },
+        createdBy: "system",
+      }).catch(() => {});
+    }
   } catch (error: any) {
     await Program.findByIdAndUpdate(
       programId,
@@ -776,14 +930,160 @@ async function tryAutoGenerate(
 }
 
 export class ProgramController {
+  async acceptProofread(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const id = asText(req.params.id);
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        res.status(400).json({ message: "无效的节目 ID" });
+        return;
+      }
+      const program = await Program.findById(id);
+      if (!program) {
+        res.status(404).json({ message: "节目不存在" });
+        return;
+      }
+      const corrected = (program as any)?.agentOutputs?.proofread?.correctedTranscript;
+      if (!Array.isArray(corrected) || corrected.length === 0) {
+        res.status(400).json({ message: "当前没有可接受的校对结果" });
+        return;
+      }
+      await Program.findByIdAndUpdate(
+        id,
+        {
+          $set: {
+            transcript: corrected,
+            "agentOutputs.proofread.acceptedAt": new Date(),
+            "agentOutputs.proofread.acceptedBy": asText(req.user?.id),
+          },
+        },
+        { new: false }
+      );
+
+      const latest = await Program.findById(id);
+      if (!latest) {
+        res.status(500).json({ message: "应用成功，但读取失败" });
+        return;
+      }
+      const attached = await attachDictionaryEntriesToPrograms(latest, true);
+      const attachedGuest = await attachGuestBindingsToPrograms(attached);
+      res.status(200).json(await applyShowNotesRendering(attachedGuest));
+    } catch (error: any) {
+      res.status(400).json({ message: error?.message || "接受校对失败", error });
+    }
+  }
+
+  async getRelatedPublic(req: Request, res: Response): Promise<void> {
+    try {
+      const id = asText(req.params.id);
+      const query = mongoose.Types.ObjectId.isValid(id)
+        ? { _id: id, status: "published" as const }
+        : { programCode: normalizeProgramCode(id), status: "published" as const };
+      const current = await Program.findOne(query).lean();
+      if (!current) {
+        res.status(404).json({ message: "节目不存在或未上架" });
+        return;
+      }
+
+      const currentGuestIds = new Set(
+        (Array.isArray((current as any)?.guestBindings) ? (current as any).guestBindings : [])
+          .map((item: any) => asObjectIdText(item?.guestId))
+          .filter(Boolean)
+      );
+      const currentTags = new Set(
+        (Array.isArray((current as any)?.summary?.tags) ? (current as any).summary.tags : [])
+          .map((x: any) => asText(x).toLowerCase())
+          .filter(Boolean)
+      );
+      const currentTerms = new Set(
+        (Array.isArray((current as any)?.termGlossary) ? (current as any).termGlossary : [])
+          .map((x: any) => asText(x?.term).toLowerCase())
+          .filter(Boolean)
+      );
+
+      const baseFilter: Record<string, any> = { status: "published", _id: { $ne: (current as any)._id } };
+      const orFilters: Record<string, any>[] = [];
+      if (currentGuestIds.size) {
+        orFilters.push({
+          "guestBindings.guestId": {
+            $in: Array.from(currentGuestIds)
+              .map((x) => String(x))
+              .filter((x) => mongoose.Types.ObjectId.isValid(x))
+              .map((x) => new mongoose.Types.ObjectId(x)),
+          },
+        });
+      }
+      if (currentTags.size) {
+        orFilters.push({ "summary.tags": { $in: Array.from(currentTags) } });
+      }
+      const filter = orFilters.length ? { ...baseFilter, $or: orFilters } : baseFilter;
+      const candidatesRaw = await Program.find(filter)
+        .sort({ publishedAt: -1, updatedAt: -1 })
+        .limit(80)
+        .lean();
+      const candidates = await attachGuestBindingsToPrograms(candidatesRaw as any[]);
+
+      const scored = (candidates as any[])
+        .map((item) => {
+          const guestIds = new Set(
+            (Array.isArray(item?.guestBindings) ? item.guestBindings : [])
+              .map((b: any) => asObjectIdText(b?.guestId))
+              .filter(Boolean)
+          );
+          const tagSet = new Set(
+            (Array.isArray(item?.summary?.tags) ? item.summary.tags : [])
+              .map((x: any) => asText(x).toLowerCase())
+              .filter(Boolean)
+          );
+          const termSet = new Set(
+            (Array.isArray(item?.termGlossary) ? item.termGlossary : [])
+              .map((x: any) => asText(x?.term).toLowerCase())
+              .filter(Boolean)
+          );
+          const sameGuestCount = Array.from(guestIds).filter((x) => currentGuestIds.has(x)).length;
+          const tagOverlap = Array.from(tagSet).filter((x) => currentTags.has(x)).length;
+          const termOverlap = Array.from(termSet).filter((x) => currentTerms.has(x)).length;
+
+          const reasons: string[] = [];
+          if (sameGuestCount > 0) reasons.push("同嘉宾");
+          if (tagOverlap > 0) reasons.push(`同标签${tagOverlap}项`);
+          if (termOverlap > 0) reasons.push(`同词条${termOverlap}项`);
+          const score = sameGuestCount * 100 + tagOverlap * 10 + termOverlap * 3;
+          return {
+            _id: String(item._id),
+            programCode: asText(item?.programCode),
+            title: asText(item?.title),
+            coverImage: asText(item?.coverImage),
+            summary: item?.summary || {},
+            guestBindings: Array.isArray(item?.guestBindings) ? item.guestBindings : [],
+            score,
+            reasons: reasons.length ? reasons : ["近期更新"],
+          };
+        })
+        .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title))
+        .slice(0, 6);
+
+      res.status(200).json({
+        current: {
+          _id: String((current as any)._id),
+          programCode: asText((current as any).programCode),
+          title: asText((current as any).title),
+        },
+        recommendedPrograms: scored,
+      });
+    } catch (error) {
+      res.status(500).json({ message: "获取关联内容失败", error });
+    }
+  }
+
   async getAllPublic(_req: Request, res: Response): Promise<void> {
     try {
       const programs = await Program.find({ status: "published" }).sort({
         publishedAt: -1,
       });
       const attached = await attachDictionaryEntriesToPrograms(programs, false);
+      const attachedGuests = await attachGuestBindingsToPrograms(attached);
       const template = await getShowNotesDefaultTemplate();
-      res.status(200).json(await Promise.all((attached as any[]).map((item) => applyShowNotesRendering(item, template))));
+      res.status(200).json(await Promise.all((attachedGuests as any[]).map((item) => applyShowNotesRendering(item, template))));
     } catch (error) {
       res.status(500).json({ message: "获取节目列表失败", error });
     }
@@ -801,7 +1101,8 @@ export class ProgramController {
         return;
       }
       const attached = await attachDictionaryEntriesToPrograms(program, false);
-      res.status(200).json(await applyShowNotesRendering(attached));
+      const attachedGuest = await attachGuestBindingsToPrograms(attached);
+      res.status(200).json(await applyShowNotesRendering(attachedGuest));
     } catch (error) {
       res.status(500).json({ message: "获取节目失败", error });
     }
@@ -810,12 +1111,50 @@ export class ProgramController {
   async getAllAdmin(req: Request, res: Response): Promise<void> {
     try {
       const { status } = req.query;
+      const pageRaw = Number(req.query?.page);
+      const pageSizeRaw = Number(req.query?.pageSize);
+      const search = asText(req.query?.search);
+      const shouldUsePagination = Number.isFinite(pageRaw) || Number.isFinite(pageSizeRaw) || hasText(search);
+      const page = Number.isFinite(pageRaw) && pageRaw > 0 ? Math.floor(pageRaw) : 1;
+      const pageSize = Number.isFinite(pageSizeRaw) && pageSizeRaw > 0 ? Math.min(100, Math.floor(pageSizeRaw)) : 20;
       const filter =
         status === "draft" || status === "published" ? { status } : {};
-      const programs = await Program.find(filter).sort({ updatedAt: -1 });
+
+      if (!shouldUsePagination) {
+        const programs = await Program.find(filter).sort({ updatedAt: -1 });
+        const attached = await attachDictionaryEntriesToPrograms(programs, true);
+        const attachedGuests = await attachGuestBindingsToPrograms(attached);
+        const template = await getShowNotesDefaultTemplate();
+        res.status(200).json(await Promise.all((attachedGuests as any[]).map((item) => applyShowNotesRendering(item, template))));
+        return;
+      }
+
+      const keywordFilter = hasText(search)
+        ? {
+            $or: [
+              { title: { $regex: search, $options: "i" } },
+              { programCode: { $regex: search, $options: "i" } },
+            ],
+          }
+        : {};
+      const finalFilter = {
+        ...filter,
+        ...keywordFilter,
+      };
+      const total = await Program.countDocuments(finalFilter);
+      const skip = (page - 1) * pageSize;
+      const programs = await Program.find(finalFilter).sort({ updatedAt: -1 }).skip(skip).limit(pageSize);
       const attached = await attachDictionaryEntriesToPrograms(programs, true);
+      const attachedGuests = await attachGuestBindingsToPrograms(attached);
       const template = await getShowNotesDefaultTemplate();
-      res.status(200).json(await Promise.all((attached as any[]).map((item) => applyShowNotesRendering(item, template))));
+      const rows = await Promise.all((attachedGuests as any[]).map((item) => applyShowNotesRendering(item, template)));
+      res.status(200).json({
+        items: rows,
+        total,
+        page,
+        pageSize,
+        totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      });
     } catch (error) {
       res.status(500).json({ message: "获取管理节目列表失败", error });
     }
@@ -830,7 +1169,8 @@ export class ProgramController {
         return;
       }
       const attached = await attachDictionaryEntriesToPrograms(program, true);
-      res.status(200).json(await applyShowNotesRendering(attached));
+      const attachedGuest = await attachGuestBindingsToPrograms(attached);
+      res.status(200).json(await applyShowNotesRendering(attachedGuest));
     } catch (error) {
       res.status(500).json({ message: "获取节目失败", error });
     }
@@ -839,7 +1179,9 @@ export class ProgramController {
   async create(req: Request, res: Response): Promise<void> {
     try {
       const aiResult = await tryAutoGenerate(req.body || {});
-      const payload = await applyShowNotesRendering(sanitizeProgramPayload(aiResult.payload, true));
+      let payload = await applyShowNotesRendering(sanitizeProgramPayload(aiResult.payload, true));
+      payload = await ensureGuestBindingsWithLazyMigration(payload);
+      await validateGuestBindingsOrThrow(Array.isArray(payload.guestBindings) ? payload.guestBindings : []);
       if (!hasText(payload.programCode)) {
         payload.programCode = await buildNextProgramCode();
       }
@@ -878,8 +1220,18 @@ export class ProgramController {
   async update(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
+      const existing = await Program.findById(id);
+      if (!existing) {
+        res.status(404).json({ message: "节目不存在" });
+        return;
+      }
       const aiResult = await tryAutoGenerate(req.body || {});
-      const payload = await applyShowNotesRendering(sanitizeProgramPayload(aiResult.payload, false));
+      let payload = await applyShowNotesRendering(sanitizeProgramPayload(aiResult.payload, false));
+      const hasIncomingGuestBindings = Array.isArray(req.body?.guestBindings);
+      payload = await ensureGuestBindingsWithLazyMigration(payload, existing.toObject());
+      if (hasIncomingGuestBindings) {
+        await validateGuestBindingsOrThrow(Array.isArray(payload.guestBindings) ? payload.guestBindings : []);
+      }
       if (payload.status && !["draft", "published"].includes(payload.status)) {
         res.status(400).json({ message: "无效的状态值" });
         return;
@@ -1086,7 +1438,8 @@ export class ProgramController {
         return;
       }
       const attached = await attachDictionaryEntriesToPrograms(program, true);
-      res.status(200).json(await applyShowNotesRendering(attached));
+      const attachedGuest = await attachGuestBindingsToPrograms(attached);
+      res.status(200).json(await applyShowNotesRendering(attachedGuest));
     } catch (error) {
       res.status(400).json({ message: "更新节目状态失败", error });
     }

@@ -23,24 +23,6 @@ services:
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost}
       - ALLOW_PUBLIC_REGISTER=${ALLOW_PUBLIC_REGISTER:-false}
-      - AI_PROVIDER=${AI_PROVIDER:-mock}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - AI_TRANSCRIBE_MODEL=${AI_TRANSCRIBE_MODEL:-gpt-4o-mini-transcribe}
-      - AI_TEXT_MODEL=${AI_TEXT_MODEL:-gpt-4o-mini}
-      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
-      - DEEPSEEK_MODEL_ID=${DEEPSEEK_MODEL_ID:-jiahewanshi}
-      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
-      - VOLCENGINE_APP_ID=${VOLCENGINE_APP_ID:-}
-      - VOLCENGINE_ACCESS_TOKEN=${VOLCENGINE_ACCESS_TOKEN:-}
-      - VOLCENGINE_API_KEY=${VOLCENGINE_API_KEY:-}
-      - VOLCENGINE_SECRET_KEY=${VOLCENGINE_SECRET_KEY:-}
-      - VOLCENGINE_RESOURCE_ID=${VOLCENGINE_RESOURCE_ID:-volc.bigasr.auc_turbo,volc.bigasr.auc}
-      - VOLCENGINE_MODE=${VOLCENGINE_MODE:-flash}
-      - VOLCENGINE_PUBLIC_BASE_URL=${VOLCENGINE_PUBLIC_BASE_URL:-}
-      - VOLCENGINE_FETCH_TIMEOUT_MS=${VOLCENGINE_FETCH_TIMEOUT_MS:-180000}
-      - ARK_API_KEY=${ARK_API_KEY:-}
-      - ARK_MODEL_ID=${ARK_MODEL_ID:-}
-      - ARK_BASE_URL=${ARK_BASE_URL:-https://ark.cn-beijing.volces.com/api/v3}
     depends_on:
       - mongo
     volumes:

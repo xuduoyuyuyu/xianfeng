@@ -7,6 +7,7 @@ import Book from "../models/Book";
 import LearningMaterial from "../models/LearningMaterial";
 import User from "../models/User";
 import { getDefaultShowNotesTemplate, getShowNotesDefaultTemplate, saveShowNotesDefaultTemplate } from "../services/showNotes";
+import { ensureStore } from "../services/agentModelRegistry";
 
 const router = express.Router();
 
@@ -39,6 +40,23 @@ router.get("/system-info", authenticate, requireAdmin, async (_req, res) => {
       port: (conn as any).port || "",
     };
 
+    const multiAgentStore = ensureStore(() => ({
+      agents: [],
+      prompts: {},
+      policies: {},
+      strategies: {},
+      runs: [],
+    }));
+    const modelRegistrySummary = {
+      total: multiAgentStore.model_registry.length,
+      enabled: multiAgentStore.model_registry.filter((x) => x.enabled).length,
+      byProvider: multiAgentStore.model_registry.reduce((acc: Record<string, number>, item) => {
+        const key = String(item.provider || "unknown");
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {}),
+    };
+
     res.status(200).json({
       serverTime: new Date().toISOString(),
       uptimeSec: Math.floor(process.uptime()),
@@ -49,6 +67,7 @@ router.get("/system-info", authenticate, requireAdmin, async (_req, res) => {
         showNotesDefaultTemplate: await getShowNotesDefaultTemplate(),
         ai: {
           provider: process.env.AI_PROVIDER || "mock",
+          modelRegistrySummary,
           volcengine: {
             appIdSet: hasEnv("VOLCENGINE_APP_ID"),
             accessTokenSet: hasEnv("VOLCENGINE_ACCESS_TOKEN"),

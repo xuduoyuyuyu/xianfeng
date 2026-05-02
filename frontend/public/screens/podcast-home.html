@@ -46,8 +46,8 @@
 <div id="program-list" class="space-y-8">
 <div class="magazine-card p-5 sm:p-10 rounded-3xl group">
 <div class="flex flex-col xl:flex-row gap-6 sm:gap-10">
-<div class="w-full xl:w-[420px] h-[220px] sm:h-[300px] rounded-2xl overflow-hidden flex-shrink-0 shadow-lg relative">
-<img alt="Podcast Cover" class="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD9kNK0Swlk0Z_8qKWeNY7pZRXiC8aQ5uXb7civ7JNln2ot7EXUUGXeU1g4OYo8pUPDqk_iwcI-Fqks1baa6f595CSw302ox2wCyWX3KGkcZq630cbJ0m9-DkHNLkbeKiJQoqTsFuQ41ThYMWb-CkI0xyoZ0sFJR5FyzlKpOAewSqoiZ6kmzawO5-T02uwzHQwHVvASQATN4dsVy6Gl1YGvmuTaEWHvnf3zRDSGoUeBDBsXQA9XGf2dJ2WS1cqnfOfRzJafzReWqXHu"/>
+<div class="w-full xl:w-[420px] rounded-2xl overflow-hidden flex-shrink-0 shadow-lg relative">
+<img alt="Podcast Cover" class="w-full h-auto object-contain transform group-hover:scale-105 transition-transform duration-700" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD9kNK0Swlk0Z_8qKWeNY7pZRXiC8aQ5uXb7civ7JNln2ot7EXUUGXeU1g4OYo8pUPDqk_iwcI-Fqks1baa6f595CSw302ox2wCyWX3KGkcZq630cbJ0m9-DkHNLkbeKiJQoqTsFuQ41ThYMWb-CkI0xyoZ0sFJR5FyzlKpOAewSqoiZ6kmzawO5-T02uwzHQwHVvASQATN4dsVy6Gl1YGvmuTaEWHvnf3zRDSGoUeBDBsXQA9XGf2dJ2WS1cqnfOfRzJafzReWqXHu"/>
 </div>
 <div class="flex-1 flex flex-col justify-center">
 <div class="flex items-center gap-4 mb-4">
@@ -75,8 +75,8 @@
 </div>
 <div class="magazine-card p-5 sm:p-10 rounded-3xl group">
 <div class="flex flex-col xl:flex-row gap-6 sm:gap-10">
-<div class="w-full xl:w-[420px] h-[220px] sm:h-[300px] rounded-2xl overflow-hidden flex-shrink-0 shadow-lg relative">
-<img alt="Podcast Cover" class="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCB-GSaZMDiqA4GYZONoY9nisAnyZtALuNcQhk8Sh7yVZ8RRhefCBZlMtZFXCEXhl10igFW9OuzkcwydIbKX3yMVjpTgT_naxLpII471gZ5JS-b2kNwpRqswWXGt51fIPTGbug0Fw56U6xYteRX7VML-uR9747KMFnEEGUj66zC47ibjudvQtvWORLUCejtqUqkDmYKZvDm3WXfE0heZ-pNhUnlG9fmAa4zzYH7nF6IZQbDz3AcIMWKDqBR9BEx11b7zyNaeaO0Xor3"/>
+<div class="w-full xl:w-[420px] rounded-2xl overflow-hidden flex-shrink-0 shadow-lg relative">
+<img alt="Podcast Cover" class="w-full h-auto object-contain transform group-hover:scale-105 transition-transform duration-700" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCB-GSaZMDiqA4GYZONoY9nisAnyZtALuNcQhk8Sh7yVZ8RRhefCBZlMtZFXCEXhl10igFW9OuzkcwydIbKX3yMVjpTgT_naxLpII471gZ5JS-b2kNwpRqswWXGt51fIPTGbug0Fw56U6xYteRX7VML-uR9747KMFnEEGUj66zC47ibjudvQtvWORLUCejtqUqkDmYKZvDm3WXfE0heZ-pNhUnlG9fmAa4zzYH7nF6IZQbDz3AcIMWKDqBR9BEx11b7zyNaeaO0Xor3"/>
 </div>
 <div class="flex-1 flex flex-col justify-center">
 <div class="flex items-center gap-4 mb-4">
@@ -143,6 +143,9 @@
   const listEl = document.getElementById("program-list");
   const loadingEl = document.getElementById("program-loading");
   const FALLBACK_COVER = "/assets/podcast-cover-1.svg";
+  const PAGE_SIZE = 7;
+  let allPrograms = [];
+  let currentPage = 1;
 
   function fmtDate(value) {
     if (!value) return "未发布";
@@ -167,8 +170,8 @@
       '<a href="/programs/' + routeId + '" class="block">' +
       '<article class="magazine-card p-5 sm:p-10 rounded-3xl group cursor-pointer">' +
         '<div class="flex flex-col xl:flex-row gap-6 sm:gap-10">' +
-          '<div class="w-full xl:w-[420px] h-[220px] sm:h-[300px] rounded-2xl overflow-hidden flex-shrink-0 shadow-lg relative">' +
-            '<img alt="Podcast Cover" class="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700" src="' + safeText(program.coverImage || FALLBACK_COVER) + '"/>' +
+          '<div class="w-full xl:w-[420px] rounded-2xl overflow-hidden flex-shrink-0 shadow-lg relative">' +
+            '<img alt="Podcast Cover" class="w-full h-auto object-contain transform group-hover:scale-105 transition-transform duration-700" src="' + safeText(program.coverImage || FALLBACK_COVER) + '"/>' +
           "</div>" +
           '<div class="flex-1 flex flex-col justify-center">' +
             '<div class="flex items-center gap-4 mb-4">' +
@@ -214,15 +217,56 @@
     );
   }
 
-  function renderPrograms(programs) {
-    if (!Array.isArray(programs) || programs.length === 0) {
+  function getTotalPages() {
+    return Math.max(1, Math.ceil(allPrograms.length / PAGE_SIZE));
+  }
+
+  function getVisiblePrograms() {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return allPrograms.slice(start, start + PAGE_SIZE);
+  }
+
+  function renderPrograms() {
+    const programs = getVisiblePrograms();
+    if (!Array.isArray(allPrograms) || allPrograms.length === 0) {
       listEl.innerHTML = '<div class="magazine-card p-8 rounded-2xl text-sm text-on-surface-variant">暂无已发布节目</div>';
+      if (loadingEl) loadingEl.style.display = "none";
       return;
     }
+    const start = (currentPage - 1) * PAGE_SIZE;
     const top = programs.slice(0, 2).map(renderLargeCard).join("");
-    const rest = programs.slice(2).map(function (item, idx) { return renderCompactCard(item, idx + 2); }).join("");
-    const loading = loadingEl ? loadingEl.outerHTML : "";
-    listEl.innerHTML = top + rest + loading;
+    const rest = programs.slice(2).map(function (item, idx) { return renderCompactCard(item, start + idx + 2); }).join("");
+    const totalPages = getTotalPages();
+    const pagination =
+      '<div class="mt-8 flex items-center justify-center gap-4">' +
+      '<button id="page-prev" class="rounded-xl border border-outline-light px-4 py-2 text-[10px] font-bold text-on-surface disabled:opacity-40 disabled:cursor-not-allowed">上一页</button>' +
+      '<span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">第 ' + currentPage + ' / ' + totalPages + ' 页</span>' +
+      '<button id="page-next" class="rounded-xl border border-outline-light px-4 py-2 text-[10px] font-bold text-on-surface disabled:opacity-40 disabled:cursor-not-allowed">下一页</button>' +
+      "</div>";
+    listEl.innerHTML = top + rest + pagination;
+
+    if (loadingEl) loadingEl.style.display = "none";
+
+    const prevBtn = document.getElementById("page-prev");
+    const nextBtn = document.getElementById("page-next");
+    if (prevBtn) {
+      prevBtn.disabled = currentPage <= 1;
+      prevBtn.onclick = function () {
+        if (currentPage <= 1) return;
+        currentPage -= 1;
+        renderPrograms();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      };
+    }
+    if (nextBtn) {
+      nextBtn.disabled = currentPage >= totalPages;
+      nextBtn.onclick = function () {
+        if (currentPage >= totalPages) return;
+        currentPage += 1;
+        renderPrograms();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      };
+    }
   }
 
   async function loadPrograms() {
@@ -230,7 +274,9 @@
       const response = await fetch("/api/programs");
       if (!response.ok) throw new Error("load failed");
       const programs = await response.json();
-      renderPrograms(programs);
+      allPrograms = Array.isArray(programs) ? programs : [];
+      currentPage = 1;
+      renderPrograms();
     } catch (error) {
       if (loadingEl) loadingEl.remove();
       listEl.insertAdjacentHTML("beforeend", '<div class="magazine-card p-8 rounded-2xl text-sm text-red-500">节目加载失败，请检查后端服务</div>');

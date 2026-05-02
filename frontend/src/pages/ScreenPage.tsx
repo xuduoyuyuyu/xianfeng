@@ -137,7 +137,7 @@ const ScreenPage: React.FC<Props> = ({ src, title }) => {
     <main className="screen-shell relative" aria-label={title}>
       <iframe
         className="screen-frame absolute inset-0"
-        style={{ opacity: activeSlot === 0 ? 1 : 0, pointerEvents: activeSlot === 0 ? "auto" : "none" }}
+        style={{ top: 0, opacity: activeSlot === 0 ? 1 : 0, pointerEvents: activeSlot === 0 ? "auto" : "none" }}
         src={srcSlots[0]}
         title={title}
         ref={frame0Ref}
@@ -145,7 +145,7 @@ const ScreenPage: React.FC<Props> = ({ src, title }) => {
       />
       <iframe
         className="screen-frame absolute inset-0"
-        style={{ opacity: activeSlot === 1 ? 1 : 0, pointerEvents: activeSlot === 1 ? "auto" : "none" }}
+        style={{ top: 0, opacity: activeSlot === 1 ? 1 : 0, pointerEvents: activeSlot === 1 ? "auto" : "none" }}
         src={srcSlots[1]}
         title={title}
         ref={frame1Ref}
