@@ -1491,6 +1491,29 @@ export class ProgramController {
         {
           ...parseMetaPatch("parsing", "", 5, "queued"),
           transcript: [],
+          summary: {
+            headline: "",
+            body: "",
+            highlightLabel: "",
+            highlightText: "",
+            tags: [],
+          },
+          termGlossary: [],
+          deepDive: {
+            sectionTitle: "",
+            curatedReading: [],
+          },
+          contentPack: {
+            quickView: [],
+            minutes: { text: "" },
+            showNotes: {
+              guide: "",
+              guestIntro: "",
+              keyMoments: [],
+              renderedText: "",
+              templateOverride: "",
+            },
+          },
         },
         { new: false }
       );
