@@ -21,6 +21,7 @@ import AdminAgentsPage from "./pages/admin/AdminAgentsPage";
 import AdminAgentsChatPage from "./pages/admin/AdminAgentsChatPage";
 import AdminInboxPage from "./pages/admin/AdminInboxPage";
 import ProgramListPage from "./pages/ProgramListPage";
+import LandingPage from "./pages/LandingPage";
 
 const PublicScreenRouter: React.FC = () => {
   const { pathname, search } = useLocation();
@@ -28,15 +29,16 @@ const PublicScreenRouter: React.FC = () => {
   const cacheBust = String(Date.now());
 
   if (pathname === "/") {
-    return <Navigate to="/programs" replace />;
+    return <LandingPage />;
   }
 
   if (pathname === "/programs") {
-    return <ProgramListPage />;
+    const src = `/wel/index.html?page=61&v=${screenRev}&cb=${cacheBust}`;
+    return <ScreenPage src={src} title="播客列表（框架内）" />;
   }
 
   if (pathname === "/programs/list") {
-    return <Navigate to={`${search ? `/programs${search}` : "/programs"}`} replace />;
+    return <ProgramListPage />;
   }
 
   if (/^\/programs\/[^/]+$/.test(pathname)) {

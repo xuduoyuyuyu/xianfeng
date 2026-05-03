@@ -26,6 +26,7 @@ services:
     depends_on:
       - mongo
     volumes:
+      - ./backend/data:/app/data
       - ./backend/uploads:/app/uploads
 
   frontend:

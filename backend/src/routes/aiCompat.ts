@@ -41,9 +41,15 @@ router.post("/chat", async (req, res) => {
       }))
       .filter((m: any) => (m.role === "user" || m.role === "assistant" || m.role === "system") && m.content);
 
-    const backendSystemPrompt = String(
-      store?.prompts?.chat_manager_agent?.current?.system_prompt || "",
-    ).trim();
+    const promptBucket = store?.prompts?.chat_manager_agent || { current: null, items: [] };
+    const promptCandidates = [promptBucket.current, ...(Array.isArray(promptBucket.items) ? promptBucket.items : [])].filter(Boolean);
+    const latestPromptDoc = [...promptCandidates].sort((a: any, b: any) => {
+      const at = String(a?.created_at || "");
+      const bt = String(b?.created_at || "");
+      if (at !== bt) return bt.localeCompare(at);
+      return Number(b?.id || 0) - Number(a?.id || 0);
+    })[0];
+    const backendSystemPrompt = String(latestPromptDoc?.system_prompt || "").trim();
 
     const userPrompt = prompt || String(history[history.length - 1]?.content || "");
     // Do not allow client-side system messages to override server-managed persona.

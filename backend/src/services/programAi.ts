@@ -1191,6 +1191,10 @@ class MockProgramAiProvider implements ProgramAiProvider {
 
 export function resolveProgramAiProvider(): ProgramAiProvider {
   const provider = asText(process.env.AI_PROVIDER) || "openai";
+  const isProduction = asText(process.env.NODE_ENV).toLowerCase() === "production";
+  if (provider === "mock" && isProduction) {
+    throw new Error("生产环境禁止使用 AI_PROVIDER=mock，请改为 volcengine 或 openai");
+  }
   if (provider === "openai") {
     return new OpenAIProgramAiProvider();
   }

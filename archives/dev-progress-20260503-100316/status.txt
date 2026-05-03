@@ -1,0 +1,28 @@
+ M backend/src/routes/adminMultiAgents.ts
+ M backend/src/routes/aiCompat.ts
+ M backend/src/routes/tutorbot.ts
+ M backend/src/services/agentModelRegistry.ts
+ M backend/src/services/agentTaskDispatcher.ts
+ M backend/src/services/programAi.ts
+ M docker-compose.yml
+ M frontend/public/screens/admin-system.html
+ M frontend/public/screens/admin.css
+ M frontend/public/screens/podcast-home.html
+ M frontend/public/screens/public.css
+ M frontend/public/wel/index.html
+ M "frontend/public/wel/pages/01 \351\246\226\351\241\265/code.html"
+ M frontend/src/App.tsx
+ M frontend/src/components/AdminLayout.tsx
+ M frontend/src/components/PodcastChrome.tsx
+ M frontend/src/pages/ProgramListPage.tsx
+ M frontend/src/pages/ScreenPage.tsx
+ M frontend/src/pages/admin/AdminGuestsPage.tsx
+ M frontend/src/pages/admin/AdminProgramsPage.tsx
+ M frontend/src/styles.css
+?? archives/dev-progress-20260503-095247.tar.gz
+?? archives/dev-progress-20260503-095247/
+?? archives/dev-progress-20260503-100316/
+?? backend/data/__mount_probe.txt
+?? frontend/public/assets/showcase/
+?? frontend/src/components/GlobalPublicNav.tsx
+?? frontend/src/pages/LandingPage.tsx

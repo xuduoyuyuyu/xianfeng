@@ -404,7 +404,15 @@ const AdminGuestsPage: React.FC = () => {
                 <tr key={item._id}>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <img src={item.avatar || "/assets/podcast-cover-1.svg"} className="h-10 w-10 rounded-full object-cover" />
+                      <img
+                        src={item.avatar || "/assets/podcast-cover-1.svg"}
+                        className="h-10 w-10 rounded-full object-cover"
+                        onError={(event) => {
+                          const target = event.currentTarget;
+                          if (target.src.endsWith("/assets/podcast-cover-1.svg")) return;
+                          target.src = "/assets/podcast-cover-1.svg";
+                        }}
+                      />
                       <div>
                         <div className="text-sm font-bold text-stone-900">{item.name}</div>
                         <div className="text-xs text-stone-500 line-clamp-1">{item.bio || "-"}</div>

@@ -7,6 +7,7 @@ type Props = {
 
 const ScreenPage: React.FC<Props> = ({ src, title }) => {
   const failSafeTimer = useRef<number | null>(null);
+  const syncTimer = useRef<number | null>(null);
   const [activeSlot, setActiveSlot] = useState<0 | 1>(0);
   const [srcSlots, setSrcSlots] = useState<[string, string]>([src, "about:blank"]);
   const [loadingSlot, setLoadingSlot] = useState<0 | 1 | null>(0);
@@ -67,6 +68,10 @@ const ScreenPage: React.FC<Props> = ({ src, title }) => {
         window.clearTimeout(failSafeTimer.current);
         failSafeTimer.current = null;
       }
+      if (syncTimer.current) {
+        window.clearInterval(syncTimer.current);
+        syncTimer.current = null;
+      }
     };
   }, []);
 
@@ -126,12 +131,75 @@ const ScreenPage: React.FC<Props> = ({ src, title }) => {
   }, [loadingSlot]);
 
   function onFrameLoad(slot: 0 | 1) {
-    bindFrameNavigation(slot === 0 ? frame0Ref.current : frame1Ref.current);
+    const frame = slot === 0 ? frame0Ref.current : frame1Ref.current;
+    bindFrameNavigation(frame);
+    try {
+      const frameWindow = frame?.contentWindow;
+      const nextPathname = frameWindow?.location?.pathname || "";
+      const nextSearch = frameWindow?.location?.search || "";
+      const nextHash = frameWindow?.location?.hash || "";
+      if (nextPathname && shouldInterceptPath(nextPathname)) {
+        const nextPath = `${nextPathname}${nextSearch}${nextHash}`;
+        const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+        if (nextPath !== currentPath) {
+          window.history.pushState({}, "", nextPath);
+          window.dispatchEvent(new PopStateEvent("popstate"));
+        }
+      }
+    } catch (_e) {}
     if (loadingSlot === null) return;
     if (slot !== loadingSlot) return;
     setActiveSlot(slot);
     setLoadingSlot(null);
   }
+
+  function syncParentUrlFromFrame(frame: HTMLIFrameElement | null): void {
+    try {
+      const frameWindow = frame?.contentWindow;
+      if (!frameWindow) return;
+      const pathname = frameWindow.location.pathname || "";
+      const search = frameWindow.location.search || "";
+      const hash = frameWindow.location.hash || "";
+      let nextPath = "";
+
+      if (shouldInterceptPath(pathname)) {
+        nextPath = `${pathname}${search}${hash}`;
+      } else if (pathname === "/wel/index.html") {
+        const params = new URLSearchParams(search || "");
+        const page = String(params.get("page") || "").trim();
+        if (page === "61") {
+          nextPath = "/programs";
+        } else if (page === "podcast-detail") {
+          const programId = String(params.get("programId") || "").trim();
+          if (programId) nextPath = `/programs/${encodeURIComponent(programId)}`;
+        }
+      }
+
+      if (!nextPath) return;
+      const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      if (nextPath !== currentPath) {
+        window.history.pushState({}, "", nextPath);
+        window.dispatchEvent(new PopStateEvent("popstate"));
+      }
+    } catch (_e) {}
+  }
+
+  useEffect(() => {
+    if (syncTimer.current) {
+      window.clearInterval(syncTimer.current);
+      syncTimer.current = null;
+    }
+    syncTimer.current = window.setInterval(() => {
+      const frame = activeSlot === 0 ? frame0Ref.current : frame1Ref.current;
+      syncParentUrlFromFrame(frame);
+    }, 250);
+    return () => {
+      if (syncTimer.current) {
+        window.clearInterval(syncTimer.current);
+        syncTimer.current = null;
+      }
+    };
+  }, [activeSlot]);
 
   return (
     <main className="screen-shell relative" aria-label={title}>

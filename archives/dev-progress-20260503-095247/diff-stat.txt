@@ -1,0 +1,22 @@
+ backend/src/routes/adminMultiAgents.ts             |  13 +-
+ backend/src/routes/aiCompat.ts                     |  12 +-
+ backend/src/routes/tutorbot.ts                     |  22 +-
+ backend/src/services/agentModelRegistry.ts         |  20 +-
+ backend/src/services/agentTaskDispatcher.ts        |  65 ++++++
+ backend/src/services/programAi.ts                  |   4 +
+ docker-compose.yml                                 |   1 +
+ frontend/public/screens/admin-system.html          |  29 ++-
+ frontend/public/screens/admin.css                  | 240 ++++++++++++++++++--
+ frontend/public/screens/podcast-home.html          |  13 --
+ frontend/public/screens/public.css                 | 247 ++++++++++++++++++---
+ frontend/public/wel/index.html                     |   6 +-
+ .../pages/01 \351\246\226\351\241\265/code.html"   |  27 +--
+ frontend/src/App.tsx                               |   8 +-
+ frontend/src/components/AdminLayout.tsx            |  97 ++++----
+ frontend/src/components/PodcastChrome.tsx          |  20 +-
+ frontend/src/pages/ProgramListPage.tsx             |  23 +-
+ frontend/src/pages/ScreenPage.tsx                  |  70 +++++-
+ frontend/src/pages/admin/AdminGuestsPage.tsx       |  10 +-
+ frontend/src/pages/admin/AdminProgramsPage.tsx     |  65 ++++--
+ frontend/src/styles.css                            |  10 +-
+ 21 files changed, 803 insertions(+), 199 deletions(-)

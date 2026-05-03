@@ -122,24 +122,8 @@ export const PodcastSidebarSubscribe: React.FC = () => {
 export const PodcastHomeFooter: React.FC = () => {
   return (
     <footer className="border-t border-[#e2e8f0] bg-white px-8 py-7">
-      <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-8 lg:flex-row lg:items-center">
-        <div className="flex flex-col items-center">
-          <img alt="家和万事 服务家庭 智慧决策" className="h-[30px] w-auto object-contain" src="/assets/jiahe-logo.png" />
-        </div>
-        <div className="flex flex-wrap justify-center gap-8 text-xs font-bold text-[#64748b]">
-          <a className="transition-all hover:text-[#5e17eb]" href="#">
-            关于我们
-          </a>
-          <a className="transition-all hover:text-[#5e17eb]" href="#">
-            联系合作
-          </a>
-          <a className="transition-all hover:text-[#5e17eb]" href="#">
-            隐私政策
-          </a>
-          <a className="transition-all hover:text-[#5e17eb]" href="#">
-            家长手册
-          </a>
-        </div>
+      <div className="mx-auto max-w-6xl text-center text-xs font-semibold text-[#94a3b8]">
+        © 2026 家长先疯. All rights reserved.
       </div>
     </footer>
   );

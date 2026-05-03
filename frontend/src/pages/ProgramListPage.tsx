@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { PodcastHomeFooter } from "../components/PodcastChrome";
 
 const FALLBACK_COVER = "/assets/podcast-cover-1.svg";
 
@@ -215,7 +214,7 @@ const ProgramListPage: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#f4f5f7] font-['Plus_Jakarta_Sans','PingFang_SC','Microsoft_YaHei',sans-serif] text-[#1a1a1b]">
+    <div className="min-h-screen bg-[#f4f5f7] font-['Plus_Jakarta_Sans','PingFang_SC','Microsoft_YaHei',sans-serif] text-[#1a1a1b]">
       <style>{`
         .magazine-card {
           background: #ffffff;
@@ -228,24 +227,10 @@ const ProgramListPage: React.FC = () => {
           transform: translateY(-4px);
           box-shadow: 0 20px 40px -15px rgba(94, 23, 235, 0.1);
         }
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 6px;
-          height: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: #f4f5f7;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #cbd5e1;
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #5e17eb;
-        }
       `}</style>
 
-      <main className="relative mx-auto flex w-full max-w-6xl flex-1 custom-scrollbar">
-        <section className="flex-1 px-6 py-8 md:px-10 md:py-10">
+      <main className="relative mx-auto w-full max-w-6xl px-6 py-8 md:px-10 md:py-10">
+        <section>
 
           <div className="space-y-8">
             {loading ? (
@@ -287,9 +272,7 @@ const ProgramListPage: React.FC = () => {
             )}
           </div>
         </section>
-
       </main>
-      <PodcastHomeFooter />
     </div>
   );
 };

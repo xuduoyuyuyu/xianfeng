@@ -181,6 +181,26 @@ router.post("/:botId/messages", (req, res) => {
         throw new Error("小玩子主模型未配置完整（缺少 api_key 或 model_name）");
       }
       const endpoint = `${baseUrl.replace(/\/+$/, "")}/v1/chat/completions`;
+      const promptBucket = store?.prompts?.chat_manager_agent || { current: null, items: [] };
+      const promptCandidates = [promptBucket.current, ...(Array.isArray(promptBucket.items) ? promptBucket.items : [])].filter(Boolean);
+      const latestPromptDoc = [...promptCandidates].sort((a: any, b: any) => {
+        const at = String(a?.created_at || "");
+        const bt = String(b?.created_at || "");
+        if (at !== bt) return bt.localeCompare(at);
+        return Number(b?.id || 0) - Number(a?.id || 0);
+      })[0];
+      const latestPrompt = String(latestPromptDoc?.system_prompt || "").trim();
+      const workspaceAgentDoc = String(tutorbotManager.readBotFile(req.params.botId, "AGENTS.md") || "").trim();
+      const systemPrompt = latestPrompt || workspaceAgentDoc;
+      const recentHistory = tutorbotManager
+        .getBotHistory(req.params.botId, 12)
+        .filter((item: any) => item.role === "user" || item.role === "assistant")
+        .map((item: any) => ({ role: item.role, content: String(item.content || "") }))
+        .filter((item: any) => item.content);
+      const messages = [
+        ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
+        ...recentHistory,
+      ];
       const upstream = await fetch(endpoint, {
         method: "POST",
         headers: {
@@ -189,7 +209,7 @@ router.post("/:botId/messages", (req, res) => {
         },
         body: JSON.stringify({
           model: modelName,
-          messages: [{ role: "user", content }],
+          messages: messages.length ? messages : [{ role: "user", content }],
           temperature: Number.isFinite(Number((chatAgent as any).temperature)) ? Number((chatAgent as any).temperature) : 0.2,
           top_p: Number.isFinite(Number((chatAgent as any).top_p)) ? Number((chatAgent as any).top_p) : 0.95,
           max_tokens: Number.isFinite(Number((chatAgent as any).max_tokens)) ? Number((chatAgent as any).max_tokens) : 1200,

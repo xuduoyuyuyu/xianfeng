@@ -1,0 +1,1947 @@
+diff --git a/backend/src/routes/adminMultiAgents.ts b/backend/src/routes/adminMultiAgents.ts
+index b827425..e60ce47 100644
+--- a/backend/src/routes/adminMultiAgents.ts
++++ b/backend/src/routes/adminMultiAgents.ts
+@@ -221,7 +221,18 @@ router.delete(["/multi-agents/:code", "/mgmt/agents/:code"], (req, res) => {
+ 
+ function getPrompts(code: string) {
+   const store = ensureStore(buildSeedStore);
+-  return store.prompts[code] || { current: null, items: [] };
++  const bucket = store.prompts[code] || { current: null, items: [] };
++  const candidates = [bucket.current, ...(Array.isArray(bucket.items) ? bucket.items : [])].filter(Boolean);
++  const latest = [...candidates].sort((a: any, b: any) => {
++    const at = String(a?.created_at || "");
++    const bt = String(b?.created_at || "");
++    if (at !== bt) return bt.localeCompare(at);
++    return Number(b?.id || 0) - Number(a?.id || 0);
++  })[0] || null;
++  return {
++    current: latest,
++    items: (bucket.items || []).filter((x: any) => !latest || x?.id !== latest?.id),
++  };
+ }
+ 
+ router.get(["/multi-agents/:code/prompts", "/mgmt/agents/:code/prompts"], (req, res) => {
+diff --git a/backend/src/routes/aiCompat.ts b/backend/src/routes/aiCompat.ts
+index 026e51d..1087114 100644
+--- a/backend/src/routes/aiCompat.ts
++++ b/backend/src/routes/aiCompat.ts
+@@ -41,9 +41,15 @@ router.post("/chat", async (req, res) => {
+       }))
+       .filter((m: any) => (m.role === "user" || m.role === "assistant" || m.role === "system") && m.content);
+ 
+-    const backendSystemPrompt = String(
+-      store?.prompts?.chat_manager_agent?.current?.system_prompt || "",
+-    ).trim();
++    const promptBucket = store?.prompts?.chat_manager_agent || { current: null, items: [] };
++    const promptCandidates = [promptBucket.current, ...(Array.isArray(promptBucket.items) ? promptBucket.items : [])].filter(Boolean);
++    const latestPromptDoc = [...promptCandidates].sort((a: any, b: any) => {
++      const at = String(a?.created_at || "");
++      const bt = String(b?.created_at || "");
++      if (at !== bt) return bt.localeCompare(at);
++      return Number(b?.id || 0) - Number(a?.id || 0);
++    })[0];
++    const backendSystemPrompt = String(latestPromptDoc?.system_prompt || "").trim();
+ 
+     const userPrompt = prompt || String(history[history.length - 1]?.content || "");
+     // Do not allow client-side system messages to override server-managed persona.
+diff --git a/backend/src/routes/tutorbot.ts b/backend/src/routes/tutorbot.ts
+index 2b26c01..97d29e4 100644
+--- a/backend/src/routes/tutorbot.ts
++++ b/backend/src/routes/tutorbot.ts
+@@ -181,6 +181,26 @@ router.post("/:botId/messages", (req, res) => {
+         throw new Error("小玩子主模型未配置完整（缺少 api_key 或 model_name）");
+       }
+       const endpoint = `${baseUrl.replace(/\/+$/, "")}/v1/chat/completions`;
++      const promptBucket = store?.prompts?.chat_manager_agent || { current: null, items: [] };
++      const promptCandidates = [promptBucket.current, ...(Array.isArray(promptBucket.items) ? promptBucket.items : [])].filter(Boolean);
++      const latestPromptDoc = [...promptCandidates].sort((a: any, b: any) => {
++        const at = String(a?.created_at || "");
++        const bt = String(b?.created_at || "");
++        if (at !== bt) return bt.localeCompare(at);
++        return Number(b?.id || 0) - Number(a?.id || 0);
++      })[0];
++      const latestPrompt = String(latestPromptDoc?.system_prompt || "").trim();
++      const workspaceAgentDoc = String(tutorbotManager.readBotFile(req.params.botId, "AGENTS.md") || "").trim();
++      const systemPrompt = latestPrompt || workspaceAgentDoc;
++      const recentHistory = tutorbotManager
++        .getBotHistory(req.params.botId, 12)
++        .filter((item: any) => item.role === "user" || item.role === "assistant")
++        .map((item: any) => ({ role: item.role, content: String(item.content || "") }))
++        .filter((item: any) => item.content);
++      const messages = [
++        ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
++        ...recentHistory,
++      ];
+       const upstream = await fetch(endpoint, {
+         method: "POST",
+         headers: {
+@@ -189,7 +209,7 @@ router.post("/:botId/messages", (req, res) => {
+         },
+         body: JSON.stringify({
+           model: modelName,
+-          messages: [{ role: "user", content }],
++          messages: messages.length ? messages : [{ role: "user", content }],
+           temperature: Number.isFinite(Number((chatAgent as any).temperature)) ? Number((chatAgent as any).temperature) : 0.2,
+           top_p: Number.isFinite(Number((chatAgent as any).top_p)) ? Number((chatAgent as any).top_p) : 0.95,
+           max_tokens: Number.isFinite(Number((chatAgent as any).max_tokens)) ? Number((chatAgent as any).max_tokens) : 1200,
+diff --git a/backend/src/services/agentModelRegistry.ts b/backend/src/services/agentModelRegistry.ts
+index 9822c15..8f2e013 100644
+--- a/backend/src/services/agentModelRegistry.ts
++++ b/backend/src/services/agentModelRegistry.ts
+@@ -48,8 +48,11 @@ export type Store = {
+   model_registry: ModelRegistryItem[];
+ };
+ 
+-const STORE_DIR = path.join(process.cwd(), "data", "multi_agents");
++// Keep storage path stable regardless of process cwd.
++// Both tsx (src/*) and compiled dist/* resolve to backend/data/multi_agents.
++const STORE_DIR = path.resolve(__dirname, "..", "..", "data", "multi_agents");
+ const STORE_FILE = path.join(STORE_DIR, "store.json");
++const LEGACY_STORE_FILE = path.join(process.cwd(), "data", "multi_agents", "store.json");
+ 
+ const DEFAULT_MODEL_REGISTRY: ModelRegistryItem[] = [
+   {
+@@ -123,6 +126,13 @@ function migrateStore(parsed: any): Store {
+ export function ensureStore(seedFactory: () => Omit<Store, "model_registry">): Store {
+   fs.mkdirSync(STORE_DIR, { recursive: true });
+   if (!fs.existsSync(STORE_FILE)) {
++    // One-time compatibility: migrate data from old cwd-based path if it exists.
++    if (fs.existsSync(LEGACY_STORE_FILE)) {
++      const parsed = JSON.parse(fs.readFileSync(LEGACY_STORE_FILE, "utf-8"));
++      const migrated = migrateStore(parsed);
++      fs.writeFileSync(STORE_FILE, JSON.stringify(migrated, null, 2), "utf-8");
++      return migrated;
++    }
+     const seed = seedFactory();
+     const full: Store = {
+       ...seed,
+@@ -151,7 +161,13 @@ export function saveStore(store: Store) {
+ }
+ 
+ export function resolveAgentModelConfig(agent: AgentRow, registry: ModelRegistryItem[]) {
+-  const primary = registry.find((x) => x.id === agent.primary_model_id && x.enabled);
++  const primaryById = registry.find((x) => x.id === agent.primary_model_id && x.enabled);
++  const fallbackPrimary = !primaryById
++    ? registry
++        .filter((x) => x.enabled && x.provider === agent.model_provider && x.model_name === agent.model_name)
++        .sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || "")))[0]
++    : null;
++  const primary = primaryById || fallbackPrimary;
+   const asr = registry.find((x) => x.id === agent.feature_models?.asr && x.enabled);
+   const extract = registry.find((x) => x.id === agent.feature_models?.extract && x.enabled);
+   return {
+diff --git a/backend/src/services/agentTaskDispatcher.ts b/backend/src/services/agentTaskDispatcher.ts
+index eb8d6b6..d3c518c 100644
+--- a/backend/src/services/agentTaskDispatcher.ts
++++ b/backend/src/services/agentTaskDispatcher.ts
+@@ -9,6 +9,7 @@ import Program from "../models/Program";
+ import GuestModel from "../models/Guest";
+ import { syncProgramDictionaryEntries } from "./educationDictionary";
+ import { createInboxMessage } from "./adminInbox";
++import { ensureStore, resolveAgentModelConfig } from "./agentModelRegistry";
+ 
+ type CreateTaskInput = {
+   taskType: AgentTaskType;
+@@ -23,6 +24,38 @@ const POLL_MS = 1500;
+ let pollTimer: NodeJS.Timeout | null = null;
+ let working = false;
+ 
++const TASK_AGENT_MAP: Partial<Record<AgentTaskType, string>> = {
++  proofread_transcript: "textbook_structure_agent",
++  enrich_program_content: "knowledge_split_agent",
++  enrich_guest_profile: "user_agent",
++  generate_program_artwork: "question_quality_agent",
++};
++
++function getLatestPromptDoc(bucket: any): any | null {
++  const candidates = [bucket?.current, ...(Array.isArray(bucket?.items) ? bucket.items : [])].filter(Boolean);
++  if (!candidates.length) return null;
++  return [...candidates].sort((a: any, b: any) => {
++    const at = String(a?.created_at || "");
++    const bt = String(b?.created_at || "");
++    if (at !== bt) return bt.localeCompare(at);
++    return Number(b?.id || 0) - Number(a?.id || 0);
++  })[0] || null;
++}
++
++function resolveTaskConfig(taskType: AgentTaskType) {
++  const agentCode = TASK_AGENT_MAP[taskType] || "";
++  const store = ensureStore(() => ({ agents: [], prompts: {}, policies: {}, strategies: {}, runs: [] }));
++  const agent = store.agents.find((x: any) => x.agent_code === agentCode) || null;
++  const bucket = agentCode ? store.prompts?.[agentCode] : null;
++  const promptDoc = getLatestPromptDoc(bucket);
++  const model = agent ? resolveAgentModelConfig(agent as any, store.model_registry || []).primary : null;
++  return {
++    agentCode,
++    promptDoc,
++    model,
++  };
++}
++
+ function asText(value: unknown): string {
+   return typeof value === "string" ? value.trim() : "";
+ }
+@@ -449,6 +482,7 @@ export function extractCandidateTerms(rawText: string): string[] {
+ }
+ 
+ async function runProofreadTask(task: any) {
++  const taskConfig = resolveTaskConfig(task.taskType as AgentTaskType);
+   const program = await Program.findById(task.targetId);
+   if (!program) throw new Error("节目不存在");
+ 
+@@ -530,11 +564,19 @@ async function runProofreadTask(task: any) {
+     output: {
+       correctedTranscript,
+       report,
++      runtimeConfig: {
++        agent_code: taskConfig.agentCode,
++        prompt_version: asText(taskConfig.promptDoc?.version),
++        prompt_created_at: asText(taskConfig.promptDoc?.created_at),
++        model_provider: asText(taskConfig.model?.provider),
++        model_name: asText(taskConfig.model?.model_name),
++      },
+     },
+   };
+ }
+ 
+ async function runProgramEnrichmentTask(task: any) {
++  const taskConfig = resolveTaskConfig(task.taskType as AgentTaskType);
+   const program = await Program.findById(task.targetId);
+   if (!program) throw new Error("节目不存在");
+ 
+@@ -613,11 +655,19 @@ async function runProgramEnrichmentTask(task: any) {
+       suggestedGlossary,
+       suggestedReadings,
+       mergedGlossaryCount: nextGlossary.length,
++      runtimeConfig: {
++        agent_code: taskConfig.agentCode,
++        prompt_version: asText(taskConfig.promptDoc?.version),
++        prompt_created_at: asText(taskConfig.promptDoc?.created_at),
++        model_provider: asText(taskConfig.model?.provider),
++        model_name: asText(taskConfig.model?.model_name),
++      },
+     },
+   };
+ }
+ 
+ async function runGuestProfileTask(task: any) {
++  const taskConfig = resolveTaskConfig(task.taskType as AgentTaskType);
+   const guest = await GuestModel.findById(task.targetId);
+   if (!guest) throw new Error("嘉宾不存在");
+ 
+@@ -697,11 +747,19 @@ async function runGuestProfileTask(task: any) {
+       profileMarkdown: markdown,
+       profileReferences: references,
+       avatarCandidates,
++      runtimeConfig: {
++        agent_code: taskConfig.agentCode,
++        prompt_version: asText(taskConfig.promptDoc?.version),
++        prompt_created_at: asText(taskConfig.promptDoc?.created_at),
++        model_provider: asText(taskConfig.model?.provider),
++        model_name: asText(taskConfig.model?.model_name),
++      },
+     },
+   };
+ }
+ 
+ async function runProgramArtworkTask(task: any) {
++  const taskConfig = resolveTaskConfig(task.taskType as AgentTaskType);
+   const program = await Program.findById(task.targetId);
+   if (!program) throw new Error("节目不存在");
+ 
+@@ -750,6 +808,13 @@ async function runProgramArtworkTask(task: any) {
+       keyword,
+       semanticCore: tags.length ? tags.slice(0, 6) : terms.slice(0, 6),
+       parsedSignals,
++      runtimeConfig: {
++        agent_code: taskConfig.agentCode,
++        prompt_version: asText(taskConfig.promptDoc?.version),
++        prompt_created_at: asText(taskConfig.promptDoc?.created_at),
++        model_provider: asText(taskConfig.model?.provider),
++        model_name: asText(taskConfig.model?.model_name),
++      },
+     },
+   };
+ }
+diff --git a/backend/src/services/programAi.ts b/backend/src/services/programAi.ts
+index 5980a82..59cf1c9 100644
+--- a/backend/src/services/programAi.ts
++++ b/backend/src/services/programAi.ts
+@@ -1191,6 +1191,10 @@ class MockProgramAiProvider implements ProgramAiProvider {
+ 
+ export function resolveProgramAiProvider(): ProgramAiProvider {
+   const provider = asText(process.env.AI_PROVIDER) || "openai";
++  const isProduction = asText(process.env.NODE_ENV).toLowerCase() === "production";
++  if (provider === "mock" && isProduction) {
++    throw new Error("生产环境禁止使用 AI_PROVIDER=mock，请改为 volcengine 或 openai");
++  }
+   if (provider === "openai") {
+     return new OpenAIProgramAiProvider();
+   }
+diff --git a/docker-compose.yml b/docker-compose.yml
+index 72348ca..e0cf172 100644
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -26,6 +26,7 @@ services:
+     depends_on:
+       - mongo
+     volumes:
++      - ./backend/data:/app/data
+       - ./backend/uploads:/app/uploads
+ 
+   frontend:
+diff --git a/frontend/public/screens/admin-system.html b/frontend/public/screens/admin-system.html
+index 818703d..e844962 100644
+--- a/frontend/public/screens/admin-system.html
++++ b/frontend/public/screens/admin-system.html
+@@ -132,6 +132,10 @@
+                 <span class="material-symbols-outlined text-[20px]">logout</span>
+               </button>
+             </div>
++            <button id="admin-manage-logout-btn" class="group mt-3 flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-ink/90 transition-all hover:bg-white/5 hover:text-ink" type="button">
++              <span class="material-symbols-outlined text-[20px] text-ink/70 transition-colors group-hover:text-[#5e17eb]">logout</span>
++              退出
++            </button>
+           </div>
+         </div>
+       </aside>
+@@ -321,19 +325,22 @@
+           activeLink.classList.add("bg-white/5", "ring-1", "ring-white/10");
+         }
+ 
+-        const logoutBtn = document.getElementById("admin-logout-btn");
+-        if (logoutBtn) {
+-          logoutBtn.addEventListener("click", function () {
+-            localStorage.removeItem("token");
+-            localStorage.removeItem("user");
+-            if (isEmbedded()) {
+-              requestNavigate("/admin/login");
+-              return;
+-            }
+-            window.location.href = "/admin/login";
+-          });
++        function logoutToLogin() {
++          localStorage.removeItem("token");
++          localStorage.removeItem("user");
++          if (isEmbedded()) {
++            requestNavigate("/admin/login");
++            return;
++          }
++          window.location.href = "/admin/login";
+         }
+ 
++        const logoutBtn = document.getElementById("admin-logout-btn");
++        if (logoutBtn) logoutBtn.addEventListener("click", logoutToLogin);
++
++        const manageLogoutBtn = document.getElementById("admin-manage-logout-btn");
++        if (manageLogoutBtn) manageLogoutBtn.addEventListener("click", logoutToLogin);
++
+         document.addEventListener(
+           "click",
+           function (event) {
+diff --git a/frontend/public/screens/admin.css b/frontend/public/screens/admin.css
+index 8b8cecb..79d3fd6 100644
+--- a/frontend/public/screens/admin.css
++++ b/frontend/public/screens/admin.css
+@@ -938,6 +938,9 @@
+   .-mt-16 {
+     margin-top: calc(var(--spacing) * -16);
+   }
++  .mt-0 {
++    margin-top: calc(var(--spacing) * 0);
++  }
+   .mt-0\.5 {
+     margin-top: calc(var(--spacing) * 0.5);
+   }
+@@ -962,6 +965,9 @@
+   .mt-6 {
+     margin-top: calc(var(--spacing) * 6);
+   }
++  .mt-7 {
++    margin-top: calc(var(--spacing) * 7);
++  }
+   .mt-8 {
+     margin-top: calc(var(--spacing) * 8);
+   }
+@@ -1049,9 +1055,6 @@
+   .-ml-px {
+     margin-left: -1px;
+   }
+-  .ml-0\.5 {
+-    margin-left: calc(var(--spacing) * 0.5);
+-  }
+   .ml-1 {
+     margin-left: calc(var(--spacing) * 1);
+   }
+@@ -1094,6 +1097,12 @@
+     -webkit-box-orient: vertical;
+     -webkit-line-clamp: 2;
+   }
++  .line-clamp-3 {
++    overflow: hidden;
++    display: -webkit-box;
++    -webkit-box-orient: vertical;
++    -webkit-line-clamp: 3;
++  }
+   .line-clamp-none {
+     overflow: visible;
+     display: block;
+@@ -1330,9 +1339,6 @@
+   .h-24 {
+     height: calc(var(--spacing) * 24);
+   }
+-  .h-25 {
+-    height: calc(var(--spacing) * 25);
+-  }
+   .h-28 {
+     height: calc(var(--spacing) * 28);
+   }
+@@ -1450,9 +1456,6 @@
+   .h-\[800px\] {
+     height: 800px;
+   }
+-  .h-\[calc\(100\%-97px\)\] {
+-    height: calc(100% - 97px);
+-  }
+   .h-\[calc\(100vh-80px\)\] {
+     height: calc(100vh - 80px);
+   }
+@@ -1516,6 +1519,12 @@
+   .min-h-0 {
+     min-height: calc(var(--spacing) * 0);
+   }
++  .min-h-8 {
++    min-height: calc(var(--spacing) * 8);
++  }
++  .min-h-11 {
++    min-height: calc(var(--spacing) * 11);
++  }
+   .min-h-\[18px\] {
+     min-height: 18px;
+   }
+@@ -1561,6 +1570,9 @@
+   .min-h-\[240px\] {
+     min-height: 240px;
+   }
++  .min-h-\[310px\] {
++    min-height: 310px;
++  }
+   .min-h-\[320px\] {
+     min-height: 320px;
+   }
+@@ -2844,9 +2856,15 @@
+   .rounded-\[22px\] {
+     border-radius: 22px;
+   }
++  .rounded-\[24px\] {
++    border-radius: 24px;
++  }
+   .rounded-\[28px\] {
+     border-radius: 28px;
+   }
++  .rounded-\[32px\] {
++    border-radius: 32px;
++  }
+   .rounded-\[999px\] {
+     border-radius: 999px;
+   }
+@@ -3057,12 +3075,33 @@
+   .border-\[\#2563eb\]\/20 {
+     border-color: color-mix(in oklab, #2563eb 20%, transparent);
+   }
++  .border-\[\#bfd0f7\] {
++    border-color: #bfd0f7;
++  }
++  .border-\[\#c5d2e8\] {
++    border-color: #c5d2e8;
++  }
++  .border-\[\#c8d2e3\] {
++    border-color: #c8d2e3;
++  }
+   .border-\[\#cdb7ff\] {
+     border-color: #cdb7ff;
+   }
++  .border-\[\#d4deef\] {
++    border-color: #d4deef;
++  }
+   .border-\[\#d6e8ff\] {
+     border-color: #d6e8ff;
+   }
++  .border-\[\#d9e1ee\] {
++    border-color: #d9e1ee;
++  }
++  .border-\[\#d9e1ef\] {
++    border-color: #d9e1ef;
++  }
++  .border-\[\#dce4f2\] {
++    border-color: #dce4f2;
++  }
+   .border-\[\#e2e8f0\] {
+     border-color: #e2e8f0;
+   }
+@@ -3387,9 +3426,15 @@
+   .bg-\[\#c7bbff\] {
+     background-color: #c7bbff;
+   }
++  .bg-\[\#eaf1ff\] {
++    background-color: #eaf1ff;
++  }
+   .bg-\[\#ede9fe\] {
+     background-color: #ede9fe;
+   }
++  .bg-\[\#eef4ff\] {
++    background-color: #eef4ff;
++  }
+   .bg-\[\#efe7ff\] {
+     background-color: #efe7ff;
+   }
+@@ -3411,6 +3456,12 @@
+   .bg-\[\#f7f3ff\] {
+     background-color: #f7f3ff;
+   }
++  .bg-\[\#f8fafc\] {
++    background-color: #f8fafc;
++  }
++  .bg-\[\#f8fbff\] {
++    background-color: #f8fbff;
++  }
+   .bg-\[\#faf7ff\] {
+     background-color: #faf7ff;
+   }
+@@ -3429,6 +3480,9 @@
+   .bg-\[\#ffffff\] {
+     background-color: #ffffff;
+   }
++  .bg-\[var\(--lp-primary\)\] {
++    background-color: var(--lp-primary);
++  }
+   .bg-\[var\(--muted\)\] {
+     background-color: var(--muted);
+   }
+@@ -4206,12 +4260,6 @@
+   .mask-repeat {
+     mask-repeat: repeat;
+   }
+-  .fill-primary\/80 {
+-    fill: color-mix(in srgb, #5e17eb 80%, transparent);
+-    @supports (color: color-mix(in lab, red, red)) {
+-      fill: color-mix(in oklab, var(--color-primary) 80%, transparent);
+-    }
+-  }
+   .object-contain {
+     object-fit: contain;
+   }
+@@ -4395,6 +4443,9 @@
+   .pt-8 {
+     padding-top: calc(var(--spacing) * 8);
+   }
++  .pt-10 {
++    padding-top: calc(var(--spacing) * 10);
++  }
+   .pt-12 {
+     padding-top: calc(var(--spacing) * 12);
+   }
+@@ -4764,6 +4815,10 @@
+     --tw-tracking: 0.08em;
+     letter-spacing: 0.08em;
+   }
++  .tracking-\[0\.13em\] {
++    --tw-tracking: 0.13em;
++    letter-spacing: 0.13em;
++  }
+   .tracking-\[0\.14em\] {
+     --tw-tracking: 0.14em;
+     letter-spacing: 0.14em;
+@@ -4772,6 +4827,10 @@
+     --tw-tracking: 0.15em;
+     letter-spacing: 0.15em;
+   }
++  .tracking-\[0\.16em\] {
++    --tw-tracking: 0.16em;
++    letter-spacing: 0.16em;
++  }
+   .tracking-\[0\.22em\] {
+     --tw-tracking: 0.22em;
+     letter-spacing: 0.22em;
+@@ -4870,18 +4929,33 @@
+   .text-\[\#1a1a1b\] {
+     color: #1a1a1b;
+   }
++  .text-\[\#1f43af\] {
++    color: #1f43af;
++  }
+   .text-\[\#2D2926\] {
+     color: #2D2926;
+   }
++  .text-\[\#4b5b76\] {
++    color: #4b5b76;
++  }
+   .text-\[\#5E8B8E\] {
+     color: #5E8B8E;
+   }
+   .text-\[\#5b5491\] {
+     color: #5b5491;
+   }
++  .text-\[\#5e6e89\] {
++    color: #5e6e89;
++  }
+   .text-\[\#5e17eb\] {
+     color: #5e17eb;
+   }
++  .text-\[\#5f6f89\] {
++    color: #5f6f89;
++  }
++  .text-\[\#6c7a93\] {
++    color: #6c7a93;
++  }
+   .text-\[\#6f89a8\] {
+     color: #6f89a8;
+   }
+@@ -4891,30 +4965,72 @@
+   .text-\[\#8A847E\] {
+     color: #8A847E;
+   }
++  .text-\[\#94a3b8\] {
++    color: #94a3b8;
++  }
+   .text-\[\#98a2b3\] {
+     color: #98a2b3;
+   }
+   .text-\[\#2563eb\] {
+     color: #2563eb;
+   }
++  .text-\[\#22314a\] {
++    color: #22314a;
++  }
++  .text-\[\#24314a\] {
++    color: #24314a;
++  }
++  .text-\[\#25324a\] {
++    color: #25324a;
++  }
++  .text-\[\#26344e\] {
++    color: #26344e;
++  }
++  .text-\[\#34445e\] {
++    color: #34445e;
++  }
++  .text-\[\#51617d\] {
++    color: #51617d;
++  }
+   .text-\[\#53433f\] {
+     color: #53433f;
+   }
++  .text-\[\#60718d\] {
++    color: #60718d;
++  }
++  .text-\[\#61728d\] {
++    color: #61728d;
++  }
++  .text-\[\#63718a\] {
++    color: #63718a;
++  }
+   .text-\[\#64748b\] {
+     color: #64748b;
+   }
+   .text-\[\#64748b\]\/60 {
+     color: color-mix(in oklab, #64748b 60%, transparent);
+   }
++  .text-\[\#72829c\] {
++    color: #72829c;
++  }
+   .text-\[\#091833\] {
+     color: #091833;
+   }
++  .text-\[\#314561\] {
++    color: #314561;
++  }
++  .text-\[\#566783\] {
++    color: #566783;
++  }
+   .text-\[\#e6e9f2\] {
+     color: #e6e9f2;
+   }
+   .text-\[var\(--foreground\)\] {
+     color: var(--foreground);
+   }
++  .text-\[var\(--lp-muted\)\] {
++    color: var(--lp-muted);
++  }
+   .text-\[var\(--muted-foreground\)\] {
+     color: var(--muted-foreground);
+   }
+@@ -6653,6 +6769,27 @@
+       }
+     }
+   }
++  .hover\:border-\[\#2954d6\] {
++    &:hover {
++      @media (hover: hover) {
++        border-color: #2954d6;
++      }
++    }
++  }
++  .hover\:border-\[\#b4c6e4\] {
++    &:hover {
++      @media (hover: hover) {
++        border-color: #b4c6e4;
++      }
++    }
++  }
++  .hover\:border-\[\#b9c8e4\] {
++    &:hover {
++      @media (hover: hover) {
++        border-color: #b9c8e4;
++      }
++    }
++  }
+   .hover\:border-\[\#e8dcff\] {
+     &:hover {
+       @media (hover: hover) {
+@@ -6880,6 +7017,13 @@
+       }
+     }
+   }
++  .hover\:bg-\[var\(--lp-primary-ink\)\] {
++    &:hover {
++      @media (hover: hover) {
++        background-color: var(--lp-primary-ink);
++      }
++    }
++  }
+   .hover\:bg-amber-100 {
+     &:hover {
+       @media (hover: hover) {
+@@ -7125,6 +7269,13 @@
+       }
+     }
+   }
++  .hover\:text-\[\#1f43af\] {
++    &:hover {
++      @media (hover: hover) {
++        color: #1f43af;
++      }
++    }
++  }
+   .hover\:text-\[\#4e18c9\] {
+     &:hover {
+       @media (hover: hover) {
+@@ -7139,6 +7290,13 @@
+       }
+     }
+   }
++  .hover\:text-\[\#152e7a\] {
++    &:hover {
++      @media (hover: hover) {
++        color: #152e7a;
++      }
++    }
++  }
+   .hover\:text-\[var\(--foreground\)\] {
+     &:hover {
+       @media (hover: hover) {
+@@ -7297,6 +7455,14 @@
+       }
+     }
+   }
++  .hover\:shadow-\[0_8px_18px_-8px_rgba\(94\,23\,235\,0\.7\)\] {
++    &:hover {
++      @media (hover: hover) {
++        --tw-shadow: 0 8px 18px -8px var(--tw-shadow-color, rgba(94,23,235,0.7));
++        box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
++      }
++    }
++  }
+   .hover\:shadow-\[0_12px_22px_rgba\(127\,19\,236\,0\.24\)\] {
+     &:hover {
+       @media (hover: hover) {
+@@ -7594,6 +7760,21 @@
+       grid-template-columns: repeat(4, minmax(0, 1fr));
+     }
+   }
++  .sm\:flex-row {
++    @media (width >= 40rem) {
++      flex-direction: row;
++    }
++  }
++  .sm\:items-end {
++    @media (width >= 40rem) {
++      align-items: flex-end;
++    }
++  }
++  .sm\:justify-between {
++    @media (width >= 40rem) {
++      justify-content: space-between;
++    }
++  }
+   .sm\:gap-7 {
+     @media (width >= 40rem) {
+       gap: calc(var(--spacing) * 7);
+@@ -7619,6 +7800,11 @@
+       padding: calc(var(--spacing) * 8);
+     }
+   }
++  .sm\:p-9 {
++    @media (width >= 40rem) {
++      padding: calc(var(--spacing) * 9);
++    }
++  }
+   .sm\:p-10 {
+     @media (width >= 40rem) {
+       padding: calc(var(--spacing) * 10);
+@@ -7644,12 +7830,23 @@
+       padding-top: calc(var(--spacing) * 6);
+     }
+   }
++  .sm\:pt-12 {
++    @media (width >= 40rem) {
++      padding-top: calc(var(--spacing) * 12);
++    }
++  }
+   .sm\:text-3xl {
+     @media (width >= 40rem) {
+       font-size: var(--text-3xl);
+       line-height: var(--tw-leading, var(--text-3xl--line-height));
+     }
+   }
++  .sm\:text-5xl {
++    @media (width >= 40rem) {
++      font-size: var(--text-5xl);
++      line-height: var(--tw-leading, var(--text-5xl--line-height));
++    }
++  }
+   .sm\:text-base {
+     @media (width >= 40rem) {
+       font-size: var(--text-base);
+@@ -8080,14 +8277,14 @@
+       grid-template-columns: repeat(12, minmax(0, 1fr));
+     }
+   }
+-  .lg\:flex-row {
++  .lg\:grid-cols-\[1\.15fr_0\.85fr\] {
+     @media (width >= 64rem) {
+-      flex-direction: row;
++      grid-template-columns: 1.15fr 0.85fr;
+     }
+   }
+-  .lg\:items-center {
++  .lg\:flex-row {
+     @media (width >= 64rem) {
+-      align-items: center;
++      flex-direction: row;
+     }
+   }
+   .lg\:items-end {
+@@ -8190,6 +8387,11 @@
+       grid-template-columns: repeat(4, minmax(0, 1fr));
+     }
+   }
++  .xl\:grid-cols-5 {
++    @media (width >= 80rem) {
++      grid-template-columns: repeat(5, minmax(0, 1fr));
++    }
++  }
+   .xl\:grid-cols-\[320px_1fr\] {
+     @media (width >= 80rem) {
+       grid-template-columns: 320px 1fr;
+diff --git a/frontend/public/screens/podcast-home.html b/frontend/public/screens/podcast-home.html
+index b45c495..50ec0cf 100644
+--- a/frontend/public/screens/podcast-home.html
++++ b/frontend/public/screens/podcast-home.html
+@@ -125,19 +125,6 @@
+ </div>
+ </section>
+ </main>
+-<footer class="bg-white border-t border-outline-light py-12 px-8">
+-<div class="max-w-[1440px] mx-auto flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8">
+-<div class="flex flex-col items-center">
+-<img alt="家和万事 服务家庭 智慧决策" class="h-25 w-auto object-contain" src="/assets/jiahe-logo.png"/>
+-</div>
+-<div class="flex flex-wrap justify-center gap-8 text-xs font-bold text-on-surface-variant">
+-<a class="hover:text-primary-purple transition-all" href="#">关于我们</a>
+-<a class="hover:text-primary-purple transition-all" href="#">联系合作</a>
+-<a class="hover:text-primary-purple transition-all" href="#">隐私政策</a>
+-<a class="hover:text-primary-purple transition-all" href="#">家长手册</a>
+-</div>
+-</div>
+-</footer>
+ <script>
+ (function () {
+   const listEl = document.getElementById("program-list");
+diff --git a/frontend/public/screens/public.css b/frontend/public/screens/public.css
+index d96a3b7..fa5aa82 100644
+--- a/frontend/public/screens/public.css
++++ b/frontend/public/screens/public.css
+@@ -936,6 +936,9 @@
+   .-mt-16 {
+     margin-top: calc(var(--spacing) * -16);
+   }
++  .mt-0 {
++    margin-top: calc(var(--spacing) * 0);
++  }
+   .mt-0\.5 {
+     margin-top: calc(var(--spacing) * 0.5);
+   }
+@@ -960,6 +963,9 @@
+   .mt-6 {
+     margin-top: calc(var(--spacing) * 6);
+   }
++  .mt-7 {
++    margin-top: calc(var(--spacing) * 7);
++  }
+   .mt-8 {
+     margin-top: calc(var(--spacing) * 8);
+   }
+@@ -1047,9 +1053,6 @@
+   .-ml-px {
+     margin-left: -1px;
+   }
+-  .ml-0\.5 {
+-    margin-left: calc(var(--spacing) * 0.5);
+-  }
+   .ml-1 {
+     margin-left: calc(var(--spacing) * 1);
+   }
+@@ -1092,6 +1095,12 @@
+     -webkit-box-orient: vertical;
+     -webkit-line-clamp: 2;
+   }
++  .line-clamp-3 {
++    overflow: hidden;
++    display: -webkit-box;
++    -webkit-box-orient: vertical;
++    -webkit-line-clamp: 3;
++  }
+   .line-clamp-none {
+     overflow: visible;
+     display: block;
+@@ -1328,9 +1337,6 @@
+   .h-24 {
+     height: calc(var(--spacing) * 24);
+   }
+-  .h-25 {
+-    height: calc(var(--spacing) * 25);
+-  }
+   .h-28 {
+     height: calc(var(--spacing) * 28);
+   }
+@@ -1448,9 +1454,6 @@
+   .h-\[800px\] {
+     height: 800px;
+   }
+-  .h-\[calc\(100\%-97px\)\] {
+-    height: calc(100% - 97px);
+-  }
+   .h-\[calc\(100vh-80px\)\] {
+     height: calc(100vh - 80px);
+   }
+@@ -1514,6 +1517,12 @@
+   .min-h-0 {
+     min-height: calc(var(--spacing) * 0);
+   }
++  .min-h-8 {
++    min-height: calc(var(--spacing) * 8);
++  }
++  .min-h-11 {
++    min-height: calc(var(--spacing) * 11);
++  }
+   .min-h-\[18px\] {
+     min-height: 18px;
+   }
+@@ -1559,6 +1568,9 @@
+   .min-h-\[240px\] {
+     min-height: 240px;
+   }
++  .min-h-\[310px\] {
++    min-height: 310px;
++  }
+   .min-h-\[320px\] {
+     min-height: 320px;
+   }
+@@ -2842,9 +2854,15 @@
+   .rounded-\[22px\] {
+     border-radius: 22px;
+   }
++  .rounded-\[24px\] {
++    border-radius: 24px;
++  }
+   .rounded-\[28px\] {
+     border-radius: 28px;
+   }
++  .rounded-\[32px\] {
++    border-radius: 32px;
++  }
+   .rounded-\[999px\] {
+     border-radius: 999px;
+   }
+@@ -3055,12 +3073,33 @@
+   .border-\[\#2563eb\]\/20 {
+     border-color: color-mix(in oklab, #2563eb 20%, transparent);
+   }
++  .border-\[\#bfd0f7\] {
++    border-color: #bfd0f7;
++  }
++  .border-\[\#c5d2e8\] {
++    border-color: #c5d2e8;
++  }
++  .border-\[\#c8d2e3\] {
++    border-color: #c8d2e3;
++  }
+   .border-\[\#cdb7ff\] {
+     border-color: #cdb7ff;
+   }
++  .border-\[\#d4deef\] {
++    border-color: #d4deef;
++  }
+   .border-\[\#d6e8ff\] {
+     border-color: #d6e8ff;
+   }
++  .border-\[\#d9e1ee\] {
++    border-color: #d9e1ee;
++  }
++  .border-\[\#d9e1ef\] {
++    border-color: #d9e1ef;
++  }
++  .border-\[\#dce4f2\] {
++    border-color: #dce4f2;
++  }
+   .border-\[\#e2e8f0\] {
+     border-color: #e2e8f0;
+   }
+@@ -3388,9 +3427,15 @@
+   .bg-\[\#c7bbff\] {
+     background-color: #c7bbff;
+   }
++  .bg-\[\#eaf1ff\] {
++    background-color: #eaf1ff;
++  }
+   .bg-\[\#ede9fe\] {
+     background-color: #ede9fe;
+   }
++  .bg-\[\#eef4ff\] {
++    background-color: #eef4ff;
++  }
+   .bg-\[\#efe7ff\] {
+     background-color: #efe7ff;
+   }
+@@ -3412,6 +3457,12 @@
+   .bg-\[\#f7f3ff\] {
+     background-color: #f7f3ff;
+   }
++  .bg-\[\#f8fafc\] {
++    background-color: #f8fafc;
++  }
++  .bg-\[\#f8fbff\] {
++    background-color: #f8fbff;
++  }
+   .bg-\[\#faf7ff\] {
+     background-color: #faf7ff;
+   }
+@@ -3430,6 +3481,9 @@
+   .bg-\[\#ffffff\] {
+     background-color: #ffffff;
+   }
++  .bg-\[var\(--lp-primary\)\] {
++    background-color: var(--lp-primary);
++  }
+   .bg-\[var\(--muted\)\] {
+     background-color: var(--muted);
+   }
+@@ -4174,12 +4228,6 @@
+   .mask-repeat {
+     mask-repeat: repeat;
+   }
+-  .fill-primary\/80 {
+-    fill: color-mix(in srgb, #5e17eb 80%, transparent);
+-    @supports (color: color-mix(in lab, red, red)) {
+-      fill: color-mix(in oklab, var(--color-primary) 80%, transparent);
+-    }
+-  }
+   .object-contain {
+     object-fit: contain;
+   }
+@@ -4363,6 +4411,9 @@
+   .pt-8 {
+     padding-top: calc(var(--spacing) * 8);
+   }
++  .pt-10 {
++    padding-top: calc(var(--spacing) * 10);
++  }
+   .pt-12 {
+     padding-top: calc(var(--spacing) * 12);
+   }
+@@ -4732,6 +4783,10 @@
+     --tw-tracking: 0.08em;
+     letter-spacing: 0.08em;
+   }
++  .tracking-\[0\.13em\] {
++    --tw-tracking: 0.13em;
++    letter-spacing: 0.13em;
++  }
+   .tracking-\[0\.14em\] {
+     --tw-tracking: 0.14em;
+     letter-spacing: 0.14em;
+@@ -4740,6 +4795,10 @@
+     --tw-tracking: 0.15em;
+     letter-spacing: 0.15em;
+   }
++  .tracking-\[0\.16em\] {
++    --tw-tracking: 0.16em;
++    letter-spacing: 0.16em;
++  }
+   .tracking-\[0\.22em\] {
+     --tw-tracking: 0.22em;
+     letter-spacing: 0.22em;
+@@ -4841,18 +4900,33 @@
+   .text-\[\#1a1a1b\] {
+     color: #1a1a1b;
+   }
++  .text-\[\#1f43af\] {
++    color: #1f43af;
++  }
+   .text-\[\#2D2926\] {
+     color: #2D2926;
+   }
++  .text-\[\#4b5b76\] {
++    color: #4b5b76;
++  }
+   .text-\[\#5E8B8E\] {
+     color: #5E8B8E;
+   }
+   .text-\[\#5b5491\] {
+     color: #5b5491;
+   }
++  .text-\[\#5e6e89\] {
++    color: #5e6e89;
++  }
+   .text-\[\#5e17eb\] {
+     color: #5e17eb;
+   }
++  .text-\[\#5f6f89\] {
++    color: #5f6f89;
++  }
++  .text-\[\#6c7a93\] {
++    color: #6c7a93;
++  }
+   .text-\[\#6f89a8\] {
+     color: #6f89a8;
+   }
+@@ -4862,30 +4936,72 @@
+   .text-\[\#8A847E\] {
+     color: #8A847E;
+   }
++  .text-\[\#94a3b8\] {
++    color: #94a3b8;
++  }
+   .text-\[\#98a2b3\] {
+     color: #98a2b3;
+   }
+   .text-\[\#2563eb\] {
+     color: #2563eb;
+   }
++  .text-\[\#22314a\] {
++    color: #22314a;
++  }
++  .text-\[\#24314a\] {
++    color: #24314a;
++  }
++  .text-\[\#25324a\] {
++    color: #25324a;
++  }
++  .text-\[\#26344e\] {
++    color: #26344e;
++  }
++  .text-\[\#34445e\] {
++    color: #34445e;
++  }
++  .text-\[\#51617d\] {
++    color: #51617d;
++  }
+   .text-\[\#53433f\] {
+     color: #53433f;
+   }
++  .text-\[\#60718d\] {
++    color: #60718d;
++  }
++  .text-\[\#61728d\] {
++    color: #61728d;
++  }
++  .text-\[\#63718a\] {
++    color: #63718a;
++  }
+   .text-\[\#64748b\] {
+     color: #64748b;
+   }
+   .text-\[\#64748b\]\/60 {
+     color: color-mix(in oklab, #64748b 60%, transparent);
+   }
++  .text-\[\#72829c\] {
++    color: #72829c;
++  }
+   .text-\[\#091833\] {
+     color: #091833;
+   }
++  .text-\[\#314561\] {
++    color: #314561;
++  }
++  .text-\[\#566783\] {
++    color: #566783;
++  }
+   .text-\[\#e6e9f2\] {
+     color: #e6e9f2;
+   }
+   .text-\[var\(--foreground\)\] {
+     color: var(--foreground);
+   }
++  .text-\[var\(--lp-muted\)\] {
++    color: var(--lp-muted);
++  }
+   .text-\[var\(--muted-foreground\)\] {
+     color: var(--muted-foreground);
+   }
+@@ -6618,6 +6734,27 @@
+       }
+     }
+   }
++  .hover\:border-\[\#2954d6\] {
++    &:hover {
++      @media (hover: hover) {
++        border-color: #2954d6;
++      }
++    }
++  }
++  .hover\:border-\[\#b4c6e4\] {
++    &:hover {
++      @media (hover: hover) {
++        border-color: #b4c6e4;
++      }
++    }
++  }
++  .hover\:border-\[\#b9c8e4\] {
++    &:hover {
++      @media (hover: hover) {
++        border-color: #b9c8e4;
++      }
++    }
++  }
+   .hover\:border-\[\#e8dcff\] {
+     &:hover {
+       @media (hover: hover) {
+@@ -6852,6 +6989,13 @@
+       }
+     }
+   }
++  .hover\:bg-\[var\(--lp-primary-ink\)\] {
++    &:hover {
++      @media (hover: hover) {
++        background-color: var(--lp-primary-ink);
++      }
++    }
++  }
+   .hover\:bg-amber-100 {
+     &:hover {
+       @media (hover: hover) {
+@@ -7104,6 +7248,13 @@
+       }
+     }
+   }
++  .hover\:text-\[\#1f43af\] {
++    &:hover {
++      @media (hover: hover) {
++        color: #1f43af;
++      }
++    }
++  }
+   .hover\:text-\[\#4e18c9\] {
+     &:hover {
+       @media (hover: hover) {
+@@ -7118,6 +7269,13 @@
+       }
+     }
+   }
++  .hover\:text-\[\#152e7a\] {
++    &:hover {
++      @media (hover: hover) {
++        color: #152e7a;
++      }
++    }
++  }
+   .hover\:text-\[var\(--foreground\)\] {
+     &:hover {
+       @media (hover: hover) {
+@@ -7139,13 +7297,6 @@
+       }
+     }
+   }
+-  .hover\:text-primary-purple {
+-    &:hover {
+-      @media (hover: hover) {
+-        color: var(--color-primary-purple);
+-      }
+-    }
+-  }
+   .hover\:text-red-400 {
+     &:hover {
+       @media (hover: hover) {
+@@ -7276,6 +7427,14 @@
+       }
+     }
+   }
++  .hover\:shadow-\[0_8px_18px_-8px_rgba\(94\,23\,235\,0\.7\)\] {
++    &:hover {
++      @media (hover: hover) {
++        --tw-shadow: 0 8px 18px -8px var(--tw-shadow-color, rgba(94,23,235,0.7));
++        box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
++      }
++    }
++  }
+   .hover\:shadow-\[0_12px_22px_rgba\(127\,19\,236\,0\.24\)\] {
+     &:hover {
+       @media (hover: hover) {
+@@ -7570,6 +7729,21 @@
+       grid-template-columns: repeat(4, minmax(0, 1fr));
+     }
+   }
++  .sm\:flex-row {
++    @media (width >= 40rem) {
++      flex-direction: row;
++    }
++  }
++  .sm\:items-end {
++    @media (width >= 40rem) {
++      align-items: flex-end;
++    }
++  }
++  .sm\:justify-between {
++    @media (width >= 40rem) {
++      justify-content: space-between;
++    }
++  }
+   .sm\:gap-7 {
+     @media (width >= 40rem) {
+       gap: calc(var(--spacing) * 7);
+@@ -7595,6 +7769,11 @@
+       padding: calc(var(--spacing) * 8);
+     }
+   }
++  .sm\:p-9 {
++    @media (width >= 40rem) {
++      padding: calc(var(--spacing) * 9);
++    }
++  }
+   .sm\:p-10 {
+     @media (width >= 40rem) {
+       padding: calc(var(--spacing) * 10);
+@@ -7620,12 +7799,23 @@
+       padding-top: calc(var(--spacing) * 6);
+     }
+   }
++  .sm\:pt-12 {
++    @media (width >= 40rem) {
++      padding-top: calc(var(--spacing) * 12);
++    }
++  }
+   .sm\:text-3xl {
+     @media (width >= 40rem) {
+       font-size: var(--text-3xl);
+       line-height: var(--tw-leading, var(--text-3xl--line-height));
+     }
+   }
++  .sm\:text-5xl {
++    @media (width >= 40rem) {
++      font-size: var(--text-5xl);
++      line-height: var(--tw-leading, var(--text-5xl--line-height));
++    }
++  }
+   .sm\:text-base {
+     @media (width >= 40rem) {
+       font-size: var(--text-base);
+@@ -8056,14 +8246,14 @@
+       grid-template-columns: repeat(12, minmax(0, 1fr));
+     }
+   }
+-  .lg\:flex-row {
++  .lg\:grid-cols-\[1\.15fr_0\.85fr\] {
+     @media (width >= 64rem) {
+-      flex-direction: row;
++      grid-template-columns: 1.15fr 0.85fr;
+     }
+   }
+-  .lg\:items-center {
++  .lg\:flex-row {
+     @media (width >= 64rem) {
+-      align-items: center;
++      flex-direction: row;
+     }
+   }
+   .lg\:items-end {
+@@ -8166,6 +8356,11 @@
+       grid-template-columns: repeat(4, minmax(0, 1fr));
+     }
+   }
++  .xl\:grid-cols-5 {
++    @media (width >= 80rem) {
++      grid-template-columns: repeat(5, minmax(0, 1fr));
++    }
++  }
+   .xl\:grid-cols-\[320px_1fr\] {
+     @media (width >= 80rem) {
+       grid-template-columns: 320px 1fr;
+diff --git a/frontend/public/wel/index.html b/frontend/public/wel/index.html
+index 2815744..a6f642b 100644
+--- a/frontend/public/wel/index.html
++++ b/frontend/public/wel/index.html
+@@ -25,7 +25,7 @@ window.MathJax = window.MathJax || {
+ :root{--p:#6c27d6;--pg:rgba(108,39,214,.2);--pd:rgba(108,39,214,.09);
+   --bg:#f4f4f7;--sf:#fff;--brd:rgba(0,0,0,.07);--tx:#111118;--mu:#6b7280;--mu2:#9ca3af;
+   --sb:0px;--tb:52px;--cl:#2563eb;--cg:#059669;--cr:#dc2626;--ca:#d97706;--cpr:#7c3aed}
+-html,body{height:100%;overflow:hidden;font-family:'DM Sans','Noto Sans SC',sans-serif;font-size:13px;color:var(--tx);-webkit-font-smoothing:antialiased;background:var(--bg)}
++html,body{height:100%;overflow-x:hidden;overflow-y:auto;font-family:'DM Sans','Noto Sans SC',sans-serif;font-size:13px;color:var(--tx);-webkit-font-smoothing:antialiased;background:var(--bg)}
+ button{cursor:pointer;font:inherit}
+ .ms{font-family:'Material Symbols Rounded';font-variation-settings:'FILL' 1;line-height:1;vertical-align:middle}
+ .ms0{font-variation-settings:'FILL' 0}
+@@ -118,7 +118,7 @@ button{cursor:pointer;font:inherit}
+ .pbtn{border:1px solid var(--brd);background:#fff;color:var(--tx);padding:8px 13px;border-radius:8px;font-size:12px;font-weight:600}
+ .pbtn.pri{background:var(--p);color:#fff;border-color:var(--p)}
+ /* APP */
+-#app{position:fixed;inset:0;display:none;flex-direction:column}
++#app{position:relative;min-height:100vh;display:none;flex-direction:column}
+ #app.on{display:flex}
+ #tb{height:var(--tb);flex-shrink:0;background:rgba(255,255,255,.92);backdrop-filter:blur(16px);border-bottom:1px solid var(--brd);display:flex;align-items:center;z-index:100;padding:0 10px;gap:8px;overflow:visible}
+ .tb-logo{flex-shrink:0;display:flex;align-items:center;gap:8px;padding:0 14px;cursor:pointer;transition:all .15s;height:calc(100% - 12px);border:1px solid transparent;border-radius:11px}
+@@ -250,7 +250,7 @@ button{cursor:pointer;font:inherit}
+ .lsbt:hover{background:rgba(255,255,255,.95);color:var(--mu);border-color:rgba(0,0,0,.08)}.lsbt.on{background:white;color:var(--p);font-weight:700;border-color:rgba(108,39,214,.22);box-shadow:0 3px 10px rgba(108,39,214,.12)}
+ .lsbt .ms{font-size:11px}.lsnum{width:13px;height:13px;border-radius:50%;background:var(--brd);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:var(--mu2)}
+ .lsbt.on .lsnum{background:var(--pd);color:var(--p)}.lsarr{font-family:'Material Symbols Rounded';font-size:10px;color:var(--mu2);opacity:.35;flex-shrink:0}
+-.farea{flex:1;min-height:0;position:relative;overflow:hidden;background:white;border:1px solid rgba(0,0,0,.08);border-radius:14px;box-shadow:0 8px 24px rgba(15,23,42,.06)}
++.farea{flex:1;min-height:0;position:relative;overflow:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;background:white;border:1px solid rgba(0,0,0,.08);border-radius:14px;box-shadow:0 8px 24px rgba(15,23,42,.06)}
+ .pf{position:absolute;inset:0;width:100%;height:100%;border:none;display:none;background:white;border-radius:14px}
+ .pf.on{display:block}
+ .lbar{position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--p),#a855f7,#06b6d4,var(--p));background-size:200% 100%;animation:lba 1s linear infinite;z-index:9;display:none}
+diff --git "a/frontend/public/wel/pages/01 \351\246\226\351\241\265/code.html" "b/frontend/public/wel/pages/01 \351\246\226\351\241\265/code.html"
+index 9dc97e9..8676f78 100644
+--- "a/frontend/public/wel/pages/01 \351\246\226\351\241\265/code.html"	
++++ "b/frontend/public/wel/pages/01 \351\246\226\351\241\265/code.html"	
+@@ -218,28 +218,15 @@
+ </div>
+ </section>
+ </main>
+-<footer class="bg-white border-t border-slate-100 py-16 px-10">
+-<div class="max-w-[1400px] mx-auto flex flex-col md:flex-row justify-between items-center gap-12">
+-<div class="flex items-center gap-3">
+-<div class="relative w-6 h-6 flex items-center justify-center overflow-hidden">
+-<svg class="absolute w-full h-full fill-primary/80" viewBox="0 0 100 100">
+-<polygon points="50,10 90,80 10,80"></polygon>
+-</svg>
+-</div>
+-<div class="flex items-baseline">
+-<span class="text-xl font-bold text-slate-900 tracking-tight lowercase" style="">zhi</span>
+-<span class="text-xl font-bold text-primary sup-glow ml-0.5" style="">²</span>
+-</div>
+-</div>
+-<div class="flex flex-wrap justify-center gap-10 text-xs font-bold text-slate-400 uppercase tracking-widest">
+-<a class="hover:text-primary transition-colors" href="#" style="">技术文档</a>
+-<a class="hover:text-primary transition-colors" href="#" style="">研究报告</a>
+-<a class="hover:text-primary transition-colors" href="#" style="">隐私安全</a>
++<footer class="bg-white border-t border-slate-100 py-12 px-10">
++<div class="max-w-[1400px] mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
++<img src="/assets/jiahe-logo.png" alt="家和万事 服务家庭 智慧决策" class="h-[30px] w-auto object-contain" />
++<div class="flex flex-wrap justify-center gap-8 text-xs font-bold text-slate-500">
+ <a class="hover:text-primary transition-colors" href="#" style="">关于我们</a>
++<a class="hover:text-primary transition-colors" href="#" style="">联系合作</a>
++<a class="hover:text-primary transition-colors" href="#" style="">隐私政策</a>
++<a class="hover:text-primary transition-colors" href="#" style="">家长手册</a>
+ </div>
+-<div class="text-[10px] text-slate-400 font-bold tracking-widest uppercase" style="">
+-                    © 2024 wel CORE SYSTEMS. ALL RIGHTS RESERVED.
+-                </div>
+ </div>
+ </footer>
+ </div>
+diff --git a/frontend/src/App.tsx b/frontend/src/App.tsx
+index ad54162..4c38935 100644
+--- a/frontend/src/App.tsx
++++ b/frontend/src/App.tsx
+@@ -21,6 +21,7 @@ import AdminAgentsPage from "./pages/admin/AdminAgentsPage";
+ import AdminAgentsChatPage from "./pages/admin/AdminAgentsChatPage";
+ import AdminInboxPage from "./pages/admin/AdminInboxPage";
+ import ProgramListPage from "./pages/ProgramListPage";
++import LandingPage from "./pages/LandingPage";
+ 
+ const PublicScreenRouter: React.FC = () => {
+   const { pathname, search } = useLocation();
+@@ -28,15 +29,16 @@ const PublicScreenRouter: React.FC = () => {
+   const cacheBust = String(Date.now());
+ 
+   if (pathname === "/") {
+-    return <Navigate to="/programs" replace />;
++    return <LandingPage />;
+   }
+ 
+   if (pathname === "/programs") {
+-    return <ProgramListPage />;
++    const src = `/wel/index.html?page=61&v=${screenRev}&cb=${cacheBust}`;
++    return <ScreenPage src={src} title="播客列表（框架内）" />;
+   }
+ 
+   if (pathname === "/programs/list") {
+-    return <Navigate to={`${search ? `/programs${search}` : "/programs"}`} replace />;
++    return <ProgramListPage />;
+   }
+ 
+   if (/^\/programs\/[^/]+$/.test(pathname)) {
+diff --git a/frontend/src/components/AdminLayout.tsx b/frontend/src/components/AdminLayout.tsx
+index 19c761d..a1ab426 100644
+--- a/frontend/src/components/AdminLayout.tsx
++++ b/frontend/src/components/AdminLayout.tsx
+@@ -3,6 +3,11 @@ import { Outlet, Link, useLocation } from "react-router-dom";
+ 
+ const AdminLayout: React.FC = () => {
+   const location = useLocation();
++  const handleAdminLogout = () => {
++    localStorage.removeItem("token");
++    localStorage.removeItem("user");
++    window.location.href = "/admin/login";
++  };
+ 
+   const isActive = (path: string) => location.pathname === path;
+   const navItemClass = (active: boolean) =>
+@@ -35,52 +40,64 @@ const AdminLayout: React.FC = () => {
+     <div className="min-h-screen bg-[#FAF8F6] flex overflow-x-hidden">
+       {/* 侧边栏 */}
+       <aside className="w-64 bg-white border-r border-stone-200 fixed h-full">
+-        <div className="p-6 border-b border-stone-100">
+-          <Link to="/">
+-            <img alt="家长先疯" className="h-10 w-auto object-contain" src="/assets/logo.png" />
+-          </Link>
+-          <p className="text-xs text-stone-400 mt-1">管理控制台</p>
+-        </div>
+-        <nav className="p-3 pb-4 h-[calc(100%-97px)] overflow-y-auto space-y-1.5">
+-          <div className="space-y-1">
+-            {renderNavItem("/admin", "dashboard", "数据概览")}
++        <div className="flex h-full flex-col">
++          <div className="p-6 border-b border-stone-100">
++            <Link to="/">
++              <img alt="家长先疯" className="h-10 w-auto object-contain" src="/assets/logo.png" />
++            </Link>
++            <p className="text-xs text-stone-400 mt-1">管理控制台</p>
+           </div>
+-
+-          <section>
+-            <p className="px-1 mb-1.5 text-[11px] font-bold tracking-[0.08em] text-stone-400 uppercase">内容</p>
++          <nav className="flex-1 overflow-y-auto p-3 pb-4 space-y-1.5">
+             <div className="space-y-1">
+-              {renderNavItem("/admin/programs", "podcasts", "内容管理")}
+-              {renderNavItem("/admin/guests", "group", "先疯智库")}
+-              {renderNavItem("/admin/dictionary", "dictionary", "教育词典")}
+-              {renderNavItem("/admin/books", "menu_book", "书单管理")}
+-              {renderNavItem("/admin/materials", "school", "学习资料")}
++              {renderNavItem("/admin", "dashboard", "数据概览")}
+             </div>
+-          </section>
+ 
+-          <section>
+-            <p className="px-1 mb-1.5 text-[11px] font-bold tracking-[0.08em] text-stone-400 uppercase">用户</p>
+-            <div className="space-y-1">
+-              {renderNavItem("/admin/users", "group", "用户管理")}
+-              {renderNavItem("/admin/user-portrait", "monitoring", "用户画像")}
+-            </div>
+-          </section>
++            <section>
++              <p className="px-1 mb-1.5 text-[11px] font-bold tracking-[0.08em] text-stone-400 uppercase">内容</p>
++              <div className="space-y-1">
++                {renderNavItem("/admin/programs", "podcasts", "内容管理")}
++                {renderNavItem("/admin/guests", "group", "先疯智库")}
++                {renderNavItem("/admin/dictionary", "dictionary", "教育词典")}
++                {renderNavItem("/admin/books", "menu_book", "书单管理")}
++                {renderNavItem("/admin/materials", "school", "学习资料")}
++              </div>
++            </section>
+ 
+-          <section>
+-            <p className="px-1 mb-1.5 text-[11px] font-bold tracking-[0.08em] text-stone-400 uppercase">AI</p>
+-            <div className="space-y-1">
+-              {renderNavItem("/admin/agents", "smart_toy", "Agents")}
+-              {renderNavItem("/admin/multi-agents", "hub", "multi-agents")}
+-            </div>
+-          </section>
++            <section>
++              <p className="px-1 mb-1.5 text-[11px] font-bold tracking-[0.08em] text-stone-400 uppercase">用户</p>
++              <div className="space-y-1">
++                {renderNavItem("/admin/users", "group", "用户管理")}
++                {renderNavItem("/admin/user-portrait", "monitoring", "用户画像")}
++              </div>
++            </section>
+ 
+-          <section>
+-            <p className="px-1 mb-1.5 text-[11px] font-bold tracking-[0.08em] text-stone-400 uppercase">设置</p>
+-            <div className="space-y-1">
+-              {renderNavItem("/admin/inbox", "mail", "站内信")}
+-              {renderNavItem("/admin/system", "settings", "系统信息")}
+-            </div>
+-          </section>
+-        </nav>
++            <section>
++              <p className="px-1 mb-1.5 text-[11px] font-bold tracking-[0.08em] text-stone-400 uppercase">AI</p>
++              <div className="space-y-1">
++                {renderNavItem("/admin/agents", "smart_toy", "Agents")}
++                {renderNavItem("/admin/multi-agents", "hub", "multi-agents")}
++              </div>
++            </section>
++
++            <section>
++              <p className="px-1 mb-1.5 text-[11px] font-bold tracking-[0.08em] text-stone-400 uppercase">设置</p>
++              <div className="space-y-1">
++                {renderNavItem("/admin/inbox", "mail", "站内信")}
++                {renderNavItem("/admin/system", "settings", "系统信息")}
++              </div>
++            </section>
++          </nav>
++          <div className="border-t border-stone-100 p-3">
++            <button
++              type="button"
++              onClick={handleAdminLogout}
++              className="group flex w-full items-center gap-2 rounded-xl border border-transparent bg-white px-3 py-2 text-sm font-medium text-stone-600 transition-all duration-200 hover:border-[#5e17eb] hover:bg-[#5e17eb] hover:text-white hover:shadow-[0_8px_18px_-8px_rgba(94,23,235,0.7)]"
++            >
++              <span className="material-symbols-outlined text-[18px] text-stone-400 transition-colors group-hover:text-white">logout</span>
++              退出
++            </button>
++          </div>
++        </div>
+       </aside>
+ 
+       {/* 主内容区 */}
+diff --git a/frontend/src/components/PodcastChrome.tsx b/frontend/src/components/PodcastChrome.tsx
+index 3877b2f..369a798 100644
+--- a/frontend/src/components/PodcastChrome.tsx
++++ b/frontend/src/components/PodcastChrome.tsx
+@@ -122,24 +122,8 @@ export const PodcastSidebarSubscribe: React.FC = () => {
+ export const PodcastHomeFooter: React.FC = () => {
+   return (
+     <footer className="border-t border-[#e2e8f0] bg-white px-8 py-7">
+-      <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-8 lg:flex-row lg:items-center">
+-        <div className="flex flex-col items-center">
+-          <img alt="家和万事 服务家庭 智慧决策" className="h-[30px] w-auto object-contain" src="/assets/jiahe-logo.png" />
+-        </div>
+-        <div className="flex flex-wrap justify-center gap-8 text-xs font-bold text-[#64748b]">
+-          <a className="transition-all hover:text-[#5e17eb]" href="#">
+-            关于我们
+-          </a>
+-          <a className="transition-all hover:text-[#5e17eb]" href="#">
+-            联系合作
+-          </a>
+-          <a className="transition-all hover:text-[#5e17eb]" href="#">
+-            隐私政策
+-          </a>
+-          <a className="transition-all hover:text-[#5e17eb]" href="#">
+-            家长手册
+-          </a>
+-        </div>
++      <div className="mx-auto max-w-6xl text-center text-xs font-semibold text-[#94a3b8]">
++        © 2026 家长先疯. All rights reserved.
+       </div>
+     </footer>
+   );
+diff --git a/frontend/src/pages/ProgramListPage.tsx b/frontend/src/pages/ProgramListPage.tsx
+index e42487e..3c76f8a 100644
+--- a/frontend/src/pages/ProgramListPage.tsx
++++ b/frontend/src/pages/ProgramListPage.tsx
+@@ -1,5 +1,4 @@
+ import React, { useEffect, useState } from "react";
+-import { PodcastHomeFooter } from "../components/PodcastChrome";
+ 
+ const FALLBACK_COVER = "/assets/podcast-cover-1.svg";
+ 
+@@ -215,7 +214,7 @@ const ProgramListPage: React.FC = () => {
+   };
+ 
+   return (
+-    <div className="flex min-h-screen flex-col bg-[#f4f5f7] font-['Plus_Jakarta_Sans','PingFang_SC','Microsoft_YaHei',sans-serif] text-[#1a1a1b]">
++    <div className="min-h-screen bg-[#f4f5f7] font-['Plus_Jakarta_Sans','PingFang_SC','Microsoft_YaHei',sans-serif] text-[#1a1a1b]">
+       <style>{`
+         .magazine-card {
+           background: #ffffff;
+@@ -228,24 +227,10 @@ const ProgramListPage: React.FC = () => {
+           transform: translateY(-4px);
+           box-shadow: 0 20px 40px -15px rgba(94, 23, 235, 0.1);
+         }
+-        .custom-scrollbar::-webkit-scrollbar {
+-          width: 6px;
+-          height: 4px;
+-        }
+-        .custom-scrollbar::-webkit-scrollbar-track {
+-          background: #f4f5f7;
+-        }
+-        .custom-scrollbar::-webkit-scrollbar-thumb {
+-          background: #cbd5e1;
+-          border-radius: 10px;
+-        }
+-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+-          background: #5e17eb;
+-        }
+       `}</style>
+ 
+-      <main className="relative mx-auto flex w-full max-w-6xl flex-1 custom-scrollbar">
+-        <section className="flex-1 px-6 py-8 md:px-10 md:py-10">
++      <main className="relative mx-auto w-full max-w-6xl px-6 py-8 md:px-10 md:py-10">
++        <section>
+ 
+           <div className="space-y-8">
+             {loading ? (
+@@ -287,9 +272,7 @@ const ProgramListPage: React.FC = () => {
+             )}
+           </div>
+         </section>
+-
+       </main>
+-      <PodcastHomeFooter />
+     </div>
+   );
+ };
+diff --git a/frontend/src/pages/ScreenPage.tsx b/frontend/src/pages/ScreenPage.tsx
+index 3eedfe5..dcdbb07 100644
+--- a/frontend/src/pages/ScreenPage.tsx
++++ b/frontend/src/pages/ScreenPage.tsx
+@@ -7,6 +7,7 @@ type Props = {
+ 
+ const ScreenPage: React.FC<Props> = ({ src, title }) => {
+   const failSafeTimer = useRef<number | null>(null);
++  const syncTimer = useRef<number | null>(null);
+   const [activeSlot, setActiveSlot] = useState<0 | 1>(0);
+   const [srcSlots, setSrcSlots] = useState<[string, string]>([src, "about:blank"]);
+   const [loadingSlot, setLoadingSlot] = useState<0 | 1 | null>(0);
+@@ -67,6 +68,10 @@ const ScreenPage: React.FC<Props> = ({ src, title }) => {
+         window.clearTimeout(failSafeTimer.current);
+         failSafeTimer.current = null;
+       }
++      if (syncTimer.current) {
++        window.clearInterval(syncTimer.current);
++        syncTimer.current = null;
++      }
+     };
+   }, []);
+ 
+@@ -126,13 +131,76 @@ const ScreenPage: React.FC<Props> = ({ src, title }) => {
+   }, [loadingSlot]);
+ 
+   function onFrameLoad(slot: 0 | 1) {
+-    bindFrameNavigation(slot === 0 ? frame0Ref.current : frame1Ref.current);
++    const frame = slot === 0 ? frame0Ref.current : frame1Ref.current;
++    bindFrameNavigation(frame);
++    try {
++      const frameWindow = frame?.contentWindow;
++      const nextPathname = frameWindow?.location?.pathname || "";
++      const nextSearch = frameWindow?.location?.search || "";
++      const nextHash = frameWindow?.location?.hash || "";
++      if (nextPathname && shouldInterceptPath(nextPathname)) {
++        const nextPath = `${nextPathname}${nextSearch}${nextHash}`;
++        const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
++        if (nextPath !== currentPath) {
++          window.history.pushState({}, "", nextPath);
++          window.dispatchEvent(new PopStateEvent("popstate"));
++        }
++      }
++    } catch (_e) {}
+     if (loadingSlot === null) return;
+     if (slot !== loadingSlot) return;
+     setActiveSlot(slot);
+     setLoadingSlot(null);
+   }
+ 
++  function syncParentUrlFromFrame(frame: HTMLIFrameElement | null): void {
++    try {
++      const frameWindow = frame?.contentWindow;
++      if (!frameWindow) return;
++      const pathname = frameWindow.location.pathname || "";
++      const search = frameWindow.location.search || "";
++      const hash = frameWindow.location.hash || "";
++      let nextPath = "";
++
++      if (shouldInterceptPath(pathname)) {
++        nextPath = `${pathname}${search}${hash}`;
++      } else if (pathname === "/wel/index.html") {
++        const params = new URLSearchParams(search || "");
++        const page = String(params.get("page") || "").trim();
++        if (page === "61") {
++          nextPath = "/programs";
++        } else if (page === "podcast-detail") {
++          const programId = String(params.get("programId") || "").trim();
++          if (programId) nextPath = `/programs/${encodeURIComponent(programId)}`;
++        }
++      }
++
++      if (!nextPath) return;
++      const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
++      if (nextPath !== currentPath) {
++        window.history.pushState({}, "", nextPath);
++        window.dispatchEvent(new PopStateEvent("popstate"));
++      }
++    } catch (_e) {}
++  }
++
++  useEffect(() => {
++    if (syncTimer.current) {
++      window.clearInterval(syncTimer.current);
++      syncTimer.current = null;
++    }
++    syncTimer.current = window.setInterval(() => {
++      const frame = activeSlot === 0 ? frame0Ref.current : frame1Ref.current;
++      syncParentUrlFromFrame(frame);
++    }, 250);
++    return () => {
++      if (syncTimer.current) {
++        window.clearInterval(syncTimer.current);
++        syncTimer.current = null;
++      }
++    };
++  }, [activeSlot]);
++
+   return (
+     <main className="screen-shell relative" aria-label={title}>
+       <iframe
+diff --git a/frontend/src/pages/admin/AdminGuestsPage.tsx b/frontend/src/pages/admin/AdminGuestsPage.tsx
+index e8464df..706bbce 100644
+--- a/frontend/src/pages/admin/AdminGuestsPage.tsx
++++ b/frontend/src/pages/admin/AdminGuestsPage.tsx
+@@ -404,7 +404,15 @@ const AdminGuestsPage: React.FC = () => {
+                 <tr key={item._id}>
+                   <td className="px-6 py-4">
+                     <div className="flex items-center gap-3">
+-                      <img src={item.avatar || "/assets/podcast-cover-1.svg"} className="h-10 w-10 rounded-full object-cover" />
++                      <img
++                        src={item.avatar || "/assets/podcast-cover-1.svg"}
++                        className="h-10 w-10 rounded-full object-cover"
++                        onError={(event) => {
++                          const target = event.currentTarget;
++                          if (target.src.endsWith("/assets/podcast-cover-1.svg")) return;
++                          target.src = "/assets/podcast-cover-1.svg";
++                        }}
++                      />
+                       <div>
+                         <div className="text-sm font-bold text-stone-900">{item.name}</div>
+                         <div className="text-xs text-stone-500 line-clamp-1">{item.bio || "-"}</div>
+diff --git a/frontend/src/pages/admin/AdminProgramsPage.tsx b/frontend/src/pages/admin/AdminProgramsPage.tsx
+index 2af0e88..52f2d8e 100644
+--- a/frontend/src/pages/admin/AdminProgramsPage.tsx
++++ b/frontend/src/pages/admin/AdminProgramsPage.tsx
+@@ -346,16 +346,8 @@ function parseTranscript(raw: string): Program["transcript"] {
+     .filter(Boolean);
+ 
+   const parsed = lines
+-    .map((line) => {
+-      const [time, speaker, text, featured] = line.split("|").map((part) => part.trim());
+-      if (!time || !speaker || !text) return null;
+-      return {
+-        time,
+-        speaker,
+-        text,
+-        featured: featured === "featured" || featured === "1" || featured === "true",
+-      };
+-    })
++    .map((line) => parseTranscriptLine(line))
++    .filter((item) => item && item.time && item.speaker && item.text)
+     .filter(Boolean) as NonNullable<Program["transcript"]>;
+ 
+   return parsed.length > 0 ? parsed : undefined;
+@@ -448,17 +440,60 @@ function parseTranscriptRows(raw: string): TranscriptEditorRow[] {
+     .filter(Boolean);
+ 
+   return lines.map((line, index) => {
+-    const [time = "", speaker = "", text = "", featured = ""] = line.split("|").map((part) => part.trim());
++    const parsed = parseTranscriptLine(line);
+     return {
+       id: `${Date.now()}-${index}`,
+-      time,
+-      speaker,
+-      text,
+-      featured: featured === "featured" || featured === "1" || featured === "true",
++      time: parsed?.time || "",
++      speaker: parsed?.speaker || "",
++      text: parsed?.text || "",
++      featured: !!parsed?.featured,
+     };
+   });
+ }
+ 
++function parseTranscriptLine(rawLine: string): { time: string; speaker: string; text: string; featured: boolean } | null {
++  const parts = rawLine.split("|").map((part) => part.trim());
++  if (parts.length === 0) return null;
++
++  const lastToken = parts[parts.length - 1]?.toLowerCase();
++  const hasFeaturedSuffix = lastToken === "featured" || lastToken === "1" || lastToken === "true";
++  const bodyParts = hasFeaturedSuffix ? parts.slice(0, -1) : parts;
++  if (bodyParts.length === 0) return null;
++
++  if (bodyParts.length >= 3) {
++    const [timeRaw = "", speakerRaw = "", ...textParts] = bodyParts;
++    return {
++      time: timeRaw,
++      speaker: speakerRaw,
++      text: textParts.join("|").trim(),
++      featured: hasFeaturedSuffix,
++    };
++  }
++
++  if (bodyParts.length === 2) {
++    const [head = "", text = ""] = bodyParts;
++    const compact = head.replace(/\s+/g, "");
++    const match = compact.match(/^(\d{1,2}:\d{2}(?::\d{2})?-\d{1,2}:\d{2}(?::\d{2})?)(.*)$/);
++    if (match) {
++      const time = match[1] || "";
++      const speaker = (match[2] || "").trim() || "嘉宾";
++      return {
++        time,
++        speaker,
++        text,
++        featured: hasFeaturedSuffix,
++      };
++    }
++  }
++
++  return {
++    time: bodyParts[0] || "",
++    speaker: bodyParts[1] || "",
++    text: bodyParts.slice(2).join("|").trim(),
++    featured: hasFeaturedSuffix,
++  };
++}
++
+ function serializeTranscriptRows(rows: TranscriptEditorRow[]): string {
+   return rows
+     .map((row) => [row.time.trim(), row.speaker.trim(), row.text.trim(), row.featured ? "featured" : ""].filter(Boolean).join("|"))
+diff --git a/frontend/src/styles.css b/frontend/src/styles.css
+index 46513f1..25bb9b9 100644
+--- a/frontend/src/styles.css
++++ b/frontend/src/styles.css
+@@ -37,6 +37,12 @@ body {
+   color: var(--xf-text-main);
+ }
+ 
++html,
++body,
++#root {
++  background: #f4f5f7;
++}
++
+ a {
+   color: inherit;
+   text-decoration: none;
+@@ -118,7 +124,7 @@ textarea {
+ .screen-shell {
+   width: 100vw;
+   height: 100vh;
+-  background: #0b1020;
++  background: #f4f5f7;
+ }
+ 
+ .screen-frame {
+@@ -126,7 +132,7 @@ textarea {
+   width: 100%;
+   height: 100%;
+   border: 0;
+-  background: #0b1020;
++  background: #f4f5f7;
+ }
+ 
+ .admin-toolbar {

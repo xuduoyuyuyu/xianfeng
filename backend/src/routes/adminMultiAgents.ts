@@ -221,7 +221,18 @@ router.delete(["/multi-agents/:code", "/mgmt/agents/:code"], (req, res) => {
 
 function getPrompts(code: string) {
   const store = ensureStore(buildSeedStore);
-  return store.prompts[code] || { current: null, items: [] };
+  const bucket = store.prompts[code] || { current: null, items: [] };
+  const candidates = [bucket.current, ...(Array.isArray(bucket.items) ? bucket.items : [])].filter(Boolean);
+  const latest = [...candidates].sort((a: any, b: any) => {
+    const at = String(a?.created_at || "");
+    const bt = String(b?.created_at || "");
+    if (at !== bt) return bt.localeCompare(at);
+    return Number(b?.id || 0) - Number(a?.id || 0);
+  })[0] || null;
+  return {
+    current: latest,
+    items: (bucket.items || []).filter((x: any) => !latest || x?.id !== latest?.id),
+  };
 }
 
 router.get(["/multi-agents/:code/prompts", "/mgmt/agents/:code/prompts"], (req, res) => {

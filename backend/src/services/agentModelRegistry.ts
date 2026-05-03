@@ -48,8 +48,11 @@ export type Store = {
   model_registry: ModelRegistryItem[];
 };
 
-const STORE_DIR = path.join(process.cwd(), "data", "multi_agents");
+// Keep storage path stable regardless of process cwd.
+// Both tsx (src/*) and compiled dist/* resolve to backend/data/multi_agents.
+const STORE_DIR = path.resolve(__dirname, "..", "..", "data", "multi_agents");
 const STORE_FILE = path.join(STORE_DIR, "store.json");
+const LEGACY_STORE_FILE = path.join(process.cwd(), "data", "multi_agents", "store.json");
 
 const DEFAULT_MODEL_REGISTRY: ModelRegistryItem[] = [
   {
@@ -123,6 +126,13 @@ function migrateStore(parsed: any): Store {
 export function ensureStore(seedFactory: () => Omit<Store, "model_registry">): Store {
   fs.mkdirSync(STORE_DIR, { recursive: true });
   if (!fs.existsSync(STORE_FILE)) {
+    // One-time compatibility: migrate data from old cwd-based path if it exists.
+    if (fs.existsSync(LEGACY_STORE_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(LEGACY_STORE_FILE, "utf-8"));
+      const migrated = migrateStore(parsed);
+      fs.writeFileSync(STORE_FILE, JSON.stringify(migrated, null, 2), "utf-8");
+      return migrated;
+    }
     const seed = seedFactory();
     const full: Store = {
       ...seed,
@@ -151,7 +161,13 @@ export function saveStore(store: Store) {
 }
 
 export function resolveAgentModelConfig(agent: AgentRow, registry: ModelRegistryItem[]) {
-  const primary = registry.find((x) => x.id === agent.primary_model_id && x.enabled);
+  const primaryById = registry.find((x) => x.id === agent.primary_model_id && x.enabled);
+  const fallbackPrimary = !primaryById
+    ? registry
+        .filter((x) => x.enabled && x.provider === agent.model_provider && x.model_name === agent.model_name)
+        .sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || "")))[0]
+    : null;
+  const primary = primaryById || fallbackPrimary;
   const asr = registry.find((x) => x.id === agent.feature_models?.asr && x.enabled);
   const extract = registry.find((x) => x.id === agent.feature_models?.extract && x.enabled);
   return {

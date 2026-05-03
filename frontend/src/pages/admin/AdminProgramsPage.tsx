@@ -346,16 +346,8 @@ function parseTranscript(raw: string): Program["transcript"] {
     .filter(Boolean);
 
   const parsed = lines
-    .map((line) => {
-      const [time, speaker, text, featured] = line.split("|").map((part) => part.trim());
-      if (!time || !speaker || !text) return null;
-      return {
-        time,
-        speaker,
-        text,
-        featured: featured === "featured" || featured === "1" || featured === "true",
-      };
-    })
+    .map((line) => parseTranscriptLine(line))
+    .filter((item) => item && item.time && item.speaker && item.text)
     .filter(Boolean) as NonNullable<Program["transcript"]>;
 
   return parsed.length > 0 ? parsed : undefined;
@@ -448,15 +440,58 @@ function parseTranscriptRows(raw: string): TranscriptEditorRow[] {
     .filter(Boolean);
 
   return lines.map((line, index) => {
-    const [time = "", speaker = "", text = "", featured = ""] = line.split("|").map((part) => part.trim());
+    const parsed = parseTranscriptLine(line);
     return {
       id: `${Date.now()}-${index}`,
-      time,
-      speaker,
-      text,
-      featured: featured === "featured" || featured === "1" || featured === "true",
+      time: parsed?.time || "",
+      speaker: parsed?.speaker || "",
+      text: parsed?.text || "",
+      featured: !!parsed?.featured,
     };
   });
+}
+
+function parseTranscriptLine(rawLine: string): { time: string; speaker: string; text: string; featured: boolean } | null {
+  const parts = rawLine.split("|").map((part) => part.trim());
+  if (parts.length === 0) return null;
+
+  const lastToken = parts[parts.length - 1]?.toLowerCase();
+  const hasFeaturedSuffix = lastToken === "featured" || lastToken === "1" || lastToken === "true";
+  const bodyParts = hasFeaturedSuffix ? parts.slice(0, -1) : parts;
+  if (bodyParts.length === 0) return null;
+
+  if (bodyParts.length >= 3) {
+    const [timeRaw = "", speakerRaw = "", ...textParts] = bodyParts;
+    return {
+      time: timeRaw,
+      speaker: speakerRaw,
+      text: textParts.join("|").trim(),
+      featured: hasFeaturedSuffix,
+    };
+  }
+
+  if (bodyParts.length === 2) {
+    const [head = "", text = ""] = bodyParts;
+    const compact = head.replace(/\s+/g, "");
+    const match = compact.match(/^(\d{1,2}:\d{2}(?::\d{2})?-\d{1,2}:\d{2}(?::\d{2})?)(.*)$/);
+    if (match) {
+      const time = match[1] || "";
+      const speaker = (match[2] || "").trim() || "嘉宾";
+      return {
+        time,
+        speaker,
+        text,
+        featured: hasFeaturedSuffix,
+      };
+    }
+  }
+
+  return {
+    time: bodyParts[0] || "",
+    speaker: bodyParts[1] || "",
+    text: bodyParts.slice(2).join("|").trim(),
+    featured: hasFeaturedSuffix,
+  };
 }
 
 function serializeTranscriptRows(rows: TranscriptEditorRow[]): string {

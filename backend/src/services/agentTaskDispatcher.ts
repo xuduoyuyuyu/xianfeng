@@ -9,6 +9,7 @@ import Program from "../models/Program";
 import GuestModel from "../models/Guest";
 import { syncProgramDictionaryEntries } from "./educationDictionary";
 import { createInboxMessage } from "./adminInbox";
+import { ensureStore, resolveAgentModelConfig } from "./agentModelRegistry";
 
 type CreateTaskInput = {
   taskType: AgentTaskType;
@@ -22,6 +23,38 @@ type CreateTaskInput = {
 const POLL_MS = 1500;
 let pollTimer: NodeJS.Timeout | null = null;
 let working = false;
+
+const TASK_AGENT_MAP: Partial<Record<AgentTaskType, string>> = {
+  proofread_transcript: "textbook_structure_agent",
+  enrich_program_content: "knowledge_split_agent",
+  enrich_guest_profile: "user_agent",
+  generate_program_artwork: "question_quality_agent",
+};
+
+function getLatestPromptDoc(bucket: any): any | null {
+  const candidates = [bucket?.current, ...(Array.isArray(bucket?.items) ? bucket.items : [])].filter(Boolean);
+  if (!candidates.length) return null;
+  return [...candidates].sort((a: any, b: any) => {
+    const at = String(a?.created_at || "");
+    const bt = String(b?.created_at || "");
+    if (at !== bt) return bt.localeCompare(at);
+    return Number(b?.id || 0) - Number(a?.id || 0);
+  })[0] || null;
+}
+
+function resolveTaskConfig(taskType: AgentTaskType) {
+  const agentCode = TASK_AGENT_MAP[taskType] || "";
+  const store = ensureStore(() => ({ agents: [], prompts: {}, policies: {}, strategies: {}, runs: [] }));
+  const agent = store.agents.find((x: any) => x.agent_code === agentCode) || null;
+  const bucket = agentCode ? store.prompts?.[agentCode] : null;
+  const promptDoc = getLatestPromptDoc(bucket);
+  const model = agent ? resolveAgentModelConfig(agent as any, store.model_registry || []).primary : null;
+  return {
+    agentCode,
+    promptDoc,
+    model,
+  };
+}
 
 function asText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -449,6 +482,7 @@ export function extractCandidateTerms(rawText: string): string[] {
 }
 
 async function runProofreadTask(task: any) {
+  const taskConfig = resolveTaskConfig(task.taskType as AgentTaskType);
   const program = await Program.findById(task.targetId);
   if (!program) throw new Error("节目不存在");
 
@@ -530,11 +564,19 @@ async function runProofreadTask(task: any) {
     output: {
       correctedTranscript,
       report,
+      runtimeConfig: {
+        agent_code: taskConfig.agentCode,
+        prompt_version: asText(taskConfig.promptDoc?.version),
+        prompt_created_at: asText(taskConfig.promptDoc?.created_at),
+        model_provider: asText(taskConfig.model?.provider),
+        model_name: asText(taskConfig.model?.model_name),
+      },
     },
   };
 }
 
 async function runProgramEnrichmentTask(task: any) {
+  const taskConfig = resolveTaskConfig(task.taskType as AgentTaskType);
   const program = await Program.findById(task.targetId);
   if (!program) throw new Error("节目不存在");
 
@@ -613,11 +655,19 @@ async function runProgramEnrichmentTask(task: any) {
       suggestedGlossary,
       suggestedReadings,
       mergedGlossaryCount: nextGlossary.length,
+      runtimeConfig: {
+        agent_code: taskConfig.agentCode,
+        prompt_version: asText(taskConfig.promptDoc?.version),
+        prompt_created_at: asText(taskConfig.promptDoc?.created_at),
+        model_provider: asText(taskConfig.model?.provider),
+        model_name: asText(taskConfig.model?.model_name),
+      },
     },
   };
 }
 
 async function runGuestProfileTask(task: any) {
+  const taskConfig = resolveTaskConfig(task.taskType as AgentTaskType);
   const guest = await GuestModel.findById(task.targetId);
   if (!guest) throw new Error("嘉宾不存在");
 
@@ -697,11 +747,19 @@ async function runGuestProfileTask(task: any) {
       profileMarkdown: markdown,
       profileReferences: references,
       avatarCandidates,
+      runtimeConfig: {
+        agent_code: taskConfig.agentCode,
+        prompt_version: asText(taskConfig.promptDoc?.version),
+        prompt_created_at: asText(taskConfig.promptDoc?.created_at),
+        model_provider: asText(taskConfig.model?.provider),
+        model_name: asText(taskConfig.model?.model_name),
+      },
     },
   };
 }
 
 async function runProgramArtworkTask(task: any) {
+  const taskConfig = resolveTaskConfig(task.taskType as AgentTaskType);
   const program = await Program.findById(task.targetId);
   if (!program) throw new Error("节目不存在");
 
@@ -750,6 +808,13 @@ async function runProgramArtworkTask(task: any) {
       keyword,
       semanticCore: tags.length ? tags.slice(0, 6) : terms.slice(0, 6),
       parsedSignals,
+      runtimeConfig: {
+        agent_code: taskConfig.agentCode,
+        prompt_version: asText(taskConfig.promptDoc?.version),
+        prompt_created_at: asText(taskConfig.promptDoc?.created_at),
+        model_provider: asText(taskConfig.model?.provider),
+        model_name: asText(taskConfig.model?.model_name),
+      },
     },
   };
 }

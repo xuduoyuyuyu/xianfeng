@@ -37,6 +37,12 @@ body {
   color: var(--xf-text-main);
 }
 
+html,
+body,
+#root {
+  background: #f4f5f7;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -118,7 +124,7 @@ textarea {
 .screen-shell {
   width: 100vw;
   height: 100vh;
-  background: #0b1020;
+  background: #f4f5f7;
 }
 
 .screen-frame {
@@ -126,7 +132,7 @@ textarea {
   width: 100%;
   height: 100%;
   border: 0;
-  background: #0b1020;
+  background: #f4f5f7;
 }
 
 .admin-toolbar {
