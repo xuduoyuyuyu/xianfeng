@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
+import { ensureStore } from "./agentModelRegistry";
 
 type TranscriptSegment = {
   time: string;
@@ -65,6 +66,15 @@ type MetadataLlmConfig = {
   modelId: string;
   baseUrl: string;
   providerName: string;
+};
+
+type VolcengineRuntimeConfig = {
+  appId: string;
+  accessToken: string;
+  apiKey: string;
+  resourceIds: string[];
+  mode: string;
+  publicBaseUrl: string;
 };
 
 function asText(value: unknown): string {
@@ -877,17 +887,17 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
   private readonly mode: string;
   private readonly publicBaseUrl: string;
 
-  constructor() {
-    this.appId = asText(process.env.VOLCENGINE_APP_ID);
-    this.accessToken = asText(process.env.VOLCENGINE_ACCESS_TOKEN);
-    this.apiKey = asText(process.env.VOLCENGINE_API_KEY);
-    const envIds = asText(process.env.VOLCENGINE_RESOURCE_ID);
+  constructor(config?: Partial<VolcengineRuntimeConfig>) {
+    this.appId = asText(config?.appId) || asText(process.env.VOLCENGINE_APP_ID);
+    this.accessToken = asText(config?.accessToken) || asText(process.env.VOLCENGINE_ACCESS_TOKEN);
+    this.apiKey = asText(config?.apiKey) || asText(process.env.VOLCENGINE_API_KEY);
+    const envIds = asText(config?.resourceIds?.join(",")) || asText(process.env.VOLCENGINE_RESOURCE_ID);
     const parsedIds = (envIds ? envIds.split(",") : ["volc.bigasr.auc_turbo", "volc.bigasr.auc"])
       .map((item) => asText(item))
       .filter(Boolean);
     this.resourceIds = parsedIds.length > 0 ? parsedIds : ["volc.bigasr.auc_turbo", "volc.bigasr.auc"];
-    this.mode = asText(process.env.VOLCENGINE_MODE) || "auto";
-    this.publicBaseUrl = asText(process.env.VOLCENGINE_PUBLIC_BASE_URL) || asText(process.env.PUBLIC_BASE_URL);
+    this.mode = asText(config?.mode) || asText(process.env.VOLCENGINE_MODE) || "auto";
+    this.publicBaseUrl = asText(config?.publicBaseUrl) || asText(process.env.VOLCENGINE_PUBLIC_BASE_URL) || asText(process.env.PUBLIC_BASE_URL);
   }
 
   private detectFormat(filePath: string): string {
@@ -1202,7 +1212,65 @@ export function resolveProgramAiProvider(): ProgramAiProvider {
     return new MockProgramAiProvider();
   }
   if (provider === "volcengine" || provider === "volc") {
-    return new VolcengineProgramAiProvider();
+    return new VolcengineProgramAiProvider(resolveVolcengineConfigFromRegistry());
   }
   throw new Error(`不支持的 AI_PROVIDER: ${provider}`);
+}
+
+function metaText(meta: unknown, ...keys: string[]): string {
+  if (!meta || typeof meta !== "object") return "";
+  const obj = meta as Record<string, unknown>;
+  for (const key of keys) {
+    const value = asText(obj[key]);
+    if (value) return value;
+  }
+  return "";
+}
+
+function resolveVolcengineConfigFromRegistry(): Partial<VolcengineRuntimeConfig> {
+  try {
+    const store = ensureStore(() => ({
+      agents: [],
+      prompts: {},
+      policies: {},
+      strategies: {},
+      runs: [],
+    }));
+    const registry = Array.isArray(store?.model_registry) ? store.model_registry : [];
+    const enabledAsr = registry.filter(
+      (item: any) => item?.enabled && Array.isArray(item?.capabilities) && item.capabilities.includes("asr")
+    );
+    if (enabledAsr.length === 0) return {};
+
+    const referencedAsrIds = new Set(
+      (Array.isArray(store?.agents) ? store.agents : [])
+        .filter((agent: any) => agent?.status === "active")
+        .map((agent: any) => asText(agent?.feature_models?.asr))
+        .filter(Boolean)
+    );
+    const referencedAsr = enabledAsr.find((item: any) => referencedAsrIds.has(asText(item?.id)));
+    const selected = referencedAsr || enabledAsr[0];
+    if (!selected) return {};
+
+    const provider = asText(selected.provider).toLowerCase();
+    if (!provider.includes("volc") && !provider.includes("doubao") && !provider.includes("byte")) return {};
+
+    const idsFromMeta = metaText(selected.meta, "resource_ids", "resourceIds")
+      .split(",")
+      .map((item) => asText(item))
+      .filter(Boolean);
+    const modelId = asText(selected.model_name);
+    const resourceIds = [...idsFromMeta, modelId].filter(Boolean);
+
+    return {
+      apiKey: asText(selected.api_key),
+      appId: metaText(selected.meta, "app_id", "appId"),
+      accessToken: metaText(selected.meta, "access_token", "accessToken"),
+      resourceIds: resourceIds.length ? resourceIds : undefined,
+      mode: metaText(selected.meta, "mode"),
+      publicBaseUrl: metaText(selected.meta, "public_base_url", "publicBaseUrl"),
+    };
+  } catch (_error) {
+    return {};
+  }
 }
