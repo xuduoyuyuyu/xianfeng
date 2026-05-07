@@ -8,7 +8,7 @@ const API_BASE_URL = (import.meta.env.VITE_API_URL || '').trim();
 // 创建 axios 实例
 const api: AxiosInstance = axios.create({
   baseURL: `${API_BASE_URL}/api`,
-  timeout: 10000,
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -80,12 +80,60 @@ export interface Guest {
   profileUrl?: string;
   profileMarkdown?: string;
   profileReferences?: Array<{ title?: string; url: string; note?: string }>;
+  socialProfiles?: GuestSocialProfile[];
+  publications?: GuestPublication[];
   profileAvatarCandidates?: Array<{ url: string; label?: string; sourceUrl?: string }>;
   profileGeneratedAt?: string | null;
   status: "active" | "inactive";
   programCount?: number;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface GuestSocialProfile {
+  platform: string;
+  label: string;
+  url: string;
+  note?: string;
+  order?: number;
+  status?: "active" | "inactive";
+}
+
+export interface GuestPublication {
+  type: "paper" | "book" | "interview" | "media" | "other";
+  title: string;
+  url: string;
+  source?: string;
+  publishedAt?: string;
+  summary?: string;
+  note?: string;
+  order?: number;
+  status?: "active" | "inactive";
+}
+
+export interface PublicGuest {
+  _id: string;
+  name: string;
+  title: string;
+  bio: string;
+  avatar: string;
+  profileUrl?: string;
+  profileReferences?: Array<{ title?: string; url: string; note?: string }>;
+  socialProfiles?: GuestSocialProfile[];
+  publications?: GuestPublication[];
+  programCount?: number;
+  referenceCount?: number;
+}
+
+export interface PublicGuestDetail extends PublicGuest {
+  relatedPrograms: Array<{
+    _id: string;
+    programCode?: string;
+    title: string;
+    coverImage?: string;
+    publishedAt?: string | null;
+    summary?: string;
+  }>;
 }
 
 export interface GuestBoundProgram {
@@ -237,11 +285,17 @@ export interface Program {
 
 export interface Book {
   _id: string;
+  categoryLabel: string;
+  topic: string;
   title: string;
   author: string;
-  description: string;
+  translator: string;
+  publisher: string;
+  grade: string;
   coverImage: string;
-  category: string;
+  recommendedGuest: string;
+  sourceName?: string;
+  sourceGuestId?: string | { _id: string; name?: string; title?: string } | null;
   status: 'draft' | 'published';
   publishedAt?: string;
   createdAt: string;
@@ -269,6 +323,35 @@ export interface User {
   childGrade?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface UserPageStat {
+  pagePath: string;
+  pageTitle: string;
+  pv: number;
+  uv: number;
+  pc: number;
+  mobile: number;
+}
+
+export interface UserPortraitResponse {
+  stats: {
+    total: number;
+    admins: number;
+    users: number;
+    completed: number;
+    completionRate: number;
+    totalPageViews: number;
+    totalUv: number;
+    totalPcViews: number;
+  };
+  roleBreakdown: Array<{ label: string; count: number }>;
+  cityTop: Array<{ label: string; count: number }>;
+  gradeTop: Array<{ label: string; count: number }>;
+  regionTop: Array<{ label: string; count: number }>;
+  monthlyTrend: Array<{ month: string; count: number }>;
+  deviceBreakdown: Array<{ label: string; count: number }>;
+  pageStats: UserPageStat[];
 }
 
 export interface SystemInfo {
@@ -429,6 +512,10 @@ export const publicApi = {
   // 节目
   getPrograms: () => api.get<Program[]>('/programs'),
   getProgram: (id: string) => api.get<Program>(`/programs/${id}`),
+
+  // 嘉宾智库
+  getGuests: (params?: { search?: string }) => api.get<PublicGuest[]>('/guests', { params }),
+  getGuest: (id: string) => api.get<PublicGuestDetail>(`/guests/${id}`),
   
   // 书单
   getBooks: () => api.get<Book[]>('/books'),
@@ -553,6 +640,16 @@ export const adminApi = {
   deleteBook: (id: string) => api.delete(`/admin/books/${id}`),
   updateBookStatus: (id: string, status: 'draft' | 'published') => 
     api.patch<Book>(`/admin/books/${id}/status`, { status }),
+  importBooks: (data: {
+    rows: Array<Record<string, any>>;
+    sourceName?: string;
+    sourceGuestId?: string;
+    overwrite?: boolean;
+  }) => api.post<{ created: number; updated: number; skipped: number; total: number; skippedDetails?: Array<{ index: number; reason: string; title?: string; author?: string }> }>(
+    '/admin/books/import',
+    data,
+    { timeout: 120000 }
+  ),
   
   // 学习资料管理
   getMaterials: (status?: string) => api.get<LearningMaterial[]>('/admin/learning-materials', { params: { status } }),
@@ -564,6 +661,8 @@ export const adminApi = {
     api.patch<LearningMaterial>(`/admin/learning-materials/${id}/status`, { status }),
 
   getUsers: () => api.get<User[]>('/users'),
+  getUserPortrait: (params?: { role?: string; city?: string; grade?: string }) =>
+    api.get<UserPortraitResponse>("/users/portrait", { params }),
   createUser: (data: Partial<User> & { password: string }) => api.post<{ message: string; user: User }>('/users/register', data),
   updateUser: (id: string, data: Partial<User> & { password?: string }) => api.put<User>(`/users/${id}`, data),
   deleteUser: (id: string) => api.delete(`/users/${id}`),
@@ -585,6 +684,8 @@ export const userApi = {
   login: (username: string, password: string) => 
     api.post<LoginResponse>('/users/login', { username, password }),
   getMe: () => api.get<User>('/users/me'),
+  trackPageView: (data: { pagePath: string; pageTitle: string; sessionId: string; deviceType: string }) =>
+    api.post<{ ok: boolean; deduped?: boolean }>("/users/page-view", data),
   register: (username: string, password: string, role?: string) => 
     api.post('/users/register', { username, password, role }),
 };

@@ -1,0 +1,8 @@
+{
+  "name": "小玩子调试",
+  "description": "前台小玩子调试实例",
+  "persona": "",
+  "channels": {},
+  "model": "chat_manager_agent",
+  "auto_start": true
+}

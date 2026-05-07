@@ -21,7 +21,13 @@ import AdminAgentsPage from "./pages/admin/AdminAgentsPage";
 import AdminAgentsChatPage from "./pages/admin/AdminAgentsChatPage";
 import AdminInboxPage from "./pages/admin/AdminInboxPage";
 import ProgramListPage from "./pages/ProgramListPage";
+import ExpertsPage from "./pages/ExpertsPage";
+import ExpertDetailPage from "./pages/ExpertDetailPage";
 import LandingPage from "./pages/LandingPage";
+import MaterialsPage from "./pages/MaterialsPage";
+import BooksPage from "./pages/BooksPage";
+import PageViewTracker from "./components/PageViewTracker";
+import XiaowanziWidget from "./wel/components/XiaowanziWidget";
 
 const PublicScreenRouter: React.FC = () => {
   const { pathname, search } = useLocation();
@@ -33,7 +39,7 @@ const PublicScreenRouter: React.FC = () => {
   }
 
   if (pathname === "/programs") {
-    const src = `/wel/index.html?page=61&v=${screenRev}&cb=${cacheBust}`;
+    const src = `/wel/index.html?page=61&hideWidget=1&v=${screenRev}&cb=${cacheBust}`;
     return <ScreenPage src={src} title="播客列表（框架内）" />;
   }
 
@@ -48,15 +54,28 @@ const PublicScreenRouter: React.FC = () => {
     const exp = String(incoming.get("exp") || "").trim();
     const previewParams =
       preview && exp ? `&preview=${encodeURIComponent(preview)}&exp=${encodeURIComponent(exp)}` : "";
-    const src = `/wel/index.html?page=podcast-detail&programId=${encodeURIComponent(programId)}${previewParams}&v=${screenRev}&cb=${cacheBust}`;
+    const src = `/wel/index.html?page=podcast-detail&programId=${encodeURIComponent(programId)}${previewParams}&hideWidget=1&v=${screenRev}&cb=${cacheBust}`;
     return <ScreenPage src={src} title="播客详情（框架内）" />;
   }
 
+  if (pathname === "/experts") {
+    return <ExpertsPage />;
+  }
+
+  if (/^\/experts\/[^/]+$/.test(pathname)) {
+    return <ExpertDetailPage />;
+  }
+
+  if (pathname === "/materials") {
+    return <MaterialsPage />;
+  }
+
+  if (pathname === "/books") {
+    return <BooksPage />;
+  }
+
   const routeMap: Record<string, { src: string; title: string }> = {
-    "/books": { src: "/screens/public-books.html", title: "推荐书单" },
-    "/materials": { src: "/screens/public-materials.html", title: "课程资料" },
     "/articles": { src: "/screens/public-articles.html", title: "精选文稿" },
-    "/experts": { src: "/screens/public-experts.html", title: "专家采访" },
     "/community": { src: "/screens/public-community.html", title: "学习社区" },
   };
 
@@ -71,6 +90,15 @@ const PublicScreenRouter: React.FC = () => {
 
 const App: React.FC = () => {
   const dispatch = useDispatch();
+  const { pathname, search } = useLocation();
+  const searchParams = new URLSearchParams(search);
+  const hideWidget = searchParams.get("hideWidget") === "1" || searchParams.get("widgetOnly") === "1";
+
+  const shouldRenderGlobalXiaowanzi =
+    pathname !== "/" &&
+    pathname !== "/login" &&
+    !pathname.startsWith("/admin") &&
+    !hideWidget;
 
   useEffect(() => {
     if (localStorage.getItem("token")) {
@@ -79,34 +107,40 @@ const App: React.FC = () => {
   }, [dispatch]);
 
   return (
-    <Routes>
-      <Route path="/login" element={<UserLoginPage />} />
-      <Route path="/admin/login" element={<AdminLoginPage />} />
-      <Route
-        path="/admin"
-        element={
-          <RequireAdmin>
-            <AdminLayout />
-          </RequireAdmin>
-        }
-      >
-        <Route index element={<AdminDashboardPage />} />
-        <Route path="programs" element={<AdminProgramsPage />} />
-        <Route path="dictionary" element={<AdminDictionaryPage />} />
-        <Route path="guests" element={<AdminGuestsPage />} />
-        <Route path="books" element={<AdminBooksPage />} />
-        <Route path="materials" element={<AdminMaterialsPage />} />
-        <Route path="users" element={<AdminUsersPage />} />
-        <Route path="user-portrait" element={<AdminUserPortraitPage />} />
-        <Route path="system" element={<AdminSystemPage />} />
-        <Route path="agents" element={<AdminAgentsPage />} />
-        <Route path="agents/:botId/chat" element={<AdminAgentsChatPage />} />
-        <Route path="multi-agents" element={<AdminMultiAgentsPage />} />
-        <Route path="inbox" element={<AdminInboxPage />} />
-        <Route path="*" element={<Navigate to="/admin" replace />} />
-      </Route>
-      <Route path="*" element={<PublicScreenRouter />} />
-    </Routes>
+    <>
+      <div id="app-shell">
+        <PageViewTracker />
+        <Routes>
+          <Route path="/login" element={<UserLoginPage />} />
+          <Route path="/admin/login" element={<AdminLoginPage />} />
+          <Route
+            path="/admin"
+            element={
+              <RequireAdmin>
+                <AdminLayout />
+              </RequireAdmin>
+            }
+          >
+            <Route index element={<AdminDashboardPage />} />
+            <Route path="programs" element={<AdminProgramsPage />} />
+            <Route path="dictionary" element={<AdminDictionaryPage />} />
+            <Route path="guests" element={<AdminGuestsPage />} />
+            <Route path="books" element={<AdminBooksPage />} />
+            <Route path="materials" element={<AdminMaterialsPage />} />
+            <Route path="users" element={<AdminUsersPage />} />
+            <Route path="user-portrait" element={<AdminUserPortraitPage />} />
+            <Route path="system" element={<AdminSystemPage />} />
+            <Route path="agents" element={<AdminAgentsPage />} />
+            <Route path="agents/:botId/chat" element={<AdminAgentsChatPage />} />
+            <Route path="multi-agents" element={<AdminMultiAgentsPage />} />
+            <Route path="inbox" element={<AdminInboxPage />} />
+            <Route path="*" element={<Navigate to="/admin" replace />} />
+          </Route>
+          <Route path="*" element={<PublicScreenRouter />} />
+        </Routes>
+      </div>
+      {shouldRenderGlobalXiaowanzi ? <XiaowanziWidget /> : null}
+    </>
   );
 };
 

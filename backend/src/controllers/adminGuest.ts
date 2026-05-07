@@ -26,6 +26,117 @@ function normalizeBindingProgramIds(input: unknown): string[] {
   );
 }
 
+function normalizeProfileReferences(input: unknown) {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  return input
+    .map((item: any) => ({
+      title: asText(item?.title),
+      url: asText(item?.url),
+      note: asText(item?.note),
+    }))
+    .filter((item) => item.url)
+    .filter((item) => {
+      const key = `${item.title}::${item.url}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function normalizeContentStatus(value: unknown): "active" | "inactive" {
+  return value === "inactive" ? "inactive" : "active";
+}
+
+function normalizePublicationType(value: unknown): "paper" | "book" | "interview" | "media" | "other" {
+  const text = asText(value).toLowerCase();
+  if (text === "paper" || text === "book" || text === "interview" || text === "media" || text === "other") {
+    return text;
+  }
+  return "other";
+}
+
+function normalizeSocialProfiles(input: unknown) {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  return input
+    .map((item: any, index) => ({
+      platform: asText(item?.platform),
+      label: asText(item?.label),
+      url: asText(item?.url),
+      note: asText(item?.note),
+      order: Number(item?.order) || index + 1,
+      status: normalizeContentStatus(item?.status),
+    }))
+    .filter((item) => item.platform || item.label || item.url || item.note)
+    .map((item) => ({
+      ...item,
+      platform: item.platform || inferSocialPlatform(item.url),
+      label: item.label || item.platform || item.url,
+    }))
+    .filter((item) => {
+      const key = item.url ? item.url.toLowerCase() : `${item.platform}::${item.label}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => a.order - b.order)
+    .map((item, index) => ({ ...item, order: index + 1 }));
+}
+
+function normalizePublications(input: unknown) {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  return input
+    .map((item: any, index) => ({
+      type: normalizePublicationType(item?.type),
+      title: asText(item?.title),
+      url: asText(item?.url),
+      source: asText(item?.source),
+      publishedAt: asText(item?.publishedAt),
+      summary: asText(item?.summary),
+      note: asText(item?.note),
+      order: Number(item?.order) || index + 1,
+      status: normalizeContentStatus(item?.status),
+    }))
+    .filter((item) => item.title && item.url)
+    .filter((item) => {
+      const key = `${item.type}::${item.url.toLowerCase()}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => a.order - b.order)
+    .map((item, index) => ({ ...item, order: index + 1 }));
+}
+
+function inferSocialPlatform(url: string): string {
+  const value = url.toLowerCase();
+  if (value.includes("weibo.com")) return "微博";
+  if (value.includes("xiaohongshu.com")) return "小红书";
+  if (value.includes("mp.weixin.qq.com") || value.includes("wechat.com")) return "微信公众号";
+  if (value.includes("zhihu.com")) return "知乎";
+  if (value.includes("douyin.com")) return "抖音";
+  if (value.includes("bilibili.com")) return "Bilibili";
+  if (value.includes("x.com") || value.includes("twitter.com")) return "X";
+  if (value.includes("linkedin.com")) return "LinkedIn";
+  return "社交媒体";
+}
+
+function mapLegacyReferencesToPublications(profileReferences: Array<{ title?: string; url: string; note?: string }>) {
+  return normalizePublications(
+    profileReferences.map((item, index) => ({
+      type: "other",
+      title: asText(item?.title) || asText(item?.url),
+      url: asText(item?.url),
+      note: asText(item?.note),
+      summary: asText(item?.note),
+      order: index + 1,
+      status: "active",
+    }))
+  );
+}
+
 function normalizeProgramGuestBindings(bindings: any[], targetGuestId?: string) {
   const rows = Array.isArray(bindings) ? bindings : [];
   const sorted = rows
@@ -76,6 +187,12 @@ async function buildGuestProgramCountMap(guestIds: string[]): Promise<Map<string
 }
 
 function serializeGuest(guest: any, programCount = 0) {
+  const profileReferences = Array.isArray(guest.profileReferences) ? guest.profileReferences : [];
+  const socialProfiles = normalizeSocialProfiles(Array.isArray(guest.socialProfiles) ? guest.socialProfiles : []);
+  const publications =
+    normalizePublications(Array.isArray(guest.publications) ? guest.publications : []).length > 0
+      ? normalizePublications(Array.isArray(guest.publications) ? guest.publications : [])
+      : mapLegacyReferencesToPublications(profileReferences);
   return {
     _id: String(guest._id),
     name: guest.name || "",
@@ -85,7 +202,9 @@ function serializeGuest(guest: any, programCount = 0) {
     avatar: guest.avatar || "",
     profileUrl: guest.profileUrl || "",
     profileMarkdown: guest.profileMarkdown || "",
-    profileReferences: Array.isArray(guest.profileReferences) ? guest.profileReferences : [],
+    profileReferences,
+    socialProfiles,
+    publications,
     profileAvatarCandidates: Array.isArray(guest.profileAvatarCandidates) ? guest.profileAvatarCandidates : [],
     profileGeneratedAt: guest.profileGeneratedAt || null,
     status: guest.status === "inactive" ? "inactive" : "active",
@@ -151,9 +270,19 @@ export class AdminGuestController {
             ? asText(req.body?.profileMarkdown)
             : asText((existing as any)?.profileMarkdown);
         const nextProfileReferences = Array.isArray(req.body?.profileReferences)
-          ? req.body.profileReferences
+          ? normalizeProfileReferences(req.body.profileReferences)
           : Array.isArray((existing as any)?.profileReferences)
           ? (existing as any).profileReferences
+          : [];
+        const nextSocialProfiles = Array.isArray(req.body?.socialProfiles)
+          ? normalizeSocialProfiles(req.body.socialProfiles)
+          : Array.isArray((existing as any)?.socialProfiles)
+          ? normalizeSocialProfiles((existing as any).socialProfiles)
+          : [];
+        const nextPublications = Array.isArray(req.body?.publications)
+          ? normalizePublications(req.body.publications)
+          : Array.isArray((existing as any)?.publications)
+          ? normalizePublications((existing as any).publications)
           : [];
         const nextProfileAvatarCandidates = Array.isArray(req.body?.profileAvatarCandidates)
           ? req.body.profileAvatarCandidates
@@ -175,6 +304,8 @@ export class AdminGuestController {
             profileUrl: asText(req.body?.profileUrl),
             profileMarkdown: nextProfileMarkdown,
             profileReferences: nextProfileReferences,
+            socialProfiles: nextSocialProfiles,
+            publications: nextPublications,
             profileAvatarCandidates: nextProfileAvatarCandidates,
             profileGeneratedAt: nextProfileGeneratedAt,
             status: req.body?.status === "inactive" ? "inactive" : "active",
@@ -203,7 +334,9 @@ export class AdminGuestController {
         avatar: asText(req.body?.avatar),
         profileUrl: asText(req.body?.profileUrl),
         profileMarkdown: asText(req.body?.profileMarkdown),
-        profileReferences: Array.isArray(req.body?.profileReferences) ? req.body.profileReferences : [],
+        profileReferences: normalizeProfileReferences(req.body?.profileReferences),
+        socialProfiles: normalizeSocialProfiles(req.body?.socialProfiles),
+        publications: normalizePublications(req.body?.publications),
         profileAvatarCandidates: Array.isArray(req.body?.profileAvatarCandidates) ? req.body.profileAvatarCandidates : [],
         profileGeneratedAt: req.body?.profileGeneratedAt || null,
         status: req.body?.status === "inactive" ? "inactive" : "active",
@@ -236,7 +369,13 @@ export class AdminGuestController {
         payload.profileMarkdown = asText(req.body?.profileMarkdown);
       }
       if (Array.isArray(req.body?.profileReferences)) {
-        payload.profileReferences = req.body.profileReferences;
+        payload.profileReferences = normalizeProfileReferences(req.body.profileReferences);
+      }
+      if (Array.isArray(req.body?.socialProfiles)) {
+        payload.socialProfiles = normalizeSocialProfiles(req.body.socialProfiles);
+      }
+      if (Array.isArray(req.body?.publications)) {
+        payload.publications = normalizePublications(req.body.publications);
       }
       if (Array.isArray(req.body?.profileAvatarCandidates)) {
         payload.profileAvatarCandidates = req.body.profileAvatarCandidates;

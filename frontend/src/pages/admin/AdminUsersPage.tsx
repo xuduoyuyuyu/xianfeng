@@ -4,7 +4,7 @@ import { adminApi, User } from "../../services/api";
 import TopAlert from "../../components/TopAlert";
 import { RootState } from "../../store";
 
-type EditableUser = Pick<User, "_id" | "username" | "role" | "city" | "region" | "childGrade">;
+type EditableUser = Pick<User, "_id" | "username" | "role" | "city" | "region" | "childGrade" | "createdAt">;
 type UserModalMode = "create" | "edit" | null;
 
 type UserFormState = {
@@ -30,6 +30,19 @@ function normalizeString(value: unknown): string {
   return value;
 }
 
+function formatDateTime(value?: string): string {
+  if (!value) return "未知";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "未知";
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
 function toEditableUser(row: User): EditableUser {
   return {
     _id: row._id,
@@ -38,6 +51,7 @@ function toEditableUser(row: User): EditableUser {
     city: row.city,
     region: row.region,
     childGrade: row.childGrade,
+    createdAt: row.createdAt,
   };
 }
 
@@ -313,7 +327,7 @@ const AdminUsersPage: React.FC = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1120px] text-left">
+            <table className="w-full min-w-[1260px] text-left">
               <thead className="bg-white text-stone-500 uppercase text-[10px] font-black tracking-[0.2em]">
                 <tr>
                   <th className="px-6 py-4">用户名</th>
@@ -321,6 +335,7 @@ const AdminUsersPage: React.FC = () => {
                   <th className="px-6 py-4">城市</th>
                   <th className="px-6 py-4">区域</th>
                   <th className="px-6 py-4">孩子年级</th>
+                  <th className="px-6 py-4">注册时间</th>
                   <th className="px-6 py-4 text-right">操作</th>
                 </tr>
               </thead>
@@ -363,6 +378,9 @@ const AdminUsersPage: React.FC = () => {
                           placeholder="填写年级"
                           onChange={(event) => updateLocal(row._id, { childGrade: event.target.value })}
                         />
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-bold text-stone-900">{formatDateTime(row.createdAt)}</div>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">

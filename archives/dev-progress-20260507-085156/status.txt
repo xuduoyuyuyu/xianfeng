@@ -1,0 +1,50 @@
+ M backend/.env.example
+ M backend/Dockerfile
+ M backend/data/multi_agents/store.json
+ M backend/package-lock.json
+ M backend/package.json
+ M backend/src/controllers/adminGuest.ts
+ M backend/src/controllers/program.ts
+ M backend/src/controllers/user.ts
+ M backend/src/index.ts
+ M backend/src/models/Guest.ts
+ M backend/src/routes/adminProgram.ts
+ M backend/src/routes/adminSystem.ts
+ M backend/src/routes/user.ts
+ M backend/src/services/agentModelRegistry.ts
+ M backend/src/services/agentTaskDispatcher.test.ts
+ M backend/src/services/agentTaskDispatcher.ts
+ M backend/src/services/educationDictionary.test.ts
+ M backend/src/services/educationDictionary.ts
+ M backend/src/services/programAi.ts
+ M frontend/public/screens/admin.css
+ M frontend/public/screens/public.css
+ M "frontend/public/screens/\350\257\246\346\203\205\351\241\265\346\234\200\347\273\210\347\211\210.html"
+ M frontend/public/wel/admin.html
+ M frontend/public/wel/index.html
+ M frontend/src/App.tsx
+ M frontend/src/components/GlobalPublicNav.tsx
+ M frontend/src/pages/LandingPage.tsx
+ M frontend/src/pages/ProgramListPage.tsx
+ M frontend/src/pages/ScreenPage.tsx
+ M frontend/src/pages/admin/AdminGuestsPage.tsx
+ M frontend/src/pages/admin/AdminInboxPage.tsx
+ M frontend/src/pages/admin/AdminMultiAgentsPage.tsx
+ M frontend/src/pages/admin/AdminProgramsPage.tsx
+ M frontend/src/pages/admin/AdminUserPortraitPage.tsx
+ M frontend/src/pages/admin/AdminUsersPage.tsx
+ M frontend/src/services/api.ts
+ M frontend/src/styles.css
+ M frontend/src/wel/components/XiaowanziWidget.tsx
+?? archives/dev-progress-20260507-085156/
+?? backend/data/tutorbot/xiaowanzi_debug_bot/
+?? backend/data/xianfeng_guests_admin.json
+?? backend/scripts/import-remote-guests.cjs
+?? backend/scripts/import-remote-programs.cjs
+?? backend/src/controllers/guest.ts
+?? backend/src/models/UserPageVisit.ts
+?? backend/src/routes/guest.ts
+?? frontend/src/components/PageViewTracker.tsx
+?? frontend/src/pages/ExpertDetailPage.tsx
+?? frontend/src/pages/ExpertsPage.tsx
+?? frontend/src/wel/components/XiaowanziWidget.logic.ts

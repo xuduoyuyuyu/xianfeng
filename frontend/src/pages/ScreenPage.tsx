@@ -17,7 +17,7 @@ const ScreenPage: React.FC<Props> = ({ src, title }) => {
   const frame1Ref = useRef<HTMLIFrameElement | null>(null);
 
   function shouldInterceptPath(pathname: string): boolean {
-    return /^\/(programs(\/[^/]+)?|books|materials|articles|experts|community)$/.test(pathname);
+    return /^\/(programs(\/[^/]+)?|books|materials|articles|experts(\/[^/]+)?|community)$/.test(pathname);
   }
 
   function bindFrameNavigation(frame: HTMLIFrameElement | null): void {
@@ -169,6 +169,8 @@ const ScreenPage: React.FC<Props> = ({ src, title }) => {
         const page = String(params.get("page") || "").trim();
         if (page === "61") {
           nextPath = "/programs";
+        } else if (page === "63") {
+          nextPath = "/experts";
         } else if (page === "podcast-detail") {
           const programId = String(params.get("programId") || "").trim();
           if (programId) nextPath = `/programs/${encodeURIComponent(programId)}`;

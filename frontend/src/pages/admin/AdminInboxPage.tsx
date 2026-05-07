@@ -41,6 +41,24 @@ function getGeneratedCoverImage(payload: unknown): string {
   return url;
 }
 
+function getCoverPreviewUrl(rawUrl: string): string {
+  const text = rawUrl.trim();
+  if (!text) return "";
+  try {
+    const parsed = new URL(text);
+    const isLocalHost = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+    const currentHost = window.location.hostname;
+    const currentProtocol = window.location.protocol;
+    if (isLocalHost && currentHost && currentHost !== parsed.hostname) {
+      parsed.hostname = currentHost;
+      parsed.protocol = currentProtocol;
+    }
+    return parsed.toString();
+  } catch {
+    return text;
+  }
+}
+
 function renderWithLinks(text: string) {
   const parts = text.split(/(https?:\/\/[^\s"'`<>]+)/g);
   return parts.map((part, idx) => {
@@ -76,6 +94,10 @@ const AdminInboxPage: React.FC = () => {
   const selectedGeneratedCoverImage = useMemo(
     () => getGeneratedCoverImage(selected?.payload),
     [selected?.payload]
+  );
+  const selectedGeneratedCoverPreviewUrl = useMemo(
+    () => getCoverPreviewUrl(selectedGeneratedCoverImage),
+    [selectedGeneratedCoverImage]
   );
   const isGeneratedCoverDataImage = selectedGeneratedCoverImage.startsWith("data:image/");
 
@@ -249,27 +271,28 @@ const AdminInboxPage: React.FC = () => {
                   <div className="mb-3 rounded-xl border border-[#5e17eb]/20 bg-[#faf7ff] p-3">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-xs font-bold text-[#5e17eb]">检测到生成封面链接</p>
-                      <button
-                        type="button"
+                      <a
                         className="rounded-full border border-[#5e17eb]/30 bg-white px-3 py-1 text-[11px] font-bold text-[#5e17eb] hover:bg-[#f5edff]"
-                        onClick={() => window.open(selectedGeneratedCoverImage, "_blank", "noopener,noreferrer")}
+                        href={selectedGeneratedCoverPreviewUrl}
+                        target="_blank"
+                        rel="noreferrer noopener"
                       >
                         预览配图
-                      </button>
+                      </a>
                     </div>
                     {!isGeneratedCoverDataImage ? (
                       <a
-                        href={selectedGeneratedCoverImage}
+                        href={selectedGeneratedCoverPreviewUrl}
                         target="_blank"
                         rel="noreferrer noopener"
                         className="mt-2 block break-all rounded-lg bg-white px-2 py-1 font-mono text-[11px] text-[#5e17eb] underline decoration-[#5e17eb]/60 underline-offset-2"
                       >
-                        {selectedGeneratedCoverImage}
+                        {selectedGeneratedCoverPreviewUrl}
                       </a>
                     ) : null}
-                    {isGeneratedCoverDataImage ? (
+                    {selectedGeneratedCoverPreviewUrl ? (
                       <img
-                        src={selectedGeneratedCoverImage}
+                        src={selectedGeneratedCoverPreviewUrl}
                         alt="生成封面预览"
                         className="mt-3 max-h-[240px] rounded-lg border border-stone-200 bg-white object-contain"
                       />

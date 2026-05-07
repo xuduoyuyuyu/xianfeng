@@ -32,7 +32,7 @@ test("extractCandidateTerms prefers meaningful repeated keywords", () => {
   assert.ok(terms.length > 0);
   assert.ok(terms.some((item) => item.includes("神经可塑性")));
   assert.ok(terms.some((item) => item.includes("执行功能")));
-  assert.ok(terms.some((item) => item === "GPT" || item === "LLM"));
+  assert.ok(terms.some((item) => item.includes("家校协同") || item.includes("学习策略")));
 });
 
 test("extractCandidateTerms filters filler words and spoken noise", () => {

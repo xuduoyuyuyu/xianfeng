@@ -9,6 +9,7 @@ import path from "path";
 import programRoutes from "./routes/program";
 import bookRoutes from "./routes/book";
 import learningMaterialRoutes from "./routes/learningMaterial";
+import guestRoutes from "./routes/guest";
 import userRoutes from "./routes/user";
 import adminProgramRoutes from "./routes/adminProgram";
 import adminBookRoutes from "./routes/adminBook";
@@ -73,6 +74,7 @@ app.use(
 );
 
 app.use("/api/programs", programRoutes);
+app.use("/api/guests", guestRoutes);
 app.use("/api/books", bookRoutes);
 app.use("/api/learning-materials", learningMaterialRoutes);
 app.use("/api/users", userRoutes);

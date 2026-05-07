@@ -20,7 +20,7 @@ const upload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, uploadDir),
     filename: (_req, file, cb) => {
-      const ext = path.extname(file.originalname) || ".mp3";
+      const ext = (path.extname(file.originalname) || ".mp3").toLowerCase();
       cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 10)}${ext}`);
     },
   }),
@@ -39,7 +39,7 @@ const imageUpload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, imageUploadDir),
     filename: (_req, file, cb) => {
-      const ext = path.extname(file.originalname) || ".jpg";
+      const ext = (path.extname(file.originalname) || ".jpg").toLowerCase();
       cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 10)}${ext}`);
     },
   }),

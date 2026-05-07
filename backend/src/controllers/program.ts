@@ -2,16 +2,20 @@ import { Request, Response } from "express";
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
+import { execFile } from "child_process";
+import { promisify } from "util";
 import Program from "../models/Program";
 import GuestModel from "../models/Guest";
 import { resolveProgramAiProvider } from "../services/programAi";
 import mongoose from "mongoose";
-import { attachDictionaryEntriesToPrograms, removeProgramFromDictionary, syncProgramDictionaryEntries } from "../services/educationDictionary";
+import { attachDictionaryEntriesToPrograms, isHighQualityEducationTerm, removeProgramFromDictionary, syncProgramDictionaryEntries } from "../services/educationDictionary";
 import { buildShowNotesKeyMomentsText, getShowNotesDefaultTemplate, renderShowNotesTemplate, truncateByChars } from "../services/showNotes";
 import { isTransientAiGenerationFailure } from "../utils/aiFailure";
 import { AuthenticatedRequest } from "../middlewares/auth";
 import { createAgentTask } from "../services/agentTaskDispatcher";
 import { createInboxMessage } from "../services/adminInbox";
+
+const execFileAsync = promisify(execFile);
 
 function statusUpdatePayload(status: "draft" | "published") {
   if (status === "published") {
@@ -103,6 +107,17 @@ function buildProgramTitleFromSourceFileName(value: unknown): string {
     .replace(/\s+/g, " ")
     .trim();
   return truncateByChars(normalized, 80);
+}
+
+function resolvePublicBaseUrl(req: Request): string {
+  const configured = asText(process.env.VOLCENGINE_PUBLIC_BASE_URL) || asText(process.env.PUBLIC_BASE_URL);
+  if (configured) return configured.replace(/\/+$/, "");
+  const host = asText(req.get("host"));
+  if (!host) return `${req.protocol}://${host}`;
+  if (host.includes("localhost") || host.startsWith("127.0.0.1")) {
+    return `${req.protocol}://${host}`;
+  }
+  return `https://${host}`;
 }
 
 function parseClockToSeconds(value: unknown): number | null {
@@ -270,7 +285,16 @@ function sanitizeCuratedReading(input: unknown) {
       subtitle: asText(item?.subtitle),
       url: asText(item?.url),
     }))
-    .filter((item) => item.title);
+    .filter((item) => item.title)
+    .filter((item) => !/^延伸阅读：/.test(item.title))
+    .filter((item) => !/(概念词条与背景知识|概念入门与背景梳理)/.test(item.subtitle || ""))
+    .filter((item) => {
+      const url = item.url || "";
+      if (!url) return true;
+      if (url.includes("bing.com/search") || url.includes("google.com/search") || url.includes("baidu.com/s?")) return false;
+      if (url.includes("baike.baidu.com/item/") && /^延伸阅读：/.test(item.title)) return false;
+      return true;
+    });
 }
 
 function sanitizeTermGlossary(input: unknown) {
@@ -284,7 +308,8 @@ function sanitizeTermGlossary(input: unknown) {
         ? item.aliases.map((alias: unknown) => asText(alias)).filter(Boolean).slice(0, 12)
         : [],
     }))
-    .filter((item) => item.term && item.definition);
+    .filter((item) => item.term && item.definition)
+    .filter((item) => isHighQualityEducationTerm(item.term));
 }
 
 function sanitizeQuickView(input: unknown) {
@@ -578,6 +603,16 @@ function resolveLocalAudioPath(uploadedAudioUrl: string): string | null {
   return path.join(process.cwd(), "uploads", "audio", safeName);
 }
 
+function shouldTranscodeAudioForAsr(filePath: string): boolean {
+  // 已移除 ffmpeg 依赖，火山引擎支持多种音频格式直接处理
+  return false;
+}
+
+async function transcodeAudioToAsrMp3(filePath: string): Promise<string> {
+  // 已移除 ffmpeg 依赖，此函数不再使用
+  throw new Error("ffmpeg 转码功能已移除，请直接上传 mp3 格式或使用火山引擎支持的格式");
+}
+
 function ensureEpisodeFallbackOnAiFailure(payload: any, uploadedAudioUrl: string) {
   const firstEpisode = payload?.episodes?.[0] || {};
   const safeUrl = asText(firstEpisode.url) || asText(uploadedAudioUrl);
@@ -743,19 +778,24 @@ async function applyShowNotesRendering(payload: any, defaultTemplate?: string) {
     : fallbackKeyMoments;
   const guide = asText(showNotes.guide) || asText(next?.summary?.body);
   const guestName = asText(next?.guest?.name) || "节目特邀嘉宾";
-  const guestIntro = asText(showNotes.guestIntro) || `${guestName}，围绕本期主题提供实操经验与关键洞察。`;
+  const hasRenderableShowNotesContent = !!guide || keyMoments.length > 0 || !!asText(contentPack?.minutes?.text) || !!asText(showNotes.guestIntro);
+  const guestIntro = hasRenderableShowNotesContent
+    ? (asText(showNotes.guestIntro) || `${guestName}，围绕本期主题提供实操经验与关键洞察。`)
+    : "";
   const minutesText = asText(contentPack?.minutes?.text) || asText(next?.summary?.body);
   const templateOverride = asText(showNotes.templateOverride);
   const template = templateOverride || defaultTemplate || (await getShowNotesDefaultTemplate());
-  const renderedText = renderShowNotesTemplate({
-    template,
-    programTitle: asText(next?.title),
-    guestName,
-    guide,
-    guestIntro,
-    keyMomentsText: buildShowNotesKeyMomentsText(keyMoments),
-    minutes: minutesText,
-  });
+  const renderedText = hasRenderableShowNotesContent
+    ? renderShowNotesTemplate({
+        template,
+        programTitle: asText(next?.title),
+        guestName,
+        guide,
+        guestIntro,
+        keyMomentsText: buildShowNotesKeyMomentsText(keyMoments),
+        minutes: minutesText,
+      })
+    : "";
 
   next.contentPack = {
     ...contentPack,
@@ -774,7 +814,12 @@ async function applyShowNotesRendering(payload: any, defaultTemplate?: string) {
 }
 
 const parsingProgramIds = new Set<string>();
-const STALE_PARSE_TIMEOUT_MS = 30 * 60 * 1000;
+function getParseStaleTimeoutMs(): number {
+  const configured = Number(process.env.PARSE_STALE_TIMEOUT_MS);
+  if (Number.isFinite(configured) && configured >= 30 * 60 * 1000) return Math.floor(configured);
+  return 90 * 60 * 1000;
+}
+const STALE_PARSE_ERROR_MESSAGE = "解析任务超时未完成，已自动回收，请重新解析";
 
 function parseMetaPatch(
   status: "idle" | "parsing" | "success" | "failed",
@@ -817,6 +862,63 @@ function parseMetaPatch(
     parseProgress: 0,
     parseStage: "idle",
   };
+}
+
+function normalizeParseFailureMessage(message: string): string {
+  const raw = asText(message);
+  if (!raw) return "解析失败，请稍后重试";
+  if (/status code 502|bad gateway|gateway/i.test(raw)) {
+    return "上游语音服务暂时不可用（网关错误 502），请稍后重试";
+  }
+  if (/status code 503|service unavailable/i.test(raw)) {
+    return "上游语音服务暂时不可用（503），请稍后重试";
+  }
+  if (/status code 504|gateway timeout|timed out|timeout/i.test(raw)) {
+    return "上游语音服务响应超时（504），请稍后重试";
+  }
+  return raw;
+}
+
+function buildProgramSourceTextForDictionary(payload: any): string {
+  const transcriptText = Array.isArray(payload?.transcript)
+    ? payload.transcript.map((item: any) => asText(item?.text)).filter(Boolean).join("\n")
+    : "";
+  const title = asText(payload?.title);
+  const summaryBody = asText(payload?.summary?.body);
+  const quickViewText = Array.isArray(payload?.contentPack?.quickView)
+    ? payload.contentPack.quickView.map((item: any) => asText(item?.summary)).filter(Boolean).join("\n")
+    : "";
+  return [title, summaryBody, quickViewText, transcriptText].filter(Boolean).join("\n");
+}
+
+function isStaleParsingProgram(program: any, now = Date.now()): boolean {
+  if (!program || program.parseStatus !== "parsing") return false;
+  const id = asObjectIdText(program._id);
+  if (id && parsingProgramIds.has(id)) return false;
+  const parseStartedAt = program.parseStartedAt ? new Date(program.parseStartedAt).getTime() : 0;
+  if (!parseStartedAt || Number.isNaN(parseStartedAt)) return false;
+  return now - parseStartedAt >= getParseStaleTimeoutMs();
+}
+
+async function recycleStaleParsingPrograms(programs: any[]): Promise<void> {
+  if (!Array.isArray(programs) || !programs.length) return;
+  const now = Date.now();
+  const staleIds: mongoose.Types.ObjectId[] = [];
+  for (const program of programs) {
+    if (!isStaleParsingProgram(program, now)) continue;
+    const id = asObjectIdText(program._id);
+    if (!mongoose.Types.ObjectId.isValid(id)) continue;
+    staleIds.push(new mongoose.Types.ObjectId(id));
+    Object.assign(program, parseMetaPatch("failed", STALE_PARSE_ERROR_MESSAGE, 100, "failed"));
+  }
+  if (!staleIds.length) return;
+  await Program.updateMany(
+    {
+      _id: { $in: staleIds },
+      parseStatus: "parsing",
+    },
+    parseMetaPatch("failed", STALE_PARSE_ERROR_MESSAGE, 100, "failed")
+  );
 }
 
 function normalizeProgramForAiSource(
@@ -888,9 +990,10 @@ async function runAsyncParseTask(
         parsePatch,
       },
     }).catch(() => {});
-    if (payload.termGlossary !== undefined) {
-      await syncProgramDictionaryEntries(programId, payload.termGlossary, "ai_program");
-    }
+    const dictionarySourceText = buildProgramSourceTextForDictionary(payload);
+    await syncProgramDictionaryEntries(programId, payload.termGlossary, "ai_program", {
+      sourceText: dictionarySourceText,
+    });
     if (status === "success") {
       await createAgentTask({
         taskType: "proofread_transcript",
@@ -955,9 +1058,18 @@ async function tryAutoGenerate(
 
   try {
     const provider = resolveProgramAiProvider();
+    const transcribePath = localFilePath;
+    const sourceUrlForAsr: string | undefined = uploadedAudioUrl; // 始终保留 sourceUrl，支持 Standard 模式
     await onProgress?.(12, "transcribing");
-    console.log("[ai-program] start transcription", { localFilePath });
-    const transcription = await provider.transcribeAudio(localFilePath, { sourceUrl: uploadedAudioUrl });
+    console.log("[ai-program] start transcription", { transcribePath, sourceUrlForAsr: sourceUrlForAsr || "(local-only)" });
+    const transcription = await provider.transcribeAudio(transcribePath, {
+      sourceUrl: sourceUrlForAsr,
+      onProgress: async (progress, stage) => {
+        const normalizedStage = asText(stage) || "transcribing";
+        const safeProgress = Math.max(12, Math.min(60, Math.floor(progress)));
+        await onProgress?.(safeProgress, normalizedStage);
+      },
+    });
     await onProgress?.(62, "transcribed");
     console.log("[ai-program] transcription done", { segments: transcription.transcript.length });
     await onProgress?.(76, "extracting");
@@ -970,7 +1082,7 @@ async function tryAutoGenerate(
   } catch (error: any) {
     console.error("[ai-program] generation failed", error);
     const fallbackPayload = buildParseFailurePayload(payload, uploadedAudioUrl);
-    const message = asText(error?.message || "AI 生成失败");
+    const message = normalizeParseFailureMessage(asText(error?.message || "AI 生成失败"));
     return {
       payload: fallbackPayload,
       aiStatus: "failed",
@@ -1193,6 +1305,7 @@ export class ProgramController {
 
       if (!shouldUsePagination) {
         const programs = await Program.find(filter).sort({ updatedAt: -1 });
+        await recycleStaleParsingPrograms(programs as any[]);
         const attached = await attachDictionaryEntriesToPrograms(programs, true);
         const attachedGuests = await attachGuestBindingsToPrograms(attached);
         const template = await getShowNotesDefaultTemplate();
@@ -1215,6 +1328,7 @@ export class ProgramController {
       const total = await Program.countDocuments(finalFilter);
       const skip = (page - 1) * pageSize;
       const programs = await Program.find(finalFilter).sort({ updatedAt: -1 }).skip(skip).limit(pageSize);
+      await recycleStaleParsingPrograms(programs as any[]);
       const attached = await attachDictionaryEntriesToPrograms(programs, true);
       const attachedGuests = await attachGuestBindingsToPrograms(attached);
       const template = await getShowNotesDefaultTemplate();
@@ -1286,14 +1400,13 @@ export class ProgramController {
         return;
       }
       if (payload.status === "published" && !payload.publishedAt) {
-        // Keep original publish time for already published programs; only stamp when first publishing.
-        payload.publishedAt = existing.status === "published" ? existing.publishedAt || new Date() : new Date();
+        payload.publishedAt = new Date();
       }
       const program = new Program(payload);
       await program.save();
-      if (payload.termGlossary !== undefined) {
-        await syncProgramDictionaryEntries(String(program._id), payload.termGlossary, "ai_program");
-      }
+      await syncProgramDictionaryEntries(String(program._id), payload.termGlossary, "ai_program", {
+        sourceText: buildProgramSourceTextForDictionary(payload),
+      });
       const latestProgram = await Program.findById(program._id);
       if (!latestProgram) {
         res.status(500).json({ message: "节目创建成功，但读取结果失败" });
@@ -1344,9 +1457,9 @@ export class ProgramController {
         res.status(404).json({ message: "节目不存在" });
         return;
       }
-      if (payload.termGlossary !== undefined) {
-        await syncProgramDictionaryEntries(String(program._id), payload.termGlossary, "ai_program");
-      }
+      await syncProgramDictionaryEntries(String(program._id), payload.termGlossary, "ai_program", {
+        sourceText: buildProgramSourceTextForDictionary(payload),
+      });
       const latestProgram = await Program.findById(program._id);
       if (!latestProgram) {
         res.status(500).json({ message: "节目更新成功，但读取结果失败" });
@@ -1374,8 +1487,8 @@ export class ProgramController {
         res.status(400).json({ message: "请上传音频文件" });
         return;
       }
-      const host = `${req.protocol}://${req.get("host")}`;
-      const audioUrl = `${host}/uploads/audio/${file.filename}`;
+      const baseUrl = resolvePublicBaseUrl(req);
+      const audioUrl = `${baseUrl}/uploads/audio/${file.filename}`;
       const sourceFileName = asText(req.body?.sourceFileName);
       res.status(201).json({
         url: audioUrl,
@@ -1465,14 +1578,14 @@ export class ProgramController {
       if (program.parseStatus === "parsing" || parsingProgramIds.has(id)) {
         const parseStartedAt = program.parseStartedAt ? new Date(program.parseStartedAt).getTime() : 0;
         const now = Date.now();
-        const isStale = !parsingProgramIds.has(id) && parseStartedAt > 0 && now - parseStartedAt >= STALE_PARSE_TIMEOUT_MS;
+        const isStale = !parsingProgramIds.has(id) && parseStartedAt > 0 && now - parseStartedAt >= getParseStaleTimeoutMs();
         if (!isStale) {
           res.status(409).json({ message: "解析任务进行中，请稍后刷新状态", parseStatus: "parsing" });
           return;
         }
         await Program.findByIdAndUpdate(
           id,
-          parseMetaPatch("failed", "解析任务超时未完成，已自动回收，请重新解析", 100, "failed"),
+          parseMetaPatch("failed", STALE_PARSE_ERROR_MESSAGE, 100, "failed"),
           { new: false }
         );
       }
@@ -1535,6 +1648,14 @@ export class ProgramController {
       if (!program) {
         res.status(404).json({ message: "节目不存在" });
         return;
+      }
+      if (isStaleParsingProgram(program)) {
+        await Program.findByIdAndUpdate(
+          id,
+          parseMetaPatch("failed", STALE_PARSE_ERROR_MESSAGE, 100, "failed"),
+          { new: false }
+        );
+        Object.assign(program, parseMetaPatch("failed", STALE_PARSE_ERROR_MESSAGE, 100, "failed"));
       }
       res.status(200).json({
         programId: String(program._id),

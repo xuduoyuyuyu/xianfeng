@@ -186,6 +186,7 @@ button{cursor:pointer;font:inherit}
 .uc-av{width:20px;height:20px;border-radius:5px;background:linear-gradient(135deg,var(--p),#a855f7);display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:700}
 .uc-name{font-size:11.5px;font-weight:600}.uc-xp{font-size:10px;color:var(--mu);border-left:1px solid var(--brd);padding-left:6px}
 .appbody{flex:1;min-height:0;display:flex;overflow:hidden;padding:10px;gap:10px;background:linear-gradient(180deg,#f7f7fa 0%,#f2f3f8 100%)}
+body.page-podcast-shell .appbody{padding:0;gap:0}
 #sb{display:none}
 .sbsc{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:8px 6px}
 .sbsc::-webkit-scrollbar{width:3px}.sbsc::-webkit-scrollbar-thumb{background:var(--pd);border-radius:3px}
@@ -252,6 +253,8 @@ button{cursor:pointer;font:inherit}
 .lsbt.on .lsnum{background:var(--pd);color:var(--p)}.lsarr{font-family:'Material Symbols Rounded';font-size:10px;color:var(--mu2);opacity:.35;flex-shrink:0}
 .farea{flex:1;min-height:0;position:relative;overflow:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;background:white;border:1px solid rgba(0,0,0,.08);border-radius:14px;box-shadow:0 8px 24px rgba(15,23,42,.06)}
 .pf{position:absolute;inset:0;width:100%;height:100%;border:none;display:none;background:white;border-radius:14px}
+body.page-podcast-shell .farea{border:none;border-radius:0;box-shadow:none}
+body.page-podcast-shell .pf{border-radius:0}
 .pf.on{display:block}
 .lbar{position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--p),#a855f7,#06b6d4,var(--p));background-size:200% 100%;animation:lba 1s linear infinite;z-index:9;display:none}
 .lbar.on{display:block}@keyframes lba{0%{background-position:0%}100%{background-position:200%}}
@@ -814,6 +817,36 @@ body.page-zhongkao #ai-fab{
       bottom:132px!important;
     }
   }
+  html.widget-only,
+  body.widget-only{
+    background:transparent !important;
+    overflow:hidden !important;
+    pointer-events:none !important;
+  }
+  body.widget-only #auth,
+  body.widget-only #register-guide,
+  body.widget-only #app{
+    display:none !important;
+  }
+  body.widget-only #ai-fab{
+    display:flex !important;
+  }
+  body.widget-only #ai-fab,
+  body.widget-only #ai-panel,
+  body.widget-only #ai-panel *,
+  body.widget-only .ai-panel-backdrop{
+    pointer-events:auto !important;
+  }
+  body.widget-only .ai-panel-backdrop{
+    background:transparent !important;
+    backdrop-filter:none !important;
+    -webkit-backdrop-filter:none !important;
+  }
+  body.hide-widget #ai-fab,
+  body.hide-widget #ai-panel,
+  body.hide-widget .ai-panel-backdrop{
+    display:none !important;
+  }
 </style>
 </head>
 <body>
@@ -1093,6 +1126,7 @@ body.page-zhongkao #ai-fab{
 const PAGES = {
   0: {l:'今日学习',     s:'主控台',   path:'pages/16 学习中心首页/code.html'},
  61: {l:'Podcast 节目列表', s:'主控台', path:'/programs/list'},
+ 63: {l:'先疯智库', s:'主控台', path:'/experts'},
  62: {l:'Podcast 节目详情', s:'主控台', path:'/screens/详情页最终版.html'},
   1: {l:'知识地图',     s:'知识宇宙', path:'pages/03 知识地图 zhixi.ai_curriculum_hub_clear_mode_1/code.html'},
   3: {l:'资源中心',     s:'知识宇宙', path:'pages/05_textbook_hub/code.html'},
@@ -1126,8 +1160,12 @@ const PAGES = {
   52: {l:'教材详情',     s:'知识宇宙', path:'pages/06_textbook_detail/code.html'},
 };
 
+const WEL_SEARCH_PARAMS = new URLSearchParams(window.location.search || '');
+const WIDGET_ONLY_MODE = WEL_SEARCH_PARAMS.get('widgetOnly') === '1';
+const HIDE_WIDGET_MODE = WEL_SEARCH_PARAMS.get('hideWidget') === '1';
+
 const SB = {
-  '主控台': [{ id: 61, l: 'Podcast 节目列表', ic: 'podcasts' }],
+  '主控台': [{ id: 61, l: 'Podcast 节目列表', ic: 'podcasts' }, { id: 63, l: '先疯智库', ic: 'person' }],
 };
 
 const PILL = {'知识宇宙':'#dbeafe:#1d4ed8','学习中心':'#d1fae5:#065f46',
@@ -1508,6 +1546,9 @@ function extractPodcastGuests(detail) {
   const guests = [];
   const bindings = Array.isArray(detail?.guestBindings) ? detail.guestBindings : [];
   bindings.forEach((binding) => {
+    const role = String(binding?.role || '').trim().toLowerCase();
+    const isHost = role.includes('host') || role.includes('主播') || role.includes('主持');
+    if (isHost) return;
     const g = binding?.guest;
     if (!g) return;
     const name = String(g?.name || '').trim();
@@ -1532,6 +1573,33 @@ function extractPodcastGuests(detail) {
     const k = normalizeTermKey(g.name);
     if (!k || dedup.has(k)) return;
     dedup.set(k, g);
+  });
+  return Array.from(dedup.values());
+}
+
+function extractPodcastHosts(detail) {
+  const hosts = [];
+  const bindings = Array.isArray(detail?.guestBindings) ? detail.guestBindings : [];
+  bindings.forEach((binding) => {
+    const role = String(binding?.role || '').trim().toLowerCase();
+    const isHost = role.includes('host') || role.includes('主播') || role.includes('主持');
+    if (!isHost) return;
+    const g = binding?.guest;
+    if (!g) return;
+    const name = String(g?.name || '').trim();
+    if (!name) return;
+    hosts.push({
+      name,
+      title: String(g?.title || '').trim(),
+      bio: String(g?.bio || '').trim(),
+      profileUrl: String(g?.profileUrl || '').trim()
+    });
+  });
+  const dedup = new Map();
+  hosts.forEach(h => {
+    const k = normalizeTermKey(h.name);
+    if (!k || dedup.has(k)) return;
+    dedup.set(k, h);
   });
   return Array.from(dedup.values());
 }
@@ -1614,13 +1682,18 @@ async function aiPodcastGuestIntro() {
     return;
   }
   const guests = extractPodcastGuests(detail);
+  const hosts = extractPodcastHosts(detail);
   const title = String(detail?.title || '本期节目').trim();
-  if (!guests.length) {
+  if (!guests.length && !hosts.length) {
     addMsg('ai', `《${title}》暂无嘉宾资料。我可以改为基于节目摘要帮你提炼“观点人物画像”。`);
     return;
   }
-  const blocks = guests.map((g, i) => `**嘉宾${i + 1}：${g.name}**\n${g.title ? `身份：${g.title}\n` : ''}${g.bio ? `简介：${g.bio}\n` : ''}${g.profileUrl ? `更多：${g.profileUrl}` : ''}`.trim());
-  addMsg('ai', `已读取《${title}》嘉宾资料：\n\n${blocks.join('\n\n')}\n\n你可以继续问我：嘉宾观点和我当前学习场景怎么结合？`);
+  const guestBlocks = guests.map((g, i) => `**嘉宾${i + 1}：${g.name}**\n${g.title ? `身份：${g.title}\n` : ''}${g.bio ? `简介：${g.bio}\n` : ''}${g.profileUrl ? `更多：${g.profileUrl}` : ''}`.trim());
+  const hostBlocks = hosts.map((g, i) => `**主播${i + 1}：${g.name}**\n${g.title ? `身份：${g.title}\n` : ''}${g.bio ? `简介：${g.bio}\n` : ''}${g.profileUrl ? `更多：${g.profileUrl}` : ''}`.trim());
+  const sections = [];
+  if (guestBlocks.length) sections.push(`已读取《${title}》嘉宾资料：\n\n${guestBlocks.join('\n\n')}`);
+  if (hostBlocks.length) sections.push(`主播信息：\n\n${hostBlocks.join('\n\n')}`);
+  addMsg('ai', `${sections.join('\n\n')}\n\n你可以继续问我：嘉宾观点和我当前学习场景怎么结合？`);
 }
 
 async function aiPodcastExtendedReading() {
@@ -2719,8 +2792,10 @@ function go(id, extra={}) {
 function applyMobileFocusMode() {
   const isMobile = window.innerWidth <= 768;
   const isZhongkaoPage = curId === 30;
+  const isPodcastShellPage = curId === 61 || curId === 62;
   const focus = isMobile && isZhongkaoPage;
   document.body.classList.toggle('page-zhongkao', isZhongkaoPage);
+  document.body.classList.toggle('page-podcast-shell', isPodcastShellPage);
   document.body.classList.toggle('mobile-focus-zhongkao', focus);
 }
 
@@ -2732,6 +2807,32 @@ function buildNav() {
   const nav = $id('tb-nav');
   if (!nav) return;
   nav.innerHTML = '';
+
+  const directMainTabs = [
+    { id: 61, l: '节目列表', ic: 'podcasts' },
+    { id: 63, l: '先疯智库', ic: 'person' },
+  ];
+  directMainTabs.forEach((item) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'tb-nav-item';
+    const btn = document.createElement('button');
+    btn.className = 'tb-nav-btn' + (Number(curId) === Number(item.id) ? ' on' : '');
+    btn.dataset.s = '主控台';
+    btn.innerHTML = `<span class="ms">${item.ic}</span>${item.l}`;
+    btn.onclick = () => {
+      if (Number(item.id) === 61) {
+        window.top.location.href = '/programs';
+        return;
+      }
+      if (Number(item.id) === 63) {
+        window.top.location.href = '/experts';
+        return;
+      }
+      go(item.id);
+    };
+    wrap.appendChild(btn);
+    nav.appendChild(wrap);
+  });
 
   const SEC_ICONS = {
     '主控台':  'podcasts',
@@ -2755,6 +2856,7 @@ function buildNav() {
   };
 
   Object.entries(SB).forEach(([sec, items]) => {
+    if (sec === '主控台') return;
     const visibleItems = items.filter(item => !item.hidden);
     if (sec === '家长端' && !visibleItems.some(item => Number(item.id) === 30)) {
       visibleItems.push({ id: 30, l: '中考志愿', ic: 'fact_check' });
@@ -6539,6 +6641,7 @@ function toggleAI() {
     aiPanelMax = false;
     toggleTempSessionHistoryPanel(false);
     $id('ai-fab').style.transform = '';
+    emitWidgetOnlyState();
   } else {
     const oldIndex = getAvatarIndex();
     getNextAvatarIndex();
@@ -6553,6 +6656,7 @@ function toggleAI() {
     if (aiHistory.length === 0) aiGreet();
     setAIIdleStatus();
     setTimeout(() => positionAIOnOpen(), 60);
+    emitWidgetOnlyState();
   }
 }
 
@@ -6589,6 +6693,7 @@ function collapseAI() {
       btn.textContent = 'open_in_full';
     }
   }
+  emitWidgetOnlyState();
 }
 
 function toggleAIPanelSize() {
@@ -6610,6 +6715,21 @@ function toggleAIPanelSize() {
   }
   renderAIShortcuts();
   if (aiPanelMax) setTimeout(() => $id('aip-input')?.focus(), 50);
+  emitWidgetOnlyState();
+}
+
+function emitWidgetOnlyState() {
+  if (!WIDGET_ONLY_MODE) return;
+  try {
+    window.parent.postMessage(
+      {
+        type: 'wel_widget_state',
+        open: !!aiOpen,
+        maximized: !!aiPanelMax,
+      },
+      '*'
+    );
+  } catch (_e) {}
 }
 
 function aiGreet() {
@@ -7232,6 +7352,15 @@ document.addEventListener('keydown', e => {
 // BOOT
 // ═══════════════════════════════════════════════
 (async () => {
+  if (WIDGET_ONLY_MODE) {
+    document.documentElement.classList.add('widget-only');
+    document.body.classList.add('widget-only');
+    emitWidgetOnlyState();
+  }
+  if (HIDE_WIDGET_MODE) {
+    document.documentElement.classList.add('hide-widget');
+    document.body.classList.add('hide-widget');
+  }
   initTopProgramSearch();
   syncTopProgramSearch();
   // AI status check

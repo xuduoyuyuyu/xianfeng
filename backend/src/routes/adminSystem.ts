@@ -79,6 +79,19 @@ router.get("/system-info", authenticate, requireAdmin, async (_req, res) => {
             publicBaseUrl: process.env.VOLCENGINE_PUBLIC_BASE_URL || process.env.PUBLIC_BASE_URL || "",
             apiKeyPreview: envPreview("VOLCENGINE_API_KEY"),
             secretKeyPreview: envPreview("VOLCENGINE_SECRET_KEY"),
+            tosBridge: {
+              enabled:
+                hasEnv("VOLCENGINE_TOS_ACCESS_KEY_ID") &&
+                hasEnv("VOLCENGINE_TOS_ACCESS_KEY_SECRET") &&
+                hasEnv("VOLCENGINE_TOS_REGION") &&
+                hasEnv("VOLCENGINE_TOS_ENDPOINT") &&
+                hasEnv("VOLCENGINE_TOS_BUCKET"),
+              region: process.env.VOLCENGINE_TOS_REGION || "",
+              endpoint: process.env.VOLCENGINE_TOS_ENDPOINT || "",
+              bucketSet: hasEnv("VOLCENGINE_TOS_BUCKET"),
+              keyPrefix: process.env.VOLCENGINE_TOS_KEY_PREFIX || "program-audio",
+              signedUrlTtlSeconds: Number(process.env.VOLCENGINE_TOS_SIGNED_URL_TTL_SECONDS || 1800),
+            },
           },
         },
       },

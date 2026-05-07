@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import GlobalPublicNav from "../components/GlobalPublicNav";
 
 const FALLBACK_COVER = "/assets/podcast-cover-1.svg";
 
@@ -155,7 +156,7 @@ const ProgramListPage: React.FC = () => {
           }
         }}
       >
-        <article className="magazine-card group cursor-pointer rounded-[1.35rem] p-4 sm:p-7 xl:mx-auto xl:w-[896px]">
+        <article className="magazine-card group w-full cursor-pointer rounded-[1.35rem] p-4 sm:p-7">
           <div className="flex flex-col gap-4 sm:gap-7 xl:flex-row">
             <div className="w-full flex-shrink-0 xl:w-[294px]">
               <div className="relative w-full overflow-hidden rounded-xl shadow-md">
@@ -215,6 +216,14 @@ const ProgramListPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#f4f5f7] font-['Plus_Jakarta_Sans','PingFang_SC','Microsoft_YaHei',sans-serif] text-[#1a1a1b]">
+      <GlobalPublicNav
+        showSearch
+        showAiOnline
+        showLogout
+        showProgramList
+        showExpertsEntry
+        searchPlaceholder="搜索节目标题/简介"
+      />
       <style>{`
         .magazine-card {
           background: #ffffff;
@@ -229,7 +238,7 @@ const ProgramListPage: React.FC = () => {
         }
       `}</style>
 
-      <main className="relative mx-auto w-full max-w-6xl px-6 py-8 md:px-10 md:py-10">
+      <main className="relative mx-auto w-full max-w-7xl px-4 pb-16 pt-20 sm:px-6 sm:pt-22 lg:px-8 lg:pt-24">
         <section>
 
           <div className="space-y-8">

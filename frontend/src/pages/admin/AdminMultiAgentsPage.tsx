@@ -18,6 +18,44 @@ type AgentRow = {
   enable_web_search: boolean;
 };
 
+type AgentTaskStatus = "queued" | "running" | "succeeded" | "failed" | "canceled";
+
+type AgentTaskLogRow = {
+  id: string;
+  agent_code: string;
+  task_type: string;
+  target_type: string;
+  target_id: string;
+  status: AgentTaskStatus;
+  stage: string;
+  output_summary: string;
+  last_error: string;
+  finished_at: string;
+  created_at: string;
+};
+
+const TASK_AGENT_MAP: Record<string, string> = {
+  proofread_transcript: "textbook_structure_agent",
+  enrich_program_content: "knowledge_split_agent",
+  enrich_guest_profile: "question_quality_agent",
+  generate_program_artwork: "image",
+};
+
+const TASK_TYPE_LABEL: Record<string, string> = {
+  proofread_transcript: "文稿校对",
+  enrich_program_content: "节目资料收集",
+  enrich_guest_profile: "嘉宾资料收集",
+  generate_program_artwork: "节目配图生成",
+};
+
+const TASK_STATUS_LABEL: Record<AgentTaskStatus, string> = {
+  queued: "排队中",
+  running: "执行中",
+  succeeded: "成功",
+  failed: "失败",
+  canceled: "已取消",
+};
+
 const cardClass = "rounded-[2rem] border border-stone-200 bg-white p-6";
 const inputClass = "mt-1 w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-700 admin-form-input";
 const textareaClass = "w-full rounded-xl border border-stone-200 bg-stone-50 p-3 font-mono text-xs text-stone-700 admin-form-input";
@@ -51,7 +89,7 @@ const AdminMultiAgentsPage: React.FC = () => {
   });
   const [strategyRoute, setStrategyRoute] = useState("ai_chat");
   const [strategyJson, setStrategyJson] = useState("{}");
-  const [runs, setRuns] = useState<any[]>([]);
+  const [runs, setRuns] = useState<AgentTaskLogRow[]>([]);
 
   useEffect(() => {
     if (!toast) return;
@@ -122,9 +160,22 @@ const AdminMultiAgentsPage: React.FC = () => {
   }
 
   async function loadRuns() {
-    const res = await fetch(`${base}/api/admin/mgmt/agents/runs`, { headers: auth });
+    const res = await fetch(`${base}/api/admin/agent-tasks?limit=100`, { headers: auth });
     const data = await res.json();
-    setRuns(Array.isArray(data?.items) ? data.items : []);
+    const rows = Array.isArray(data?.items) ? data.items : [];
+    setRuns(rows.map((row: any) => ({
+      id: String(row?._id || ""),
+      agent_code: String(row?.output?.runtimeConfig?.agent_code || TASK_AGENT_MAP[String(row?.taskType || "")] || "-"),
+      task_type: String(row?.taskType || ""),
+      target_type: String(row?.targetType || ""),
+      target_id: String(row?.targetId || ""),
+      status: String(row?.status || "queued") as AgentTaskStatus,
+      stage: String(row?.stage || ""),
+      output_summary: String(row?.outputSummary || ""),
+      last_error: String(row?.lastError || ""),
+      finished_at: String(row?.finishedAt || ""),
+      created_at: String(row?.createdAt || ""),
+    })));
   }
 
   useEffect(() => {
@@ -136,6 +187,11 @@ const AdminMultiAgentsPage: React.FC = () => {
   }, [currentCode]);
 
   const current = useMemo(() => items.find((x) => x.agent_code === currentCode) || null, [items, currentCode]);
+  const currentRuns = useMemo(
+    () => runs.filter((row) => !currentCode || row.agent_code === currentCode),
+    [runs, currentCode]
+  );
+  const isArtworkAgent = currentCode === "image";
 
   const primaryOptions = useMemo(
     () => modelRegistry.filter((x) => x.enabled && (x.capabilities?.includes("chat") || x.capabilities?.includes("reasoning"))),
@@ -343,6 +399,28 @@ const AdminMultiAgentsPage: React.FC = () => {
               <section className={cardClass}>
                 <div className="mb-4 flex items-center justify-between"><h3 className="text-xl font-black text-stone-900">Prompt 版本</h3><button onClick={savePrompt} className="rounded-full bg-[#5e17eb] px-5 py-2 text-sm font-bold text-white hover:bg-[#5112d1]">发布新版本</button></div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2"><input placeholder="版本号（可选）" value={promptForm.version} onChange={(e) => setPromptForm({ ...promptForm, version: e.target.value })} className={inputClass} /><input placeholder="变更说明（可选）" value={promptForm.change_note} onChange={(e) => setPromptForm({ ...promptForm, change_note: e.target.value })} className={inputClass} /></div>
+                {isArtworkAgent ? (
+                  <div className="mt-3 rounded-xl border border-[#5e17eb]/15 bg-[#faf7ff] px-4 py-3 text-xs leading-6 text-stone-600">
+                    <div className="font-bold text-[#5e17eb]">节目配图 Prompt 说明</div>
+                    <div className="mt-1">
+                      当前节目配图会直接读取这里的 <code>prompt_template</code> 生成生图提示词。支持占位变量：
+                      <code>{" {{cover_size}}"}</code>
+                      <code>{" {{title}}"}</code>
+                      <code>{" {{focus_keywords}}"}</code>
+                      <code>{" {{keyword_csv}}"}</code>
+                      <code>{" {{semantic_core}}"}</code>
+                      <code>{" {{parsed_signals}}"}</code>
+                      <code>{" {{motif}}"}</code>
+                      <code>{" {{insight}}"}</code>
+                      <code>{" {{theme_element}}"}</code>
+                      <code>{" {{summary_text}}"}</code>
+                      <code>{" {{negative_prompt}}"}</code>。
+                    </div>
+                    <div className="mt-1">
+                      如果 <code>prompt_template</code> 是 JSON，对应的 <code>cover_size / unified_style / theme_element / full_prompt / negative_prompt</code> 会整体接管节目配图输出。
+                    </div>
+                  </div>
+                ) : null}
                 <textarea placeholder="System Prompt" value={promptForm.system_prompt} onChange={(e) => setPromptForm({ ...promptForm, system_prompt: e.target.value })} className={`mt-3 h-40 ${textareaClass}`} />
                 <textarea placeholder="Prompt Template" value={promptForm.prompt_template} onChange={(e) => setPromptForm({ ...promptForm, prompt_template: e.target.value })} className={`mt-3 h-28 ${textareaClass}`} />
                 <div className="mt-3 max-h-40 overflow-auto rounded-xl border border-stone-200 bg-stone-50 p-3">{promptHistory.length ? (promptHistory.map((p) => (<div key={p.id} className="border-b border-stone-200 py-2 text-xs text-stone-600 last:border-b-0"><span className="font-bold text-stone-800">{p.version}</span> · {p.change_note || ""}</div>))) : (<div className="text-xs text-stone-500">暂无历史</div>)}</div>
@@ -361,10 +439,46 @@ const AdminMultiAgentsPage: React.FC = () => {
               </section>
 
               <section className={cardClass}>
-                <h3 className="mb-3 text-xl font-black text-stone-900">运行日志</h3>
-                {runs.length ? (
-                  <div className="max-h-52 overflow-auto rounded-xl border border-stone-200"><table className="w-full text-xs"><thead><tr className="bg-stone-50 text-stone-600"><th className="p-2 text-left font-bold">trace</th><th className="p-2 text-left font-bold">route</th><th className="p-2 text-left font-bold">agent</th><th className="p-2 text-left font-bold">status</th></tr></thead><tbody className="divide-y divide-stone-100">{runs.map((r, i) => (<tr key={`${i}-${r.trace_id || ""}`}><td className="p-2 font-mono text-stone-600">{r.trace_id || "-"}</td><td className="p-2 text-stone-700">{r.route_key || "-"}</td><td className="p-2 text-stone-700">{r.agent_code || "-"}</td><td className="p-2 text-stone-700">{r.status || "-"}</td></tr>))}</tbody></table></div>
-                ) : (<div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 p-5 text-sm text-stone-500">暂无运行日志</div>)}
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h3 className="text-xl font-black text-stone-900">运行日志</h3>
+                  <div className="rounded-full bg-stone-100 px-3 py-1 text-xs font-bold text-stone-600">
+                    {current?.name || "当前 Agent"} · 独立日志
+                  </div>
+                </div>
+                {currentRuns.length ? (
+                  <div className="max-h-72 overflow-auto rounded-xl border border-stone-200">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-stone-50 text-stone-600">
+                          <th className="p-2 text-left font-bold">时间</th>
+                          <th className="p-2 text-left font-bold">Agent</th>
+                          <th className="p-2 text-left font-bold">任务</th>
+                          <th className="p-2 text-left font-bold">状态</th>
+                          <th className="p-2 text-left font-bold">工作记录</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-stone-100">
+                        {currentRuns.map((r) => {
+                          const agent = items.find((x) => x.agent_code === r.agent_code);
+                          const workLog = r.status === "failed" ? (r.last_error || "执行失败") : (r.output_summary || r.stage || "- ");
+                          return (
+                            <tr key={r.id || `${r.task_type}-${r.target_id}-${r.created_at}`}>
+                              <td className="p-2 text-stone-600">{(r.finished_at || r.created_at || "").replace("T", " ").slice(0, 19) || "-"}</td>
+                              <td className="p-2 text-stone-700">{agent?.name || r.agent_code || "-"}</td>
+                              <td className="p-2 text-stone-700">{TASK_TYPE_LABEL[r.task_type] || r.task_type || "-"}</td>
+                              <td className="p-2 text-stone-700">{TASK_STATUS_LABEL[r.status] || r.status || "-"}</td>
+                              <td className="p-2 text-stone-700">{workLog}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 p-5 text-sm text-stone-500">
+                    当前 Agent 暂无运行日志
+                  </div>
+                )}
               </section>
             </>
           )}

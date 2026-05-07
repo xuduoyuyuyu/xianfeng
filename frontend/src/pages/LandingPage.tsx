@@ -53,10 +53,9 @@ type LandingCaseItem = {
   updatedTs: number;
 };
 
-type CaseFilter = "all" | LandingCaseType;
-
 const FALLBACK_COVER = "/assets/podcast-cover-1.svg";
-const CASE_PAGE_SIZE = 6;
+const CASE_PAGE_SIZE = 8;
+const CASE_MAX_PROGRAMS = 8;
 
 const fallbackCases: LandingCaseItem[] = [
   {
@@ -239,7 +238,7 @@ function buildProgramCase(item: ProgramItem): LandingCaseItem {
     summary: toText(item.description) || "暂无节目摘要，点击查看完整内容。",
     tags: tags.length ? tags : ["节目案例"],
     href: routeId ? `/programs/${encodeURIComponent(routeId)}` : "/programs",
-    cover: toText(item.coverImage) || FALLBACK_COVER,
+    cover: toText(item.coverImage) || undefined,
     score,
     updatedTs: toTimestamp(item.publishedAt, item.updatedAt, item.createdAt),
   };
@@ -281,11 +280,16 @@ function buildMaterialCase(item: MaterialItem): LandingCaseItem {
 }
 
 const LandingPage: React.FC = () => {
-  const [items, setItems] = useState<LandingCaseItem[]>(fallbackCases);
+  const [items, setItems] = useState<LandingCaseItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [caseFilter, setCaseFilter] = useState<CaseFilter>("all");
   const [activeTag, setActiveTag] = useState<string>("all");
-  const [visibleCount, setVisibleCount] = useState(12);
+  const [visibleCount, setVisibleCount] = useState(CASE_MAX_PROGRAMS);
+  const [stats, setStats] = useState({
+    programCount: 0,
+    bookCount: 0,
+    materialCount: 0,
+    totalCount: 0,
+  });
 
   useEffect(() => {
     let disposed = false;
@@ -303,24 +307,30 @@ const LandingPage: React.FC = () => {
       const books = bookRes.status === "fulfilled" && Array.isArray(bookRes.value) ? (bookRes.value as BookItem[]) : [];
       const materials = materialRes.status === "fulfilled" && Array.isArray(materialRes.value) ? (materialRes.value as MaterialItem[]) : [];
 
-      const merged = [
-        ...programs.map((item) => buildProgramCase(item)),
-        ...books.map((item) => buildBookCase(item)),
-        ...materials.map((item) => buildMaterialCase(item)),
-      ];
-
-      const sorted = merged
+      const sortedPrograms = programs
+        .map((item) => buildProgramCase(item))
         .sort((a, b) => b.score + b.updatedTs / 1e10 - (a.score + a.updatedTs / 1e10))
-        .slice(0, 36);
+        .slice(0, CASE_MAX_PROGRAMS);
 
-      const hasContent = sorted.length >= 6;
-      setItems(hasContent ? sorted : fallbackCases);
+      setItems(sortedPrograms);
+      setStats({
+        programCount: programs.length,
+        bookCount: books.length,
+        materialCount: materials.length,
+        totalCount: programs.length + books.length + materials.length,
+      });
       setLoading(false);
     }
 
     loadCases().catch(() => {
       if (disposed) return;
-      setItems(fallbackCases);
+      setItems([]);
+      setStats({
+        programCount: 0,
+        bookCount: 0,
+        materialCount: 0,
+        totalCount: 0,
+      });
       setLoading(false);
     });
 
@@ -328,18 +338,6 @@ const LandingPage: React.FC = () => {
       disposed = true;
     };
   }, []);
-
-  const stats = useMemo(() => {
-    const programCount = items.filter((item) => item.type === "program").length;
-    const bookCount = items.filter((item) => item.type === "book").length;
-    const materialCount = items.filter((item) => item.type === "material").length;
-    return {
-      programCount,
-      bookCount,
-      materialCount,
-      totalCount: items.length,
-    };
-  }, [items]);
 
   const tags = useMemo(() => {
     const bucket = new Map<string, number>();
@@ -357,19 +355,16 @@ const LandingPage: React.FC = () => {
   }, [items]);
 
   const filteredItems = useMemo(() => {
-    const byType = caseFilter === "all" ? items : items.filter((item) => item.type === caseFilter);
-    const byTag =
-      activeTag === "all"
-        ? byType
-        : byType.filter((item) => item.tags.some((tag) => normalizeTag(tag) === normalizeTag(activeTag)));
-    return byTag;
-  }, [items, caseFilter, activeTag]);
+    return activeTag === "all"
+      ? items
+      : items.filter((item) => item.tags.some((tag) => normalizeTag(tag) === normalizeTag(activeTag)));
+  }, [items, activeTag]);
 
   const visibleItems = useMemo(() => filteredItems.slice(0, visibleCount), [filteredItems, visibleCount]);
 
   useEffect(() => {
-    setVisibleCount(12);
-  }, [caseFilter, activeTag]);
+    setVisibleCount(CASE_MAX_PROGRAMS);
+  }, [activeTag]);
 
   const capabilityCards = [
     {
@@ -526,6 +521,8 @@ const LandingPage: React.FC = () => {
         showLogout={false}
         showProgramList={false}
         showProgramEntry={false}
+        showExpertsEntry={false}
+        showMaterialsEntry={false}
         compactMobile
       />
 
@@ -546,8 +543,9 @@ const LandingPage: React.FC = () => {
                 </p>
                 <div className="mt-7 flex flex-col gap-3 sm:flex-row">
                   <a
-                    href="/programs"
+                    href="/programs/list"
                     className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--lp-primary)] px-6 text-sm font-black text-white transition hover:bg-[var(--lp-primary-ink)]"
+                    style={{ color: "#fff" }}
                   >
                     立即收听节目
                   </a>
@@ -610,7 +608,7 @@ const LandingPage: React.FC = () => {
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-2xl font-black sm:text-3xl">参考案例矩阵</h2>
-              <p className="mt-2 text-sm text-[#63718a]">基于当前测试数据实时聚合：节目、书单、资料三类内容。</p>
+              <p className="mt-2 text-sm text-[#63718a]">优先展示真实已发布节目内容，最多展示 8 条，便于快速浏览和进入详情。</p>
             </div>
             <a className="text-sm font-bold text-[#1f43af] hover:text-[#152e7a]" href="/programs">
               进入完整内容库 →
@@ -619,24 +617,6 @@ const LandingPage: React.FC = () => {
 
           <div className="panel rounded-3xl p-4 sm:p-6">
             <div className="flex gap-2 overflow-x-auto pb-2">
-              {[
-                { key: "all", label: "混合精选" },
-                { key: "program", label: "节目案例" },
-                { key: "book", label: "书单案例" },
-                { key: "material", label: "资料案例" },
-              ].map((item) => (
-                <button
-                  key={item.key}
-                  type="button"
-                  className={`chip-btn ${caseFilter === item.key ? "on" : ""}`}
-                  onClick={() => setCaseFilter(item.key as CaseFilter)}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="mt-3 flex gap-2 overflow-x-auto pb-2">
               <button type="button" className={`chip-btn ${activeTag === "all" ? "on" : ""}`} onClick={() => setActiveTag("all")}>
                 全部标签
               </button>
@@ -662,7 +642,7 @@ const LandingPage: React.FC = () => {
                   ) : null}
                   <div className="flex flex-1 flex-col p-5">
                     <div className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.13em] text-[#1f43af]">
-                      {item.type === "program" ? "Program" : item.type === "book" ? "Booklist" : "Material"}
+                      节目案例
                     </div>
                     <h3 className="line-clamp-2 text-lg font-black text-[#24314a]">{item.title}</h3>
                     <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#5f6f89]">{item.summary}</p>
@@ -678,7 +658,7 @@ const LandingPage: React.FC = () => {
               ))}
             </div>
 
-            {filteredItems.length === 0 ? <p className="mt-4 text-sm text-[#6c7a93]">当前筛选下暂无内容，请切换分类或标签。</p> : null}
+            {filteredItems.length === 0 ? <p className="mt-4 text-sm text-[#6c7a93]">当前暂无可展示的真实节目内容。</p> : null}
 
             {visibleCount < filteredItems.length ? (
               <div className="mt-6 flex justify-center">
@@ -693,16 +673,6 @@ const LandingPage: React.FC = () => {
             ) : null}
 
             {loading ? <p className="mt-4 text-sm text-[#6c7a93]">正在加载案例内容...</p> : null}
-          </div>
-        </section>
-
-        <section className="landing-block">
-          <div className="panel rounded-3xl p-6 sm:p-9">
-            <h2 className="text-2xl font-black sm:text-3xl">关于我们</h2>
-            <p className="mt-4 text-sm leading-7 text-[#5f6f89] sm:text-base">
-              《家长先疯》由“家和万事”团队出品，秉持“服务家庭，智慧决策”的宗旨。我们希望通过优质内容和专业判断，
-              为家长在关键选择上提供真实、可靠、可落地的参考。
-            </p>
           </div>
         </section>
 
@@ -743,6 +713,16 @@ const LandingPage: React.FC = () => {
                 <p className="text-sm leading-7 text-[#566783]">{text}</p>
               </article>
             ))}
+          </div>
+        </section>
+
+        <section className="landing-block">
+          <h2 className="mb-4 text-2xl font-black sm:text-3xl">关于我们</h2>
+          <div className="panel rounded-3xl p-6 sm:p-9">
+            <p className="text-sm leading-7 text-[#5f6f89] sm:text-base">
+              《家长先疯》由“家和万事”团队出品，秉持“服务家庭，智慧决策”的宗旨。我们希望通过优质内容和专业判断，
+              为家长在关键选择上提供真实、可靠、可落地的参考。
+            </p>
           </div>
         </section>
       </main>

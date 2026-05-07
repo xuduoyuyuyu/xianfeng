@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import User from "../models/User";
+import UserPageVisit from "../models/UserPageVisit";
 import bcryptjs from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
@@ -34,7 +35,215 @@ function canPublicRegister(): boolean {
   return process.env.ALLOW_PUBLIC_REGISTER === "true";
 }
 
+function normalizeText(value: unknown): string {
+  return String(value || "").trim();
+}
+
+function classifyDeviceType(value: string): "desktop" | "mobile" | "tablet" | "bot" | "other" {
+  const ua = normalizeText(value).toLowerCase();
+  if (!ua) return "other";
+  if (/bot|crawler|spider|slurp/.test(ua)) return "bot";
+  if (/ipad|tablet|playbook|silk/.test(ua)) return "tablet";
+  if (/mobile|iphone|android|windows phone|blackberry/.test(ua)) return "mobile";
+  return "desktop";
+}
+
+function topBuckets<T>(rows: T[], getter: (row: T) => string, max = 6) {
+  const map: Record<string, number> = {};
+  rows.forEach((row) => {
+    const key = normalizeText(getter(row)) || "未填写";
+    map[key] = (map[key] || 0) + 1;
+  });
+  return Object.entries(map)
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, max);
+}
+
 export class UserController {
+  async trackPageView(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const pagePath = normalizeText(req.body?.pagePath);
+      const pageTitle = normalizeText(req.body?.pageTitle);
+      const sessionId = normalizeText(req.body?.sessionId);
+      const requestedDeviceType = normalizeText(req.body?.deviceType).toLowerCase();
+      const deviceType =
+        requestedDeviceType === "desktop" ||
+        requestedDeviceType === "mobile" ||
+        requestedDeviceType === "tablet" ||
+        requestedDeviceType === "bot"
+          ? requestedDeviceType
+          : classifyDeviceType(String(req.headers["user-agent"] || ""));
+
+      if (!pagePath.startsWith("/") || !sessionId) {
+        res.status(400).json({ message: "页面访问参数不完整" });
+        return;
+      }
+
+      const dedupeQuery: any = {
+        sessionId,
+        pagePath,
+      };
+      if (req.user?.id) {
+        dedupeQuery.userId = req.user.id;
+      } else {
+        dedupeQuery.userId = null;
+      }
+      const recent = await UserPageVisit.findOne(dedupeQuery).sort({ visitedAt: -1 }).lean();
+      if (recent?.visitedAt && Date.now() - new Date(recent.visitedAt).getTime() < 8000) {
+        res.status(200).json({ ok: true, deduped: true });
+        return;
+      }
+
+      await UserPageVisit.create({
+        userId: req.user?.id || null,
+        sessionId,
+        pagePath,
+        pageTitle,
+        deviceType,
+        visitedAt: new Date(),
+      });
+      res.status(201).json({ ok: true });
+    } catch (error) {
+      res.status(500).json({ message: "记录页面访问失败", error });
+    }
+  }
+
+  async getPortrait(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const roleFilter = normalizeText(req.query?.role);
+      const cityFilter = normalizeText(req.query?.city);
+      const gradeFilter = normalizeText(req.query?.grade);
+
+      const userQuery: Record<string, any> = {};
+      if (roleFilter && roleFilter !== "all") userQuery.role = roleFilter;
+      if (cityFilter && cityFilter !== "all") userQuery.city = cityFilter === "未填写" ? "" : cityFilter;
+      if (gradeFilter && gradeFilter !== "all") userQuery.childGrade = gradeFilter === "未填写" ? "" : gradeFilter;
+
+      const users = await User.find(userQuery)
+        .select("_id username role city region childGrade createdAt")
+        .lean();
+
+      const total = users.length;
+      const admins = users.filter((row: any) => row.role === "admin").length;
+      const standardUsers = total - admins;
+      const completed = users.filter(
+        (row: any) => normalizeText(row.city) && normalizeText(row.region) && normalizeText(row.childGrade)
+      ).length;
+      const completionRate = total ? Math.round((completed / total) * 100) : 0;
+      const roleBreakdown = [
+        { label: "管理员", count: admins },
+        { label: "普通用户", count: standardUsers },
+      ];
+      const cityTop = topBuckets(users, (row: any) => row.city ?? "");
+      const gradeTop = topBuckets(users, (row: any) => row.childGrade ?? "");
+      const regionTop = topBuckets(users, (row: any) => row.region ?? "");
+
+      const monthlyMap: Record<string, number> = {};
+      users.forEach((row: any) => {
+        const raw = row.createdAt ? new Date(row.createdAt) : null;
+        if (!raw || Number.isNaN(raw.getTime())) return;
+        const key = `${raw.getFullYear()}-${String(raw.getMonth() + 1).padStart(2, "0")}`;
+        monthlyMap[key] = (monthlyMap[key] || 0) + 1;
+      });
+      const monthlyTrend = Object.entries(monthlyMap)
+        .map(([month, count]) => ({ month, count }))
+        .sort((a, b) => a.month.localeCompare(b.month))
+        .slice(-8);
+
+      const userIds = users.map((row: any) => row._id);
+      const visits = userIds.length
+        ? await UserPageVisit.find({ userId: { $in: userIds } })
+            .select("userId sessionId pagePath pageTitle deviceType visitedAt")
+            .sort({ visitedAt: -1 })
+            .lean()
+        : [];
+
+      const deviceMap: Record<string, number> = {
+        desktop: 0,
+        mobile: 0,
+        tablet: 0,
+        bot: 0,
+        other: 0,
+      };
+      const pageMap = new Map<
+        string,
+        {
+          pagePath: string;
+          pageTitle: string;
+          pv: number;
+          uvUsers: Set<string>;
+          pc: number;
+          mobile: number;
+        }
+      >();
+
+      visits.forEach((row: any) => {
+        const pagePath = normalizeText(row.pagePath) || "/";
+        const pageTitle = normalizeText(row.pageTitle) || pagePath;
+        const deviceType = normalizeText(row.deviceType) || "other";
+        const userId = String(row.userId || "");
+        deviceMap[deviceType] = (deviceMap[deviceType] || 0) + 1;
+
+        const current =
+          pageMap.get(pagePath) ||
+          {
+            pagePath,
+            pageTitle,
+            pv: 0,
+            uvUsers: new Set<string>(),
+            pc: 0,
+            mobile: 0,
+          };
+        current.pv += 1;
+        if (userId) current.uvUsers.add(userId);
+        if (deviceType === "desktop") current.pc += 1;
+        if (deviceType === "mobile" || deviceType === "tablet") current.mobile += 1;
+        pageMap.set(pagePath, current);
+      });
+
+      const pageStats = Array.from(pageMap.values())
+        .map((item) => ({
+          pagePath: item.pagePath,
+          pageTitle: item.pageTitle,
+          pv: item.pv,
+          uv: item.uvUsers.size,
+          pc: item.pc,
+          mobile: item.mobile,
+        }))
+        .sort((a, b) => b.pv - a.pv)
+        .slice(0, 12);
+
+      const deviceBreakdown = [
+        { label: "PC", count: deviceMap.desktop || 0 },
+        { label: "移动端", count: (deviceMap.mobile || 0) + (deviceMap.tablet || 0) },
+        { label: "其他", count: (deviceMap.other || 0) + (deviceMap.bot || 0) },
+      ];
+
+      res.status(200).json({
+        stats: {
+          total,
+          admins,
+          users: standardUsers,
+          completed,
+          completionRate,
+          totalPageViews: visits.length,
+          totalUv: new Set(visits.map((item: any) => String(item.userId || "")).filter(Boolean)).size,
+          totalPcViews: deviceMap.desktop || 0,
+        },
+        roleBreakdown,
+        cityTop,
+        gradeTop,
+        regionTop,
+        monthlyTrend,
+        deviceBreakdown,
+        pageStats,
+      });
+    } catch (error) {
+      res.status(500).json({ message: "获取用户画像数据失败", error });
+    }
+  }
+
   async sendMobileCode(req: Request, res: Response): Promise<void> {
     const mobile = normalizeMobile(req.body?.mobile);
     if (!/^1\d{10}$/.test(mobile)) {

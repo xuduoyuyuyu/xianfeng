@@ -1,26 +1,100 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { adminApi, Book } from '../../services/api';
+import { AxiosError } from 'axios';
+import { adminApi, Book, Guest } from '../../services/api';
+
 const PAGE_SIZE = 20;
+
+type ImportRow = Record<string, any>;
+
+function unwrapImportRow(input: any): ImportRow {
+  if (!input || typeof input !== 'object') return {};
+  const row = input as Record<string, any>;
+  if (row.fields && typeof row.fields === 'object' && !Array.isArray(row.fields)) return row.fields as ImportRow;
+  if (row.data && typeof row.data === 'object' && !Array.isArray(row.data)) return row.data as ImportRow;
+  const keys = Object.keys(row);
+  if (keys.length === 1) {
+    const only = row[keys[0]];
+    if (only && typeof only === 'object' && !Array.isArray(only)) return only as ImportRow;
+  }
+  return row;
+}
+
+function pickLooseValue(row: ImportRow, keys: string[]): string {
+  const normalized = new Map<string, any>();
+  Object.entries(row || {}).forEach(([k, v]) => {
+    const nk = String(k || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_\-:：]/g, '');
+    normalized.set(nk, v);
+  });
+  for (const key of keys) {
+    const direct = row?.[key];
+    if (direct !== undefined && direct !== null && String(direct).trim()) return String(direct).trim();
+    const nk = String(key || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_\-:：]/g, '');
+    const byNormalized = normalized.get(nk);
+    if (byNormalized !== undefined && byNormalized !== null && String(byNormalized).trim()) return String(byNormalized).trim();
+  }
+  return '';
+}
+
+function inferFromFirstStringColumns(row: ImportRow): { title: string; author: string } {
+  const values = Object.values(row || {})
+    .map((v) => (v === undefined || v === null ? '' : String(v).trim()))
+    .filter((v) => v.length > 0);
+  return {
+    title: values[0] || '',
+    author: values[1] || '',
+  };
+}
 
 const AdminBooksPage: React.FC = () => {
   const [books, setBooks] = useState<Book[]>([]);
+  const [guests, setGuests] = useState<Guest[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'published' | 'draft'>('all');
   const [showModal, setShowModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [editingBook, setEditingBook] = useState<Book | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [importRows, setImportRows] = useState<ImportRow[]>([]);
+  const [importFileName, setImportFileName] = useState('');
+  const [importSourceName, setImportSourceName] = useState('');
+  const [importGuestId, setImportGuestId] = useState('');
+  const [importOverwrite, setImportOverwrite] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [formData, setFormData] = useState({
+    categoryLabel: '',
+    topic: '',
     title: '',
     author: '',
-    description: '',
+    translator: '',
+    publisher: '',
+    grade: '',
     coverImage: '',
-    category: '',
+    recommendedGuest: '',
     status: 'draft' as 'draft' | 'published',
   });
 
   useEffect(() => {
     fetchBooks();
   }, [filter]);
+
+  useEffect(() => {
+    fetchGuests();
+  }, []);
+
+  const fetchGuests = async () => {
+    try {
+      const response = await adminApi.getGuests({ status: 'active' });
+      setGuests(response.data || []);
+    } catch (error) {
+      console.error('获取嘉宾列表失败:', error);
+    }
+  };
 
   const fetchBooks = async () => {
     try {
@@ -47,18 +121,33 @@ const AdminBooksPage: React.FC = () => {
 
   const handleCreate = () => {
     setEditingBook(null);
-    setFormData({ title: '', author: '', description: '', coverImage: '', category: '', status: 'draft' });
+    setFormData({
+      categoryLabel: '',
+      topic: '',
+      title: '',
+      author: '',
+      translator: '',
+      publisher: '',
+      grade: '',
+      coverImage: '',
+      recommendedGuest: '',
+      status: 'draft',
+    });
     setShowModal(true);
   };
 
   const handleEdit = (book: Book) => {
     setEditingBook(book);
     setFormData({
+      categoryLabel: book.categoryLabel || '',
+      topic: book.topic || '',
       title: book.title,
       author: book.author,
-      description: book.description,
+      translator: book.translator || '',
+      publisher: book.publisher || '',
+      grade: book.grade || '',
       coverImage: book.coverImage,
-      category: book.category,
+      recommendedGuest: book.recommendedGuest || '',
       status: book.status,
     });
     setShowModal(true);
@@ -102,21 +191,201 @@ const AdminBooksPage: React.FC = () => {
     }
   };
 
+  const parseJsonFile = async (file: File) => {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    const rows = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.rows)
+      ? data.rows
+      : Array.isArray(data?.data)
+      ? data.data
+      : Array.isArray(data?.list)
+      ? data.list
+      : null;
+    if (rows) return rows.map((item: any) => unwrapImportRow(item));
+    throw new Error('JSON 格式不正确，需为数组或 { rows: [] }');
+  };
+
+  const handleImportFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const rows = await parseJsonFile(file);
+      setImportRows(rows);
+      setImportFileName(file.name);
+    } catch (error) {
+      console.error('解析 JSON 失败:', error);
+      alert('解析 JSON 失败，请确认文件格式为 .json，且内容是数组或 { rows: [] }');
+    }
+  };
+
+  const handleImportSubmit = async () => {
+    if (!importRows.length) {
+      alert('请先选择要导入的 JSON 文件');
+      return;
+    }
+    try {
+      setImporting(true);
+      const chunkSize = 50;
+      let created = 0;
+      let updated = 0;
+      let skipped = 0;
+      let fallbackUsed = false;
+      const existingResponse = await adminApi.getBooks();
+      const existingBooks = Array.isArray(existingResponse.data) ? existingResponse.data : [];
+      const byTitle = new Map(existingBooks.map((item) => [String(item.title || '').trim(), item]));
+      for (let i = 0; i < importRows.length; i += chunkSize) {
+        const chunk = importRows.slice(i, i + chunkSize);
+        try {
+          const response = await adminApi.importBooks({
+            rows: chunk,
+            sourceName: importSourceName,
+            sourceGuestId: importGuestId || undefined,
+            overwrite: importOverwrite,
+          });
+          const data = response.data;
+          created += Number(data?.created || 0);
+          updated += Number(data?.updated || 0);
+          skipped += Number(data?.skipped || 0);
+        } catch (error) {
+          const err = error as AxiosError<any>;
+          const raw = typeof err.response?.data === 'string' ? err.response?.data : '';
+          const cannotPostImport = err.response?.status === 404 && raw.includes('Cannot POST /api/admin/books/import');
+          if (!cannotPostImport) throw error;
+          fallbackUsed = true;
+          for (const row of chunk) {
+            const normalizedRow = unwrapImportRow(row);
+            let title = pickLooseValue(normalizedRow, ['title', '书名', '图书名称', '名称', 'name', 'bookName', 'bookTitle', '推荐书目', '书籍']);
+            let author = pickLooseValue(normalizedRow, ['author', '作者', 'Author', '作者姓名', '主编', '编著', '推荐人']);
+            if (!title || !author) {
+              const inferred = inferFromFirstStringColumns(normalizedRow);
+              title = title || inferred.title;
+              author = author || inferred.author;
+            }
+            if (!title || !author) {
+              skipped += 1;
+              continue;
+            }
+            const payload = {
+              categoryLabel: pickLooseValue(normalizedRow, ['类别', 'categoryLabel', 'category', '分类']),
+              topic: pickLooseValue(normalizedRow, ['主题', 'topic', '标签']),
+              title,
+              author,
+              translator: pickLooseValue(normalizedRow, ['译者', 'translator']),
+              publisher: pickLooseValue(normalizedRow, ['出版社', 'publisher']),
+              grade: pickLooseValue(normalizedRow, ['年级', 'grade']),
+              coverImage: pickLooseValue(normalizedRow, ['coverImage', '封面', '封面图', '图片', 'cover']) || 'https://via.placeholder.com/240x320/630ed4/ffffff?text=Book',
+              recommendedGuest: pickLooseValue(normalizedRow, ['推荐嘉宾', 'recommendedGuest']) || (guests.find((g) => g._id === importGuestId)?.name || ''),
+              status: 'draft' as const,
+              sourceName: importSourceName,
+              sourceGuestId: importGuestId || undefined,
+            };
+            const exists = byTitle.get(title);
+            try {
+              if (exists?._id) {
+                if (!importOverwrite) {
+                  skipped += 1;
+                  continue;
+                }
+                await adminApi.updateBook(exists._id, payload);
+                updated += 1;
+              } else {
+                const createdRow = await adminApi.createBook(payload);
+                if (createdRow?.data) byTitle.set(title, createdRow.data);
+                created += 1;
+              }
+            } catch (_e) {
+              skipped += 1;
+            }
+          }
+        }
+      }
+      alert(`导入完成：新增 ${created}，更新 ${updated}，跳过 ${skipped}${fallbackUsed ? '（已自动兼容旧后端）' : ''}`);
+      setShowImportModal(false);
+      setImportRows([]);
+      setImportFileName('');
+      setImportSourceName('');
+      setImportGuestId('');
+      setImportOverwrite(false);
+      fetchBooks();
+    } catch (error) {
+      console.error('导入失败:', error);
+      const err = error as AxiosError<any>;
+      const serverMessage = err.response?.data?.message || '';
+      const detail = (() => {
+        const raw = err.response?.data?.error;
+        if (!raw) return '';
+        if (typeof raw === 'string') return raw;
+        if (typeof (raw as any)?.message === 'string') return (raw as any).message;
+        return '';
+      })();
+      const rawText = (() => {
+        const data = err.response?.data;
+        if (typeof data === 'string') return data.slice(0, 200);
+        return '';
+      })();
+      if (!err.response) {
+        alert(`导入失败：${err.message || '请求超时或网络异常'}`);
+      } else {
+        const msg = serverMessage || detail || rawText || `HTTP ${err.response.status}`;
+        alert(`导入失败：${msg}`);
+      }
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const renderSourceGuest = (book: Book) => {
+    const v = book.sourceGuestId;
+    if (!v) return '-';
+    if (typeof v === 'string') return v;
+    return v.name || v._id;
+  };
+
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div className="admin-toolbar">
         <div />
-        <button
-          onClick={handleCreate}
-          className="admin-pill-btn admin-pill-btn-primary"
-        >
-          <span className="material-symbols-outlined text-base">add_circle</span>
-          新增书单
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={async () => {
+              if (!confirm(`确定清空全部 ${books.length} 条书单吗？此操作不可恢复。`)) return;
+              try {
+                const all = await adminApi.getBooks();
+                const rows = Array.isArray(all.data) ? all.data : [];
+                for (const row of rows) {
+                  await adminApi.deleteBook(row._id);
+                }
+                await fetchBooks();
+                alert(`已清空 ${rows.length} 条书单`);
+              } catch (error) {
+                console.error('清空书单失败:', error);
+                alert('清空失败，请重试');
+              }
+            }}
+            className="admin-pill-btn"
+          >
+            <span className="material-symbols-outlined text-base">delete_sweep</span>
+            清空书单
+          </button>
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="admin-pill-btn admin-pill-btn-secondary"
+          >
+            <span className="material-symbols-outlined text-base">upload_file</span>
+            导入书单
+          </button>
+          <button
+            onClick={handleCreate}
+            className="admin-pill-btn admin-pill-btn-primary"
+          >
+            <span className="material-symbols-outlined text-base">add_circle</span>
+            新增书单
+          </button>
+        </div>
       </div>
 
-      {/* 统计卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm">
           <div className="flex items-center gap-4">
@@ -153,7 +422,6 @@ const AdminBooksPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 筛选标签 */}
       <div className="flex items-center gap-4">
         <div className="flex bg-stone-100 p-1.5 rounded-2xl">
           {(['all', 'published', 'draft'] as const).map((f) => (
@@ -172,7 +440,6 @@ const AdminBooksPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 列表表格 */}
       <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-20">
@@ -187,8 +454,10 @@ const AdminBooksPage: React.FC = () => {
               <thead className="bg-stone-50/50 text-stone-500 uppercase text-[10px] font-black tracking-[0.2em]">
                 <tr>
                   <th className="px-6 py-4">书单信息</th>
-                  <th className="px-6 py-4">作者</th>
-                  <th className="px-6 py-4">分类</th>
+                  <th className="px-6 py-4">著作者</th>
+                  <th className="px-6 py-4">出版社/年级</th>
+                  <th className="px-6 py-4">出处</th>
+                  <th className="px-6 py-4">绑定嘉宾</th>
                   <th className="px-6 py-4">状态</th>
                   <th className="px-6 py-4 text-right">操作</th>
                 </tr>
@@ -205,16 +474,20 @@ const AdminBooksPage: React.FC = () => {
                         />
                         <div>
                           <div className="font-bold text-stone-900">{book.title}</div>
-                          <div className="text-xs text-stone-400 line-clamp-1 max-w-xs">{book.description}</div>
+                          <div className="text-xs text-stone-400 line-clamp-1 max-w-xs">
+                            {(book.topic || '-')} / {(book.translator || '-')}
+                          </div>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-stone-600">{book.author}</td>
                     <td className="px-6 py-4">
                       <span className="px-3 py-1 rounded-full bg-stone-100 text-stone-600 text-xs font-bold">
-                        {book.category}
+                        {[book.publisher || '-', book.grade || '-'].join(' / ')}
                       </span>
                     </td>
+                    <td className="px-6 py-4 text-sm text-stone-600">{book.sourceName || '-'}</td>
+                    <td className="px-6 py-4 text-sm text-stone-600">{renderSourceGuest(book)}</td>
                     <td className="px-6 py-4">
                       <button
                         onClick={() => handleToggleStatus(book)}
@@ -280,7 +553,86 @@ const AdminBooksPage: React.FC = () => {
         )}
       </div>
 
-      {/* 编辑/创建弹窗 */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-8 space-y-5">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-black text-stone-900">导入书单</h2>
+                <button onClick={() => setShowImportModal(false)} className="p-2 rounded-lg hover:bg-stone-100 text-stone-400">
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+              <div>
+                <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#5E8B8E] mb-3">JSON 文件</label>
+                <div className="rounded-2xl border border-stone-200 bg-stone-50/60 p-4 space-y-3">
+                  <p className="text-sm text-stone-600">支持 JSON 数组或 `{"{ rows: [...] }"}` 结构。</p>
+                  <div className="flex items-center gap-3">
+                    <label className="inline-flex cursor-pointer items-center rounded-xl bg-[#5e17eb] px-4 py-2 text-sm font-black text-white hover:bg-[#5e17eb]/90 transition-colors">
+                      选择文件
+                      <input
+                        type="file"
+                        accept=".json,application/json"
+                        onChange={handleImportFileChange}
+                        className="hidden"
+                      />
+                    </label>
+                    <span className="text-sm text-stone-700">{importFileName || '未选择任何文件'}</span>
+                  </div>
+                  <p className="text-sm font-bold text-stone-800">已解析 {importRows.length} 条</p>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#5E8B8E] mb-3">出处</label>
+                <input
+                  type="text"
+                  value={importSourceName}
+                  onChange={(e) => setImportSourceName(e.target.value)}
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl py-3 px-4 text-sm focus:ring-4 focus:ring-[#5e17eb]/5 focus:border-[#5e17eb] outline-none"
+                  placeholder="例如：重庆南明新学道 1-6 年级书梯"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#5E8B8E] mb-3">绑定嘉宾（可选）</label>
+                <select
+                  value={importGuestId}
+                  onChange={(e) => setImportGuestId(e.target.value)}
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl py-3 px-4 text-sm focus:ring-4 focus:ring-[#5e17eb]/5 focus:border-[#5e17eb] outline-none"
+                >
+                  <option value="">不绑定</option>
+                  {guests.map((guest) => (
+                    <option key={guest._id} value={guest._id}>
+                      {guest.name}{guest.title ? ` / ${guest.title}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <label className="flex items-center gap-2 text-sm text-stone-600">
+                <input type="checkbox" checked={importOverwrite} onChange={(e) => setImportOverwrite(e.target.checked)} />
+                遇到同名书籍时覆盖更新
+              </label>
+              <div className="flex gap-4 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowImportModal(false)}
+                  className="flex-1 py-3 rounded-xl border border-stone-200 text-stone-600 font-bold text-sm hover:bg-stone-50 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={handleImportSubmit}
+                  disabled={importing}
+                  className="flex-1 py-3 rounded-xl bg-[#5e17eb] text-white font-bold text-sm hover:bg-[#5e17eb]/90 transition-colors disabled:opacity-60"
+                >
+                  {importing ? '导入中...' : '开始导入'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
@@ -299,7 +651,7 @@ const AdminBooksPage: React.FC = () => {
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
                   <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#5E8B8E] mb-3">
-                    标题
+                    书名
                   </label>
                   <input
                     type="text"
@@ -311,7 +663,31 @@ const AdminBooksPage: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#5E8B8E] mb-3">
-                    作者
+                    类别
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.categoryLabel}
+                    onChange={(e) => setFormData({ ...formData, categoryLabel: e.target.value })}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl py-3 px-4 text-sm focus:ring-4 focus:ring-[#5e17eb]/5 focus:border-[#5e17eb] outline-none"
+                    placeholder="如：科普、文学..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#5E8B8E] mb-3">
+                    主题
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.topic}
+                    onChange={(e) => setFormData({ ...formData, topic: e.target.value })}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl py-3 px-4 text-sm focus:ring-4 focus:ring-[#5e17eb]/5 focus:border-[#5e17eb] outline-none"
+                    placeholder="如：成长、习惯养成..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#5E8B8E] mb-3">
+                    著作者
                   </label>
                   <input
                     type="text"
@@ -323,27 +699,50 @@ const AdminBooksPage: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#5E8B8E] mb-3">
-                    分类
+                    译者
                   </label>
                   <input
                     type="text"
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    value={formData.translator}
+                    onChange={(e) => setFormData({ ...formData, translator: e.target.value })}
                     className="w-full bg-stone-50 border border-stone-200 rounded-xl py-3 px-4 text-sm focus:ring-4 focus:ring-[#5e17eb]/5 focus:border-[#5e17eb] outline-none"
-                    placeholder="如：教育、心理、成长..."
-                    required
+                    placeholder="如：张三"
                   />
                 </div>
                 <div>
                   <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#5E8B8E] mb-3">
-                    描述
+                    出版社
                   </label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    rows={4}
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl py-3 px-4 text-sm focus:ring-4 focus:ring-[#5e17eb]/5 focus:border-[#5e17eb] outline-none resize-none"
-                    required
+                  <input
+                    type="text"
+                    value={formData.publisher}
+                    onChange={(e) => setFormData({ ...formData, publisher: e.target.value })}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl py-3 px-4 text-sm focus:ring-4 focus:ring-[#5e17eb]/5 focus:border-[#5e17eb] outline-none"
+                    placeholder="如：人民教育出版社"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#5E8B8E] mb-3">
+                    年级
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.grade}
+                    onChange={(e) => setFormData({ ...formData, grade: e.target.value })}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl py-3 px-4 text-sm focus:ring-4 focus:ring-[#5e17eb]/5 focus:border-[#5e17eb] outline-none"
+                    placeholder="如：一年级"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#5E8B8E] mb-3">
+                    推荐嘉宾
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.recommendedGuest}
+                    onChange={(e) => setFormData({ ...formData, recommendedGuest: e.target.value })}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl py-3 px-4 text-sm focus:ring-4 focus:ring-[#5e17eb]/5 focus:border-[#5e17eb] outline-none"
+                    placeholder="如：魏志渊"
                   />
                 </div>
                 <div>

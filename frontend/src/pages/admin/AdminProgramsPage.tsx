@@ -115,18 +115,6 @@ const UPLOAD_TASK_STORAGE_KEY = "admin-program-upload-task";
 const SPEAKER_SUGGESTIONS = ["主持人", "嘉宾1", "嘉宾2", "嘉宾"];
 const PROGRAMS_PAGE_SIZE = 20;
 const EDIT_MODAL_BUTTON_BASE = "rounded-full px-4 py-1.5 text-xs font-bold transition-colors disabled:opacity-60";
-const ARTWORK_STYLE_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: "cinematic_poster", label: "电影级光影（强对比）" },
-  { value: "editorial_brutalist", label: "Brutalist 冲击构图（硬朗块面）" },
-  { value: "neo_noir", label: "新黑色霓虹（情绪张力）" },
-  { value: "swiss_grid", label: "瑞士秩序网格（理性结构）" },
-  { value: "collage_manifesto", label: "拼贴宣言（多层纹理）" },
-];
-const ARTWORK_STYLE_LABEL_MAP = ARTWORK_STYLE_OPTIONS.reduce<Record<string, string>>((acc, item) => {
-  acc[item.value] = item.label;
-  return acc;
-}, {});
-
 function getParseStageLabel(stage = ""): string {
   const stageMap: Record<string, string> = {
     queued: "排队中",
@@ -375,9 +363,36 @@ function parseCuratedReading(raw: string): NonNullable<NonNullable<Program["deep
     .filter(Boolean) as NonNullable<NonNullable<Program["deepDive"]>["curatedReading"]>;
 }
 
+function isInvalidCuratedReadingRow(item: { title?: string; subtitle?: string; url?: string }): boolean {
+  const title = String(item.title || "").trim();
+  const subtitle = String(item.subtitle || "").trim();
+  const url = String(item.url || "").trim().toLowerCase();
+  if (!title) return true;
+  if (/^延伸阅读：/.test(title)) return true;
+  if (subtitle === "概念词条与背景知识" || subtitle === "概念入门与背景梳理") return true;
+  if (url.includes("bing.com/search") || url.includes("google.com/search") || url.includes("baidu.com/s?")) return true;
+  if (url.includes("baike.baidu.com/item/") && /^延伸阅读：/.test(title)) return true;
+  return false;
+}
+
+function isReasonableDictionaryTerm(value: unknown): boolean {
+  const term = String(value || "").trim();
+  if (!term) return false;
+  if (term.length < 2 || term.length > 24) return false;
+  if (/[。！？；：，,.!?;:]/.test(term)) return false;
+  if (/^(?:的|个|或者|如果|但是|不过|因为|所以|然后|并且|而且|以及|还有|关于|对于|不是|不可能|可能|那么|这是|那是|果他)/.test(term)) return false;
+  if (term.includes("的")) return false;
+  if (/^[我你他她它们我们你们他们她们]/.test(term)) return false;
+  if (/(发现|觉得|认为|知道|看到|进行|通过|具备|拥有)/.test(term) && term.length >= 6) return false;
+  return true;
+}
+
 function formatCuratedReadingForForm(curatedReading?: NonNullable<Program["deepDive"]>["curatedReading"]): string {
   if (!curatedReading || curatedReading.length === 0) return "";
-  return curatedReading.map((item) => `${item.title}|${item.subtitle || ""}|${item.url || ""}`).join("\n");
+  return curatedReading
+    .filter((item) => !isInvalidCuratedReadingRow(item))
+    .map((item) => `${item.title}|${item.subtitle || ""}|${item.url || ""}`)
+    .join("\n");
 }
 
 function parseQuickView(raw: string): NonNullable<NonNullable<Program["contentPack"]>["quickView"]> {
@@ -563,6 +578,7 @@ const AdminProgramsPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [stickyParseErrors, setStickyParseErrors] = useState<Record<string, string>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -592,7 +608,6 @@ const AdminProgramsPage: React.FC = () => {
   const [programAgentTasks, setProgramAgentTasks] = useState<AgentTask[]>([]);
   const [programAgentLoading, setProgramAgentLoading] = useState(false);
   const [applyArtworkLoading, setApplyArtworkLoading] = useState(false);
-  const [artworkStyle, setArtworkStyle] = useState<string>("cinematic_poster");
   const [parseEditorTab, setParseEditorTab] = useState<ParseEditorTab>("quickview");
   const audioInputRef = useRef<HTMLInputElement | null>(null);
   const coverImageInputRef = useRef<HTMLInputElement | null>(null);
@@ -683,6 +698,29 @@ const AdminProgramsPage: React.FC = () => {
   }, [items, currentUploadTask?.programId]);
 
   useEffect(() => {
+    setStickyParseErrors((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const row of items) {
+        if (!row?._id) continue;
+        if (row.parseStatus === "failed") {
+          const message = (row.parseError || "").trim() || "解析失败，请检查配置后重试。";
+          if (next[row._id] !== message) {
+            next[row._id] = message;
+            changed = true;
+          }
+          continue;
+        }
+        if (row.parseStatus === "success" && next[row._id]) {
+          delete next[row._id];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [items]);
+
+  useEffect(() => {
     if (!isModalOpen || !editingProgram?._id) return;
     const hasRunningTask = programAgentTasks.some((task) => task.status === "queued" || task.status === "running");
     if (!hasRunningTask) return;
@@ -746,10 +784,8 @@ const AdminProgramsPage: React.FC = () => {
     const applied = latestArtworkTask.output?.applied === true;
     const base = latestArtworkTask.status;
     const summary = latestArtworkTask.outputSummary ? ` · ${latestArtworkTask.outputSummary}` : "";
-    const styleKey = String(latestArtworkTask.output?.artworkStyle || "").trim();
-    const styleText = styleKey ? ` · 风格:${ARTWORK_STYLE_LABEL_MAP[styleKey] || styleKey}` : "";
-    if (base === "succeeded" && !applied) return `succeeded(未应用)${styleText}${summary}`;
-    return `${base}${styleText}${summary}`;
+    if (base === "succeeded" && !applied) return `succeeded(未应用)${summary}`;
+    return `${base}${summary}`;
   }, [latestArtworkTask]);
 
   const loadProgramAgentTasks = async (programId: string) => {
@@ -1254,7 +1290,19 @@ const AdminProgramsPage: React.FC = () => {
           window.clearInterval(parsePollTimerRef.current);
           parsePollTimerRef.current = null;
         }
-        setParseHint(pollError?.response?.data?.message || pollError?.message || "轮询解析状态失败");
+        const message = extractRequestErrorMessage(pollError, "轮询解析状态失败");
+        setUploadPhase("failed");
+        setUploadFailureReason(message);
+        setParseHint(message);
+        setCurrentUploadTask((prev) =>
+          prev?.programId === programId
+            ? {
+                ...prev,
+                phase: "failed",
+                failureReason: message,
+              }
+            : prev
+        );
       }
     }, 3000);
   };
@@ -1499,7 +1547,7 @@ const AdminProgramsPage: React.FC = () => {
         search: searchValue.trim() || undefined,
         status: "active",
       });
-      setDictionaryCandidates(response.data || []);
+      setDictionaryCandidates((response.data || []).filter((entry) => isReasonableDictionaryTerm(entry.term)));
     } catch (loadError: any) {
       setError(loadError?.response?.data?.message || loadError?.message || "加载词典失败");
     } finally {
@@ -1510,7 +1558,12 @@ const AdminProgramsPage: React.FC = () => {
   const openDictionaryDialog = async () => {
     if (!editingProgram) return;
     const initialIds = Array.from(
-      new Set([...(editingProgram.dictionaryEntryIds || []), ...(editingProgram.dictionaryEntries || []).map((entry) => entry._id)])
+      new Set([
+        ...(editingProgram.dictionaryEntryIds || []),
+        ...(editingProgram.dictionaryEntries || [])
+          .filter((entry) => isReasonableDictionaryTerm(entry.term))
+          .map((entry) => entry._id),
+      ])
     );
     setSelectedDictionaryEntryIds(initialIds);
     setDictionarySearch("");
@@ -1777,6 +1830,9 @@ const AdminProgramsPage: React.FC = () => {
                     ) : null}
                     {items.map((row) => {
                       const rowUploadTask = currentUploadTask?.programId === row._id ? currentUploadTask : null;
+                      const stickyParseError = stickyParseErrors[row._id] || "";
+                      const hasTranscript = Array.isArray((row as any).transcript) && (row as any).transcript.length > 0;
+                      const isParseSuccess = row.parseStatus === "success" || hasTranscript;
                       const isInlineEditingRow = !!editingProgram && !isModalOpen && editingProgram._id === row._id;
                       return (
                         <React.Fragment key={row._id}>
@@ -1824,6 +1880,11 @@ const AdminProgramsPage: React.FC = () => {
                                       ) : null}
                                     </div>
                                   ) : null}
+                                  {stickyParseError && row.parseStatus !== "success" ? (
+                                    <div className="mt-2 max-w-[300px] rounded-lg border border-red-100 bg-red-50 px-2.5 py-1.5 text-[11px] leading-4 text-red-600">
+                                      失败原因：{stickyParseError}
+                                    </div>
+                                  ) : null}
                                 </div>
                               </div>
                             </td>
@@ -1855,14 +1916,20 @@ const AdminProgramsPage: React.FC = () => {
                             <td className="px-10 py-6 text-center text-[14px] font-semibold text-stone-500">{formatDate(row.publishedAt || row.createdAt)}</td>
                             <td className="px-10 py-6 text-center">
                               {row.parseStatus && row.parseStatus !== "idle" ? (
-                                <button
-                                  className="inline-flex items-center rounded-full bg-[#f7f3ff] px-[13px] py-[3px] !text-[13px] !font-bold leading-none whitespace-nowrap text-[#5e17eb] transition-colors hover:bg-[#efe5ff] disabled:cursor-not-allowed disabled:opacity-60"
-                                  onClick={() => handleReparse(row)}
-                                  disabled={row.parseStatus === "parsing"}
-                                  type="button"
-                                >
-                                  {row.parseStatus === "parsing" ? "解析中" : "重新解析"}
-                                </button>
+                                isParseSuccess ? (
+                                  <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-[13px] py-[3px] !text-[13px] !font-bold leading-none whitespace-nowrap text-emerald-700">
+                                    解析成功
+                                  </span>
+                                ) : (
+                                  <button
+                                    className="inline-flex items-center rounded-full bg-[#f7f3ff] px-[13px] py-[3px] !text-[13px] !font-bold leading-none whitespace-nowrap text-[#5e17eb] transition-colors hover:bg-[#efe5ff] disabled:cursor-not-allowed disabled:opacity-60"
+                                    onClick={() => handleReparse(row)}
+                                    disabled={row.parseStatus === "parsing"}
+                                    type="button"
+                                  >
+                                    {row.parseStatus === "parsing" ? "解析中" : "重新解析"}
+                                  </button>
+                                )
                               ) : (
                                 <span className="text-[11px] font-semibold text-stone-300">-</span>
                               )}
@@ -2229,23 +2296,14 @@ const AdminProgramsPage: React.FC = () => {
                               className={`${EDIT_MODAL_BUTTON_BASE} border border-[#5e17eb]/25 bg-white text-[#5e17eb] hover:bg-[#f7f3ff]`}
                               type="button"
                               disabled={programAgentLoading}
-                              onClick={() => triggerProgramTask("generate_program_artwork", { forceOverwrite: false, artworkStyle })}
+                              onClick={() => triggerProgramTask("generate_program_artwork", { forceOverwrite: false })}
                             >
                               开始配图
                             </button>
                           </div>
                           <div className="mt-2">
-                            <select
-                              value={artworkStyle}
-                              onChange={(event) => setArtworkStyle(event.target.value)}
-                              className="w-full rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-[11px] text-stone-700"
-                            >
-                              {ARTWORK_STYLE_OPTIONS.map((opt) => (
-                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                              ))}
-                            </select>
-                            <p className="mt-1 text-[10px] text-stone-500">
-                              仅控制视觉风格；系统会基于节目关键词与解析内容做抽象构图，不叠加标题文字。
+                            <p className="text-[10px] text-stone-500">
+                              系统会基于节目关键词与解析内容自动生成封面候选图。
                             </p>
                           </div>
                           <p className="mt-1">
@@ -2666,7 +2724,14 @@ const AdminProgramsPage: React.FC = () => {
               </div>
             </div>
 
-            {uploadFailureReason ? <p className="mt-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600">失败原因：{uploadFailureReason}</p> : null}
+            {uploadFailureReason ? (
+              <p
+                className="thin-scrollbar mt-2 max-h-32 overflow-y-auto whitespace-pre-wrap rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs leading-6 text-red-600"
+                style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+              >
+                失败原因：{uploadFailureReason}
+              </p>
+            ) : null}
 
             <div className="mt-6 flex items-center justify-end gap-3">
               <button className="rounded-full border border-stone-200 px-5 py-2.5 text-sm font-bold text-stone-700 hover:bg-stone-50" onClick={closeUploadDialog} type="button">

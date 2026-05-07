@@ -775,7 +775,7 @@ tr:hover td{background:var(--pgg)}
             <div class="card" style="min-height:0;display:flex;flex-direction:column">
               <div class="card-ttl"><span class="ms">receipt_long</span>运行日志</div>
               <div class="sbar" style="padding:10px 0">
-                <input class="sinput" id="ag-log-trace" placeholder="按 trace_id 过滤">
+                <input class="sinput" id="ag-log-trace" placeholder="按任务ID/目标ID过滤">
                 <select class="fsel" id="ag-log-route" style="width:170px">
                   <option value="">全部路由</option>
                   <option value="textbook_analyze">textbook_analyze</option>
@@ -6419,32 +6419,66 @@ async function saveAgentStrategy(){
 async function loadAgentRunLogs(){
   const traceId = String($id('ag-log-trace')?.value || '').trim();
   const routeKey = String($id('ag-log-route')?.value || '').trim();
+  const routeTaskTypeMap = {
+    textbook_analyze: "proofread_transcript",
+    assessment_questions: "enrich_program_content",
+    ai_chat: "",
+    wrong_analyze: "enrich_guest_profile",
+    admission_planning: "generate_program_artwork",
+  };
   const qs = new URLSearchParams();
-  if(traceId) qs.set('trace_id', traceId);
-  if(routeKey) qs.set('route_key', routeKey);
-  qs.set('page', '1');
-  qs.set('per', '30');
-  const d = await api(`/mgmt/agents/runs?${qs.toString()}`);
+  qs.set('limit', '100');
+  const taskType = routeTaskTypeMap[routeKey] || "";
+  if(taskType) qs.set('taskType', taskType);
+  const d = await api(`/agent-tasks?${qs.toString()}`);
   if(!d || d.error){
     $id('ag-runs').innerHTML = `<div class="empty"><span class="ms ms0">error</span><p>${agEsc(d?.error || '日志加载失败')}</p></div>`;
     return;
   }
-  const rows = Array.isArray(d.items) ? d.items : [];
+  let rows = Array.isArray(d.items) ? d.items : [];
+  if(traceId){
+    const kw = traceId.toLowerCase();
+    rows = rows.filter(r => {
+      const tid = String(r?._id || "").toLowerCase();
+      const target = String(r?.targetId || "").toLowerCase();
+      return tid.includes(kw) || target.includes(kw);
+    });
+  }
   if(!rows.length){
     $id('ag-runs').innerHTML = '<div class="empty"><span class="ms ms0">receipt_long</span><p>暂无运行日志</p></div>';
     return;
   }
-  $id('ag-runs').innerHTML = `<div class="tbl-wrap"><table><thead><tr><th>ID</th><th>Route</th><th>Agent</th><th>状态</th><th>耗时</th><th>时间</th><th>错误</th></tr></thead><tbody>${rows.map(r=>{
+  const taskTypeLabel = {
+    proofread_transcript: "文稿校对",
+    enrich_program_content: "节目资料收集",
+    enrich_guest_profile: "嘉宾资料收集",
+    generate_program_artwork: "节目配图生成",
+  };
+  const statusLabel = {
+    queued: "排队中",
+    running: "执行中",
+    succeeded: "成功",
+    failed: "失败",
+    canceled: "已取消",
+  };
+  const taskAgentMap = {
+    proofread_transcript: "textbook_structure_agent",
+    enrich_program_content: "knowledge_split_agent",
+    enrich_guest_profile: "question_quality_agent",
+    generate_program_artwork: "image",
+  };
+  $id('ag-runs').innerHTML = `<div class="tbl-wrap"><table><thead><tr><th>时间</th><th>Agent</th><th>任务</th><th>状态</th><th>工作记录</th></tr></thead><tbody>${rows.map(r=>{
     const status = String(r.status || '');
-    const stColor = status === 'ok' ? 'var(--green)' : (status === 'error' ? 'var(--red)' : 'var(--amber)');
+    const stColor = status === 'succeeded' ? 'var(--green)' : (status === 'failed' ? 'var(--red)' : 'var(--amber)');
+    const runtimeAgent = r?.output?.runtimeConfig?.agent_code || taskAgentMap[String(r?.taskType || "")] || '-';
+    const workLog = status === 'failed' ? (r?.lastError || '执行失败') : (r?.outputSummary || r?.stage || '-');
+    const tm = String(r?.finishedAt || r?.createdAt || '').slice(0,19).replace('T',' ');
     return `<tr>
-      <td class="td-m">#${r.id || ''}</td>
-      <td class="td-m">${agEsc(r.route_key || '')}</td>
-      <td class="td-m">${agEsc(r.agent_code || '')}</td>
-      <td><span class="badge" style="color:${stColor};background:var(--s3)">${agEsc(status || '-')}</span></td>
-      <td class="td-m">${Number(r.latency_ms || 0)}ms</td>
-      <td class="td-m">${agEsc((r.created_at || '').toString().slice(0,19).replace('T',' '))}</td>
-      <td class="td-m" style="max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${agEsc(r.error_message || '')}">${agEsc(r.error_message || '')}</td>
+      <td class="td-m">${agEsc(tm || '-')}</td>
+      <td class="td-m">${agEsc(runtimeAgent)}</td>
+      <td class="td-m">${agEsc(taskTypeLabel[String(r?.taskType || '')] || String(r?.taskType || '-'))}</td>
+      <td><span class="badge" style="color:${stColor};background:var(--s3)">${agEsc(statusLabel[status] || status || '-')}</span></td>
+      <td class="td-m" style="max-width:420px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${agEsc(workLog)}">${agEsc(workLog)}</td>
     </tr>`;
   }).join('')}</tbody></table></div>`;
 }

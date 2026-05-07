@@ -56,7 +56,7 @@ type ProgramAiResult = {
 export type ProgramAiProvider = {
   transcribeAudio(
     filePath: string,
-    options?: { sourceUrl?: string }
+    options?: { sourceUrl?: string; onProgress?: (progress: number, stage: string) => Promise<void> | void }
   ): Promise<{ transcript: TranscriptSegment[]; plainText: string; durationSeconds: number }>;
   extractProgramMetadata(input: { transcript: TranscriptSegment[]; plainText: string; durationSeconds: number }): Promise<ProgramAiResult>;
 };
@@ -77,8 +77,132 @@ type VolcengineRuntimeConfig = {
   publicBaseUrl: string;
 };
 
+type TosBridgeConfig = {
+  accessKeyId: string;
+  accessKeySecret: string;
+  region: string;
+  endpoint: string;
+  bucket: string;
+  keyPrefix: string;
+  signedUrlTtlSeconds: number;
+};
+
 function asText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function resolveTosBridgeConfig(): TosBridgeConfig | null {
+  const accessKeyId = asText(process.env.VOLCENGINE_TOS_ACCESS_KEY_ID) || asText(process.env.VOLCENGINE_TOS_ACCESS_KEY);
+  const accessKeySecret = asText(process.env.VOLCENGINE_TOS_ACCESS_KEY_SECRET) || asText(process.env.VOLCENGINE_TOS_SECRET_ACCESS_KEY);
+  const region = asText(process.env.VOLCENGINE_TOS_REGION);
+  const endpoint = asText(process.env.VOLCENGINE_TOS_ENDPOINT);
+  const bucket = asText(process.env.VOLCENGINE_TOS_BUCKET);
+  const keyPrefix = asText(process.env.VOLCENGINE_TOS_KEY_PREFIX) || "program-audio";
+  const ttl = Number(process.env.VOLCENGINE_TOS_SIGNED_URL_TTL_SECONDS);
+  const signedUrlTtlSeconds = Number.isFinite(ttl) && ttl > 30 ? Math.floor(ttl) : 1800;
+  if (!accessKeyId || !accessKeySecret || !region || !endpoint || !bucket) return null;
+  return {
+    accessKeyId,
+    accessKeySecret,
+    region,
+    endpoint,
+    bucket,
+    keyPrefix,
+    signedUrlTtlSeconds,
+  };
+}
+
+function guessAudioContentType(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext === ".mp3") return "audio/mpeg";
+  if (ext === ".wav") return "audio/wav";
+  if (ext === ".m4a") return "audio/mp4";
+  if (ext === ".aac") return "audio/aac";
+  if (ext === ".ogg") return "audio/ogg";
+  if (ext === ".opus") return "audio/opus";
+  if (ext === ".flac") return "audio/flac";
+  return "application/octet-stream";
+}
+
+function detectAudioFormatFromUrl(sourceUrl: string): string {
+  try {
+    const u = new URL(sourceUrl);
+    const pathname = (u.pathname || "").toLowerCase();
+    if (pathname.endsWith(".mp3")) return "mp3";
+    if (pathname.endsWith(".wav")) return "wav";
+    if (pathname.endsWith(".m4a")) return "m4a";
+    if (pathname.endsWith(".aac")) return "aac";
+    if (pathname.endsWith(".ogg")) return "ogg";
+    if (pathname.endsWith(".opus")) return "opus";
+    if (pathname.endsWith(".flac")) return "flac";
+  } catch (_error) {
+    return "mp3";
+  }
+  return "mp3";
+}
+
+async function uploadLocalAudioToTosAndSign(filePath: string): Promise<string | null> {
+  const cfg = resolveTosBridgeConfig();
+  if (!cfg) return null;
+  const moduleName = "@volcengine/tos-sdk";
+  let sdk: any;
+  try {
+    sdk = await import(moduleName);
+  } catch (_error) {
+    throw new Error("缺少 @volcengine/tos-sdk 依赖，请在 backend 安装后重试");
+  }
+  const TosClientCtor =
+    sdk?.TosClient ||
+    sdk?.TOS ||
+    sdk?.default?.TosClient ||
+    sdk?.default?.TOS ||
+    sdk?.default;
+  if (!TosClientCtor) {
+    throw new Error("@volcengine/tos-sdk 初始化失败，请检查版本");
+  }
+  const client = new TosClientCtor({
+    accessKeyId: cfg.accessKeyId,
+    accessKeySecret: cfg.accessKeySecret,
+    region: cfg.region,
+    endpoint: cfg.endpoint,
+  });
+  const objectKey = `${cfg.keyPrefix.replace(/\/+$/, "")}/${Date.now()}-${randomUUID()}${path.extname(filePath) || ".mp3"}`;
+  const bytes = await fs.readFile(filePath);
+  if (typeof client.putObject === "function") {
+    await client.putObject({
+      bucket: cfg.bucket,
+      key: objectKey,
+      body: bytes,
+      contentType: guessAudioContentType(filePath),
+    });
+  } else if (typeof client.getPreSignedUrl === "function") {
+    const putUrl = client.getPreSignedUrl({
+      method: "PUT",
+      bucket: cfg.bucket,
+      key: objectKey,
+      expires: cfg.signedUrlTtlSeconds,
+    });
+    const putResp = await fetch(String(putUrl), {
+      method: "PUT",
+      headers: { "Content-Type": guessAudioContentType(filePath) },
+      body: bytes,
+    });
+    if (!putResp.ok) {
+      throw new Error(`TOS 预签名上传失败: HTTP ${putResp.status}`);
+    }
+  } else {
+    throw new Error("@volcengine/tos-sdk 不支持 putObject/getPreSignedUrl");
+  }
+  if (typeof client.getPreSignedUrl !== "function") {
+    throw new Error("@volcengine/tos-sdk 缺少 getPreSignedUrl，无法生成临时下载链接");
+  }
+  const signedUrl = client.getPreSignedUrl({
+    method: "GET",
+    bucket: cfg.bucket,
+    key: objectKey,
+    expires: cfg.signedUrlTtlSeconds,
+  });
+  return asText(String(signedUrl));
 }
 
 function isLocalSourceUrl(url: string): boolean {
@@ -95,17 +219,31 @@ export function normalizeVolcenginePublicSourceUrl(sourceUrl: string, publicBase
   const raw = asText(sourceUrl);
   const publicBase = asText(publicBaseUrl);
   if (!raw) return "";
+  const normalizeHostForAsr = (urlText: string): string => {
+    try {
+      const u = new URL(urlText);
+      if (u.hostname === "xianfeng.xinzhi.ai") {
+        u.hostname = "xianfeng.xinzhi.info";
+      }
+      if (!isLocalSourceUrl(u.toString()) && u.protocol === "http:") {
+        u.protocol = "https:";
+      }
+      return u.toString();
+    } catch (_error) {
+      return urlText;
+    }
+  };
   try {
     const parsed = new URL(raw);
     if (publicBase && (isLocalSourceUrl(raw) || parsed.pathname.startsWith("/uploads/"))) {
-      return new URL(`${parsed.pathname}${parsed.search}${parsed.hash}`, publicBase).toString();
+      return normalizeHostForAsr(new URL(`${parsed.pathname}${parsed.search}${parsed.hash}`, publicBase).toString());
     }
-    return parsed.toString();
+    return normalizeHostForAsr(parsed.toString());
   } catch (_error) {
     if (!publicBase) return raw;
     const normalizedPath = raw.startsWith("/") ? raw : `/${raw}`;
     try {
-      return new URL(normalizedPath, publicBase).toString();
+      return normalizeHostForAsr(new URL(normalizedPath, publicBase).toString());
     } catch (_secondError) {
       return raw;
     }
@@ -115,8 +253,11 @@ export function normalizeVolcenginePublicSourceUrl(sourceUrl: string, publicBase
 export function shouldUseVolcengineStandardEndpoint(resourceId: string, mode: string): boolean {
   const normalizedMode = asText(mode).toLowerCase();
   const normalizedResourceId = asText(resourceId);
+  const normalizedResourceIdLower = normalizedResourceId.toLowerCase();
   if (normalizedMode === "standard") return true;
   if (/^Speech_Recognition_Seed_/i.test(normalizedResourceId)) return true;
+  if (normalizedResourceIdLower === "volc.seedasr.auc") return true;
+  if (normalizedResourceIdLower.startsWith("volc.seedasr.")) return true;
   return normalizedResourceId === "volc.bigasr.auc";
 }
 
@@ -134,6 +275,34 @@ export function getVolcengineFlashMaxLocalBytes(): number {
   const maxBytes = Number(process.env.VOLCENGINE_FLASH_MAX_LOCAL_BYTES);
   if (Number.isFinite(maxBytes) && maxBytes > 0) return Math.floor(maxBytes);
   return 25 * 1024 * 1024;
+}
+
+function getVolcengineFlashHardLimitBytes(): number {
+  const configured = Number(process.env.VOLCENGINE_FLASH_HARD_LIMIT_BYTES);
+  if (Number.isFinite(configured) && configured > 0) return Math.floor(configured);
+  // Conservative hard-stop for flash fallback on long audios.
+  return 60 * 1024 * 1024;
+}
+
+function getVolcengineStandardPollingTimeoutMs(): number {
+  const configured = Number(process.env.VOLCENGINE_STANDARD_POLL_TIMEOUT_MS);
+  if (Number.isFinite(configured) && configured >= 10 * 60 * 1000) return Math.floor(configured);
+  const fallbackFromFetch = getVolcengineFetchTimeoutMs();
+  return Math.max(fallbackFromFetch, 45 * 60 * 1000);
+}
+
+function isTransientVolcengineMessage(message: string): boolean {
+  const normalized = asText(message).toLowerCase();
+  return (
+    normalized.includes("timeout") ||
+    normalized.includes("timed out") ||
+    normalized.includes("gateway") ||
+    normalized.includes("bad gateway") ||
+    normalized.includes("upstream") ||
+    normalized.includes("service unavailable") ||
+    normalized.includes("处理中") ||
+    normalized.includes("轮询超时")
+  );
 }
 
 export function shouldContinueVolcengineStandardPolling(statusCode: string): boolean {
@@ -155,6 +324,25 @@ async function fetchVolcengine(url: string, init: RequestInit): Promise<Response
   } finally {
     clearTimeout(timer);
   }
+}
+
+function isTransientGatewayStatus(status: number): boolean {
+  return status === 502 || status === 503 || status === 504;
+}
+
+async function fetchVolcengineWithRetry(url: string, init: RequestInit, options?: { maxAttempts?: number; baseDelayMs?: number }): Promise<Response> {
+  const maxAttempts = Math.max(1, Math.floor(options?.maxAttempts || 3));
+  const baseDelayMs = Math.max(100, Math.floor(options?.baseDelayMs || 500));
+  let lastResponse: Response | null = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const resp = await fetchVolcengine(url, init);
+    lastResponse = resp;
+    if (!isTransientGatewayStatus(resp.status) || attempt >= maxAttempts) {
+      return resp;
+    }
+    await new Promise((resolve) => setTimeout(resolve, baseDelayMs * attempt));
+  }
+  return lastResponse as Response;
 }
 
 function formatClock(seconds: number): string {
@@ -888,16 +1076,16 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
   private readonly publicBaseUrl: string;
 
   constructor(config?: Partial<VolcengineRuntimeConfig>) {
-    this.appId = asText(config?.appId) || asText(process.env.VOLCENGINE_APP_ID);
-    this.accessToken = asText(config?.accessToken) || asText(process.env.VOLCENGINE_ACCESS_TOKEN);
-    this.apiKey = asText(config?.apiKey) || asText(process.env.VOLCENGINE_API_KEY);
-    const envIds = asText(config?.resourceIds?.join(",")) || asText(process.env.VOLCENGINE_RESOURCE_ID);
+    this.appId = asText(process.env.VOLCENGINE_APP_ID) || asText(config?.appId);
+    this.accessToken = asText(process.env.VOLCENGINE_ACCESS_TOKEN) || asText(config?.accessToken);
+    this.apiKey = asText(process.env.VOLCENGINE_API_KEY) || asText(config?.apiKey);
+    const envIds = asText(process.env.VOLCENGINE_RESOURCE_ID) || asText(config?.resourceIds?.join(","));
     const parsedIds = (envIds ? envIds.split(",") : ["volc.bigasr.auc_turbo", "volc.bigasr.auc"])
       .map((item) => asText(item))
       .filter(Boolean);
     this.resourceIds = parsedIds.length > 0 ? parsedIds : ["volc.bigasr.auc_turbo", "volc.bigasr.auc"];
-    this.mode = asText(config?.mode) || asText(process.env.VOLCENGINE_MODE) || "auto";
-    this.publicBaseUrl = asText(config?.publicBaseUrl) || asText(process.env.VOLCENGINE_PUBLIC_BASE_URL) || asText(process.env.PUBLIC_BASE_URL);
+    this.mode = asText(process.env.VOLCENGINE_MODE) || asText(config?.mode) || "auto";
+    this.publicBaseUrl = asText(process.env.VOLCENGINE_PUBLIC_BASE_URL) || asText(process.env.PUBLIC_BASE_URL) || asText(config?.publicBaseUrl);
   }
 
   private detectFormat(filePath: string): string {
@@ -963,43 +1151,86 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
     );
   }
 
-  private async transcribeByStandard(sourceUrl: string, resourceId: string): Promise<{ transcript: TranscriptSegment[]; plainText: string; durationSeconds: number }> {
+  private async transcribeByStandard(
+    sourceUrl: string,
+    resourceId: string,
+    onProgress?: (progress: number, stage: string) => Promise<void> | void
+  ): Promise<{ transcript: TranscriptSegment[]; plainText: string; durationSeconds: number }> {
     if (this.isLocalUrl(sourceUrl)) {
       throw new Error("火山标准版需要公网可访问音频 URL；当前是本地地址 localhost/127.0.0.1");
     }
     const requestId = randomUUID();
     const headers = this.buildHeaders(requestId, resourceId);
-    const submitResp = await fetchVolcengine("https://openspeech.bytedance.com/api/v3/auc/bigmodel/submit", {
+    const submitPayload = {
+      user: { uid: this.appId || "podcast-admin" },
+      audio: {
+        url: sourceUrl,
+        format: detectAudioFormatFromUrl(sourceUrl),
+      },
+      request: {
+        model_name: "bigmodel",
+        show_utterances: true,
+        enable_punc: true,
+      },
+    };
+    console.log("[ai-program] volc submit request", {
+      resourceId,
+      requestId,
+      endpoint: "https://openspeech.bytedance.com/api/v3/auc/bigmodel/submit",
+      audioUrl: sourceUrl,
+      audioFormat: submitPayload.audio.format,
+      request: submitPayload.request,
+    });
+    const submitResp = await fetchVolcengineWithRetry("https://openspeech.bytedance.com/api/v3/auc/bigmodel/submit", {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        user: { uid: this.appId || "podcast-admin" },
-        audio: { url: sourceUrl },
-        request: {
-          model_name: "bigmodel",
-          show_utterances: true,
-          enable_punc: true,
-        },
-      }),
-    });
+      body: JSON.stringify(submitPayload),
+    }, { maxAttempts: 3, baseDelayMs: 800 });
     const submitJson: any = await submitResp.json().catch(() => ({}));
     const submitCode = asText((submitResp.headers.get("X-Api-Status-Code") || submitJson?.code || "").toString());
+    console.log("[ai-program] volc submit response", {
+      resourceId,
+      requestId,
+      httpStatus: submitResp.status,
+      apiStatusCode: submitCode,
+      apiMessage: asText(submitResp.headers.get("X-Api-Message")) || asText(submitJson?.message) || asText(submitJson?.msg),
+      logid: asText(submitResp.headers.get("X-Tt-Logid")),
+    });
     if (!submitResp.ok || (submitCode && submitCode !== "20000000")) {
       const msg = asText(submitResp.headers.get("X-Api-Message")) || asText(submitJson?.message) || asText(submitJson?.msg) || `HTTP ${submitResp.status}`;
       throw new Error(`[resource_id=${resourceId}] 标准版提交失败: ${msg}`);
     }
 
     let lastJson: any = {};
-    const deadlineAt = Date.now() + Math.max(getVolcengineFetchTimeoutMs(), 60000);
+    let standardCompleted = false;
+    const startedAt = Date.now();
+    const pollingTimeoutMs = getVolcengineStandardPollingTimeoutMs();
+    const deadlineAt = startedAt + pollingTimeoutMs;
     for (let i = 0; Date.now() < deadlineAt; i += 1) {
-      const queryResp = await fetchVolcengine("https://openspeech.bytedance.com/api/v3/auc/bigmodel/query", {
+      const elapsedRatio = Math.min(1, Math.max(0, (Date.now() - startedAt) / pollingTimeoutMs));
+      const progress = 16 + Math.floor(elapsedRatio * 40);
+      await onProgress?.(Math.min(progress, 58), "transcribing");
+      const queryResp = await fetchVolcengineWithRetry("https://openspeech.bytedance.com/api/v3/auc/bigmodel/query", {
         method: "POST",
         headers,
         body: JSON.stringify({}),
-      });
+      }, { maxAttempts: 3, baseDelayMs: 700 });
       const queryJson: any = await queryResp.json().catch(() => ({}));
       lastJson = queryJson;
       const queryCode = asText((queryResp.headers.get("X-Api-Status-Code") || queryJson?.code || "").toString());
+      console.log("[ai-program] volc query response", {
+        resourceId,
+        requestId,
+        attempt: i + 1,
+        httpStatus: queryResp.status,
+        apiStatusCode: queryCode,
+        apiMessage: asText(queryResp.headers.get("X-Api-Message")) || asText(queryJson?.message) || asText(queryJson?.msg),
+        logid: asText(queryResp.headers.get("X-Tt-Logid")),
+      });
+      if (!queryResp.ok && isTransientGatewayStatus(queryResp.status)) {
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        continue;
+      }
       if (shouldContinueVolcengineStandardPolling(queryCode)) {
         await new Promise((resolve) => setTimeout(resolve, 1500));
         continue;
@@ -1009,7 +1240,10 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
         throw new Error(`[resource_id=${resourceId}] 标准版查询失败: ${msg}`);
       }
       const status = Number(queryJson?.result?.status_code ?? queryJson?.result?.status);
-      if (status === 1 || status === 2 || status === 2000) break;
+      if (status === 1 || status === 2 || status === 2000) {
+        standardCompleted = true;
+        break;
+      }
       if (status === 0 || status === 1000 || Number.isNaN(status)) {
         await new Promise((resolve) => setTimeout(resolve, 1500));
         continue;
@@ -1017,6 +1251,11 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
       const msg = asText(queryJson?.result?.status_text) || "状态异常";
       throw new Error(`[resource_id=${resourceId}] 标准版任务失败: ${msg}`);
     }
+    if (!standardCompleted) {
+      const statusText = asText(lastJson?.result?.status_text) || asText(lastJson?.message) || "处理超时";
+      throw new Error(`[resource_id=${resourceId}] 标准版轮询超时，未拿到完整转写结果: ${statusText}`);
+    }
+    await onProgress?.(60, "transcribed");
     const utterances = Array.isArray(lastJson?.result?.utterances) ? lastJson.result.utterances : [];
     const transcript = this.normalizeUtterances(utterances);
     const plainText = asText(lastJson?.result?.text) || transcript.map((item) => item.text).join(" ");
@@ -1028,10 +1267,62 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
     return { transcript: transcript.length ? transcript : splitToTranscriptParagraphs(plainText, durationSeconds || 180), plainText, durationSeconds: durationSeconds || 180 };
   }
 
-  async transcribeAudio(filePath: string, options?: { sourceUrl?: string }): Promise<{ transcript: TranscriptSegment[]; plainText: string; durationSeconds: number }> {
-    const bytes = await fs.readFile(filePath);
+  async transcribeAudio(filePath: string, options?: { sourceUrl?: string; onProgress?: (progress: number, stage: string) => Promise<void> | void }): Promise<{ transcript: TranscriptSegment[]; plainText: string; durationSeconds: number }> {
+    console.log("[ai-program] volcengine config", {
+      mode: this.mode,
+      resourceIds: this.resourceIds,
+      hasApiKey: !!this.apiKey,
+      hasAppAccessToken: !!this.appId && !!this.accessToken,
+      publicBaseUrl: this.publicBaseUrl,
+    });
     const sourceUrl = this.toPublicSourceUrl(asText(options?.sourceUrl));
     const isLocalSourceUrl = this.isLocalUrl(sourceUrl);
+    const standardResourceIds = this.resourceIds.filter((resourceId) => this.shouldUseStandard(resourceId));
+    let lastErrorMessage = "";
+    if (isLocalSourceUrl && standardResourceIds.length > 0) {
+      try {
+        const tosSignedUrl = await uploadLocalAudioToTosAndSign(filePath);
+        if (tosSignedUrl) {
+          for (const standardResourceId of standardResourceIds) {
+            try {
+              return await this.transcribeByStandard(tosSignedUrl, standardResourceId, options?.onProgress);
+            } catch (error: any) {
+              lastErrorMessage = asText(error?.message);
+            }
+          }
+        }
+      } catch (error: any) {
+        // Continue to flash/fallback flow when TOS bridge is unavailable.
+      }
+    }
+    let forceFlashFallback = false;
+    if (!isLocalSourceUrl && standardResourceIds.length > 0) {
+      for (const standardResourceId of standardResourceIds) {
+        try {
+          return await this.transcribeByStandard(sourceUrl, standardResourceId, options?.onProgress);
+        } catch (error: any) {
+          const message = asText(error?.message);
+          lastErrorMessage = message;
+          const lowerMessage = message.toLowerCase();
+          if (
+            lowerMessage.includes("invalid audio uri") ||
+            lowerMessage.includes("audio download failed") ||
+            isTransientVolcengineMessage(message)
+          ) {
+            forceFlashFallback = true;
+            console.warn("[ai-program] standard fallback candidate", {
+              resourceId: standardResourceId,
+              sourceUrl,
+              message,
+            });
+            continue;
+          }
+          break;
+        }
+      }
+    }
+    const bytes = await fs.readFile(filePath);
+    const flashHardLimitBytes = getVolcengineFlashHardLimitBytes();
     const maxFlashLocalBytes = getVolcengineFlashMaxLocalBytes();
     if (isLocalSourceUrl && bytes.length > maxFlashLocalBytes) {
       throw new Error(
@@ -1051,9 +1342,29 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
       },
     };
     let json: any = {};
-    let lastErrorMessage = "";
-    for (const resourceId of this.resourceIds) {
-      if (this.shouldUseStandard(resourceId) && !isLocalSourceUrl) {
+    const flashFallbackResourceIds = Array.from(
+      new Set([
+        ...this.resourceIds.filter((item) => !this.shouldUseStandard(item)),
+        "volc.bigasr.auc_turbo",
+        "volc.bigasr.auc",
+      ])
+    );
+    const resourceIdsForRun =
+      (forceFlashFallback || isLocalSourceUrl) && flashFallbackResourceIds.length > 0
+        ? flashFallbackResourceIds
+        : this.resourceIds;
+    if ((forceFlashFallback || isLocalSourceUrl) && bytes.length > flashHardLimitBytes) {
+      throw new Error(
+        `当前音频约 ${Math.round(bytes.length / 1024 / 1024)}MB，超出 flash 稳定处理上限 ${Math.round(
+          flashHardLimitBytes / 1024 / 1024
+        )}MB。请在 https://xianfeng.xinzhi.info/admin/programs 上传并使用 standard 模式解析。`
+      );
+    }
+    const shouldForceFlashPath = forceFlashFallback || isLocalSourceUrl;
+    for (const resourceId of resourceIdsForRun) {
+      const modeForThisRun = shouldForceFlashPath ? "flash" : this.mode;
+      const isStandardForRun = shouldUseVolcengineStandardEndpoint(resourceId, modeForThisRun);
+      if (isStandardForRun && !isLocalSourceUrl && !shouldForceFlashPath) {
         try {
           return await this.transcribeByStandard(sourceUrl, resourceId);
         } catch (error: any) {
@@ -1061,7 +1372,7 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
           continue;
         }
       }
-      if (!shouldAttemptVolcengineFlashEndpoint(resourceId, this.mode)) {
+      if (!shouldAttemptVolcengineFlashEndpoint(resourceId, modeForThisRun)) {
         if (!lastErrorMessage) {
           lastErrorMessage = `[resource_id=${resourceId}] 标准版需要公网可访问音频 URL；请配置 VOLCENGINE_PUBLIC_BASE_URL 为公网域名`;
         }
@@ -1070,6 +1381,7 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
       let shouldTryNextResource = false;
       const maxAttempts = 3;
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        await options?.onProgress?.(Math.min(20 + ((attempt - 1) * 10), 58), "transcribing");
         const requestId = randomUUID();
         const response = await fetchVolcengine("https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash", {
           method: "POST",
@@ -1127,6 +1439,9 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
           // ignore fallback errors and return original volcengine error for clearer diagnosis
         }
       }
+      if (!asText(process.env.OPENAI_API_KEY)) {
+        lastErrorMessage = `${lastErrorMessage}；当前未配置 OPENAI_API_KEY，无法启用转写兜底`;
+      }
       throw new Error(`火山语音转写失败: ${lastErrorMessage}`);
     }
     const utterances = Array.isArray(json?.result?.utterances) ? json.result.utterances : [];
@@ -1154,6 +1469,7 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
     if (!plainText && transcript.length === 0) {
       throw new Error("火山语音转写失败: flash 返回空转写结果，请检查资源 ID、鉴权配置和音频格式");
     }
+    await options?.onProgress?.(60, "transcribed");
     return { transcript: transcript.length ? transcript : splitToTranscriptParagraphs(plainText, durationSeconds), plainText, durationSeconds };
   }
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { adminApi, AgentTask, Guest, GuestBoundProgram, Program } from "../../services/api";
+import { adminApi, AgentTask, Guest, GuestBoundProgram, GuestPublication, GuestSocialProfile, Program } from "../../services/api";
 import TopAlert from "../../components/TopAlert";
 
 type GuestForm = {
@@ -9,6 +9,9 @@ type GuestForm = {
   avatar: string;
   profileUrl: string;
   profileMarkdown: string;
+  profileReferences: Array<{ title: string; url: string; note: string }>;
+  socialProfiles: GuestSocialProfile[];
+  publications: GuestPublication[];
   status: "active" | "inactive";
 };
 
@@ -19,10 +22,20 @@ const EMPTY_FORM: GuestForm = {
   avatar: "",
   profileUrl: "",
   profileMarkdown: "",
+  profileReferences: [],
+  socialProfiles: [],
+  publications: [],
   status: "active",
 };
 const PAGE_SIZE = 20;
 const PROGRAM_PAGE_SIZE = 20;
+const PUBLICATION_TYPE_OPTIONS: Array<{ value: GuestPublication["type"]; label: string }> = [
+  { value: "paper", label: "论文" },
+  { value: "book", label: "著作" },
+  { value: "interview", label: "采访" },
+  { value: "media", label: "公开内容" },
+  { value: "other", label: "其他资料" },
+];
 
 function normalizeGuestName(value: string): string {
   return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
@@ -30,6 +43,40 @@ function normalizeGuestName(value: string): string {
 
 function normalizeProgramText(value: string): string {
   return String(value || "").trim().toLowerCase();
+}
+
+function normalizeSocialProfilesForForm(input: Guest["socialProfiles"] | undefined): GuestSocialProfile[] {
+  if (!Array.isArray(input)) return [];
+  return input.map((item, index) => ({
+    platform: String(item?.platform || ""),
+    label: String(item?.label || ""),
+    url: String(item?.url || ""),
+    note: String(item?.note || ""),
+    order: Number(item?.order) || index + 1,
+    status: item?.status === "inactive" ? "inactive" : "active",
+  }));
+}
+
+function normalizePublicationsForForm(input: Guest["publications"] | undefined): GuestPublication[] {
+  if (!Array.isArray(input)) return [];
+  return input.map((item, index) => ({
+    type: item?.type || "other",
+    title: String(item?.title || ""),
+    url: String(item?.url || ""),
+    source: String(item?.source || ""),
+    publishedAt: String(item?.publishedAt || ""),
+    summary: String(item?.summary || ""),
+    note: String(item?.note || ""),
+    order: Number(item?.order) || index + 1,
+    status: item?.status === "inactive" ? "inactive" : "active",
+  }));
+}
+
+function normalizeMaybeUrl(value: string): string {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  return `https://${raw}`;
 }
 
 const AdminGuestsPage: React.FC = () => {
@@ -148,6 +195,15 @@ const AdminGuestsPage: React.FC = () => {
       avatar: guest.avatar || "",
       profileUrl: guest.profileUrl || "",
       profileMarkdown: guest.profileMarkdown || "",
+      profileReferences: Array.isArray(guest.profileReferences)
+        ? guest.profileReferences.map((item) => ({
+            title: String(item?.title || ""),
+            url: String(item?.url || ""),
+            note: String(item?.note || ""),
+          }))
+        : [],
+      socialProfiles: normalizeSocialProfilesForForm(guest.socialProfiles),
+      publications: normalizePublicationsForForm(guest.publications),
       status: guest.status || "active",
     });
     setAvatarUploadHint("");
@@ -206,6 +262,17 @@ const AdminGuestsPage: React.FC = () => {
         taskType: "enrich_guest_profile",
         targetType: "guest",
         targetId: editing._id,
+        options: {
+          guestProfileContext: {
+            name: form.name,
+            title: form.title,
+            bio: form.bio,
+            profileUrl: form.profileUrl,
+            profileReferences: form.profileReferences,
+            socialProfiles: form.socialProfiles,
+            publications: form.publications,
+          },
+        },
       });
       setGuestTask(created.data);
       const deadline = Date.now() + 120000;
@@ -225,6 +292,15 @@ const AdminGuestsPage: React.FC = () => {
         avatar: next.avatar || prev.avatar,
         profileUrl: next.profileUrl || prev.profileUrl,
         profileMarkdown: next.profileMarkdown || prev.profileMarkdown,
+        profileReferences: Array.isArray(next.profileReferences)
+          ? next.profileReferences.map((item) => ({
+              title: String(item?.title || ""),
+              url: String(item?.url || ""),
+              note: String(item?.note || ""),
+            }))
+          : prev.profileReferences,
+        socialProfiles: normalizeSocialProfilesForForm(next.socialProfiles),
+        publications: normalizePublicationsForForm(next.publications),
       }));
     } catch (err: any) {
       setError(err?.response?.data?.message || err?.message || "触发嘉宾资料收集失败");
@@ -265,6 +341,91 @@ const AdminGuestsPage: React.FC = () => {
     }
   };
 
+  const updateProfileReference = (index: number, key: "title" | "url" | "note", value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      profileReferences: prev.profileReferences.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [key]: value } : item
+      ),
+    }));
+  };
+
+  const addProfileReference = () => {
+    setForm((prev) => ({
+      ...prev,
+      profileReferences: [...prev.profileReferences, { title: "", url: "", note: "" }],
+    }));
+  };
+
+  const removeProfileReference = (index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      profileReferences: prev.profileReferences.filter((_, itemIndex) => itemIndex !== index),
+    }));
+  };
+
+  const updateSocialProfile = (index: number, key: keyof GuestSocialProfile, value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      socialProfiles: prev.socialProfiles.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [key]: key === "order" ? Number(value) || itemIndex + 1 : value } : item
+      ),
+    }));
+  };
+
+  const addSocialProfile = () => {
+    setForm((prev) => ({
+      ...prev,
+      socialProfiles: [
+        ...prev.socialProfiles,
+        { platform: "", label: "", url: "", note: "", order: prev.socialProfiles.length + 1, status: "active" },
+      ],
+    }));
+  };
+
+  const removeSocialProfile = (index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      socialProfiles: prev.socialProfiles.filter((_, itemIndex) => itemIndex !== index),
+    }));
+  };
+
+  const updatePublication = (index: number, key: keyof GuestPublication, value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      publications: prev.publications.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [key]: key === "order" ? Number(value) || itemIndex + 1 : value } : item
+      ),
+    }));
+  };
+
+  const addPublication = () => {
+    setForm((prev) => ({
+      ...prev,
+      publications: [
+        ...prev.publications,
+        {
+          type: "other",
+          title: "",
+          url: "",
+          source: "",
+          publishedAt: "",
+          summary: "",
+          note: "",
+          order: prev.publications.length + 1,
+          status: "active",
+        },
+      ],
+    }));
+  };
+
+  const removePublication = (index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      publications: prev.publications.filter((_, itemIndex) => itemIndex !== index),
+    }));
+  };
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     const normalizedIncomingName = normalizeGuestName(form.name);
@@ -284,29 +445,70 @@ const AdminGuestsPage: React.FC = () => {
       return;
     }
 
+    const socialRows = Array.isArray(form.socialProfiles) ? form.socialProfiles : [];
+
+    const payload: GuestForm = {
+      ...form,
+      profileUrl: normalizeMaybeUrl(form.profileUrl),
+      profileReferences: (Array.isArray(form.profileReferences) ? form.profileReferences : []).map((item) => ({
+        ...item,
+        url: normalizeMaybeUrl(item.url),
+      })),
+      socialProfiles: socialRows.map((item) => ({
+        ...item,
+        url: normalizeMaybeUrl(String(item?.url || "")),
+      })),
+      publications: (Array.isArray(form.publications) ? form.publications : []).map((item) => ({
+        ...item,
+        url: normalizeMaybeUrl(String(item?.url || "")),
+      })),
+    };
+
     setSaving(true);
     setError(null);
     try {
       let savedGuestId = "";
+      let bindingWarning = "";
       if (editing) {
-        const updated = await adminApi.updateGuest(editing._id, form);
+        const updated = await adminApi.updateGuest(editing._id, payload);
         savedGuestId = String(updated.data?._id || editing._id);
-        await adminApi.updateGuestProgramBindings(
-          savedGuestId,
-          boundPrograms.map((item) => String(item._id))
-        );
-      } else {
-        const created = await adminApi.createGuest(form);
-        savedGuestId = String(created.data?._id || "");
-        if (savedGuestId && boundPrograms.length > 0) {
+        const submittedSocialCount = payload.socialProfiles.filter((item) => item.platform || item.label || item.url || item.note).length;
+        const savedSocialCount = Array.isArray(updated.data?.socialProfiles) ? updated.data.socialProfiles.length : 0;
+        if (submittedSocialCount > 0 && savedSocialCount < submittedSocialCount) {
+          bindingWarning = bindingWarning || "部分社交媒体条目未落库，请刷新后重试";
+        }
+        try {
           await adminApi.updateGuestProgramBindings(
             savedGuestId,
             boundPrograms.map((item) => String(item._id))
           );
+        } catch (bindErr: any) {
+          bindingWarning = bindErr?.response?.data?.message || bindErr?.message || "节目绑定同步失败";
+        }
+      } else {
+        const created = await adminApi.createGuest(payload);
+        savedGuestId = String(created.data?._id || "");
+        const submittedSocialCount = payload.socialProfiles.filter((item) => item.platform || item.label || item.url || item.note).length;
+        const savedSocialCount = Array.isArray(created.data?.socialProfiles) ? created.data.socialProfiles.length : 0;
+        if (submittedSocialCount > 0 && savedSocialCount < submittedSocialCount) {
+          bindingWarning = bindingWarning || "部分社交媒体条目未落库，请刷新后重试";
+        }
+        if (savedGuestId && boundPrograms.length > 0) {
+          try {
+            await adminApi.updateGuestProgramBindings(
+              savedGuestId,
+              boundPrograms.map((item) => String(item._id))
+            );
+          } catch (bindErr: any) {
+            bindingWarning = bindErr?.response?.data?.message || bindErr?.message || "节目绑定同步失败";
+          }
         }
       }
       await loadGuests();
       closeModal();
+      if (bindingWarning) {
+        setError(`嘉宾资料已保存，但${bindingWarning}`);
+      }
     } catch (err: any) {
       const detail =
         err?.response?.data?.message ||
@@ -501,67 +703,148 @@ const AdminGuestsPage: React.FC = () => {
               </div>
               <input className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm md:col-span-2 admin-form-input" placeholder="档案链接" value={form.profileUrl} onChange={(event) => setForm((prev) => ({ ...prev, profileUrl: event.target.value }))} />
               <textarea className="min-h-[90px] rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm md:col-span-2 admin-form-textarea" placeholder="简介" value={form.bio} onChange={(event) => setForm((prev) => ({ ...prev, bio: event.target.value }))} />
-              {editing ? (
-                <div className="rounded-2xl border border-stone-200 bg-white p-4 md:col-span-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-widest text-[#7A746E]">嘉宾资料收集 Agent</p>
-                      <p className="mt-1 text-xs text-stone-500">
-                        手动触发后生成 Markdown 草稿、外链索引与头像候选，可继续人工编辑后保存。
-                      </p>
+              <div className="rounded-2xl border border-stone-200 bg-white p-4 md:col-span-2">
+                {editing ? (
+                  <>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-widest text-[#7A746E]">嘉宾资料收集 Agent</p>
+                        <p className="mt-1 text-xs text-stone-500">
+                          手动触发后执行 AI 资料收集，优先回填真实档案页、词条页、访谈页与公开头像，不再使用搜索占位内容。
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={runGuestProfileEnrichment}
+                        disabled={guestTaskLoading}
+                        className="rounded-full bg-[#5e17eb] px-4 py-1.5 text-xs font-bold text-white transition hover:bg-[#5112d1] disabled:opacity-60"
+                      >
+                        {guestTaskLoading ? "生成中..." : "触发资料收集"}
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={runGuestProfileEnrichment}
-                      disabled={guestTaskLoading}
-                      className="rounded-full bg-[#5e17eb] px-4 py-1.5 text-xs font-bold text-white transition hover:bg-[#5112d1] disabled:opacity-60"
-                    >
-                      {guestTaskLoading ? "生成中..." : "触发资料收集"}
-                    </button>
-                  </div>
-                  <div className="mt-3 rounded-xl border border-stone-100 bg-stone-50 px-3 py-2 text-xs text-stone-600">
-                    {guestTask
-                      ? `最新任务：${guestTask.status}${guestTask.outputSummary ? ` · ${guestTask.outputSummary}` : ""}`
-                      : "暂无任务记录"}
-                  </div>
-                  {(editing.profileAvatarCandidates || []).length > 0 ? (
-                    <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
-                      {(editing.profileAvatarCandidates || []).slice(0, 3).map((item, index) => (
+                    <div className="mt-3 rounded-xl border border-stone-100 bg-stone-50 px-3 py-2 text-xs text-stone-600">
+                      {guestTask
+                        ? `最新任务：${guestTask.status}${guestTask.outputSummary ? ` · ${guestTask.outputSummary}` : ""}`
+                        : "暂无任务记录"}
+                    </div>
+                    {(editing.profileAvatarCandidates || []).length > 0 ? (
+                      <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+                        {(editing.profileAvatarCandidates || []).slice(0, 3).map((item, index) => (
+                          <button
+                            key={`${item.url}-${index}`}
+                            type="button"
+                            onClick={() => setForm((prev) => ({ ...prev, avatar: item.url || prev.avatar }))}
+                            className="overflow-hidden rounded-xl border border-stone-200 bg-white text-left"
+                          >
+                            <img src={item.url} alt={item.label || "候选头像"} className="h-24 w-full object-cover" />
+                            <div className="px-2 py-1 text-[11px] text-stone-600">{item.label || "候选头像"}</div>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </>
+                ) : null}
+                <textarea
+                  className="mt-3 min-h-[180px] w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm font-mono admin-form-textarea"
+                  placeholder="嘉宾资料 Markdown（可编辑）"
+                  value={form.profileMarkdown}
+                  onChange={(event) => setForm((prev) => ({ ...prev, profileMarkdown: event.target.value }))}
+                />
+                <div className="mt-3 space-y-3">
+                    <div className="rounded-2xl border border-stone-100 bg-stone-50 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <div className="text-xs font-black uppercase tracking-widest text-[#7A746E]">社交媒体</div>
+                          <div className="mt-1 text-[11px] text-stone-500">用于前台人物页展示平台入口，例如微博、公众号、知乎、小红书、Bilibili。</div>
+                        </div>
                         <button
-                          key={`${item.url}-${index}`}
                           type="button"
-                          onClick={() => setForm((prev) => ({ ...prev, avatar: item.url || prev.avatar }))}
-                          className="overflow-hidden rounded-xl border border-stone-200 bg-white text-left"
+                          onClick={addSocialProfile}
+                          className="rounded-full border border-[#5e17eb]/20 px-3 py-1 text-[11px] font-bold text-[#5e17eb]"
                         >
-                          <img src={item.url} className="h-24 w-full object-cover" />
-                          <div className="px-2 py-1 text-[11px] text-stone-600">{item.label || "候选头像"}</div>
+                          新增社交媒体
                         </button>
-                      ))}
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {form.socialProfiles.length === 0 ? (
+                          <div className="rounded-xl border border-dashed border-stone-200 bg-white px-3 py-3 text-xs text-stone-400">
+                            暂无社交媒体，可手动录入或通过资料收集自动补充。
+                          </div>
+                        ) : (
+                          form.socialProfiles.map((item, idx) => (
+                            <div key={`${item.url}-${idx}`} className="rounded-xl border border-stone-200 bg-white p-3">
+                              <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr,1fr,1.4fr,0.8fr,0.8fr,auto]">
+                                <input className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs admin-form-input" placeholder="平台" value={item.platform || ""} onChange={(event) => updateSocialProfile(idx, "platform", event.target.value)} />
+                                <input className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs admin-form-input" placeholder="账号/名称" value={item.label || ""} onChange={(event) => updateSocialProfile(idx, "label", event.target.value)} />
+                                <input className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs admin-form-input" placeholder="https://..." value={item.url || ""} onChange={(event) => updateSocialProfile(idx, "url", event.target.value)} />
+                                <input className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs admin-form-input" placeholder="排序" value={String(item.order || idx + 1)} onChange={(event) => updateSocialProfile(idx, "order", event.target.value)} />
+                                <select className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs admin-form-input" value={item.status || "active"} onChange={(event) => updateSocialProfile(idx, "status", event.target.value)}>
+                                  <option value="active">启用</option>
+                                  <option value="inactive">停用</option>
+                                </select>
+                                <button type="button" onClick={() => removeSocialProfile(idx)} className="rounded-full border border-red-100 px-3 py-2 text-[11px] font-bold text-red-500">
+                                  删除
+                                </button>
+                              </div>
+                              <input className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs admin-form-input" placeholder="备注" value={item.note || ""} onChange={(event) => updateSocialProfile(idx, "note", event.target.value)} />
+                            </div>
+                          ))
+                        )}
+                      </div>
                     </div>
-                  ) : null}
-                  <textarea
-                    className="mt-3 min-h-[180px] w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm font-mono admin-form-textarea"
-                    placeholder="嘉宾资料 Markdown（可编辑）"
-                    value={form.profileMarkdown}
-                    onChange={(event) => setForm((prev) => ({ ...prev, profileMarkdown: event.target.value }))}
-                  />
-                  {(editing.profileReferences || []).length > 0 ? (
-                    <div className="mt-2 space-y-1 text-xs">
-                      {(editing.profileReferences || []).map((item, idx) => (
-                        <a
-                          key={`${item.url}-${idx}`}
-                          href={item.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="block truncate text-[#5e17eb] hover:underline"
+
+                    <div className="rounded-2xl border border-stone-100 bg-stone-50 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <div className="text-xs font-black uppercase tracking-widest text-[#7A746E]">公开成果与资料</div>
+                          <div className="mt-1 text-[11px] text-stone-500">按论文、著作、采访、公开内容等分类维护，前台人物页会分栏展示。</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={addPublication}
+                          className="rounded-full border border-[#5e17eb]/20 px-3 py-1 text-[11px] font-bold text-[#5e17eb]"
                         >
-                          {item.title || item.url}
-                        </a>
-                      ))}
+                          新增资料
+                        </button>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {form.publications.length === 0 ? (
+                          <div className="rounded-xl border border-dashed border-stone-200 bg-white px-3 py-3 text-xs text-stone-400">
+                            暂无结构化资料，旧公开链接会在前台作为兼容资料展示。
+                          </div>
+                        ) : (
+                          form.publications.map((item, idx) => (
+                            <div key={`${item.url}-${idx}`} className="rounded-xl border border-stone-200 bg-white p-3">
+                              <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr,1.6fr,1.6fr,0.8fr,0.8fr,auto]">
+                                <select className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs admin-form-input" value={item.type || "other"} onChange={(event) => updatePublication(idx, "type", event.target.value)}>
+                                  {PUBLICATION_TYPE_OPTIONS.map((option) => (
+                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                  ))}
+                                </select>
+                                <input className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs admin-form-input" placeholder="标题" value={item.title || ""} onChange={(event) => updatePublication(idx, "title", event.target.value)} />
+                                <input className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs admin-form-input" placeholder="https://..." value={item.url || ""} onChange={(event) => updatePublication(idx, "url", event.target.value)} />
+                                <input className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs admin-form-input" placeholder="排序" value={String(item.order || idx + 1)} onChange={(event) => updatePublication(idx, "order", event.target.value)} />
+                                <select className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs admin-form-input" value={item.status || "active"} onChange={(event) => updatePublication(idx, "status", event.target.value)}>
+                                  <option value="active">启用</option>
+                                  <option value="inactive">停用</option>
+                                </select>
+                                <button type="button" onClick={() => removePublication(idx)} className="rounded-full border border-red-100 px-3 py-2 text-[11px] font-bold text-red-500">
+                                  删除
+                                </button>
+                              </div>
+                              <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
+                                <input className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs admin-form-input" placeholder="来源 / 机构" value={item.source || ""} onChange={(event) => updatePublication(idx, "source", event.target.value)} />
+                                <input className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs admin-form-input" placeholder="发布时间（如 2024-06）" value={item.publishedAt || ""} onChange={(event) => updatePublication(idx, "publishedAt", event.target.value)} />
+                              </div>
+                              <textarea className="mt-2 min-h-[72px] w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs admin-form-textarea" placeholder="摘要 / 核心内容" value={item.summary || ""} onChange={(event) => updatePublication(idx, "summary", event.target.value)} />
+                              <input className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs admin-form-input" placeholder="备注" value={item.note || ""} onChange={(event) => updatePublication(idx, "note", event.target.value)} />
+                            </div>
+                          ))
+                        )}
+                      </div>
                     </div>
-                  ) : null}
                 </div>
-              ) : null}
+              </div>
               <div className="rounded-2xl border border-stone-200 bg-white p-4 md:col-span-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>

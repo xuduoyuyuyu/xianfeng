@@ -55,6 +55,16 @@ textarea {
   font: inherit;
 }
 
+.materials-search-input,
+.materials-search-input:focus,
+.materials-search-input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 .material-symbols-outlined {
   font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
   vertical-align: middle;
@@ -84,6 +94,28 @@ textarea {
 
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
+}
+
+.thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(239, 68, 68, 0.35) transparent;
+}
+
+.thin-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.thin-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.35);
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(220, 38, 38, 0.45);
 }
 
 .line-clamp-1,
@@ -122,7 +154,7 @@ textarea {
 }
 
 .screen-shell {
-  width: 100vw;
+  width: 100%;
   height: 100vh;
   background: #f4f5f7;
 }

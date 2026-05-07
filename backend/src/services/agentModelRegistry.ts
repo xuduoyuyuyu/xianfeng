@@ -160,6 +160,17 @@ export function saveStore(store: Store) {
   fs.writeFileSync(STORE_FILE, JSON.stringify(store, null, 2), "utf-8");
 }
 
+function normalizeUpstreamModelName(provider: string, modelName: string): string {
+  const p = String(provider || "").trim().toLowerCase();
+  const m = String(modelName || "").trim();
+  const ml = m.toLowerCase();
+  // Compatibility: gateways often reject shorthand names like "Pro"/"Flash".
+  if (ml === "pro") return "deepseek-v4-pro";
+  if (ml === "flash") return "deepseek-v4-flash";
+  if (p === "deepseek" && ml === "deepseek-chat") return "deepseek-v4-flash";
+  return m;
+}
+
 export function resolveAgentModelConfig(agent: AgentRow, registry: ModelRegistryItem[]) {
   const primaryById = registry.find((x) => x.id === agent.primary_model_id && x.enabled);
   const fallbackPrimary = !primaryById
@@ -172,12 +183,44 @@ export function resolveAgentModelConfig(agent: AgentRow, registry: ModelRegistry
   const extract = registry.find((x) => x.id === agent.feature_models?.extract && x.enabled);
   return {
     primary: primary
-      ? { provider: primary.provider, model_name: primary.model_name, api_key: primary.api_key, base_url: primary.base_url, meta: primary.meta }
-      : { provider: agent.model_provider, model_name: agent.model_name, api_key: "", base_url: "", meta: {} },
+      ? {
+          id: primary.id,
+          name: primary.name,
+          provider: primary.provider,
+          model_name: normalizeUpstreamModelName(primary.provider, primary.model_name),
+          api_key: primary.api_key,
+          base_url: primary.base_url,
+          meta: primary.meta,
+        }
+      : {
+          provider: agent.model_provider,
+          model_name: normalizeUpstreamModelName(agent.model_provider, agent.model_name),
+          api_key: "",
+          base_url: "",
+          meta: {},
+        },
     features: {
-      asr: asr ? { provider: asr.provider, model_name: asr.model_name, api_key: asr.api_key, base_url: asr.base_url, meta: asr.meta } : null,
+      asr: asr
+        ? {
+            id: asr.id,
+            name: asr.name,
+            provider: asr.provider,
+            model_name: normalizeUpstreamModelName(asr.provider, asr.model_name),
+            api_key: asr.api_key,
+            base_url: asr.base_url,
+            meta: asr.meta,
+          }
+        : null,
       extract: extract
-        ? { provider: extract.provider, model_name: extract.model_name, api_key: extract.api_key, base_url: extract.base_url, meta: extract.meta }
+        ? {
+            id: extract.id,
+            name: extract.name,
+            provider: extract.provider,
+            model_name: normalizeUpstreamModelName(extract.provider, extract.model_name),
+            api_key: extract.api_key,
+            base_url: extract.base_url,
+            meta: extract.meta,
+          }
         : null,
     },
   };

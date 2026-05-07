@@ -8,6 +8,12 @@ type GlobalPublicNavProps = {
   compactMobile?: boolean;
   showProgramList?: boolean;
   showProgramEntry?: boolean;
+  showExpertsEntry?: boolean;
+  showBooksEntry?: boolean;
+  showMaterialsEntry?: boolean;
+  searchPlaceholder?: string;
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
 };
 
 const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
@@ -17,9 +23,18 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
   compactMobile = false,
   showProgramList = true,
   showProgramEntry = true,
+  showExpertsEntry = true,
+  showBooksEntry = true,
+  showMaterialsEntry = true,
+  searchPlaceholder = "搜索节目标题/简介",
+  searchValue,
+  onSearchChange,
 }) => {
   const { pathname } = useLocation();
   const activePrograms = pathname.startsWith("/programs");
+  const activeExperts = pathname.startsWith("/experts");
+  const activeBooks = pathname.startsWith("/books");
+  const activeMaterials = pathname.startsWith("/materials");
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -68,15 +83,33 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
       `}</style>
       <nav className="fixed top-0 z-50 w-full">
         <div id="tb">
-          <Link className="tb-logo" to="/programs" onClick={() => setMenuOpen(false)}>
+          <Link className="tb-logo" to="/programs/list" onClick={() => setMenuOpen(false)}>
             <img src="/assets/logo.png" alt="Logo" style={{ height: 29 }} />
           </Link>
 
           <nav className="tb-nav" id="tb-nav">
             {showProgramList ? (
-              <Link to="/programs" className={`tb-nav-btn ${activePrograms ? "on" : ""}`}>
+              <Link reloadDocument to="/programs/list" className={`tb-nav-btn ${activePrograms ? "on" : ""}`}>
                 <span className="ms">podcasts</span>
                 <span>节目列表</span>
+              </Link>
+            ) : null}
+            {showExpertsEntry ? (
+              <Link reloadDocument to="/experts" className={`tb-nav-btn ${activeExperts ? "on" : ""}`}>
+                <span className="ms">person</span>
+                <span>先疯智库</span>
+              </Link>
+            ) : null}
+            {showBooksEntry ? (
+              <Link reloadDocument to="/books" className={`tb-nav-btn ${activeBooks ? "on" : ""}`}>
+                <span className="ms">menu_book</span>
+                <span>推荐书单</span>
+              </Link>
+            ) : null}
+            {showMaterialsEntry ? (
+              <Link reloadDocument to="/materials" className={`tb-nav-btn ${activeMaterials ? "on" : ""}`}>
+                <span className="ms">inventory_2</span>
+                <span>学习资料</span>
               </Link>
             ) : null}
           </nav>
@@ -88,7 +121,13 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
                   <span className="ms0" style={{ fontFamily: "'Material Symbols Rounded'", fontSize: 16, color: "#9ca3af", lineHeight: 1 }}>
                     search
                   </span>
-                  <input id="tb-program-search-input" type="text" placeholder="搜索节目标题/简介" />
+                  <input
+                    id="tb-program-search-input"
+                    type="text"
+                    placeholder={searchPlaceholder}
+                    value={typeof searchValue === "string" ? searchValue : undefined}
+                    onChange={(event) => onSearchChange?.(event.target.value)}
+                  />
                 </label>
                 {showAiOnline ? <span className="search-divider" id="tb-search-divider" /> : null}
               </>
@@ -113,7 +152,7 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
           {compactMobile ? (
             <>
               {showProgramEntry ? (
-                <Link to="/programs" className={`mobile-main-link ${activePrograms ? "on" : ""}`} onClick={() => setMenuOpen(false)}>
+                <Link reloadDocument to="/programs/list" className={`mobile-main-link ${activePrograms ? "on" : ""}`} onClick={() => setMenuOpen(false)}>
                   节目入口
                 </Link>
               ) : null}
@@ -127,18 +166,28 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
         {compactMobile && menuOpen ? (
           <div className="tb-mobile-panel">
             <div className="tb-mobile-grid">
-              <Link className={`tb-mobile-link ${activePrograms ? "on" : ""}`} to="/programs" onClick={() => setMenuOpen(false)}>
+              <Link reloadDocument className={`tb-mobile-link ${activePrograms ? "on" : ""}`} to="/programs/list" onClick={() => setMenuOpen(false)}>
                 <span className="ms">podcasts</span>
                 <span>播客节目</span>
               </Link>
-              <Link className="tb-mobile-link" to="/books" onClick={() => setMenuOpen(false)}>
-                <span className="ms">menu_book</span>
-                <span>推荐书单</span>
-              </Link>
-              <Link className="tb-mobile-link" to="/materials" onClick={() => setMenuOpen(false)}>
-                <span className="ms">inventory_2</span>
-                <span>学习资料</span>
-              </Link>
+              {showExpertsEntry ? (
+                <Link reloadDocument className={`tb-mobile-link ${activeExperts ? "on" : ""}`} to="/experts" onClick={() => setMenuOpen(false)}>
+                  <span className="ms">person</span>
+                  <span>先疯智库</span>
+                </Link>
+              ) : null}
+              {showBooksEntry ? (
+                <Link className={`tb-mobile-link ${activeBooks ? "on" : ""}`} to="/books" onClick={() => setMenuOpen(false)}>
+                  <span className="ms">menu_book</span>
+                  <span>推荐书单</span>
+                </Link>
+              ) : null}
+              {showMaterialsEntry ? (
+                <Link className="tb-mobile-link" to="/materials" onClick={() => setMenuOpen(false)}>
+                  <span className="ms">inventory_2</span>
+                  <span>学习资料</span>
+                </Link>
+              ) : null}
               <Link className="tb-mobile-link" to="/login" onClick={() => setMenuOpen(false)}>
                 <span className="ms">login</span>
                 <span>登录/注册</span>

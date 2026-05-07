@@ -17,8 +17,19 @@ type DictionaryEntryInput = {
   aliases: string[];
 };
 
+type SyncDictionaryOptions = {
+  sourceText?: string;
+};
+
 const CHINESE_SENTENCE_NEGATIVE_PATTERN =
-  /(包括|但是|不过|因为|所以|如果|那么|然后|事实上|大多数人|不具备|并不构成|这个能力|这个问题|这个事情|这件事|这个内容)/;
+  /(包括|但是|不过|因为|所以|如果|那么|然后|事实上|大多数人|不具备|并不构成|这个能力|这种能力|这个问题|这个事情|这件事|这个内容|发现我|我们|你们|他们|她们|很有|觉得|认为|可以通过|家庭访谈的这种能力)/;
+const CLAUSE_LEADING_NEGATIVE_PATTERN =
+  /^(?:的|个|或者|如果|但是|不过|因为|所以|然后|并且|而且|以及|还有|关于|对于|不是|不可能|可能|那么|这是|那是|果他)/;
+const GENERIC_NEGATIVE_TERMS = new Set([
+  "工作方法",
+  "我学心理",
+  "发现我很有家庭访谈的这种能力",
+]);
 const ENGLISH_ALLOWED_TERMS = new Set([
   "AI",
   "AIGC",
@@ -49,6 +60,17 @@ function uniqueStrings(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
+function normalizeForMatch(value: unknown): string {
+  return asText(value).toLowerCase().replace(/[，。！？、,.!?;:：\s\-_()[\]{}"'“”‘’]/g, "");
+}
+
+function appearsInSourceText(term: string, sourceText: string): boolean {
+  const normalizedTerm = normalizeForMatch(term);
+  const normalizedSource = normalizeForMatch(sourceText);
+  if (!normalizedTerm || !normalizedSource) return false;
+  return normalizedSource.includes(normalizedTerm);
+}
+
 export function normalizeDictionaryTerm(value: unknown): string {
   return asText(value).toLowerCase().replace(/\s+/g, "");
 }
@@ -57,8 +79,13 @@ export function isHighQualityEducationTerm(value: unknown): boolean {
   const term = asText(value);
   if (!term) return false;
   if (term.length < 2 || term.length > 24) return false;
+  if (GENERIC_NEGATIVE_TERMS.has(term)) return false;
   if (CHINESE_FILLER_PATTERN.test(term)) return false;
   if (/[。！？；：，,.!?;:]/.test(term)) return false;
+  if (CLAUSE_LEADING_NEGATIVE_PATTERN.test(term)) return false;
+  if (term.includes("的")) return false;
+  if (/^[我你他她它们我们你们他们她们]/.test(term)) return false;
+  if (/(发现|觉得|认为|知道|看到|进行|通过|具备|拥有)/.test(term) && term.length >= 6) return false;
   if (CHINESE_SENTENCE_NEGATIVE_PATTERN.test(term)) return false;
   if (/^[A-Za-z][A-Za-z0-9\-]{1,20}$/.test(term)) {
     return ENGLISH_ALLOWED_TERMS.has(term.toUpperCase());
@@ -196,9 +223,14 @@ async function detachProgramFromRemovedEntries(programId: string, dictionaryEntr
 export async function syncProgramDictionaryEntries(
   programId: string,
   glossaryInput: unknown,
-  createdFrom: "ai_program" | "migration" = "ai_program"
+  createdFrom: "ai_program" | "migration" = "ai_program",
+  options: SyncDictionaryOptions = {}
 ) {
-  const glossary = sanitizeDictionaryGlossary(glossaryInput);
+  const sourceText = asText(options.sourceText);
+  let glossary = sanitizeDictionaryGlossary(glossaryInput);
+  if (sourceText) {
+    glossary = glossary.filter((item) => appearsInSourceText(item.term, sourceText));
+  }
   const nextEntryIds: string[] = [];
 
   for (const item of glossary) {

@@ -54,7 +54,7 @@
       "description": "解析节目拓展内容",
       "status": "active",
       "model_provider": "openai",
-      "model_name": "gpt-4.1",
+      "model_name": "",
       "temperature": 0.2,
       "top_p": 0.95,
       "max_tokens": 1200,
@@ -102,8 +102,8 @@
       "description": "通过多渠道收集产品评价，结合权威信源验证，客观判断产品是\"值得买的好东西\"还是\"智商税陷阱\"，为用户提供可信赖的消费决策参考",
       "status": "active",
       "model_provider": "openai",
-      "model_name": "gpt-4.1",
-      "primary_model_id": "",
+      "model_name": "",
+      "primary_model_id": "default-openai-deepseek-v4",
       "feature_models": {},
       "temperature": 0.2,
       "top_p": 0.95,
@@ -159,7 +159,7 @@
         "id": 1777729069256,
         "version": "v-1777729069256",
         "system_prompt": "你是专业文本校对与结构化智能体。\n针对节目逐字稿，进行错别字、格式、知识点校验，并输出规范、清晰的结构化文本。\n\n约束规则：\n1. 只做校对、拆分、结构化处理，不闲聊、不生成额外内容、不做推理。\n2. 严格保留原文核心信息，只修正明显错误、优化格式、按知识点拆分段落。\n3. 输出格式为JSON或纯文本，不添加解释性话术。\n4. 上下文独立，不与其他Agent共享信息。",
-        "prompt_template": "Input: {...}\\nOutput: {...}",
+        "prompt_template": "{\n  \"cover_size\": \"{{cover_size}}\",\n  \"unified_style\": \"艺术海报设计，等轴构图，东方美学，极致抽象极简红色水墨画，红黑金配色，版式高级，精准构图，大气克制，留白充足，极简主义\",\n  \"theme_element\": \"围绕「{{focus_keywords}}」构建视觉主意象，核心意象采用「{{motif}}」，突出「{{insight}}」所代表的问题张力、行动意味与思考空间。\",\n  \"full_prompt\": \"艺术海报设计，等轴构图，东方美学，极致抽象极简红色水墨画，红黑金配色，留白充足，极简主义。画幅为横版，接近 {{cover_size}}。大标题使用清晰宋体“东方美学”，主体构图稳定，留白明确，对比强烈，没有多余元素、线条或装饰噪音。系列规则：所有节目封面统一保持东方美学系列视觉系统，只根据每期节目的关键词变化核心意象，不改变整体版式、字体气质与审美方向。节目标题仅作语义参考：{{title}}。本期关键词：{{keyword_csv}}。核心意象：{{motif}}。叙事聚焦：{{theme_element}}。画面气质：高级、克制、当代、文化感强、情绪准确、抽象而有思想性。优先使用象征性、观念化、编辑感的视觉表达，不要直白人物摆拍，不要常规商业海报套路。输出应适合官网节目列表与详情页直接使用。\",\n  \"negative_prompt\": \"{{negative_prompt}}\"\n}",
         "change_note": "",
         "is_current": true,
         "created_at": "2026-05-02T13:37:49.256Z"
@@ -542,7 +542,7 @@
       "id": "default-openai-deepseek-v4",
       "name": "deepseek-v4-pro",
       "provider": "Deepseek",
-      "model_name": "Pro",
+      "model_name": "deepseek-v4-pro",
       "api_key": "sk-5861237803ed495e913fc97001f1a214",
       "base_url": "https://api.deepseek.com",
       "enabled": true,
@@ -573,16 +573,17 @@
       "id": "Speech_Recognition_Seed",
       "name": "录音文件识别2.0",
       "provider": "Doubao",
-      "model_name": "Doubao-语音识别",
-      "api_key": "b74002c7-a04a-4ace-99f4-595c2cf397de",
-      "base_url": "https://ark.cn-beijing.volces.com/api/v3",
+      "model_name": "Doubao_Seed_ASR_AUC_2.02000000735829284098",
+      "api_key": "59daea53-dfbf-41de-91b3-ed47a831b6e1",
+      "base_url": "https://openspeech.bytedance.com/api/v3/auc/bigmodel/submit",
       "enabled": true,
       "capabilities": [
-        "reasoning"
+        "reasoning",
+        "asr"
       ],
       "meta": {},
       "created_at": "2026-05-02T16:00:28.139Z",
-      "updated_at": "2026-05-02T16:00:28.139Z"
+      "updated_at": "2026-05-03T13:19:17.891Z"
     }
   ]
 }

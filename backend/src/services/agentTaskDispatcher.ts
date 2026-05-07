@@ -1,4 +1,6 @@
 import crypto from "crypto";
+import fs from "fs/promises";
+import path from "path";
 import mongoose from "mongoose";
 import AgentTaskModel, {
   AgentTaskStatus,
@@ -7,7 +9,7 @@ import AgentTaskModel, {
 } from "../models/AgentTask";
 import Program from "../models/Program";
 import GuestModel from "../models/Guest";
-import { syncProgramDictionaryEntries } from "./educationDictionary";
+import { isHighQualityEducationTerm, syncProgramDictionaryEntries } from "./educationDictionary";
 import { createInboxMessage } from "./adminInbox";
 import { ensureStore, resolveAgentModelConfig } from "./agentModelRegistry";
 
@@ -27,8 +29,8 @@ let working = false;
 const TASK_AGENT_MAP: Partial<Record<AgentTaskType, string>> = {
   proofread_transcript: "textbook_structure_agent",
   enrich_program_content: "knowledge_split_agent",
-  enrich_guest_profile: "user_agent",
-  generate_program_artwork: "question_quality_agent",
+  enrich_guest_profile: "question_quality_agent",
+  generate_program_artwork: "image",
 };
 
 function getLatestPromptDoc(bucket: any): any | null {
@@ -99,59 +101,283 @@ function termSourceUrl(term: string): string {
   return `https://baike.baidu.com/item/${encodeURIComponent(term)}`;
 }
 
-function readingSourceUrl(keyword: string): string {
-  return `https://www.bing.com/search?q=${encodeURIComponent(keyword)}`;
+function isSearchEntryUrl(url: string): boolean {
+  const u = asText(url).toLowerCase();
+  return u.includes("bing.com/search?q=") || u.includes("google.com/search?q=") || u.includes("baidu.com/s?");
 }
 
-type ArtworkStyle =
-  | "cinematic_poster"
-  | "editorial_brutalist"
-  | "neo_noir"
-  | "swiss_grid"
-  | "collage_manifesto";
+function isNoisyReadingTitle(title: string): boolean {
+  const t = asText(title);
+  if (!t) return true;
+  return /(欢迎来到|最新一期|阶段的教育|因为从政策|意味着这个教育|JESSIE|^延伸阅读：)/i.test(t);
+}
+
+function isGeneratedFallbackReading(item: { title?: unknown; subtitle?: unknown; url?: unknown }): boolean {
+  const title = asText(item?.title);
+  const subtitle = asText(item?.subtitle);
+  const url = asText(item?.url);
+  if (isSearchEntryUrl(url) || isSearchLikeUrl(url)) return true;
+  if (/^延伸阅读：/.test(title)) return true;
+  if (subtitle === "概念词条与背景知识" || subtitle === "概念入门与背景梳理") return true;
+  if (url.includes("baike.baidu.com/item/") && /^延伸阅读：/.test(title)) return true;
+  return false;
+}
+
+function decodeXmlEntities(text: string): string {
+  return text
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;/g, "'");
+}
+
+function stripHtmlTags(text: string): string {
+  return text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function decodeHtmlContent(text: string): string {
+  return normalizeSpaces(decodeXmlEntities(stripHtmlTags(text || "")));
+}
+
+function isImageAssetUrl(url: string): boolean {
+  const value = asText(url).toLowerCase();
+  return /\.(png|jpe?g|webp|gif|svg)(\?|$)/i.test(value);
+}
+
+function isSearchLikeUrl(url: string): boolean {
+  const value = asText(url).toLowerCase();
+  return (
+    value.includes("/search?") ||
+    value.includes("query=") ||
+    value.includes("keyword=") ||
+    value.includes("/s?wd=") ||
+    value.includes("/s?q=")
+  );
+}
+
+function isRealReferenceUrl(url: string): boolean {
+  const value = asText(url);
+  return looksLikeReferenceUrl(value) && !isSearchEntryUrl(value) && !isSearchLikeUrl(value);
+}
+
+function isPlaceholderAvatarUrl(url: string): boolean {
+  const value = asText(url).toLowerCase();
+  return (
+    value.includes("ui-avatars.com") ||
+    value.includes("source.unsplash.com/featured") ||
+    value.includes("placehold") ||
+    value.includes("dummyimage.com")
+  );
+}
+
+function inferSocialPlatform(url: string): string {
+  const value = asText(url).toLowerCase();
+  if (value.includes("weibo.com")) return "微博";
+  if (value.includes("xiaohongshu.com")) return "小红书";
+  if (value.includes("mp.weixin.qq.com") || value.includes("wechat.com")) return "微信公众号";
+  if (value.includes("zhihu.com")) return "知乎";
+  if (value.includes("douyin.com")) return "抖音";
+  if (value.includes("bilibili.com")) return "Bilibili";
+  if (value.includes("x.com") || value.includes("twitter.com")) return "X";
+  if (value.includes("linkedin.com")) return "LinkedIn";
+  return "";
+}
+
+function inferPublicationType(materialType: string, url: string): "paper" | "book" | "interview" | "media" | "other" {
+  const type = asText(materialType).toLowerCase();
+  const link = asText(url).toLowerCase();
+  if (type === "paper" || type === "book" || type === "interview" || type === "media" || type === "other") {
+    return type;
+  }
+  if (type.includes("论文") || link.includes("scholar") || link.includes("cnki") || link.includes("doi.org")) return "paper";
+  if (type.includes("著作") || type.includes("图书") || type.includes("书")) return "book";
+  if (type.includes("访谈") || type.includes("采访")) return "interview";
+  if (type.includes("公开言论") || type.includes("公开资料") || type.includes("媒体")) return "media";
+  return "other";
+}
+
+async function fetchReferenceDocument(url: string): Promise<{ title: string; description: string; image: string }> {
+  const target = asText(url);
+  if (!isRealReferenceUrl(target)) return { title: "", description: "", image: "" };
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
+  try {
+    const response = await fetch(target, {
+      method: "GET",
+      signal: controller.signal,
+      headers: {
+        "User-Agent": "Mozilla/5.0",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      },
+    });
+    if (!response.ok) return { title: "", description: "", image: "" };
+    const html = await response.text();
+    const title =
+      decodeHtmlContent(html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"]*?)["']/i)?.[1] || "") ||
+      decodeHtmlContent(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || "");
+    const description =
+      decodeHtmlContent(html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"]*?)["']/i)?.[1] || "") ||
+      decodeHtmlContent(html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"]*?)["']/i)?.[1] || "");
+    const image =
+      asText(html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"]*?)["']/i)?.[1] || "") ||
+      asText(html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"]*?)["']/i)?.[1] || "");
+    return {
+      title: clipText(title, 120),
+      description: clipText(description, 220),
+      image: looksLikeReferenceUrl(image) ? image : "",
+    };
+  } catch (_error) {
+    return { title: "", description: "", image: "" };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function fetchNewsArticlesByKeyword(keyword: string, limit = 2): Promise<Array<{ title: string; url: string; note: string }>> {
+  const q = asText(keyword);
+  if (!q) return [];
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 2600);
+  try {
+    const resp = await fetch(`https://www.bing.com/news/search?q=${encodeURIComponent(q)}&format=rss`, {
+      method: "GET",
+      signal: controller.signal,
+      headers: {
+        "Accept": "application/rss+xml,application/xml,text/xml;q=0.9,*/*;q=0.1",
+      },
+    });
+    if (!resp.ok) return [];
+    const xml = await resp.text();
+    const itemMatches = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
+    const rows: Array<{ title: string; url: string; note: string }> = [];
+    for (const item of itemMatches) {
+      const title = decodeXmlEntities(stripHtmlTags((item.match(/<title>([\s\S]*?)<\/title>/i)?.[1] || "").trim()));
+      const url = decodeXmlEntities((item.match(/<link>([\s\S]*?)<\/link>/i)?.[1] || "").trim());
+      const source = decodeXmlEntities(stripHtmlTags((item.match(/<source[^>]*>([\s\S]*?)<\/source>/i)?.[1] || "").trim()));
+      if (!title || !url || !/^https?:\/\//i.test(url)) continue;
+      rows.push({ title, url, note: source ? `来源：${source}` : "相关新闻" });
+      if (rows.length >= limit) break;
+    }
+    return rows;
+  } catch (_error) {
+    return [];
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function normalizeModelNameForUpstream(provider: string, modelName: string): string {
+  const p = asText(provider).toLowerCase();
+  const m = asText(modelName);
+  const ml = m.toLowerCase();
+  if (ml === "pro") return "deepseek-v4-pro";
+  if (ml === "flash") return "deepseek-v4-flash";
+  if (p === "deepseek" && ml === "deepseek-chat") return "deepseek-v4-flash";
+  return m;
+}
+
+function normalizeImageModelNameForUpstream(modelConfig: any): string {
+  const provider = asText(modelConfig?.provider).toLowerCase();
+  const modelId = asText(modelConfig?.id);
+  const modelName = asText(modelConfig?.model_name);
+  const normalizedName = normalizeModelNameForUpstream(provider, modelName);
+  const normalizedId = asText(modelId).toLowerCase();
+  if (provider === "doubao") {
+    if (normalizedId.includes("seedream")) return modelId;
+    const nameKey = normalizedName.toLowerCase();
+    if (nameKey === "doubao-seedream-5.0") return "doubao-seedream-5-0-260128";
+    if (nameKey === "doubao-seedream-5.0-lite") return "doubao-seedream-5-0-lite-250428";
+  }
+  return normalizedName;
+}
+
+function stripJsonFence(text: string): string {
+  const raw = asText(text);
+  if (!raw) return "";
+  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  return fenced ? asText(fenced[1]) : raw;
+}
+
+function parseJsonFromModelText(text: string): any | null {
+  const cleaned = stripJsonFence(text);
+  if (!cleaned) return null;
+  try {
+    return JSON.parse(cleaned);
+  } catch (_error) {
+    return null;
+  }
+}
+
+async function callAgentModelForJson(
+  taskConfig: ReturnType<typeof resolveTaskConfig>,
+  userPrompt: string
+): Promise<{ parsed: any | null; rawText: string; error?: string }> {
+  const modelConfig: any = taskConfig.model || {};
+  const apiKey = asText(modelConfig?.api_key);
+  const modelName = normalizeModelNameForUpstream(modelConfig?.provider, modelConfig?.model_name);
+  const baseUrl = asText(modelConfig?.base_url) || "https://api.openai.com";
+  if (!apiKey || !modelName) {
+    return { parsed: null, rawText: "", error: "模型未配置完整（缺少 api_key 或 model_name）" };
+  }
+  const endpoint = `${baseUrl.replace(/\/+$/, "")}/v1/chat/completions`;
+  const systemPrompt =
+    asText(taskConfig.promptDoc?.system_prompt) ||
+    "你是嘉宾资料收集助手，只输出严格 JSON，不要输出解释文字。";
+  try {
+    const upstream = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: modelName,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        temperature: Number.isFinite(Number(modelConfig?.temperature)) ? Number(modelConfig?.temperature) : 0.2,
+        top_p: Number.isFinite(Number(modelConfig?.top_p)) ? Number(modelConfig?.top_p) : 0.95,
+        max_tokens: Number.isFinite(Number(modelConfig?.max_tokens)) ? Number(modelConfig?.max_tokens) : 1200,
+        stream: false,
+      }),
+    });
+    const data = await upstream.json().catch(() => ({}));
+    if (!upstream.ok) {
+      return {
+        parsed: null,
+        rawText: "",
+        error: `上游调用失败: ${upstream.status} ${asText(data?.error?.message || data?.message || "unknown")}`,
+      };
+    }
+    const rawText = asText(data?.choices?.[0]?.message?.content);
+    return { parsed: parseJsonFromModelText(rawText), rawText };
+  } catch (error: any) {
+    return { parsed: null, rawText: "", error: asText(error?.message) || "模型调用失败" };
+  }
+}
+
+type ArtworkStyle = "oriental_ink_series";
 
 function normalizeArtworkStyle(value: unknown): ArtworkStyle {
-  const raw = asText(value).toLowerCase();
-  // new design-style presets
-  if (raw === "editorial_brutalist") return "editorial_brutalist";
-  if (raw === "neo_noir") return "neo_noir";
-  if (raw === "swiss_grid") return "swiss_grid";
-  if (raw === "collage_manifesto") return "collage_manifesto";
-  if (raw === "cinematic_poster") return "cinematic_poster";
-  // backward compatibility for old content-style values
-  if (raw === "parenting_case") return "collage_manifesto";
-  if (raw === "methodology") return "swiss_grid";
-  if (raw === "data_shock") return "editorial_brutalist";
-  if (raw === "future_school") return "neo_noir";
-  return "cinematic_poster";
+  void value;
+  return "oriental_ink_series";
 }
 
 function styleLabel(style: ArtworkStyle): string {
-  if (style === "editorial_brutalist") return "Brutalist 编辑风";
-  if (style === "neo_noir") return "新黑色霓虹风";
-  if (style === "swiss_grid") return "瑞士网格风";
-  if (style === "collage_manifesto") return "拼贴宣言风";
-  return "电影海报风";
-}
-
-function pickArtworkTheme(style: ArtworkStyle) {
-  const styleMap: Record<ArtworkStyle, { palette: [string, string, string]; accent: string; textMain: string; textSub: string }> = {
-    cinematic_poster: { palette: ["#0B1020", "#1E1B4B", "#312E81"], accent: "#8B5CF6", textMain: "#F8FAFC", textSub: "#C7D2FE" },
-    collage_manifesto: { palette: ["#3F0D12", "#6A040F", "#9D0208"], accent: "#FF6B6B", textMain: "#FFF8F1", textSub: "#FFD7BA" },
-    swiss_grid: { palette: ["#052E16", "#0F766E", "#115E59"], accent: "#2DD4BF", textMain: "#ECFEFF", textSub: "#99F6E4" },
-    editorial_brutalist: { palette: ["#172554", "#1D4ED8", "#1E40AF"], accent: "#F59E0B", textMain: "#EFF6FF", textSub: "#BFDBFE" },
-    neo_noir: { palette: ["#111827", "#0F172A", "#1E293B"], accent: "#22D3EE", textMain: "#E0F2FE", textSub: "#A5F3FC" },
-  };
-  return styleMap[style];
+  if (style === "oriental_ink_series") return "东方美学系列";
+  return "东方美学系列";
 }
 
 function pickSemanticMotif(keywords: string[]) {
   const text = keywords.join(" ");
-  if (/(困局|焦虑|压力|内耗|迷茫|冲突)/.test(text)) return "maze";
-  if (/(成长|孩子|亲子|家庭|陪伴)/.test(text)) return "orbit";
-  if (/(方法|策略|体系|框架|模型|步骤)/.test(text)) return "blueprint";
-  if (/(精神|心理|情绪|安全感|自我)/.test(text)) return "pulse";
-  return "signal";
+  if (/(困局|焦虑|压力|内耗|迷茫|冲突)/.test(text)) return "张力回环";
+  if (/(成长|孩子|亲子|家庭|陪伴)/.test(text)) return "家园共振";
+  if (/(方法|策略|体系|框架|模型|步骤)/.test(text)) return "秩序骨架";
+  if (/(精神|心理|情绪|安全感|自我)/.test(text)) return "情绪涟漪";
+  return "思想微光";
 }
 
 function clipByChars(value: string, max = 28): string {
@@ -167,109 +393,187 @@ function pickInsightLine(summary: string, fallback: string): string {
   return clipByChars(first, 34);
 }
 
-function buildMotifSvg(motif: string, accent: string): string {
-  if (motif === "maze") {
-    return `
-  <path d="M690 160 H960 V430 H760 V260 H890 V360 H820 V300 H750 V500 H1000" stroke="${accent}" stroke-width="12" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
-  <circle cx="1000" cy="500" r="10" fill="${accent}"/>`;
-  }
-  if (motif === "orbit") {
-    return `
-  <circle cx="855" cy="300" r="110" stroke="${accent}" stroke-width="10" fill="none" opacity="0.9"/>
-  <circle cx="855" cy="300" r="70" stroke="${accent}" stroke-width="6" fill="none" opacity="0.65"/>
-  <circle cx="930" cy="235" r="14" fill="${accent}"/>
-  <circle cx="785" cy="358" r="10" fill="${accent}" opacity="0.8"/>`;
-  }
-  if (motif === "blueprint") {
-    return `
-  <rect x="700" y="160" width="300" height="280" rx="28" stroke="${accent}" stroke-width="8" fill="none" opacity="0.9"/>
-  <line x1="730" y1="220" x2="970" y2="220" stroke="${accent}" stroke-width="6" opacity="0.8"/>
-  <line x1="730" y1="276" x2="930" y2="276" stroke="${accent}" stroke-width="6" opacity="0.65"/>
-  <line x1="730" y1="332" x2="890" y2="332" stroke="${accent}" stroke-width="6" opacity="0.5"/>`;
-  }
-  if (motif === "pulse") {
-    return `
-  <path d="M690 320 H760 L790 250 L840 400 L880 300 H1010" stroke="${accent}" stroke-width="12" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
-  <circle cx="1010" cy="300" r="10" fill="${accent}"/>`;
-  }
-  return `
-  <path d="M700 410 L800 280 L880 360 L980 220" stroke="${accent}" stroke-width="12" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
-  <circle cx="980" cy="220" r="12" fill="${accent}"/>`;
+function renderPromptTemplate(template: string, variables: Record<string, string>): string {
+  const raw = asText(template);
+  if (!raw) return "";
+  return raw.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, key) => variables[key] ?? "");
 }
 
-function buildArtworkSourceUrl(input: {
+function buildDefaultArtworkPromptPackage(input: {
+  title: string;
+  keywords: string[];
+  motif: string;
+  insight: string;
+  themeElement: string;
+}) {
+  const styleDef = {
+    unified:
+      "艺术海报设计，等轴构图，东方美学，极致抽象极简红色水墨画，红黑金配色，版式高级，精准构图，大气克制，留白充足，极简主义",
+    palette: "red, black, gold",
+    layout:
+      "大标题使用清晰宋体“东方美学”，主体构图稳定，留白明确，对比强烈，没有多余元素、线条或装饰噪音",
+  };
+  const fullPrompt = [
+    "为一档家庭教育播客节目生成统一系列封面图。",
+    "画幅为横版，接近 1072 x 714 px。",
+    styleDef.unified,
+    `色彩体系：${styleDef.palette}。`,
+    `版式要求：${styleDef.layout}。`,
+    "系列规则：所有节目封面统一保持“东方美学系列”视觉系统，只根据每期节目的关键词变化核心意象，不改变整体版式、字体气质与审美方向。",
+    `节目标题仅作语义参考：${input.title}。`,
+    `本期关键词：${input.keywords.join("、") || input.title}。`,
+    `核心意象：${input.motif}。`,
+    `叙事聚焦：${input.themeElement}`,
+    "文字规则：只允许出现一个清晰、可读、占据视觉重心的中文宋体大标题“东方美学”。",
+    "画面气质：高级、克制、当代、文化感强、情绪准确、抽象而有思想性。",
+    "优先使用象征性、观念化、编辑感的视觉表达，不要直白人物摆拍，不要常规商业海报套路。",
+    "不要额外英文，不要 logo，不要水印，不要 UI，不要花哨纹理，不要冗余线条，不要无关小元素。",
+    "输出应适合官网节目列表与详情页直接使用。"
+  ].join(" ");
+  return {
+    cover_size: "1072 x 714 px",
+    unified_style: styleDef.unified,
+    theme_element: input.themeElement,
+    full_prompt: fullPrompt,
+    negative_prompt: [
+      "文字模糊, 多余文字, 英文字符, 水印, logo, 二维码, UI元素, 低清晰度, 模糊失焦",
+      "廉价素材感, 幼稚卡通, 搞笑表情包, 杂乱构图, 背景拥挤, 人物肢体畸形",
+      "重复主体, 高光过曝, 颜色发脏, 随机拼贴噪点, 粗糙插画",
+      "紫色主色, 赛博霓虹, 装饰过密, 线条过多, 非极简风格"
+    ].join(", "),
+  };
+}
+
+function buildArtworkPromptPackage(input: {
   semanticCore: string[];
   parsedSignals: string[];
   style: ArtworkStyle;
-}): string {
+  title: string;
+  summaryText: string;
+  promptDoc?: any | null;
+}) {
   const semanticCore = (Array.isArray(input.semanticCore) ? input.semanticCore : []).filter(Boolean).slice(0, 6);
   const parsedSignals = (Array.isArray(input.parsedSignals) ? input.parsedSignals : []).filter(Boolean).slice(0, 10);
   const keywords = [...semanticCore, ...parsedSignals];
-  const theme = pickArtworkTheme(input.style);
   const motif = pickSemanticMotif(keywords);
-  const nodeCount = Math.max(4, Math.min(12, semanticCore.length + Math.ceil(parsedSignals.length / 2)));
-  const ringCount = Math.max(2, Math.min(5, Math.ceil(parsedSignals.length / 2)));
-  const strokeDensity = Math.max(4, Math.min(10, Math.ceil(keywords.length / 2)));
-  const motifSvg = buildMotifSvg(motif, theme.accent);
-  const networkLines = Array.from({ length: strokeDensity })
-    .map((_, i) => {
-      const startX = 700 + ((i * 73) % 280);
-      const startY = 170 + ((i * 97) % 320);
-      const endX = 700 + (((i + 3) * 91) % 280);
-      const endY = 170 + (((i + 5) * 67) % 320);
-      const opacity = 0.25 + ((i % 4) * 0.12);
-      return `<line x1="${startX}" y1="${startY}" x2="${endX}" y2="${endY}" stroke="${theme.accent}" stroke-width="3" opacity="${opacity.toFixed(2)}"/>`;
-    })
-    .join("");
-  const semanticNodes = Array.from({ length: nodeCount })
-    .map((_, i) => {
-      const cx = 720 + ((i * 61) % 250);
-      const cy = 190 + ((i * 83) % 280);
-      const r = 6 + (i % 4) * 3;
-      const opacity = 0.35 + ((i % 5) * 0.1);
-      return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${theme.accent}" opacity="${opacity.toFixed(2)}"/>`;
-    })
-    .join("");
-  const parsedRings = Array.from({ length: ringCount })
-    .map((_, i) => {
-      const cx = 220 + i * 150;
-      const cy = 520 - i * 26;
-      const r = 68 + i * 18;
-      const opacity = 0.08 + i * 0.05;
-      return `<circle cx="${cx}" cy="${cy}" r="${r}" stroke="${theme.textSub}" stroke-width="2" fill="none" opacity="${opacity.toFixed(2)}"/>`;
-    })
-    .join("");
-  const svg = `
-<svg width="1072" height="714" viewBox="0 0 1072 714" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="${theme.palette[0]}"/>
-      <stop offset="55%" stop-color="${theme.palette[1]}"/>
-      <stop offset="100%" stop-color="${theme.palette[2]}"/>
-    </linearGradient>
-    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.22"/>
-      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.08"/>
-    </linearGradient>
-  </defs>
-  <rect width="1072" height="714" fill="url(#bg)"/>
-  <rect x="36" y="36" width="1000" height="642" rx="42" fill="url(#glass)" stroke="#FFFFFF" stroke-opacity="0.18"/>
-  <rect x="70" y="76" width="600" height="562" rx="30" fill="#070C17" fill-opacity="0.30"/>
-  <rect x="106" y="116" width="190" height="20" rx="10" fill="${theme.accent}" fill-opacity="0.25"/>
-  <rect x="106" y="162" width="420" height="34" rx="17" fill="${theme.textMain}" fill-opacity="0.14"/>
-  <rect x="106" y="214" width="360" height="22" rx="11" fill="${theme.textSub}" fill-opacity="0.16"/>
-  <rect x="106" y="262" width="280" height="22" rx="11" fill="${theme.textSub}" fill-opacity="0.13"/>
-  <rect x="106" y="312" width="510" height="10" rx="5" fill="${theme.accent}" fill-opacity="0.22"/>
-  <rect x="106" y="340" width="460" height="10" rx="5" fill="${theme.accent}" fill-opacity="0.17"/>
-  <rect x="106" y="368" width="380" height="10" rx="5" fill="${theme.accent}" fill-opacity="0.14"/>
-  ${parsedRings}
-  ${motifSvg}
-  ${networkLines}
-  ${semanticNodes}
-  <rect x="106" y="560" width="520" height="18" rx="9" fill="${theme.textMain}" fill-opacity="0.08"/>
-  <rect x="106" y="590" width="440" height="12" rx="6" fill="${theme.textSub}" fill-opacity="0.1"/>
-</svg>`;
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+  const title = clipByChars(input.title || "教育播客", 36);
+  const insight = pickInsightLine(input.summaryText, keywords[0] || title || "教育现场观察");
+  const themeElement = `围绕「${keywords.slice(0, 4).join(" / ") || title}」构建视觉主意象，核心意象采用「${motif}」，突出「${insight}」所代表的问题张力、行动意味与思考空间。`;
+  const fallbackPackage = buildDefaultArtworkPromptPackage({
+    title,
+    keywords,
+    motif,
+    insight,
+    themeElement,
+  });
+  const variables: Record<string, string> = {
+    cover_size: fallbackPackage.cover_size,
+    unified_style: fallbackPackage.unified_style,
+    theme_element: themeElement,
+    title,
+    focus_keywords: keywords.join(" / ") || title,
+    keyword_csv: keywords.join("、") || title,
+    semantic_core: semanticCore.join(" / "),
+    parsed_signals: parsedSignals.join(" / "),
+    motif,
+    insight,
+    summary_text: asText(input.summaryText),
+    negative_prompt: fallbackPackage.negative_prompt,
+  };
+  const managedTemplate = renderPromptTemplate(asText(input.promptDoc?.prompt_template), variables);
+  const managedJson = parseJsonFromModelText(managedTemplate);
+  if (managedJson && typeof managedJson === "object") {
+    return {
+      cover_size: asText(managedJson.cover_size) || fallbackPackage.cover_size,
+      unified_style: asText(managedJson.unified_style) || fallbackPackage.unified_style,
+      theme_element: asText(managedJson.theme_element) || themeElement,
+      full_prompt: asText(managedJson.full_prompt) || fallbackPackage.full_prompt,
+      negative_prompt: asText(managedJson.negative_prompt) || fallbackPackage.negative_prompt,
+    };
+  }
+  if (managedTemplate) {
+    return {
+      ...fallbackPackage,
+      full_prompt: managedTemplate,
+    };
+  }
+  return fallbackPackage;
+}
+
+function resolveImageGenerationEndpoint(baseUrl: string): string {
+  return `${baseUrl.replace(/\/+$/, "")}/images/generations`;
+}
+
+function resolveGeneratedImagePublicBaseUrl(): string {
+  const nodeEnv = asText(process.env.NODE_ENV).toLowerCase();
+  if (nodeEnv !== "production") {
+    return `http://localhost:${process.env.PORT || "3001"}`;
+  }
+  const explicit = asText(process.env.VOLCENGINE_PUBLIC_BASE_URL);
+  if (explicit) return explicit.replace(/\/+$/, "");
+  return `http://localhost:${process.env.PORT || "3001"}`;
+}
+
+function inferImageExtension(contentType: string, fallbackUrl = ""): string {
+  const type = asText(contentType).toLowerCase();
+  if (type.includes("png")) return ".png";
+  if (type.includes("webp")) return ".webp";
+  if (type.includes("jpeg") || type.includes("jpg")) return ".jpg";
+  const pathname = fallbackUrl ? new URL(fallbackUrl).pathname : "";
+  const ext = path.extname(pathname).toLowerCase();
+  return ext || ".png";
+}
+
+async function persistGeneratedImage(sourceUrl: string): Promise<string> {
+  const response = await fetch(sourceUrl);
+  if (!response.ok) {
+    throw new Error(`下载生图结果失败: HTTP ${response.status}`);
+  }
+  const arrayBuffer = await response.arrayBuffer();
+  const ext = inferImageExtension(response.headers.get("content-type") || "", sourceUrl);
+  const fileName = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}${ext}`;
+  const imageDir = path.resolve(process.cwd(), "uploads", "images");
+  await fs.mkdir(imageDir, { recursive: true });
+  await fs.writeFile(path.join(imageDir, fileName), Buffer.from(arrayBuffer));
+  return `${resolveGeneratedImagePublicBaseUrl()}/uploads/images/${fileName}`;
+}
+
+async function callAgentImageModel(
+  taskConfig: ReturnType<typeof resolveTaskConfig>,
+  promptPackage: { full_prompt: string; negative_prompt: string }
+): Promise<string> {
+  const modelConfig: any = taskConfig.model || {};
+  const apiKey = asText(modelConfig?.api_key);
+  const modelName = normalizeImageModelNameForUpstream(modelConfig);
+  const baseUrl = asText(modelConfig?.base_url);
+  if (!apiKey || !modelName || !baseUrl) {
+    throw new Error("配图模型未配置完整（缺少 api_key、model_name 或 base_url）");
+  }
+  const endpoint = resolveImageGenerationEndpoint(baseUrl);
+  const upstream = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: modelName,
+      prompt: promptPackage.full_prompt,
+      negative_prompt: promptPackage.negative_prompt,
+      response_format: "url",
+      size: "2K",
+      watermark: false,
+    }),
+  });
+  const data = await upstream.json().catch(() => ({}));
+  if (!upstream.ok) {
+    throw new Error(`Seedream 生图失败: ${upstream.status} ${asText(data?.error?.message || data?.message || "unknown")}`);
+  }
+  const remoteUrl = asText(data?.data?.[0]?.url || data?.data?.[0]?.image_url);
+  if (!remoteUrl) {
+    throw new Error("Seedream 未返回有效图片地址");
+  }
+  return persistGeneratedImage(remoteUrl);
 }
 
 async function collectParsedSignals(program: any): Promise<string[]> {
@@ -429,8 +733,18 @@ export function extractCandidateTerms(rawText: string): string[] {
     return token
       .replace(/^(我们|你们|他们|其实|主要|关于|对于|围绕|提到|讨论|聊聊|以及|还有|孩子的|家长的|本期|这一期)+/g, "")
       .replace(/^(和|与|及|并|会|将|把|对|在|从|向|给|还|又|就|来|去|说|讲)+/g, "")
+      .replace(/^(欢迎来到|欢迎收听|欢迎来到最新一期|这一期我们聊|本期我们聊)+/g, "")
       .replace(/(这个问题|这个话题|这一块|这一点)$/g, "")
       .trim();
+  }
+
+  function isNoisyToken(token: string): boolean {
+    const t = asText(token);
+    if (!t) return true;
+    if (/(欢迎来到|最新一期|人间教育|因为从|意味着这个|这个教育|阶段的教育|这个阶段)/.test(t)) return true;
+    if (/^[A-Z]{2,}$/.test(t) && t.length <= 5) return true;
+    if (/^[\u4e00-\u9fa5]{2,4}$/.test(t) && /(这个|那个|阶段|问题)/.test(t)) return true;
+    return false;
   }
 
   const counts = new Map<string, number>();
@@ -478,7 +792,9 @@ export function extractCandidateTerms(rawText: string): string[] {
   return Array.from(counts.entries())
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "zh-CN"))
     .slice(0, 12)
-    .map(([term]) => term);
+    .map(([term]) => term)
+    .filter((term) => !isNoisyToken(term))
+    .filter((term) => isHighQualityEducationTerm(term));
 }
 
 async function runProofreadTask(task: any) {
@@ -601,12 +917,27 @@ async function runProgramEnrichmentTask(task: any) {
     aliases: [],
   }));
 
-  const suggestedReadings = extracted.slice(0, 6).map((term, idx) => ({
-    title: `延伸阅读：${term}`,
-    subtitle: idx % 2 === 0 ? "概念入门与背景梳理" : "案例与应用实践",
-    url: readingSourceUrl(term),
-  }));
-
+  const readingTerms = extracted
+    .slice(0, 8)
+    .filter((term) => !/(欢迎来到|最新一期|因为从|意味着这个|这个教育|阶段的教育)/.test(term));
+  const fetchedGroups = await Promise.all(
+    readingTerms.slice(0, 4).map((term) => fetchNewsArticlesByKeyword(term, 2))
+  );
+  const suggestedReadings: Array<{ title: string; subtitle: string; url: string }> = [];
+  const usedUrls = new Set<string>();
+  fetchedGroups.forEach((rows, idx) => {
+    const term = readingTerms[idx];
+    for (const row of rows) {
+      if (usedUrls.has(row.url)) continue;
+      usedUrls.add(row.url);
+      suggestedReadings.push({
+        title: row.title || `延伸阅读：${term}`,
+        subtitle: row.note || "相关文章",
+        url: row.url,
+      });
+      if (suggestedReadings.length >= 6) break;
+    }
+  });
   let nextGlossary = existingGlossary;
   if (forceOverwrite) {
     nextGlossary = suggestedGlossary;
@@ -619,11 +950,20 @@ async function runProgramEnrichmentTask(task: any) {
   const existingReadings = Array.isArray(currentDeepDive?.curatedReading)
     ? currentDeepDive.curatedReading
     : [];
-  const readingKeys = new Set(existingReadings.map((item: any) => asText(item?.title).toLowerCase()));
+  const sanitizedExistingReadings = existingReadings.filter((item: any) => {
+    const title = asText(item?.title);
+    const url = asText(item?.url);
+    if (!title || !url) return false;
+    if (isSearchEntryUrl(url)) return false;
+    if (isNoisyReadingTitle(title)) return false;
+    if (isGeneratedFallbackReading(item)) return false;
+    return true;
+  });
+  const readingKeys = new Set(sanitizedExistingReadings.map((item: any) => asText(item?.title).toLowerCase()));
   const mergedReadings = forceOverwrite
     ? suggestedReadings
     : [
-        ...existingReadings,
+        ...sanitizedExistingReadings,
         ...suggestedReadings.filter((item) => !readingKeys.has(asText(item.title).toLowerCase())),
       ];
 
@@ -671,12 +1011,82 @@ async function runGuestProfileTask(task: any) {
   const guest = await GuestModel.findById(task.targetId);
   if (!guest) throw new Error("嘉宾不存在");
 
-  const guestName = asText((guest as any).name) || "嘉宾";
-  const guestTitle = asText((guest as any).title) || "特邀嘉宾";
-  const guestBio = asText((guest as any).bio);
-  const profileUrl = asText((guest as any).profileUrl);
+  const overrides = task?.options?.guestProfileContext || {};
+  const guestName = asText(overrides?.name) || asText((guest as any).name) || "嘉宾";
+  const guestTitle = asText(overrides?.title) || asText((guest as any).title) || "特邀嘉宾";
+  const guestBio = asText(overrides?.bio) || asText((guest as any).bio);
+  const profileUrl = asText(overrides?.profileUrl) || asText((guest as any).profileUrl);
+  const existingReferences = (Array.isArray((guest as any).profileReferences) ? (guest as any).profileReferences : [])
+    .map((item: any) => ({
+      title: asText(item?.title),
+      url: asText(item?.url),
+      note: asText(item?.note) || "手工维护来源",
+    }))
+    .filter((item) => item.url && looksLikeReferenceUrl(item.url));
+  const overrideReferences = (Array.isArray(overrides?.profileReferences) ? overrides.profileReferences : [])
+    .map((item: any) => ({
+      title: asText(item?.title),
+      url: asText(item?.url),
+      note: asText(item?.note) || "手工维护来源",
+    }))
+    .filter((item) => item.url && looksLikeReferenceUrl(item.url));
+  const existingSocialProfiles = (Array.isArray((guest as any).socialProfiles) ? (guest as any).socialProfiles : [])
+    .map((item: any, index: number) => ({
+      platform: asText(item?.platform) || inferSocialPlatform(asText(item?.url)),
+      label: asText(item?.label) || asText(item?.platform) || "公开账号",
+      url: asText(item?.url),
+      note: asText(item?.note),
+      order: Number(item?.order) || index + 1,
+      status: item?.status === "inactive" ? "inactive" : "active",
+    }))
+    .filter((item) => item.url && item.platform);
+  const overrideSocialProfiles = (Array.isArray(overrides?.socialProfiles) ? overrides.socialProfiles : [])
+    .map((item: any, index: number) => ({
+      platform: asText(item?.platform) || inferSocialPlatform(asText(item?.url)),
+      label: asText(item?.label) || asText(item?.platform) || "公开账号",
+      url: asText(item?.url),
+      note: asText(item?.note),
+      order: Number(item?.order) || index + 1,
+      status: item?.status === "inactive" ? "inactive" : "active",
+    }))
+    .filter((item) => item.url && item.platform);
+  const existingPublications = (Array.isArray((guest as any).publications) ? (guest as any).publications : [])
+    .map((item: any, index: number) => ({
+      type: inferPublicationType(asText(item?.type), asText(item?.url)),
+      title: asText(item?.title),
+      url: asText(item?.url),
+      source: asText(item?.source),
+      publishedAt: asText(item?.publishedAt),
+      summary: asText(item?.summary),
+      note: asText(item?.note),
+      order: Number(item?.order) || index + 1,
+      status: item?.status === "inactive" ? "inactive" : "active",
+    }))
+    .filter((item) => item.title && item.url);
+  const overridePublications = (Array.isArray(overrides?.publications) ? overrides.publications : [])
+    .map((item: any, index: number) => ({
+      type: inferPublicationType(asText(item?.type), asText(item?.url)),
+      title: asText(item?.title),
+      url: asText(item?.url),
+      source: asText(item?.source),
+      publishedAt: asText(item?.publishedAt),
+      summary: asText(item?.summary),
+      note: asText(item?.note),
+      order: Number(item?.order) || index + 1,
+      status: item?.status === "inactive" ? "inactive" : "active",
+    }))
+    .filter((item) => item.title && item.url);
+  const relatedPrograms = await Program.find(
+    { "guestBindings.guestId": (guest as any)._id },
+    { _id: 1, title: 1, programCode: 1, summary: 1, updatedAt: 1 }
+  )
+    .sort({ updatedAt: -1 })
+    .limit(5)
+    .lean();
 
-  const references = [
+  const fallbackReferences = [
+    ...overrideReferences,
+    ...existingReferences,
     profileUrl && looksLikeReferenceUrl(profileUrl)
       ? { title: `${guestName} 官方档案`, url: profileUrl, note: "手工维护来源" }
       : null,
@@ -691,22 +1101,203 @@ async function runGuestProfileTask(task: any) {
       note: "公开参考链接",
     },
   ].filter(Boolean) as Array<{ title: string; url: string; note: string }>;
+  const dedupedFallbackReferences = fallbackReferences.filter((item, index, list) => {
+    const normalizedUrl = asText(item?.url);
+    if (!normalizedUrl) return false;
+    return list.findIndex((entry) => asText(entry?.url) === normalizedUrl) === index;
+  });
 
-  const avatarCandidates = [
+  const fallbackAvatarCandidates = [
     asText((guest as any).avatar)
       ? { url: asText((guest as any).avatar), label: "当前头像", sourceUrl: asText((guest as any).avatar) }
       : null,
-    {
-      url: `https://ui-avatars.com/api/?name=${encodeURIComponent(guestName)}&size=512&background=5E17EB&color=ffffff`,
-      label: "文字头像备选",
-      sourceUrl: "https://ui-avatars.com/",
-    },
-    {
-      url: `https://source.unsplash.com/featured/600x600/?portrait,${encodeURIComponent(guestName)}`,
-      label: "公开图像检索候选",
-      sourceUrl: "https://unsplash.com/",
-    },
   ].filter(Boolean) as Array<{ url: string; label: string; sourceUrl: string }>;
+
+  const userPrompt = [
+    `目标嘉宾：${guestName}`,
+    `现有头衔：${guestTitle || "未知"}`,
+    `现有简介：${guestBio || "无"}`,
+    profileUrl ? `已有人工链接：${profileUrl}` : "",
+    (overrideReferences.length || existingReferences.length)
+      ? `已有公开参考链接：${[...overrideReferences, ...existingReferences]
+          .filter((item, index, list) => list.findIndex((entry) => asText(entry?.url) === asText(item?.url)) === index)
+          .map((item) => `${item.title || "未命名"}｜${item.url}${item.note ? `｜${item.note}` : ""}`)
+          .join("；")}`
+      : "",
+    relatedPrograms.length
+      ? `关联节目上下文：${relatedPrograms
+          .map((item: any) => {
+            const summaryHeadline = asText(item?.summary?.headline);
+            return `${asText(item?.title)}${asText(item?.programCode) ? `（${asText(item?.programCode)}）` : ""}${summaryHeadline ? `｜${summaryHeadline}` : ""}`;
+          })
+          .join("；")}`
+      : "",
+    "",
+    "请输出 JSON，字段必须包含：",
+    "{",
+    '  "brief_intro": "string",',
+    '  "main_areas": ["string"],',
+    '  "keywords": ["string"],',
+    '  "materials": [{"material_type":"访谈/著作/论文/公开言论","title":"string","source":"string","publish_time":"string","core_content":"string","source_link":"https://..."}],',
+    '  "references": [{"title":"string","url":"https://...","note":"string"}],',
+    '  "avatar_candidates": [{"url":"https://...","label":"string","sourceUrl":"https://..."}],',
+    '  "note": "string"',
+    "}",
+    "要求：",
+    "0) 必须结合姓名、头衔、简介、已有人工链接和关联节目上下文做人名消歧，只能寻找与这些身份线索一致的同一位嘉宾。",
+    "1) 仅保留公开可核验资料，不确定就留空或在 note 说明。",
+    "2) references/materials/source_link 尽量使用可访问链接，优先作者官网、机构页、百科词条页、出版页、访谈原文页。",
+    "3) 禁止返回任何搜索入口页、搜索结果页、图片检索页、占位头像或图库检索链接。",
+    "4) avatar_candidates 只返回真实人物照片或机构页公开头像，拿不到就留空数组。",
+    "5) 如果出现同名人物冲突，优先选择与头衔、机构、节目主题全部匹配的结果；如果无法确认，就不要编造链接，并在 note 里明确说明冲突原因。",
+    "6) 不要输出 markdown，不要输出代码块，只输出 JSON 对象。",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const aiResult = await callAgentModelForJson(taskConfig, userPrompt);
+  const parsed = aiResult.parsed || {};
+
+  const references = (Array.isArray(parsed?.references) ? parsed.references : [])
+    .map((item: any) => ({
+      title: asText(item?.title),
+      url: asText(item?.url),
+      note: asText(item?.note) || "公开参考链接",
+    }))
+    .filter((item: any) => item.title && isRealReferenceUrl(item.url));
+  const nextReferences = [...overrideReferences, ...existingReferences, ...(references.length ? references : dedupedFallbackReferences)]
+    .filter((item, index, list) => {
+      const normalizedUrl = asText(item?.url);
+      if (!normalizedUrl) return false;
+      return list.findIndex((entry) => asText(entry?.url) === normalizedUrl) === index;
+    })
+    .slice(0, 8);
+  const nextSocialProfiles = [...overrideSocialProfiles, ...existingSocialProfiles, ...nextReferences
+    .map((item, index) => {
+      const platform = inferSocialPlatform(item.url);
+      if (!platform) return null;
+      return {
+        platform,
+        label: item.title || platform,
+        url: item.url,
+        note: item.note,
+        order: index + 1,
+        status: "active" as const,
+      };
+    })
+    .filter(Boolean) as Array<{ platform: string; label: string; url: string; note: string; order: number; status: "active" | "inactive" }>]
+    .filter((item, index, list) => {
+      const normalizedUrl = asText(item?.url);
+      if (!normalizedUrl) return false;
+      return list.findIndex((entry) => asText(entry?.url) === normalizedUrl) === index;
+    })
+    .slice(0, 8)
+    .map((item, index) => ({ ...item, order: index + 1 }));
+
+  const avatarCandidates = (Array.isArray(parsed?.avatar_candidates) ? parsed.avatar_candidates : [])
+    .map((item: any) => ({
+      url: asText(item?.url),
+      label: asText(item?.label) || "候选头像",
+      sourceUrl: asText(item?.sourceUrl),
+    }))
+    .filter((item: any) => looksLikeReferenceUrl(item.url) && !isPlaceholderAvatarUrl(item.url));
+
+  const referenceDocs = await Promise.all(
+    nextReferences
+      .filter((item) => isRealReferenceUrl(item.url))
+      .slice(0, 4)
+      .map(async (item) => ({
+        reference: item,
+        doc: await fetchReferenceDocument(item.url),
+      }))
+  );
+
+  const enrichedAvatarCandidates = referenceDocs
+    .map(({ reference, doc }) => {
+      if (!looksLikeReferenceUrl(doc.image) || isPlaceholderAvatarUrl(doc.image)) return null;
+      return {
+        url: doc.image,
+        label: reference.title || doc.title || "公开头像候选",
+        sourceUrl: reference.url,
+      };
+    })
+    .filter(Boolean) as Array<{ url: string; label: string; sourceUrl: string }>;
+
+  const nextAvatarCandidates = [...avatarCandidates, ...enrichedAvatarCandidates, ...fallbackAvatarCandidates]
+    .filter((item, index, list) => {
+      const url = asText(item?.url);
+      if (!url || isPlaceholderAvatarUrl(url)) return false;
+      return list.findIndex((entry) => asText(entry?.url) === url) === index;
+    })
+    .slice(0, 6);
+
+  const keywords = (Array.isArray(parsed?.keywords) ? parsed.keywords : [])
+    .map((x: any) => asText(x))
+    .filter(Boolean)
+    .slice(0, 8);
+
+  const materials = (Array.isArray(parsed?.materials) ? parsed.materials : [])
+    .map((item: any) => ({
+      material_type: asText(item?.material_type) || "公开资料",
+      title: asText(item?.title),
+      source: asText(item?.source),
+      publish_time: asText(item?.publish_time),
+      core_content: asText(item?.core_content),
+      source_link: asText(item?.source_link),
+    }))
+    .filter((item: any) => item.title && (item.source || isRealReferenceUrl(item.source_link)))
+    .slice(0, 12);
+
+  const fallbackMaterials = referenceDocs
+    .map(({ reference, doc }) => {
+      if (!reference.url) return null;
+      return {
+        material_type: "公开资料",
+        title: reference.title || doc.title || guestName,
+        source: reference.note || doc.title || "公开页面",
+        publish_time: "",
+        core_content: doc.description || `${guestName} 相关公开资料页，建议人工补充代表观点与经历。`,
+        source_link: reference.url,
+      };
+    })
+    .filter((item) => item && item.title && isRealReferenceUrl(item.source_link))
+    .slice(0, 6) as Array<{
+      material_type: string;
+      title: string;
+      source: string;
+      publish_time: string;
+      core_content: string;
+      source_link: string;
+    }>;
+
+  const nextMaterials = materials.length ? materials : fallbackMaterials;
+  const nextPublications = [...overridePublications, ...existingPublications, ...nextMaterials
+    .map((item, index) => ({
+      type: inferPublicationType(item.material_type, item.source_link),
+      title: item.title,
+      url: item.source_link,
+      source: item.source,
+      publishedAt: item.publish_time,
+      summary: item.core_content,
+      note: "",
+      order: index + 1,
+      status: "active" as const,
+    }))
+    .filter((item) => item.title && isRealReferenceUrl(item.url))]
+    .filter((item, index, list) => {
+      const normalizedUrl = asText(item?.url);
+      if (!normalizedUrl) return false;
+      return list.findIndex((entry) => asText(entry?.url) === normalizedUrl) === index;
+    })
+    .slice(0, 12)
+    .map((item, index) => ({ ...item, order: index + 1 }));
+
+  const briefIntro = asText(parsed?.brief_intro) || guestBio || "暂无完整简介，建议结合公开访谈、出版物和机构介绍补全。";
+  const mainAreas = (Array.isArray(parsed?.main_areas) ? parsed.main_areas : [])
+    .map((x: any) => asText(x))
+    .filter(Boolean)
+    .slice(0, 6);
+  const note = asText(parsed?.note);
 
   const markdown = [
     `# ${guestName}`,
@@ -714,18 +1305,27 @@ async function runGuestProfileTask(task: any) {
     `> ${guestTitle}`,
     "",
     "## 简介",
-    guestBio || "暂无完整简介，建议结合公开访谈、出版物和机构介绍补全。",
+    briefIntro,
+    "",
+    "## 主要领域",
+    ...(mainAreas.length ? mainAreas.map((x) => `- ${x}`) : ["- 待补充"]),
     "",
     "## 关键词",
-    `- ${guestTitle}`,
-    "- 教育实践",
-    "- 节目嘉宾",
+    ...(keywords.length ? keywords.map((x) => `- ${x}`) : [`- ${guestTitle}`, "- 节目嘉宾"]),
+    "",
+    "## 资料条目",
+    ...(nextMaterials.length
+      ? nextMaterials.map(
+          (item) =>
+            `- ${item.material_type}｜${item.title}${item.source ? `（${item.source}）` : ""}${item.publish_time ? `｜${item.publish_time}` : ""}${item.source_link ? `\n  - 链接：${item.source_link}` : ""}${item.core_content ? `\n  - 摘要：${item.core_content}` : ""}`
+        )
+      : ["- 暂无可核验条目，请人工补充。"]),
     "",
     "## 资料索引",
-    ...references.map((item) => `- [${item.title}](${item.url})${item.note ? ` - ${item.note}` : ""}`),
+    ...nextReferences.map((item) => `- [${item.title}](${item.url})${item.note ? ` - ${item.note}` : ""}`),
     "",
     "## 节目相关备注",
-    "- 建议在节目详情中同步维护嘉宾核心观点与代表案例。",
+    `- ${note || "建议在节目详情中同步维护嘉宾核心观点与代表案例。"}${aiResult.error ? `（模型调用异常：${aiResult.error}）` : ""}`,
   ].join("\n");
 
   await GuestModel.findByIdAndUpdate(
@@ -733,8 +1333,10 @@ async function runGuestProfileTask(task: any) {
     {
       $set: {
         profileMarkdown: markdown,
-        profileReferences: references,
-        profileAvatarCandidates: avatarCandidates,
+        profileReferences: nextReferences,
+        socialProfiles: nextSocialProfiles,
+        publications: nextPublications,
+        profileAvatarCandidates: nextAvatarCandidates,
         profileGeneratedAt: new Date(),
       },
     },
@@ -745,8 +1347,12 @@ async function runGuestProfileTask(task: any) {
     outputSummary: "已生成嘉宾资料草稿、外链索引与头像候选。",
     output: {
       profileMarkdown: markdown,
-      profileReferences: references,
-      avatarCandidates,
+      profileReferences: nextReferences,
+      socialProfiles: nextSocialProfiles,
+      publications: nextPublications,
+      avatarCandidates: nextAvatarCandidates,
+      materials: nextMaterials,
+      aiError: aiResult.error || "",
       runtimeConfig: {
         agent_code: taskConfig.agentCode,
         prompt_version: asText(taskConfig.promptDoc?.version),
@@ -775,11 +1381,15 @@ async function runProgramArtworkTask(task: any) {
   const keyword = asText(tags[0]) || terms[0] || title || "教育";
   const parsedSignals = await collectParsedSignals(program);
   const artworkStyle = normalizeArtworkStyle(task?.options?.artworkStyle);
-  const generatedUrl = buildArtworkSourceUrl({
+  const promptPackage = buildArtworkPromptPackage({
     semanticCore: tags.length ? tags.slice(0, 6) : terms.slice(0, 6),
     parsedSignals,
     style: artworkStyle,
+    title,
+    summaryText: summaryText || transcriptText,
+    promptDoc: taskConfig.promptDoc,
   });
+  const generatedUrl = await callAgentImageModel(taskConfig, promptPackage);
   const currentCover = asText((program as any)?.coverImage);
   const shouldApplyCover = forceOverwrite || !currentCover;
 
@@ -797,8 +1407,8 @@ async function runProgramArtworkTask(task: any) {
 
   return {
     outputSummary: shouldApplyCover
-      ? `配图 agent 已按「${styleLabel(artworkStyle)}」基于关键词与解析内容抽象生成并应用封面。`
-      : `配图 agent 已按「${styleLabel(artworkStyle)}」基于关键词与解析内容抽象生成候选封面（未覆盖现有封面）。`,
+      ? "配图 agent 已基于节目关键词按统一东方美学系列调用 Seedream 生图并应用封面。"
+      : "配图 agent 已基于节目关键词按统一东方美学系列调用 Seedream 生成候选封面（未覆盖现有封面）。",
     output: {
       forceOverwrite,
       artworkStyle,
@@ -808,6 +1418,7 @@ async function runProgramArtworkTask(task: any) {
       keyword,
       semanticCore: tags.length ? tags.slice(0, 6) : terms.slice(0, 6),
       parsedSignals,
+      promptPackage,
       runtimeConfig: {
         agent_code: taskConfig.agentCode,
         prompt_version: asText(taskConfig.promptDoc?.version),
@@ -825,6 +1436,96 @@ async function runTaskByType(task: any): Promise<{ outputSummary: string; output
   if (task.taskType === "enrich_guest_profile") return runGuestProfileTask(task);
   if (task.taskType === "generate_program_artwork") return runProgramArtworkTask(task);
   throw new Error(`未知任务类型: ${task.taskType}`);
+}
+
+async function finalizeTaskSuccess(task: any, result: { outputSummary: string; output: Record<string, any> }) {
+  const nextTask = await AgentTaskModel.findByIdAndUpdate(task._id, {
+    $set: {
+      status: "succeeded",
+      progress: 100,
+      stage: "completed",
+      outputSummary: clipText(result.outputSummary, 300),
+      output: result.output,
+      finishedAt: new Date(),
+      lockToken: "",
+    },
+  }, { new: true });
+  if (nextTask) {
+    await createInboxMessage({
+      sourceType: "agent_task",
+      sourceId: String(nextTask._id),
+      taskType: nextTask.taskType as any,
+      taskStatus: "succeeded",
+      targetType: nextTask.targetType as any,
+      targetId: String(nextTask.targetId),
+      summary: asText(nextTask.outputSummary),
+      payload: {
+        taskId: String(nextTask._id),
+        taskType: nextTask.taskType,
+        targetType: nextTask.targetType,
+        targetId: String(nextTask.targetId),
+        outputSummary: asText(nextTask.outputSummary),
+        output: nextTask.output || {},
+        finishedAt: nextTask.finishedAt || null,
+      },
+    }).catch(() => {});
+  }
+}
+
+async function finalizeTaskFailure(task: any, message: string) {
+  const nextTask = await AgentTaskModel.findByIdAndUpdate(task._id, {
+    $set: {
+      status: "failed",
+      progress: 100,
+      stage: "failed",
+      lastError: message,
+      finishedAt: new Date(),
+      lockToken: "",
+    },
+    $inc: { retries: 1 },
+  }, { new: true });
+  if (nextTask) {
+    await createInboxMessage({
+      sourceType: "agent_task",
+      sourceId: String(nextTask._id),
+      taskType: nextTask.taskType as any,
+      taskStatus: "failed",
+      targetType: nextTask.targetType as any,
+      targetId: String(nextTask.targetId),
+      summary: asText(nextTask.lastError) || "任务执行失败",
+      payload: {
+        taskId: String(nextTask._id),
+        taskType: nextTask.taskType,
+        targetType: nextTask.targetType,
+        targetId: String(nextTask.targetId),
+        lastError: asText(nextTask.lastError),
+        retries: Number(nextTask.retries || 0),
+        finishedAt: nextTask.finishedAt || null,
+      },
+    }).catch(() => {});
+  }
+}
+
+async function processTaskLifecycle(task: any): Promise<void> {
+  try {
+    const result = await runTaskByType(task);
+    await finalizeTaskSuccess(task, result);
+  } catch (error: any) {
+    const message = asText(error?.message) || "任务执行失败";
+    await finalizeTaskFailure(task, message);
+  }
+}
+
+function shouldRunDirectly(taskType: AgentTaskType): boolean {
+  return taskType === "generate_program_artwork" || taskType === "enrich_guest_profile";
+}
+
+function kickoffDirectTask(task: any) {
+  setTimeout(() => {
+    processTaskLifecycle(task).catch((error) => {
+      console.error("[agent-task] direct task failed", error);
+    });
+  }, 0);
 }
 
 async function processOneTask(): Promise<void> {
@@ -851,74 +1552,7 @@ async function processOneTask(): Promise<void> {
       }
     );
     if (!task) return;
-
-    try {
-      const result = await runTaskByType(task);
-      const nextTask = await AgentTaskModel.findByIdAndUpdate(task._id, {
-        $set: {
-          status: "succeeded",
-          progress: 100,
-          stage: "completed",
-          outputSummary: clipText(result.outputSummary, 300),
-          output: result.output,
-          finishedAt: new Date(),
-          lockToken: "",
-        },
-      }, { new: true });
-      if (nextTask) {
-        await createInboxMessage({
-          sourceType: "agent_task",
-          sourceId: String(nextTask._id),
-          taskType: nextTask.taskType as any,
-          taskStatus: "succeeded",
-          targetType: nextTask.targetType as any,
-          targetId: String(nextTask.targetId),
-          summary: asText(nextTask.outputSummary),
-          payload: {
-            taskId: String(nextTask._id),
-            taskType: nextTask.taskType,
-            targetType: nextTask.targetType,
-            targetId: String(nextTask.targetId),
-            outputSummary: asText(nextTask.outputSummary),
-            output: nextTask.output || {},
-            finishedAt: nextTask.finishedAt || null,
-          },
-        }).catch(() => {});
-      }
-    } catch (error: any) {
-      const message = asText(error?.message) || "任务执行失败";
-      const nextTask = await AgentTaskModel.findByIdAndUpdate(task._id, {
-        $set: {
-          status: "failed",
-          progress: 100,
-          stage: "failed",
-          lastError: message,
-          finishedAt: new Date(),
-          lockToken: "",
-        },
-        $inc: { retries: 1 },
-      }, { new: true });
-      if (nextTask) {
-        await createInboxMessage({
-          sourceType: "agent_task",
-          sourceId: String(nextTask._id),
-          taskType: nextTask.taskType as any,
-          taskStatus: "failed",
-          targetType: nextTask.targetType as any,
-          targetId: String(nextTask.targetId),
-          summary: asText(nextTask.lastError) || "任务执行失败",
-          payload: {
-            taskId: String(nextTask._id),
-            taskType: nextTask.taskType,
-            targetType: nextTask.targetType,
-            targetId: String(nextTask.targetId),
-            lastError: asText(nextTask.lastError),
-            retries: Number(nextTask.retries || 0),
-            finishedAt: nextTask.finishedAt || null,
-          },
-        }).catch(() => {});
-      }
-    }
+    await processTaskLifecycle(task);
   } finally {
     working = false;
   }
@@ -970,6 +1604,8 @@ export async function validateTaskTarget(targetType: AgentTaskTargetType, target
 
 export async function createAgentTask(input: CreateTaskInput) {
   await validateTaskTarget(input.targetType, input.targetId);
+  const directRun = shouldRunDirectly(input.taskType);
+  const lockToken = directRun ? crypto.randomUUID() : "";
   const created = await AgentTaskModel.create({
     taskType: input.taskType,
     targetType: input.targetType,
@@ -977,10 +1613,13 @@ export async function createAgentTask(input: CreateTaskInput) {
     options: input.options || {},
     createdBy: asText(input.createdBy),
     maxRetries: Number.isFinite(Number(input.maxRetries)) ? Number(input.maxRetries) : 2,
-    status: "queued",
-    progress: 0,
-    stage: "queued",
+    status: directRun ? "running" : "queued",
+    progress: directRun ? 5 : 0,
+    stage: directRun ? "running" : "queued",
+    startedAt: directRun ? new Date() : null,
+    lockToken,
   });
+  if (directRun) kickoffDirectTask(created);
   return created;
 }
 
@@ -991,18 +1630,21 @@ export async function retryAgentTask(taskId: string) {
   if (task.status !== "failed" && task.status !== "canceled") {
     throw new Error("仅失败或已取消任务可重试");
   }
-  await AgentTaskModel.findByIdAndUpdate(taskId, {
+  const directRun = shouldRunDirectly(task.taskType as AgentTaskType);
+  const lockToken = directRun ? crypto.randomUUID() : "";
+  const nextTask = await AgentTaskModel.findByIdAndUpdate(taskId, {
     $set: {
-      status: "queued",
-      stage: "queued",
-      progress: 0,
-      startedAt: null,
+      status: directRun ? "running" : "queued",
+      stage: directRun ? "running" : "queued",
+      progress: directRun ? 5 : 0,
+      startedAt: directRun ? new Date() : null,
       finishedAt: null,
       lastError: "",
-      lockToken: "",
+      lockToken,
     },
-  });
-  return AgentTaskModel.findById(taskId);
+  }, { new: true });
+  if (directRun && nextTask) kickoffDirectTask(nextTask);
+  return nextTask;
 }
 
 export function normalizeTaskResponse(task: any) {
