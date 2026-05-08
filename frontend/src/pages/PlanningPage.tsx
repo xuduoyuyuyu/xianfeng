@@ -24,32 +24,88 @@ const PlanningPage: React.FC = () => {
     try {
       const iframe = iframeRef.current;
       if (!iframe || !iframe.contentWindow) return;
+
+      // Get xianfeng auth token
+      const xianfengToken = localStorage.getItem("token") || "";
+
+      // Pass token to wel iframe via postMessage
+      if (xianfengToken) {
+        iframe.contentWindow.postMessage(
+          {
+            type: "wel-auth",
+            token: xianfengToken,
+            source: "xianfeng",
+          },
+          "*"
+        );
+      }
+
       // Try to get iframe content height
       const doc = iframe.contentDocument || (iframe as any).contentWindow?.document;
       if (doc) {
-        const height = doc.documentElement.scrollHeight || doc.body.scrollHeight;
-        if (height > 600) {
-          iframe.style.height = `${Math.min(height + 120, 8000)}px`;
-        }
-        // Also inject a resize observer
+        // Inject token bridge script before page scripts run
         try {
           const script = doc.createElement("script");
           script.textContent = `
+            (function() {
+              // Listen for auth token from parent xianfeng page
+              window.addEventListener('message', function(event) {
+                if (event.data && event.data.type === 'wel-auth' && event.data.token) {
+                  try {
+                    localStorage.setItem('wel_tok', event.data.token);
+                    console.log('[wel-bridge] token synced from xianfeng');
+                    // Reload education plan data if on form page
+                    if (typeof loadEducationPlanData === 'function') {
+                      loadEducationPlanData();
+                    }
+                  } catch(e) {}
+                }
+              });
+
+              // Override getAuthToken to check xianfeng token as fallback
+              var _origGetAuthToken = typeof getAuthToken === 'function' ? getAuthToken : null;
+              window.__welBridgeGetToken = function() {
+                try {
+                  var t = localStorage.getItem('wel_tok');
+                  if (t) return t;
+                  t = localStorage.getItem('token');
+                  if (t) {
+                    localStorage.setItem('wel_tok', t);
+                    return t;
+                  }
+                } catch(e) {}
+                return '';
+              };
+            })();
+          `;
+          doc.head.appendChild(script);
+
+          // Also try resize observer
+          const roScript = doc.createElement("script");
+          roScript.textContent = `
             (function() {
               var ro = new ResizeObserver(function() {
                 var h = document.documentElement.scrollHeight || document.body.scrollHeight;
                 window.parent.postMessage({ type: "resize", height: Math.min(h + 80, 8000) }, "*");
               });
               ro.observe(document.body);
-              // Initial height report
               var h = document.documentElement.scrollHeight || document.body.scrollHeight;
               window.parent.postMessage({ type: "resize", height: Math.min(h + 80, 8000) }, "*");
             })();
           `;
-          doc.head.appendChild(script);
-        } catch (_e) { /* cross-origin */ }
+          doc.head.appendChild(roScript);
+        } catch (_e) {
+          /* cross-origin */
+        }
+
+        const height = doc.documentElement.scrollHeight || doc.body.scrollHeight;
+        if (height > 600) {
+          iframe.style.height = `${Math.min(height + 120, 8000)}px`;
+        }
       }
-    } catch (_e) { /* cross-origin */ }
+    } catch (_e) {
+      /* cross-origin */
+    }
   };
 
   return (

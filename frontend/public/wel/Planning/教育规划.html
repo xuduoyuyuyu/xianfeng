@@ -4628,7 +4628,20 @@ window.onload = function() {
 
     function getAuthToken() {
         try {
-            return localStorage.getItem('wel_tok') || '';
+            var t = localStorage.getItem('wel_tok');
+            if (t) return t;
+            // Fallback: check xianfeng token (injected by parent PlanningPage)
+            t = localStorage.getItem('token');
+            if (t) {
+                localStorage.setItem('wel_tok', t);
+                return t;
+            }
+            // Check bridge override
+            if (window.__welBridgeGetToken) {
+                t = window.__welBridgeGetToken();
+                if (t) return t;
+            }
+            return '';
         } catch {
             return '';
         }
