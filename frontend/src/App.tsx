@@ -15,6 +15,7 @@ import AdminUsersPage from "./pages/admin/AdminUsersPage";
 import AdminUserPortraitPage from "./pages/admin/AdminUserPortraitPage";
 import AdminSystemPage from "./pages/admin/AdminSystemPage";
 import AdminMultiAgentsPage from "./pages/admin/AdminMultiAgentsPage";
+import AdminTopicsPage from "./pages/admin/AdminTopicsPage";
 import AdminDictionaryPage from "./pages/admin/AdminDictionaryPage";
 import AdminGuestsPage from "./pages/admin/AdminGuestsPage";
 import AdminAgentsPage from "./pages/admin/AdminAgentsPage";
@@ -27,6 +28,8 @@ import LandingPage from "./pages/LandingPage";
 import MaterialsPage from "./pages/MaterialsPage";
 import BooksPage from "./pages/BooksPage";
 import PlanningPage from "./pages/PlanningPage";
+import TopicHubPage from "./pages/TopicHubPage";
+import TopicDetailPage from "./pages/TopicDetailPage";
 import PageViewTracker from "./components/PageViewTracker";
 import XiaowanziWidget from "./wel/components/XiaowanziWidget";
 
@@ -77,6 +80,15 @@ const PublicScreenRouter: React.FC = () => {
 
   if (pathname === "/planning") {
     return <PlanningPage />;
+  }
+
+  if (pathname === "/topics") {
+    return <TopicHubPage />;
+  }
+
+  if (/^\/topics\/[^/]+$/.test(pathname)) {
+    const slug = pathname.split("/")[2] || "";
+    return <TopicDetailPage slug={slug} />;
   }
 
   const routeMap: Record<string, { src: string; title: string }> = {
@@ -139,6 +151,7 @@ const App: React.FC = () => {
             <Route path="agents" element={<AdminAgentsPage />} />
             <Route path="agents/:botId/chat" element={<AdminAgentsChatPage />} />
             <Route path="multi-agents" element={<AdminMultiAgentsPage />} />
+            <Route path="topics" element={<AdminTopicsPage />} />
             <Route path="inbox" element={<AdminInboxPage />} />
             <Route path="*" element={<Navigate to="/admin" replace />} />
           </Route>

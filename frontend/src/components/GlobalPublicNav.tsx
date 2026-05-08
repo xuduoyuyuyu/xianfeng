@@ -37,6 +37,7 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
   const activeExperts = pathname.startsWith("/experts");
   const activeBooks = pathname.startsWith("/books");
   const activePlanning = pathname.startsWith("/planning");
+  const activeTopics = pathname.startsWith("/topics");
   const activeMaterials = pathname.startsWith("/materials");
   const [menuOpen, setMenuOpen] = useState(false);
   const [isLeader, setIsLeader] = useState(false);
@@ -143,10 +144,16 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
               </Link>
             ) : null}
             {showPlanningEntry ? (
-              <Link reloadDocument to="/planning" className={`tb-nav-btn ${activePlanning ? "on" : ""}`}>
-                <span className="ms">route</span>
-                <span>教育规划</span>
-              </Link>
+              <>
+                <Link reloadDocument to="/planning" className={`tb-nav-btn ${activePlanning ? "on" : ""}`}>
+                  <span className="ms">route</span>
+                  <span>教育规划</span>
+                </Link>
+                <Link reloadDocument to="/topics" className={`tb-nav-btn ${activeTopics ? "on" : ""}`}>
+                  <span className="ms">tag</span>
+                  <span>话题广场</span>
+                </Link>
+              </>
             ) : null}
           </nav>
 
@@ -225,10 +232,16 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
                 </Link>
               ) : null}
               {showPlanningEntry ? (
-                <Link className={`tb-mobile-link ${activePlanning ? "on" : ""}`} to="/planning" onClick={() => setMenuOpen(false)}>
-                  <span className="ms">route</span>
-                  <span>教育规划</span>
-                </Link>
+                <>
+                  <Link className={`tb-mobile-link ${activePlanning ? "on" : ""}`} to="/planning" onClick={() => setMenuOpen(false)}>
+                    <span className="ms">route</span>
+                    <span>教育规划</span>
+                  </Link>
+                  <Link className={`tb-mobile-link ${activeTopics ? "on" : ""}`} to="/topics" onClick={() => setMenuOpen(false)}>
+                    <span className="ms">tag</span>
+                    <span>话题广场</span>
+                  </Link>
+                </>
               ) : null}
               <Link className="tb-mobile-link" to="/login" onClick={() => setMenuOpen(false)}>
                 <span className="ms">login</span>

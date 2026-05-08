@@ -80,6 +80,13 @@ const AdminLayout: React.FC = () => {
             </section>
 
             <section>
+              <p className="px-1 mb-1.5 text-[11px] font-bold tracking-[0.08em] text-stone-400 uppercase">内容</p>
+              <div className="space-y-1">
+                {renderNavItem("/admin/topics", "tag", "话题广场")}
+              </div>
+            </section>
+
+            <section>
               <p className="px-1 mb-1.5 text-[11px] font-bold tracking-[0.08em] text-stone-400 uppercase">设置</p>
               <div className="space-y-1">
                 {renderNavItem("/admin/inbox", "mail", "站内信")}

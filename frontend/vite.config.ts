@@ -23,6 +23,12 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      // 话题广场 → 本地 mock（测试用，上线后改为 wel）
+      "/api/topic-hub": {
+        target: "http://localhost:18889",
+        changeOrigin: true,
+        secure: false,
+      },
       // xianfeng 后端 API
       "/api": {
         target: "http://localhost:3001",
