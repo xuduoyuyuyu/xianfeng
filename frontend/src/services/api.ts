@@ -504,6 +504,7 @@ export interface UploadProgramAudioOptions {
 
 export interface LoginResponse {
   token: string;
+  welToken?: string;
   user: User;
 }
 

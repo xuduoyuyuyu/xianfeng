@@ -20,8 +20,11 @@ export const login = createAsyncThunk(
   'user/login',
   async ({ username, password }: { username: string; password: string }) => {
     const response = await userApi.login(username, password);
-    const { token, user } = response.data;
+    const { token, user, welToken } = response.data;
     localStorage.setItem('token', token);
+    if (welToken) {
+      localStorage.setItem('wel_tok', welToken);
+    }
     localStorage.setItem('user', JSON.stringify(user));
     return { token, user };
   }

@@ -28,6 +28,10 @@
                 },
             },
         }
+        // Mark as ready after first render
+        document.addEventListener('DOMContentLoaded', function() {
+          setTimeout(function() { document.body.classList.add('loaded'); }, 300);
+        });
     </script>
 <style type="text/tailwindcss">
         @layer base {
@@ -87,6 +91,9 @@
         
 
     </style>
+    <!-- 保底样式：Tailwind CDN 未加载时的基础布局 -->
+    <noscript><style>body { font-family: -apple-system,BlinkMacSystemFont,"Noto Sans SC",sans-serif; background: #fbfbfc; color: #1e293b; padding: 16px; } .mx-auto { margin: 0 auto; } .rounded-2xl { border-radius: 16px; } .bg-white { background: #fff; } .p-6 { padding: 24px; } .text-2xl { font-size: 24px; } .font-bold { font-weight: 700; } .text-sm { font-size: 13px; } button, .cursor-pointer { cursor: pointer; }</style></noscript>
+    <style id="critical-fallback">body{font-family:-apple-system,BlinkMacSystemFont,"Noto Sans SC",sans-serif;background:#fbfbfc;color:#1e293b}body.loaded .fallback-only{display:none}@media(min-width:640px){.sm\:block-fallback{display:block}}.ts-ready .hidden-until-tailwind{display:block}</style>
 </head>
 <body class="antialiased min-h-screen relative overflow-x-hidden">
 <div class="fixed inset-0 bg-grid-pattern pointer-events-none"></div>

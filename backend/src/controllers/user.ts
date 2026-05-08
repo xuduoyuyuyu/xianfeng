@@ -9,6 +9,25 @@ import { AuthenticatedRequest } from "../middlewares/auth";
 dotenv.config();
 const smsCodeStore = new Map<string, { code: string; expiresAt: number }>();
 
+const WEL_ADMIN_KEY = process.env.WEL_ADMIN_KEY || "weladmin2024";
+const WEL_SYNC_URL = process.env.WEL_SYNC_URL || "http://172.19.0.1:18888/api/auth/sync";
+
+async function syncUserToWel(mobile: string, name: string, grade: string, city: string): Promise<string | null> {
+  try {
+    const res = await fetch(WEL_SYNC_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ admin_key: WEL_ADMIN_KEY, mobile, name, grade, city }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.token || null;
+  } catch {
+    return null;
+  }
+}
+
 function normalizeMobile(input: unknown): string {
   return String(input || "").replace(/\D/g, "").slice(-11);
 }
@@ -296,7 +315,21 @@ export class UserController {
         (process.env.JWT_SECRET || "your-secret-key") as jwt.Secret,
         { expiresIn }
       );
-      res.status(200).json({ token, user: buildWelProfile(user) });
+
+      // Sync user to wel main database (fire-and-forget)
+      syncUserToWel(mobile, user.name || "", user.grade || "", user.city || "")
+        .then((welToken) => {
+          if (welToken) {
+            res.status(200).json({ token, welToken, user: buildWelProfile(user) });
+          } else {
+            res.status(200).json({ token, user: buildWelProfile(user) });
+          }
+        })
+        .catch(() => {
+          // wel sync failed, still return xianfeng token
+          res.status(200).json({ token, user: buildWelProfile(user) });
+        });
+      return;
     } catch (error) {
       res.status(500).json({ error: "登录失败", message: String((error as Error)?.message || error) });
     }
@@ -362,9 +395,16 @@ export class UserController {
         (process.env.JWT_SECRET || "your-secret-key") as jwt.Secret,
         { expiresIn }
       );
+      // Sync to wel main database if mobile exists
+      let welToken: string | null = null;
+      if (user.mobile) {
+        welToken = await syncUserToWel(user.mobile, user.name || "", user.grade || "", user.city || "");
+      }
+
       res.status(200).json({
         token,
-        user: { id: user._id, username: user.username, role: user.role },
+        welToken: welToken || undefined,
+        user: { id: user._id, username: user.username, role: user.role, mobile: user.mobile },
       });
     } catch (error) {
       res.status(500).json({ message: "登录失败", error });
