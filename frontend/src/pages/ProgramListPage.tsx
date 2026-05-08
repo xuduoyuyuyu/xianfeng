@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import GlobalPublicNav from "../components/GlobalPublicNav";
+import { getCollapsedPages } from "../lib/pagination";
 
 const FALLBACK_COVER = "/assets/podcast-cover-1.svg";
 
@@ -13,19 +15,12 @@ interface Program {
     tags?: string[];
   };
   transcript?: Array<{ text?: string }>;
-  termGlossary?: Array<{ term?: string }>;
   dictionaryEntries?: Array<{ term?: string }>;
   deepDive?: {
     curatedReading?: Array<{ title?: string }>;
   };
-  contentPack?: {
-    quickView?: Array<{ summary?: string }>;
-    minutes?: { text?: string };
-    showNotes?: { renderedText?: string };
-  };
   publishedAt?: string;
   createdAt?: string;
-  updatedAt?: string;
 }
 
 function fmtDate(value?: string) {
@@ -35,188 +30,141 @@ function fmtDate(value?: string) {
   return d.toLocaleDateString("zh-CN");
 }
 
-function safeText(value?: string) {
-  return String(value || "")
-    .replace(/[&<>"']/g, (char) => {
-      const map: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-      return map[char];
-    });
-}
-
 function getProgramTimestamp(program: Program) {
   const value = program.publishedAt || program.createdAt;
   const timestamp = Date.parse(value || "");
   return Number.isNaN(timestamp) ? 0 : timestamp;
 }
 
-function escapeRegExp(text: string) {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 function hasNonEmptyText(value?: string) {
   return String(value || "").trim().length > 0;
 }
+
+const PAGE_SIZE = 7;
+const PROGRAM_LIST_HERO_DISMISSED_KEY = "program_list_hero_dismissed_v1";
 
 const ProgramListPage: React.FC = () => {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 7;
-  const keyword = (() => {
+  const [error, setError] = useState("");
+  const [showHero, setShowHero] = useState(false);
+
+  const keyword = useMemo(() => {
     try {
       return String(new URLSearchParams(window.location.search).get("q") || "").trim().toLowerCase();
     } catch (_e) {
       return "";
     }
-  })();
+  }, []);
 
   useEffect(() => {
+    try {
+      setShowHero(window.localStorage.getItem(PROGRAM_LIST_HERO_DISMISSED_KEY) !== "1");
+    } catch (_err) {
+      setShowHero(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setError("");
     fetch("/api/programs")
       .then((res) => {
         if (!res.ok) throw new Error("load failed");
         return res.json();
       })
       .then((data: Program[]) => {
-        const sorted = [...(Array.isArray(data) ? data : [])].sort(
-          (a, b) => getProgramTimestamp(b) - getProgramTimestamp(a),
-        );
+        if (!alive) return;
+        const sorted = [...(Array.isArray(data) ? data : [])].sort((a, b) => getProgramTimestamp(b) - getProgramTimestamp(a));
         setPrograms(sorted);
         setCurrentPage(1);
       })
-      .catch(() => {
+      .catch((err: any) => {
+        if (!alive) return;
         setPrograms([]);
+        setError(err?.message || "加载节目列表失败");
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!alive) return;
+        setLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
   }, []);
 
-  const visiblePrograms = keyword
-    ? programs.filter((item) => {
-        const haystack = [
-          item.title || "",
-          item.description || "",
-          item.programCode || "",
-          item._id || "",
-        ]
-          .join(" ")
-          .toLowerCase();
-        return haystack.includes(keyword);
-      })
-    : programs;
+  const visiblePrograms = useMemo(() => {
+    if (!keyword) return programs;
+    return programs.filter((item) => {
+      const haystack = [item.title || "", item.description || "", item.programCode || "", item._id || ""].join(" ").toLowerCase();
+      return haystack.includes(keyword);
+    });
+  }, [keyword, programs]);
 
   const totalPages = Math.max(1, Math.ceil(visiblePrograms.length / PAGE_SIZE));
   const safePage = Math.min(currentPage, totalPages);
   const start = (safePage - 1) * PAGE_SIZE;
   const pagedPrograms = visiblePrograms.slice(start, start + PAGE_SIZE);
+  const paginationItems = useMemo(() => getCollapsedPages(safePage, totalPages, 1), [safePage, totalPages]);
 
-  const highlightText = (text?: string) => {
-    const raw = String(text || "");
-    if (!keyword) return safeText(raw);
-    const regex = new RegExp(`(${escapeRegExp(keyword)})`, "ig");
-    const parts = raw.split(regex);
-    return parts.map((part, idx) =>
-      part.toLowerCase() === keyword.toLowerCase() ? (
-        <mark key={idx} className="rounded bg-[#ede9fe] px-0.5 text-[#5e17eb]">
-          {safeText(part)}
-        </mark>
-      ) : (
-        <React.Fragment key={idx}>{safeText(part)}</React.Fragment>
-      ),
-    );
-  };
-
-  const renderUnifiedCard = (program: Program, index: number) => {
-    const routeId = safeText(program.programCode || program._id);
-    const badge = safeText((program.programCode || "ep" + String(index + 1)).toUpperCase());
-    const detailHref = `/programs/${routeId}`;
-    const hasTranscript = Array.isArray(program.transcript) && program.transcript.length > 0;
-    const hasDictionary = (Array.isArray(program.dictionaryEntries) ? program.dictionaryEntries : []).some((entry) =>
-      hasNonEmptyText(entry?.term),
-    );
-    const hasReading = (Array.isArray(program.deepDive?.curatedReading) ? program.deepDive?.curatedReading : []).some((item) =>
-      hasNonEmptyText(item?.title),
-    );
-    const programTags = Array.isArray(program.summary?.tags)
-      ? program.summary!.tags!.map((tag) => String(tag || "").trim()).filter(Boolean).slice(0, 4)
-      : [];
-    const contentPills = [
-      hasTranscript ? { icon: "description", label: "逐字稿" } : null,
-      hasDictionary ? { icon: "book_2", label: "教育词典" } : null,
-      hasReading ? { icon: "menu_book", label: "书单" } : null,
-    ].filter(Boolean) as Array<{ icon: string; label: string }>;
-    return (
-      <a
-        key={program._id}
-        href={detailHref}
-        className="block"
-        onClick={(e) => {
-          const topWindow = window.top;
-          if (topWindow && window.self !== topWindow) {
-            e.preventDefault();
-            topWindow.location.href = detailHref;
-          }
-        }}
-      >
-        <article className="magazine-card group w-full cursor-pointer rounded-[1.35rem] p-4 sm:p-7">
-          <div className="flex flex-col gap-4 sm:gap-7 xl:flex-row">
-            <div className="w-full flex-shrink-0 xl:w-[294px]">
-              <div className="relative w-full overflow-hidden rounded-xl shadow-md">
-                <img
-                  alt="Podcast Cover"
-                  className="h-auto w-full object-contain transition-transform duration-700 group-hover:scale-105"
-                  src={safeText(program.coverImage || FALLBACK_COVER)}
-                />
-              </div>
-            </div>
-            <div className="flex flex-col justify-center xl:w-[574px]">
-              <div className="mb-3 flex items-center gap-3">
-                <span className="inline-flex items-center rounded-full bg-[#5e17eb]/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest text-[#5e17eb]">
-                  EPISODE {highlightText(badge)}
-                </span>
-                <span className="text-[11px] font-medium text-[#64748b]">
-                  {fmtDate(program.publishedAt || program.createdAt)}
-                </span>
-              </div>
-              <h2 className="mb-3 text-[1.12rem] font-extrabold leading-tight transition-colors group-hover:text-[#5e17eb] sm:text-[1.3rem]">
-                {highlightText(program.title)}
-              </h2>
-              <p className="mb-4 line-clamp-2 text-xs leading-relaxed text-[#64748b] sm:mb-6 sm:text-sm">
-                {highlightText(program.description || "")}
-              </p>
-              {programTags.length > 0 ? (
-                <div className="mb-3 flex flex-wrap items-center gap-2">
-                  {programTags.map((tag, tagIndex) => (
-                    <span
-                      key={`${program._id}-tag-${tagIndex}`}
-                      className="inline-flex items-center rounded-full border border-[#5e17eb]/20 bg-[#5e17eb]/5 px-2.5 py-1 text-[10px] font-bold text-[#5e17eb]"
-                    >
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-              {contentPills.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {contentPills.map((pill) => (
-                    <span
-                      key={`${program._id}-${pill.label}`}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-[#e2e8f0] bg-white px-3 py-1.5 text-xs font-bold text-[#1a1a1b] sm:px-3.5"
-                    >
-                      <span className="material-symbols-outlined text-[16px]">{pill.icon}</span>
-                      {pill.label}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </article>
-      </a>
-    );
+  const dismissHero = () => {
+    setShowHero(false);
+    try {
+      window.localStorage.setItem(PROGRAM_LIST_HERO_DISMISSED_KEY, "1");
+    } catch (_err) {}
   };
 
   return (
-    <div className="min-h-screen bg-[#f4f5f7] font-['Plus_Jakarta_Sans','PingFang_SC','Microsoft_YaHei',sans-serif] text-[#1a1a1b]">
+    <div className="relative min-h-screen overflow-hidden bg-[#f3f2f8] text-[#1f1d1a]">
+      {/* ProgramList: diagonal grid lines + pulsing orbs */}
+      <style>{`
+        @keyframes progOrb1 {
+          0%,100% { transform: translate3d(0,0,0) scale(1); opacity: .65; }
+          40% { transform: translate3d(2%,-3%,0) scale(1.15); opacity: .9; }
+          70% { transform: translate3d(-1.5%,2%,0) scale(.92); opacity: .7; }
+        }
+        @keyframes progOrb2 {
+          0%,100% { transform: translate3d(0,0,0) scale(.9); opacity: .5; }
+          50% { transform: translate3d(-3%,2%,0) scale(1.2); opacity: .85; }
+        }
+        @keyframes progOrb3 {
+          0%,100% { transform: translate3d(0,0,0) scale(1.1); opacity: .55; }
+          30% { transform: translate3d(1.8%,-2%,0) scale(.85); opacity: .75; }
+          75% { transform: translate3d(-2.2%,1.5%,0) scale(1.25); opacity: .9; }
+        }
+      `}</style>
+
+      {/* Background: diagonal grid */}
+      <div className="pointer-events-none absolute inset-0 opacity-50">
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage: `repeating-linear-gradient(45deg, rgba(118,83,205,0.06) 0px, rgba(118,83,205,0.06) 1px, transparent 1px, transparent 18px), repeating-linear-gradient(-45deg, rgba(118,83,205,0.04) 0px, rgba(118,83,205,0.04) 1px, transparent 1px, transparent 32px)`,
+          }}
+        />
+      </div>
+
+      {/* Animated orbs */}
+      <div className="pointer-events-none absolute inset-0">
+        <div
+          className="absolute -top-24 -left-20 h-[420px] w-[420px] rounded-full bg-[radial-gradient(circle,rgba(129,75,255,0.18),transparent_62%)]"
+          style={{ animation: "progOrb1 13s ease-in-out infinite" }}
+        />
+        <div
+          className="absolute top-[40%] -right-28 h-[380px] w-[380px] rounded-full bg-[radial-gradient(circle,rgba(153,102,255,0.13),transparent_60%)]"
+          style={{ animation: "progOrb2 17s ease-in-out infinite" }}
+        />
+        <div
+          className="absolute -bottom-20 left-[30%] h-[340px] w-[340px] rounded-full bg-[radial-gradient(circle,rgba(109,52,226,0.11),transparent_58%)]"
+          style={{ animation: "progOrb3 15s ease-in-out infinite 2s" }}
+        />
+      </div>
+
       <GlobalPublicNav
+        compactMobile
         showSearch
         showAiOnline
         showLogout
@@ -224,62 +172,157 @@ const ProgramListPage: React.FC = () => {
         showExpertsEntry
         searchPlaceholder="搜索节目标题/简介"
       />
-      <style>{`
-        .magazine-card {
-          background: #ffffff;
-          border: 1px solid #e2e8f0;
-          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-          box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);
-        }
-        .magazine-card:hover {
-          border-color: #5e17eb;
-          transform: translateY(-4px);
-          box-shadow: 0 20px 40px -15px rgba(94, 23, 235, 0.1);
-        }
-      `}</style>
 
-      <main className="relative mx-auto w-full max-w-7xl px-4 pb-16 pt-20 sm:px-6 sm:pt-22 lg:px-8 lg:pt-24">
-        <section>
-
-          <div className="space-y-8">
-            {loading ? (
-              <div className="flex flex-col items-center justify-center gap-4 py-12">
-                <div className="relative h-8 w-8">
-                  <div className="absolute inset-0 rounded-full border-4 border-[#5e17eb]/10"></div>
-                  <div className="animate-spin absolute inset-0 rounded-full border-4 border-t-[#5e17eb]"></div>
-                </div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#64748b]">正在加载更多精彩...</p>
+      <main className="relative z-10 mx-auto max-w-7xl px-4 pb-16 pt-[76px] sm:px-6 lg:px-8">
+        {showHero ? (
+          <section className="group relative overflow-hidden rounded-[2rem] border border-[#d8d0ef] bg-[radial-gradient(circle_at_18%_0%,_rgba(143,100,255,0.14),_transparent_36%),radial-gradient(circle_at_76%_22%,_rgba(124,58,237,0.08),_transparent_32%),linear-gradient(135deg,_#f4f1fd_0%,_#f9f7ff_45%,_#f0ebff_100%)] p-8 shadow-[0_24px_80px_rgba(80,62,125,0.12)] sm:p-10">
+            <button
+              type="button"
+              onClick={dismissHero}
+              aria-label="关闭引导卡片"
+              className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#cfc2ee] bg-white/75 text-[#6d57a3] opacity-0 transition hover:bg-white hover:text-[#4e36a0] group-hover:opacity-100 focus-visible:opacity-100 sm:opacity-0 max-sm:opacity-100"
+            >
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
+            <div className="max-w-3xl">
+              <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.28em] text-[#5b3fa1]">
+                节目列表
               </div>
-            ) : visiblePrograms.length === 0 ? (
-              <div className="magazine-card rounded-2xl p-8 text-sm text-[#64748b]">暂无已发布节目</div>
-            ) : (
-              <>
-                {pagedPrograms.map((program, idx) => renderUnifiedCard(program, start + idx))}
-                {totalPages > 1 && (
-                  <div className="flex items-center justify-center gap-3 pt-2">
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
-                      const active = p === safePage;
+              <h1 className="mt-5 text-4xl font-black leading-[1.14] tracking-tight text-[#24180a] sm:text-5xl">
+                从完整节目索引中，快速定位你此刻最需要的一期
+              </h1>
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-[#6f665d] sm:text-base">
+                这里汇总《家长先疯》已发布节目，按时间倒序呈现。你可以直接搜索标题与简介，并通过标签和内容类型快速判断每一期是否值得立即深听。
+              </p>
+            </div>
+          </section>
+        ) : null}
+
+        {error ? <div className="mt-6 rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm text-red-500">{error}</div> : null}
+
+        <section className={`${showHero ? "mt-8" : "mt-2"} space-y-5`}>
+          {loading ? (
+            Array.from({ length: 5 }).map((_, idx) => (
+              <div key={idx} className="animate-pulse rounded-[1.7rem] border border-[#e2dcf0] bg-white p-5 sm:p-6">
+                <div className="h-6 w-1/3 rounded bg-[#ece3f7]" />
+                <div className="mt-4 h-4 w-2/3 rounded bg-[#ece3f7]" />
+                <div className="mt-6 h-24 rounded bg-[#ece3f7]" />
+              </div>
+            ))
+          ) : visiblePrograms.length === 0 ? (
+            <div className="rounded-[1.7rem] border border-dashed border-[#d2c5ee] bg-white px-6 py-12 text-center text-sm text-[#8e81b3]">
+              暂无已发布节目。
+            </div>
+          ) : (
+            <>
+              {pagedPrograms.map((program, idx) => {
+                const routeId = program.programCode || program._id;
+                const hasTranscript = Array.isArray(program.transcript) && program.transcript.length > 0;
+                const hasDictionary = (Array.isArray(program.dictionaryEntries) ? program.dictionaryEntries : []).some((entry) =>
+                  hasNonEmptyText(entry?.term),
+                );
+                const hasReading = (Array.isArray(program.deepDive?.curatedReading) ? program.deepDive?.curatedReading : []).some((item) =>
+                  hasNonEmptyText(item?.title),
+                );
+                const tags = Array.isArray(program.summary?.tags)
+                  ? program.summary.tags.map((tag) => String(tag || "").trim()).filter(Boolean).slice(0, 4)
+                  : [];
+
+                return (
+                  <a
+                    key={program._id}
+                    href={`/programs/${encodeURIComponent(routeId)}`}
+                    className="group block overflow-hidden rounded-[1.7rem] border border-[#e1daf0] bg-white p-5 shadow-[0_20px_60px_rgba(63,38,112,0.06)] transition hover:-translate-y-1 hover:border-[#b79bff] hover:shadow-[0_28px_80px_rgba(63,38,112,0.14)] sm:p-6"
+                  >
+                    <div className="flex flex-col gap-5 lg:flex-row">
+                      <div className="w-full overflow-hidden rounded-[1.2rem] bg-[linear-gradient(135deg,_#1f143a,_#4b1db2_44%,_#b79bff)] lg:w-[280px] lg:shrink-0">
+                        <img
+                          src={program.coverImage || FALLBACK_COVER}
+                          alt={program.title || "节目封面"}
+                          className="h-52 w-full object-cover transition duration-700 group-hover:scale-105 lg:h-full"
+                          onError={(event) => {
+                            event.currentTarget.src = FALLBACK_COVER;
+                          }}
+                        />
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-[#5e17eb]">
+                            EP {(program.programCode || `ep${start + idx + 1}`).toUpperCase()}
+                          </span>
+                          <span className="text-xs font-medium text-[#8b8177]">{fmtDate(program.publishedAt || program.createdAt)}</span>
+                        </div>
+
+                        <h2 className="mt-4 text-2xl font-extrabold leading-tight tracking-tight text-[#24180a] sm:text-[1.75rem]">
+                          {program.title || "未命名节目"}
+                        </h2>
+
+                        <p className="mt-4 line-clamp-3 text-sm leading-7 text-[#6f665d]">
+                          {program.description || "暂无简介，后续可在后台补充节目摘要、show notes 与学习线索。"}
+                        </p>
+
+                        {tags.length > 0 ? (
+                          <div className="mt-5 flex flex-wrap gap-2">
+                            {tags.map((tag, tagIndex) => (
+                              <span
+                                key={`${program._id}-tag-${tagIndex}`}
+                                className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[11px] font-bold text-[#5e17eb]"
+                              >
+                                #{tag}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        <div className="mt-5 flex flex-wrap gap-2">
+                          {hasTranscript ? (
+                            <span className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[11px] font-bold text-[#5e17eb]">逐字稿</span>
+                          ) : null}
+                          {hasDictionary ? (
+                            <span className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[11px] font-bold text-[#5e17eb]">教育词典</span>
+                          ) : null}
+                          {hasReading ? (
+                            <span className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[11px] font-bold text-[#5e17eb]">书单延展</span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  </a>
+                );
+              })}
+
+              {totalPages > 1 ? (
+                <div className="flex items-center justify-center gap-3 pt-2">
+                  {paginationItems.map((item, idx) => {
+                    if (item === "ellipsis") {
                       return (
-                        <button
-                          key={p}
-                          type="button"
-                          onClick={() => setCurrentPage(p)}
-                          style={{ fontSize: "9.1px", lineHeight: 1 }}
-                          className={`h-7 w-7 rounded-full text-[7px] font-bold transition ${
-                            active
-                              ? "bg-[#5e17eb] text-white shadow-lg shadow-[#5e17eb]/25"
-                              : "border border-[#5e17eb]/25 bg-white text-[#5e17eb] hover:bg-[#5e17eb]/5"
-                          }`}
-                        >
-                          {p}
-                        </button>
+                        <span key={`ellipsis-${idx}`} className="inline-flex h-7 w-7 items-center justify-center text-[10px] font-bold text-[#8f7bd6]">
+                          ...
+                        </span>
                       );
-                    })}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+                    }
+                    const active = item === safePage;
+                    return (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => setCurrentPage(item)}
+                        style={{ fontSize: "9.1px", lineHeight: 1 }}
+                        className={`h-7 w-7 rounded-full text-[7px] font-bold transition ${
+                          active
+                            ? "bg-[#5e17eb] text-white shadow-lg shadow-[#5e17eb]/25"
+                            : "border border-[#5e17eb]/25 bg-white text-[#5e17eb] hover:bg-[#5e17eb]/5"
+                        }`}
+                      >
+                        {item}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </>
+          )}
         </section>
       </main>
     </div>

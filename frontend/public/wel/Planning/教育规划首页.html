@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html class="light" lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>wel 教育规划首页</title>
+<!-- Local vendored Tailwind runtime to avoid external CDN dependency at runtime -->
+<script src="/wel/vendor/tailwindcdn.forms.container-queries.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#7c3aed",
+                        "pearl": "#fbfbfc",
+                        "electron-purple": "#8b2cf5",
+                        "soft-purple": "#f5f0ff",
+                    },
+                    fontFamily: {
+                        "display": ["DM Sans", "Noto Sans SC", "sans-serif"]
+                    },
+                    backgroundImage: {
+                        'grid-pattern': "url(\"data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%237c3aed' fill-opacity='0.02' fill-rule='evenodd'%3E%3Cpath d='M0 40L40 0H20L0 20M40 40V20L20 40'/%3E%3C/g%3E%3C/svg%3E\")",
+                    }
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        @layer base {
+            body {
+                @apply font-display bg-pearl text-slate-900;
+            }
+        }
+        .holographic-glow {
+            background: linear-gradient(135deg, rgba(124,58,237,0.08) 0%, rgba(255,255,255,0) 50%, rgba(139,44,245,0.08) 100%);
+        }
+        .pearl-card {
+            background: #ffffff;
+            border: 1px solid rgba(124, 58, 237, 0.08);
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.02), 0 4px 6px -2px rgba(0, 0, 0, 0.01);
+            @apply rounded-[2rem] transition-all duration-500 hover:shadow-2xl hover:shadow-primary/10 hover:-translate-y-1;
+        }
+        .btn-electron {
+            background: #7c3aed;
+            box-shadow: 0 0 20px rgba(124, 58, 237, 0.3), inset 0 0 12px rgba(255, 255, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+        .energy-spatter {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.2) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .btn-electron:hover .energy-spatter {
+            opacity: 1;
+        }
+        .quick-chip {
+            @apply px-2 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-slate-100/70 hover:bg-primary/10 hover:text-primary transition-colors;
+        }
+        .quick-chip.on {
+            @apply bg-primary text-white shadow shadow-primary/20;
+        }
+        .main-input {
+            @apply w-full px-5 py-4 text-base border border-slate-200 rounded-2xl outline-none transition-all duration-300;
+            @apply focus:ring-2 focus:ring-primary/20 focus:border-primary/30;
+            min-height: 120px;
+            resize: vertical;
+        }
+        .step-indicator {
+            @apply flex items-center gap-2;
+        }
+        .step-dot {
+            @apply w-3 h-3 rounded-full bg-slate-200 transition-all duration-300;
+        }
+        .step-dot.active {
+            @apply bg-primary scale-125;
+        }
+        .step-dot.completed {
+            @apply bg-primary;
+        }
+        
+
+    </style>
+</head>
+<body class="antialiased min-h-screen relative overflow-x-hidden">
+<div class="fixed inset-0 bg-grid-pattern pointer-events-none"></div>
+<div class="fixed top-[-5%] left-[-5%] w-[600px] h-[600px] bg-primary/3 blur-[140px] rounded-full pointer-events-none"></div>
+<div class="fixed bottom-[-5%] right-[-5%] w-[600px] h-[600px] bg-electron-purple/3 blur-[140px] rounded-full pointer-events-none"></div>
+<div class="relative flex flex-col min-h-screen z-10">
+<main class="flex-1 flex flex-col items-center px-6 pt-[58px] pb-20">
+<div class="text-center mb-12 space-y-4">
+
+<h2 class="text-slate-900 text-5xl font-black tracking-tight">智能教育路径规划</h2>
+<p class="text-slate-500 text-lg max-w-2xl mx-auto">基于您的家庭情况、城市升学政策和目标定位，为您定制个性化教育路径规划。</p>
+</div>
+
+<div class="w-full max-w-4xl">
+  <div id="quick-filter-wrap" class="relative z-[2147483000] bg-white/60 backdrop-blur-md p-4 rounded-2xl border border-slate-200 mb-3 shadow-sm">
+    <div class="flex items-center justify-center gap-3">
+      <div id="quick-city-popover-wrap" class="relative z-[2147483600]">
+        <button id="quick-city-btn" class="h-11 px-4 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 flex items-center gap-2">
+          <span class="material-symbols-rounded text-base text-primary">location_city</span>
+          <span id="quick-city-label">上海</span>
+          <span class="material-symbols-rounded text-base text-slate-400">expand_more</span>
+        </button>
+        <div id="quick-city-panel" class="hidden absolute left-0 top-[calc(100%+8px)] z-[2147483647] w-[530px] min-h-[112px] bg-white border border-slate-200 rounded-2xl p-3 shadow-2xl">
+        <input id="quick-city-input" class="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/30" placeholder="输入城市，如：上海、北京、广州" />
+        <div id="quick-city-hot" class="flex flex-nowrap gap-2 mt-3 overflow-x-auto pr-1"></div>
+        <div id="quick-city-list" class="hidden flex flex-wrap gap-2 mt-2"></div>
+      </div>
+      </div>
+
+      <div class="h-6 w-[1px] bg-slate-200 mx-1"></div>
+
+    <div id="quick-district-popover-wrap" class="relative z-[2147483600]">
+      <button id="quick-district-btn" class="h-11 px-4 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 flex items-center gap-2">
+        <span class="material-symbols-rounded text-base text-primary">near_me</span>
+        <span id="quick-district-label">闵行区</span>
+        <span class="material-symbols-rounded text-base text-slate-400">expand_more</span>
+      </button>
+      <div id="quick-district-panel" class="hidden absolute left-0 top-[calc(100%+8px)] z-[2147483647] w-[570px] bg-white border border-slate-200 rounded-2xl p-3 shadow-xl">
+        <div id="quick-district-list" class="flex flex-wrap gap-2"></div>
+      </div>
+    </div>
+
+    <div class="h-6 w-[1px] bg-slate-200 mx-1"></div>
+
+    <div id="quick-stage-popover-wrap" class="relative z-[2147483600]">
+      <button id="quick-stage-btn" class="h-11 px-4 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 flex items-center gap-2">
+        <span class="material-symbols-rounded text-base text-primary">school</span>
+        <span id="quick-stage-label">小学 · 五年级</span>
+        <span class="material-symbols-rounded text-base text-slate-400">expand_more</span>
+      </button>
+      <div id="quick-stage-panel" class="hidden absolute left-0 top-[calc(100%+8px)] z-[2147483647] w-[460px] min-h-[96px] bg-white border border-slate-200 rounded-2xl p-3 shadow-xl">
+        <div id="quick-stage-tabs" class="flex flex-wrap gap-2 mb-3"></div>
+        <div id="quick-stage-children" class="flex flex-wrap gap-2"></div>
+      </div>
+    </div>
+
+    <div class="h-6 w-[1px] bg-slate-200 mx-1"></div>
+
+    <div id="quick-birthdate-popover-wrap" class="relative z-[2147483600]">
+      <button id="quick-birthdate-btn" class="h-11 px-4 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 flex items-center gap-2">
+        <span class="material-symbols-rounded text-base text-primary">cake</span>
+        <span id="quick-birthdate-label">出生日期</span>
+        <span class="material-symbols-rounded text-base text-slate-400">expand_more</span>
+      </button>
+      <div id="quick-birthdate-panel" class="hidden absolute left-0 top-[calc(100%+8px)] z-[2147483647] w-[300px] bg-white border border-slate-200 rounded-2xl p-3 shadow-xl">
+        <input type="date" id="quick-birthdate-input" class="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/30" />
+        <div class="mt-3 flex justify-end">
+          <button id="quick-birthdate-confirm" class="px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="h-6 w-[1px] bg-slate-200 mx-1"></div>
+
+    <div id="quick-gender-popover-wrap" class="relative z-[2147483600]">
+      <button id="quick-gender-btn" class="h-11 px-4 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 flex items-center gap-2">
+        <span class="material-symbols-rounded text-base text-primary">person</span>
+        <span id="quick-gender-label">男孩</span>
+        <span class="material-symbols-rounded text-base text-slate-400">expand_more</span>
+      </button>
+      <div id="quick-gender-panel" class="hidden absolute left-0 top-[calc(100%+8px)] z-[2147483647] w-[200px] bg-white border border-slate-200 rounded-2xl p-3 shadow-xl">
+        <div id="quick-gender-list" class="flex flex-col gap-1"></div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="w-full max-w-4xl mb-3 pl-5">
+    <div class="flex items-center justify-between">
+      <div class="text-xs text-slate-500 pr-1 whitespace-nowrap -mt-5" id="quick-filter-summary-original">已按 上海·闵行区·小学五年级·男孩 建立个性化规划框架</div>
+      <button id="transfer-toggle" class="text-primary text-xs font-normal cursor-pointer hover:underline h-[44px] flex items-center -mt-5 mr-5" onclick="toggleTransfer()">
+        有转学计划
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="target-city-wrap" class="hidden w-full max-w-4xl mb-3 relative z-[2147482000] pl-5">
+  <div class="flex flex-wrap items-center justify-center gap-3">
+    <div class="text-sm text-slate-500 font-medium">目标城市：</div>
+    <div id="quick-target-city-popover-wrap" class="relative z-[2147483600]">
+      <button id="quick-target-city-btn" class="h-11 px-4 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 flex items-center gap-2">
+        <span class="material-symbols-rounded text-base text-primary">location_city</span>
+        <span id="quick-target-city-label">请选择</span>
+        <span class="material-symbols-rounded text-base text-slate-400">expand_more</span>
+      </button>
+      <div id="quick-target-city-panel" class="hidden absolute left-0 top-[calc(100%+8px)] z-[2147483647] w-[530px] min-h-[112px] bg-white border border-slate-200 rounded-2xl p-3 shadow-2xl">
+        <input id="quick-target-city-input" class="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/30" placeholder="输入城市，如：上海、北京、广州" />
+        <div id="quick-target-city-hot" class="flex flex-nowrap gap-2 mt-3 overflow-x-auto pr-1"></div>
+        <div id="quick-target-city-list" class="hidden flex flex-wrap gap-2 mt-2"></div>
+      </div>
+    </div>
+    
+    <div id="target-district-wrap" class="flex items-center gap-3">
+      <div class="h-6 w-[1px] bg-slate-200"></div>
+      <div class="text-sm text-slate-500 font-medium">目标区域：</div>
+      <div id="quick-target-district-popover-wrap" class="relative z-[2147483600]">
+        <button id="quick-target-district-btn" class="h-11 px-4 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 flex items-center gap-2">
+          <span class="material-symbols-rounded text-base text-primary">near_me</span>
+          <span id="quick-target-district-label">请选择</span>
+          <span class="material-symbols-rounded text-base text-slate-400">expand_more</span>
+        </button>
+        <div id="quick-target-district-panel" class="hidden absolute left-0 top-[calc(100%+8px)] z-[2147483647] w-[570px] bg-white border border-slate-200 rounded-2xl p-3 shadow-xl">
+          <div id="quick-target-district-list" class="flex flex-wrap gap-2"></div>
+        </div>
+      </div>
+    </div>
+    
+    <div id="target-street-wrap" class="hidden items-center gap-3">
+      <div class="h-6 w-[1px] bg-slate-200"></div>
+      <div class="text-sm text-slate-500 font-medium">具体街道：</div>
+      <div id="quick-target-street-popover-wrap" class="relative z-[2147483600]">
+        <button id="quick-target-street-btn" class="h-11 px-4 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 flex items-center gap-2">
+          <span class="material-symbols-rounded text-base text-primary">route</span>
+          <span id="quick-target-street-label">请选择</span>
+          <span class="material-symbols-rounded text-base text-slate-400">expand_more</span>
+        </button>
+        <div id="quick-target-street-panel" class="hidden absolute left-0 top-[calc(100%+8px)] z-[2147483647] w-[400px] bg-white border border-slate-200 rounded-2xl p-3 shadow-xl">
+          <div id="quick-target-street-list" class="grid grid-flow-col grid-rows-3 gap-x-3 gap-y-2"></div>
+        </div>
+      </div>
+    </div>
+    <div class="text-xs text-slate-500 pr-1 mt-3 hidden" id="quick-filter-summary">已按 上海·闵行区·小学五年级·男孩 建立个性化规划框架</div>
+  </div>
+</div>
+
+<div id="quick-popover-spacer" class="h-[60px] w-full max-w-4xl"></div>
+
+  <!-- 告诉我您的期望 -->
+  <div class="w-full max-w-4xl">
+    <div class="pearl-card p-8">
+      <div class="mb-6">
+        <div class="flex items-center gap-3 mb-2">
+          <span class="material-symbols-rounded text-primary text-2xl">chat</span>
+          <h3 class="text-xl font-bold text-slate-900">告诉我您的期望</h3>
+        </div>
+        <p class="text-slate-500 text-sm">请用自然语言描述您对孩子的教育期望、家庭背景、目标学校或其他相关信息。</p>
+      </div>
+
+      <textarea id="mainInput" class="main-input" placeholder="例如：我们希望孩子能进入优质的初中，以后考虑出国读大学，家庭预算比较充裕，目前在闵行区读小学五年级，男孩..."></textarea>
+
+      <div class="mt-4">
+        <p class="text-xs text-slate-400 mb-3">快速选择（可多选）：</p>
+        <div class="flex flex-wrap gap-2">
+          <button class="quick-chip" onclick="toggleQuickTag(this, '优质公办')">优质公办</button>
+          <button class="quick-chip" onclick="toggleQuickTag(this, '民办路线')">民办路线</button>
+          <button class="quick-chip" onclick="toggleQuickTag(this, '国际路线')">国际路线</button>
+          <button class="quick-chip" onclick="toggleQuickTag(this, '出国留学')">出国留学</button>
+          <button class="quick-chip" onclick="toggleQuickTag(this, '预算充裕')">预算充裕</button>
+          <button class="quick-chip" onclick="toggleQuickTag(this, '注重素质')">注重素质</button>
+          <button class="quick-chip" onclick="toggleQuickTag(this, '关注成绩')">关注成绩</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 填写方案选择 -->
+  <div class="w-full max-w-4xl mt-8">
+    <div class="text-center mb-6">
+      <h3 class="text-lg font-bold text-slate-900 mb-2">选择您的规划方式</h3>
+      <p class="text-slate-500 text-sm">两种专业方式，为您定制个性化教育路径</p>
+    </div>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <!-- 方案1：表单结构化填写 -->
+      <div class="pearl-card p-6 cursor-pointer hover:scale-[1.02] transition-all duration-300" onclick="startStructuredPlan()">
+        <div class="flex items-start gap-4">
+          <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <span class="material-symbols-rounded text-primary text-2xl">format_list_bulleted</span>
+          </div>
+          <div class="flex-1">
+            <h4 class="font-bold text-slate-900 mb-1">精准规划师</h4>
+            <p class="text-slate-500 text-sm mb-3">结构化表单填写</p>
+            <ul class="text-xs text-slate-400 space-y-1">
+              <li class="flex items-center gap-1">
+                <span class="material-symbols-rounded text-xs">check</span>
+                逐步引导，信息完整
+              </li>
+              <li class="flex items-center gap-1">
+                <span class="material-symbols-rounded text-xs">check</span>
+                选项明确，轻松上手
+              </li>
+              <li class="flex items-center gap-1">
+                <span class="material-symbols-rounded text-xs">check</span>
+                专业细致，覆盖全面
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div class="mt-4 pt-4 border-t border-slate-100">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-slate-400">约 3-5 分钟</span>
+            <span class="text-primary text-sm font-bold">开始填写 →</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 方案2：Chat填写 -->
+      <div class="pearl-card p-6 cursor-pointer hover:scale-[1.02] transition-all duration-300" onclick="startChatPlan()">
+        <div class="flex items-start gap-4">
+          <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <span class="material-symbols-rounded text-primary text-2xl">chat</span>
+          </div>
+          <div class="flex-1">
+            <h4 class="font-bold text-slate-900 mb-1">AI对话师</h4>
+            <p class="text-slate-500 text-sm mb-3">自然语言对话填写</p>
+            <ul class="text-xs text-slate-400 space-y-1">
+              <li class="flex items-center gap-1">
+                <span class="material-symbols-rounded text-xs">check</span>
+                像聊天一样轻松自然
+              </li>
+              <li class="flex items-center gap-1">
+                <span class="material-symbols-rounded text-xs">check</span>
+                AI引导，灵活高效
+              </li>
+              <li class="flex items-center gap-1">
+                <span class="material-symbols-rounded text-xs">check</span>
+                随时补充，自由修改
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div class="mt-4 pt-4 border-t border-slate-100">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-slate-400">约 2-3 分钟</span>
+            <span class="text-primary text-sm font-bold">开始对话 →</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 开始规划按钮 -->
+  <div class="w-full max-w-4xl mt-8">
+    <div class="flex items-center justify-center gap-2 mb-6">
+      <div class="step-indicator">
+        <div class="step-dot active" data-step="1"></div>
+        <span class="text-xs text-slate-400">宽泛输入</span>
+      </div>
+      <div class="w-8 h-[1px] bg-slate-200"></div>
+      <div class="step-indicator">
+        <div class="step-dot" data-step="2"></div>
+        <span class="text-xs text-slate-400">升学要求</span>
+      </div>
+      <div class="w-8 h-[1px] bg-slate-200"></div>
+      <div class="step-indicator">
+        <div class="step-dot" data-step="3"></div>
+        <span class="text-xs text-slate-400">目标定位</span>
+      </div>
+      <div class="w-8 h-[1px] bg-slate-200"></div>
+      <div class="step-indicator">
+        <div class="step-dot" data-step="4"></div>
+        <span class="text-xs text-slate-400">预算投入</span>
+      </div>
+      <div class="w-8 h-[1px] bg-slate-200"></div>
+      <div class="step-indicator">
+        <div class="step-dot" data-step="5"></div>
+        <span class="text-xs text-slate-400">生成规划</span>
+      </div>
+    </div>
+
+    <button id="startBtn" class="w-full h-14 btn-electron text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 hover:scale-[1.02]" onclick="startPlanning()">
+      <div class="energy-spatter"></div>
+      <span class="relative z-10">开始规划</span>
+      <span class="material-symbols-rounded relative z-10 text-xl">arrow_forward</span>
+    </button>
+  </div>
+</div>
+
+<p class="mt-10 text-slate-400 text-sm flex items-center gap-2">
+<span class="material-symbols-rounded text-sm">verified</span>
+规划结果将基于您所在城市的升学政策和家庭情况，为您定制个性化教育路径
+</p>
+</main>
+
+
+
+<footer class="px-10 py-8 flex items-center justify-between border-t border-slate-100">
+<div class="flex items-center gap-6">
+<span class="text-slate-400 text-xs">© 2024 wel Platform. Education Planning Edition.</span>
+<div class="flex gap-4">
+<a class="text-slate-400 hover:text-primary text-xs transition-colors" href="#">隐私协议</a>
+<a class="text-slate-400 hover:text-primary text-xs transition-colors" href="#">用户条款</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex -space-x-2">
+<div class="size-6 rounded-full border-2 border-white bg-slate-200"></div>
+<div class="size-6 rounded-full border-2 border-white bg-slate-300"></div>
+<div class="size-6 rounded-full border-2 border-white bg-slate-400"></div>
+</div>
+<span class="text-slate-400 text-xs font-medium">已有 12,580 位家庭完成教育规划</span>
+</div>
+</footer>
+</div>
+
+<div class="fixed inset-0 pointer-events-none overflow-hidden">
+<div class="absolute top-[30%] right-[10%] w-64 h-64 bg-primary/5 rounded-full blur-[100px] holographic-glow"></div>
+<div class="absolute bottom-[30%] left-[10%] w-80 h-80 bg-electron-purple/5 rounded-full blur-[100px] holographic-glow"></div>
+</div>
+
+<script>
+// 统一的数据共享工具
+const WEL_USER_DATA_KEY = 'wel_user_basic_info';
+
+function saveWelUserData(data) {
+  try {
+    const existing = getWelUserData() || {};
+    const merged = { ...existing, ...data };
+    localStorage.setItem(WEL_USER_DATA_KEY, JSON.stringify(merged));
+    console.log('已保存用户数据:', merged);
+    return merged;
+  } catch (e) {
+    console.error('保存用户数据失败:', e);
+    return null;
+  }
+}
+
+function getWelUserData() {
+  try {
+    const data = localStorage.getItem(WEL_USER_DATA_KEY);
+    return data ? JSON.parse(data) : null;
+  } catch (e) {
+    console.error('读取用户数据失败:', e);
+    return null;
+  }
+}
+
+(() => {
+  const BASE_STAGE_MAP = {
+    '学前': ['托班', '小班', '中班', '大班'],
+    '高中': ['高一', '高二', '高三']
+  };
+  
+  const CITY_OPTIONS = [
+    { city:'北京', system:'63' }, { city:'上海', system:'54' }, { city:'广州', system:'63' }, { city:'深圳', system:'63' }, { city:'杭州', system:'63' },
+    { city:'南京', system:'63' }, { city:'苏州', system:'63' }, { city:'常州', system:'63' }, { city:'成都', system:'63' }, { city:'重庆', system:'63' }, { city:'武汉', system:'63' },
+    { city:'西安', system:'63' }, { city:'郑州', system:'63' }, { city:'长沙', system:'63' }, { city:'天津', system:'63' }, { city:'沈阳', system:'63' },
+    { city:'大连', system:'63' }, { city:'哈尔滨', system:'63' }, { city:'长春', system:'63' }, { city:'福州', system:'63' }, { city:'厦门', system:'63' },
+    { city:'南昌', system:'63' }, { city:'合肥', system:'63' }, { city:'昆明', system:'63' }, { city:'贵阳', system:'63' }, { city:'南宁', system:'63' },
+    { city:'海口', system:'63' }, { city:'兰州', system:'63' }, { city:'太原', system:'63' }, { city:'石家庄', system:'63' }, { city:'呼和浩特', system:'63' },
+    { city:'青岛', system:'54' }, { city:'烟台', system:'54' }, { city:'威海', system:'54' }, { city:'淄博', system:'54' }, { city:'潍坊', system:'54' },
+    { city:'济宁', system:'54' }, { city:'临沂', system:'54' }, { city:'泰安', system:'54' }, { city:'日照', system:'54' }
+  ];
+  
+  const HOT_CITIES = ['北京', '上海', '广州', '深圳', '杭州', '青岛', '烟台', '威海'];
+  
+  const DISTRICT_OPTIONS = {
+    '上海': ['黄浦区', '徐汇区', '长宁区', '静安区', '普陀区', '虹口区', '杨浦区', '闵行区', '宝山区', '嘉定区', '浦东新区', '金山区', '松江区', '青浦区', '奉贤区', '崇明区'],
+    '北京': ['东城区', '西城区', '朝阳区', '丰台区', '石景山区', '海淀区', '门头沟区', '房山区', '通州区', '顺义区', '昌平区', '大兴区', '怀柔区', '平谷区', '密云区', '延庆区'],
+    '广州': ['越秀区', '荔湾区', '海珠区', '天河区', '白云区', '黄埔区', '番禺区', '花都区', '南沙区', '从化区', '增城区'],
+    '深圳': ['福田区', '罗湖区', '南山区', '宝安区', '龙岗区', '盐田区', '龙华区', '坪山区', '光明区'],
+    '杭州': ['上城区', '下城区', '江干区', '拱墅区', '西湖区', '滨江区', '萧山区', '余杭区', '富阳区', '临安区', '桐庐县', '淳安县', '建德市'],
+    '南京': ['玄武区', '秦淮区', '建邺区', '鼓楼区', '浦口区', '栖霞区', '雨花台区', '江宁区', '六合区', '溧水区', '高淳区'],
+    '苏州': ['姑苏区', '虎丘区', '吴中区', '相城区', '吴江区', '常熟市', '张家港市', '昆山市', '太仓市'],
+    '常州': ['天宁区', '钟楼区', '新北区', '武进区', '金坛区', '溧阳市'],
+    '成都': ['锦江区', '青羊区', '金牛区', '武侯区', '成华区', '龙泉驿区', '青白江区', '新都区', '温江区', '双流区', '郫都区', '新津区', '都江堰市', '彭州市', '邛崃市', '崇州市', '简阳市'],
+    '重庆': ['万州区', '涪陵区', '渝中区', '大渡口区', '江北区', '沙坪坝区', '九龙坡区', '南岸区', '北碚区', '綦江区', '大足区', '渝北区', '巴南区', '黔江区', '长寿区', '江津区', '合川区', '永川区', '南川区', '璧山区', '铜梁区', '潼南区', '荣昌区', '开州区', '梁平区', '武隆区'],
+    '武汉': ['江岸区', '江汉区', '硚口区', '汉阳区', '武昌区', '青山区', '洪山区', '东西湖区', '汉南区', '蔡甸区', '江夏区', '黄陂区', '新洲区'],
+    '西安': ['新城区', '碑林区', '莲湖区', '灞桥区', '未央区', '雁塔区', '阎良区', '临潼区', '长安区', '高陵区', '鄠邑区', '蓝田县', '周至县'],
+    '郑州': ['中原区', '二七区', '管城回族区', '金水区', '上街区', '惠济区', '中牟县', '巩义市', '荥阳市', '新密市', '新郑市', '登封市'],
+    '长沙': ['芙蓉区', '天心区', '岳麓区', '开福区', '雨花区', '望城区', '长沙县', '浏阳市', '宁乡市'],
+    '天津': ['和平区', '河东区', '河西区', '南开区', '河北区', '红桥区', '东丽区', '西青区', '津南区', '北辰区', '武清区', '宝坻区', '滨海新区', '宁河区', '静海区', '蓟州区'],
+    '沈阳': ['和平区', '沈河区', '大东区', '皇姑区', '铁西区', '苏家屯区', '浑南区', '沈北新区', '于洪区', '辽中区', '新民市', '康平县', '法库县'],
+    '大连': ['中山区', '西岗区', '沙河口区', '甘井子区', '旅顺口区', '金州区', '普兰店区', '瓦房店市', '庄河市', '长海县'],
+    '哈尔滨': ['道里区', '南岗区', '道外区', '平房区', '松北区', '香坊区', '呼兰区', '阿城区', '双城区', '依兰县', '方正县', '宾县', '巴彦县', '木兰县', '通河县', '延寿县', '尚志市', '五常市'],
+    '长春': ['南关区', '宽城区', '朝阳区', '二道区', '绿园区', '双阳区', '九台区', '农安县', '榆树市', '德惠市', '公主岭市'],
+    '福州': ['鼓楼区', '台江区', '仓山区', '马尾区', '晋安区', '长乐区', '闽侯县', '连江县', '罗源县', '闽清县', '永泰县', '平潭县', '福清市'],
+    '厦门': ['思明区', '海沧区', '湖里区', '集美区', '同安区', '翔安区'],
+    '南昌': ['东湖区', '西湖区', '青云谱区', '湾里区', '青山湖区', '新建区', '南昌县', '安义县', '进贤县'],
+    '合肥': ['瑶海区', '庐阳区', '蜀山区', '包河区', '长丰县', '肥东县', '肥西县', '庐江县', '巢湖市'],
+    '昆明': ['五华区', '盘龙区', '官渡区', '西山区', '东川区', '呈贡区', '晋宁区', '富民县', '宜良县', '石林彝族自治县', '嵩明县', '禄劝彝族苗族自治县', '寻甸回族彝族自治县', '安宁市'],
+    '贵阳': ['南明区', '云岩区', '花溪区', '乌当区', '白云区', '观山湖区', '开阳县', '息烽县', '修文县', '清镇市'],
+    '南宁': ['兴宁区', '青秀区', '江南区', '西乡塘区', '良庆区', '邕宁区', '武鸣区', '隆安县', '马山县', '上林县', '宾阳县', '横县'],
+    '海口': ['秀英区', '龙华区', '琼山区', '美兰区'],
+    '兰州': ['城关区', '七里河区', '西固区', '安宁区', '红古区', '永登县', '皋兰县', '榆中县'],
+    '太原': ['小店区', '迎泽区', '杏花岭区', '尖草坪区', '万柏林区', '晋源区', '清徐县', '阳曲县', '娄烦县', '古交市'],
+    '石家庄': ['长安区', '桥西区', '新华区', '井陉矿区', '裕华区', '藁城区', '鹿泉区', '栾城区', '井陉县', '正定县', '行唐县', '灵寿县', '高邑县', '深泽县', '赞皇县', '无极县', '平山县', '元氏县', '赵县', '辛集市', '晋州市', '新乐市'],
+    '呼和浩特': ['新城区', '回民区', '玉泉区', '赛罕区', '土默特左旗', '托克托县', '和林格尔县', '清水河县', '武川县'],
+    '青岛': ['市南区', '市北区', '黄岛区', '崂山区', '李沧区', '城阳区', '即墨区', '胶州市', '平度市', '莱西市'],
+    '烟台': ['芝罘区', '福山区', '牟平区', '莱山区', '蓬莱区', '龙口市', '莱阳市', '莱州市', '招远市', '栖霞市', '海阳市'],
+    '威海': ['环翠区', '文登区', '荣成市', '乳山市'],
+    '淄博': ['淄川区', '张店区', '博山区', '临淄区', '周村区', '桓台县', '高青县', '沂源县'],
+    '潍坊': ['潍城区', '寒亭区', '坊子区', '奎文区', '临朐县', '昌乐县', '青州市', '诸城市', '寿光市', '安丘市', '高密市', '昌邑市'],
+    '济宁': ['任城区', '兖州区', '微山县', '鱼台县', '金乡县', '嘉祥县', '汶上县', '泗水县', '梁山县', '曲阜市', '邹城市'],
+    '临沂': ['兰山区', '罗庄区', '河东区', '沂南县', '郯城县', '沂水县', '兰陵县', '费县', '平邑县', '莒南县', '蒙阴县', '临沭县'],
+    '泰安': ['泰山区', '岱岳区', '宁阳县', '东平县', '新泰市', '肥城市'],
+    '日照': ['东港区', '岚山区', '五莲县', '莒县']
+  };
+  
+  const GENDER_OPTIONS = ['男孩', '女孩'];
+  
+  const STREET_OPTIONS = {
+    '上海·黄浦区': ['南京东路', '淮海中路', '外滩', '人民广场', '南京西路', '豫园'],
+    '上海·徐汇区': ['徐家汇', '衡山路', '漕溪北路', '华山路', '中山南二路', '田林'],
+    '上海·长宁区': ['虹桥', '中山公园', '新华路', '天山路', '仙霞路', '古北'],
+    '上海·静安区': ['南京西路', '静安寺', '曹家渡', '彭浦', '大宁', '芷江西路'],
+    '上海·普陀区': ['真如', '长寿路', '长风', '曹杨新村', '甘泉', '桃浦'],
+    '上海·虹口区': ['四川北路', '北外滩', '曲阳', '凉城', '江湾镇', '广中路'],
+    '上海·杨浦区': ['五角场', '鞍山', '控江', '平凉路', '长白', '殷行'],
+    '上海·闵行区': ['莘庄', '七宝', '虹桥', '梅陇', '龙柏', '古美'],
+    '上海·宝山区': ['吴淞', '张庙', '泗塘', '高境', '庙行', '大场'],
+    '上海·嘉定区': ['嘉定镇', '南翔', '安亭', '马陆', '江桥', '真新'],
+    '上海·浦东新区': ['陆家嘴', '潍坊', '塘桥', '洋泾', '金杨', '金桥'],
+    '上海·金山区': ['石化', '朱泾', '枫泾', '亭林', '漕泾', '山阳'],
+    '上海·松江区': ['岳阳', '永丰', '中山', '方松', '广富林', '九亭'],
+    '上海·青浦区': ['夏阳', '盈浦', '香花桥', '朱家角', '练塘', '金泽'],
+    '上海·奉贤区': ['南桥镇', '奉城镇', '庄行镇', '金汇镇', '四团镇', '青村镇'],
+    '上海·崇明区': ['城桥镇', '堡镇', '新河镇', '庙镇', '竖新镇', '向化镇'],
+    '北京·东城区': ['东华门', '景山', '交道口', '安定门', '北新桥', '东四'],
+    '北京·西城区': ['西长安街', '新街口', '月坛', '展览路', '德胜', '金融街'],
+    '北京·朝阳区': ['建外', '朝外', '呼家楼', '三里屯', '左家庄', '香河园'],
+    '北京·海淀区': ['万寿路', '永定路', '羊坊店', '甘家口', '八里庄', '紫竹院'],
+    '广州·越秀区': ['洪桥', '北京', '六榕', '流花', '光塔', '人民'],
+    '广州·天河区': ['五山', '员村', '车陂', '沙河', '石牌', '天河南'],
+    '深圳·福田区': ['南园', '园岭', '华富', '福田', '沙头', '梅林'],
+    '深圳·南山区': ['南山', '南头', '蛇口', '招商', '粤海', '沙河']
+  };
+  
+  const STAGE_ORDER = ['学前', '小学', '初中', '高中'];
+  
+  const $ = (id) => document.getElementById(id);
+  const sp = new URLSearchParams(location.search || '');
+  const presetCity = (sp.get('city') || '').trim();
+  const presetStage = (sp.get('stage') || '').trim();
+  const presetChild = (sp.get('substage') || '').trim();
+  
+  function matchCity(name){
+    const key = String(name || '').trim();
+    if (!key) return null;
+    return CITY_OPTIONS.find(x => x.city === key) || CITY_OPTIONS.find(x => x.city.includes(key) || key.includes(x.city)) || null;
+  }
+  
+  function stageMapBySystem(system){
+    if (system === '54') {
+      return { ...BASE_STAGE_MAP, '小学': ['一年级', '二年级', '三年级', '四年级', '五年级'], '初中': ['六年级', '七年级', '八年级', '九年级'] };
+    }
+    return { ...BASE_STAGE_MAP, '小学': ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级'], '初中': ['七年级', '八年级', '九年级'] };
+  }
+  
+  function normalizeStageBySystem(stateRef){
+    const map = stageMapBySystem(stateRef.system);
+    const stages = Object.keys(map);
+    // 将旧的 '学前阶段' 转换为 '学前'
+    if (stateRef.stage === '学前阶段') stateRef.stage = '学前';
+    if (!stages.includes(stateRef.stage)) stateRef.stage = '小学';
+    if ((map[stateRef.stage] || []).includes(stateRef.child)) return;
+    if (stateRef.system === '54' && stateRef.stage === '小学' && stateRef.child === '六年级') {
+      stateRef.stage = '初中';
+      stateRef.child = '六年级';
+      return;
+    }
+    if (stateRef.system === '63' && stateRef.stage === '初中' && stateRef.child === '六年级') {
+      stateRef.stage = '小学';
+      stateRef.child = '六年级';
+      return;
+    }
+    // 保持 child 为空，显示 "请选择年级"
+    stateRef.child = '';
+  }
+  
+  const presetCityMatch = matchCity(presetCity);
+  
+  // 从统一数据存储中读取
+  const savedData = getWelUserData();
+  
+  const state = {
+    city: (presetCityMatch?.city || presetCity || savedData?.currentCity || savedData?.city || '上海').trim(),
+    system: (presetCityMatch?.system || savedData?.schoolSystem || '54'),
+    stage: presetStage || savedData?.stage || '小学',
+    child: '',
+    district: savedData?.district || '闵行区',
+    birthDate: savedData?.birthDate || '',
+    gender: savedData?.gender || '男孩',
+    targetCity: '',
+    targetDistrict: '',
+    targetStreet: '',
+    hasTransfer: false,
+    quickTags: []
+  };
+  
+  let cityPopover, districtPopover, stagePopover, birthdatePopover, genderPopover, targetCityPopover, targetDistrictPopover, targetStreetPopover;
+  
+  normalizeStageBySystem(state);
+  // 始终保持 child 为空，显示 "请选择年级"
+  state.child = '';
+  
+  // 初始化区域：如果有保存的区域且与当前城市匹配，则使用保存的区域，否则使用当前城市的第一个区域
+  const districtsForCity = DISTRICT_OPTIONS[state.city];
+  if (districtsForCity && districtsForCity.length > 0) {
+    if (savedData?.district && districtsForCity.includes(savedData.district)) {
+      state.district = savedData.district;
+    } else {
+      state.district = districtsForCity[0];
+    }
+  } else {
+    state.district = '闵行区';
+  }
+    
+  function saveCurrentStateToWelData(){
+    saveWelUserData({
+      currentCity: state.city,
+      schoolSystem: state.system,
+      stage: state.stage,
+      subStage: state.child,
+      district: state.district,
+      birthDate: state.birthDate,
+      gender: state.gender
+    });
+  }
+  
+  function updateFilterSummary(){
+    const stageText = state.child ? `${state.stage}·${state.child}` : state.stage;
+    let transferText = '';
+    if (state.hasTransfer && state.targetCity) {
+      transferText = `→ 转学至${state.targetCity}`;
+      if (state.targetDistrict) {
+        transferText += `·${state.targetDistrict}`;
+        if (state.targetStreet) {
+          transferText += `·${state.targetStreet}`;
+        }
+      }
+    }
+    const summaryText = `已按 ${state.city}·${state.district}·${stageText}·${state.gender} ${transferText} 建立个性化规划框架`.replace(/\s+/g, ' ').trim();
+    $('quick-filter-summary').textContent = summaryText;
+    $('quick-filter-summary-original').textContent = summaryText;
+  }
+  
+  function renderHotCities(){
+    const wrap = $('quick-city-hot');
+    wrap.innerHTML = HOT_CITIES.map(c => `<button class="quick-chip shrink-0 ${state.city === c ? 'on' : ''}" data-city="${c}">${c}</button>`).join('');
+  }
+  
+  function renderCityList(filter=''){
+    const wrap = $('quick-city-list');
+    const hot = $('quick-city-hot');
+    const f = String(filter || '').trim().toLowerCase();
+    if (!f) {
+      hot.classList.remove('hidden');
+      wrap.classList.add('hidden');
+      wrap.innerHTML = '';
+      return;
+    }
+    hot.classList.add('hidden');
+    const list = CITY_OPTIONS.filter(x => x.city.toLowerCase().includes(f)).slice(0, 24);
+    if (list.length === 0) {
+      wrap.classList.add('hidden');
+      return;
+    }
+    wrap.classList.remove('hidden');
+    wrap.innerHTML = list.map(x => `<button class="quick-chip shrink-0 ${state.city === x.city ? 'on' : ''}" data-city="${x.city}">${x.city}</button>`).join('');
+  }
+  
+  function selectCity(city){
+    const match = CITY_OPTIONS.find(x => x.city === city);
+    if (!match) return;
+    state.city = match.city;
+    state.system = match.system;
+    normalizeStageBySystem(state);
+    $('quick-city-label').textContent = state.city;
+    $('quick-city-input').value = '';
+    
+    const districts = DISTRICT_OPTIONS[state.city];
+    if (districts && districts.length > 0) {
+      state.district = districts[0];
+      $('quick-district-label').textContent = simplifyDistrictName(state.district);
+      // 直接更新区域列表，不调用renderDistrictList避免递归
+      const districtWrap = $('quick-district-list');
+      districtWrap.innerHTML = districts.map(d => `<button class="quick-chip ${state.district === d ? 'on' : ''}" data-district="${d}">${simplifyDistrictName(d)}</button>`).join('');
+    }
+    
+    saveCurrentStateToWelData();
+    
+    renderHotCities();
+    renderCityList();
+    renderStageTabs();
+    renderStageChildren();
+    cityPopover.close(0);
+    updateFilterSummary();
+  }
+  
+  window.toggleTransfer = function(){
+    state.hasTransfer = !state.hasTransfer;
+    const targetCityWrap = $('target-city-wrap');
+    const transferToggle = $('transfer-toggle');
+    const filterSummary = $('quick-filter-summary');
+    const filterSummaryOriginal = $('quick-filter-summary-original');
+    
+    if (state.hasTransfer) {
+      targetCityWrap.classList.remove('hidden');
+      transferToggle.classList.add('hidden');
+      filterSummary.classList.remove('hidden');
+      filterSummaryOriginal.classList.add('hidden');
+      
+      if (!state.targetCity) {
+        state.targetCity = state.city;
+        $('quick-target-city-label').textContent = state.targetCity;
+        renderTargetDistrictList();
+        // 默认选择目标区域为当前城市的第一个区域
+        const targetDistricts = DISTRICT_OPTIONS[state.targetCity];
+        if (targetDistricts && targetDistricts.length > 0) {
+          state.targetDistrict = targetDistricts[0];
+          $('quick-target-district-label').textContent = simplifyDistrictName(state.targetDistrict);
+        }
+      }
+    } else {
+      targetCityWrap.classList.add('hidden');
+      transferToggle.classList.remove('hidden');
+      filterSummary.classList.add('hidden');
+      filterSummaryOriginal.classList.remove('hidden');
+      state.targetCity = '';
+      state.targetDistrict = '';
+      state.targetStreet = '';
+      $('quick-target-city-label').textContent = '请选择';
+      $('quick-target-district-label').textContent = '请选择';
+      $('quick-target-street-label').textContent = '请选择';
+    }
+    updateFilterSummary();
+  };
+  
+  function renderTargetHotCities(){
+    const wrap = $('quick-target-city-hot');
+    wrap.innerHTML = HOT_CITIES.map(c => `<button class="quick-chip shrink-0 ${state.targetCity === c ? 'on' : ''}" data-city="${c}">${c}</button>`).join('');
+  }
+  
+  function renderTargetCityList(filter=''){
+    const wrap = $('quick-target-city-list');
+    const f = (filter || '').toLowerCase();
+    const hot = $('quick-target-city-hot');
+    if (!f) {
+      hot.classList.remove('hidden');
+      wrap.classList.add('hidden');
+      wrap.innerHTML = '';
+      return;
+    }
+    hot.classList.add('hidden');
+    const list = CITY_OPTIONS.filter(x => !HOT_CITIES.includes(x.city) && x.city.toLowerCase().includes(f)).slice(0, 24);
+    if (list.length === 0) {
+      wrap.classList.add('hidden');
+      return;
+    }
+    wrap.classList.remove('hidden');
+    wrap.innerHTML = list.map(x => `<button class="quick-chip shrink-0 ${state.targetCity === x.city ? 'on' : ''}" data-city="${x.city}">${x.city}</button>`).join('');
+  }
+  
+  function selectTargetCity(city){
+    const match = CITY_OPTIONS.find(x => x.city === city);
+    if (!match) return;
+    state.targetCity = match.city;
+    state.targetDistrict = '';
+    state.targetStreet = '';
+    $('quick-target-city-label').textContent = state.targetCity;
+    $('quick-target-city-input').value = '';
+    $('quick-target-district-label').textContent = '请选择';
+    $('quick-target-street-label').textContent = '请选择';
+    
+    const targetStreetWrap = $('target-street-wrap');
+    const districts = DISTRICT_OPTIONS[state.targetCity];
+    
+    if (districts && districts.length > 0) {
+      targetStreetWrap.classList.add('hidden');
+      targetStreetWrap.classList.remove('flex');
+      renderTargetDistrictList();
+    } else {
+      targetStreetWrap.classList.add('hidden');
+      targetStreetWrap.classList.remove('flex');
+    }
+    
+    saveCurrentStateToWelData();
+    renderTargetHotCities();
+    renderTargetCityList();
+    closeAllPanels();
+    updateFilterSummary();
+  }
+  
+  function renderTargetDistrictList(){
+    const wrap = $('quick-target-district-list');
+    const districts = DISTRICT_OPTIONS[state.targetCity] || [];
+    wrap.innerHTML = districts.map(d => `<button class="quick-chip ${state.targetDistrict === d ? 'on' : ''}" data-district="${d}">${simplifyDistrictName(d)}</button>`).join('');
+  }
+  
+  function selectTargetDistrict(district){
+    state.targetDistrict = district;
+    state.targetStreet = '';
+    $('quick-target-district-label').textContent = simplifyDistrictName(district);
+    $('quick-target-street-label').textContent = '请选择';
+    
+    const targetStreetWrap = $('target-street-wrap');
+    const streetKey = `${state.targetCity}·${state.targetDistrict}`;
+    const streets = STREET_OPTIONS[streetKey];
+    
+    if (streets && streets.length > 0 && state.targetCity === state.city && state.targetDistrict === state.district) {
+      targetStreetWrap.classList.remove('hidden');
+      targetStreetWrap.classList.add('flex');
+      renderTargetStreetList();
+    } else {
+      targetStreetWrap.classList.add('hidden');
+      targetStreetWrap.classList.remove('flex');
+    }
+    
+    saveCurrentStateToWelData();
+    renderTargetDistrictList();
+    closeAllPanels();
+    updateFilterSummary();
+  }
+  
+  function renderTargetStreetList(){
+    const wrap = $('quick-target-street-list');
+    const streetKey = `${state.targetCity}·${state.targetDistrict}`;
+    const streets = STREET_OPTIONS[streetKey] || [];
+    wrap.innerHTML = streets.map(s => `<button class="quick-chip ${state.targetStreet === s ? 'on' : ''}" data-street="${s}">${s}</button>`).join('');
+  }
+  
+  function selectTargetStreet(street){
+    state.targetStreet = street;
+    $('quick-target-street-label').textContent = street;
+    saveCurrentStateToWelData();
+    renderTargetStreetList();
+    closeAllPanels();
+    updateFilterSummary();
+  }
+  
+  function simplifyDistrictName(district) {
+    const simplifyMap = {
+      '浦东新区': '浦东',
+      '静安区': '静安',
+      '黄浦区': '黄浦',
+      '徐汇区': '徐汇',
+      '长宁区': '长宁',
+      '普陀区': '普陀',
+      '虹口区': '虹口',
+      '杨浦区': '杨浦',
+      '闵行区': '闵行',
+      '宝山区': '宝山',
+      '嘉定区': '嘉定',
+      '金山区': '金山',
+      '松江区': '松江',
+      '青浦区': '青浦',
+      '奉贤区': '奉贤',
+      '崇明区': '崇明',
+      '东城区': '东城',
+      '西城区': '西城',
+      '朝阳区': '朝阳',
+      '丰台区': '丰台',
+      '石景山区': '石景山',
+      '海淀区': '海淀',
+      '门头沟区': '门头沟',
+      '房山区': '房山',
+      '通州区': '通州',
+      '顺义区': '顺义',
+      '昌平区': '昌平',
+      '大兴区': '大兴',
+      '怀柔区': '怀柔',
+      '平谷区': '平谷',
+      '密云区': '密云',
+      '延庆区': '延庆',
+      '越秀区': '越秀',
+      '荔湾区': '荔湾',
+      '海珠区': '海珠',
+      '天河区': '天河',
+      '白云区': '白云',
+      '黄埔区': '黄埔',
+      '番禺区': '番禺',
+      '花都区': '花都',
+      '南沙区': '南沙',
+      '从化区': '从化',
+      '增城区': '增城',
+      '福田区': '福田',
+      '罗湖区': '罗湖',
+      '南山区': '南山',
+      '宝安区': '宝安',
+      '龙岗区': '龙岗',
+      '盐田区': '盐田',
+      '龙华区': '龙华',
+      '坪山区': '坪山',
+      '光明区': '光明'
+    };
+    return simplifyMap[district] || district;
+  }
+  
+  function renderDistrictList(){
+    const wrap = $('quick-district-list');
+    const districts = DISTRICT_OPTIONS[state.city] || [];
+    wrap.innerHTML = districts.map(d => `<button class="quick-chip ${state.district === d ? 'on' : ''}" data-district="${d}">${simplifyDistrictName(d)}</button>`).join('');
+  }
+  
+  function selectDistrict(district){
+    state.district = district;
+    $('quick-district-label').textContent = simplifyDistrictName(district);
+    saveCurrentStateToWelData();
+    renderDistrictList();
+    districtPopover.close(0);
+    updateFilterSummary();
+  }
+  
+  function renderStageTabs(){
+    const wrap = $('quick-stage-tabs');
+    const map = stageMapBySystem(state.system);
+    // 按照 STAGE_ORDER 的顺序渲染学段选项
+    wrap.innerHTML = STAGE_ORDER.filter(s => map[s]).map(s => `<button class="quick-chip ${state.stage === s ? 'on' : ''}" data-stage="${s}">${s}</button>`).join('');
+  }
+  
+  function renderStageChildren(){
+    const wrap = $('quick-stage-children');
+    const map = stageMapBySystem(state.system);
+    const children = map[state.stage] || [];
+    wrap.innerHTML = children.map(c => `<button class="quick-chip ${state.child === c ? 'on' : ''}" data-child="${c}">${c}</button>`).join('');
+  }
+  
+  function selectStage(stage){
+    state.stage = stage;
+    const map = stageMapBySystem(state.system);
+    // 保持当前年级选择（如果有的话），但要确保年级在当前学段的选项中
+    const children = map[state.stage] || [];
+    if (state.child && !children.includes(state.child)) {
+      state.child = '';
+    }
+    saveCurrentStateToWelData();
+    renderStageTabs();
+    renderStageChildren();
+    updateStageLabel();
+    updateFilterSummary();
+  }
+  
+  function selectStageChild(child){
+    state.child = child;
+    saveCurrentStateToWelData();
+    renderStageChildren();
+    updateStageLabel();
+    stagePopover.close(0);
+    updateFilterSummary();
+  }
+  
+  function updateStageLabel(){
+    const label = state.child ? `${state.stage} · ${state.child}` : `${state.stage} · 请选择年级`;
+    $('quick-stage-label').textContent = label;
+  }
+  
+  function renderGenderList(){
+    const wrap = $('quick-gender-list');
+    wrap.innerHTML = GENDER_OPTIONS.map(g => `<button class="quick-chip w-full justify-center ${state.gender === g ? 'on' : ''}" data-gender="${g}">${g}</button>`).join('');
+  }
+  
+  function selectGender(gender){
+    state.gender = gender;
+    $('quick-gender-label').textContent = gender;
+    saveCurrentStateToWelData();
+    renderGenderList();
+    genderPopover.close(0);
+    updateFilterSummary();
+  }
+  
+  window.toggleQuickTag = function(btn, tag){
+    btn.classList.toggle('on');
+    if (btn.classList.contains('on')) {
+      if (!state.quickTags.includes(tag)) {
+        state.quickTags.push(tag);
+      }
+    } else {
+      state.quickTags = state.quickTags.filter(t => t !== tag);
+    }
+    updateMainInputPlaceholder();
+  };
+  
+  function updateMainInputPlaceholder(){
+    const input = $('mainInput');
+    if (state.quickTags.length > 0) {
+      // 已选择的内容 + 提示文字都作为 value
+      const base = `已选择：${state.quickTags.join('、')}。\n您可以继续补充更多信息...`;
+      
+      // 如果用户还没有输入内容，则设置为完整的提示
+      if (!input.value || input.value.includes('您可以继续补充更多信息')) {
+        input.value = base;
+      } else if (input.value.includes('已选择：')) {
+        // 如果用户已经输入了内容，只更新已选择的部分
+        const selectedText = `已选择：${state.quickTags.join('、')}。`;
+        const updatedValue = input.value.replace(/已选择：.*?。/, selectedText);
+        input.value = updatedValue;
+      }
+    } else {
+      input.placeholder = '例如：我们希望孩子能进入优质的初中，以后考虑出国读大学，家庭预算比较充裕，目前在闵行区读小学五年级，男孩...';
+      // 清空 value，使用 placeholder
+      if (input.value.includes('已选择：')) {
+        input.value = '';
+      }
+    }
+  }
+  
+  // 添加事件监听器，当用户点击 textarea 时，光标定位到文字最前面
+  document.addEventListener('DOMContentLoaded', function() {
+    const mainInput = document.getElementById('mainInput');
+    if (mainInput) {
+      mainInput.addEventListener('focus', function() {
+        // 将光标定位到文字最前面
+        this.setSelectionRange(0, 0);
+      });
+      
+      mainInput.addEventListener('keydown', function(e) {
+        if (this.value.includes('您可以继续补充更多信息')) {
+          // 移除提示文字，保留已选择的内容
+          const selectedText = this.value.match(/已选择：.*?。/)[0];
+          this.value = selectedText;
+          // 将光标定位到已选择内容的末尾
+          this.setSelectionRange(selectedText.length, selectedText.length);
+        }
+      });
+    }
+  });
+  
+  function setupPopover(wrapId, triggerId, panelId, canClose){
+    const wrap = $(wrapId);
+    const trigger = $(triggerId);
+    const panel = $(panelId);
+    let closeTimer = 0;
+    const isStagePopover = wrapId === 'quick-stage-popover-wrap';
+    const canCloseNow = () => (typeof canClose === 'function' ? !!canClose() : true);
+    const open = () => {
+      clearTimeout(closeTimer);
+      panel.classList.remove('hidden');
+      trigger.classList.add('ring-2', 'ring-primary/15');
+    };
+    const close = (delay = 140) => {
+      if (!canCloseNow()) return;
+      clearTimeout(closeTimer);
+      closeTimer = window.setTimeout(() => {
+        if (!canCloseNow()) return;
+        panel.classList.add('hidden');
+        trigger.classList.remove('ring-2', 'ring-primary/15');
+      }, delay);
+    };
+    wrap.addEventListener('mouseenter', open);
+    wrap.addEventListener('mouseleave', () => close(120));
+    trigger.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (isStagePopover) {
+        // 学段 popover：点击按钮只打开，不关闭
+        if (panel.classList.contains('hidden')) open();
+      } else {
+        // 其他 popover：正常切换
+        if (panel.classList.contains('hidden')) open();
+        else close(0);
+      }
+    });
+    document.addEventListener('click', (e) => {
+      if (!wrap.contains(e.target)) close(0);
+    });
+    return { open, close };
+  }
+
+  function validateRequiredFiveFields(){
+    const missing = [];
+    if (!String(state.city || '').trim()) missing.push('城市');
+    if (!String(state.district || '').trim()) missing.push('区域');
+    if (!String(state.stage || '').trim() || !String(state.child || '').trim()) missing.push('学段/年级');
+    if (!String(state.birthDate || '').trim()) missing.push('出生日期');
+    if (!String(state.gender || '').trim()) missing.push('性别');
+    if (missing.length) {
+      alert(`请先完整填写首页必填项：${missing.join('、')}`);
+      return false;
+    }
+    return true;
+  }
+  
+  // AI对话师 - Chat填写
+  window.startChatPlan = function(){
+    // 保存当前数据
+    const inputText = $('mainInput') ? $('mainInput').value.trim() : '';
+    const data = {
+      city: state.city,
+      district: state.district,
+      stage: state.stage,
+      grade: state.child,
+      birthDate: state.birthDate,
+      gender: state.gender,
+      hasTransfer: state.hasTransfer,
+      targetCity: state.targetCity,
+      targetDistrict: state.targetDistrict,
+      targetStreet: state.targetStreet,
+      quickTags: state.quickTags,
+      freeText: inputText,
+      openChat: true
+    };
+    
+    console.log('AI对话师填写，数据：', data);
+    
+    localStorage.setItem('ep_home_data', JSON.stringify(data));
+    localStorage.setItem('ep_force_policy_refresh_once', '1');
+    
+    // 跳转到教育规划页面
+    window.location.href = '/Planning/教育规划.html?openChat=true';
+  };
+
+  // 教育规划聊天窗口功能
+  window.openEpChat = function(){
+    const mask = $('epChatMask');
+    if (mask) {
+      mask.classList.add('show');
+      // 聚焦到输入框
+      const input = $('epChatInput');
+      if (input) input.focus();
+    }
+  };
+
+  window.closeEpChat = function(){
+    const mask = $('epChatMask');
+    if (mask) {
+      mask.classList.remove('show');
+    }
+  };
+
+  window.sendEpChat = function(){
+    const input = $('epChatInput');
+    const messages = $('epChatMessages');
+    if (!input || !messages) return;
+    
+    const text = input.value.trim();
+    if (!text) return;
+
+    // 添加用户消息
+    addEpChatMessage(text, 'user');
+    input.value = '';
+
+    // 模拟AI回复
+    setTimeout(() => {
+      const aiReply = "收到您的需求！为了更好地帮您规划，我建议先确认一些信息：\n\n" +
+        "• 您孩子目前就读几年级？\n" +
+        "• 您对孩子的目标学校或升学路线有什么想法？\n\n" +
+        "• 家庭预算和时间规划是怎样的？\n\n" +
+        "了解这些信息后，我可以为您推荐更精准的教育路径！";
+      addEpChatMessage(aiReply, 'ai');
+    }, 800);
+  };
+
+  function addEpChatMessage(text, type){
+    const messages = $('epChatMessages');
+    if (!messages) return;
+
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `ep-chat-msg ${type} epMsgIn ${type}`;
+    
+    const avatar = document.createElement('div');
+    avatar.className = 'ep-chat-msg-avatar';
+    
+    if (type === 'ai') {
+      avatar.innerHTML = '<img src="/assets/wel-avatar/no-hat.png" alt="小玩子">';
+    } else {
+      avatar.textContent = '我';
+    }
+
+    const content = document.createElement('div');
+    content.className = 'ep-chat-msg-content';
+    content.textContent = text;
+
+    msgDiv.appendChild(avatar);
+    msgDiv.appendChild(content);
+    messages.appendChild(msgDiv);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  // 聊天输入框回车发送
+  document.addEventListener('DOMContentLoaded', function() {
+    const epChatInput = document.getElementById('epChatInput');
+    if (epChatInput) {
+      epChatInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendEpChat();
+        }
+      });
+    }
+  });
+
+  // 直接跳转到AI表单生成页面
+  window.startPlanning = function(){
+    if (!validateRequiredFiveFields()) return;
+    const inputText = $('mainInput').value.trim();
+    const data = {
+      city: state.city,
+      district: state.district,
+      stage: state.stage,
+      grade: state.child,
+      gender: state.gender,
+      plannerMode: 'form',
+      hasTransfer: state.hasTransfer,
+      targetCity: state.targetCity,
+      targetDistrict: state.targetDistrict,
+      targetStreet: state.targetStreet,
+      quickTags: state.quickTags,
+      freeText: inputText
+    };
+    
+    console.log('开始规划，数据：', data);
+    localStorage.setItem('ep_home_data', JSON.stringify(data));
+    localStorage.setItem('ep_force_policy_refresh_once', '1');
+    window.location.href = '/Planning/ai-form-generation.html';
+  };
+
+  // 结构化表单填写
+  window.startStructuredPlan = function(){
+    if (!validateRequiredFiveFields()) return;
+    const inputText = $('mainInput').value.trim();
+    const data = {
+      city: state.city,
+      district: state.district,
+      stage: state.stage,
+      grade: state.child,
+      gender: state.gender,
+      plannerMode: 'form',
+      hasTransfer: state.hasTransfer,
+      targetCity: state.targetCity,
+      targetDistrict: state.targetDistrict,
+      targetStreet: state.targetStreet,
+      quickTags: state.quickTags,
+      freeText: inputText
+    };
+    
+    console.log('结构化表单填写，数据：', data);
+    localStorage.setItem('ep_home_data', JSON.stringify(data));
+    localStorage.setItem('ep_force_policy_refresh_once', '1');
+    window.location.href = '/Planning/ai-form-generation.html';
+  };
+  
+  // AI对话师 - Chat填写
+  window.startChatPlan = function(){
+    if (!validateRequiredFiveFields()) return;
+    const inputText = $('mainInput') ? $('mainInput').value.trim() : '';
+    const data = {
+      city: state.city,
+      district: state.district,
+      stage: state.stage,
+      grade: state.child,
+      birthDate: state.birthDate,
+      gender: state.gender,
+      plannerMode: 'chat',
+      hasTransfer: state.hasTransfer,
+      targetCity: state.targetCity,
+      targetDistrict: state.targetDistrict,
+      targetStreet: state.targetStreet,
+      quickTags: state.quickTags,
+      freeText: inputText,
+      openChat: true
+    };
+    
+    console.log('AI对话师点击，数据：', data);
+    localStorage.setItem('ep_home_data', JSON.stringify(data));
+    localStorage.setItem('ep_force_policy_refresh_once', '1');
+    window.location.href = '/Planning/ai-form-generation.html?openChat=true';
+  };
+  
+  function init(){
+    renderHotCities();
+    renderCityList('');
+    renderDistrictList();
+    renderStageTabs();
+    renderStageChildren();
+    renderGenderList();
+    renderTargetHotCities();
+    renderTargetCityList('');
+    renderTargetDistrictList();
+    renderTargetStreetList();
+    updateStageLabel();
+    
+    // 初始化标签显示
+    $('quick-city-label').textContent = state.city;
+    $('quick-district-label').textContent = simplifyDistrictName(state.district);
+    $('quick-birthdate-label').textContent = state.birthDate || '出生日期';
+    $('quick-gender-label').textContent = state.gender;
+    
+    cityPopover = setupPopover('quick-city-popover-wrap', 'quick-city-btn', 'quick-city-panel');
+    districtPopover = setupPopover('quick-district-popover-wrap', 'quick-district-btn', 'quick-district-panel');
+    stagePopover = setupPopover('quick-stage-popover-wrap', 'quick-stage-btn', 'quick-stage-panel');
+    birthdatePopover = setupPopover('quick-birthdate-popover-wrap', 'quick-birthdate-btn', 'quick-birthdate-panel');
+    genderPopover = setupPopover('quick-gender-popover-wrap', 'quick-gender-btn', 'quick-gender-panel');
+    targetCityPopover = setupPopover('quick-target-city-popover-wrap', 'quick-target-city-btn', 'quick-target-city-panel');
+    targetDistrictPopover = setupPopover('quick-target-district-popover-wrap', 'quick-target-district-btn', 'quick-target-district-panel');
+    targetStreetPopover = setupPopover('quick-target-street-popover-wrap', 'quick-target-street-btn', 'quick-target-street-panel');
+    
+    // 出生日期确认
+    $('quick-birthdate-confirm').addEventListener('click', () => {
+      const birthdate = $('quick-birthdate-input').value;
+      if (birthdate) {
+        state.birthDate = birthdate;
+        $('quick-birthdate-label').textContent = birthdate;
+        saveCurrentStateToWelData();
+        birthdatePopover.close(0);
+      }
+    });
+    
+    // 城市选择
+    $('quick-city-hot').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-city]');
+      if (!btn) return;
+      selectCity(btn.getAttribute('data-city') || '');
+      cityPopover.close(0);
+    });
+    $('quick-city-list').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-city]');
+      if (!btn) return;
+      selectCity(btn.getAttribute('data-city') || '');
+      cityPopover.close(0);
+    });
+    $('quick-city-input').addEventListener('input', (e) => {
+      renderCityList(e.target.value);
+      cityPopover.open();
+    });
+    
+    // 目标城市选择
+    $('quick-target-city-hot').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-city]');
+      if (!btn) return;
+      selectTargetCity(btn.getAttribute('data-city') || '');
+      targetCityPopover.close(0);
+    });
+    $('quick-target-city-list').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-city]');
+      if (!btn) return;
+      selectTargetCity(btn.getAttribute('data-city') || '');
+      targetCityPopover.close(0);
+    });
+    $('quick-target-city-input').addEventListener('input', (e) => {
+      renderTargetCityList(e.target.value);
+      targetCityPopover.open();
+    });
+    
+    // 目标区域选择
+    $('quick-target-district-list').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-district]');
+      if (!btn) return;
+      selectTargetDistrict(btn.getAttribute('data-district') || '');
+      targetDistrictPopover.close(0);
+    });
+    
+    // 目标街道选择
+    $('quick-target-street-list').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-street]');
+      if (!btn) return;
+      selectTargetStreet(btn.getAttribute('data-street') || '');
+      targetStreetPopover.close(0);
+    });
+    
+    // 区域选择
+    $('quick-district-list').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-district]');
+      if (!btn) return;
+      selectDistrict(btn.getAttribute('data-district') || '');
+      districtPopover.close(0);
+    });
+    
+    // 年级选择
+    $('quick-stage-tabs').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const btn = e.target.closest('[data-stage]');
+      if (!btn) return;
+      selectStage(btn.getAttribute('data-stage') || '');
+    });
+    $('quick-stage-children').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const btn = e.target.closest('[data-child]');
+      if (!btn) return;
+      selectStageChild(btn.getAttribute('data-child') || '');
+    });
+    
+    // 性别选择
+    $('quick-gender-list').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-gender]');
+      if (!btn) return;
+      selectGender(btn.getAttribute('data-gender') || '');
+      genderPopover.close(0);
+    });
+    
+    $('startBtn').addEventListener('click', startPlanning);
+    
+    updateFilterSummary();
+  }
+  
+  init();
+})();
+</script>
+</body>
+</html>

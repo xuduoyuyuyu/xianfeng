@@ -26,6 +26,7 @@ import ExpertDetailPage from "./pages/ExpertDetailPage";
 import LandingPage from "./pages/LandingPage";
 import MaterialsPage from "./pages/MaterialsPage";
 import BooksPage from "./pages/BooksPage";
+import PlanningPage from "./pages/PlanningPage";
 import PageViewTracker from "./components/PageViewTracker";
 import XiaowanziWidget from "./wel/components/XiaowanziWidget";
 
@@ -72,6 +73,10 @@ const PublicScreenRouter: React.FC = () => {
 
   if (pathname === "/books") {
     return <BooksPage />;
+  }
+
+  if (pathname === "/planning") {
+    return <PlanningPage />;
   }
 
   const routeMap: Record<string, { src: string; title: string }> = {

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 
 type GlobalPublicNavProps = {
@@ -11,6 +11,7 @@ type GlobalPublicNavProps = {
   showExpertsEntry?: boolean;
   showBooksEntry?: boolean;
   showMaterialsEntry?: boolean;
+  showPlanningEntry?: boolean;
   searchPlaceholder?: string;
   searchValue?: string;
   onSearchChange?: (value: string) => void;
@@ -26,6 +27,7 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
   showExpertsEntry = true,
   showBooksEntry = true,
   showMaterialsEntry = true,
+  showPlanningEntry = true,
   searchPlaceholder = "搜索节目标题/简介",
   searchValue,
   onSearchChange,
@@ -34,8 +36,36 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
   const activePrograms = pathname.startsWith("/programs");
   const activeExperts = pathname.startsWith("/experts");
   const activeBooks = pathname.startsWith("/books");
+  const activePlanning = pathname.startsWith("/planning");
   const activeMaterials = pathname.startsWith("/materials");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isLeader, setIsLeader] = useState(false);
+  const navInstanceIdRef = useRef(`nav-${Math.random().toString(36).slice(2)}`);
+
+  useEffect(() => {
+    const ownerKey = "__xf_global_public_nav_owner__";
+    const win = window as any;
+    const myId = navInstanceIdRef.current;
+
+    const elect = () => {
+      if (!win[ownerKey]) {
+        win[ownerKey] = myId;
+      }
+      setIsLeader(win[ownerKey] === myId);
+    };
+
+    elect();
+    const timer = window.setInterval(elect, 300);
+
+    return () => {
+      window.clearInterval(timer);
+      if (win[ownerKey] === myId) {
+        delete win[ownerKey];
+      }
+    };
+  }, []);
+
+  if (!isLeader) return null;
 
   return (
     <>
@@ -112,6 +142,12 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
                 <span>学习资料</span>
               </Link>
             ) : null}
+            {showPlanningEntry ? (
+              <Link reloadDocument to="/planning" className={`tb-nav-btn ${activePlanning ? "on" : ""}`}>
+                <span className="ms">route</span>
+                <span>教育规划</span>
+              </Link>
+            ) : null}
           </nav>
 
           <div className="tb-right">
@@ -183,9 +219,15 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
                 </Link>
               ) : null}
               {showMaterialsEntry ? (
-                <Link className="tb-mobile-link" to="/materials" onClick={() => setMenuOpen(false)}>
+                <Link className={`tb-mobile-link ${activeMaterials ? "on" : ""}`} to="/materials" onClick={() => setMenuOpen(false)}>
                   <span className="ms">inventory_2</span>
                   <span>学习资料</span>
+                </Link>
+              ) : null}
+              {showPlanningEntry ? (
+                <Link className={`tb-mobile-link ${activePlanning ? "on" : ""}`} to="/planning" onClick={() => setMenuOpen(false)}>
+                  <span className="ms">route</span>
+                  <span>教育规划</span>
                 </Link>
               ) : null}
               <Link className="tb-mobile-link" to="/login" onClick={() => setMenuOpen(false)}>

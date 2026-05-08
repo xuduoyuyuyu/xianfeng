@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import GlobalPublicNav from "../components/GlobalPublicNav";
+import { getCollapsedPages } from "../lib/pagination";
 import { publicApi, LearningMaterial } from "../services/api";
 
 type MaterialMeta = {
@@ -11,6 +12,7 @@ type MaterialMeta = {
 };
 
 const PAGE_SIZE = 24;
+const MATERIALS_HERO_DISMISSED_KEY = "materials_hero_dismissed_v1";
 const FIXED_STAGE_OPTIONS = ["通用", "学前", "小学", "初中", "高中"] as const;
 const STAGE_GRADE_RULES: Record<string, string[]> = {
   通用: ["通用"],
@@ -263,11 +265,27 @@ const MaterialsPage: React.FC = () => {
   const [materials, setMaterials] = useState<LearningMaterial[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showHero, setShowHero] = useState(false);
   const [keyword, setKeyword] = useState("");
   const [page, setPage] = useState(1);
   const [selectedStages, setSelectedStages] = useState<string[]>([]);
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
+
+  useEffect(() => {
+    try {
+      setShowHero(window.localStorage.getItem(MATERIALS_HERO_DISMISSED_KEY) !== "1");
+    } catch (_err) {
+      setShowHero(true);
+    }
+  }, []);
+
+  const dismissHero = () => {
+    setShowHero(false);
+    try {
+      window.localStorage.setItem(MATERIALS_HERO_DISMISSED_KEY, "1");
+    } catch (_err) {}
+  };
 
   useEffect(() => {
     let alive = true;
@@ -354,6 +372,7 @@ const MaterialsPage: React.FC = () => {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
+  const paginationItems = useMemo(() => getCollapsedPages(safePage, totalPages, 1), [safePage, totalPages]);
   const start = (safePage - 1) * PAGE_SIZE;
   const paged = filtered.slice(start, start + PAGE_SIZE);
 
@@ -410,7 +429,7 @@ const MaterialsPage: React.FC = () => {
     onExpandToggle?: () => void;
   }) => (
     <div className="flex flex-col gap-3 md:flex-row md:items-start">
-      <div className="w-[72px] pt-1 text-sm font-black tracking-[0.1em] text-[#5f5242]">{title}</div>
+      <div className="w-[72px] pt-1 text-sm font-black tracking-[0.1em] text-[#6b5fa0]">{title}</div>
       <div className="flex-1">
         {options.length > limit ? (
           <div className="mb-2 flex items-center justify-end">
@@ -430,7 +449,7 @@ const MaterialsPage: React.FC = () => {
               className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
                 active
                   ? "border-[#5e17eb] bg-[#5e17eb] text-white"
-                  : "border-[#e7d8c8] bg-white text-[#5f5242] hover:border-[#5e17eb]"
+                  : "border-[#d8c8ef] bg-white text-[#6b5fa0] hover:border-[#5e17eb]"
               }`}
             >
               {option}
@@ -443,42 +462,84 @@ const MaterialsPage: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[#f7f0e7] text-[#2a2118]">
-      <GlobalPublicNav compactMobile showExpertsEntry showProgramEntry showSearch={false} />
+    <div className="relative min-h-screen overflow-hidden bg-[#f3f2f8] text-[#1f1d1a]">
+      {/* MaterialsPage: thin crisscross lines + slow drift orbs */}
+      <style>{`
+        @keyframes matOrb1 {
+          0%,100% { transform: translate3d(0,0,0) scale(1); opacity: .5; }
+          50% { transform: translate3d(-2%,1.5%,0) scale(1.15); opacity: .8; }
+        }
+        @keyframes matOrb2 {
+          0%,100% { transform: translate3d(0,0,0) scale(1.05); opacity: .45; }
+          40% { transform: translate3d(2.5%,-1%,0) scale(.9); opacity: .72; }
+          85% { transform: translate3d(-1%,2%,0) scale(1.22); opacity: .85; }
+        }
+        @keyframes matOrb3 {
+          0%,100% { transform: translate3d(0,0,0) scale(.92); opacity: .5; }
+          55% { transform: translate3d(1.5%,-2.5%,0) scale(1.18); opacity: .78; }
+        }
+      `}</style>
+      <div className="pointer-events-none absolute inset-0 opacity-40">
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(118,83,205,0.05)_1.5px,transparent_1.5px),linear-gradient(90deg,rgba(118,83,205,0.05)_1.5px,transparent_1.5px)] bg-[size:28px_28px]" />
+      </div>
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute top-[8%] -right-20 h-[360px] w-[360px] rounded-full bg-[radial-gradient(circle,rgba(129,75,255,0.13),transparent_62%)]" style={{ animation: "matOrb1 14s ease-in-out infinite" }} />
+        <div className="absolute top-[55%] -left-28 h-[380px] w-[380px] rounded-full bg-[radial-gradient(circle,rgba(153,102,255,0.1),transparent_58%)]" style={{ animation: "matOrb2 17s ease-in-out infinite 4s" }} />
+        <div className="absolute -bottom-12 right-[15%] h-[280px] w-[280px] rounded-full bg-[radial-gradient(circle,rgba(109,52,226,0.12),transparent_55%)]" style={{ animation: "matOrb3 16s ease-in-out infinite 7s" }} />
+      </div>
+      <GlobalPublicNav
+        compactMobile
+        showExpertsEntry
+        showProgramEntry
+        showSearch={!showHero}
+        searchPlaceholder="搜索资料名称、学科、关键词"
+        searchValue={keyword}
+        onSearchChange={setKeyword}
+      />
       <main className="mx-auto max-w-7xl px-4 pb-16 pt-[76px] sm:px-6 lg:px-8">
-        <section className="overflow-hidden rounded-[2rem] border border-[#eadbc8] bg-[linear-gradient(135deg,_#fffaf4_0%,_#fff3e1_48%,_#fff_100%)] p-7 shadow-[0_24px_80px_rgba(95,56,22,0.08)] sm:p-9">
-          <div className="max-w-3xl">
-            <div className="inline-flex rounded-full border border-[#d5a15f] bg-[#fff3df] px-4 py-1 text-[11px] font-black uppercase tracking-[0.26em] text-[#a25f16]">
-              Resource Hub
-            </div>
-            <h1 className="mt-4 text-3xl font-black leading-tight tracking-tight text-[#2a1605] sm:text-5xl">
-              学习资料库
-            </h1>
-            <p className="mt-3 text-sm leading-7 text-[#6f6253] sm:text-base">
-              为家长整理可直接打开使用的学习资料。先按阶段和年级缩小范围，再按学科和资料类型精筛，能更快找到当下可用的内容。
-            </p>
-          </div>
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-            <label className="flex h-12 flex-1 items-center gap-2 rounded-2xl border border-[#e8d7c6] bg-white px-4 shadow-sm">
-              <span className="material-symbols-outlined text-[#9f8b74]">search</span>
-              <input
-                value={keyword}
-                onChange={(event) => setKeyword(event.target.value)}
-                placeholder="搜索资料名称、学科、关键词"
-                className="materials-search-input w-full border-0 bg-transparent text-sm outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
-              />
-            </label>
+        {showHero ? (
+          <section className="group relative overflow-hidden rounded-[2rem] border border-[#d8d0ef] bg-[radial-gradient(circle_at_85%_15%,_rgba(143,100,255,0.1),_transparent_38%),linear-gradient(135deg,_#f4f1fd_0%,_#faf8ff_48%,_#f0ebff_100%)] p-7 shadow-[0_24px_80px_rgba(80,62,125,0.1)] sm:p-9">
             <button
               type="button"
-              onClick={clearFilters}
-              className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#ccbca8] bg-white px-5 text-sm font-bold text-[#654f38] transition hover:border-[#a25f16] hover:text-[#a25f16]"
+              onClick={dismissHero}
+              aria-label="关闭引导卡片"
+              className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#cfc2ee] bg-white/75 text-[#5b3fa1] opacity-0 transition hover:bg-white hover:text-[#4e36a0] group-hover:opacity-100 focus-visible:opacity-100 sm:opacity-0 max-sm:opacity-100"
+            >
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
+            <div className="max-w-3xl">
+              <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.26em] text-[#5b3fa1]">
+                Resource Hub
+              </div>
+              <h1 className="mt-4 text-3xl font-black leading-tight tracking-tight text-[#2b1a3a] sm:text-5xl">
+                学习资料库
+              </h1>
+              <p className="mt-3 text-sm leading-7 text-[#6f62a3] sm:text-base">
+                为家长整理可直接打开使用的学习资料。先按阶段和年级缩小范围，再按学科和资料类型精筛，能更快找到当下可用的内容。
+              </p>
+            </div>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <label className="flex h-12 flex-1 items-center gap-2 rounded-2xl border border-[#d8d0ef] bg-white px-4 shadow-sm">
+                <span className="material-symbols-outlined text-[#8f7bd6]">search</span>
+                <input
+                  value={keyword}
+                  onChange={(event) => setKeyword(event.target.value)}
+                  placeholder="搜索资料名称、学科、关键词"
+                  className="materials-search-input w-full border-0 bg-transparent text-sm outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#cfc2ee] bg-white px-5 text-sm font-bold text-[#654f88] transition hover:border-[#5e17eb] hover:text-[#5e17eb]"
             >
               清空筛选
             </button>
-          </div>
-        </section>
+            </div>
+          </section>
+        ) : null}
 
-        <section className="mt-6 rounded-[1.8rem] border border-[#eadbc8] bg-white p-5 shadow-[0_16px_50px_rgba(95,56,22,0.06)] sm:p-6">
+        <section className="mt-6 rounded-[1.8rem] border border-[#e0d9f2] bg-white p-5 shadow-[0_16px_50px_rgba(80,62,125,0.06)] sm:p-6">
           <div className="space-y-5">
             <FilterGroup
               title="阶段"
@@ -487,7 +548,7 @@ const MaterialsPage: React.FC = () => {
               onToggle={handleStageToggle}
             />
             <div className="flex flex-col gap-3 md:flex-row md:items-start">
-              <div className="w-[72px] pt-1 text-sm font-black tracking-[0.1em] text-[#5f5242]">年级</div>
+              <div className="w-[72px] pt-1 text-sm font-black tracking-[0.1em] text-[#6b5fa0]">年级</div>
               <div className="flex-1">
                 <div className="overflow-x-auto pb-1 [scrollbar-width:thin]">
                   <div className="flex min-w-max flex-nowrap gap-2">
@@ -501,7 +562,7 @@ const MaterialsPage: React.FC = () => {
                         className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
                           active
                             ? "border-[#5e17eb] bg-[#5e17eb] text-white"
-                            : "border-[#e7d8c8] bg-white text-[#5f5242] hover:border-[#5e17eb]"
+                            : "border-[#d8c8ef] bg-white text-[#6b5fa0] hover:border-[#5e17eb]"
                         }`}
                       >
                         {option}
@@ -520,9 +581,9 @@ const MaterialsPage: React.FC = () => {
             />
           </div>
           <div className="mt-5 flex flex-wrap items-center gap-2 text-sm">
-            <span className="font-semibold text-[#7b6b58]">共 {filtered.length} 条资料</span>
+            <span className="font-semibold text-[#7b6bb8]">共 {filtered.length} 条资料</span>
             {selectedStages.map((item) => (
-              <span key={`stage-${item}`} className="rounded-full bg-[#fff3df] px-2.5 py-1 text-xs font-bold text-[#8a5d26]">
+              <span key={`stage-${item}`} className="rounded-full bg-[#f3eefc] px-2.5 py-1 text-xs font-bold text-[#8a5d26]">
                 阶段: {item}
               </span>
             ))}
@@ -544,30 +605,30 @@ const MaterialsPage: React.FC = () => {
         <section className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {loading
             ? Array.from({ length: 9 }).map((_, index) => (
-                <div key={index} className="animate-pulse rounded-[1.4rem] border border-[#ece3d8] bg-white p-5">
-                  <div className="h-6 w-4/5 rounded bg-[#f3ece2]" />
-                  <div className="mt-3 h-4 w-2/5 rounded bg-[#f3ece2]" />
-                  <div className="mt-4 h-16 rounded bg-[#f3ece2]" />
-                  <div className="mt-4 h-10 rounded bg-[#f3ece2]" />
+                <div key={index} className="animate-pulse rounded-[1.4rem] border border-[#e2dcf0] bg-white p-5">
+                  <div className="h-6 w-4/5 rounded bg-[#ece3f7]" />
+                  <div className="mt-3 h-4 w-2/5 rounded bg-[#ece3f7]" />
+                  <div className="mt-4 h-16 rounded bg-[#ece3f7]" />
+                  <div className="mt-4 h-10 rounded bg-[#ece3f7]" />
                 </div>
               ))
             : null}
           {!loading && paged.length === 0 ? (
-            <div className="col-span-full rounded-[1.6rem] border border-dashed border-[#e5d9ca] bg-white px-6 py-12 text-center">
-              <p className="text-base font-bold text-[#6f5f4c]">没有匹配到资料</p>
-              <p className="mt-2 text-sm text-[#8b7d6f]">可以尝试减少筛选条件，或点击“清空筛选”重新查看全部。</p>
+            <div className="col-span-full rounded-[1.6rem] border border-dashed border-[#d2c5ee] bg-white px-6 py-12 text-center">
+              <p className="text-base font-bold text-[#6f5fb4]">没有匹配到资料</p>
+              <p className="mt-2 text-sm text-[#8b7db6]">可以尝试减少筛选条件，或点击“清空筛选”重新查看全部。</p>
             </div>
           ) : null}
           {!loading
             ? paged.map((item) => (
                 <article
                   key={item._id}
-                  className="group rounded-[1.4rem] border border-[#ece3d8] bg-white p-5 shadow-[0_12px_40px_rgba(95,56,22,0.05)] transition hover:-translate-y-1 hover:border-[#d7b184] hover:shadow-[0_18px_55px_rgba(95,56,22,0.1)]"
+                  className="group rounded-[1.4rem] border border-[#e2dcf0] bg-white p-5 shadow-[0_12px_40px_rgba(80,62,125,0.05)] transition hover:-translate-y-1 hover:border-[#d7b184] hover:shadow-[0_18px_55px_rgba(95,56,22,0.1)]"
                 >
-                  <h2 className="line-clamp-2 text-lg font-black leading-snug text-[#2b2012]">{item.title}</h2>
+                  <h2 className="line-clamp-2 text-lg font-black leading-snug text-[#2b1a3a]">{item.title}</h2>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {item.meta.stage ? (
-                      <span className="rounded-full border border-[#e3d0b8] bg-[#fff7ec] px-2.5 py-1 text-[11px] font-bold text-[#7c5c35]">
+                      <span className="rounded-full border border-[#d5c8ff] bg-[#f6f0ff] px-2.5 py-1 text-[11px] font-bold text-[#5e17eb]">
                         {item.meta.stage}
                       </span>
                     ) : null}
@@ -577,19 +638,19 @@ const MaterialsPage: React.FC = () => {
                       </span>
                     ) : null}
                     {item.meta.subject ? (
-                      <span className="rounded-full border border-[#cde6d8] bg-[#f2fbf6] px-2.5 py-1 text-[11px] font-bold text-[#25674a]">
+                      <span className="rounded-full border border-[#cde6ea] bg-[#f2fbfe] px-2.5 py-1 text-[11px] font-bold text-[#25678a]">
                         {item.meta.subject}
                       </span>
                     ) : null}
                     {item.category ? (
-                      <span className="rounded-full border border-[#f1d9d9] bg-[#fff5f5] px-2.5 py-1 text-[11px] font-bold text-[#8a3d3d]">
+                      <span className="rounded-full border border-[#f1d9ee] bg-[#fff5ff] px-2.5 py-1 text-[11px] font-bold text-[#8a3daa]">
                         {item.category}
                       </span>
                     ) : null}
                   </div>
-                  <p className="mt-4 line-clamp-2 text-sm leading-6 text-[#6f6254]">{item.meta.raw || "暂无描述"}</p>
+                  <p className="mt-4 line-clamp-2 text-sm leading-6 text-[#6f62a4]">{item.meta.raw || "暂无描述"}</p>
                   <div className="mt-5 flex items-center justify-between gap-3">
-                    <span className="truncate text-xs font-bold uppercase tracking-[0.14em] text-[#9b8a76]">
+                    <span className="truncate text-xs font-bold uppercase tracking-[0.14em] text-[#9b8ac6]">
                       {hostLabel(item.fileUrl)}
                     </span>
                     <a
@@ -608,28 +669,36 @@ const MaterialsPage: React.FC = () => {
         </section>
 
         {!loading && filtered.length > 0 ? (
-          <section className="mt-8 flex flex-col items-center justify-between gap-4 rounded-2xl border border-[#ebddce] bg-white px-5 py-4 sm:flex-row">
-            <p className="text-sm text-[#7b6c59]">
-              第 {safePage}/{totalPages} 页，每页 {PAGE_SIZE} 条
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                disabled={safePage <= 1}
-                className="rounded-xl border border-[#ddccba] px-3 py-2 text-sm font-bold text-[#5d4c39] disabled:cursor-not-allowed disabled:opacity-45"
-              >
-                上一页
-              </button>
-              <button
-                type="button"
-                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-                disabled={safePage >= totalPages}
-                className="rounded-xl border border-[#ddccba] px-3 py-2 text-sm font-bold text-[#5d4c39] disabled:cursor-not-allowed disabled:opacity-45"
-              >
-                下一页
-              </button>
-            </div>
+          <section className="mt-8">
+            {totalPages > 1 ? (
+              <div className="flex items-center justify-center gap-3">
+                {paginationItems.map((item, idx) => {
+                  if (item === "ellipsis") {
+                    return (
+                      <span key={`ellipsis-${idx}`} className="inline-flex h-7 w-7 items-center justify-center text-[10px] font-bold text-[#8f7bd6]">
+                        ...
+                      </span>
+                    );
+                  }
+                  const active = item === safePage;
+                  return (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => setPage(item)}
+                      style={{ fontSize: "9.1px", lineHeight: 1 }}
+                      className={`h-7 w-7 rounded-full text-[7px] font-bold transition ${
+                        active
+                          ? "bg-[#5e17eb] text-white shadow-lg shadow-[#5e17eb]/25"
+                          : "border border-[#5e17eb]/25 bg-white text-[#5e17eb] hover:bg-[#5e17eb]/5"
+                      }`}
+                    >
+                      {item}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
           </section>
         ) : null}
       </main>

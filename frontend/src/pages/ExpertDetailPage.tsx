@@ -185,11 +185,29 @@ const ExpertDetailPage: React.FC = () => {
   const hasRelatedProgramsSection = relatedPrograms.length > 0;
 
   return (
-    <div className="min-h-screen bg-[#f6f2eb] text-[#1f1d1a]">
+    <div className="relative min-h-screen overflow-hidden bg-[#f3f2f8] text-[#1f1d1a]">
+      {/* ExpertDetail: off-center grid mask + drifting orbs */}
+      <style>{`
+        @keyframes edOrb1 {
+          0%,100% { transform: translate3d(0,0,0) scale(1); opacity: .5; }
+          50% { transform: translate3d(-1.5%,2%,0) scale(1.1); opacity: .78; }
+        }
+        @keyframes edOrb2 {
+          0%,100% { transform: translate3d(0,0,0) scale(.95); opacity: .45; }
+          45% { transform: translate3d(2.5%,-1.5%,0) scale(1.18); opacity: .72; }
+        }
+      `}</style>
+      <div className="pointer-events-none absolute inset-0 opacity-35">
+        <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at 28% 42%, rgba(118,83,205,0.07) 1.2px, transparent 1.2px)', backgroundSize: '36px 36px' }} />
+      </div>
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute top-[15%] left-[5%] h-[320px] w-[320px] rounded-full bg-[radial-gradient(circle,rgba(143,100,255,0.1),transparent_62%)]" style={{ animation: "edOrb1 13s ease-in-out infinite" }} />
+        <div className="absolute bottom-[10%] right-[8%] h-[380px] w-[380px] rounded-full bg-[radial-gradient(circle,rgba(109,52,226,0.1),transparent_58%)]" style={{ animation: "edOrb2 18s ease-in-out infinite 5s" }} />
+      </div>
       <GlobalPublicNav compactMobile showSearch={false} />
       <main className="mx-auto max-w-7xl px-4 pb-16 pt-[76px] sm:px-6 lg:px-8">
-        <div className="mb-5 flex items-center gap-2 text-sm text-[#8b7d6f]">
-          <Link to="/experts" className="font-bold text-[#7b5b31] hover:text-[#5e17eb]">
+        <div className="mb-5 flex items-center gap-2 text-sm text-[#8b7db6]">
+          <Link to="/experts" className="font-bold text-[#5e17eb] hover:text-[#4a11d0]">
             先疯智库
           </Link>
           <span>/</span>
@@ -198,25 +216,25 @@ const ExpertDetailPage: React.FC = () => {
 
         {loading ? (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[420px,1fr]">
-            <div className="animate-pulse rounded-[2rem] border border-[#ece5db] bg-white p-6">
-              <div className="h-[420px] rounded-[1.5rem] bg-[#f2ece3]" />
+            <div className="animate-pulse rounded-[2rem] border border-[#e2dcf0] bg-white p-6">
+              <div className="h-[420px] rounded-[1.5rem] bg-[#ece3f7]" />
             </div>
-            <div className="animate-pulse rounded-[2rem] border border-[#ece5db] bg-white p-8">
-              <div className="h-8 w-1/2 rounded bg-[#f2ece3]" />
-              <div className="mt-4 h-6 w-2/3 rounded bg-[#f2ece3]" />
-              <div className="mt-6 h-28 rounded bg-[#f2ece3]" />
+            <div className="animate-pulse rounded-[2rem] border border-[#e2dcf0] bg-white p-8">
+              <div className="h-8 w-1/2 rounded bg-[#ece3f7]" />
+              <div className="mt-4 h-6 w-2/3 rounded bg-[#ece3f7]" />
+              <div className="mt-6 h-28 rounded bg-[#ece3f7]" />
             </div>
           </div>
         ) : error ? (
           <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm text-red-500">{error}</div>
         ) : !guest ? (
-          <div className="rounded-2xl border border-dashed border-[#e5d8c8] bg-white px-6 py-12 text-center text-sm text-[#8e8173]">
+          <div className="rounded-2xl border border-dashed border-[#d2c5ee] bg-white px-6 py-12 text-center text-sm text-[#8e81b3]">
             未找到该嘉宾资料。
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[420px,1fr]">
-            <aside className="rounded-[2rem] border border-[#ece5db] bg-white p-6 shadow-[0_24px_80px_rgba(83,60,27,0.08)]">
-              <div className="overflow-hidden rounded-[1.5rem] bg-[linear-gradient(140deg,_#281909_0%,_#68471a_42%,_#e1bc7b_100%)]">
+            <aside className="rounded-[2rem] border border-[#e2dcf0] bg-white p-6 shadow-[0_24px_80px_rgba(80,62,125,0.08)]">
+              <div className="overflow-hidden rounded-[1.5rem] bg-[linear-gradient(140deg,_#1f143a_0%,_#4b1db2_42%,_#b79bff_100%)]">
                 <img
                   src={guest.avatar || FALLBACK_AVATAR}
                   alt={guest.name || "嘉宾头像"}
@@ -227,18 +245,18 @@ const ExpertDetailPage: React.FC = () => {
                 />
               </div>
               <div className="mt-6 space-y-3">
-                <div className="rounded-2xl border border-[#eadbc8] bg-[#fbf6ef] px-4 py-3 text-sm text-[#7b6a57]">
-                  关联节目 <span className="font-black text-[#2f2415]">{guest.programCount || 0}</span>
+                <div className="rounded-2xl border border-[#d9c8ff] bg-[#f6f0ff] px-4 py-3 text-sm text-[#7b6aa7]">
+                  关联节目 <span className="font-black text-[#2f1a3a]">{guest.programCount || 0}</span>
                 </div>
-                <div className="rounded-2xl border border-[#eadbc8] bg-[#fbf6ef] px-4 py-3 text-sm text-[#7b6a57]">
-                  公开资料 <span className="font-black text-[#2f2415]">{profileReferences.length}</span>
+                <div className="rounded-2xl border border-[#d9c8ff] bg-[#f6f0ff] px-4 py-3 text-sm text-[#7b6aa7]">
+                  公开资料 <span className="font-black text-[#2f1a3a]">{profileReferences.length}</span>
                 </div>
                 {guest.profileUrl ? (
                   <a
                     href={guest.profileUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-center justify-center rounded-full bg-[#5e17eb] px-5 py-3 text-sm font-black text-white transition hover:bg-[#4c12bf]"
+                    className="flex items-center justify-center rounded-full bg-[#5e17eb] px-5 py-3 text-sm font-black text-white transition hover:bg-[#4a11d0]"
                   >
                     查看官方档案
                   </a>
@@ -246,7 +264,7 @@ const ExpertDetailPage: React.FC = () => {
                 {guest._id && hasBoundBooks ? (
                   <Link
                     to={`/books?sourceGuestId=${encodeURIComponent(guest._id)}&guest=${encodeURIComponent(guest.name || "")}`}
-                    className="flex items-center justify-center rounded-full border border-[#d7b184] bg-[#fff7ec] px-5 py-3 text-sm font-black text-[#7b5b31] transition hover:border-[#5e17eb] hover:text-[#5e17eb]"
+                    className="flex items-center justify-center rounded-full border border-[#b79bff] bg-[#f6f0ff] px-5 py-3 text-sm font-black text-[#5e17eb] transition hover:border-[#5e17eb] hover:text-[#4a11d0]"
                   >
                     查看关联书单
                   </Link>
@@ -255,49 +273,49 @@ const ExpertDetailPage: React.FC = () => {
             </aside>
 
             <section className="space-y-6">
-              <div className="rounded-[2rem] border border-[#ece5db] bg-white p-8 shadow-[0_24px_80px_rgba(83,60,27,0.08)]">
-                <div className="inline-flex rounded-full border border-[#d9c5a0] bg-[#fff9ef] px-4 py-1 text-[11px] font-black uppercase tracking-[0.24em] text-[#9a6700]">
+              <div className="rounded-[2rem] border border-[#e2dcf0] bg-white p-8 shadow-[0_24px_80px_rgba(80,62,125,0.08)]">
+                <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.24em] text-[#5b3fa1]">
                   Guest Profile
                 </div>
-                <h1 className="mt-5 text-4xl font-black tracking-tight text-[#24180a]">{guest.name || "未命名嘉宾"}</h1>
-                <p className="mt-3 text-sm font-black uppercase tracking-[0.22em] text-[#a06f1f]">{guest.title || "节目嘉宾"}</p>
-                <p className="mt-6 max-w-3xl text-[15px] leading-8 text-[#6f665d]">
+                <h1 className="mt-5 text-4xl font-black tracking-tight text-[#241a3a]">{guest.name || "未命名嘉宾"}</h1>
+                <p className="mt-3 text-sm font-black uppercase tracking-[0.22em] text-[#5e17eb]">{guest.title || "节目嘉宾"}</p>
+                <p className="mt-6 max-w-3xl text-[15px] leading-8 text-[#6f66ad]">
                   {guest.bio || "暂无简介，后续可在后台补充嘉宾背景、研究方向与代表经验。"}
                 </p>
                 <div className="mt-6 flex flex-wrap gap-2">
-                  <span className="rounded-full border border-[#eadbc8] bg-[#fbf6ef] px-3 py-1 text-[11px] font-bold text-[#7d6c57]">
+                  <span className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[11px] font-bold text-[#7d6ca7]">
                     节目 {guest.programCount || 0}
                   </span>
-                  <span className="rounded-full border border-[#eadbc8] bg-[#fbf6ef] px-3 py-1 text-[11px] font-bold text-[#7d6c57]">
+                  <span className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[11px] font-bold text-[#7d6ca7]">
                     社交媒体 {socialProfiles.length}
                   </span>
-                  <span className="rounded-full border border-[#eadbc8] bg-[#fbf6ef] px-3 py-1 text-[11px] font-bold text-[#7d6c57]">
+                  <span className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[11px] font-bold text-[#7d6ca7]">
                     公开成果 {publications.length || profileReferences.length}
                   </span>
                 </div>
               </div>
 
               {hasSocialSection ? (
-                <div className="rounded-[2rem] border border-[#ece5db] bg-white p-8 shadow-[0_24px_80px_rgba(83,60,27,0.08)]">
+                <div className="rounded-[2rem] border border-[#e2dcf0] bg-white p-8 shadow-[0_24px_80px_rgba(80,62,125,0.08)]">
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <h2 className="text-2xl font-black tracking-tight text-[#24180a]">社交媒体</h2>
-                    <p className="mt-2 text-sm text-[#7b7064]">用于快速进入嘉宾的公开账号、栏目或持续输出阵地。</p>
+                    <h2 className="text-2xl font-black tracking-tight text-[#241a3a]">社交媒体</h2>
+                    <p className="mt-2 text-sm text-[#7b70a4]">用于快速进入嘉宾的公开账号、栏目或持续输出阵地。</p>
                   </div>
                 </div>
                   <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                     {socialProfiles.map((item: GuestSocialProfile, index: number) => {
                       const hasUrl = Boolean(String(item.url || "").trim());
                       const cardClass =
-                        "block rounded-[1.25rem] border border-[#efe2d2] bg-[#fffdf8] px-5 py-4 transition hover:border-[#d2b37f] hover:bg-white";
+                        "block rounded-[1.25rem] border border-[#e8e0f2] bg-[#fcfaff] px-5 py-4 transition hover:border-[#b79bff] hover:bg-white";
                       const content = (
                         <div className="flex items-start justify-between gap-4">
                           <div>
-                            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[#a06f1f]">{item.platform || "社交媒体"}</div>
-                            <div className="mt-2 text-base font-black text-[#24180a]">{item.label || item.url || "未命名账号"}</div>
-                            {item.note ? <div className="mt-2 text-sm text-[#7c705f]">{item.note}</div> : null}
+                            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[#5e17eb]">{item.platform || "社交媒体"}</div>
+                            <div className="mt-2 text-base font-black text-[#241a3a]">{item.label || item.url || "未命名账号"}</div>
+                            {item.note ? <div className="mt-2 text-sm text-[#7c70af]">{item.note}</div> : null}
                           </div>
-                          {hasUrl ? <span className="material-symbols-outlined text-[#a06f1f]">open_in_new</span> : null}
+                          {hasUrl ? <span className="material-symbols-outlined text-[#5e17eb]">open_in_new</span> : null}
                         </div>
                       );
                       if (!hasUrl) {
@@ -324,11 +342,11 @@ const ExpertDetailPage: React.FC = () => {
               ) : null}
 
               {hasPublicationSection ? (
-                <div className="rounded-[2rem] border border-[#ece5db] bg-white p-8 shadow-[0_24px_80px_rgba(83,60,27,0.08)]">
+                <div className="rounded-[2rem] border border-[#e2dcf0] bg-white p-8 shadow-[0_24px_80px_rgba(80,62,125,0.08)]">
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <h2 className="text-2xl font-black tracking-tight text-[#24180a]">公开成果与资料</h2>
-                    <p className="mt-2 text-sm text-[#7b7064]">按论文、著作、采访与公开内容分组整理，便于快速判断这位嘉宾的研究与表达路径。</p>
+                    <h2 className="text-2xl font-black tracking-tight text-[#241a3a]">公开成果与资料</h2>
+                    <p className="mt-2 text-sm text-[#7b70a4]">按论文、著作、采访与公开内容分组整理，便于快速判断这位嘉宾的研究与表达路径。</p>
                   </div>
                 </div>
                   <div className="mt-6 space-y-6">
@@ -337,7 +355,7 @@ const ExpertDetailPage: React.FC = () => {
                       if (!group.length) return null;
                       return (
                         <section key={groupKey}>
-                          <h3 className="text-lg font-black text-[#24180a]">{PUBLICATION_LABELS[groupKey]}</h3>
+                          <h3 className="text-lg font-black text-[#241a3a]">{PUBLICATION_LABELS[groupKey]}</h3>
                           <div className="mt-3 space-y-3">
                             {group.map((item, index) => (
                               <a
@@ -345,19 +363,19 @@ const ExpertDetailPage: React.FC = () => {
                                 href={item.url}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="block rounded-[1.25rem] border border-[#efe2d2] bg-[#fffdf8] px-5 py-4 transition hover:border-[#d2b37f] hover:bg-white"
+                                className="block rounded-[1.25rem] border border-[#e8e0f2] bg-[#fcfaff] px-5 py-4 transition hover:border-[#b79bff] hover:bg-white"
                               >
                                 <div className="flex items-start justify-between gap-4">
                                   <div className="min-w-0">
-                                    <div className="text-base font-black text-[#24180a]">{item.title}</div>
-                                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs font-semibold text-[#9b835f]">
+                                    <div className="text-base font-black text-[#241a3a]">{item.title}</div>
+                                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs font-semibold text-[#9b83af]">
                                       {item.source ? <span>{item.source}</span> : null}
                                       {item.publishedAt ? <span>{item.publishedAt}</span> : null}
                                     </div>
-                                    {item.summary ? <div className="mt-3 text-sm leading-7 text-[#7c705f]">{item.summary}</div> : null}
-                                    {item.note ? <div className="mt-2 text-xs text-[#978878]">{item.note}</div> : null}
+                                    {item.summary ? <div className="mt-3 text-sm leading-7 text-[#7c70af]">{item.summary}</div> : null}
+                                    {item.note ? <div className="mt-2 text-xs text-[#9788a8]">{item.note}</div> : null}
                                   </div>
-                                  <span className="material-symbols-outlined shrink-0 text-[#a06f1f]">open_in_new</span>
+                                  <span className="material-symbols-outlined shrink-0 text-[#5e17eb]">open_in_new</span>
                                 </div>
                               </a>
                             ))}
@@ -370,12 +388,12 @@ const ExpertDetailPage: React.FC = () => {
               ) : null}
 
               {hasRelatedProgramsSection ? (
-                <div className="rounded-[2rem] border border-[#ece5db] bg-white p-8 shadow-[0_24px_80px_rgba(83,60,27,0.08)]">
-                <div className="inline-flex rounded-full border border-[#d9c5a0] bg-[#fff9ef] px-4 py-1 text-[11px] font-black uppercase tracking-[0.24em] text-[#9a6700]">
+                <div className="rounded-[2rem] border border-[#e2dcf0] bg-white p-8 shadow-[0_24px_80px_rgba(80,62,125,0.08)]">
+                <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.24em] text-[#5b3fa1]">
                   Related Content
                 </div>
-                <h2 className="mt-4 text-2xl font-black tracking-tight text-[#24180a]">关联节目</h2>
-                <p className="mt-2 text-sm text-[#7b7064]">只保留标题，快速浏览这位嘉宾参与过的节目内容。</p>
+                <h2 className="mt-4 text-2xl font-black tracking-tight text-[#241a3a]">关联节目</h2>
+                <p className="mt-2 text-sm text-[#7b70a4]">只保留标题，快速浏览这位嘉宾参与过的节目内容。</p>
                   <div className="mt-6 space-y-3">
                     {relatedPrograms.map((program, index) => {
                       const routeId = program.programCode || program._id;
@@ -383,13 +401,13 @@ const ExpertDetailPage: React.FC = () => {
                         <Link
                           key={program._id}
                           to={`/programs/${encodeURIComponent(routeId)}`}
-                          className="flex items-center justify-between rounded-[1.1rem] border border-[#efe2d2] bg-[#fffdf8] px-4 py-3 transition hover:border-[#d2b37f] hover:bg-white"
+                          className="flex items-center justify-between rounded-[1.1rem] border border-[#e8e0f2] bg-[#fcfaff] px-4 py-3 transition hover:border-[#b79bff] hover:bg-white"
                         >
                           <div className="min-w-0">
-                            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#9a6700]">#{index + 1}</div>
-                            <div className="mt-1 truncate text-base font-black text-[#24180a]">{program.title || "未命名节目"}</div>
+                            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#5b3fa1]">#{index + 1}</div>
+                            <div className="mt-1 truncate text-base font-black text-[#241a3a]">{program.title || "未命名节目"}</div>
                           </div>
-                          <span className="material-symbols-outlined shrink-0 text-[#a06f1f]">arrow_outward</span>
+                          <span className="material-symbols-outlined shrink-0 text-[#5e17eb]">arrow_outward</span>
                         </Link>
                       );
                     })}
