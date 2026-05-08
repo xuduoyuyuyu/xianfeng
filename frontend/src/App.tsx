@@ -103,7 +103,6 @@ const App: React.FC = () => {
     pathname !== "/" &&
     pathname !== "/login" &&
     !pathname.startsWith("/admin") &&
-    !pathname.startsWith("/planning") &&
     !hideWidget;
 
   useEffect(() => {

@@ -1393,5 +1393,19 @@ function getWelUserData() {
   init();
 })();
 </script>
+<script>
+// ═══ xianfeng bridge: listen for parent page config ═══
+(function(){
+  window.addEventListener('message', function(event){
+    if (!event.data || typeof event.data !== 'object') return;
+    if (event.data.hideOwnWidget) {
+      try {
+        var btn = document.getElementById('epChatEntryBtn');
+        if (btn) btn.style.display = 'none';
+      } catch(e) {}
+    }
+  });
+})();
+</script>
 </body>
 </html>

@@ -9432,5 +9432,27 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 })();
 </script>
+<script>
+// ═══ xianfeng bridge: listen for parent page config ═══
+(function(){
+  window.addEventListener('message', function(event){
+    if (!event.data || typeof event.data !== 'object') return;
+    // Hide own 小玩子 entry button when xianfeng provides one
+    if (event.data.hideOwnWidget) {
+      try {
+        var btn = document.getElementById('epChatEntryBtn');
+        if (btn) btn.style.display = 'none';
+      } catch(e) {}
+    }
+  });
+  // Apply immediately if DOM already loaded
+  try {
+    var btn = document.getElementById('epChatEntryBtn');
+    if (btn && window.parent !== window) {
+      // In iframe mode, defer to parent's widget
+    }
+  } catch(e) {}
+})();
+</script>
 </body>
 </html>

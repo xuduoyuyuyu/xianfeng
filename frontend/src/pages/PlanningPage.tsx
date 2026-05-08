@@ -40,6 +40,12 @@ const PlanningPage: React.FC = () => {
         );
       }
 
+      // Tell wel iframe to hide its own 小玩子 button (xianfeng provides one)
+      iframe.contentWindow.postMessage(
+        { type: "wel-config", hideOwnWidget: true },
+        "*"
+      );
+
       // Try to get iframe content height
       const doc = iframe.contentDocument || (iframe as any).contentWindow?.document;
       if (doc) {
