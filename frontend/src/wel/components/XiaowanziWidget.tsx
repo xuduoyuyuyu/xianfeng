@@ -22,7 +22,7 @@ type PageContextPayload = {
 function normalizeShortcutPrompt(prompt: string): string {
   return String(prompt || "")
     .replace(/《[^》]+》/g, "")
-    .replace(/基于[^，。；:：]*[，。；:：]\s*/g, "")
+    .replace(/基于[^,。;::]*[,。;::]\s*/g, "")
     .replace(/\s{2,}/g, " ")
     .trim();
 }
@@ -66,7 +66,7 @@ function getSessionToken(): string {
   return (localStorage.getItem("token") || localStorage.getItem("wel_tok") || "").trim();
 }
 
-const DEFAULT_MESSAGE = { role: "assistant" as const, content: "你好，我是小玩子 ✨", ts: new Date().toISOString() };
+const DEFAULT_MESSAGE = { role: "assistant" as const, content: "你好,我是小玩子 ✨", ts: new Date().toISOString() };
 const AVATAR_FADE_DURATION_MS = 300;
 const AVATAR_EFFECT_DURATION_MS = 500;
 const AVATAR_FALLBACK_SRC = "/assets/logo.png";
@@ -81,11 +81,13 @@ const DOCKED_TOP_OFFSET = 0;
 const PANEL_MAX_HEIGHT = 520;
 const PANEL_GAP = 14;
 const AI_RESPONSE_RULES = [
+  "你是小玩子,一个可爱活泼的助手,风格软萌、热情、会撒娇。你的性格关键词:好奇心旺盛、话多但不啰嗦、偶尔打岔但很可爱、喜欢用 emoji 和网络用语。",
+  "回答开头可以用'好嘞~''来咯!''哎呀这个我熟!'等拟声词。结尾偶尔用'嘿嘿''懂的都懂~'。",
   "只基于当前页面已经明确展示或已确认读取到的信息回答。",
-  "如果信息不足，直接明确说明“当前页面未显示这部分信息”，不要使用“可能、也许、大概、推测、估计”这类词。",
+  "如果信息不足，直接明确说明「当前页面未显示这部分信息」，不要使用「可能、也许、大概、推测、估计」这类词。",
   "不要根据标题、常见风格或经验补全未展示的事实。",
   "优先给出确定内容、已确认事实、可执行下一步。",
-  "语气要直接、确认、简洁，不绕弯。",
+  "语气要软萌、亲切、简洁,像朋友聊天一样自然。",
 ].join("\n");
 
 function loadCachedGlobalHistory(): Msg[] {
@@ -142,13 +144,14 @@ function loadPersistedAvatarState() {
 function buildProgramListContext(programs: Program[]): PageContextPayload {
   const topPrograms = programs.slice(0, 3).map((item) => item.title).filter(Boolean);
   return {
-    summary: `当前页面是节目列表页，已读取 ${programs.length} 个节目。优先节目包括：${topPrograms.join("、") || "暂无节目"}。`,
-    readReceipt: `已读取当前节目列表：共 ${programs.length} 个节目。你可以继续问我：先看哪几期、不同主题怎么选、某一页节目适合什么问题。`,
+    summary: `当前页面是节目列表页,已读取 ${programs.length} 个节目。优先节目包括:${topPrograms.join("、") || "暂无节目"}。`,
+    readReceipt: `已读取当前节目列表:共 ${programs.length} 个节目。你可以继续问我:先看哪几期、不同主题怎么选、某一页节目适合什么问题。`,
     shortcuts: [
       { label: "🎙 先看哪期", prompt: "帮我挑 3 期最值得先听的节目" },
       { label: "🧭 主题筛选", prompt: "按主题帮我快速分类" },
       { label: "👪 适合谁听", prompt: "分别适合哪些家长问题" },
       { label: "📚 节目地图", prompt: "给我一个收听顺序建议" },
+      { label: "⚡ 把嘉宾全拉出来", prompt: "请用最快速度把节目列表里有嘉宾介绍的节目全列出来！每期：节目标题+嘉宾身份，别啰嗦直接上干货！" },
     ],
   };
 }
@@ -162,13 +165,14 @@ function buildProgramDetailContext(program: Program): PageContextPayload {
         .join("、")
     : program.guest?.name || "";
   return {
-    summary: `当前页面是节目详情页。节目标题：${program.title}。简介：${program.description || "暂无简介"}。${tags ? `标签：${tags}。` : ""}${guests ? `嘉宾：${guests}。` : ""}`,
-    readReceipt: `已读取《${program.title}》页面内容。你可以继续问我：本期核心观点、嘉宾视角、词典概念、延伸阅读或适合你的收听重点。`,
+    summary: `当前页面是节目详情页。节目标题:${program.title}。简介:${program.description || "暂无简介"}。${tags ? `标签:${tags}。` : ""}${guests ? `嘉宾:${guests}。` : ""}`,
+    readReceipt: `已读取《${program.title}》页面。你可以继续问我:本期讲了啥、嘉宾是谁、词典概念有哪些~ 也可以试试"1秒钟我要看到这个嘉宾所有资料"😎`,
     shortcuts: [
       { label: "🧠 本期总结", prompt: "请总结这一期的核心观点" },
       { label: "👥 嘉宾观点", prompt: "请整理这期内容里的嘉宾观点与分工" },
       { label: "📖 词典概念", prompt: "请提炼值得关注的概念词条" },
       { label: "🧭 我该怎么听", prompt: "如果我是家长，这一期应重点关注什么" },
+      { label: "⚡ 1秒钟我要看到这个嘉宾所有资料", prompt: "请用最快速度把本期所有嘉宾的资料一次性列出来！包含：嘉宾名字、身份/头衔、一句话介绍、在本期说了什么关键观点。别啰嗦直接上干货！" },
     ],
   };
 }
@@ -176,13 +180,14 @@ function buildProgramDetailContext(program: Program): PageContextPayload {
 function buildExpertsListContext(guests: PublicGuest[], keyword: string): PageContextPayload {
   const topGuests = guests.slice(0, 4).map((item) => item.name).filter(Boolean);
   return {
-    summary: `当前页面是先疯智库列表页，已读取 ${guests.length} 位嘉宾。当前搜索词：${keyword || "无"}。当前可见嘉宾包括：${topGuests.join("、") || "暂无嘉宾"}。`,
-    readReceipt: `已读取当前智库列表：共 ${guests.length} 位嘉宾。你可以继续问我：先看谁、如何按背景筛选、哪位嘉宾更适合你的问题。`,
+    summary: `当前页面是先疯智库列表页,已读取 ${guests.length} 位嘉宾。当前搜索词:${keyword || "无"}。当前可见嘉宾包括:${topGuests.join("、") || "暂无嘉宾"}。`,
+    readReceipt: `已读取当前智库列表:共 ${guests.length} 位嘉宾。你可以继续问我:先看谁、如何按背景筛选、哪位嘉宾更适合你的问题。`,
     shortcuts: [
       { label: "👀 先看谁", prompt: "帮我先挑最值得看的嘉宾" },
       { label: "🧭 如何筛选", prompt: "按嘉宾背景给我一个筛选方法" },
       { label: "📚 看什么资料", prompt: "先看哪类公开资料最有效" },
       { label: "🎙 关联节目", prompt: "先从哪些关联节目入手更好" },
+      { label: "⚡ 1秒我要看到嘉宾资料", prompt: "请用最快速度把当前列表里的嘉宾资料一次性列出来！每个嘉宾：名字+身份+擅长领域，别啰嗦直接上干货！" },
     ],
   };
 }
@@ -190,13 +195,14 @@ function buildExpertsListContext(guests: PublicGuest[], keyword: string): PageCo
 function buildExpertDetailContext(guest: PublicGuestDetail): PageContextPayload {
   const relatedPrograms = guest.relatedPrograms.slice(0, 3).map((item) => item.title).filter(Boolean);
   return {
-    summary: `当前页面是嘉宾详情页。嘉宾：${guest.name}，身份：${guest.title || "节目嘉宾"}。简介：${guest.bio || "暂无简介"}。社交媒体 ${guest.socialProfiles?.length || 0} 项，公开成果 ${guest.publications?.length || guest.profileReferences?.length || 0} 项，关联节目 ${guest.relatedPrograms.length} 项。`,
-    readReceipt: `已读取《${guest.name}》嘉宾资料。你可以继续问我：这位嘉宾的专业背景、先看哪条公开资料、先听哪期关联节目、是否适合你的问题。`,
+    summary: `当前页面是嘉宾详情页。嘉宾:${guest.name},身份:${guest.title || "节目嘉宾"}。简介:${guest.bio || "暂无简介"}。社交媒体 ${guest.socialProfiles?.length || 0} 项,公开成果 ${guest.publications?.length || guest.profileReferences?.length || 0} 项,关联节目 ${guest.relatedPrograms.length} 项。`,
+    readReceipt: `已读取《${guest.name}》嘉宾资料。你可以继续问我:这位嘉宾的专业背景、先看哪条公开资料、先听哪期关联节目、是否适合你的问题。`,
     shortcuts: [
       { label: "👤 人物背景", prompt: "请概括这位嘉宾的专业背景和核心视角" },
       { label: "📚 先看资料", prompt: "推荐我先看哪条公开资料" },
       { label: "🎙 关联节目", prompt: "推荐我先听哪期关联节目" },
       { label: "🧭 是否适合我", prompt: "判断这位嘉宾更适合解决哪类家长问题" },
+      { label: "⚡ 这个嘉宾关联所有节目", prompt: "请用最快速度把这个嘉宾关联的节目全部列出来！每期节目：标题+一句话核心看点。别啰嗦直接上干货！" },
     ],
   };
 }
@@ -204,9 +210,9 @@ function buildExpertDetailContext(guest: PublicGuestDetail): PageContextPayload 
 function getDockedShareLabel(summary: string): string {
   const text = String(summary || "").trim();
   if (!text) return "当前页面";
-  const titleMatch = text.match(/节目标题：([^。]+)。?/);
+  const titleMatch = text.match(/节目标题:([^。]+)。?/);
   if (titleMatch?.[1]) return titleMatch[1].trim();
-  const guestMatch = text.match(/嘉宾：([^，。]+)[，。]?/);
+  const guestMatch = text.match(/嘉宾:([^,。]+)[,。]?/);
   if (guestMatch?.[1]) return guestMatch[1].trim();
   if (text.includes("节目列表页")) return "节目列表";
   if (text.includes("先疯智库列表页")) return "先疯智库";
@@ -380,14 +386,14 @@ const XiaowanziWidget: React.FC = () => {
         }
 
         setPageContext({
-          summary: `当前页面路径：${pathname}`,
+          summary: `当前页面路径:${pathname}`,
           readReceipt: "已读取当前页面。你可以继续告诉我你想解决的具体问题。",
           shortcuts: DEFAULT_SHORTCUTS,
         });
       } catch (_error) {
         if (!alive) return;
         setPageContext({
-          summary: `当前页面路径：${pathname}`,
+          summary: `当前页面路径:${pathname}`,
           readReceipt: "已进入当前页面。你可以继续告诉我你想解决的具体问题。",
           shortcuts: DEFAULT_SHORTCUTS,
         });
@@ -469,7 +475,7 @@ const XiaowanziWidget: React.FC = () => {
 
     if (!createRes.ok) {
       if (createRes.status === 401) {
-        setStatusText("● 登录已失效，请重新登录");
+        setStatusText("● 登录已失效,请重新登录");
       } else if (createRes.status === 403) {
         setStatusText("● 当前账号暂无小玩子权限");
       } else {
@@ -619,7 +625,7 @@ const XiaowanziWidget: React.FC = () => {
     const userMessage: Msg = { role: "user", content, ts: new Date().toISOString() };
     const pendingAssistantMessage: Msg = {
       role: "assistant",
-      content: `收到，你想让我处理的是：${content}\n\n我先按当前页面已确认信息帮你整理，马上给你结果。`,
+      content: `收到,你想让我处理的是:${content}\n\n我先按当前页面已确认信息帮你整理,马上给你结果。`,
       ts: new Date(Date.now() + 1).toISOString(),
     };
 
@@ -944,8 +950,8 @@ const XiaowanziWidget: React.FC = () => {
             ))}
             {isDockedEmpty ? (
               <div className="aip-empty">
-                <div className="aip-empty-title">{currentUserName ? `${currentUserName}，你好` : "你好"}</div>
-                <div className="aip-empty-sub">今天需要我做些什么？</div>
+                <div className="aip-empty-title">{currentUserName ? `${currentUserName},你好` : "你好"}</div>
+                <div className="aip-empty-sub">今天需要我做些什么?</div>
                 <div className="aip-empty-suggests">
                   {shortcutItems.slice(0, 3).map((item) => (
                     <button key={`empty-${item.label}`} className="aip-empty-btn" type="button" onClick={() => void sendMessage(item.prompt)}>
@@ -994,7 +1000,7 @@ const XiaowanziWidget: React.FC = () => {
             <div className="aip-input-wrap">
               {isDocked && shareVisible ? (
                 <div className="aip-share">
-                  <span>正在阅读“{getDockedShareLabel(pageContext.summary)}”页面上下文</span>
+                  <span>正在阅读"{getDockedShareLabel(pageContext.summary)}"页面上下文</span>
                   <button className="aip-share-close" type="button" aria-label="关闭共享提示" onClick={() => setShareVisible(false)}>close</button>
                 </div>
               ) : null}
@@ -1003,7 +1009,7 @@ const XiaowanziWidget: React.FC = () => {
                   ref={inputRef}
                   className="aip-input"
                   rows={1}
-                  placeholder="问我任何学习问题…"
+                  placeholder="问我任何学习问题..."
                   value={input}
                   onChange={onInputChange}
                   onKeyDown={onInputKeyDown}
