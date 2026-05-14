@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import GlobalPublicNav from "../components/GlobalPublicNav";
 import { CuratedReadingItem, Program, ProgramGuest, TranscriptSegment, publicApi } from "../services/api";
 
 const COVER_FALLBACK =
@@ -108,6 +107,11 @@ const ProgramDetailPage: React.FC = () => {
       ? program.deepDive.curatedReading
       : [{ title: "《家庭教育中的低摩擦沟通》", subtitle: "围绕节目主题延展出的实用阅读线索" }];
   const quickView = (program?.contentPack?.quickView || []).filter((item) => item?.summary).slice(0, 12);
+  const dictionaryEntries = (program as any)?.dictionaryEntries || [];
+  // 只展示绑定到当前节目的教育词典词条（排除空定义和明显非教育词条）
+  const visibleDictionary = dictionaryEntries.filter(
+    (entry: any) => entry?.term && entry?.definition && entry.term.length >= 2 && entry.term.length <= 24
+  ).slice(0, 12);
   const minutesText = program?.contentPack?.minutes?.text || summaryBody;
   const showNotesText = program?.contentPack?.showNotes?.renderedText || [
     "导引",
@@ -124,6 +128,7 @@ const ProgramDetailPage: React.FC = () => {
   ].join("\n");
 
   useEffect(() => {
+    window.scrollTo(0, 0);
     let active = true;
 
     async function loadProgram() {
@@ -138,29 +143,46 @@ const ProgramDetailPage: React.FC = () => {
       const id = getProgramIdFromPath();
 
       try {
+        // 第一波：加载不含 transcript 的主体数据
         const res = await fetch(
-          `/api/programs?programCode=${encodeURIComponent(id)}`
+          `/api/programs/${encodeURIComponent(id)}?excludeTranscript=1`
         );
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        const programsList: Program[] = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
-        if (!active) return;
-        setPrograms(programsList);
+        if (res.ok) {
+          const data = await res.json();
+          if (active) {
+            setProgram(data as Program);
+            setPrograms([data as Program]);
+          }
+          // 第二波：后台异步加载逐字稿
+          loadTranscriptInBackground(id);
+        } else {
+          // fallback：通过列表接口查找（兼容旧路由）
+          const fallbackRes = await fetch(
+            `/api/programs?programCode=${encodeURIComponent(id)}&lite=1`
+          );
+          if (!fallbackRes.ok) throw new Error(`HTTP ${fallbackRes.status}`);
+          const fallbackData = await fallbackRes.json();
+          const programsList: Program[] = Array.isArray(fallbackData?.programs) ? fallbackData.programs : Array.isArray(fallbackData?.data) ? fallbackData.data : Array.isArray(fallbackData) ? fallbackData : [];
+          if (!active) return;
 
-        let target =
-          programsList.find(
-            (item: any) =>
-              String(item.programCode || "").toLowerCase() === String(id || "").toLowerCase()
-          ) ||
-          programsList.find((item: any) => item._id === id) ||
-          null;
+          let target =
+            programsList.find(
+              (item: any) =>
+                String(item.programCode || "").toLowerCase() === String(id || "").toLowerCase()
+            ) ||
+            programsList.find((item: any) => item._id === id) ||
+            null;
 
-        if (!target) {
-          throw new Error("节目数据加载失败，请刷新页面重试");
-        }
+          if (!target) {
+            throw new Error("节目数据加载失败，请刷新页面重试");
+          }
 
-        if (active) {
-          setProgram(target);
+          if (active) {
+            setProgram(target);
+            setPrograms([target]);
+          }
+          // fallback 也尝试后台加载 transcript
+          loadTranscriptInBackground(id);
         }
       } catch (loadError: any) {
         if (active) {
@@ -170,6 +192,23 @@ const ProgramDetailPage: React.FC = () => {
         if (active) {
           setLoading(false);
         }
+      }
+    }
+
+    // 后台异步加载逐字稿，不阻塞页面渲染
+    async function loadTranscriptInBackground(programId: string) {
+      try {
+        const transcriptRes = await fetch(
+          `/api/programs/${encodeURIComponent(programId)}?transcriptOnly=1`
+        );
+        if (!transcriptRes.ok || !active) return;
+        const transcriptData = await transcriptRes.json();
+        const segments = transcriptData?.transcript || [];
+        if (segments.length > 0 && active) {
+          setProgram((prev) => prev ? { ...prev, transcript: segments } : prev);
+        }
+      } catch {
+        // 静默失败，用户至少能看到其他内容
       }
     }
 
@@ -396,7 +435,6 @@ const ProgramDetailPage: React.FC = () => {
         }
       `}</style>
 
-      <GlobalPublicNav />
       <audio ref={audioRef} preload="metadata" />
 
       <section className="duotone-hero flex w-full items-center pt-16">
@@ -434,7 +472,7 @@ const ProgramDetailPage: React.FC = () => {
           <div className="relative z-10 flex flex-col items-center gap-10 md:flex-row">
             <div className="flex flex-shrink-0 flex-row items-center gap-3 border-b border-gray-100 pb-6 md:flex-col md:border-r md:border-b-0 md:pb-0 md:pr-10">
               <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-[#5e17eb]/10 text-[#5e17eb]">
-                <span className="material-symbols-outlined text-2xl text-[#5e17eb]">auto_awesome</span>
+                <span className="material-symbols-outlined text-2xl">auto_awesome</span>
               </div>
               <div className="text-center md:text-left">
                 <h2 className="text-xl font-black uppercase leading-none tracking-tight text-[#5e17eb] md:text-[1.44rem]">总结摘要</h2>
@@ -536,6 +574,27 @@ const ProgramDetailPage: React.FC = () => {
               <p className="text-sm text-[#53433f]">暂无逐字稿内容，解析后将自动生成。</p>
             ) : null}
           </section>
+
+          {visibleDictionary.length > 0 && (
+            <section className="rounded-xl border border-gray-100 bg-white p-8 shadow-[0_4px_24px_rgba(0,0,0,0.03)] md:p-12">
+              <div className="mb-6 flex items-center gap-3">
+                <span className="material-symbols-outlined text-xl text-[#5e17eb]">menu_book</span>
+                <h2 className="text-2xl font-black tracking-tight text-[#211a18]">教育词典</h2>
+                <span className="rounded-full bg-[#5e17eb]/10 px-2.5 py-0.5 text-[10px] font-black text-[#5e17eb]">{visibleDictionary.length} 词条</span>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {visibleDictionary.map((entry: any) => (
+                  <div key={entry._id || entry.term} className="rounded-xl border border-[#5e17eb]/10 bg-[#faf8ff] p-4 transition-colors hover:border-[#5e17eb]/25 hover:bg-[#f7f3ff]">
+                    <div className="mb-1.5 flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#5e17eb]"></span>
+                      <h4 className="text-sm font-black text-[#211a18]">{entry.term}</h4>
+                    </div>
+                    <p className="text-xs leading-relaxed text-[#53433f]/75">{entry.definition}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
 
         <aside className="space-y-10 lg:col-span-4">
