@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 
@@ -25,6 +25,30 @@ function safeTags(raw: string[] | string | undefined): string[] {
   }
 }
 
+/* ===== 通用样式 ===== */
+const inputStyle: React.CSSProperties = {
+  padding: "10px 16px",
+  borderRadius: 10,
+  border: "2px solid #DDD6FE",
+  fontSize: 14,
+  outline: "none",
+  background: "#fff",
+  width: "100%",
+  boxSizing: "border-box",
+};
+
+const btnPrimary: React.CSSProperties = {
+  padding: "10px 24px",
+  borderRadius: 10,
+  border: "none",
+  background: "#7C3AED",
+  color: "#fff",
+  fontSize: 14,
+  fontWeight: 600,
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+};
+
 const TopicHubPage: React.FC = () => {
   const [topics, setTopics] = useState<TopicItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,11 +56,16 @@ const TopicHubPage: React.FC = () => {
   const [activeTag, setActiveTag] = useState("全部");
   const [allTags, setAllTags] = useState<string[]>([]);
 
+  // ===== 话题提交 =====
+  const [submitSearch, setSubmitSearch] = useState("");
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [submitMsg, setSubmitMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
+
   useEffect(() => {
     fetchTopics();
   }, []);
 
-  const fetchTopics = async () => {
+  const fetchTopics = useCallback(async () => {
     try {
       const res = await fetch("/api/topic-hub");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -59,6 +88,31 @@ const TopicHubPage: React.FC = () => {
       setError(e.message || "加载失败");
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  const handleSubmit = async () => {
+    const q = submitSearch.trim();
+    if (!q) return;
+    setSubmitLoading(true);
+    setSubmitMsg(null);
+    try {
+      const res = await fetch("/api/topic-hub/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ search: q }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSubmitMsg({ text: "🙏 已提交，等待审核～感谢你的提问！", type: "success" });
+        setSubmitSearch("");
+      } else {
+        setSubmitMsg({ text: data.error || "提交失败", type: "error" });
+      }
+    } catch (e: any) {
+      setSubmitMsg({ text: e.message || "网络错误", type: "error" });
+    } finally {
+      setSubmitLoading(false);
     }
   };
 
@@ -94,6 +148,64 @@ const TopicHubPage: React.FC = () => {
           </h1>
           <p style={{ color: "#6B7280", fontSize: 15, margin: 0 }}>
             教育路上，每个问题都值得被认真回答
+          </p>
+        </div>
+
+        {/* ===== 话题提交区 ===== */}
+        <div
+          style={{
+            background: "linear-gradient(135deg, #F8F5FF, #F3EEFF)",
+            borderRadius: 16,
+            border: "1px solid #EDE9FE",
+            padding: 24,
+            marginBottom: 32,
+            maxWidth: 640,
+            marginLeft: "auto",
+            marginRight: "auto",
+          }}
+        >
+          <p style={{ fontSize: 14, fontWeight: 600, color: "#4C1D95", margin: "0 0 10px" }}>
+            💡 有想知道的教育话题？
+          </p>
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <input
+              style={{ flex: 1, ...inputStyle }}
+              placeholder="输入你关心的教育问题..."
+              value={submitSearch}
+              onChange={(e) => setSubmitSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSubmit();
+              }}
+              disabled={submitLoading}
+            />
+            <button
+              style={{
+                ...btnPrimary,
+                opacity: submitLoading || !submitSearch.trim() ? 0.5 : 1,
+              }}
+              disabled={submitLoading || !submitSearch.trim()}
+              onClick={handleSubmit}
+            >
+              {submitLoading ? "⏳ 提交中..." : "🙏 请教一下"}
+            </button>
+          </div>
+          {submitMsg && (
+            <div
+              style={{
+                marginTop: 12,
+                padding: "10px 14px",
+                borderRadius: 10,
+                fontSize: 13,
+                background: submitMsg.type === "success" ? "#F0FDF4" : "#FEF2F2",
+                color: submitMsg.type === "success" ? "#166534" : "#DC2626",
+                border: `1px solid ${submitMsg.type === "success" ? "#D1FAE5" : "#FECACA"}`,
+              }}
+            >
+              {submitMsg.text}
+            </div>
+          )}
+          <p style={{ fontSize: 11, color: "#9CA3AF", margin: "8px 0 0 0" }}>
+            提交后由管理员审核，通过后话题就会出现在话题列表中 ✨
           </p>
         </div>
 
