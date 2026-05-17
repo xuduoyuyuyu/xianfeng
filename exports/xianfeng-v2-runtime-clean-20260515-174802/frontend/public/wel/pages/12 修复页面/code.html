@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>wel 错题修复成功全屏动效界面</title>
+<script src="/wel/vendor/tailwindcdn.forms.container-queries.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#7f13ec",
+                        "energy-purple": "#a855f7",
+                        "data-blue": "#60a5fa",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "Noto Sans SC", "sans-serif"]
+                    },
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        @keyframes energy-stream {
+            0% { transform: scale(1.5) rotate(0deg); opacity: 0; }
+            50% { opacity: 0.6; }
+            100% { transform: scale(0.2) rotate(180deg); opacity: 0; }
+        }
+        @keyframes rotate-core {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        @keyframes float-particle {
+            0% { transform: translate(0, 0); opacity: 0; }
+            50% { opacity: 1; }
+            100% { transform: translate(var(--tw-translate-x), var(--tw-translate-y)); opacity: 0; }
+        }
+        @keyframes neon-pulse {
+            0%, 100% { text-shadow: 0 0 10px #7f13ec, 0 0 20px #7f13ec, 0 0 30px #a855f7; opacity: 1; }
+            50% { text-shadow: 0 0 20px #7f13ec, 0 0 40px #7f13ec, 0 0 60px #a855f7; opacity: 0.9; }
+        }
+        @keyframes fragment-assemble {
+            0% { transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(0deg) scale(0); opacity: 0; }
+            100% { transform: translate(0, 0) rotate(360deg) scale(1); opacity: 1; }
+        }
+        .holographic-overlay {
+            background: radial-gradient(circle at center, rgba(127, 19, 236, 0.05) 0%, rgba(127, 19, 236, 0.15) 50%, rgba(20, 10, 40, 0.4) 100%);
+            backdrop-filter: blur(4px);
+        }
+        .energy-line {
+            position: absolute;
+            background: linear-gradient(90deg, transparent, #a855f7, transparent);
+            height: 1px;
+            width: 300px;
+            filter: blur(1px);
+            animation: energy-stream 3s infinite linear;
+        }
+        .neon-text {
+            color: #fff;
+            animation: neon-pulse 2s infinite ease-in-out;
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        .crystal-core {
+            box-shadow: 0 0 80px rgba(127, 19, 236, 0.6);
+            background: rgba(127, 19, 236, 0.2);
+            backdrop-filter: blur(12px);
+        }
+        .particle {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: #a855f7;
+            border-radius: 50%;
+            pointer-events: none;
+        }
+        .map-bg-underlay {
+            background-image: radial-gradient(circle at 2px 2px, #f0e8f8 1px, transparent 0);
+            background-size: 32px 32px;
+            opacity: 0.4;
+        }
+    </style>
+</head>
+<body class="bg-[#fcfcfc] font-display h-screen overflow-hidden m-0 p-0 relative">
+<div class="absolute inset-0 z-0 overflow-hidden pointer-events-none opacity-40">
+<div class="map-bg-underlay absolute inset-0"></div>
+<div class="p-12">
+<div class="w-24 h-8 bg-slate-200 rounded-full mb-12"></div>
+<div class="max-w-4xl mx-auto space-y-8">
+<div class="h-64 bg-slate-100 rounded-3xl w-full"></div>
+<div class="grid grid-cols-2 gap-8">
+<div class="h-40 bg-slate-100 rounded-3xl"></div>
+<div class="h-40 bg-slate-100 rounded-3xl"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="absolute inset-0 z-10 holographic-overlay"></div>
+<div class="absolute inset-0 z-20 overflow-hidden pointer-events-none">
+<div class="energy-line top-1/4 left-0" style="transform: rotate(30deg); animation-delay: 0s;"></div>
+<div class="energy-line top-3/4 left-0" style="transform: rotate(-30deg); animation-delay: 0.5s;"></div>
+<div class="energy-line top-1/4 right-0" style="transform: rotate(150deg); animation-delay: 1s;"></div>
+<div class="energy-line top-3/4 right-0" style="transform: rotate(210deg); animation-delay: 1.5s;"></div>
+<div class="energy-line top-0 left-1/2" style="transform: rotate(90deg) translate(-50%, 0); width: 500px; animation-delay: 0.2s;"></div>
+<div class="energy-line bottom-0 left-1/2" style="transform: rotate(-90deg) translate(50%, 0); width: 500px; animation-delay: 1.2s;"></div>
+</div>
+<main class="relative z-30 h-full flex flex-col items-center justify-center">
+<div class="relative size-64 mb-12 flex items-center justify-center">
+<div class="absolute inset-0 crystal-core rounded-full animate-pulse opacity-40"></div>
+<div class="absolute size-24 border-2 border-primary/60 bg-primary/10 rounded-lg flex items-center justify-center" style="--tw-translate-x: -200px; --tw-translate-y: -150px; animation: fragment-assemble 1.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;">
+<span class="material-symbols-outlined text-primary text-4xl">square</span>
+</div>
+<div class="absolute size-20 border-2 border-primary/60 bg-primary/10 flex items-center justify-center" style="clip-path: polygon(50% 0%, 0% 100%, 100% 100%); --tw-translate-x: 220px; --tw-translate-y: 80px; animation: fragment-assemble 1.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;">
+<span class="material-symbols-outlined text-primary text-3xl mt-4">change_history</span>
+</div>
+<div class="absolute size-28 border-2 border-primary/60 bg-primary/20 rounded-full flex items-center justify-center" style="--tw-translate-x: -50px; --tw-translate-y: 240px; animation: fragment-assemble 2s cubic-bezier(0.16, 1, 0.3, 1) forwards;">
+<span class="material-symbols-outlined text-primary text-5xl">circle</span>
+</div>
+<div class="relative z-40 size-32 bg-primary rounded-3xl flex items-center justify-center shadow-[0_0_50px_rgba(127,19,236,0.8)] border border-white/20">
+<span class="material-symbols-outlined text-white text-6xl fill-1">pentagon</span>
+<div class="absolute inset-0 border-2 border-white/10 rounded-full animate-[spin_10s_linear_infinite]"></div>
+<div class="absolute -inset-4 border border-white/5 rounded-full animate-[spin_15s_linear_infinite_reverse]"></div>
+</div>
+</div>
+<div class="text-center space-y-4">
+<h2 class="text-sm font-bold tracking-[0.3em] text-primary/80 uppercase">Crystal Core Restored</h2>
+<h1 class="text-5xl font-black neon-text tracking-tight">修复达成：知识同步 100%</h1>
+<div class="flex items-center justify-center gap-6 pt-8">
+<div class="px-6 py-2 rounded-full border border-white/20 bg-white/5 backdrop-blur-md text-white/80 text-xs font-medium flex items-center gap-2">
+<span class="size-2 bg-green-400 rounded-full animate-pulse"></span>
+                    空间几何知识点已加固
+                </div>
+<div class="px-6 py-2 rounded-full border border-white/20 bg-white/5 backdrop-blur-md text-white/80 text-xs font-medium flex items-center gap-2">
+<span class="size-2 bg-blue-400 rounded-full animate-pulse"></span>
+                    归因链路完整闭环
+                </div>
+</div>
+</div>
+<div class="mt-16 flex flex-col items-center gap-4">
+<button class="px-12 py-4 bg-white text-primary rounded-full font-bold text-lg shadow-[0_20px_40px_rgba(0,0,0,0.1)] hover:shadow-[0_25px_50px_rgba(127,19,236,0.3)] transform hover:-translate-y-1 transition-all flex items-center gap-3 active:scale-95 group">
+<span>进入下一阶段</span>
+<span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+<p class="text-white/40 text-[10px] tracking-widest uppercase">按下 ESC 或点击空白处关闭全屏</p>
+</div>
+</main>
+<div class="fixed inset-0 z-25 pointer-events-none overflow-hidden">
+<div class="particle" style="top: 10%; left: 10%; --tw-translate-x: 200px; --tw-translate-y: 200px; animation: float-particle 5s infinite;"></div>
+<div class="particle" style="top: 80%; left: 20%; --tw-translate-x: 100px; --tw-translate-y: -300px; animation: float-particle 7s infinite;"></div>
+<div class="particle" style="top: 40%; left: 85%; --tw-translate-x: -250px; --tw-translate-y: 100px; animation: float-particle 6s infinite;"></div>
+<div class="particle" style="top: 15%; left: 70%; --tw-translate-x: -150px; --tw-translate-y: 250px; animation: float-particle 4s infinite;"></div>
+<div class="particle" style="top: 90%; left: 60%; --tw-translate-x: -50px; --tw-translate-y: -400px; animation: float-particle 8s infinite;"></div>
+</div>
+
+</body></html>

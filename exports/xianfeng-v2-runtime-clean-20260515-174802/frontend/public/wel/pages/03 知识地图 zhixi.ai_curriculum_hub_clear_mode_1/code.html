@@ -1,0 +1,2123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>知识地图 · wel</title>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@300;400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/tippy.js@6/dist/tippy.css">
+<script src="https://unpkg.com/@popperjs/core@2"></script>
+<script src="https://unpkg.com/tippy.js@6"></script>
+<script src="https://unpkg.com/@formkit/auto-animate@0.8.2/index.global.js"></script>
+<script src="../../js/mindmap.js"></script>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --primary:#7f13ec;
+  --primary-light:#a855f7;
+  --primary-dark:#5b11b8;
+  --success:#10b981;
+  --warning:#f59e0b;
+  --error:#ef4444;
+  --info:#3b82f6;
+  --bg-primary:#f4f4f7;
+  --bg-surface:#ffffff;
+  --text-primary:#111118;
+  --text-secondary:#6b7280;
+  --spacing-unit:8px;
+  --radius-sm:6px;
+  --radius-md:10px;
+  --radius-lg:16px;
+  --radius-xl:24px;
+  --p:var(--primary);--pg:rgba(127,19,236,.2);--pl:rgba(127,19,236,.08);
+  --bg:var(--bg-primary);--sf:var(--bg-surface);--brd:rgba(17,17,24,.1);
+  --tx:var(--text-primary);--mu:var(--text-secondary);--mu2:#94a3b8;
+  --mm-node-bg:rgba(255,255,255,.88);
+  --mm-node-brd:rgba(127,19,236,.2);
+  --mm-node-shadow:0 6px 18px rgba(26,16,40,.08);
+  --mm-node-hover:0 10px 24px rgba(127,19,236,.18);
+  --mm-node-selected:rgba(127,19,236,.45);
+  --mm-line:rgba(127,19,236,.26);
+  --mm-line-soft:rgba(127,19,236,.22);
+  --mm-tag-bg:#94a3b8;
+  --mm-tag-tx:#f8fafc;
+  --mm-radius:12px;
+}
+html,body{height:100%;overflow:hidden;font-family:'Lexend','Noto Sans SC','Space Grotesk',sans-serif;font-size:13px;color:var(--tx);background:var(--bg)}
+button{cursor:pointer;font:inherit}
+.ms{font-family:'Material Symbols Rounded';font-variation-settings:'FILL' 1;line-height:1;vertical-align:middle;font-size:18px}
+
+/* ── Layout ── */
+.shell{height:100%;display:flex;flex-direction:column;overflow:hidden}
+
+/* ── Topbar ── */
+.topbar{
+  height:52px;flex-shrink:0;
+  background:rgba(255,255,255,.9);backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--brd);
+  display:flex;align-items:center;padding:0 18px;gap:14px;z-index:100;
+}
+.tb-switch{display:flex;background:rgba(127,19,236,.06);border:1px solid var(--brd);border-radius:30px;padding:3px;gap:2px}
+.tb-sw-btn{padding:5px 16px;border:none;border-radius:20px;background:transparent;font-size:12px;font-weight:600;color:var(--mu);transition:all .15s;white-space:nowrap}
+.tb-sw-btn.on{background:var(--p);color:white;box-shadow:0 2px 10px var(--pg)}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.upload-btn{
+  display:flex;align-items:center;gap:7px;
+  padding:8px 18px;background:var(--p);border:1px solid var(--p);border-radius:999px;
+  color:white;font-size:12px;font-weight:700;
+  box-shadow:0 0 20px rgba(127,19,236,.34);transition:all .15s;
+}
+.upload-btn:hover{transform:translateY(-1px);box-shadow:0 0 30px rgba(127,19,236,.5)}
+.upload-btn .ms{font-size:16px;color:#fff}
+.sample-btn{
+  padding:6px 14px;border:1px solid var(--brd);border-radius:20px;
+  background:var(--sf);font-size:12px;font-weight:500;color:var(--mu);transition:all .12s;
+}
+.sample-btn:hover{border-color:var(--p);color:var(--p);background:var(--pl)}
+
+/* ── Body ── */
+.body{flex:1;min-height:0;display:flex;overflow:hidden}
+
+/* ── Map canvas area ── */
+.map-area{
+  flex:1;min-width:0;position:relative;overflow:hidden;
+  background-image:url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%237f13ec' fill-opacity='0.02' fill-rule='evenodd'%3E%3Cpath d='M0 40L40 0H20L0 20M40 40V20L20 40'/%3E%3C/g%3E%3C/svg%3E");
+  background-size:40px 40px;
+}
+
+/* Sidebar integration from 04 */
+.sidebar-ctrl{
+  position:absolute;left:20px;top:20px;bottom:20px;width:56px;
+  background:rgba(255,255,255,.85);backdrop-filter:blur(16px);
+  border:1px solid var(--brd);border-radius:20px;
+  display:flex;flex-direction:column;align-items:center;justify-content:space-between;
+  padding:20px 0;z-index:45;box-shadow:0 8px 32px rgba(0,0,0,.08);
+}
+.sb-group{display:flex;flex-direction:column;gap:18px}
+.sb-btn{
+  width:38px;height:38px;border-radius:12px;border:none;
+  background:transparent;color:var(--mu);display:flex;align-items:center;justify-content:center;
+  transition:all .2s;position:relative;
+}
+.sb-btn:hover{background:var(--pl);color:var(--p)}
+.sb-btn.on{background:var(--p);color:white;box-shadow:0 4px 12px var(--pg)}
+.sb-tooltip{
+  position:absolute;left:100%;margin-left:12px;padding:5px 10px;
+  background:#1a1028;color:white;font-size:11px;border-radius:6px;
+  white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .2s;
+}
+.sb-btn:hover .sb-tooltip{opacity:1}
+
+#map-canvas{position:absolute;inset:0;width:100%;height:100%;cursor:grab}
+#map-canvas.dragging{cursor:grabbing}
+#map-canvas.node-dragging{cursor:grabbing}
+#svg-lines{position:absolute;inset:0;pointer-events:none;overflow:visible}
+
+/* ── Knowledge Nodes ── */
+.knode{
+  position:absolute;
+  background:rgba(255,255,255,.85);backdrop-filter:blur(12px);
+  border:1.5px solid rgba(127,19,236,.18);
+  border-radius:16px;
+  box-shadow:0 4px 18px rgba(0,0,0,.07);
+  cursor:grab;user-select:none;
+  transition: left 0.7s cubic-bezier(0.4, 0, 0.2, 1), top 0.7s cubic-bezier(0.4, 0, 0.2, 1), box-shadow .15s, border-color .15s;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:12px 14px;
+}
+.knode:hover{border-color:var(--p);box-shadow:0 6px 28px var(--pg)}
+.knode:hover:not(.dragging-node){
+  animation: nodeBreath 2.2s ease-in-out infinite;
+}
+.knode.selected{border-color:var(--p);border-width:2px;box-shadow:0 0 0 4px var(--pg)}
+.knode.selected{animation:nodeBreath 1.9s ease-in-out infinite}
+.knode.dragging-node{cursor:grabbing;box-shadow:0 12px 40px rgba(127,19,236,.3);z-index:50}
+.knode.core{
+  background:rgba(127,19,236,.06);border:2px solid var(--p);
+  border-radius:50%;
+}
+.knode .nd-icon{font-size:22px;color:var(--p);margin-bottom:5px}
+.knode .nd-main{width:100%;display:flex;flex-direction:column;align-items:center}
+.knode .nd-main .nd-meta{text-align:center}
+.knode .nd-title{font-size:12px;font-weight:700;color:var(--tx);line-height:1.3}
+.knode .nd-sub{font-size:10px;color:var(--mu2);margin-top:3px}
+.knode .nd-bar{width:100%;height:3px;background:rgba(127,19,236,.12);border-radius:3px;margin-top:7px;overflow:hidden}
+.knode .nd-fill{height:100%;background:var(--p);border-radius:3px;transition:width .4s}
+.knode .nd-tag{
+  position:absolute;top:-8px;right:-8px;
+  font-size:10px;font-weight:800;line-height:1;
+  height:24px;padding:0 10px;border-radius:999px;
+  display:inline-flex;align-items:center;
+  background:var(--p);color:white;letter-spacing:.04em;
+}
+.knode .nd-tag.weak{background:#dc2626}
+.knode .nd-tag.strong{background:#059669}
+.knode .nd-more{
+  position:absolute;bottom:-11px;top:auto;left:50%;transform:translateX(-50%);
+  white-space:nowrap;background:var(--mm-tag-bg);color:var(--mm-tag-tx);
+  border-radius:999px;font-size:10px;font-weight:800;line-height:1;
+  height:24px;padding:0 10px;
+  display:inline-flex;align-items:center;
+  box-shadow:0 6px 14px rgba(38,53,82,.2)
+}
+@keyframes nodeBreath{
+  0%{transform:translateY(0) scale(1);box-shadow:0 6px 24px rgba(127,19,236,.16)}
+  50%{transform:translateY(-2px) scale(1.015);box-shadow:0 10px 34px rgba(127,19,236,.28)}
+  100%{transform:translateY(0) scale(1);box-shadow:0 6px 24px rgba(127,19,236,.16)}
+}
+
+.shell.mindmap-mode .knode{
+  background:var(--mm-node-bg);
+  border:1.5px solid var(--mm-node-brd);
+  border-radius:var(--mm-radius);
+  box-shadow:var(--mm-node-shadow);
+  padding:6px 12px;
+}
+.shell.mindmap-mode .knode .nd-icon{color:var(--p)}
+.shell.mindmap-mode .knode .nd-title{color:var(--tx);font-size:12px;font-weight:800}
+.shell.mindmap-mode .knode .nd-sub{color:var(--mu2);font-size:10px;margin-top:0}
+.shell.mindmap-mode .knode .nd-bar{background:rgba(127,19,236,.12);margin-top:4px}
+.shell.mindmap-mode .knode .nd-fill{background:var(--p)}
+.shell.mindmap-mode .knode .nd-tag{background:#7c3aed}
+.shell.mindmap-mode .knode:hover{
+  border-color:var(--p);
+  box-shadow:var(--mm-node-hover);
+}
+.shell.mindmap-mode .knode.selected{
+  border-color:var(--mm-node-selected);
+  box-shadow:0 0 0 3px var(--pg), var(--mm-node-hover);
+}
+.shell.mindmap-mode .knode.core{
+  border-radius:16px;
+  background:rgba(255,255,255,.92);
+  border:2px solid var(--p);
+}
+.shell.mindmap-mode .knode.core .nd-main{
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+}
+.shell.mindmap-mode .knode.core .nd-title{
+  font-size:14px;
+  letter-spacing:0;
+  text-transform:none;
+  color:var(--tx);
+}
+.shell.mindmap-mode .knode.core .nd-sub{font-size:10px;color:var(--mu2)}
+.shell.mindmap-mode .knode.core .nd-icon{font-size:20px;color:var(--p);margin-bottom:0}
+.shell.mindmap-mode .knode.core .nd-main .nd-meta{text-align:left}
+.shell.mindmap-mode .rpanel{
+  background:rgba(255,255,255,.96);
+  box-shadow:-8px 0 26px rgba(76,91,126,.08);
+}
+.shell.mindmap-mode .knode:not(.core) .nd-main{
+  width:100%;
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.shell.mindmap-mode .knode:not(.core) .nd-main .nd-icon{
+  margin-bottom:0;
+  font-size:14px;
+  flex-shrink:0;
+}
+.shell.mindmap-mode .knode:not(.core) .nd-main .nd-meta{
+  text-align:left;
+  flex:1;
+  min-width:0;
+}
+.shell.mindmap-mode .knode .nd-main{
+  display:flex;
+  flex-direction:row!important;
+  align-items:center;
+  justify-content:flex-start;
+  gap:6px;
+}
+.shell.mindmap-mode .knode .nd-main .nd-icon{margin-bottom:0!important;align-self:center}
+.shell.mindmap-mode .knode .nd-main .nd-meta{text-align:left}
+.shell.mindmap-mode .knode:not(.core) .nd-more{
+  top:-8px;
+  right:8px;
+  left:auto;
+  bottom:auto;
+  transform:none;
+}
+.shell.mindmap-mode .knode:not(.core) .nd-tag,
+.shell.mindmap-mode .knode:not(.core) .nd-more{
+  font-size:10px;
+  font-weight:800;
+  height:24px;
+  padding:0 10px;
+  line-height:1;
+  display:inline-flex;
+  align-items:center;
+}
+.shell.mindmap-mode .knode.hide-state-tag .nd-tag{
+  display:none;
+}
+
+/* ── Right panel (detail + upload result) ── */
+.rpanel{
+  width:300px;flex-shrink:0;
+  background:var(--sf);border-left:1px solid var(--brd);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.rpanel-head{padding:16px 16px 12px;border-bottom:1px solid var(--brd);flex-shrink:0}
+.rpanel-title{font-size:14px;font-weight:700}
+.rpanel-sub{font-size:11px;color:var(--mu2);margin-top:2px}
+.rpanel-body{flex:1;overflow-y:auto;padding:14px}
+.rpanel-body::-webkit-scrollbar{width:3px}
+.rpanel-body::-webkit-scrollbar-thumb{background:var(--pg);border-radius:3px}
+
+/* Node detail card */
+.nd-detail{animation:fadeUp .2s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.nd-detail .nd-header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.nd-detail .nd-hicon{width:40px;height:40px;border-radius:11px;background:var(--pl);display:flex;align-items:center;justify-content:center;color:var(--p)}
+.nd-detail .nd-hname{font-size:15px;font-weight:700}
+.nd-detail .nd-hgrade{font-size:11px;color:var(--mu2)}
+.stat-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(0,0,0,.04)}
+.stat-row:last-child{border:none}
+.stat-label{font-size:11.5px;color:var(--mu)}
+.stat-val{font-size:12px;font-weight:700}
+.progress-bar{height:6px;background:rgba(0,0,0,.06);border-radius:6px;overflow:hidden;margin-top:5px}
+.progress-fill{height:100%;border-radius:6px;background:var(--p);transition:width .5s}
+.sec-title{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--mu2);margin:14px 0 7px}
+.tag-list{display:flex;flex-wrap:wrap;gap:5px}
+.tag{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;background:var(--pl);color:var(--p)}
+.action-row{display:flex;gap:8px;margin-top:14px}
+.act-btn{flex:1;padding:9px 0;border:none;border-radius:10px;font:inherit;font-size:12px;font-weight:700;transition:all .15s;cursor:pointer}
+.act-btn.pri{background:var(--p);color:white;box-shadow:0 2px 10px var(--pg)}
+.act-btn.sec{background:var(--pl);color:var(--p)}
+.act-btn:hover{transform:translateY(-1px)}
+
+/* Welcome / empty state */
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;padding:20px;gap:12px}
+.empty-icon{font-size:44px;color:var(--p);opacity:.35}
+.empty-title{font-size:14px;font-weight:700;color:var(--tx)}
+.empty-desc{font-size:12px;color:var(--mu2);line-height:1.7;max-width:200px}
+
+/* ── Filter panel (bottom-left) ── */
+.filter-panel{
+  position:absolute;bottom:20px;left:20px;z-index:40;
+  background:rgba(255,255,255,.9);backdrop-filter:blur(16px);
+  border:1px solid var(--brd);border-radius:18px;
+  padding:14px 16px;width:240px;
+  box-shadow:0 8px 32px rgba(0,0,0,.1);
+}
+.fp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px}
+.fp-title{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--mu2)}
+.fp-toggle{width:22px;height:22px;border:none;border-radius:6px;background:var(--pl);color:var(--p);font-family:'Material Symbols Rounded';font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .12s}
+.fp-toggle:hover{background:var(--p);color:white}
+.fp-section{margin-bottom:11px}
+.fp-label{font-size:9.5px;font-weight:700;color:var(--mu2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+.fp-tags{display:flex;flex-wrap:wrap;gap:5px}
+.fp-tag{
+  padding:3px 10px;border:1px solid var(--brd);border-radius:20px;
+  font-size:11px;font-weight:600;color:var(--mu);background:white;
+  transition:all .12s;cursor:pointer;
+}
+.fp-tag:hover{border-color:var(--p);color:var(--p)}
+.fp-tag.on{background:var(--p);border-color:var(--p);color:white}
+.fp-range{width:100%;height:4px;border-radius:4px;appearance:none;background:linear-gradient(to right,var(--p) 60%,rgba(127,19,236,.15) 60%);cursor:pointer;margin-top:4px}
+.fp-range::-webkit-slider-thumb{appearance:none;width:14px;height:14px;border-radius:50%;background:var(--p);box-shadow:0 1px 6px var(--pg);cursor:pointer}
+.fp-row{display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--mu2);margin-top:3px}
+
+/* ── Zoom controls ── */
+.zoom-ctrl{
+  position:absolute;bottom:20px;right:20px;z-index:40;
+  display:flex;flex-direction:column;gap:8px;
+}
+.zc-btn{
+  width:40px;height:40px;border-radius:50%;
+  background:var(--sf);border:1px solid var(--brd);
+  box-shadow:0 2px 12px rgba(0,0,0,.1);
+  color:var(--p);display:flex;align-items:center;justify-content:center;
+  transition:all .12s;
+}
+.zc-btn:hover{background:var(--p);color:white;border-color:var(--p)}
+
+/* ── Upload overlay ── */
+.upload-overlay{
+  position:fixed;inset:0;z-index:200;
+  background:rgba(15,8,30,.55);backdrop-filter:blur(8px);
+  display:none;align-items:center;justify-content:center;
+}
+.upload-overlay.show{display:flex}
+.upload-modal{
+  background:white;border-radius:22px;width:520px;max-width:92vw;
+  overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.25);
+  animation:modalIn .2s ease;
+}
+@keyframes modalIn{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
+.um-head{
+  padding:20px 24px;border-bottom:1px solid var(--brd);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.um-title{font-size:16px;font-weight:700}
+.um-close{width:28px;height:28px;border:none;border-radius:7px;background:rgba(0,0,0,.05);color:var(--mu);font-family:'Material Symbols Rounded';font-size:16px;cursor:pointer}
+.um-body{padding:22px 24px}
+.drop-zone{
+  border:2px dashed rgba(127,19,236,.25);border-radius:16px;
+  padding:36px 24px;text-align:center;cursor:pointer;
+  background:var(--pl);transition:all .15s;
+  margin-bottom:18px;
+}
+.drop-zone.drag-over{border-color:var(--p);background:rgba(127,19,236,.12)}
+.drop-zone .dz-icon{font-size:40px;color:var(--p);opacity:.5;margin-bottom:10px}
+.drop-zone .dz-title{font-size:14px;font-weight:600;color:var(--tx);margin-bottom:4px}
+.drop-zone .dz-sub{font-size:12px;color:var(--mu2)}
+.drop-zone input{display:none}
+.um-or{text-align:center;color:var(--mu2);font-size:12px;margin:14px 0;position:relative}
+.um-or::before,.um-or::after{content:'';position:absolute;top:50%;width:40%;height:1px;background:var(--brd)}
+.um-or::before{left:0}.um-or::after{right:0}
+.paste-area{
+  width:100%;height:120px;border:1px solid var(--brd);border-radius:12px;
+  padding:12px 14px;font:inherit;font-size:13px;color:var(--tx);
+  background:rgba(255,255,255,.92);outline:none;resize:none;line-height:1.6;
+}
+.paste-area:focus{border-color:var(--p)}
+.paste-area::placeholder{color:var(--mu2)}
+.um-sample{display:flex;align-items:center;gap:10px;padding:11px 14px;border:1px solid var(--brd);border-radius:12px;cursor:pointer;transition:all .12s;margin-top:12px}
+.um-sample:hover{border-color:var(--p);background:var(--pl)}
+.um-sample .ms{color:var(--p)}
+.um-sample-info .title{font-size:13px;font-weight:600}
+.um-sample-info .sub{font-size:11px;color:var(--mu2)}
+.um-footer{padding:16px 24px;border-top:1px solid var(--brd);display:flex;gap:10px}
+.um-cancel{flex:1;padding:10px;border:1px solid var(--brd);border-radius:11px;background:white;font:inherit;font-size:13px;font-weight:600;color:var(--mu)}
+.um-analyze{flex:2;padding:10px;border:none;border-radius:11px;background:var(--p);font:inherit;font-size:13px;font-weight:700;color:white;box-shadow:0 2px 12px var(--pg);transition:all .15s}
+.um-analyze:hover{transform:translateY(-1px)}
+.um-analyze:disabled{opacity:.5;cursor:not-allowed;transform:none}
+
+/* ── Analyzing state ── */
+.analyzing-wrap{display:none;padding:28px 24px;text-align:center}
+.analyzing-wrap.show{display:block}
+.analyze-spinner{
+  width:56px;height:56px;border-radius:50%;
+  background:linear-gradient(135deg,var(--p),#a855f7);
+  display:flex;align-items:center;justify-content:center;
+  margin:0 auto 16px;
+  animation:spin 2s linear infinite;
+  box-shadow:0 0 28px var(--pg);
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.analyze-spinner .ms{font-size:28px;color:white;animation:spin 2s linear infinite reverse}
+.analyze-steps{text-align:left;margin-top:20px;display:flex;flex-direction:column;gap:8px}
+.astep{display:flex;align-items:center;gap:10px;font-size:13px;padding:8px 12px;border-radius:9px;background:var(--bg)}
+.astep.done{background:rgba(5,150,105,.06);color:#059669}
+.astep.active{background:var(--pl);color:var(--p);font-weight:600}
+.astep .ms{font-size:16px}
+
+/* ── Textbook Panel ── */
+.textbook-panel {
+  position: absolute; top: 20px; left: 20px; bottom: 20px; width: 320px;
+  background: rgba(255,255,255,0.95); backdrop-filter: blur(20px);
+  border: 1px solid var(--brd); border-radius: 24px;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.12);
+  display: flex; flex-direction: column;
+  z-index: 50;
+  transform: translateX(-120%); transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+}
+.textbook-panel.show { transform: translateX(0); }
+
+.tp-head { padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--brd); }
+.tp-title-row { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; }
+.tp-close { width: 28px; height: 28px; border: none; border-radius: 8px; background: rgba(0,0,0,0.04); cursor: pointer; color: var(--mu); transition: all 0.2s; }
+.tp-close:hover { background: var(--pl); color: var(--p); }
+
+.tp-book-info { padding: 20px; display: flex; gap: 14px; border-bottom: 1px solid var(--brd); }
+.tp-cover { width: 80px; height: 110px; border-radius: 8px; object-fit: cover; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+.tp-meta { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.tp-name { font-size: 14px; font-weight: 700; line-height: 1.3; margin-bottom: 4px; }
+.tp-sub { font-size: 11px; color: var(--mu2); margin-bottom: 10px; }
+.tp-progress { margin-top: auto; }
+.tp-prog-text { display: flex; justify-content: space-between; font-size: 10px; color: var(--mu); margin-bottom: 4px; }
+.tp-prog-bar { height: 4px; background: rgba(0,0,0,0.06); border-radius: 4px; overflow: hidden; }
+.tp-prog-fill { height: 100%; background: var(--p); border-radius: 4px; }
+
+.tp-body { flex: 1; overflow-y: auto; padding: 16px 20px; }
+.tp-sec-title { font-size: 10px; font-weight: 800; color: var(--mu2); letter-spacing: 0.08em; margin-bottom: 12px; }
+
+.tp-chapter {
+  padding: 12px 14px; background: white; border: 1px solid var(--brd); border-radius: 12px;
+  margin-bottom: 10px; cursor: pointer; transition: all 0.2s;
+  display: flex; align-items: center; gap: 12px;
+}
+.tp-chapter:hover { border-color: var(--p); box-shadow: 0 4px 16px var(--pg); transform: translateY(-1px); }
+.tp-chap-idx { width: 28px; height: 28px; border-radius: 8px; background: var(--pl); color: var(--p); font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.tp-chap-info { flex: 1; }
+.tp-chap-title { font-size: 13px; font-weight: 600; color: var(--tx); margin-bottom: 2px; }
+.tp-chap-sub { font-size: 10px; color: var(--mu2); }
+.tp-chap-stat { font-size: 11px; font-weight: 700; color: #059669; }
+
+.tp-footer { padding: 16px 20px; border-top: 1px solid var(--brd); background: rgba(255,255,255,0.5); }
+
+/* ── Toast ── */
+.toast{
+  position:fixed;bottom:90px;left:50%;transform:translateX(-50%);
+  background:#1a1028;color:white;padding:10px 20px;border-radius:30px;
+  font-size:13px;font-weight:500;z-index:9999;pointer-events:none;
+  opacity:0;transition:opacity .25s;box-shadow:0 4px 20px rgba(0,0,0,.25);
+}
+.toast.show{opacity:1}
+.tippy-box[data-theme~='wel']{background:#1a1028;color:#fff;border-radius:10px;font-size:11px;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+.tippy-box[data-theme~='wel'] .tippy-arrow{color:#1a1028}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- Top bar -->
+    <div class="topbar">
+      <!-- Left controls removed as per request -->
+      
+      <div class="topbar-right">
+      <button class="sample-btn" onclick="showUserTextbooks()">
+        <span class="ms" style="font-size:16px">menu_book</span> 我的教材
+      </button>
+      <button class="sample-btn" onclick="loadQuantumData()">
+        <span class="ms" style="font-size:12px">hub</span> 知识关联示例
+      </button>
+      <button class="upload-btn" onclick="window.parent.__ZHI2.showUpload()">
+        <span class="ms">cloud_upload</span> 上传文件
+      </button>
+    </div>
+  </div>
+
+  <!-- Body -->
+  <div class="body">
+
+    <!-- Map canvas -->
+    <div class="map-area" id="map-area">
+      <svg id="svg-lines" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div id="map-canvas">
+        <!-- nodes injected here -->
+      </div>
+
+      <!-- Side Tools Bar (Top Right) -->
+      <div class="side-tools" style="position:absolute;top:24px;right:24px;z-index:150;background:rgba(255,255,255,0.9);backdrop-filter:blur(20px);border:1px solid var(--brd);border-radius:20px;padding:6px;display:flex;flex-direction:column;align-items:center;gap:4px;box-shadow:0 8px 32px rgba(127,19,236,0.15)">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding-bottom:8px;border-bottom:1px solid var(--brd);margin-bottom:4px">
+          <button class="sb-btn" onclick="zoom(1.15)" style="width:40px;height:40px;border:none;border-radius:12px;background:transparent;color:var(--mu);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.2s">
+            <span class="ms" style="font-size:22px">zoom_in</span>
+          </button>
+          <button class="sb-btn" onclick="zoom(0.85)" style="width:40px;height:40px;border:none;border-radius:12px;background:transparent;color:var(--mu);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.2s">
+            <span class="ms" style="font-size:22px">zoom_out</span>
+          </button>
+        </div>
+        <button class="sb-btn" onclick="fitView()" style="width:40px;height:40px;border:none;border-radius:12px;background:transparent;color:var(--mu);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.2s" title="最佳视图">
+          <span class="ms" style="font-size:22px">fit_screen</span>
+        </button>
+        <button class="sb-btn" onclick="resetView()" style="width:40px;height:40px;border:none;border-radius:12px;background:transparent;color:var(--mu);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.2s" title="重置视图">
+          <span class="ms" style="font-size:22px">refresh</span>
+        </button>
+        <div style="width:24px;height:1px;background:var(--brd);margin:4px 0"></div>
+        <button id="bottom-sw-btn" onclick="setLayout(currentLayout==='graph'?'mindmap':'graph')" style="width:44px;height:44px;border:none;border-radius:14px;background:var(--p);color:white;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;box-shadow:0 4px 12px var(--pg);transition:all 0.3s" title="切换模式">
+          <span class="ms" id="bottom-sw-icon" style="font-size:18px">view_in_ar</span>
+          <span id="bottom-sw-text" style="font-size:8px;font-weight:700;transform:scale(0.85)">全景</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Right panel -->
+    <div class="rpanel">
+      <div class="rpanel-head">
+        <div class="rpanel-title" id="rpanel-title">知识地图</div>
+        <div class="rpanel-sub" id="rpanel-sub">点击节点查看详情</div>
+      </div>
+      <div class="rpanel-body" id="rpanel-body">
+        <div class="empty-state">
+          <span class="ms empty-icon">hub</span>
+          <div class="empty-title">选择一个知识节点</div>
+          <div class="empty-desc">点击地图上的任意节点，查看详情、掌握度和学习建议</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- User Textbooks Modal -->
+<div class="upload-overlay" id="ut-overlay">
+  <div class="upload-modal" style="width:400px">
+    <div class="um-head">
+      <span class="um-title">📚 我的教材</span>
+      <button class="um-close ms" onclick="hideUserTextbooks()">close</button>
+    </div>
+    <div class="um-body" id="ut-list" style="max-height:400px;overflow-y:auto">
+      <div class="empty-state" style="padding:20px 0">
+        <div class="spin" style="width:24px;height:24px;border:2px solid var(--p);border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite"></div>
+        <div style="font-size:12px;color:var(--mu);margin-top:10px">加载中...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Textbook Detail Panel -->
+<div class="textbook-panel" id="textbook-panel">
+  <div class="tp-head">
+    <div class="tp-title-row">
+      <span class="ms" style="font-size:20px;color:var(--p)">menu_book</span>
+      <span class="tp-title">官方教材详情</span>
+    </div>
+    <button class="tp-close ms" onclick="closeTextbookPanel()">close</button>
+  </div>
+  
+  <div class="tp-book-info">
+    <img src="/assets/wel-avatar/no-hat.png" class="tp-cover">
+    <div class="tp-meta">
+      <div class="tp-name">人教版数学 八年级上</div>
+      <div class="tp-sub">12 核心章节 · 842 知识点</div>
+      <div class="tp-progress">
+        <div class="tp-prog-text">
+          <span>掌握度</span>
+          <span style="color:var(--p);font-weight:700">74%</span>
+        </div>
+        <div class="tp-prog-bar"><div class="tp-prog-fill" style="width:74%"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tp-body">
+    <div class="tp-sec-title">目录</div>
+    <div class="tp-chapters" id="tp-chapters">
+      <!-- Generated by JS -->
+    </div>
+  </div>
+  
+  <div class="tp-footer">
+    <button class="act-btn sec" onclick="syncToPlan()">
+      <span class="ms">sync</span> 同步学习计划
+    </button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════
+// DATA — 内置知识节点（初中物理·力学 示例）
+// ═══════════════════════════════════════════════
+const SAMPLE_TEXT = `初中物理·力学 核心知识
+
+第一章 运动的描述
+1.1 机械运动：物体位置随时间的变化。参照物的选取影响运动的描述。
+1.2 速度：描述运动快慢的物理量。v = s/t，单位 m/s。
+1.3 匀速直线运动：速度大小和方向都不变的运动。
+1.4 加速度：速度变化快慢的描述，a = Δv/Δt。
+
+第二章 力与运动
+2.1 力的概念：力是物体对物体的作用，力的三要素：大小、方向、作用点。
+2.2 牛顿第一定律：一切物体在没有受到外力时，总保持静止或匀速直线运动状态（惯性定律）。
+2.3 牛顿第二定律：F = ma，合外力越大，加速度越大；质量越大，加速度越小。
+2.4 牛顿第三定律：两物体间的作用力与反作用力大小相等、方向相反、作用在同一直线上。
+2.5 摩擦力：阻碍物体相对运动的力。影响因素：压力、接触面粗糙程度。
+
+第三章 压强与浮力
+3.1 压强：P = F/S，单位 Pa。增大/减小压强的方法。
+3.2 液体压强：P = ρgh，与液体密度和深度有关。
+3.3 大气压：约 1.013×10⁵ Pa，托里拆利实验测定。
+3.4 浮力：阿基米德原理 F浮 = ρ液gV排。
+
+第四章 功与能
+4.1 功：W = Fs，单位 J。做功的两个必要因素。
+4.2 功率：P = W/t，单位 W。
+4.3 动能：Ek = ½mv²，与质量和速度有关。
+4.4 重力势能：Ep = mgh，与质量和高度有关。
+4.5 机械能守恒：在只有重力做功的情况下，动能与势能之和保持不变。`;
+
+// 内置示例节点（与 server.py 知识节点同步）
+const BUILTIN_NODES = [
+  {id:'core',  label:'力学核心',    sub:'初中物理',   subject:'物理', grade:'初中',  mastery:75, x:400, y:280, w:160, h:160, type:'core',  icon:'hub',      desc:'初中物理力学的核心框架，涵盖运动、力、能量三大主线',                       tags:['运动学','动力学','能量'],  links:[]},
+  {id:'n1',    label:'机械运动',    sub:'第一章',     subject:'物理', grade:'初中',  mastery:88, x:180, y:120, w:150, h:80,  type:'node',  icon:'directions_run',  desc:'物体位置随时间的变化。参照物的选取影响运动的描述。',                       tags:['速度','参照物','位移'],    links:['core']},
+  {id:'n2',    label:'牛顿三定律',  sub:'第二章',     subject:'物理', grade:'初中',  mastery:62, x:590, y:110, w:150, h:80,  type:'node',  icon:'science',  desc:'牛顿第一：惯性定律；第二：F=ma；第三：作用反作用力。',                      tags:['惯性','合力','加速度'],    links:['core']},
+  {id:'n3',    label:'摩擦力',      sub:'第二章',     subject:'物理', grade:'初中',  mastery:45, x:700, y:280, w:130, h:75,  type:'node',  icon:'texture',  desc:'阻碍物体相对运动的力，受压力和接触面粗糙程度影响。',                       tags:['静摩擦','动摩擦','压力'],  links:['n2']},
+  {id:'n4',    label:'压强',        sub:'第三章',     subject:'物理', grade:'初中',  mastery:70, x:580, y:430, w:130, h:75,  type:'node',  icon:'compress',  desc:'P=F/S，单位Pa。液体压强：P=ρgh。与面积 and 力有关。',                         tags:['液压','气压','面积'],      links:['core']},
+  {id:'n5',    label:'浮力',        sub:'第三章',     subject:'物理', grade:'初中',  mastery:38, x:720, y:390, w:130, h:75,  type:'node',  icon:'water',    desc:'阿基米德原理：F浮=ρ液gV排，与液体密度和排开体积有关。',                     tags:['阿基米德','密度','沉浮'],  links:['n4']},
+  {id:'n6',    label:'功与功率',    sub:'第四章',     subject:'物理', grade:'初中',  mastery:80, x:190, y:400, w:130, h:75,  type:'node',  icon:'bolt',     desc:'功：W=Fs；功率：P=W/t。做功需同时满足两个条件。',                           tags:['焦耳','瓦特','效率'],      links:['core']},
+  {id:'n7',    label:'机械能守恒',  sub:'第四章',     subject:'物理', grade:'初中',  mastery:55, x:100, y:280, w:140, h:75,  type:'node',  icon:'sync',     desc:'只有重力做功时，动能+势能=常数。是能量守恒的特例。',                        tags:['动能','势能','转化'],      links:['n6']},
+  {id:'n8',    label:'速度与加速度',sub:'第一章',     subject:'物理', grade:'初中',  mastery:72, x:190, y:220, w:140, h:75,  type:'node',  icon:'speed',    desc:'速度v=s/t，描述快慢；加速度a=Δv/Δt，描述速度变化快慢。',                  tags:['匀速','匀加速','时间'],    links:['n1','n2']},
+];
+
+const QUANTUM_NODES = [
+  { id: 'core', label: '量子物理', sub: '核心主题', subject: '物理', grade: '高中', mastery: 65, x: 400, y: 300, w: 160, h: 160, type: 'core', icon: 'psychology', desc: '量子物理是研究微观粒子运动规律的学科。', tags: ['微观', '波粒二象性'], links: [] },
+  { id: 'n1', label: '核心理论体系', sub: '一级分支', subject: '物理', grade: '高中', mastery: 80, x: 200, y: 150, w: 176, h: 80, type: 'node', icon: 'schema', desc: '包括量子力学的基本公设和数学描述。', tags: ['算符', '态矢量'], links: ['core'] },
+  { id: 'n2', label: '关键实验观察', sub: '一级分支', subject: '物理', grade: '高中', mastery: 45, x: 600, y: 150, w: 176, h: 80, type: 'node', icon: 'visibility', desc: '证明量子效应的关键实验。', tags: ['双缝干涉', '光电效应'], links: ['core'] },
+  { id: 'n3', label: '薛定谔方程', sub: '二级知识点', subject: '物理', grade: '高中', mastery: 30, x: 100, y: 450, w: 160, h: 80, type: 'node', icon: 'functions', desc: '描述量子系统状态随时间演化的方程。', tags: ['波函数', '能量本征值'], links: ['n1'] },
+  { id: 'n4', label: '不确定性原理', sub: '二级知识点', subject: '物理', grade: '高中', mastery: 55, x: 300, y: 450, w: 160, h: 80, type: 'node', icon: 'error_outline', desc: '海森堡提出，位置与动量不可同时精确测量。', tags: ['海森堡', '测量'], links: ['n1'] },
+  { id: 'n5', label: '波粒二象性', sub: '二级知识点', subject: '物理', grade: '高中', mastery: 90, x: 500, y: 450, w: 160, h: 80, type: 'node', icon: 'waves', desc: '微观粒子既具有波动性又具有粒子性。', tags: ['德布罗意', '光子'], links: ['n2'] },
+  { id: 'n6', label: '经典力学限制', sub: '前置背景', subject: '物理', grade: '高中', mastery: 100, x: 700, y: 450, w: 160, h: 80, type: 'node', icon: 'history', desc: '经典物理在解释黑体辐射等现象时的局限。', tags: ['黑体辐射', '紫外灾难'], links: ['n2'] }
+];
+
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+let nodes      = [];           // 当前所有节点
+let scale      = 1;            // 地图缩放比
+let offsetX    = 0;            // 地图平移 X
+let offsetY    = 0;            // 地图平移 Y
+let selNode    = null;         // 当前选中节点 id
+let filterSubj = '全部';
+let filterTyp  = '全部';
+let density    = 2;
+let filterOpen = true;
+let currentLayout = 'graph';
+let currentTextbookMeta = null;
+
+// 重要性权重配置
+let NODE_WEIGHTS = {
+  connectivity: 0.4,
+  visits: 0.3,
+  rating: 0.2,
+  manual: 0.1
+};
+
+/**
+ * 核心逻辑：智能节点重要性评估算法
+ * 计算公式: score = w1*C + w2*V + w3*R + w4*M
+ */
+function calculateNodeImportance() {
+  if (!nodes.length) return;
+  const maxConn = Math.max(...nodes.map(n => (n.links || []).length)) || 1;
+  
+  nodes.forEach(n => {
+    // 基础数据补全 (若服务器未返回则模拟)
+    if (n.visits === undefined) n.visits = Math.floor(Math.random() * 1000);
+    if (n.rating === undefined) n.rating = (Math.random() * 5).toFixed(1);
+    if (n.manual === undefined) n.manual = n.type === 'core' ? 100 : Math.floor(Math.random() * 50);
+
+    const c = (n.links || []).length / maxConn;
+    const v = n.visits / 1000;
+    const r = n.rating / 5;
+    const m = n.manual / 100;
+
+    n.importanceScore = parseFloat((
+      c * NODE_WEIGHTS.connectivity +
+      v * NODE_WEIGHTS.visits +
+      r * NODE_WEIGHTS.rating +
+      m * NODE_WEIGHTS.manual
+    ).toFixed(4));
+  });
+  
+  // 排序：最重要的排在前面
+  nodes.sort((a, b) => b.importanceScore - a.importanceScore);
+}
+
+/**
+ * 性能优化：支持 1000+ 节点的异步加载与渲染
+ */
+async function loadMassiveNodes(count = 1000) {
+  showToast(`正在生成并加载 ${count} 个模拟节点...`);
+  currentTextbookMeta = null;
+  const area = document.getElementById('map-area');
+  const W = area.offsetWidth || 2000, H = area.offsetHeight || 2000;
+  
+  const massive = [];
+  // 核心节点
+  massive.push({
+    id:'core', label:'全域核心', sub:'核心节点', subject:'综合', grade:'全部', mastery:100, x:W/2, y:H/2, w:160, h:160, type:'core', icon:'hub',
+    visits: 5000, rating: 5.0, manual: 100, links: [], desc: '大规模测试核心节点'
+  });
+
+  for(let i=1; i<count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 300 + Math.random() * 800;
+    massive.push({
+      id: 'n'+i,
+      label: '知识点 ' + i,
+      sub: '第' + Math.ceil(i/10) + '章',
+      subject: '测试',
+      grade: '初中',
+      mastery: Math.floor(Math.random() * 100),
+      x: W/2 + Math.cos(angle) * dist,
+      y: H/2 + Math.sin(angle) * dist,
+      w: 120, h: 70, type: 'node', icon: 'category',
+      visits: Math.floor(Math.random() * 1000),
+      rating: (Math.random() * 5).toFixed(1),
+      manual: Math.floor(Math.random() * 50),
+      links: ['core'],
+      desc: '自动生成的测试节点 ' + i
+    });
+  }
+  
+  nodes = massive;
+  const start = performance.now();
+  calculateNodeImportance();
+  renderAll();
+  const end = performance.now();
+  
+  console.log(`Rendered ${count} nodes in ${(end-start).toFixed(2)}ms`);
+  showToast(`1000+ 节点加载完成，耗时 ${(end-start).toFixed(2)}ms`);
+  
+  // 自动选择最重要节点
+  if (nodes.length > 0) {
+    const core = nodes.find(n => n.type === 'core');
+    selectNode(core ? core.id : nodes[0].id);
+  }
+  setTimeout(() => fitView(), 100);
+}
+
+function showUserTextbooks() {
+  document.getElementById('ut-overlay').classList.add('show');
+  loadUserTextbooksList();
+}
+
+function hideUserTextbooks() {
+  document.getElementById('ut-overlay').classList.remove('show');
+}
+
+async function loadUserTextbooksList() {
+  const list = document.getElementById('ut-list');
+  if (window.parent && window.parent.__ZHI2) {
+    try {
+      const d = await window.parent.__ZHI2.api('GET', '/api/textbooks');
+      const books = d.textbooks || [];
+      if (books.length === 0) {
+        list.innerHTML = `<div class="empty-state" style="padding:20px 0"><span class="ms empty-icon">menu_book</span><div class="empty-title">暂无教材</div><div class="empty-desc">请前往资源中心上传</div></div>`;
+        return;
+      }
+      list.innerHTML = books.map(b => `
+        <div class="um-sample" onclick="loadTextbookNodes(${b.id}, '${b.title}')">
+          <div class="ms" style="color:var(--p);font-size:24px">book</div>
+          <div class="um-sample-info">
+            <div class="title">${b.title}</div>
+            <div class="sub">${b.subject || '综合'} · ${b.status==='done'?'已分析':'处理中'}</div>
+          </div>
+          <div class="ms" style="margin-left:auto;color:var(--mu2)">chevron_right</div>
+        </div>
+      `).join('');
+    } catch (e) {
+      list.innerHTML = `<div class="empty-state"><div class="empty-title">加载失败</div></div>`;
+    }
+  } else {
+    list.innerHTML = `<div class="empty-state"><div class="empty-title">需连接后端</div></div>`;
+  }
+}
+
+async function loadTextbookNodes(tid, title) {
+  hideUserTextbooks();
+  showToast(`正在加载《${title}》知识结构...`);
+  const useDetailPayload = (d) => {
+    if (d && ((d.structure && d.structure.length > 0) || (d.nodes && d.nodes.length > 0))) {
+      currentTextbookMeta = {
+        title: (d.textbook && d.textbook.title) ? d.textbook.title : (title || ''),
+        subject: (d.textbook && d.textbook.subject) ? d.textbook.subject : '综合',
+        grade: (d.textbook && d.textbook.grade) ? d.textbook.grade : '全部',
+        overview: (d.textbook && d.textbook.overview) ? d.textbook.overview : '',
+        nodesCount: (d.nodes && d.nodes.length) ? d.nodes.length : 0,
+        chapterCount: (d.structure && d.structure.length) ? d.structure.length : 0
+      };
+      if (d.structure && d.structure.length > 0) {
+        mergeTextbookStructure(d, title);
+      } else {
+        const mapNodes = d.nodes.map((n) => ({
+          id: 'tb_' + n.id,
+          name: n.name,
+          subject: d.textbook.subject || '综合',
+          chapter: n.chapter || '未分章',
+          mastery: 0,
+          stability: 0
+        }));
+        mergeServerNodes(mapNodes, title);
+      }
+      setTimeout(() => {
+        fitView();
+        if (nodes.length > 0) {
+          const core = nodes.find(n => n.type === 'core');
+          selectNode(core ? core.id : nodes[0].id);
+        }
+      }, 40);
+      showToast(`已加载 ${d.nodes?.length || 0} 个知识节点`);
+      return true;
+    }
+    return false;
+  };
+  if (window.parent && window.parent.__ZHI2) {
+    try {
+      const z = window.parent.__ZHI2;
+      const cached = (typeof z.getMapTextbookCache === 'function') ? z.getMapTextbookCache(tid) : null;
+      if (cached) {
+        useDetailPayload(cached);
+      }
+      const d = await z.api('GET', `/api/textbooks/${tid}`);
+      if (typeof z.setMapTextbookCache === 'function' && d && d.textbook) {
+        z.setMapTextbookCache(tid, d);
+      }
+      if (!useDetailPayload(d) && !cached) {
+        showToast('该教材暂无知识节点数据', 'err');
+      }
+    } catch (e) {
+      showToast('加载失败', 'err');
+    }
+  }
+}
+
+function mergeTextbookStructure(detail, bookTitle) {
+  const area = document.getElementById('map-area');
+  const W = area.offsetWidth || 1200;
+  const H = area.offsetHeight || 760;
+  const cx = W / 2, cy = H / 2;
+  const chapterRadius = Math.min(W, H) * 0.30;
+  const subject = detail?.textbook?.subject || '综合';
+  const structures = detail?.structure || [];
+  nodes = [{
+    id:'core', label: bookTitle || detail?.textbook?.title || '教材核心', sub:'教材目录',
+    subject: subject, grade: detail?.textbook?.grade || '全部', mastery:100,
+    x:cx-80, y:cy-80, w:160, h:160, type:'core', icon:'hub',
+    desc:'当前教材知识结构核心节点。',
+    tags:[subject,'教材目录','知识点'], links:[]
+  }];
+  structures.forEach((ch, ci) => {
+    const chapterName = ch?.name || `第${ci+1}章`;
+    const chapterKps = ch?.knowledge_points || [];
+    const sections = ch?.sections || [];
+    const sectionKpsCount = sections.reduce((s, sec) => s + ((sec?.knowledge_points || []).length), 0);
+    const chapterTotal = chapterKps.length + sectionKpsCount;
+    const a = (ci / Math.max(1, structures.length)) * Math.PI * 2 - Math.PI / 2;
+    const chx = cx + Math.cos(a) * chapterRadius - 80;
+    const chy = cy + Math.sin(a) * chapterRadius - 40;
+    const chapterId = `chap_${ci}`;
+    nodes.push({
+      id: chapterId, label: chapterName,
+      sub: `${chapterTotal} 个知识点`,
+      subject: subject, grade: detail?.textbook?.grade || '全部', mastery: 70,
+      x: chx, y: chy, w: 160, h: 80, type: 'node',
+      icon: 'menu_book',
+      desc: `${chapterName}，共 ${chapterTotal} 个知识点。`,
+      tags: [subject, chapterName], links: ['core']
+    });
+    const sectionIds = [];
+    sections.forEach((sec, si) => {
+      const secName = sec?.name || `小节${si+1}`;
+      const secId = `${chapterId}_sec_${si}`;
+      sectionIds.push(secId);
+      const sa = a + (si - (sections.length - 1) / 2) * 0.22;
+      const sr = chapterRadius * 0.58;
+      const sx = cx + Math.cos(sa) * sr - 65;
+      const sy = cy + Math.sin(sa) * sr - 36;
+      const secCnt = (sec?.knowledge_points || []).length;
+      nodes.push({
+        id: secId, label: secName,
+        sub: `${secCnt} 个知识点`,
+        subject: subject, grade: detail?.textbook?.grade || '全部', mastery: 65,
+        x: sx, y: sy, w: 130, h: 72, type: 'node',
+        icon: 'bookmark',
+        desc: `${chapterName} · ${secName}`,
+        tags: [chapterName, secName], links: [chapterId]
+      });
+    });
+    chapterKps.forEach((kp, ki) => {
+      const ka = a + (ki - (chapterKps.length - 1) / 2) * 0.16;
+      const kr = chapterRadius * 1.05;
+      const kx = cx + Math.cos(ka) * kr - 62;
+      const ky = cy + Math.sin(ka) * kr - 35;
+      nodes.push({
+        id: `${chapterId}_kp_${ki}`,
+        label: kp?.name || `知识点${ki+1}`,
+        sub: chapterName,
+        subject: subject, grade: detail?.textbook?.grade || '全部',
+        mastery: 50, stability: 70,
+        x: kx, y: ky, w: 124, h: 70, type: 'node',
+        icon: subjectIcons[subject] || 'category',
+        desc: kp?.description || `${chapterName}知识点`,
+        tags: [subject, chapterName, kp?.name || '知识点'],
+        links: [chapterId],
+        serverData: kp || {}
+      });
+    });
+    sections.forEach((sec, si) => {
+      const secName = sec?.name || `小节${si+1}`;
+      const secId = sectionIds[si];
+      const secKps = sec?.knowledge_points || [];
+      secKps.forEach((kp, ki) => {
+        const ka = a + (si - (sections.length - 1) / 2) * 0.22 + (ki - (secKps.length - 1) / 2) * 0.12;
+        const kr = chapterRadius * 0.86;
+        const kx = cx + Math.cos(ka) * kr - 60;
+        const ky = cy + Math.sin(ka) * kr - 34;
+        nodes.push({
+          id: `${chapterId}_s${si}_kp_${ki}`,
+          label: kp?.name || `知识点${ki+1}`,
+          sub: secName,
+          subject: subject, grade: detail?.textbook?.grade || '全部',
+          mastery: 50, stability: 70,
+          x: kx, y: ky, w: 120, h: 68, type: 'node',
+          icon: subjectIcons[subject] || 'category',
+          desc: kp?.description || `${chapterName} · ${secName} 知识点`,
+          tags: [subject, chapterName, secName, kp?.name || '知识点'],
+          links: [secId],
+          serverData: kp || {}
+        });
+      });
+    });
+  });
+  calculateNodeImportance();
+  renderAll();
+}
+
+let animFrame;
+function startLineAnimation() {
+  const start = Date.now();
+  const duration = 750; // Match node transition duration
+  
+  const step = () => {
+    renderLines();
+    if (Date.now() - start < duration) {
+      animFrame = requestAnimationFrame(step);
+    }
+  };
+  
+  if (animFrame) cancelAnimationFrame(animFrame);
+  animFrame = requestAnimationFrame(step);
+}
+
+function getMindChildren(parentId) {
+  return nodes.filter(n => Array.isArray(n.links) && n.links.includes(parentId));
+}
+
+function renderClassicMindMap(fit = false) {
+  const area = document.getElementById('map-area');
+  if (!area) return;
+  const W = area.offsetWidth || 1200;
+  const H = area.offsetHeight || 760;
+  const layout = new MindMapLayout(nodes, W, H);
+  layout.calculate();
+  renderNodes();
+  renderLines();
+  renderRpanel(nodes.find(n => n.id === selNode) || null);
+  if (fit) setTimeout(() => fitView(), 50);
+}
+
+function resetGraphViewState() {
+  nodes.forEach(n => {
+    if (n.type !== 'core') n._expanded = false;
+    n._moreCount = 0;
+  });
+  if (!selNode) return;
+  let curr = nodes.find(n => n.id === selNode);
+  let guard = 0;
+  while (curr && curr.links && curr.links.length > 0 && guard < 20) {
+    const pid = curr.links[0];
+    const parent = nodes.find(n => n.id === pid);
+    if (!parent) break;
+    if (parent.type !== 'core') parent._expanded = true;
+    curr = parent;
+    guard += 1;
+  }
+}
+
+function normalizeGraphNodeShape() {
+  nodes.forEach(n => {
+    if (n.type === 'core') {
+      const tlen = String(n.label || '').length;
+      const side = Math.max(170, Math.min(230, 176 + tlen * 2));
+      n.w = side;
+      n.h = side;
+      return;
+    }
+    const tlen = String(n.label || '').length;
+    n.w = Math.max(190, Math.min(280, 190 + tlen * 2.5));
+    n.h = 72;
+  });
+}
+
+function resolveGraphOverlaps() {
+  const visible = getVisibleNodes();
+  if (!visible || visible.length < 3) return;
+  const core = visible.find(n => n.type === 'core') || null;
+  const gap = 14;
+  for (let iter = 0; iter < 28; iter++) {
+    let moved = false;
+    for (let i = 0; i < visible.length; i++) {
+      for (let j = i + 1; j < visible.length; j++) {
+        const a = visible[i], b = visible[j];
+        const acx = a.x + a.w / 2, acy = a.y + (a.h || 75) / 2;
+        const bcx = b.x + b.w / 2, bcy = b.y + (b.h || 75) / 2;
+        const dx = bcx - acx, dy = bcy - acy;
+        const minDx = (a.w + b.w) / 2 + gap;
+        const minDy = ((a.h || 75) + (b.h || 75)) / 2 + gap;
+        const ox = minDx - Math.abs(dx);
+        const oy = minDy - Math.abs(dy);
+        if (ox <= 0 || oy <= 0) continue;
+        moved = true;
+        const sx = dx >= 0 ? 1 : -1;
+        const sy = dy >= 0 ? 1 : -1;
+        if (ox < oy) {
+          const push = ox / 2 + 0.5;
+          if (!core || a.id !== core.id) a.x -= push * sx;
+          if (!core || b.id !== core.id) b.x += push * sx;
+        } else {
+          const push = oy / 2 + 0.5;
+          if (!core || a.id !== core.id) a.y -= push * sy;
+          if (!core || b.id !== core.id) b.y += push * sy;
+        }
+      }
+    }
+    if (!moved) break;
+  }
+}
+
+function setLayout(mode) {
+  currentLayout = mode;
+  const shell = document.querySelector('.shell');
+  if (shell) shell.classList.toggle('mindmap-mode', mode === 'mindmap');
+  
+  // Sync bottom sw-btn (Bottom Center)
+  const bottomBtn = document.getElementById('bottom-sw-btn');
+  const bottomIcon = document.getElementById('bottom-sw-icon');
+  const bottomText = document.getElementById('bottom-sw-text');
+  
+  if (mode === 'graph') {
+    if (bottomText) bottomText.textContent = '全景';
+    if (bottomIcon) bottomIcon.textContent = 'view_in_ar';
+    resetGraphViewState();
+    normalizeGraphNodeShape();
+    scale = 1;
+    offsetX = 0;
+    offsetY = 0;
+    autoLayout();
+  } else {
+    if (bottomText) bottomText.textContent = '脑图';
+    if (bottomIcon) bottomIcon.textContent = 'account_tree';
+    renderClassicMindMap(true);
+  }
+  
+  // Trigger line animation during transition
+  if (mode === 'graph') startLineAnimation();
+}
+
+function loadQuantumData() {
+  currentTextbookMeta = null;
+  nodes = JSON.parse(JSON.stringify(QUANTUM_NODES));
+  calculateNodeImportance();
+  renderAll();
+  showToast('已加载：量子物理知识关联图谱 ✨');
+  if (nodes.length > 0) {
+    const core = nodes.find(n => n.type === 'core');
+    selectNode(core ? core.id : nodes[0].id);
+  }
+  setTimeout(() => fitView(), 50);
+}
+
+function mindMapLayout() {
+  renderClassicMindMap(true);
+  showToast('脑图模式已启用 ✨');
+}
+
+// 画布拖拽状态
+let mapDragging = false, mapDragX = 0, mapDragY = 0, mapDragOX = 0, mapDragOY = 0;
+// 节点拖拽状态
+let nodeDragging = false, dragNodeId = null, dragNodeEl = null;
+let dragStartX = 0, dragStartY = 0, dragNodeOrigX = 0, dragNodeOrigY = 0;
+let dragLinkedNodes = [];
+let __tips = [];
+let __aaInited = false;
+
+function applyFriendlyUI() {
+  if (typeof window.tippy !== 'function') return;
+  __tips.forEach(i => { try { i.destroy(); } catch {} });
+  __tips = [];
+  const els = [];
+  document.querySelectorAll('[title]').forEach(el => {
+    const tip = (el.getAttribute('title') || '').trim();
+    if (!tip) return;
+    el.setAttribute('data-tip', tip);
+    el.removeAttribute('title');
+    els.push(el);
+  });
+  document.querySelectorAll('.knode').forEach(el => {
+    const tip = (el.getAttribute('data-tip') || '').trim();
+    if (tip) els.push(el);
+  });
+  if (!els.length) return;
+  __tips = window.tippy(els, {
+    content(reference) { return reference.getAttribute('data-tip') || ''; },
+    theme: 'wel',
+    placement: 'top',
+    animation: 'shift-away-subtle',
+    delay: [120, 60],
+    duration: [160, 120],
+    maxWidth: 280
+  }) || [];
+}
+
+function applyMicroMotion() {
+  if (__aaInited) return;
+  if (!window.autoAnimate || typeof window.autoAnimate !== 'function') return;
+  const opts = { duration: 180, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' };
+  const ids = ['rpanel-body', 'ut-list', 'tp-chapters'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) window.autoAnimate(el, opts);
+  });
+  __aaInited = true;
+}
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+function init() {
+  const params = new URLSearchParams(window.location.search || '');
+  setupCanvasDrag();
+  applyMicroMotion();
+  
+  // Check for Textbook Load (from Detail Page)
+  const tid = params.get('tid');
+  if (tid) {
+      const tTitle = params.get('title') || '教材知识';
+      loadTextbookNodes(tid, tTitle);
+      return;
+  }
+
+  // 尝试从父页面获取真实知识节点数据
+  if (window.parent && window.parent.__ZHI2) {
+    window.parent.__ZHI2.api('GET', '/api/nodes').then(d => {
+      if (d.nodes && d.nodes.length > 0) mergeServerNodes(d.nodes);
+      else loadBuiltin();
+    }).catch(() => loadBuiltin());
+  } else {
+    loadBuiltin();
+  }
+
+  // Check for Textbook Panel (Legacy)
+  const bookTitle = params.get('title') || params.get('bookTitle');
+  if (bookTitle && !tid) {   setTimeout(() => {
+      openTextbookPanel({
+        title: bookTitle,
+        cover: params.get('cover'),
+        nodes: params.get('nodes'),
+        desc: params.get('desc')
+      });
+    }, 500);
+  }
+  
+  // Robust initial centering
+  const ensureInitialFit = () => {
+    const area = document.getElementById('map-area');
+    if (area && area.offsetWidth > 100) {
+      autoLayout();
+      // 默认展示系统判定为最重要的节点，优先展示 Core 节点
+      if (nodes.length > 0) {
+        const core = nodes.find(n => n.type === 'core');
+        selectNode(core ? core.id : nodes[0].id);
+      }
+    } else {
+      setTimeout(ensureInitialFit, 100);
+    }
+  };
+  ensureInitialFit();
+  setTimeout(applyFriendlyUI, 80);
+}
+
+// ─── NEW: Unified AI Parse Done Handler ───
+window.onAIParseDone = function() {
+  // Demo: just reload builtin or fake new nodes
+  showToast('AI 解析完成！正在更新知识图谱...');
+  setTimeout(() => {
+    loadBuiltin();
+    calculateNodeImportance();
+    fitView();
+    if (nodes.length > 0) {
+      const core = nodes.find(n => n.type === 'core');
+      selectNode(core ? core.id : nodes[0].id);
+    }
+  }, 500);
+};
+
+function mergeServerNodes(serverNodes, bookTitle) {
+  // 服务器节点 → 地图节点
+  const area = document.getElementById('map-area');
+  const W = area.offsetWidth || 800;
+  const H = area.offsetHeight || 600;
+  const cx = W / 2, cy = H / 2;
+  const radius = Math.min(W, H) * 0.32;
+
+  nodes = [{
+    id:'core', label: bookTitle || 'wel 核心', sub:'wel',
+    subject:'综合', grade:'全部', mastery:100,
+    x:cx-80, y:cy-80, w:160, h:160, type:'core', icon:'hub',
+    desc:'你的个人 wel 核心节点，连接所有学科知识体系。',
+    tags:['知识地图','全学科','核心'], links:[]
+  }];
+
+  const subjectGroups = {};
+  serverNodes.forEach(n => {
+    const s = n.subject;
+    subjectGroups[s] = subjectGroups[s] || [];
+    subjectGroups[s].push(n);
+  });
+
+  const subjects = Object.keys(subjectGroups);
+  subjects.forEach((subj, si) => {
+    const angle = (si / subjects.length) * Math.PI * 2 - Math.PI / 2;
+    const sr = radius * 0.55;
+    const sx = cx + Math.cos(angle) * sr - 65;
+    const sy = cy + Math.sin(angle) * sr - 37;
+    const subjectNodeId = 'subj_' + subj;
+
+    nodes.push({
+      id: subjectNodeId, label: subj + '科目',
+      sub: `${subjectGroups[subj].length}个知识点`,
+      subject: subj, grade: '全部', mastery: 70,
+      x: sx, y: sy, w: 130, h: 75, type: 'node',
+      icon: subjectIcons[subj] || 'category',
+      desc: `${subj}学科的知识节点集合。`,
+      tags: [subj], links: ['core']
+    });
+
+    subjectGroups[subj].forEach((n, ni) => {
+      const a2 = angle + ((ni - subjectGroups[subj].length / 2) * 0.4);
+      const nr = radius * 0.95;
+      const nx = cx + Math.cos(a2) * nr - 60;
+      const ny = cy + Math.sin(a2) * nr - 35;
+      nodes.push({
+        id: 'nd_' + n.id,
+        label: n.name,
+        sub: n.subject,
+        subject: n.subject,
+        grade: '初中',
+        mastery: Math.round(n.mastery),
+        stability: Math.round(n.stability || 70),
+        x: nx, y: ny, w: 125, h: 70, type: 'node',
+        icon: subjectIcons[n.subject] || 'category',
+        desc: `${n.subject}知识点「${n.name}」，掌握度${Math.round(n.mastery)}%，稳定性${Math.round(n.stability||70)}%。`,
+        tags: [n.subject, n.name],
+        links: [subjectNodeId],
+        serverData: n
+      });
+    });
+  });
+  
+  calculateNodeImportance();
+  renderAll();
+}
+
+const subjectIcons = {
+  '数学':'calculate','物理':'science','化学':'science',
+  '语文':'menu_book','英语':'language','生物':'eco','地理':'public','历史':'history_edu'
+};
+
+function loadBuiltin() {
+  nodes = JSON.parse(JSON.stringify(BUILTIN_NODES));
+  calculateNodeImportance();
+  renderAll();
+}
+
+// ═══════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════
+function renderAll() {
+  if (currentLayout === 'mindmap') {
+    renderClassicMindMap(false);
+    return;
+  }
+  normalizeGraphNodeShape();
+  resolveGraphOverlaps();
+  renderNodes();
+  renderLines();
+  renderRpanel(nodes.find(n => n.id === selNode) || null);
+}
+
+function getVisibleNodes() {
+  const core = nodes.find(n => n.type === 'core');
+  if (!core) return [];
+
+  const visible = new Set([core.id]);
+  const queue = [core];
+  
+  // 1. 广度优先遍历可见节点
+  while(queue.length > 0) {
+    const parent = queue.shift();
+    // 查找直接子节点
+    const children = nodes.filter(n => n.links && n.links.includes(parent.id));
+    
+    // 如果父节点已展开，则显示所有子节点；否则只显示前 N 个
+    // 核心节点始终展开
+    const isExpanded = parent.type === 'core' || parent._expanded;
+    const showLimit = isExpanded ? 999 : 0; // 收起状态下不显示子节点，或显示少量
+
+    children.forEach((child, idx) => {
+      if (idx < showLimit) {
+        visible.add(child.id);
+        queue.push(child);
+      }
+    });
+  }
+
+  // 2. 计算折叠数量 (_moreCount)
+  // 重置计数
+  nodes.forEach(n => n._moreCount = 0);
+  
+  // 遍历所有未显示的节点，将其计数累加到最近的可见祖先上
+  nodes.forEach(n => {
+    if (visible.has(n.id)) return;
+    
+    let curr = n;
+    // 向上寻找最近的可见祖先
+    while(curr && curr.links && curr.links.length > 0) {
+      const pid = curr.links[0];
+      const parent = nodes.find(p => p.id === pid);
+      if (parent && visible.has(parent.id)) {
+        parent._moreCount = (parent._moreCount || 0) + 1;
+        break;
+      }
+      curr = parent;
+    }
+  });
+
+  return nodes.filter(n => visible.has(n.id));
+}
+
+function toggleExpand(nodeId) {
+  const n = nodes.find(n => n.id === nodeId);
+  if (!n) return;
+  
+  // 切换展开状态 (核心节点始终展开)
+  if (n.type !== 'core') {
+    n._expanded = !n._expanded;
+    // 如果是收起，需要递归收起子孙节点? 暂时不强制，保持用户状态
+  }
+  
+  // 选中当前节点显示详情
+  selectNode(nodeId);
+  
+  // 重新渲染
+  renderAll();
+  
+  // 视图适配：如果展开了新节点，稍微调整视图以容纳
+  if (n._expanded) {
+    setTimeout(() => {
+        // 简单检测是否需要扩展视图，这里暂不自动缩放以免干扰用户
+    }, 200);
+  }
+}
+
+function hasDirectChildren(nodeId) {
+  return nodes.some(n => n.links && n.links.includes(nodeId));
+}
+
+function collapseSiblingNodes(node) {
+  if (!node || node.type === 'core' || !node.links || !node.links.length) return;
+  const pid = node.links[0];
+  nodes.forEach(n => {
+    if (n.id !== node.id && n.links && n.links.includes(pid) && n._expanded) {
+      n._expanded = false;
+    }
+  });
+}
+
+function getNodeDepth(node) {
+  let depth = 0;
+  let curr = node;
+  while (curr && curr.links && curr.links.length > 0) {
+    const pid = curr.links[0];
+    const parent = nodes.find(n => n.id === pid);
+    if (!parent) break;
+    depth += 1;
+    curr = parent;
+    if (depth > 20) break;
+  }
+  return depth;
+}
+
+function relayoutChildrenRadial(parentId) {
+  if (currentLayout === 'mindmap') return;
+  const parent = nodes.find(n => n.id === parentId);
+  if (!parent) return;
+  const children = nodes.filter(n => n.links && n.links.includes(parentId));
+  if (!children.length) return;
+  const core = nodes.find(n => n.type === 'core') || parent;
+  const px = parent.x + parent.w / 2;
+  const py = parent.y + (parent.h || 75) / 2;
+  const cx = core.x + core.w / 2;
+  const cy = core.y + (core.h || 75) / 2;
+  let baseAngle = Math.atan2(py - cy, px - cx);
+  if (!isFinite(baseAngle)) baseAngle = -Math.PI / 2;
+  const depth = getNodeDepth(parent);
+  const radius = 180 + Math.min(120, depth * 30);
+  const span = Math.min(Math.PI * 0.95, 0.55 + children.length * 0.26);
+  children.forEach((child, idx) => {
+    const angle = children.length === 1
+      ? baseAngle
+      : (baseAngle - span / 2) + (span * idx / (children.length - 1));
+    const cw = child.w || 124;
+    const ch = child.h || 70;
+    child.x = px + Math.cos(angle) * radius - cw / 2;
+    child.y = py + Math.sin(angle) * radius - ch / 2;
+  });
+}
+
+function renderNodes() {
+  const canvas = document.getElementById('map-canvas');
+  const visible = new Set(getVisibleNodes().map(n => n.id));
+  const existingIds = new Set();
+  
+  // 1. Remove nodes no longer visible
+  canvas.querySelectorAll('.knode').forEach(el => {
+    const id = el.id.replace('knode-', '');
+    if (!visible.has(id)) {
+      el.remove();
+    } else {
+      existingIds.add(id);
+    }
+  });
+
+  // 2. Update or Create nodes
+  nodes.forEach(n => {
+    if (!visible.has(n.id)) return;
+
+    let el = document.getElementById('knode-' + n.id);
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'knode-' + n.id;
+      canvas.appendChild(el);
+    }
+
+    el.className = 'knode' + (n.type === 'core' ? ' core' : '');
+    if (selNode === n.id) el.classList.add('selected');
+    
+    // Apply position and size
+    el.style.left = n.x + 'px';
+    el.style.top = n.y + 'px';
+    el.style.width = n.w + 'px';
+    if (n.type === 'core') el.style.height = n.h + 'px';
+    else el.style.height = '';
+
+    // Tag badge
+    let tagHtml = '';
+    if (n.type !== 'core') {
+      if (n.mastery < 50) tagHtml = `<div class="nd-tag weak">薄弱</div>`;
+      else if (n.mastery >= 80) tagHtml = `<div class="nd-tag strong">掌握</div>`;
+    }
+
+    // Node content
+    if (n.type === 'core') {
+      let moreHtml = n._moreCount > 0 ? `<div class="nd-more">+${n._moreCount} 更多主题</div>` : '';
+      el.innerHTML = `${moreHtml}
+        <div class="nd-main">
+          <span class="ms nd-icon" style="font-size:32px">${n.icon}</span>
+          <div class="nd-meta">
+            <div class="nd-title">${n.label}</div>
+            <div class="nd-sub">${n.sub}</div>
+          </div>
+        </div>`;
+    } else {
+      let moreHtml = n._moreCount > 0 ? `<div class="nd-more">+${n._moreCount} 更多节点</div>` : '';
+      el.innerHTML = `${tagHtml}${moreHtml}
+        <div class="nd-main">
+          <span class="ms nd-icon" style="font-size:16px">${n.icon}</span>
+          <div class="nd-meta">
+            <div class="nd-title">${n.label}</div>
+            <div class="nd-sub">${n.sub}</div>
+          </div>
+        </div>
+        <div class="nd-bar"><div class="nd-fill" style="width:${n.mastery}%"></div></div>`;
+    }
+    const m = Number(n.mastery || 0);
+    const mt = Number.isFinite(m) ? `${Math.max(0, Math.min(100, Math.round(m)))}%` : '—';
+    el.setAttribute('data-tip', `${n.label} · ${n.sub}${n.type === 'core' ? '' : ` · 掌握度 ${mt}`}`);
+
+    // Click handler
+    el.onclick = (e) => {
+      e.stopPropagation();
+      if (nodeDragging) return;
+      const hasChildren = hasDirectChildren(n.id);
+      if (!hasChildren) {
+        selectNode(n.id);
+        return;
+      }
+      if (n.type === 'core') {
+        selectNode(n.id);
+        renderAll();
+        return;
+      }
+      const selected = selNode === n.id;
+      const expanded = !!n._expanded;
+      if (!expanded) {
+        collapseSiblingNodes(n);
+        n._expanded = true;
+        relayoutChildrenRadial(n.id);
+        selectNode(n.id);
+        renderAll();
+        setTimeout(() => fitView(), 70);
+        return;
+      }
+      if (selected) {
+        n._expanded = false;
+        renderAll();
+        selectNode(n.id);
+        setTimeout(() => fitView(), 70);
+        return;
+      }
+      selectNode(n.id);
+      renderAll();
+      setTimeout(() => fitView(), 70);
+    };
+
+    // Drag handlers
+    el.onmousedown = (e) => startNodeDrag(e, n, el);
+  });
+
+  // Apply transform
+  applyTransform();
+  applyMindTagPriority();
+  applyFriendlyUI();
+}
+
+function applyMindTagPriority() {
+  if (currentLayout !== 'mindmap') return;
+  document.querySelectorAll('.shell.mindmap-mode .knode:not(.core)').forEach(el => {
+    el.classList.remove('hide-state-tag');
+    const tag = el.querySelector('.nd-tag');
+    const more = el.querySelector('.nd-more');
+    if (!more) return;
+    more.style.top = '-8px';
+    more.style.right = '6px';
+    if (!tag) return;
+    tag.style.top = '-8px';
+    tag.style.right = '-4px';
+    const crowded = (tag.offsetWidth + more.offsetWidth + 22) > el.clientWidth;
+    if (crowded) {
+      el.classList.add('hide-state-tag');
+      more.style.right = '6px';
+      return;
+    }
+    more.style.right = `${tag.offsetWidth + 2}px`;
+  });
+}
+
+function applyTransform() {
+  const canvas = document.getElementById('map-canvas');
+  canvas.style.transform = `translate(${offsetX}px,${offsetY}px) scale(${scale})`;
+  canvas.style.transformOrigin = '0 0';
+  renderLines();
+}
+
+function renderLines() {
+  const svg = document.getElementById('svg-lines');
+  svg.innerHTML = '';
+  const visible = new Set(getVisibleNodes().map(n => n.id));
+  const nodeMap = {};
+  nodes.forEach(n => nodeMap[n.id] = n);
+
+  nodes.forEach(n => {
+    if (!visible.has(n.id)) return;
+    const el = document.getElementById('knode-' + n.id);
+    if (!el) return;
+    
+    // Use actual DOM position for smooth animation follow-up
+    const curX = parseFloat(el.style.left) || n.x;
+    const curY = parseFloat(el.style.top) || n.y;
+
+    (n.links || []).forEach(lid => {
+      const target = nodeMap[lid];
+      const targetEl = document.getElementById('knode-' + lid);
+      if (!target || !visible.has(lid) || !targetEl) return;
+      
+      const tarX = parseFloat(targetEl.style.left) || target.x;
+      const tarY = parseFloat(targetEl.style.top) || target.y;
+      
+      const x1 = (curX + n.w/2) * scale + offsetX;
+      const y1 = (curY + (n.h||75)/2) * scale + offsetY;
+      const x2 = (tarX + target.w/2) * scale + offsetX;
+      const y2 = (tarY + (target.h||75)/2) * scale + offsetY;
+      
+      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+      
+      if (currentLayout === 'mindmap') {
+        const pObj = { x: tarX * scale + offsetX, y: tarY * scale + offsetY, w: target.w * scale, h: (target.h||75) * scale };
+        const cObj = { x: curX * scale + offsetX, y: curY * scale + offsetY, w: n.w * scale, h: (n.h||75) * scale };
+        path.setAttribute('d', MindMapLayout.getCurvedPath(pObj, cObj));
+      } else {
+        const dx = x2 - x1, dy = y2 - y1;
+        const cx1 = x1 + dx * 0.4, cy1 = y1;
+        const cx2 = x1 + dx * 0.6, cy2 = y2;
+        path.setAttribute('d',`M${x1},${y1} C${cx1},${cy1} ${cx2},${cy2} ${x2},${y2}`);
+      }
+
+      if (currentLayout === 'mindmap') {
+        path.setAttribute('stroke','var(--mm-line)');
+        path.setAttribute('stroke-width','1.6');
+      } else {
+        path.setAttribute('stroke','var(--mm-line-soft)');
+        path.setAttribute('stroke-width','1.6');
+      }
+      path.setAttribute('fill','none');
+      path.setAttribute('stroke-dasharray','5 3');
+      svg.appendChild(path);
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════
+// NODE DRAG
+// ═══════════════════════════════════════════════
+function startNodeDrag(e, n, el) {
+  if (e.button !== 0) return;
+  nodeDragging = false;
+  dragNodeId = n.id;
+  dragNodeEl = el;
+  dragStartX = e.clientX;
+  dragStartY = e.clientY;
+  dragNodeOrigX = n.x;
+  dragNodeOrigY = n.y;
+  dragLinkedNodes = [];
+  const queue = [n.id];
+  const visited = new Set([n.id]);
+  while (queue.length) {
+    const pid = queue.shift();
+    nodes.forEach(cn => {
+      if (!cn.links || !cn.links.includes(pid) || visited.has(cn.id)) return;
+      visited.add(cn.id);
+      queue.push(cn.id);
+      dragLinkedNodes.push({ id: cn.id, x: cn.x, y: cn.y });
+    });
+  }
+  document.addEventListener('mousemove', onNodeDrag);
+  document.addEventListener('mouseup', stopNodeDrag);
+  e.stopPropagation();
+}
+
+function onNodeDrag(e) {
+  const dx = (e.clientX - dragStartX) / scale;
+  const dy = (e.clientY - dragStartY) / scale;
+  if (!nodeDragging && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+    nodeDragging = true;
+    dragNodeEl.classList.add('dragging-node');
+    document.getElementById('map-canvas').classList.add('node-dragging');
+  }
+  if (nodeDragging) {
+    const nd = nodes.find(n => n.id === dragNodeId);
+    if (nd) {
+      nd.x = dragNodeOrigX + dx;
+      nd.y = dragNodeOrigY + dy;
+      dragNodeEl.style.left = nd.x + 'px';
+      dragNodeEl.style.top  = nd.y + 'px';
+      dragLinkedNodes.forEach(it => {
+        const child = nodes.find(n => n.id === it.id);
+        if (!child) return;
+        child.x = it.x + dx;
+        child.y = it.y + dy;
+        const childEl = document.getElementById('knode-' + child.id);
+        if (childEl) {
+          childEl.style.left = child.x + 'px';
+          childEl.style.top = child.y + 'px';
+        }
+      });
+      renderLines();
+    }
+  }
+}
+
+function stopNodeDrag(e) {
+  document.removeEventListener('mousemove', onNodeDrag);
+  document.removeEventListener('mouseup', stopNodeDrag);
+  if (dragNodeEl) dragNodeEl.classList.remove('dragging-node');
+  document.getElementById('map-canvas').classList.remove('node-dragging');
+  dragLinkedNodes = [];
+  setTimeout(() => { nodeDragging = false; }, 50);
+}
+
+// ═══════════════════════════════════════════════
+// CANVAS PAN DRAG
+// ═══════════════════════════════════════════════
+function setupCanvasDrag() {
+  const area = document.getElementById('map-area');
+  area.addEventListener('mousedown', (e) => {
+    if (e.target.closest('.knode') || e.target.closest('.filter-panel') || e.target.closest('.zoom-ctrl')) return;
+    mapDragging = true;
+    mapDragX = e.clientX; mapDragY = e.clientY;
+    mapDragOX = offsetX; mapDragOY = offsetY;
+    document.getElementById('map-canvas').classList.add('dragging');
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!mapDragging) return;
+    offsetX = mapDragOX + (e.clientX - mapDragX);
+    offsetY = mapDragOY + (e.clientY - mapDragY);
+    applyTransform();
+  });
+  document.addEventListener('mouseup', () => {
+    mapDragging = false;
+    document.getElementById('map-canvas').classList.remove('dragging');
+  });
+  // Scroll to zoom
+  area.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    zoom(delta);
+  }, {passive:false});
+  // Click on empty area — deselect
+  area.addEventListener('click', (e) => {
+    if (!e.target.closest('.knode') && !e.target.closest('.filter-panel') && !e.target.closest('.zoom-ctrl')) {
+      selectNode(null);
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════
+// NODE SELECTION
+// ═══════════════════════════════════════════════
+function selectNode(id) {
+  document.querySelectorAll('.knode.selected').forEach(el => el.classList.remove('selected'));
+  selNode = id;
+  if (id) {
+    const el = document.getElementById('knode-' + id);
+    if (el) el.classList.add('selected');
+    const nd = nodes.find(n => n.id === id);
+    if (nd) renderRpanel(nd);
+  } else {
+    renderRpanel(null);
+  }
+}
+
+function renderRpanel(nd) {
+  const title = document.getElementById('rpanel-title');
+  const sub   = document.getElementById('rpanel-sub');
+  const body  = document.getElementById('rpanel-body');
+
+  if (!nd) {
+    if (currentTextbookMeta && currentTextbookMeta.title) {
+      title.textContent = '知识地图';
+      sub.textContent   = `${currentTextbookMeta.nodesCount || nodes.length} 个节点 · 点击查看详情`;
+      body.innerHTML = `<div class="nd-detail">
+        <div class="nd-header">
+          <div class="nd-hicon"><span class="ms" style="font-size:22px">menu_book</span></div>
+          <div>
+            <div class="nd-hname">${currentTextbookMeta.title}</div>
+            <div class="nd-hgrade">${currentTextbookMeta.subject || '综合'} · ${currentTextbookMeta.grade || '全部'}</div>
+          </div>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">章节数</span>
+          <span class="stat-val">${currentTextbookMeta.chapterCount || 0}</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">知识节点</span>
+          <span class="stat-val">${currentTextbookMeta.nodesCount || nodes.length}</span>
+        </div>
+        <div class="sec-title">教材简介</div>
+        <div style="font-size:12.5px;line-height:1.75;color:var(--mu)">${currentTextbookMeta.overview || '暂无教材简介'}</div>
+      </div>`;
+    } else {
+      title.textContent = '知识地图';
+      sub.textContent   = `${nodes.length} 个节点 · 点击查看详情`;
+      body.innerHTML = `<div class="empty-state">
+        <span class="ms empty-icon">hub</span>
+        <div class="empty-title">选择一个知识节点</div>
+        <div class="empty-desc">点击地图上的任意节点，查看掌握度、知识详情和学习建议</div>
+      </div>`;
+    }
+    return;
+  }
+
+  title.textContent = nd.label;
+  sub.textContent   = `${nd.subject} · ${nd.grade||'初中'}`;
+
+  const mastColor = nd.mastery >= 80 ? '#059669' : nd.mastery >= 55 ? '#d97706' : '#dc2626';
+  const mastTxt   = nd.mastery >= 80 ? '掌握良好' : nd.mastery >= 55 ? '进一步巩固' : '需要强化';
+  const stability = nd.stability || Math.round(50 + nd.mastery * 0.4);
+
+  const tagsHtml = (nd.tags||[]).map(t=>`<span class="tag">${t}</span>`).join('');
+  const linksHtml = (nd.links||[]).map(lid=>{
+    const ln = nodes.find(n=>n.id===lid);
+    return ln ? `<span class="tag" style="background:rgba(0,0,0,.04);color:var(--mu)">${ln.label}</span>` : '';
+  }).join('');
+
+  body.innerHTML = `<div class="nd-detail">
+    <div class="nd-header">
+      <div class="nd-hicon"><span class="ms" style="font-size:22px">${nd.icon}</span></div>
+      <div>
+        <div class="nd-hname">${nd.label}</div>
+        <div class="nd-hgrade">${nd.subject} · ${nd.sub}</div>
+      </div>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">重要性评分</span>
+      <span class="stat-val" style="color:var(--p)">${nd.importanceScore || '0.0000'}</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">掌握度</span>
+      <span class="stat-val" style="color:${mastColor}">${nd.mastery}% · ${mastTxt}</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" style="width:${nd.mastery}%;background:${mastColor}"></div></div>
+    <div class="stat-row" style="margin-top:10px">
+      <span class="stat-label">稳定性</span>
+      <span class="stat-val">${stability}%</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" style="width:${stability}%;background:${stability>65?'#059669':'#d97706'}"></div></div>
+    ${nd.desc ? `<div class="sec-title">知识概要</div>
+    <div style="font-size:12.5px;line-height:1.75;color:var(--mu)">${nd.desc}</div>` : ''}
+    ${tagsHtml ? `<div class="sec-title">关键词</div><div class="tag-list">${tagsHtml}</div>` : ''}
+    ${linksHtml ? `<div class="sec-title">前置关联</div><div class="tag-list">${linksHtml}</div>` : ''}
+    <div class="action-row">
+      <button class="act-btn sec" onclick="askAIAboutNode('${nd.id}')">
+        <span class="ms" style="font-size:14px">psychology</span> AI讲解
+      </button>
+      <button class="act-btn pri" onclick="goToWrong('${nd.label}')">
+        <span class="ms" style="font-size:14px">error</span> 查错题
+      </button>
+    </div>
+    ${nd.mastery < 60 ? `<button style="width:100%;margin-top:8px;padding:9px;border:none;border-radius:10px;background:rgba(220,38,38,.08);color:#dc2626;font:inherit;font-size:12px;font-weight:700;cursor:pointer" onclick="goRepair('${nd.label}')">
+      <span class="ms" style="font-size:14px">healing</span> 开始错题修复
+    </button>` : ''}
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════
+// ACTIONS
+// ═══════════════════════════════════════════════
+function askAIAboutNode(nodeId) {
+  const nd = nodes.find(n => n.id === nodeId);
+  if (!nd) return;
+  if (window.__ZHI2) {
+    // 打开父页面 AI 助手并预填问题
+    window.parent.toggleAI && window.parent.toggleAI();
+    setTimeout(() => {
+      const inp = window.parent.document.getElementById('aip-input');
+      if (inp) {
+        inp.value = `请详细讲解「${nd.label}」这个知识点，包括核心概念、常见题型和解题技巧。`;
+        inp.focus();
+      }
+    }, 300);
+  } else {
+    showToast('请在完整 App 中使用 AI 讲解功能');
+  }
+}
+
+function goToWrong(label) {
+  if (window.__ZHI2) window.__ZHI2.go(16);
+  else showToast('已跳转到错题中心');
+}
+
+function goRepair(label) {
+  if (window.__ZHI2) window.__ZHI2.go(20);
+  else showToast('已跳转到错题修复');
+}
+
+// ═══════════════════════════════════════════════
+// ZOOM & VIEW
+// ═══════════════════════════════════════════════
+function zoom(factor) {
+  const area = document.getElementById('map-area');
+  const cx = area.offsetWidth / 2, cy = area.offsetHeight / 2;
+  const newScale = Math.max(0.3, Math.min(3, scale * factor));
+  offsetX = cx - (cx - offsetX) * (newScale / scale);
+  offsetY = cy - (cy - offsetY) * (newScale / scale);
+  scale = newScale;
+  applyTransform();
+}
+
+function fitView() {
+  if (!nodes.length) return;
+  const visibleNodes = getVisibleNodes();
+  const targetNodes = (visibleNodes && visibleNodes.length) ? visibleNodes : nodes;
+  const area = document.getElementById('map-area');
+  const W = area.offsetWidth, H = area.offsetHeight;
+  if (W <= 0 || H <= 0) return;
+
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  targetNodes.forEach(n => {
+    minX=Math.min(minX,n.x); minY=Math.min(minY,n.y);
+    maxX=Math.max(maxX,n.x+n.w); maxY=Math.max(maxY,n.y+(n.h||75));
+  });
+
+  const isMind = currentLayout === 'mindmap';
+  const pad = isMind ? 56 : 100;
+  const contentW = maxX - minX;
+  const contentH = maxY - minY;
+  
+  const scX = (W - pad*2) / contentW;
+  const scY = (H - pad*2) / contentH;
+  const fitScale = Math.min(scX, scY);
+  scale = isMind
+    ? Math.max(0.62, Math.min(1.35, fitScale))
+    : Math.max(0.3, Math.min(1.1, fitScale));
+
+  if (isMind) {
+    const midX = (minX + maxX) / 2;
+    const midY = (minY + maxY) / 2;
+    offsetX = (W / 2) - midX * scale;
+    offsetY = (H / 2) - midY * scale;
+  } else {
+    const midX = (minX + maxX) / 2;
+    const midY = (minY + maxY) / 2;
+    offsetX = (W / 2) - midX * scale;
+    offsetY = (H / 2) - midY * scale;
+  }
+
+  applyTransform();
+}
+
+function resetView() {
+  scale = 1; offsetX = 0; offsetY = 0;
+  applyTransform();
+}
+
+function autoLayout() {
+  if (currentLayout === 'mindmap') return mindMapLayout();
+  // 星图自动布局
+  const area = document.getElementById('map-area');
+  const W = area.offsetWidth, H = area.offsetHeight;
+  if (W <= 0 || H <= 0) return;
+
+  const cx = W/2 - 80, cy = H/2 - 80;
+  const coreNode = nodes.find(n => n.type === 'core');
+  if (coreNode) { coreNode.x = cx; coreNode.y = cy; }
+  const others = nodes.filter(n => n.type !== 'core');
+  const r = Math.min(W, H) * 0.35;
+  others.forEach((n, i) => {
+    const angle = (i / others.length) * Math.PI * 2 - Math.PI/2;
+    n.x = cx + Math.cos(angle) * r - n.w/2 + 80;
+    n.y = cy + Math.sin(angle) * r - (n.h||75)/2 + 80;
+  });
+  
+  renderAll();
+  setTimeout(() => fitView(), 50); // Ensure nodes are rendered before fitting
+  showToast('星图模式已启用');
+}
+
+// ═══════════════════════════════════════════════
+// FILTER
+// ═══════════════════════════════════════════════
+function filterSubject(el, subj) {
+  filterSubj = subj;
+  document.querySelectorAll('#fp-subjects .fp-tag').forEach(b => b.classList.toggle('on', b.dataset.subj === subj));
+  renderAll();
+}
+
+function filterType(el, typ) {
+  filterTyp = typ;
+  document.querySelectorAll('#fp-types .fp-tag').forEach(b => b.classList.toggle('on', b.dataset.type === typ));
+  renderAll();
+}
+
+function setDensity(v) {
+  density = parseInt(v);
+  const labels = ['','精简','标准','详细'];
+  document.getElementById('density-label').textContent = labels[density];
+  const pct = (density-1)/2*100;
+  document.getElementById('density-range').style.background =
+    `linear-gradient(to right,var(--p) ${pct}%,rgba(127,19,236,.15) ${pct}%)`;
+  renderAll();
+}
+
+function toggleFilter() {
+  filterOpen = !filterOpen;
+  document.getElementById('fp-body').style.display = filterOpen ? '' : 'none';
+  const btn = document.querySelector('.fp-toggle');
+  btn.textContent = filterOpen ? 'tune' : 'expand_more';
+}
+
+function loadSample() {
+  loadBuiltin();
+  showToast('已加载示例：初中物理·力学知识图谱 ✨');
+  fitView();
+}
+
+function goOfficialResources() {
+  if (window.parent && window.parent.__ZHI2) {
+    window.parent.__ZHI2.go(3);
+  }
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ═══════════════════════════════════════════════
+// TEXTBOOK PANEL
+// ═══════════════════════════════════════════════
+const MOCK_CHAPTERS = [
+  { idx: 11, title: '三角形', sub: '64 知识点 · 掌握度 92%', mastery: 92 },
+  { idx: 12, title: '全等三角形', sub: '42 知识点 · 掌握度 65%', mastery: 65 },
+  { idx: 13, title: '轴对称', sub: '88 知识点 · 掌握度 24%', mastery: 24 },
+  { idx: 14, title: '整式的乘法与因式分解', sub: '76 知识点 · 掌握度 58%', mastery: 58 },
+  { idx: 15, title: '分式', sub: '35 知识点 · 掌握度 40%', mastery: 40 },
+];
+
+function openTextbookPanel(bookData) {
+  document.getElementById('textbook-panel').classList.add('show');
+  
+  if (bookData && bookData.title) {
+    document.querySelector('.tp-name').textContent = bookData.title;
+    if (bookData.cover) document.querySelector('.tp-cover').src = bookData.cover;
+    if (bookData.nodes) document.querySelector('.tp-sub').textContent = `${bookData.nodes} 知识点`;
+  }
+  
+  // 首次打开渲染目录
+  const container = document.getElementById('tp-chapters');
+  if (container.children.length === 0) {
+    container.innerHTML = MOCK_CHAPTERS.map(c => `
+      <div class="tp-chapter" onclick="highlightChapter('${c.title}')">
+        <div class="tp-chap-idx">${c.idx}</div>
+        <div class="tp-chap-info">
+          <div class="tp-chap-title">第${chineseIdx(c.idx)}章 ${c.title}</div>
+          <div class="tp-chap-sub">${c.sub}</div>
+        </div>
+        <div class="ms" style="color:var(--mu2);font-size:18px">chevron_right</div>
+      </div>
+    `).join('');
+  }
+}
+
+function closeTextbookPanel() {
+  document.getElementById('textbook-panel').classList.remove('show');
+}
+
+function chineseIdx(n) {
+  const map = {11:'十一',12:'十二',13:'十三',14:'十四',15:'十五'};
+  return map[n] || n;
+}
+
+function highlightChapter(title) {
+  showToast(`正在定位「${title}」相关知识节点...`);
+  // 模拟：随机高亮一些节点
+  nodes.forEach(n => {
+    const el = document.getElementById('knode-'+n.id);
+    if(el) {
+      if(Math.random() > 0.6) {
+        el.style.borderColor = 'var(--p)';
+        el.style.boxShadow = '0 0 0 4px var(--pg)';
+        el.style.transform = 'scale(1.1)';
+      } else {
+        el.style.borderColor = '';
+        el.style.boxShadow = '';
+        el.style.transform = '';
+      }
+    }
+  });
+  setTimeout(() => {
+    showToast(`已在地图中标记「${title}」的知识点`);
+  }, 800);
+}
+
+function syncToPlan() {
+  showToast('正在同步至学习计划...');
+  setTimeout(() => showToast('同步成功！已更新今日任务'), 1200);
+}
+
+// ═══════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ═══════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════
+window.addEventListener('load', init);
+window.addEventListener('pageshow', () => {
+  const shell = document.querySelector('.shell');
+  if (currentLayout === 'graph') {
+    if (shell) shell.classList.remove('mindmap-mode');
+    normalizeGraphNodeShape();
+    autoLayout();
+  } else {
+    if (shell) shell.classList.add('mindmap-mode');
+    renderClassicMindMap(true);
+  }
+});
+</script>
+</body>
+</html>

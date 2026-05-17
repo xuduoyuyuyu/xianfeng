@@ -142,17 +142,17 @@ const PlanningPage: React.FC = () => {
         showMaterialsEntry
       />
 
-      <main className="relative z-10 mx-auto max-w-5xl px-4 pb-16 pt-[64px] sm:px-6 lg:px-8">
+      <div className="relative z-10 w-full" style={{ paddingTop: 18 }}>
         <iframe
           ref={iframeRef}
           src={src}
           title="教育规划"
-          className="w-full border-0 rounded-[1.2rem]"
+          className="w-full border-0"
           loading="lazy"
           onLoad={handleIframeLoad}
-          style={{ minHeight: "600px", height: "800px", background: "transparent" }}
+          style={{ minHeight: "100vh", height: "800px", background: "transparent" }}
         />
-      </main>
+      </div>
     </div>
   );
 };

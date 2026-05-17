@@ -1,0 +1,5 @@
+CLEAN_RELEASE=true
+SOURCE_REPO=/Users/QUAN/Downloads/Project/xianfeng
+LOCK_COMMIT=350a0fbc2c6cc7ed04432c174dbd5396aea6571a
+EXPORTED_AT=2026-05-15T09:31:53Z
+NOTE=This export includes only git-tracked files from the locked commit.

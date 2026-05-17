@@ -51,6 +51,12 @@ publicRouter.get("/", async (req: Request, res: Response) => {
     // 如果提供了 userId，也返回该用户的 pending 话题
     if (userId) {
       filter.$or.push({ status: "pending", createdBy: userId });
+      // 排除该用户已隐藏的话题
+      filter.hiddenForUsers = { $ne: userId };
+    } else {
+      // 匿名用户排除 ip 已隐藏的
+      const clientIp = req.ip || "anonymous";
+      filter.hiddenForUsers = { $ne: clientIp };
     }
 
     if (tag) {
@@ -114,7 +120,34 @@ publicRouter.get("/:slug", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "未找到该话题" });
     }
 
-    res.json({ topic });
+    // 将 layers 转换为 tree 格式供前端使用
+    const layerOrder = ["layer1", "layer2", "layer3", "layer4", "layer5"] as const;
+    const layerNames: Record<string, string> = {
+      layer1: "认知篇", layer2: "诊断篇", layer3: "方法篇", layer4: "工具篇", layer5: "行动篇",
+    };
+    const tree = layerOrder
+      .filter((key) => {
+        const layer = (topic.layers as any)?.[key];
+        return layer && Array.isArray(layer) && layer.length > 0;
+      })
+      .map((key, idx) => ({
+        id: idx + 1,
+        nodeKey: key,
+        title: layerNames[key] || key,
+        nodeType: "branch",
+        sortOrder: idx,
+        children: ((topic.layers as any)?.[key] || []).map((n: any, ci: number) => ({
+          id: idx * 100 + ci + 1,
+          nodeKey: n.key || `${key}-${ci}`,
+          title: n.title || "",
+          nodeType: "leaf",
+          summary: n.summary || "",
+          questionCount: 0,
+          hasQuiz: false,
+        })),
+      }));
+
+    res.json({ topic, tree });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -158,7 +191,7 @@ publicRouter.post("/search-generate", async (req: Request, res: Response) => {
       console.error("Title generation failed, using keyword:", e.message);
     }
 
-    // 创建话题（用户提交，直接发布）
+    // 创建话题（用户提交，直接发布，无需审核）
     const topic = await Topic.create({
       title,
       subtitle,
@@ -167,6 +200,7 @@ publicRouter.post("/search-generate", async (req: Request, res: Response) => {
       status: "published",
       source: "user",
       createdBy: creatorId,
+      generatingProgress: { total: 15, done: 0, status: "pending" },
     });
 
     // AI 生成五层知识树（快速骨架）
@@ -270,13 +304,8 @@ publicRouter.post("/:slug/expand", async (req: Request, res: Response) => {
       }
     }
 
-    // 深度模式：基于已有内容继续扩展（即使 content 已有内容，也扩展）
+    // 深度模式：基于已有内容继续扩展（每次都追加新内容）
     if (deep && passedContent) {
-      // 如果已有内容包含分隔线，说明已经扩展过，直接返回缓存
-      if (passedContent.includes("\n---\n")) {
-        return res.json({ expanded: passedContent, source: "cached" });
-      }
-
       const { generateDeepExpandContent } = await import("../services/topicAiGenerator.js");
       let aiExpand = await generateDeepExpandContent({
         topicTitle: topicTitle || topic.title,
@@ -285,7 +314,7 @@ publicRouter.post("/:slug/expand", async (req: Request, res: Response) => {
       });
       aiExpand = aiExpand.replace(/[（(]全文\d+字[）)]/g, "").trim();
 
-      // 原文 + AI 扩展拼接（用分隔线隔开）
+      // 已有内容 + 新 AI 扩展追加
       const merged = passedContent + "\n\n---\n\n" + aiExpand;
 
       // 回写到 MongoDB
@@ -361,7 +390,12 @@ publicRouter.get("/:slug/nodes/:nodeKey", async (req: Request, res: Response) =>
       return res.status(404).json({ error: "未找到该节点" });
     }
 
-    res.json({ node, layerName, topicSlug: slug });
+    // 返回同一层中的兄弟节点
+    const siblings = ((layers as any)[layerName] || [])
+      .filter((n: any) => n.key !== nodeKey)
+      .map((n: any) => ({ nodeKey: n.key, title: n.title }));
+
+    res.json({ node, layerName, topicSlug: slug, siblings, questions: [] });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -398,14 +432,39 @@ publicRouter.post("/:slug/ask", async (req: Request, res: Response) => {
   }
 });
 
-// DELETE /api/topic-hub/:slug — 删除话题
+// DELETE /api/topic-hub/:slug — 对当前用户隐藏话题（不物理删除，不影响其他用户）
 publicRouter.delete("/:slug", async (req: Request, res: Response) => {
   try {
-    const topic = await Topic.findOneAndDelete({ slug: req.params.slug }).lean();
+    const { userId } = req.body || {};
+    const filter: any = { slug: req.params.slug };
+    if (userId) {
+      filter.createdBy = userId;
+    }
+    const topic = await Topic.findOne(filter).lean();
+    if (!topic) {
+      return res.status(404).json({ error: "未找到该话题或无权删除" });
+    }
+    // 将当前用户加入 hiddenFor 列表，不物理删除
+    const hider = userId || req.ip || "anonymous";
+    await Topic.findByIdAndUpdate(topic._id, {
+      $addToSet: { hiddenForUsers: hider },
+    });
+    res.json({ message: "已隐藏", slug: req.params.slug });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/topic-hub/:slug/progress — 查询生成进度
+publicRouter.get("/:slug/progress", async (req: Request, res: Response) => {
+  try {
+    const topic = await Topic.findOne({ slug: req.params.slug })
+      .select("generatingProgress")
+      .lean();
     if (!topic) {
       return res.status(404).json({ error: "未找到该话题" });
     }
-    res.json({ message: "已删除", slug: req.params.slug });
+    res.json({ progress: topic.generatingProgress || null });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

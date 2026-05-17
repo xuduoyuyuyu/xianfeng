@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="/screens/public.css" rel="stylesheet"/>
+</head>
+<body class="min-h-screen flex flex-col custom-scrollbar">
+<nav class="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-xl border-b border-outline-light">
+<div class="flex justify-between items-center px-8 h-20 w-full max-w-[1440px] mx-auto">
+<div class="flex items-center gap-12">
+<img alt="家长先疯" class="nav-logo" src="/assets/logo.png"/>
+<div class="hidden xl:flex items-center gap-8">
+<div class="flex gap-8 border-r border-outline-light pr-8">
+<a class="nav-link !text-on-surface font-bold relative after:absolute after:bottom-[-29px] after:left-0 after:w-full after:h-1 after:bg-primary-purple" href="/programs">播客节目</a>
+<a class="nav-link" href="/community">学习社区</a>
+</div>
+<div class="flex gap-6">
+<a class="nav-link" href="/articles">
+<span class="material-symbols-outlined text-lg">article</span>精选文稿
+                        </a>
+<a class="nav-link" href="/books">
+<span class="material-symbols-outlined text-lg">auto_stories</span>推荐书单
+                        </a>
+<a class="nav-link" href="/experts">
+<span class="material-symbols-outlined text-lg">forum</span>专家采访
+                        </a>
+<a class="nav-link" href="/materials">
+<span class="material-symbols-outlined text-lg">collections_bookmark</span>课程资料
+                        </a>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative hidden lg:block">
+<input class="bg-hub-bg border-none rounded-xl px-6 py-2.5 w-64 text-sm text-on-surface focus:ring-2 focus:ring-primary-purple transition-all placeholder-on-surface-variant/60" placeholder="搜索内容..." type="text"/>
+<span class="material-symbols-outlined absolute right-4 top-2.5 text-on-surface-variant text-xl">search</span>
+</div>
+<a class="bg-primary-purple text-white px-8 py-2.5 rounded-xl text-sm font-bold hover:bg-primary-hover transition-all shadow-lg shadow-primary-purple/20 inline-flex items-center justify-center" href="/login">登录</a>
+</div>
+</div>
+</nav>
+<main class="pt-20 flex-grow flex max-w-[1440px] w-full mx-auto relative">
+<section class="flex-1 p-4 sm:p-8 md:p-12 pt-4 sm:pt-6">
+<div id="program-list" class="space-y-8">
+<div class="magazine-card p-5 sm:p-10 rounded-3xl group">
+<div class="flex flex-col xl:flex-row gap-6 sm:gap-10">
+<div class="w-full xl:w-[420px] rounded-2xl overflow-hidden flex-shrink-0 shadow-lg relative">
+<img alt="Podcast Cover" class="w-full h-auto object-contain transform group-hover:scale-105 transition-transform duration-700" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD9kNK0Swlk0Z_8qKWeNY7pZRXiC8aQ5uXb7civ7JNln2ot7EXUUGXeU1g4OYo8pUPDqk_iwcI-Fqks1baa6f595CSw302ox2wCyWX3KGkcZq630cbJ0m9-DkHNLkbeKiJQoqTsFuQ41ThYMWb-CkI0xyoZ0sFJR5FyzlKpOAewSqoiZ6kmzawO5-T02uwzHQwHVvASQATN4dsVy6Gl1YGvmuTaEWHvnf3zRDSGoUeBDBsXQA9XGf2dJ2WS1cqnfOfRzJafzReWqXHu"/>
+</div>
+<div class="flex-1 flex flex-col justify-center">
+<div class="flex items-center gap-4 mb-4">
+<span class="text-[10px] px-3 py-1 rounded-lg bg-primary-purple/10 text-primary-purple font-bold tracking-widest uppercase">EPISODE 102</span>
+<span class="text-xs text-on-surface-variant font-medium">2024年3月24日</span>
+</div>
+<h2 class="text-[1.6rem] sm:text-3xl font-extrabold mb-4 group-hover:text-primary-purple transition-colors leading-tight">深度倾听：如何与正处于叛逆期的幼儿建立情感锚点</h2>
+<p class="text-on-surface-variant text-sm sm:text-base mb-6 sm:mb-8 leading-relaxed line-clamp-2">探讨如何通过积极的存在将日常互动转化为深层的情感纽带，应对幼儿成长过程中的心理挑战。</p>
+<div class="flex flex-wrap gap-3">
+<button class="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-primary-purple text-white text-sm font-bold hover:bg-primary-hover transition-all shadow-md">
+<span class="material-symbols-outlined text-lg">description</span> 逐字稿
+                                </button>
+<button class="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl border border-primary-purple/30 bg-primary-purple/5 text-primary-purple hover:bg-primary-purple/10 transition-all text-sm font-bold">
+<span class="material-symbols-outlined text-lg">auto_awesome</span> AI速览/纪要/Shownotes
+                                </button>
+<button class="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl border border-outline-light text-on-surface hover:border-primary-purple transition-all text-sm font-bold">
+<span class="material-symbols-outlined text-lg">menu_book</span> 书单
+                                </button>
+<button class="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl border border-outline-light text-on-surface hover:border-primary-purple transition-all text-sm font-bold">
+<span class="material-symbols-outlined text-lg">school</span> 课程
+                                </button>
+</div>
+</div>
+</div>
+</div>
+<div class="magazine-card p-5 sm:p-10 rounded-3xl group">
+<div class="flex flex-col xl:flex-row gap-6 sm:gap-10">
+<div class="w-full xl:w-[420px] rounded-2xl overflow-hidden flex-shrink-0 shadow-lg relative">
+<img alt="Podcast Cover" class="w-full h-auto object-contain transform group-hover:scale-105 transition-transform duration-700" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCB-GSaZMDiqA4GYZONoY9nisAnyZtALuNcQhk8Sh7yVZ8RRhefCBZlMtZFXCEXhl10igFW9OuzkcwydIbKX3yMVjpTgT_naxLpII471gZ5JS-b2kNwpRqswWXGt51fIPTGbug0Fw56U6xYteRX7VML-uR9747KMFnEEGUj66zC47ibjudvQtvWORLUCejtqUqkDmYKZvDm3WXfE0heZ-pNhUnlG9fmAa4zzYH7nF6IZQbDz3AcIMWKDqBR9BEx11b7zyNaeaO0Xor3"/>
+</div>
+<div class="flex-1 flex flex-col justify-center">
+<div class="flex items-center gap-4 mb-4">
+<span class="text-[10px] px-3 py-1 rounded-lg bg-slate-100 text-on-surface-variant font-bold tracking-widest uppercase">EPISODE 101</span>
+<span class="text-xs text-on-surface-variant font-medium">2024年3月17日</span>
+</div>
+<h2 class="text-[1.6rem] sm:text-3xl font-extrabold mb-4 group-hover:text-primary-purple transition-colors leading-tight">IB课程导航：全球化教育背景下家长的选择指南</h2>
+<p class="text-on-surface-variant text-sm sm:text-base mb-6 sm:mb-8 leading-relaxed line-clamp-2">揭秘国际文凭组织(IB)的课程体系，为什么它可能适合您孩子的未来，以及家庭需要做哪些准备。</p>
+<div class="flex flex-wrap gap-3">
+<button class="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-primary-purple text-white text-sm font-bold hover:bg-primary-hover transition-all shadow-md">
+<span class="material-symbols-outlined text-lg">description</span> 逐字稿
+                                </button>
+<button class="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl border border-primary-purple/30 bg-primary-purple/5 text-primary-purple hover:bg-primary-purple/10 transition-all text-sm font-bold">
+<span class="material-symbols-outlined text-lg">auto_awesome</span> AI速览/纪要/Shownotes
+                                </button>
+<button class="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl border border-outline-light text-on-surface hover:border-primary-purple transition-all text-sm font-bold">
+<span class="material-symbols-outlined text-lg">record_voice_over</span> 采访
+                                </button>
+</div>
+</div>
+</div>
+</div>
+<div class="magazine-card p-6 rounded-2xl group flex flex-col md:flex-row items-center justify-between gap-6">
+<div class="flex items-center gap-6">
+<span class="text-2xl font-black text-slate-200 w-12 text-center group-hover:text-primary-purple/20 transition-colors">100</span>
+<div>
+<h3 class="text-lg font-bold group-hover:text-primary-purple transition-colors">数字时代下的家庭公民教育：如何建立健康的屏幕时间</h3>
+<div class="flex items-center gap-3 mt-1">
+<span class="text-xs text-on-surface-variant">2024年3月10日</span>
+<span class="w-1 h-1 rounded-full bg-slate-200"></span>
+<span class="text-xs text-primary-purple font-bold">52分钟</span>
+</div>
+</div>
+</div>
+<button class="flex items-center gap-2 px-6 py-3 bg-primary-purple text-white rounded-xl hover:bg-primary-hover transition-all font-bold text-sm shadow-md">
+<span class="material-symbols-outlined text-lg">description</span> 阅读稿件
+                    </button>
+</div>
+<div id="program-loading" class="flex flex-col items-center justify-center py-12 gap-4">
+<div class="relative w-8 h-8">
+<div class="absolute inset-0 border-4 border-primary-purple/10 rounded-full"></div>
+<div class="absolute inset-0 border-4 border-t-primary-purple rounded-full animate-spin"></div>
+</div>
+<p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">正在加载更多精彩...</p>
+</div>
+</div>
+</section>
+</main>
+<script>
+(function () {
+  const listEl = document.getElementById("program-list");
+  const loadingEl = document.getElementById("program-loading");
+  const FALLBACK_COVER = "/assets/podcast-cover-1.svg";
+  const PAGE_SIZE = 7;
+  let allPrograms = [];
+  let currentPage = 1;
+
+  function fmtDate(value) {
+    if (!value) return "未发布";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "未发布";
+    return d.toLocaleDateString("zh-CN");
+  }
+
+  function safeText(value) {
+    return String(value || "").replace(/[&<>"']/g, function (char) {
+      const map = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+      return map[char];
+    });
+  }
+
+  function hasNonEmptyText(value) {
+    return String(value || "").trim().length > 0;
+  }
+
+  function renderLargeCard(program, index) {
+    const episode = (program.episodes && program.episodes[0]) || {};
+    const routeId = safeText(program.programCode || program._id);
+    const badge = safeText((program.programCode || ("ep" + String(index + 1))).toUpperCase());
+    const isPrimary = index === 0;
+    const hasTranscript = Array.isArray(program.transcript) && program.transcript.length > 0;
+    const hasDictionary = (Array.isArray(program.dictionaryEntries) ? program.dictionaryEntries : []).some(function (entry) {
+      return hasNonEmptyText(entry && entry.term);
+    });
+    const hasReading = (Array.isArray(program.deepDive && program.deepDive.curatedReading) ? program.deepDive.curatedReading : []).some(function (item) {
+      return hasNonEmptyText(item && item.title);
+    });
+    const contentPills = [
+      hasTranscript
+        ? '<span class="inline-flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-primary-purple text-white text-sm font-bold shadow-md"><span class="material-symbols-outlined text-lg">description</span> 逐字稿</span>'
+        : "",
+      hasDictionary
+        ? '<span class="inline-flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl border border-outline-light text-on-surface text-sm font-bold"><span class="material-symbols-outlined text-lg">book_2</span> 教育词典</span>'
+        : "",
+      hasReading
+        ? '<span class="inline-flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl border border-outline-light text-on-surface text-sm font-bold"><span class="material-symbols-outlined text-lg">menu_book</span> 书单</span>'
+        : "",
+    ].filter(Boolean).join("");
+    return (
+      '<a href="/programs/' + routeId + '" class="block">' +
+      '<article class="magazine-card p-5 sm:p-10 rounded-3xl group cursor-pointer">' +
+        '<div class="flex flex-col xl:flex-row gap-6 sm:gap-10">' +
+          '<div class="w-full xl:w-[420px] rounded-2xl overflow-hidden flex-shrink-0 shadow-lg relative">' +
+            '<img alt="Podcast Cover" class="w-full h-auto object-contain transform group-hover:scale-105 transition-transform duration-700" src="' + safeText(program.coverImage || FALLBACK_COVER) + '"/>' +
+          "</div>" +
+          '<div class="flex-1 flex flex-col justify-center">' +
+            '<div class="flex items-center gap-4 mb-4">' +
+              '<span class="text-[10px] px-3 py-1 rounded-lg ' + (isPrimary ? "bg-primary-purple/10 text-primary-purple" : "bg-slate-100 text-on-surface-variant") + ' font-bold tracking-widest uppercase">EPISODE ' + badge + "</span>" +
+              '<span class="text-xs text-on-surface-variant font-medium">' + fmtDate(program.publishedAt || program.createdAt) + "</span>" +
+            "</div>" +
+            '<h2 class="text-[1.6rem] sm:text-3xl font-extrabold mb-4 group-hover:text-primary-purple transition-colors leading-tight">' + safeText(program.title) + "</h2>" +
+            '<p class="text-on-surface-variant text-sm sm:text-base mb-6 sm:mb-8 leading-relaxed line-clamp-2">' + safeText(program.description || "") + "</p>" +
+            '<div class="flex flex-wrap gap-3">' +
+              '<span class="inline-flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl border border-primary-purple/30 bg-primary-purple/5 text-primary-purple text-sm font-bold"><span class="material-symbols-outlined text-lg">auto_awesome</span> AI速览/纪要/Shownotes</span>' +
+              contentPills +
+            "</div>" +
+          "</div>" +
+        "</div>" +
+      "</article>" +
+      "</a>"
+    );
+  }
+
+  function renderCompactCard(program, index) {
+    const episode = (program.episodes && program.episodes[0]) || {};
+    const routeId = safeText(program.programCode || program._id);
+    return (
+      '<a href="/programs/' + routeId + '" class="block">' +
+      '<article class="magazine-card p-5 sm:p-6 rounded-2xl group flex flex-col md:flex-row items-center justify-between gap-6 cursor-pointer">' +
+        '<div class="flex items-center gap-6">' +
+          '<span class="text-2xl font-black text-slate-200 w-12 text-center group-hover:text-primary-purple/20 transition-colors">' + String(index + 1).padStart(2, "0") + "</span>" +
+          "<div>" +
+            '<h3 class="text-lg font-bold group-hover:text-primary-purple transition-colors">' + safeText(program.title) + "</h3>" +
+            '<div class="flex items-center gap-3 mt-1">' +
+              '<span class="text-xs text-on-surface-variant">' + fmtDate(program.publishedAt || program.createdAt) + "</span>" +
+              '<span class="w-1 h-1 rounded-full bg-slate-200"></span>' +
+              '<span class="text-xs text-primary-purple font-bold">' + safeText(episode.duration || "45分钟") + "</span>" +
+            "</div>" +
+          "</div>" +
+        "</div>" +
+        '<span class="inline-flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-primary-purple text-white rounded-xl transition-all font-bold text-sm shadow-md"><span class="material-symbols-outlined text-lg">description</span> 阅读稿件</span>' +
+        '<span class="inline-flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 border border-primary-purple/30 bg-primary-purple/5 text-primary-purple rounded-xl transition-all font-bold text-sm shadow-md"><span class="material-symbols-outlined text-lg">auto_awesome</span> AI内容增强</span>' +
+      "</article>" +
+      "</a>"
+    );
+  }
+
+  function getTotalPages() {
+    return Math.max(1, Math.ceil(allPrograms.length / PAGE_SIZE));
+  }
+
+  function getVisiblePrograms() {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return allPrograms.slice(start, start + PAGE_SIZE);
+  }
+
+  function renderPrograms() {
+    const programs = getVisiblePrograms();
+    if (!Array.isArray(allPrograms) || allPrograms.length === 0) {
+      listEl.innerHTML = '<div class="magazine-card p-8 rounded-2xl text-sm text-on-surface-variant">暂无已发布节目</div>';
+      if (loadingEl) loadingEl.style.display = "none";
+      return;
+    }
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const top = programs.slice(0, 2).map(renderLargeCard).join("");
+    const rest = programs.slice(2).map(function (item, idx) { return renderCompactCard(item, start + idx + 2); }).join("");
+    const totalPages = getTotalPages();
+    const pagination =
+      '<div class="mt-8 flex items-center justify-center gap-4">' +
+      '<button id="page-prev" class="rounded-xl border border-outline-light px-4 py-2 text-[10px] font-bold text-on-surface disabled:opacity-40 disabled:cursor-not-allowed">上一页</button>' +
+      '<span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">第 ' + currentPage + ' / ' + totalPages + ' 页</span>' +
+      '<button id="page-next" class="rounded-xl border border-outline-light px-4 py-2 text-[10px] font-bold text-on-surface disabled:opacity-40 disabled:cursor-not-allowed">下一页</button>' +
+      "</div>";
+    listEl.innerHTML = top + rest + pagination;
+
+    if (loadingEl) loadingEl.style.display = "none";
+
+    const prevBtn = document.getElementById("page-prev");
+    const nextBtn = document.getElementById("page-next");
+    if (prevBtn) {
+      prevBtn.disabled = currentPage <= 1;
+      prevBtn.onclick = function () {
+        if (currentPage <= 1) return;
+        currentPage -= 1;
+        renderPrograms();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      };
+    }
+    if (nextBtn) {
+      nextBtn.disabled = currentPage >= totalPages;
+      nextBtn.onclick = function () {
+        if (currentPage >= totalPages) return;
+        currentPage += 1;
+        renderPrograms();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      };
+    }
+  }
+
+  async function loadPrograms() {
+    try {
+      const response = await fetch("/api/programs");
+      if (!response.ok) throw new Error("load failed");
+      const programs = await response.json();
+      allPrograms = Array.isArray(programs) ? programs : [];
+      currentPage = 1;
+      renderPrograms();
+    } catch (error) {
+      if (loadingEl) loadingEl.remove();
+      listEl.insertAdjacentHTML("beforeend", '<div class="magazine-card p-8 rounded-2xl text-sm text-red-500">节目加载失败，请检查后端服务</div>');
+    }
+  }
+
+  loadPrograms();
+})();
+</script>
+</body></html>

@@ -1,17 +1,25 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import GlobalPublicNav from "../components/GlobalPublicNav";
+import Pagination from "../components/Pagination";
 import { publicApi, PublicGuest } from "../services/api";
 
+const PAGE_SIZE = 15;
 const FALLBACK_AVATAR = "/assets/podcast-cover-1.svg";
 const EXPERTS_HERO_DISMISSED_KEY = "experts_hero_dismissed_v1";
 
 const ExpertsPage: React.FC = () => {
   const [guests, setGuests] = useState<PublicGuest[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showHero, setShowHero] = useState(false);
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
 
   useEffect(() => {
     try {
@@ -28,15 +36,27 @@ const ExpertsPage: React.FC = () => {
     } catch (_err) {}
   };
 
+  // 从 URL search params 读取搜索和分页
+  useEffect(() => {
+    const q = searchParams.get("q") || "";
+    const p = Number(searchParams.get("page"));
+    setSearch(q);
+    setPage(Number.isFinite(p) && p > 0 ? Math.floor(p) : 1);
+  }, []);
+
+  // 加载数据
   useEffect(() => {
     let alive = true;
     setLoading(true);
     setError("");
     publicApi
-      .getGuests()
+      .getGuests({ search: search || undefined, page: safePage, pageSize: PAGE_SIZE })
       .then((response) => {
         if (!alive) return;
-        setGuests(Array.isArray(response.data) ? response.data : []);
+        const data = response.data;
+        const list = Array.isArray(data) ? data : (data.guests || []);
+        setGuests(list);
+        setTotal(data.total ?? list.length);
       })
       .catch((err: any) => {
         if (!alive) return;
@@ -49,15 +69,20 @@ const ExpertsPage: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [safePage, search]);
 
-  const filteredGuests = useMemo(() => {
-    const keyword = String(search || "").trim().toLowerCase();
-    if (!keyword) return guests;
-    return guests.filter((item) =>
-      `${item.name || ""} ${item.title || ""} ${item.bio || ""}`.toLowerCase().includes(keyword)
-    );
-  }, [guests, search]);
+  // 同步 page 到 search
+  useEffect(() => {
+    if (safePage !== page) setPage(safePage);
+  }, [safePage, page]);
+
+  // 更新 URL search params
+  useEffect(() => {
+    const next = new URLSearchParams();
+    if (search) next.set("q", search);
+    if (safePage > 1) next.set("page", String(safePage));
+    setSearchParams(next, { replace: true });
+  }, [search, safePage, setSearchParams]);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#f3f2f8] text-[#1f1d1a]">
@@ -91,7 +116,7 @@ const ExpertsPage: React.FC = () => {
         showSearch
         searchPlaceholder="搜索嘉宾姓名/头衔/研究方向"
         searchValue={search}
-        onSearchChange={setSearch}
+        onSearchChange={(v) => { setSearch(v); setPage(1); }}
       />
       <main className="mx-auto max-w-7xl px-4 pb-16 pt-[76px] sm:px-6 lg:px-8">
         {showHero ? (
@@ -106,13 +131,13 @@ const ExpertsPage: React.FC = () => {
             </button>
             <div className="max-w-3xl">
               <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.28em] text-[#5b3fa1]">
-                先疯智库
+                Experts
               </div>
               <h1 className="mt-5 text-4xl font-black leading-[1.14] tracking-tight text-[#241a3a] sm:text-5xl">
                 跟随分享者的视角，往更深、更广的维度延展思索
               </h1>
               <p className="mt-4 max-w-2xl text-sm leading-7 text-[#6f66ad] sm:text-base">
-                从节目延伸到人物。这里汇总《家长先疯》节目中已入库嘉宾的基础信息、公开参考链接与关联节目，帮助你更快判断这位嘉宾的经验、方法与视角是否适合当前问题。
+                从节目延伸到人物。这里汇总节目中嘉宾的背景信息、著作、公开参考链接与拓展内容，帮助你更快判断这位嘉宾的经验、方法与视角是否适合当前问题。
               </p>
             </div>
           </section>
@@ -132,12 +157,12 @@ const ExpertsPage: React.FC = () => {
                 <div className="mt-4 h-16 rounded bg-[#ece3f7]" />
               </div>
             ))
-          ) : filteredGuests.length === 0 ? (
+          ) : guests.length === 0 ? (
             <div className="col-span-full rounded-[1.7rem] border border-dashed border-[#d2c5ee] bg-white px-6 py-12 text-center text-sm text-[#8e81b3]">
               暂无符合条件的嘉宾资料。
             </div>
           ) : (
-            filteredGuests.map((guest) => (
+            guests.map((guest) => (
               <Link
                 key={guest._id}
                 to={`/experts/${encodeURIComponent(guest._id)}`}
@@ -175,6 +200,12 @@ const ExpertsPage: React.FC = () => {
             ))
           )}
         </section>
+
+        <Pagination
+          currentPage={safePage}
+          totalPages={totalPages}
+          onPageChange={setPage}
+        />
       </main>
     </div>
   );

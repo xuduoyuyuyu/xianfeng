@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>wel 教材详情学习功能增强版</title>
+<script src="/wel/vendor/tailwindcdn.forms.container-queries.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#7f13ec",
+                        "pearl-white": "#fcfcfc",
+                        "soft-purple": "#f5f0ff",
+                        "electric-violet": "#8f00ff"
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "Noto Sans SC", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "2xl": "1rem",
+                        "3xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        .glass-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(127, 19, 236, 0.1);
+        }
+        .glow-purple {
+            box-shadow: 0 0 20px rgba(127, 19, 236, 0.4);
+        }
+        .glow-button {
+            background: #7f13ec;
+            box-shadow: 0 4px 20px rgba(127, 19, 236, 0.5);
+            transition: all 0.3s ease;
+        }
+        .glow-button:hover {
+            box-shadow: 0 8px 30px rgba(127, 19, 236, 0.7);
+            transform: translateY(-2px);
+        }
+        .secondary-button {
+            border: 1px solid rgba(127, 19, 236, 0.3);
+            color: #7f13ec;
+            background: white;
+        }
+        .secondary-button:hover {
+            background: rgba(127, 19, 236, 0.05);
+            border-color: #7f13ec;
+        }
+        .energy-btn {
+            position: relative;
+            background: linear-gradient(135deg, #8f00ff, #7f13ec);
+            box-shadow: 0 0 15px rgba(143, 0, 255, 0.4), inset 0 0 10px rgba(255, 255, 255, 0.2);
+            overflow: hidden;
+        }
+        .energy-btn::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .energy-btn:hover::after {
+            opacity: 1;
+        }
+        .map-bg {
+            background-image: radial-gradient(circle at 2px 2px, #f0e6ff 1px, transparent 0);
+            background-size: 32px 32px;
+        }
+        .neon-icon {
+            filter: drop-shadow(0 0 4px rgba(127, 19, 236, 0.4));
+        }
+        .chapter-card:hover {
+            border-color: rgba(127, 19, 236, 0.3);
+            background: white;
+        }
+        .toggle-switch input:checked ~ .toggle-bg {
+            background-color: #7f13ec;
+        }
+        .toggle-switch input:checked ~ .toggle-dot {
+            transform: translateX(100%);
+        }
+        body {
+            font-family: 'Noto Sans SC', 'Space Grotesk', sans-serif;
+        }
+        .hero-card {
+            display: grid;
+            grid-template-columns: 176px minmax(0, 1fr) 240px;
+            gap: 28px;
+            align-items: start;
+        }
+        .hero-cover {
+            width: 176px;
+            height: 244px;
+            align-self: start;
+            margin-top: 2px;
+        }
+        .hero-main {
+            min-width: 0;
+            padding-top: 2px;
+        }
+        .hero-title {
+            line-height: 1.12;
+            letter-spacing: -0.02em;
+        }
+        .hero-actions {
+            width: 240px;
+            align-self: start;
+            padding-top: 58px;
+        }
+        .hero-btn {
+            min-height: 64px;
+            width: 100%;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            text-align: left;
+        }
+        .hero-btn .icon-main {
+            font-size: 24px;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+        .hero-btn .btn-label {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.15;
+        }
+        .hero-btn .btn-label-sub {
+            font-size: 10px;
+            opacity: 0.72;
+            font-weight: 500;
+            letter-spacing: 0.03em;
+        }
+        .hero-summary {
+            min-height: 96px;
+        }
+        .predict-fixed-wrap {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 40;
+            padding: 14px 32px 16px;
+            pointer-events: none;
+        }
+        .crystal-fix-area {
+            min-height: 64px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(245, 235, 255, 0.72) 100%);
+            border: 1px solid rgba(127, 19, 236, 0.2);
+            box-shadow: 0 -10px 40px rgba(127, 19, 236, 0.1);
+            pointer-events: auto;
+        }
+        [data-fix-actions] {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        @media (max-width: 1180px) {
+            .hero-card {
+                grid-template-columns: 160px minmax(0, 1fr);
+                gap: 22px;
+            }
+            .hero-cover {
+                width: 160px;
+                height: 224px;
+            }
+            .hero-actions {
+                grid-column: 1 / -1;
+                width: 100%;
+                padding-top: 4px;
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 12px;
+            }
+        }
+        @media (max-width: 780px) {
+            .hero-card {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+            .hero-cover {
+                margin: 0 auto;
+            }
+            .hero-main {
+                text-align: left;
+            }
+            .hero-actions {
+                grid-template-columns: 1fr;
+            }
+            .predict-fixed-wrap {
+                padding: 10px 10px 12px;
+            }
+            .crystal-fix-area {
+                border-radius: 16px;
+                padding: 12px;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+            }
+            [data-fix-actions] {
+                width: 100%;
+                flex-wrap: wrap;
+                justify-content: flex-start;
+            }
+            [data-fix-actions] .glow-button {
+                margin-left: auto;
+            }
+        }
+    </style>
+</head>
+<body class="bg-pearl-white text-slate-900 font-display">
+<div class="relative flex min-h-screen w-full flex-col overflow-x-hidden">
+<div class="flex flex-1 overflow-hidden">
+<main class="flex-1 map-bg overflow-y-auto" style="padding-bottom: 180px;">
+<div class="max-w-6xl mx-auto py-8 px-5 md:px-8 relative">
+<div class="md:absolute md:-left-20 md:top-10 z-20 mb-4 md:mb-0">
+<button onclick="goBack()" class="flex items-center gap-1 text-slate-500 hover:text-primary transition-colors font-bold text-sm group" title="返回资源中心">
+<span class="material-symbols-outlined text-xl group-hover:-translate-x-0.5 transition-transform">arrow_back</span>
+<span>返回</span>
+</button>
+</div>
+<div class="w-full min-w-0">
+<div class="glass-card rounded-[2rem] p-6 md:p-8 mb-6 md:mb-8 shadow-sm relative overflow-hidden hero-card">
+<div id="book-cover-wrapper" class="shrink-0 rounded-2xl overflow-hidden shadow-2xl shadow-primary/20 border-4 border-white relative bg-slate-100 hero-cover">
+<img id="book-cover" alt="Textbook Cover" class="w-full h-full object-cover hidden" src=""/>
+<div id="book-cover-dynamic" class="absolute inset-0 hidden flex-col items-center justify-center">
+    <!-- Dynamic content will be injected -->
+</div>
+</div>
+<div class="hero-main">
+<div class="flex flex-wrap items-center gap-3 mb-3">
+<span class="px-3 py-1 bg-primary text-white text-[10px] font-bold rounded-full">官方认证</span>
+<span id="book-nodes-badge" class="px-3 py-1 bg-green-100 text-green-600 text-[10px] font-bold rounded-full">已同步 842 知识点</span>
+</div>
+<h1 id="book-title" class="text-3xl md:text-4xl font-bold text-slate-900 mb-3 hero-title">人教版数学 八年级上</h1>
+<p id="book-desc" class="text-slate-500 text-[15px] leading-8 mb-5 hero-summary">
+                            本教材共包含 <span class="text-primary font-bold">12</span> 个核心章节，覆盖代数、几何及初步函数等关键知识模块。
+                        </p>
+<div class="mb-5">
+<div class="flex items-center justify-between mb-2">
+<div class="flex flex-wrap items-center gap-4">
+<span class="text-sm font-bold text-slate-700">总体掌握度</span>
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-primary text-base">account_tree</span>
+<span id="book-nodes-count" class="text-xs font-semibold text-slate-500">842 知识点</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-primary text-base">menu_book</span>
+<span id="book-chapters-count-inline" class="text-xs font-semibold text-slate-500">12 章节</span>
+</div>
+</div>
+</div>
+<span id="book-mastery-value" class="text-sm font-bold text-slate-500">待测评</span>
+</div>
+<div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200">
+<div id="book-mastery-bar" class="h-full bg-slate-300 rounded-full transition-all duration-300" style="width: 16%"></div>
+</div>
+</div>
+</div>
+<div class="hero-actions flex flex-col gap-3">
+<button id="add-btn" class="hero-btn energy-btn px-5 py-3 text-white font-bold text-base group transition-all" onclick="addToPlan()">
+<span class="material-symbols-outlined icon-main">add_circle</span>
+<div class="btn-label">
+<span>添加至学习计划</span>
+<span class="btn-label-sub">ADD TO STUDY PLAN</span>
+</div>
+</button>
+<button class="hero-btn glow-button px-5 py-3 text-white font-bold text-base group" onclick="goMap()">
+<span class="material-symbols-outlined icon-main">explore</span>
+<span>进入全景地图</span>
+</button>
+</div>
+</div>
+<div class="space-y-6" id="chapter-list">
+    <!-- Dynamic Content -->
+    <div class="p-8 text-center text-slate-500">正在加载教材大纲...</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</div>
+<div class="predict-fixed-wrap" role="region" aria-label="AI 学习难点预测">
+<div class="max-w-5xl mx-auto crystal-fix-area rounded-3xl p-4 backdrop-blur-2xl flex items-center justify-between gap-4">
+<div class="flex items-center gap-4 min-w-0">
+<div class="size-11 bg-primary/10 rounded-xl flex items-center justify-center relative overflow-hidden group shrink-0">
+<span class="material-symbols-outlined text-primary text-2xl">psychology</span>
+<div class="absolute inset-0 bg-primary/5 group-hover:bg-primary/10 transition-colors"></div>
+</div>
+<div class="min-w-0">
+<h4 class="text-base font-bold text-slate-900 tracking-tight">AI 学习难点预测</h4>
+<p class="text-[11px] text-slate-500 mt-0.5 truncate">基于教材结构与近期学习轨迹，预测 3 个高风险难点并给出针对性突破建议。</p>
+</div>
+</div>
+<div data-fix-actions>
+<div class="flex -space-x-2">
+<div class="size-8 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500">D1</div>
+<div class="size-8 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500">D2</div>
+<div class="size-8 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500">D3</div>
+</div>
+<button class="secondary-button px-3.5 py-2 rounded-full text-[11px] font-semibold transition-all opacity-75 hover:opacity-100" onclick="goPredict()">
+<span>查看预测详情</span>
+</button>
+<button class="glow-button flex items-center gap-2 text-white px-6 py-2.5 rounded-full text-sm font-bold shadow-xl" onclick="goPredict()">
+<span>开始预测</span>
+<span class="material-symbols-outlined text-lg">rocket_launch</span>
+</button>
+</div>
+</div>
+</div>
+
+</body>
+<script>
+  // Ensure we can find the parent context even if inside iframe
+  function getZ() { 
+      try {
+        return window.__ZHI2 || (window.parent && window.parent.__ZHI2) || (window.top && window.top.__ZHI2);
+      } catch(e) { return null; }
+  }
+
+  function goBack() { 
+    console.log("Attempting to go back...");
+    const Z = getZ(); 
+    
+    if(Z && typeof Z.go === 'function') {
+      console.log("Using Z.go(3) - Resource Center");
+      Z.go(3); 
+    } else {
+        console.log("Using history/location fallback");
+        // Check if we are in an iframe and need to signal parent
+        if (window.parent && window.parent !== window) {
+             // Try to post message if Z is not directly accessible (cross-origin protection?)
+             window.parent.postMessage({type: 'navigate', page: 3}, '*');
+        }
+        
+        if(window.history.length > 1) {
+            window.history.back();
+        } else {
+            window.location.href = '/';
+        }
+    }
+  }
+  
+  function getGrade(title) {
+    const grades = ['一年级','二年级','三年级','四年级','五年级','六年级','七年级','八年级','九年级','初一','初二','初三','高一','高二','高三'];
+    let g = '';
+    for (let item of grades) {
+        if (title.includes(item)) {
+            g = item;
+            break;
+        }
+    }
+    
+    let s = '';
+    if (title.includes('上册')) s = '上册';
+    else if (title.includes('下册')) s = '下册';
+    else if (title.includes('全册')) s = '全册';
+    else if (g && title.includes('上') && !title.includes('上海')) s = '上册';
+    else if (g && title.includes('下')) s = '下册';
+    
+    if (g && s) return g + ' · ' + s;
+    if (g) return g;
+    return '';
+  }
+
+  function renderCover(book) {
+      const wrapper = document.getElementById('book-cover-wrapper');
+      const imgEl = document.getElementById('book-cover');
+      const dynEl = document.getElementById('book-cover-dynamic');
+      
+      const hasCover = book.cover || book.cover_image;
+      
+      // Define fallback render logic
+      const showDynamic = () => {
+           imgEl.classList.add('hidden');
+           dynEl.classList.remove('hidden');
+           dynEl.classList.add('flex');
+           
+           const subj = book.subject || '综合';
+           const SUB_COLORS={数学:'#dbeafe:#1d4ed8',物理:'#f3e8ff:#7e22ce',化学:'#dcfce7:#15803d',语文:'#fee2e2:#b91c1c',英语:'#fef9c3:#a16207',生物:'#ccfbf1:#0f766e',地理:'#ffedd5:#c2410c'};
+           const [bg, fg] = (SUB_COLORS[subj] || '#f1f5f9:#475569').split(':');
+           const bgHex = bg.replace('#', '');
+           
+           wrapper.style.background = bg;
+           
+           // Render dynamic content similar to hub
+           dynEl.innerHTML = `
+               <img src="https://placehold.co/600x800/${bgHex}/${bgHex}.png" class="absolute inset-0 w-full h-full object-cover opacity-90 mix-blend-overlay" />
+               <div class="relative z-10 flex flex-col items-center justify-center gap-2 text-center p-4">
+                   <span style="color:${fg};text-shadow:0 2px 8px rgba(255,255,255,0.4)" class="text-4xl font-extrabold tracking-widest opacity-90">${subj}</span>
+                   <span style="color:${fg};background:rgba(255,255,255,0.6)" class="text-sm font-bold px-3 py-1 rounded-full opacity-80 tracking-wider shadow-sm backdrop-blur-sm">${getGrade(book.title)||book.grade||''}</span>
+               </div>
+               <div style="color:${fg};background:rgba(255,255,255,0.9)" class="absolute top-3 right-3 text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm z-20 backdrop-blur-md">${subj}</div>
+               <div style="color:white;background:rgba(0,0,0,0.4)" class="absolute bottom-3 left-3 text-[10px] font-bold px-2 py-0.5 rounded-md shadow-sm z-20 backdrop-blur-md">${book.version||'通用'}</div>
+           `;
+      };
+
+      if (hasCover) {
+          imgEl.src = book.cover || book.cover_image;
+          imgEl.classList.remove('hidden');
+          dynEl.classList.add('hidden');
+          dynEl.classList.remove('flex');
+          wrapper.style.background = 'transparent';
+          
+          // Add error handler to fallback to dynamic cover
+          imgEl.onerror = () => {
+              console.warn('Cover image failed to load, falling back to dynamic cover');
+              showDynamic();
+          };
+      } else {
+          showDynamic();
+      }
+  }
+
+  function goMap() { 
+      const Z = getZ(); 
+      if(Z && book.id) {
+        if (typeof Z.setMapTextbookCache === 'function' && prefetchedDetail && prefetchedDetail.textbook) {
+          Z.setMapTextbookCache(book.id, prefetchedDetail);
+        }
+        Z.go(1, { tid: book.id, title: book.title }); 
+      }
+  }
+
+  function goPredict() {
+      const Z = getZ();
+      if (Z) Z.go(14, { tid: book.id || '', title: book.title || '' });
+  }
+  
+  // Parse URL params
+  const params = new URLSearchParams(window.location.search);
+  const book = {
+    id: params.get('id') || params.get('tid') || params.get('textbook_id') || '',
+    title: params.get('title'),
+    cover: params.get('cover'),
+    nodes: params.get('nodes'),
+    desc: params.get('desc'),
+    subject: params.get('subject'),
+    added: params.get('added') // Get pre-fetched status
+  };
+  let bookMasteryState = {
+    assessed: false,
+    mastery_percent: null,
+    assessment_count: 0,
+    display: '待测评'
+  };
+  let prefetchedDetail = null;
+  let pageAskContext = null;
+
+  function isValidId(v) {
+    return /^\d+$/.test(String(v || '').trim());
+  }
+
+  function normalizeTitle(v) {
+    return String(v || '')
+      .replace(/[\s\r\n\t]+/g, '')
+      .replace(/[《》【】\[\]\(\)（）·—\-_:：,，.。'"`]/g, '')
+      .toLowerCase()
+      .trim();
+  }
+
+  function sanitizeOverviewText(raw) {
+    const text = String(raw || '')
+      .replace(/\r/g, '\n')
+      .replace(/URL:\s*\/uploads\/\S+/gi, '')
+      .replace(/https?:\/\/\S+/gi, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    if (!text) return '';
+    const lines = text
+      .split('\n')
+      .map(x => x.trim())
+      .filter(Boolean)
+      .filter(x => !/^[.\-_=~·•…\s\d]{8,}$/.test(x))
+      .filter(x => !/^\d+\s*[\.\-、]/.test(x));
+    return lines.join(' ').replace(/\s{2,}/g, ' ').trim();
+  }
+
+  function looksLikeNoisyOverview(text) {
+    const t = sanitizeOverviewText(text);
+    if (!t) return true;
+    if (t.includes('正在解析')) return true;
+    if (/([.·…]{5,}|\.{5,})/.test(t)) return true;
+    if (/目录|总主编|责任编辑|编写人员|教材目录/.test(t) && t.length > 90) return true;
+    const punct = (t.match(/[，。；：！？]/g) || []).length;
+    if (t.length > 120 && punct < 2) return true;
+    return false;
+  }
+
+  function clipText(text, maxLen = 96) {
+    const t = String(text || '').trim();
+    if (!t) return '';
+    if (t.length <= maxLen) return t;
+    return `${t.slice(0, maxLen - 1)}…`;
+  }
+
+  function buildOverviewFallback(tb, chapters, totalChapters, totalKPs) {
+    const subject = tb?.subject || book.subject || '综合';
+    const focus = (chapters || [])
+      .map(ch => String(ch?.name || '').trim())
+      .filter(Boolean)
+      .slice(0, 3)
+      .join('、');
+    if (focus) {
+      return `本册${subject}共 ${totalChapters || 0} 个章节、${totalKPs || 0} 个知识点，重点围绕${focus}展开。`;
+    }
+    return `本册${subject}已完成结构化解析，当前共同步 ${totalKPs || 0} 个知识点。`;
+  }
+
+  function applyBookHeader() {
+    if(book.title) document.getElementById('book-title').textContent = book.title;
+    if(book.nodes) {
+      document.getElementById('book-nodes-badge').textContent = `已同步 ${book.nodes} 知识点`;
+      document.getElementById('book-nodes-count').textContent = `${book.nodes} 知识点`;
+    }
+    if(book.desc) document.getElementById('book-desc').textContent = book.desc;
+    renderCover(book);
+  }
+
+  function setMasteryUI(state) {
+    const assessed = !!(state && state.assessed && Number.isFinite(Number(state.mastery_percent)));
+    const pct = assessed ? Math.max(0, Math.min(100, Math.round(Number(state.mastery_percent)))) : null;
+    const valueEl = document.getElementById('book-mastery-value');
+    const barEl = document.getElementById('book-mastery-bar');
+    if (valueEl) {
+      if (assessed) {
+        valueEl.textContent = `${pct}%`;
+        valueEl.classList.remove('text-slate-500');
+        valueEl.classList.add('text-primary');
+      } else {
+        valueEl.textContent = '待测评';
+        valueEl.classList.remove('text-primary');
+        valueEl.classList.add('text-slate-500');
+      }
+    }
+    if (barEl) {
+      if (assessed) {
+        barEl.style.width = `${pct}%`;
+        barEl.className = 'h-full bg-gradient-to-r from-primary to-electric-violet rounded-full shadow-[0_0_10px_rgba(127,19,236,0.4)] transition-all duration-300';
+      } else {
+        barEl.style.width = '16%';
+        barEl.className = 'h-full bg-slate-300 rounded-full transition-all duration-300';
+      }
+    }
+  }
+
+  async function loadBookMastery(resolvedId) {
+    bookMasteryState = {
+      assessed: false,
+      mastery_percent: null,
+      assessment_count: 0,
+      display: '待测评'
+    };
+    if (!isValidId(resolvedId)) {
+      setMasteryUI(bookMasteryState);
+      return;
+    }
+    const Z = getZ();
+    try {
+      let d = null;
+      const ep = `/api/textbooks/${resolvedId}/mastery`;
+      if (Z && typeof Z.api === 'function') {
+        d = await Z.api('GET', ep);
+      } else {
+        const r = await fetch(ep);
+        if (r.ok) d = await r.json();
+      }
+      if (d && typeof d === 'object') {
+        bookMasteryState = {
+          assessed: !!d.assessed,
+          mastery_percent: Number.isFinite(Number(d.mastery_percent)) ? Number(d.mastery_percent) : null,
+          assessment_count: Number(d.assessment_count || 0),
+          display: String(d.display || (d.assessed ? `${d.mastery_percent}%` : '待测评'))
+        };
+      }
+    } catch (e) {
+      console.warn('loadBookMastery failed', e);
+    }
+    setMasteryUI(bookMasteryState);
+  }
+
+  function pickKnowledgeHighlights(chapters) {
+    const out = [];
+    const seen = new Set();
+    (chapters || []).forEach(ch => {
+      (ch.knowledge_points || []).forEach(kp => {
+        const name = String(kp?.name || '').trim();
+        if (!name || seen.has(name)) return;
+        seen.add(name);
+        out.push(name);
+      });
+      (ch.sections || []).forEach(sec => {
+        (sec.knowledge_points || []).forEach(kp => {
+          const name = String(kp?.name || '').trim();
+          if (!name || seen.has(name)) return;
+          seen.add(name);
+          out.push(name);
+        });
+      });
+    });
+    return out.slice(0, 8);
+  }
+
+  function buildPageAskContext(tb, chapters, totalChapters, totalKPs) {
+    const chapterHighlights = (chapters || [])
+      .map(ch => String(ch?.name || '').trim())
+      .filter(Boolean)
+      .slice(0, 6);
+    const knowledgeHighlights = pickKnowledgeHighlights(chapters);
+    return {
+      page: '教材详情',
+      source: 'textbook_detail',
+      textbook_id: String(tb?.id || book.id || ''),
+      title: tb?.title || book.title || '',
+      subject: tb?.subject || book.subject || '',
+      grade: tb?.grade || book.grade || '',
+      overview: sanitizeOverviewText(tb?.overview || book.desc || ''),
+      chapters_count: Number(totalChapters || 0),
+      nodes_count: Number(totalKPs || 0),
+      chapter_highlights: chapterHighlights,
+      knowledge_highlights: knowledgeHighlights
+    };
+  }
+
+  function getPageAskContext() {
+    return pageAskContext || {
+      page: '教材详情',
+      source: 'textbook_detail',
+      textbook_id: String(book.id || ''),
+      title: book.title || '',
+      subject: book.subject || '',
+      grade: book.grade || '',
+      overview: sanitizeOverviewText(book.desc || ''),
+      chapters_count: Number(book.chapters || 0),
+      nodes_count: Number(book.nodes || 0),
+      chapter_highlights: [],
+      knowledge_highlights: []
+    };
+  }
+  window.getPageAskContext = getPageAskContext;
+
+  async function hydrateBookFromPublicResources() {
+    const Z = getZ();
+    try {
+      let resources = [];
+      if (Z && typeof Z.api === 'function') {
+        const d = await Z.api('GET', '/api/public/resources');
+        resources = d?.resources || [];
+      } else {
+        const r = await fetch('/api/public/resources');
+        if (r.ok) {
+          const d = await r.json();
+          resources = d?.resources || [];
+        }
+      }
+      if (!resources.length) return;
+      const picked = resources[0];
+      if (!picked) return;
+      if (isValidId(picked.id)) book.id = String(picked.id);
+      book.title = picked.title || book.title;
+      book.subject = picked.subject || book.subject;
+      book.cover = picked.cover_image || book.cover;
+      book.nodes = String(picked.nodes_count || book.nodes || '');
+      const pickedOverview = sanitizeOverviewText(picked.overview || '');
+      if (pickedOverview && !looksLikeNoisyOverview(pickedOverview)) {
+        book.desc = clipText(pickedOverview, 110);
+      }
+      applyBookHeader();
+    } catch(e) {}
+  }
+
+  async function ensureBookId() {
+    if (isValidId(book.id)) return String(book.id);
+    if (!(book.title || '').trim()) {
+      await hydrateBookFromPublicResources();
+      if (isValidId(book.id)) return String(book.id);
+    }
+    const t = (book.title || '').trim();
+    if (!t) return '';
+    const Z = getZ();
+    try {
+      const ep = `/api/public/textbooks/by-title?title=${encodeURIComponent(t)}`;
+      let d = null;
+      if (Z && typeof Z.api === 'function') {
+        d = await Z.api('GET', ep);
+      } else {
+        const r = await fetch(ep);
+        if (r.ok) {
+          d = await r.json();
+        }
+      }
+      if (d && d.textbook && isValidId(d.textbook.id)) {
+        book.id = String(d.textbook.id);
+        prefetchedDetail = d;
+        return book.id;
+      }
+    } catch(e) {
+      console.warn('ensureBookId failed', e);
+    }
+    return '';
+  }
+
+  if (book.title) applyBookHeader();
+  
+  // Fetch detailed data
+  async function loadDetail() {
+      // 1. Try to use Z object from parent
+      const Z = getZ();
+      
+      try {
+          const resolvedId = await ensureBookId();
+          if (!isValidId(resolvedId) && !prefetchedDetail) {
+              throw new Error('缺少教材ID，请从教材列表重新进入');
+          }
+          await loadBookMastery(resolvedId);
+          let res = prefetchedDetail;
+          // 2. Dual-mode fetch: Z.api (iframe) or native fetch (standalone)
+          if(!res){
+              if(Z && typeof Z.api === 'function') {
+                  console.log("Using Z.api");
+                  res = await Z.api('GET', `/api/textbooks/${resolvedId}`);
+              } else {
+                  console.log("Using native fetch");
+                  const r = await fetch(`/api/textbooks/${resolvedId}`);
+                  if(r.ok) res = await r.json();
+                  else throw new Error(r.statusText);
+              }
+          }
+
+          if(res && res.textbook) {
+              const tb = res.textbook;
+              prefetchedDetail = res;
+              if (Z && typeof Z.setMapTextbookCache === 'function' && isValidId(tb.id)) {
+                Z.setMapTextbookCache(tb.id, res);
+              }
+              // Update global book object with fetched details
+              book.cover_image = tb.cover_image;
+              book.subject = tb.subject || book.subject;
+              book.grade = tb.grade || book.grade;
+              book.version = tb.version || book.version;
+
+              // Update title/cover if fetched is better
+              document.getElementById('book-title').textContent = tb.title;
+              const descEl = document.getElementById('book-desc');
+              const overviewCandidate = sanitizeOverviewText(tb.overview || '');
+              const incomingDesc = sanitizeOverviewText(book.desc || '');
+              if (overviewCandidate && !looksLikeNoisyOverview(overviewCandidate)) {
+                descEl.textContent = clipText(overviewCandidate, 120);
+              } else if (incomingDesc && !looksLikeNoisyOverview(incomingDesc)) {
+                descEl.textContent = clipText(incomingDesc, 120);
+              }
+              
+              // Use unified render function
+              renderCover(tb);
+
+              // Render Chapters
+              let chapters = [];
+              
+              // 1. Prefer Backend Structured Data (Stable & Standardized)
+              if (res.structure && res.structure.length > 0) {
+                  console.log("Using backend structure");
+                  chapters = res.structure;
+              }
+              // 2. Fallback to analysis_json (Legacy)
+              else if (tb.analysis_json) {
+                  try {
+                      const data = JSON.parse(tb.analysis_json);
+                      if (data.chapters) chapters = data.chapters;
+                      // Support 'modules' format if 'chapters' is missing
+                      else if (data.modules) {
+                          // Flatten Modules -> Units -> Sections to fit UI
+                          data.modules.forEach(mod => {
+                              if(mod.units) {
+                                  mod.units.forEach(unit => {
+                                      // Treat Unit as Chapter
+                                      chapters.push({
+                                          name: `${mod.name} · ${unit.name}`,
+                                          sections: unit.sections || [],
+                                          knowledge_points: unit.knowledge_points || []
+                                      });
+                                  });
+                              }
+                          });
+                      }
+                  } catch(e) { console.error("JSON parse error", e); }
+              }
+              
+              // 3. Fallback to nodes grouping (Legacy)
+              if (!chapters.length && res.nodes && res.nodes.length > 0) {
+                  const groups = {};
+                  res.nodes.forEach(n => {
+                      // Support both chapter field and implicit grouping
+                      const ch = n.chapter || '其他章节';
+                      if(!groups[ch]) groups[ch] = {name: ch, knowledge_points: []};
+                      groups[ch].knowledge_points.push(n);
+                  });
+                  // Sort chapters if they have numeric prefixes (e.g. "第一章")
+                  chapters = Object.values(groups).sort((a,b) => {
+                      const getIdx = s => {
+                          const m = s.match(/第([一二三四五六七八九十]+)章/) || s.match(/^(\d+)/);
+                          return m ? (parseInt(m[1]) || 999) : 999; 
+                      };
+                      return getIdx(a.name) - getIdx(b.name);
+                  });
+              }
+              
+              // --- UPDATE TOTAL COUNTS ---
+              const totalChapters = chapters.length;
+              let totalKPs = 0;
+              chapters.forEach(c => {
+                  totalKPs += (c.knowledge_points || []).length;
+                  if(c.sections) {
+                      c.sections.forEach(s => totalKPs += (s.knowledge_points || []).length);
+                  }
+              });
+
+              // Update Front-end Stats
+              if (totalKPs > 0) {
+                  const nodeBadge = document.getElementById('book-nodes-badge');
+                  const nodeCount = document.getElementById('book-nodes-count');
+                  if(nodeBadge) nodeBadge.textContent = `已同步 ${totalKPs} 知识点`;
+                  if(nodeCount) nodeCount.textContent = `${totalKPs} 知识点`;
+              }
+              
+              // Update Chapter Count (inline header stats)
+              const chapterInline = document.getElementById('book-chapters-count-inline');
+              if (chapterInline) {
+                chapterInline.textContent = `${totalChapters} 章节`;
+              }
+
+              pageAskContext = buildPageAskContext(tb, chapters, totalChapters, totalKPs);
+              
+              // If overview is noisy/missing, replace with structured fallback summary.
+              if (descEl) {
+                const shown = sanitizeOverviewText(descEl.textContent || '');
+                if (!shown || looksLikeNoisyOverview(shown) || descEl.textContent.includes('核心章节')) {
+                  descEl.textContent = buildOverviewFallback(tb, chapters, totalChapters, totalKPs);
+                }
+              }
+
+              renderChapters(chapters);
+          }
+      } catch(e) {
+          console.error(e);
+          document.getElementById('chapter-list').innerHTML = `<div class="p-8 text-center text-slate-500">
+            <p>加载失败: ${e.message}</p>
+            <button onclick="loadDetail()" class="mt-4 px-4 py-2 bg-slate-100 rounded-lg text-sm hover:bg-slate-200">重试</button>
+          </div>`;
+      }
+  }
+  
+  function renderChapters(chapters) {
+      const container = document.getElementById('chapter-list');
+      if(!chapters.length) {
+          container.innerHTML = '<div class="p-8 text-center text-slate-500">暂无章节信息</div>';
+          return;
+      }
+      
+      container.innerHTML = chapters.map((ch, i) => {
+          const assessed = !!(bookMasteryState && bookMasteryState.assessed && Number.isFinite(Number(bookMasteryState.mastery_percent)));
+          const mastery = assessed ? Math.max(0, Math.min(100, Math.round(Number(bookMasteryState.mastery_percent)))) : 16;
+          const barClass = assessed
+            ? 'h-full bg-primary rounded-full shadow-[0_0_8px_rgba(127,19,236,0.3)]'
+            : 'h-full bg-slate-300 rounded-full';
+          const kps = ch.knowledge_points || [];
+          const secs = ch.sections || [];
+          const totalItems = kps.length + secs.reduce((s, sec) => s + (sec.knowledge_points||[]).length, 0);
+          
+          let contentHtml = '';
+          
+          // Render Sections
+          if (secs.length) {
+              contentHtml += `<div class="px-6 py-4 bg-white/50 space-y-3">
+                  ${secs.map(sec => `
+                      <div class="py-2 border-b border-slate-50 last:border-0">
+                          <div class="flex items-center gap-3 mb-2">
+                              <span class="size-1.5 rounded-full bg-primary/40"></span>
+                              <span class="text-sm font-bold text-slate-700">${sec.name}</span>
+                          </div>
+                          ${(sec.knowledge_points||[]).map(kp => renderKP(kp)).join('')}
+                      </div>
+                  `).join('')}
+              </div>`;
+          }
+          
+          // Render Chapter-level KPs
+          if (kps.length) {
+               contentHtml += `<div class="px-6 py-4 bg-white/50 space-y-3 border-t border-slate-100">
+                  <div class="text-xs text-slate-400 font-bold mb-2">本章核心知识点</div>
+                  ${kps.map(kp => renderKP(kp)).join('')}
+               </div>`;
+          }
+
+          return `
+            <div class="chapter-card bg-white border border-slate-100 rounded-2xl transition-all overflow-hidden mb-4">
+                <div class="p-5 flex items-center gap-6 cursor-pointer" onclick="this.parentElement.classList.toggle('open')">
+                    <div class="size-12 rounded-xl bg-soft-purple flex items-center justify-center text-primary font-bold text-lg shrink-0">
+                        ${i+1}
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="font-bold text-slate-800 text-lg">${ch.name}</h3>
+                            <div class="flex items-center gap-4">
+                                <div class="text-right">
+                                    <p class="text-[10px] text-slate-400 uppercase font-bold">知识点</p>
+                                    <p class="text-sm font-bold text-primary">${totalItems}</p>
+                                </div>
+                                <span class="material-symbols-outlined text-slate-300 transition-transform duration-300" style="transform: rotate(0deg)">expand_more</span>
+                            </div>
+                        </div>
+                        <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div class="${barClass}" style="width: ${mastery}%"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="chapter-content hidden">
+                    ${contentHtml}
+                </div>
+            </div>
+          `;
+      }).join('');
+      
+      // Add toggle style
+      const style = document.createElement('style');
+      style.textContent = `
+        .chapter-card.open .chapter-content { display: block; }
+        .chapter-card.open .material-symbols-outlined { transform: rotate(180deg) !important; }
+      `;
+      document.head.appendChild(style);
+  }
+  
+  function renderKP(kp) {
+      const diffColor = kp.difficulty==='easy'?'text-green-600 bg-green-50':kp.difficulty==='hard'?'text-red-600 bg-red-50':'text-amber-600 bg-amber-50';
+      const diffText = kp.difficulty==='easy'?'简单':kp.difficulty==='hard'?'困难':'中等';
+      
+      return `<div class="flex items-center justify-between py-1 ml-4">
+          <div class="flex items-center gap-3">
+              <span class="size-1 rounded-full bg-slate-300"></span>
+              <span class="text-sm text-slate-600">${kp.name}</span>
+          </div>
+          <span class="px-2 py-0.5 ${diffColor} text-[10px] font-bold rounded">${diffText}</span>
+      </div>`;
+  }
+
+  loadDetail();
+  
+  // Update button UI helper
+  function setAddedUI() {
+    const btn = document.getElementById('add-btn');
+    if(btn) {
+        btn.innerHTML = '<span class="material-symbols-outlined text-2xl font-bold">check</span><div class="flex flex-col items-start leading-tight"><span>已添加</span><span class="text-[10px] opacity-70 font-normal">ADDED</span></div>';
+        btn.disabled = true;
+        btn.classList.add('opacity-50', 'cursor-not-allowed');
+        btn.classList.remove('energy-btn');
+        btn.style.background = '#cbd5e1'; // slate-300
+        btn.style.boxShadow = 'none';
+    }
+  }
+
+  // Check if already added
+  async function checkStatus() {
+    // If passed via URL, use it immediately for instant feedback
+    if (book.added === 'true') {
+        setAddedUI();
+        return;
+    }
+
+    const Z = getZ();
+    if(!Z) return;
+    try {
+        const d = await Z.api('GET', '/api/textbooks');
+        const myBooks = d.textbooks || [];
+        const added = myBooks.some(b => b.title === book.title);
+        
+        if (added) {
+            setAddedUI();
+        }
+    } catch(e) { console.error('Check status failed', e); }
+  }
+  
+  checkStatus();
+
+  async function addToPlan() {
+    const Z = getZ();
+    if(!Z) return;
+    
+    const btn = document.getElementById('add-btn');
+    if(btn.disabled) return;
+    
+    Z.toast('正在添加到我的文件...', 'info');
+    btn.disabled = true;
+    
+    try {
+        await Z.api('POST', '/api/textbooks', {
+          title: book.title,
+          subject: book.subject || '综合',
+          content_text: `[官方资源] ${book.title}\n已从官方库载入。`,
+          is_official: true,
+          cover_image: book.cover_image || book.cover || '', // Use fetched or param cover
+          source_official_id: +book.id || 0
+        });
+        
+        Z.toast('已添加到我的文件！✨');
+        
+        // Update button UI
+        setAddedUI();
+        
+    } catch(e) {
+        Z.toast('添加失败: ' + e.message, 'err');
+        btn.disabled = false;
+    }
+  }
+</script>
+</html>

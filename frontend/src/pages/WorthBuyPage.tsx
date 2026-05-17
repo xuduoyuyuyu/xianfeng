@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import GlobalPublicNav from "../components/GlobalPublicNav";
 
 
 /* ===== 类型 ===== */
@@ -742,10 +743,10 @@ const WorthBuyPage: React.FC = () => {
 
   return (
     <div className="worthbuy-page" style={{ minHeight: "100vh", background: "#f8f6ff" }}>
-      
+      <GlobalPublicNav showPlanningEntry={true} />
 
       {/* ===== Hero 区域 ===== */}
-      <main className="worthbuy-hero mx-auto max-w-7xl px-4 pt-[38px] pb-2 sm:px-6 lg:px-8">
+      <main className="worthbuy-hero mx-auto max-w-7xl px-4 pt-[76px] pb-2 sm:px-6 lg:px-8">
         <section className="overflow-hidden rounded-[2rem] border border-[#d8d0ef] p-7 shadow-[0_24px_80px_rgba(80,62,125,0.1)] sm:p-9" style={{ background: "radial-gradient(circle at 85% 15%, rgba(143,100,255,0.1), transparent 38%), linear-gradient(135deg, #f4f1fd 0%, #faf8ff 48%, #f0ebff 100%)" }}>
           <div className="max-w-3xl mx-auto text-center">
             <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.26em] text-[#5b3fa1]">
@@ -774,7 +775,7 @@ const WorthBuyPage: React.FC = () => {
                 placeholder="粘贴商品链接或输入品牌名称…"
                 disabled={loading}
                 className="w-full border-0 bg-transparent text-sm outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
-                style={{ fontSize: 14, color: "#1E1B4B", minWidth: 0 }}
+                style={{ fontSize: 14, color: "#1E1B4B", minWidth: 0, borderBottom: "none", WebkitAppearance: "none", appearance: "none" }}
               />
             </label>
             <button

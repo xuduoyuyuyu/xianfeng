@@ -18,6 +18,8 @@ if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   exit 1
 fi
 
+"$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/release/verify-clean-structure.sh"
+
 DIRTY_FILES="$(git status --porcelain)"
 if [[ -n "${DIRTY_FILES}" ]]; then
   echo "本地还有未提交改动，已停止部署："

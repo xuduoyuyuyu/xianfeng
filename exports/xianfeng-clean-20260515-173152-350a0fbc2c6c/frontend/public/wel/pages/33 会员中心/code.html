@@ -1,0 +1,253 @@
+<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>wel 会员中心视觉调优版</title>
+<script src="/wel/vendor/tailwindcdn.forms.container-queries.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#7f13ec",
+                        "electric-purple": "#a855f7",
+                        "soft-lavender": "#f3e8ff",
+                        "deep-lavender": "#5b21b6",
+                        "pearl-white": "#fdfcff",
+                        "background-light": "#fbfaff",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "3xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        @layer utilities {
+            .glass-morphism-pro {
+                background: linear-gradient(135deg, rgba(255, 255, 255, 0.7) 0%, rgba(243, 232, 255, 0.4) 100%);
+                backdrop-filter: blur(20px);
+                -webkit-backdrop-filter: blur(20px);
+                border: 1px solid rgba(168, 85, 247, 0.2);
+            }
+            .pro-neon-outline {
+                position: relative;
+                box-shadow: 0 0 25px rgba(168, 85, 247, 0.08);
+            }
+            .pro-neon-outline::before {
+                content: '';
+                position: absolute;
+                inset: -1px;
+                background: linear-gradient(135deg, rgba(168, 85, 247, 0.3), rgba(255, 255, 255, 0.1), rgba(168, 85, 247, 0.3));
+                border-radius: 1.55rem;
+                z-index: -1;
+            }
+            .holographic-bg {
+                background: 
+                    radial-gradient(circle at 5% 5%, rgba(127, 19, 236, 0.02) 0%, transparent 30%),
+                    radial-gradient(circle at 95% 95%, rgba(168, 85, 247, 0.04) 0%, transparent 30%),
+                    linear-gradient(180deg, #fdfcff 0%, #f6f3ff 100%);
+            }
+            .glow-button {
+                box-shadow: 0 4px 20px rgba(127, 19, 236, 0.3);
+                background: linear-gradient(90deg, #7f13ec, #a855f7);
+            }
+            .holographic-card-subtle {
+                background: radial-gradient(circle at top left, rgba(255,255,255,0.8), rgba(243, 232, 255, 0.3));
+            }
+        }
+    </style>
+</head>
+<body class="bg-background-light font-display text-slate-900 min-h-screen holographic-bg">
+<div class="relative flex h-auto min-h-screen w-full flex-col overflow-x-hidden">
+<header class="flex items-center justify-between px-10 py-4 bg-white/60 backdrop-blur-md sticky top-0 z-50 border-b border-primary/5">
+<div class="flex items-center gap-2 text-primary">
+<img src="/logo.png" alt="Logo" class="h-6" />
+</div>
+<nav class="hidden md:flex items-center gap-8">
+<a class="text-slate-600 text-sm font-medium hover:text-primary transition-colors" href="#" style="">学习大屏</a>
+<a class="text-slate-600 text-sm font-medium hover:text-primary transition-colors" href="#" style="">课程中心</a>
+<a class="text-slate-600 text-sm font-medium hover:text-primary transition-colors" href="#" style="">精准练习</a>
+<a class="text-slate-600 text-sm font-medium hover:text-primary transition-colors" href="#" style="">权益对比</a>
+</nav>
+<div class="flex items-center gap-4">
+<button class="px-5 py-2 rounded-lg bg-primary/5 text-primary text-sm font-bold border border-primary/10 hover:bg-primary/10 transition-all" style="">登录 / 注册</button>
+<div class="bg-slate-200 rounded-full size-9 border border-primary/10 bg-cover bg-center" style="background-image: url(&quot;/assets/wel-avatar/no-hat.png&quot;);"></div>
+</div>
+</header>
+<main class="flex-1 flex flex-col items-center py-16 px-4">
+<div class="text-center mb-16 max-w-3xl">
+<span class="inline-block px-4 py-1.5 bg-primary/5 text-primary/70 text-xs font-bold rounded-full mb-6 tracking-widest uppercase border border-primary/10" style="">Member Center</span>
+<h1 class="text-slate-900 text-5xl font-black leading-tight tracking-tight mb-6" style="">wel 会员中心</h1>
+<p class="text-slate-500 text-lg" style="">基于AI学习的新一代教育工具</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-6xl mb-24">
+<div class="bg-white rounded-3xl p-10 flex flex-col border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] hover:shadow-md transition-shadow relative overflow-hidden group">
+<div class="mb-8">
+<h3 class="text-2xl font-bold text-slate-800 mb-2" style="">基础会员</h3>
+<p class="text-slate-400 text-sm" style="">满足日常学习基础需求</p>
+<div class="mt-6 flex items-baseline gap-1">
+<span class="text-4xl font-black text-slate-900" style="">¥299</span>
+<span class="text-slate-400 text-sm" style="">/年</span>
+</div>
+</div>
+<div class="flex-1 space-y-4 mb-10">
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-slate-400 text-xl" style="">check_circle</span>
+<span class="text-slate-600 font-medium" style="">全教材知识地图</span>
+</div>
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-slate-400 text-xl" style="">check_circle</span>
+<span class="text-slate-600 font-medium" style="">同步测评</span>
+</div>
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-slate-400 text-xl" style="">check_circle</span>
+<span class="text-slate-600 font-medium" style="">基础错题记录</span>
+</div>
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-slate-400 text-xl" style="">check_circle</span>
+<span class="text-slate-600 font-medium" style="">标准成长报告</span>
+</div>
+</div>
+<button class="w-full py-4 rounded-xl border-2 border-slate-200 text-slate-600 font-bold hover:border-primary/30 hover:text-primary transition-all" style="">
+                    立即开通
+                </button>
+</div>
+<div class="pro-neon-outline glass-morphism-pro rounded-3xl p-10 flex flex-col relative group overflow-hidden">
+<div class="absolute top-6 right-6 px-3 py-1 bg-white/80 backdrop-blur-sm border border-primary/20 text-primary text-[10px] font-black rounded-full uppercase tracking-tighter shadow-sm" style="">
+                    AI Powerful
+                </div>
+<div class="mb-8">
+<h3 class="text-2xl font-bold text-deep-lavender mb-2 flex items-center gap-2" style="">
+                        Pro 会员
+                        <span class="material-symbols-outlined text-primary/60 fill-1" style="">verified</span>
+</h3>
+<p class="text-slate-500 text-sm" style="">极致 AI 洞察，锁定未来核心竞争力</p>
+<div class="mt-6 flex items-baseline gap-1">
+<span class="text-4xl font-black text-deep-lavender" style="">¥699</span>
+<span class="text-slate-400 text-sm" style="">/年</span>
+</div>
+</div>
+<div class="flex-1 space-y-4 mb-10">
+<div class="flex items-start gap-3 group/item">
+<span class="material-symbols-outlined text-primary/60 text-xl font-bold" style="">auto_awesome</span>
+<div>
+<span class="text-deep-lavender font-bold block" style="">AI 学习全量预判</span>
+<span class="text-xs text-slate-500" style="">锁定未来难点，提前避坑</span>
+</div>
+</div>
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary/60 text-xl font-bold" style="">bolt</span>
+<div>
+<span class="text-deep-lavender font-bold block" style="">无限次深度错题修复</span>
+<span class="text-xs text-slate-500" style="">不限次数的 AI 归因深度剖析</span>
+</div>
+</div>
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary/60 text-xl font-bold" style="">edit_document</span>
+<span class="text-deep-lavender font-bold" style="">AI 专属强化挑战卷</span>
+</div>
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary/60 text-xl font-bold" style="">hub</span>
+<span class="text-deep-lavender font-bold" style="">深度知识星图洞察</span>
+</div>
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary/60 text-xl font-bold" style="">settings_accessibility</span>
+<span class="text-deep-lavender font-bold" style="">家长端高级指挥中心</span>
+</div>
+</div>
+<button class="glow-button w-full py-4 rounded-xl text-white font-bold flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-[0.98] transition-all" style="">
+<span class="material-symbols-outlined" style="">rocket_launch</span>
+                    解锁 Pro 能量
+                </button>
+</div>
+</div>
+<div class="w-full max-w-5xl">
+<div class="text-center mb-10">
+<h2 class="text-3xl font-bold text-slate-900" style="">功能详尽对比</h2>
+<p class="text-slate-500 mt-2" style="">横向对比各档位核心权益差异</p>
+</div>
+<div class="bg-white/40 backdrop-blur-md border border-slate-100 rounded-3xl overflow-hidden shadow-sm">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-slate-50/30">
+<th class="p-6 text-slate-400 font-medium text-sm" style="">核心功能</th>
+<th class="p-6 text-slate-800 font-bold text-center" style="">基础会员</th>
+<th class="p-6 text-deep-lavender font-bold text-center bg-primary/5" style="">Pro 会员</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100/50">
+<tr>
+<td class="p-6 text-slate-600 font-medium" style="">教材知识地图</td>
+<td class="p-6 text-center" style=""><span class="material-symbols-outlined text-slate-300" style="">check</span></td>
+<td class="p-6 text-center bg-primary/[0.02]" style=""><span class="material-symbols-outlined text-primary/60" style="">check</span></td>
+</tr>
+<tr>
+<td class="p-6 text-slate-600 font-medium" style="">同步测评/报告</td>
+<td class="p-6 text-center text-slate-400 text-sm" style="">标准版</td>
+<td class="p-6 text-center text-deep-lavender font-bold text-sm bg-primary/[0.02]" style="">深度全量版</td>
+</tr>
+<tr>
+<td class="p-6 text-slate-600 font-medium" style="">错题归因分析</td>
+<td class="p-6 text-center text-slate-400 text-sm" style="">有限次数</td>
+<td class="p-6 text-center text-deep-lavender font-bold text-sm bg-primary/[0.02]" style="">无限次数 AI 错题修复</td>
+</tr>
+<tr>
+<td class="p-6 text-slate-600 font-medium" style="">未来难点预判</td>
+<td class="p-6 text-center" style="">—</td>
+<td class="p-6 text-center bg-primary/[0.02]" style=""><span class="material-symbols-outlined text-primary/60 font-bold" style="">check</span></td>
+</tr>
+<tr>
+<td class="p-6 text-slate-600 font-medium" style="">专属强化挑战卷</td>
+<td class="p-6 text-center" style="">—</td>
+<td class="p-6 text-center bg-primary/[0.02]" style=""><span class="material-symbols-outlined text-primary/60 font-bold" style="">check</span></td>
+</tr>
+<tr>
+<td class="p-6 text-slate-600 font-medium" style="">家长端管理功能</td>
+<td class="p-6 text-center text-slate-400 text-xs" style="">基础查阅</td>
+<td class="p-6 text-center text-deep-lavender font-bold text-sm bg-primary/[0.02]" style="">高级指挥中心</td>
+</tr>
+<tr class="bg-primary/[0.03]">
+<td class="p-6 text-deep-lavender font-bold italic" style="">AI 深度洞察能力</td>
+<td class="p-6 text-center text-slate-400 text-xs" style="">—</td>
+<td class="p-6 text-center bg-primary/[0.03]" style=""><span class="material-symbols-outlined text-primary/70 font-bold" style="">check</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="mt-24 flex flex-col items-center gap-6">
+<div class="flex -space-x-3">
+<div class="w-10 h-10 rounded-full border-2 border-white bg-slate-200 bg-cover" style="background-image: url(&quot;/assets/wel-avatar/no-hat.png&quot;);"></div>
+<div class="w-10 h-10 rounded-full border-2 border-white bg-slate-200 bg-cover" style="background-image: url(&quot;/assets/wel-avatar/no-hat.png&quot;);"></div>
+<div class="w-10 h-10 rounded-full border-2 border-white bg-slate-200 bg-cover" style="background-image: url(&quot;/assets/wel-avatar/no-hat.png&quot;);"></div>
+<div class="w-10 h-10 rounded-full border-2 border-white bg-primary/80 flex items-center justify-center text-[10px] text-white font-bold" style="">+24k</div>
+</div>
+<p class="text-slate-400 text-sm" style="">已有超过 24,000 位家长和学生选择了我们的 AI 规划服务</p>
+</div>
+</main>
+<footer class="mt-auto border-t border-slate-100 py-12 px-10 bg-white/50">
+<div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
+<div class="flex items-center gap-2 opacity-40">
+<div class="size-6 text-primary">
+<svg fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path d="M24 4C25.7818 14.2173 33.7827 22.2182 44 24C33.7827 25.7818 25.7818 33.7827 24 44C22.2182 33.7827 14.2173 25.7818 4 24C14.2173 22.2182 22.2182 14.2173 24 4Z" fill="currentColor"></path>
+</svg>
+</div>
+<span class="text-xs text-slate-500" style="">© 2024 wel AI Education Technology. Version: 视觉调优版</span>
+</div>
+<div class="flex gap-10">
+<a class="text-xs text-slate-400 hover:text-primary transition-colors" href="#" style="">隐私保护</a>
+<a class="text-xs text-slate-400 hover:text-primary transition-colors" href="#" style="">用户协议</a>
+<a class="text-xs text-slate-400 hover:text-primary transition-colors" href="#" style="">帮助中心</a>
+<a class="text-xs text-slate-400 hover:text-primary transition-colors" href="#" style="">联系我们</a>
+</div>
+</div>
+</footer>
+</div>
+
+</body></html>

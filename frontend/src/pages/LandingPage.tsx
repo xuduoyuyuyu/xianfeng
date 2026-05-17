@@ -519,10 +519,6 @@ const LandingPage: React.FC = () => {
         showSearch={false}
         showAiOnline={false}
         showLogout={false}
-        showProgramList={false}
-        showProgramEntry={false}
-        showExpertsEntry={false}
-        showMaterialsEntry={false}
         compactMobile
       />
 

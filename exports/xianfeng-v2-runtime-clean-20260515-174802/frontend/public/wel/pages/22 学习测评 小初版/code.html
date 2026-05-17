@@ -1,0 +1,552 @@
+<!DOCTYPE html><html class="light" lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>wel 能力测评智能推荐页</title>
+<script src="/wel/vendor/tailwindcdn.forms.container-queries.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#7f13ec",
+                        "pearl": "#fbfbfc",
+                        "electron-purple": "#8b2cf5",
+                        "soft-purple": "#f5f0ff",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "Noto Sans SC", "sans-serif"]
+                    },
+                    backgroundImage: {
+                        'grid-pattern': "url(\"data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%237f13ec' fill-opacity='0.02' fill-rule='evenodd'%3E%3Cpath d='M0 40L40 0H20L0 20M40 40V20L20 40'/%3E%3C/g%3E%3C/svg%3E\")",
+                    }
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        @layer base {
+            body {
+                @apply font-display bg-pearl text-slate-900;
+            }
+        }
+        .holographic-glow {
+            background: linear-gradient(135deg, rgba(127,19,236,0.08) 0%, rgba(255,255,255,0) 50%, rgba(139,44,245,0.08) 100%);
+        }
+        .pearl-card {
+            background: #ffffff;
+            border: 1px solid rgba(127, 19, 236, 0.08);
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.02), 0 4px 6px -2px rgba(0, 0, 0, 0.01);
+            @apply rounded-[2rem] transition-all duration-500 hover:shadow-2xl hover:shadow-primary/10 hover:-translate-y-1;
+        }
+        .btn-electron {
+            background: #8b2cf5;
+            box-shadow: 0 0 20px rgba(139, 44, 245, 0.3), inset 0 0 12px rgba(255, 255, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+        .energy-spatter {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.2) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .btn-electron:hover .energy-spatter {
+            opacity: 1;
+        }
+        .nav-active {
+            @apply bg-primary text-white shadow-lg shadow-primary/20;
+        }
+        .nav-inactive {
+            @apply text-slate-500 hover:bg-slate-100;
+        }
+        .quick-chip {
+            @apply px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-slate-100/70 hover:bg-primary/10 hover:text-primary transition-colors;
+        }
+        .quick-chip.on {
+            @apply bg-primary text-white shadow shadow-primary/20;
+        }
+    </style>
+</head>
+<body class="antialiased min-h-screen relative overflow-x-hidden">
+<div class="fixed inset-0 bg-grid-pattern pointer-events-none"></div>
+<div class="fixed top-[-5%] left-[-5%] w-[600px] h-[600px] bg-primary/3 blur-[140px] rounded-full pointer-events-none"></div>
+<div class="fixed bottom-[-5%] right-[-5%] w-[600px] h-[600px] bg-electron-purple/3 blur-[140px] rounded-full pointer-events-none"></div>
+<div class="relative flex flex-col min-h-screen z-10">
+<header class="hidden">
+<div class="flex items-center gap-3 text-primary">
+<img src="/logo.png" alt="Logo" class="h-7" />
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2">
+<div class="size-8 rounded-full bg-slate-200 bg-cover bg-center border border-white" style="background-image: url(&quot;/assets/wel-avatar/no-hat.png&quot;);"></div>
+<span class="text-sm font-semibold text-slate-700" style="">李明华</span>
+</div>
+</div>
+</header>
+<main class="flex-1 flex flex-col items-center px-6 pt-[58px] pb-20">
+<div class="text-center mb-12 space-y-4">
+<span class="inline-block px-4 py-1.5 rounded-full bg-primary/5 text-primary text-[10px] font-bold tracking-widest uppercase" style="">Enhancement Version 2.0</span>
+<h2 class="text-slate-900 text-5xl font-black tracking-tight" style="">学习能力测评</h2>
+<p id="assess-subtitle" class="text-slate-500 text-lg max-w-2xl mx-auto" style="">基于您的年级进度，AI 为您精准匹配了三类核心测评，快速定位认知基准。</p>
+</div>
+<div id="quick-filter-wrap" class="relative z-[2147483000] bg-white/60 backdrop-blur-md p-3 rounded-2xl border border-slate-200 mb-4 flex flex-wrap items-center gap-3 shadow-sm w-full max-w-5xl">
+  <div id="quick-city-wrap" class="relative z-[2147483600]">
+    <button id="quick-city-btn" class="h-10 px-4 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 flex items-center gap-2">
+      <span class="material-symbols-outlined text-base text-primary">location_city</span>
+      <span id="quick-city-label">北京</span>
+      <span class="material-symbols-outlined text-base text-slate-400">expand_more</span>
+    </button>
+    <div id="quick-city-panel" class="hidden absolute left-0 top-[calc(100%+8px)] z-[2147483647] w-[520px] min-h-[112px] bg-white border border-slate-200 rounded-2xl p-3 shadow-2xl">
+      <input id="quick-city-input" class="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/30" placeholder="输入城市，如：上海、青岛、北京" />
+      <div id="quick-city-hot" class="flex flex-nowrap gap-2 mt-3 overflow-x-auto pr-1"></div>
+      <div id="quick-city-list" class="hidden flex-nowrap gap-2 mt-2 overflow-x-auto pr-1"></div>
+    </div>
+  </div>
+  <div class="h-6 w-[1px] bg-slate-200 mx-1"></div>
+  <div id="quick-stage-wrap" class="relative">
+    <button id="quick-stage-btn" class="h-10 px-4 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 flex items-center gap-2">
+      <span class="material-symbols-outlined text-base text-primary">school</span>
+      <span id="quick-stage-label">小学 · 四年级</span>
+      <span class="material-symbols-outlined text-base text-slate-400">expand_more</span>
+    </button>
+    <div id="quick-stage-panel" class="hidden absolute left-0 top-[calc(100%+8px)] z-30 w-[460px] min-h-[96px] bg-white border border-slate-200 rounded-2xl p-3 shadow-xl">
+      <div id="quick-stage-tabs" class="flex flex-wrap gap-2 mb-3"></div>
+      <div id="quick-stage-children" class="flex flex-wrap gap-2"></div>
+    </div>
+  </div>
+  <div class="h-6 w-[1px] bg-slate-200 mx-1"></div>
+  <div id="quick-subject-wrap" class="relative">
+    <button id="quick-subject-btn" class="h-10 px-4 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 flex items-center gap-2">
+      <span class="material-symbols-outlined text-base text-primary">menu_book</span>
+      <span id="quick-subject-label">数学</span>
+      <span class="material-symbols-outlined text-base text-slate-400">expand_more</span>
+    </button>
+    <div id="quick-subject-panel" class="hidden absolute left-0 top-[calc(100%+8px)] z-30 w-[360px] bg-white border border-slate-200 rounded-2xl p-3 shadow-xl">
+      <div id="quick-subject-list" class="flex flex-wrap gap-2"></div>
+    </div>
+  </div>
+  <div class="ml-auto text-xs text-slate-500 pr-1" id="quick-filter-summary">已按 小学四年级 · 数学 生成测评</div>
+</div>
+<div id="quick-popover-spacer" class="h-[102px] w-full max-w-5xl"></div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-7xl w-full">
+<div class="pearl-card p-10 flex flex-col group">
+<div class="size-14 rounded-2xl border border-primary/20 flex items-center justify-center mb-8">
+<span class="material-symbols-outlined text-primary text-3xl font-extralight" style="">analytics</span>
+</div>
+<div class="mb-4">
+<span id="card1-badge" class="text-[10px] font-bold text-primary tracking-widest uppercase bg-primary/5 px-2 py-0.5 rounded" style="">Comprehensive</span>
+</div>
+<h3 id="card1-title" class="text-2xl font-bold text-slate-900 mb-4" style="">全景标准测</h3>
+<p id="card1-desc" class="text-slate-500 text-sm leading-relaxed mb-10" style="">覆盖当前年级全纲考点，通过 45 分钟深度测试，多维度精准定位能力短板与优势。</p>
+<div class="mt-auto space-y-4">
+<div class="flex items-center gap-2 text-xs text-slate-400">
+<span class="material-symbols-outlined text-sm" style="">schedule</span>
+<span id="card1-duration" class="" style="">预计用时 45 分钟</span>
+</div>
+<button class="w-full h-14 btn-electron text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 group-hover:scale-[1.02]" style="">
+<div class="energy-spatter"></div>
+<span id="card1-btn" class="relative z-10" style="">开启深度测评</span>
+<span class="material-symbols-outlined relative z-10 text-xl" style="">arrow_right_alt</span>
+</button>
+</div>
+</div>
+<div class="pearl-card p-10 flex flex-col border-primary/20 ring-4 ring-primary/5 relative group">
+<div class="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-white px-4 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase shadow-lg shadow-primary/20" style="">Recommended</div>
+<div class="size-14 rounded-2xl border border-primary/20 flex items-center justify-center mb-8">
+<span class="material-symbols-outlined text-primary text-3xl font-extralight" style="">bolt</span>
+</div>
+<div class="mb-4">
+<span id="card2-badge" class="text-[10px] font-bold text-primary tracking-widest uppercase bg-primary/5 px-2 py-0.5 rounded" style="">AI Quick Check</span>
+</div>
+<h3 id="card2-title" class="text-2xl font-bold text-slate-900 mb-4" style="">AI 极速初探</h3>
+<p id="card2-desc" class="text-slate-500 text-sm leading-relaxed mb-10" style="">基于自适应算法，仅需 20 道题，初步划定您的知识能力圈层。</p>
+<div class="mt-auto space-y-4">
+<div class="flex items-center gap-2 text-xs text-slate-400">
+<span class="material-symbols-outlined text-sm" style="">schedule</span>
+<span id="card2-duration" class="" style="">预计用时 20 分钟</span>
+</div>
+<button class="w-full h-14 btn-electron text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 group-hover:scale-[1.02]" style="">
+<div class="energy-spatter"></div>
+<span id="card2-btn" class="relative z-10" style="">立即闪测</span>
+<span class="material-symbols-outlined relative z-10 text-xl" style="">auto_fix_high</span>
+</button>
+</div>
+</div>
+<div class="pearl-card p-10 flex flex-col group">
+<div class="size-14 rounded-2xl border border-primary/20 flex items-center justify-center mb-8">
+<span class="material-symbols-outlined text-primary text-3xl font-extralight" style="">target</span>
+</div>
+<div class="mb-4">
+<span id="card3-badge" class="text-[10px] font-bold text-primary tracking-widest uppercase bg-primary/5 px-2 py-0.5 rounded" style="">Specific</span>
+</div>
+<h3 id="card3-title" class="text-2xl font-bold text-slate-900 mb-4" style="">知识点突击</h3>
+<p id="card3-desc" class="text-slate-500 text-sm leading-relaxed mb-10" style="">针对近期教学中的重难点（如：分数应用题）进行专项检验，查漏补缺。</p>
+<div class="mt-auto space-y-4">
+<div class="flex items-center gap-2 text-xs text-slate-400">
+<span class="material-symbols-outlined text-sm" style="">schedule</span>
+<span id="card3-duration" class="" style="">预计用时 15 分钟</span>
+</div>
+<button class="w-full h-14 btn-electron text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 group-hover:scale-[1.02]" style="">
+<div class="energy-spatter"></div>
+<span id="card3-btn" class="relative z-10" style="">进入专项练习</span>
+<span class="material-symbols-outlined relative z-10 text-xl" style="">biotech</span>
+</button>
+</div>
+</div>
+</div>
+<p class="mt-16 text-slate-400 text-sm flex items-center gap-2" style="">
+<span class="material-symbols-outlined text-sm" style="">verified</span>
+                测评结果将实时反馈至 wel 智能规划系统，为您定制后续学习路径
+            </p>
+</main>
+<footer class="px-10 py-8 flex items-center justify-between border-t border-slate-100">
+<div class="flex items-center gap-6">
+<span class="text-slate-400 text-xs" style="">© 2024 wel Platform. Professional Assessment Edition.</span>
+<div class="flex gap-4">
+<a class="text-slate-400 hover:text-primary text-xs transition-colors" href="#" style="">隐私协议</a>
+<a class="text-slate-400 hover:text-primary text-xs transition-colors" href="#" style="">用户条款</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex -space-x-2">
+<div class="size-6 rounded-full border-2 border-white bg-slate-200"></div>
+<div class="size-6 rounded-full border-2 border-white bg-slate-300"></div>
+<div class="size-6 rounded-full border-2 border-white bg-slate-400"></div>
+</div>
+<span class="text-slate-400 text-xs font-medium" style="">已有 48,291 位用户通过测评实现能力进阶</span>
+</div>
+</footer>
+</div>
+<div class="fixed inset-0 pointer-events-none overflow-hidden">
+<div class="absolute top-[30%] right-[10%] w-64 h-64 bg-primary/5 rounded-full blur-[100px] holographic-glow"></div>
+<div class="absolute bottom-[30%] left-[10%] w-80 h-80 bg-electron-purple/5 rounded-full blur-[100px] holographic-glow"></div>
+</div>
+
+<script>
+// 统一的数据共享工具
+const WEL_USER_DATA_KEY = 'wel_user_basic_info';
+
+function saveWelUserData(data) {
+  try {
+    const existing = getWelUserData() || {};
+    const merged = { ...existing, ...data };
+    localStorage.setItem(WEL_USER_DATA_KEY, JSON.stringify(merged));
+    console.log('已保存用户数据:', merged);
+    return merged;
+  } catch (e) {
+    console.error('保存用户数据失败:', e);
+    return null;
+  }
+}
+
+function getWelUserData() {
+  try {
+    const data = localStorage.getItem(WEL_USER_DATA_KEY);
+    return data ? JSON.parse(data) : null;
+  } catch (e) {
+    console.error('读取用户数据失败:', e);
+    return null;
+  }
+}
+
+(() => {
+  const BASE_STAGE_MAP = {
+    '学前阶段': ['托班', '小班', '中班', '大班'],
+    '高中': ['高一', '高二', '高三']
+  };
+  const CITY_OPTIONS = [
+    { city:'北京', system:'63' }, { city:'上海', system:'54' }, { city:'广州', system:'63' }, { city:'深圳', system:'63' }, { city:'杭州', system:'63' },
+    { city:'南京', system:'63' }, { city:'苏州', system:'63' }, { city:'成都', system:'63' }, { city:'重庆', system:'63' }, { city:'武汉', system:'63' },
+    { city:'西安', system:'63' }, { city:'郑州', system:'63' }, { city:'长沙', system:'63' }, { city:'天津', system:'63' }, { city:'沈阳', system:'63' },
+    { city:'大连', system:'63' }, { city:'哈尔滨', system:'63' }, { city:'长春', system:'63' }, { city:'福州', system:'63' }, { city:'厦门', system:'63' },
+    { city:'南昌', system:'63' }, { city:'合肥', system:'63' }, { city:'昆明', system:'63' }, { city:'贵阳', system:'63' }, { city:'南宁', system:'63' },
+    { city:'海口', system:'63' }, { city:'兰州', system:'63' }, { city:'太原', system:'63' }, { city:'石家庄', system:'63' }, { city:'呼和浩特', system:'63' },
+    { city:'青岛', system:'54' }, { city:'烟台', system:'54' }, { city:'威海', system:'54' }, { city:'淄博', system:'54' }, { city:'潍坊', system:'54' },
+    { city:'济宁', system:'54' }, { city:'临沂', system:'54' }, { city:'泰安', system:'54' }, { city:'日照', system:'54' }
+  ];
+  const HOT_CITIES = ['北京', '上海', '广州', '深圳', '杭州', '青岛', '烟台', '威海'];
+  const SUBJECTS = ['综合', '数学', '语文', '英语', '物理', '化学', '生物'];
+  const STAGE_ORDER = ['学前阶段', '小学', '初中', '高中'];
+  const CARD_PRESETS = {
+    default: [
+      { badge:'Comprehensive', title:'全景标准测', desc:'覆盖当前年级全纲考点，通过 45 分钟深度测试，多维度精准定位能力短板与优势。', duration:'预计用时 45 分钟', btn:'开启深度测评' },
+      { badge:'AI Quick Check', title:'AI 极速初探', desc:'基于自适应算法，仅需 20 道题，初步划定您的知识能力圈层。', duration:'预计用时 20 分钟', btn:'立即闪测' },
+      { badge:'Specific', title:'知识点突击', desc:'针对近期教学中的重难点（如：分数应用题）进行专项检验，查漏补缺。', duration:'预计用时 15 分钟', btn:'进入专项练习' }
+    ],
+    preschool: [
+      { badge:'Preschool Voice Quest', title:'学前语音智测', desc:'无需识字、全图形化、语音互动。专为学龄前儿童设计，通过趣味语音问答与图形识别，探索孩子的天赋潜能。', duration:'沉浸式语音交互引导', btn:'开始语音测评' },
+      { badge:'All-Rounder', title:'全景素质评估', desc:'通过观察力、想象力及基础逻辑模块，全方位扫描学前儿童的认知发育情况。', duration:'预计用时 20 分钟', btn:'开启标准测评' },
+      { badge:'Quick Start', title:'AI 趣味萌测', desc:'5分钟快速游戏式检测，通过颜色、形状与空间感的互动，初步感知学习兴趣点。', duration:'预计用时 5 分钟', btn:'立即闪测' }
+    ]
+  };
+  const $ = (id) => document.getElementById(id);
+  const sp = new URLSearchParams(location.search || '');
+  const presetCity = (sp.get('city') || '').trim();
+  const presetStage = (sp.get('stage') || '').trim();
+  const presetChild = (sp.get('substage') || '').trim();
+  const presetSubject = (sp.get('subject') || '').trim();
+  function matchCity(name){
+    const key = String(name || '').trim();
+    if (!key) return null;
+    return CITY_OPTIONS.find(x => x.city === key) || CITY_OPTIONS.find(x => x.city.includes(key) || key.includes(x.city)) || null;
+  }
+  function stageMapBySystem(system){
+    if (system === '54') {
+      return { ...BASE_STAGE_MAP, '小学': ['一年级', '二年级', '三年级', '四年级', '五年级'], '初中': ['六年级', '七年级', '八年级', '九年级'] };
+    }
+    return { ...BASE_STAGE_MAP, '小学': ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级'], '初中': ['七年级', '八年级', '九年级'] };
+  }
+  function normalizeStageBySystem(stateRef){
+    const map = stageMapBySystem(stateRef.system);
+    const stages = Object.keys(map);
+    if (!stages.includes(stateRef.stage)) stateRef.stage = '小学';
+    if ((map[stateRef.stage] || []).includes(stateRef.child)) return;
+    if (stateRef.system === '54' && stateRef.stage === '小学' && stateRef.child === '六年级') {
+      stateRef.stage = '初中';
+      stateRef.child = '六年级';
+      return;
+    }
+    if (stateRef.system === '63' && stateRef.stage === '初中' && stateRef.child === '六年级') {
+      stateRef.stage = '小学';
+      stateRef.child = '六年级';
+      return;
+    }
+    stateRef.child = stateRef.requireChildPick ? '' : ((map[stateRef.stage] || [])[0] || '');
+  }
+  const presetCityMatch = matchCity(presetCity);
+  
+  // 从统一数据存储中读取
+  const savedData = getWelUserData();
+  
+  const state = {
+    city: (presetCityMatch?.city || presetCity || savedData?.city || '北京').trim(),
+    system: (presetCityMatch?.system || savedData?.schoolSystem || '63'),
+    stage: presetStage || savedData?.stage || '小学',
+    child: '',
+    subject: SUBJECTS.includes(presetSubject) ? presetSubject : savedData?.subject || '数学',
+    requireChildPick: false
+  };
+  state.child = presetChild || savedData?.subStage || '';
+  normalizeStageBySystem(state);
+
+  function toGrade(stage, child){
+    if (stage === '学前阶段') return `学前${child ? `-${child}` : ''}`;
+    if (!child) return stage;
+    return `${stage}${child}`;
+  }
+  function stageDisplay(stage){
+    return stage === '学前阶段' ? '学前' : stage;
+  }
+  function stageSubjects(stage){
+    if (stage === '学前阶段') return ['综合', '语文', '数学'];
+    if (stage === '小学') return ['数学', '语文', '英语', '综合'];
+    if (stage === '初中') return ['数学', '语文', '英语', '物理', '化学'];
+    return ['数学', '语文', '英语', '物理', '化学', '生物'];
+  }
+  function syncSelectorState(){
+    normalizeStageBySystem(state);
+    const subjects = stageSubjects(state.stage);
+    if (!subjects.includes(state.subject)) state.subject = subjects[0];
+    const grade = toGrade(state.stage, state.child);
+    const out = {
+      city: state.city,
+      schoolSystem: state.system,
+      stage: state.stage,
+      subStage: state.child,
+      grade,
+      subject: state.subject,
+      subjects: subjects.includes('综合') ? `${state.subject},综合` : `${state.subject},数学`
+    };
+    window.__ASSESS_SELECTOR__ = out;
+    $('quick-city-label').textContent = state.city;
+    $('quick-stage-label').textContent = `${stageDisplay(state.stage)} · ${state.child || '请选择年级'}`;
+    $('quick-subject-label').textContent = state.subject;
+    $('quick-filter-summary').textContent = `已按 ${state.city} · ${state.child ? grade : (stageDisplay(state.stage) + '（待选年级）')} · ${state.subject} 生成测评`;
+    
+    // 自动保存到统一数据存储
+    saveWelUserData({
+      city: state.city,
+      schoolSystem: state.system,
+      stage: state.stage,
+      subStage: state.child,
+      subject: state.subject
+    });
+    
+    applyCards();
+  }
+  function applyCards(){
+    const preset = state.stage === '学前阶段' ? CARD_PRESETS.preschool : CARD_PRESETS.default;
+    const subtitle = state.stage === '学前阶段'
+      ? '针对不同成长阶段，AI 为您精准匹配核心测评，开启智慧成长之旅。'
+      : '基于您的年级进度，AI 为您精准匹配了三类核心测评，快速定位认知基准。';
+    $('assess-subtitle').textContent = subtitle;
+    preset.forEach((x, i) => {
+      const idx = i + 1;
+      $('card' + idx + '-badge').textContent = x.badge;
+      $('card' + idx + '-title').textContent = x.title;
+      $('card' + idx + '-desc').textContent = x.desc;
+      $('card' + idx + '-duration').textContent = x.duration;
+      $('card' + idx + '-btn').textContent = x.btn;
+    });
+  }
+  function setupPopover(wrapId, triggerId, panelId, canClose){
+    const wrap = $(wrapId);
+    const trigger = $(triggerId);
+    const panel = $(panelId);
+    let closeTimer = 0;
+    const canCloseNow = () => (typeof canClose === 'function' ? !!canClose() : true);
+    const open = () => {
+      clearTimeout(closeTimer);
+      panel.classList.remove('hidden');
+      trigger.classList.add('ring-2', 'ring-primary/15');
+    };
+    const close = (delay = 140) => {
+      if (!canCloseNow()) return;
+      clearTimeout(closeTimer);
+      closeTimer = window.setTimeout(() => {
+        if (!canCloseNow()) return;
+        panel.classList.add('hidden');
+        trigger.classList.remove('ring-2', 'ring-primary/15');
+      }, delay);
+    };
+    wrap.addEventListener('mouseenter', open);
+    wrap.addEventListener('mouseleave', () => close(120));
+    trigger.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (panel.classList.contains('hidden')) open();
+      else close(0);
+    });
+    document.addEventListener('click', (e) => {
+      if (!wrap.contains(e.target)) close(0);
+    });
+    return { open, close };
+  }
+  function renderStageTabs(){
+    const wrap = $('quick-stage-tabs');
+    const map = stageMapBySystem(state.system);
+    wrap.innerHTML = STAGE_ORDER.filter(s => !!map[s]).map(s =>
+      `<button class="quick-chip ${s === state.stage ? 'on' : ''}" data-stage="${s}">${stageDisplay(s)}</button>`
+    ).join('');
+  }
+  function renderStageChildren(){
+    const wrap = $('quick-stage-children');
+    const children = (stageMapBySystem(state.system)[state.stage] || []);
+    wrap.className = state.stage === '小学'
+      ? 'flex flex-nowrap gap-2 overflow-x-auto pr-1'
+      : 'flex flex-wrap gap-2';
+    wrap.innerHTML = children.map(c =>
+      `<button class="quick-chip shrink-0 ${c === state.child ? 'on' : ''}" data-child="${c}">${c}</button>`
+    ).join('');
+  }
+  function renderCityHot(){
+    const wrap = $('quick-city-hot');
+    wrap.innerHTML = HOT_CITIES.map(name => {
+      const m = matchCity(name);
+      if (!m) return '';
+      return `<button class="quick-chip shrink-0 ${m.city === state.city ? 'on' : ''}" data-city="${m.city}">${m.city}</button>`;
+    }).join('');
+  }
+  function renderCityList(keyword=''){
+    const wrap = $('quick-city-list');
+    const hot = $('quick-city-hot');
+    const k = String(keyword || '').trim();
+    if (!k) {
+      hot.classList.remove('hidden');
+      wrap.classList.add('hidden');
+      wrap.innerHTML = '';
+      return;
+    }
+    hot.classList.add('hidden');
+    const rows = CITY_OPTIONS.filter(x => x.city.includes(k)).slice(0, 24);
+    wrap.classList.remove('hidden');
+    wrap.innerHTML = rows.map(x =>
+      `<button class="quick-chip shrink-0 ${x.city === state.city ? 'on' : ''}" data-city="${x.city}">${x.city}</button>`
+    ).join('');
+  }
+  function applyCity(cityName){
+    const m = matchCity(cityName);
+    state.city = (m?.city || String(cityName || '').trim() || '北京');
+    state.system = m?.system || '63';
+    state.requireChildPick = false;
+    normalizeStageBySystem(state);
+    rerender();
+  }
+  function renderSubjects(){
+    const wrap = $('quick-subject-list');
+    const allowed = stageSubjects(state.stage);
+    wrap.innerHTML = allowed.map(s =>
+      `<button class="quick-chip ${s === state.subject ? 'on' : ''}" data-subject="${s}">${s}</button>`
+    ).join('');
+  }
+  function rerender(){
+    renderCityHot();
+    renderCityList(($('quick-city-input')?.value || '').trim());
+    renderStageTabs();
+    renderStageChildren();
+    renderSubjects();
+    syncSelectorState();
+  }
+
+  const cityPopover = setupPopover('quick-city-wrap', 'quick-city-btn', 'quick-city-panel');
+  const stagePopover = setupPopover('quick-stage-wrap', 'quick-stage-btn', 'quick-stage-panel', () => !state.requireChildPick && !!state.child);
+  const subjectPopover = setupPopover('quick-subject-wrap', 'quick-subject-btn', 'quick-subject-panel');
+  $('quick-city-hot').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-city]');
+    if (!btn) return;
+    applyCity(btn.getAttribute('data-city') || '');
+    cityPopover.close(0);
+  });
+  $('quick-city-list').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-city]');
+    if (!btn) return;
+    applyCity(btn.getAttribute('data-city') || '');
+    cityPopover.close(0);
+  });
+  $('quick-city-input').addEventListener('input', (e) => {
+    renderCityList(e.target.value || '');
+    cityPopover.open();
+  });
+  $('quick-city-input').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const first = $('quick-city-list').querySelector('[data-city]');
+    if (!first) return;
+    e.preventDefault();
+    applyCity(first.getAttribute('data-city') || '');
+    cityPopover.close(0);
+  });
+  $('quick-stage-tabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-stage]');
+    if (!btn) return;
+    const stage = btn.getAttribute('data-stage') || '小学';
+    state.stage = stage;
+    state.requireChildPick = true;
+    state.child = '';
+    rerender();
+    stagePopover.open();
+  });
+  $('quick-stage-children').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-child]');
+    if (!btn) return;
+    state.child = btn.getAttribute('data-child') || '';
+    state.requireChildPick = false;
+    rerender();
+    stagePopover.close(0);
+  });
+  $('quick-subject-list').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-subject]');
+    if (!btn) return;
+    state.subject = btn.getAttribute('data-subject') || '数学';
+    rerender();
+    subjectPopover.close(0);
+  });
+
+  rerender();
+})();
+</script>
+</body></html>

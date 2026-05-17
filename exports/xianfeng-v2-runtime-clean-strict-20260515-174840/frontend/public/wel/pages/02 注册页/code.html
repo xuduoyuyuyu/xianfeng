@@ -1,0 +1,157 @@
+<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Noto+Sans+SC:wght@300;400;500;700;900&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script src="/wel/vendor/tailwindcdn.forms.container-queries.js"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#7f13ec",
+                        "pearl-white": "#fcfcfd",
+                        "background-light": "#f8f9fb",
+                        "electronic-purple": "#8a2be2",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "Noto Sans SC", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "2xl": "1rem",
+                        "3xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        :root {
+            --pearl-glow: rgba(127, 19, 236, 0.08);
+            --sup-glow: 0 0 10px rgba(127, 19, 236, 0.6);
+            --btn-glow: 0 0 20px rgba(127, 19, 236, 0.4);
+        }
+        body {
+            background-color: #fcfcfd;
+            background-image: 
+                radial-gradient(circle at 2px 2px, rgba(127, 19, 236, 0.03) 1px, transparent 0);
+            background-size: 40px 40px;
+        }
+        .holographic-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.4;
+            background: 
+                linear-gradient(120deg, transparent 30%, rgba(127, 19, 236, 0.05) 50%, transparent 70%),
+                linear-gradient(210deg, transparent 30%, rgba(127, 19, 236, 0.03) 50%, transparent 70%);
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.05);
+        }
+        .sup-glow {
+            text-shadow: var(--sup-glow);
+        }
+        .login-btn-glow {
+            box-shadow: var(--btn-glow);
+            transition: all 0.3s ease;
+        }
+        .login-btn-glow:hover {
+            box-shadow: 0 0 30px rgba(127, 19, 236, 0.6);
+            transform: translateY(-1px);
+        }
+        .input-focus-effect:focus {
+            outline: none;
+            border-color: #7f13ec;
+            box-shadow: 0 0 0 2px rgba(127, 19, 236, 0.1);
+        }
+        .qr-pulse {
+            position: relative;
+        }
+        .qr-pulse::after {
+            content: '';
+            position: absolute;
+            top: -4px; left: -4px; right: -4px; bottom: -4px;
+            border: 2px solid #7f13ec;
+            border-radius: 8px;
+            animation: pulse-border 2s infinite;
+        }
+        @keyframes pulse-border {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1.05); opacity: 0; }
+        }
+        .tab-active {
+            color: #7f13ec;
+            border-bottom: 2px solid #7f13ec;
+        }
+    </style>
+<title>wel | 统一登录中心</title>
+</head>
+<body class="font-display text-slate-900 selection:bg-primary/20 min-h-screen flex items-center justify-center p-4">
+<div class="holographic-bg"></div>
+<div class="w-full max-w-[440px] z-10">
+<div class="glass-card rounded-[2.5rem] p-10 flex flex-col items-center">
+<div class="flex items-center gap-3 mb-10">
+<img src="/logo.png" alt="Logo" class="h-8" />
+</div>
+<div class="flex w-full border-b border-slate-100 mb-8">
+<button class="flex-1 py-3 text-sm font-medium text-slate-400 hover:text-slate-600 transition-colors" style="">微信扫码</button>
+<button class="flex-1 py-3 text-sm font-bold tab-active" style="">手机验证</button>
+<button class="flex-1 py-3 text-sm font-medium text-slate-400 hover:text-slate-600 transition-colors" style="">账号密码</button>
+</div>
+<div class="w-full space-y-5">
+<div class="space-y-4">
+<div class="relative group">
+<span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 material-symbols-outlined text-xl" style="">smartphone</span>
+<input class="w-full pl-12 pr-4 py-4 bg-white/50 border border-slate-100 rounded-2xl input-focus-effect transition-all text-slate-700 placeholder:text-slate-300" placeholder="请输入手机号" type="tel">
+</div>
+<div class="relative group flex gap-3">
+<div class="relative flex-1">
+<span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 material-symbols-outlined text-xl" style="">verified_user</span>
+<input class="w-full pl-12 pr-4 py-4 bg-white/50 border border-slate-100 rounded-2xl input-focus-effect transition-all text-slate-700 placeholder:text-slate-300" placeholder="验证码" type="text">
+</div>
+<button class="px-4 text-sm font-medium text-primary whitespace-nowrap border border-primary/20 rounded-2xl hover:bg-primary/5 transition-colors" style="">
+                            获取验证码
+                        </button>
+</div>
+</div>
+<button class="w-full py-4 bg-primary text-white rounded-2xl font-bold text-lg login-btn-glow mt-4 flex items-center justify-center gap-2 group overflow-hidden relative" style="">
+<span class="relative z-10" style="">登录 wel</span>
+</button>
+<div class="flex items-center justify-between px-1">
+<label class="flex items-center gap-2 cursor-pointer group" style="">
+<input class="w-4 h-4 rounded border-slate-200 text-primary focus:ring-primary/20" type="checkbox">
+<span class="text-xs text-slate-400 group-hover:text-slate-500 transition-colors" style="">记住登录状态</span>
+</label>
+<a class="text-xs text-slate-400 hover:text-primary transition-colors" href="#" style="">遇到问题？</a>
+</div>
+</div>
+<div class="mt-12 text-center">
+<p class="text-sm text-slate-400" style="">
+                    尚未注册&nbsp; &nbsp;<a class="text-primary font-medium hover:underline decoration-primary/30 underline-offset-4 ml-1" href="#" style="">点击加入 wel 开启探索</a>
+</p>
+</div>
+</div>
+<div class="mt-8 text-center flex flex-col gap-2">
+<div class="flex items-center justify-center gap-4 text-[10px] font-bold tracking-[0.2em] text-slate-300 uppercase">
+<span class="" style="">EDUCATION PLANNING</span>
+<span class="w-1 h-1 bg-slate-200 rounded-full"></span>
+<span class="" style="">全能登录版 v2.0</span>
+</div>
+<p class="text-[10px] text-slate-300" style="">© 2024 wel BRAND. ALL RIGHTS RESERVED.</p>
+</div>
+</div>
+
+</body></html>

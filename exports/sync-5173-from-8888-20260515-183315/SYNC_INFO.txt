@@ -1,0 +1,7 @@
+SYNC_SOURCE_LOCK=/Users/QUAN/Downloads/Project/xianfeng/exports/locked-8888-20260515-182433
+SYNC_CREATED_AT=20260515-183315
+SYNC_TARGET=http://localhost:5173/programs
+MIRROR_OF=http://localhost:8888/programs
+CONTAINER_NAME=xianfeng_sync_5173
+IMAGE=nginx:1.27-alpine
+NOTES=Static frontend files are identical to locked 8888 snapshot.

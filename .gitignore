@@ -3,6 +3,7 @@
 .vercel/
 .trae/
 tmp/
+.release/
 
 # Local environment files
 .env
@@ -25,6 +26,15 @@ frontend/dist/
 backend/uploads/
 *.log
 frontend-history-*.bundle
+backup-*/
+backup-*.tgz
+archives/
+data/
+dist/
+*.tar
+*.tar.gz
+*.tgz
 
 # Current nested repo should be backed up before migrating to a root repo
 frontend/.git/
+releases/

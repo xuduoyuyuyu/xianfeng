@@ -160,11 +160,26 @@ function buildUploadTaskTitle(phase: Exclude<UploadPhase, "idle">, progress: num
 }
 
 function extractRequestErrorMessage(error: any, fallback: string): string {
+  const normalize = (raw: string): string => {
+    const text = raw.trim();
+    if (!text) return "";
+    const lower = text.toLowerCase();
+    if (/<\/?(html|head|body|title|center|!--)/i.test(text) || lower.includes("bad gateway") || lower.includes("status code 502")) {
+      return "后端服务暂时不可用（502），请稍后重试。";
+    }
+    if (lower.includes("status code 503") || lower.includes("service unavailable")) {
+      return "后端服务暂时不可用（503），请稍后重试。";
+    }
+    if (lower.includes("status code 504") || lower.includes("gateway timeout") || lower.includes("timed out")) {
+      return "后端服务响应超时（504），请稍后重试。";
+    }
+    return text.replace(/\s+/g, " ").slice(0, 240);
+  };
   const data = error?.response?.data;
-  if (typeof data === "string" && data.trim()) return data.trim();
-  if (typeof data?.message === "string" && data.message.trim()) return data.message.trim();
-  if (typeof data?.error === "string" && data.error.trim()) return data.error.trim();
-  if (typeof error?.message === "string" && error.message.trim()) return error.message.trim();
+  if (typeof data === "string" && data.trim()) return normalize(data);
+  if (typeof data?.message === "string" && data.message.trim()) return normalize(data.message);
+  if (typeof data?.error === "string" && data.error.trim()) return normalize(data.error);
+  if (typeof error?.message === "string" && error.message.trim()) return normalize(error.message);
   return fallback;
 }
 

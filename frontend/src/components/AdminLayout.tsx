@@ -64,6 +64,14 @@ const AdminLayout: React.FC = () => {
             </section>
 
             <section>
+              <p className="px-1 mb-1.5 text-[11px] font-bold tracking-[0.08em] text-stone-400 uppercase">决策</p>
+              <div className="space-y-1">
+                {renderNavItem("/admin/topics", "tag", "请教一下")}
+                {renderNavItem("/admin/worthbuy", "category", "知物管理")}
+              </div>
+            </section>
+
+            <section>
               <p className="px-1 mb-1.5 text-[11px] font-bold tracking-[0.08em] text-stone-400 uppercase">用户</p>
               <div className="space-y-1">
                 {renderNavItem("/admin/users", "group", "用户管理")}
@@ -76,13 +84,6 @@ const AdminLayout: React.FC = () => {
               <div className="space-y-1">
                 {renderNavItem("/admin/agents", "smart_toy", "Agents")}
                 {renderNavItem("/admin/multi-agents", "hub", "multi-agents")}
-              </div>
-            </section>
-
-            <section>
-              <p className="px-1 mb-1.5 text-[11px] font-bold tracking-[0.08em] text-stone-400 uppercase">内容</p>
-              <div className="space-y-1">
-                {renderNavItem("/admin/topics", "tag", "话题广场")}
               </div>
             </section>
 

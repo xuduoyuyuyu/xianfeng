@@ -38,6 +38,7 @@ export interface Guest extends mongoose.Document {
   publications?: GuestPublication[];
   profileAvatarCandidates?: Array<{ url: string; label?: string; sourceUrl?: string }>;
   profileGeneratedAt?: Date | null;
+  returnWishCount?: number;
   status: GuestStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -108,6 +109,7 @@ const guestSchema = new mongoose.Schema(
       default: "active",
       index: true,
     },
+    returnWishCount: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

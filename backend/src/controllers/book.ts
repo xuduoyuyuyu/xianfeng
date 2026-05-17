@@ -268,6 +268,23 @@ export class BookController {
     }
   }
 
+  async batchPublish(req: Request, res: Response): Promise<void> {
+    try {
+      const { filter, ids } = req.body;
+      let query: any = { status: "draft" };
+      if (ids && Array.isArray(ids)) {
+        query._id = { $in: ids };
+      } else if (filter === "with_wx_cover") {
+        query.coverImage = { $regex: /wxapp\.tc\.qq\.com|store\.mp\.video\.tencent-cloud/ };
+      }
+      const now = new Date();
+      const result = await Book.updateMany(query, { status: "published", publishedAt: now });
+      res.status(200).json({ matched: result.matchedCount, modified: result.modifiedCount });
+    } catch (error) {
+      res.status(500).json({ message: "批量发布失败", error });
+    }
+  }
+
   async delete(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;

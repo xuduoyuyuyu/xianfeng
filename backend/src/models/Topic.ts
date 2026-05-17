@@ -34,6 +34,7 @@ export interface ITopic extends mongoose.Document {
     done: number;
     status: "pending" | "generating" | "done" | "error";
   };
+  hiddenForUsers?: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -105,6 +106,7 @@ const topicSchema = new mongoose.Schema<ITopic>(
       },
       default: undefined,
     },
+    hiddenForUsers: { type: [String], default: [] },
   },
   { timestamps: true }
 );

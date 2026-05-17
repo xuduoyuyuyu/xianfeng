@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import GlobalPublicNav from "../components/GlobalPublicNav";
-import { getCollapsedPages } from "../lib/pagination";
+import Pagination from "../components/Pagination";
 import { Book, publicApi } from "../services/api";
 
 const PAGE_SIZE = 24;
@@ -37,10 +37,20 @@ function uniq(values: string[]): string[] {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
+function buildWxStoreUrl(item: Book): string | null {
+  if (!item.wxProductId) return null;
+  // 使用微信小店 H5 链接
+  if (item.wxShopAppid) {
+    return `https://store.mp.video.tencent-cloud.com/pages/product/detail?productId=${item.wxProductId}&appid=${item.wxShopAppid}`;
+  }
+  return `https://store.mp.video.tencent-cloud.com/pages/product/detail?productId=${item.wxProductId}`;
+}
+
 const BookCard: React.FC<BookCardProps> = ({ item }) => {
+  const wxUrl = buildWxStoreUrl(item);
   return (
-    <article className="mb-3 break-inside-avoid overflow-hidden rounded-[1rem] border border-[#e2dcf0] bg-white shadow-[0_8px_18px_rgba(60,40,80,0.06)]">
-      <div className="w-full p-2">
+    <article className="group mb-3 break-inside-avoid overflow-hidden rounded-[1rem] border border-[#e2dcf0] bg-white shadow-[0_8px_18px_rgba(60,40,80,0.06)]">
+      <div className="relative w-full p-2">
         <div className="flex items-center justify-center overflow-hidden rounded-lg bg-white">
           <img
             src={item.coverImage || FALLBACK_COVER}
@@ -52,6 +62,33 @@ const BookCard: React.FC<BookCardProps> = ({ item }) => {
             }}
           />
         </div>
+        {wxUrl ? (
+          <>
+            {/* 桌面端：hover 显示二维码 */}
+            <div className="absolute inset-0 hidden items-center justify-center rounded-lg opacity-0 transition-opacity duration-200 sm:flex group-hover:opacity-100" style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(2px)' }}>
+              <div className="rounded-2xl bg-white px-4 py-3 text-center shadow-2xl">
+                <div className="mb-1 text-[10px] font-black text-[#8b7dbc] uppercase tracking-[0.15em]">微信扫码购买</div>
+                <div className="mx-auto mb-1.5 h-28 w-28 rounded-xl bg-[#f8f6ff] p-1.5">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(wxUrl)}`}
+                    alt="购买二维码"
+                    className="h-full w-full"
+                  />
+                </div>
+              </div>
+            </div>
+            {/* 移动端：直接显示购买按钮 */}
+            <a
+              href={wxUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="absolute bottom-3 right-3 flex items-center gap-1 rounded-full bg-[#5e17eb] px-3 py-1.5 text-xs font-bold text-white shadow-lg active:scale-95 transition-transform sm:hidden"
+            >
+              <span className="material-symbols-outlined text-[14px]">shopping_cart</span>
+              购买
+            </a>
+          </>
+        ) : null}
       </div>
       <div className="px-3 pb-3 pt-1">
         <h3 className="line-clamp-2 text-[22px] font-black leading-tight text-[#2b1a3a]">{item.title || "未命名书籍"}</h3>
@@ -60,7 +97,7 @@ const BookCard: React.FC<BookCardProps> = ({ item }) => {
         <div className="mt-2.5 flex flex-wrap gap-1.5">
           {item.recommendedGuest ? (
             <span className="rounded-full border border-[#d5c8ff] bg-[#f6f0ff] px-2.5 py-1 text-[11px] font-bold text-[#5e17eb]">
-              {item.recommendedGuest}
+              推荐人：{item.recommendedGuest}
             </span>
           ) : null}
           {item.grade ? (
@@ -80,6 +117,9 @@ const BookCard: React.FC<BookCardProps> = ({ item }) => {
           ) : null}
         </div>
         <div className="mt-2 text-xs text-[#8b7dbc]">{item.publisher ? <span>出版社: {item.publisher}</span> : <span>出版社未标注</span>}</div>
+        {item.sourceName ? (
+          <div className="mt-1.5 border-t border-[#f0ebff] pt-2 text-xs text-[#a9a2d4]">《{item.sourceName}》</div>
+        ) : null}
       </div>
     </article>
   );
@@ -226,7 +266,6 @@ const BooksPage: React.FC = () => {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
-  const paginationItems = useMemo(() => getCollapsedPages(safePage, totalPages, 1), [safePage, totalPages]);
 
   useEffect(() => {
     setPage(1);
@@ -317,7 +356,7 @@ const BooksPage: React.FC = () => {
               <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.26em] text-[#5b3fa1]">
                 Reading Shelf
               </div>
-              <h1 className="mt-4 text-3xl font-black leading-tight tracking-tight text-[#2b1a3a] sm:text-5xl">推荐书单</h1>
+              <img src="/assets/jiyue-hero-logo.png" alt="及阅 · 成长及阅读" className="mt-4 h-14 sm:h-16" />
               <p className="mt-3 text-sm leading-7 text-[#6f62a3] sm:text-base">
                 基于节目实践沉淀的书籍清单。可先按推荐人聚合浏览，再结合年级和关键词快速筛选。
               </p>
@@ -446,39 +485,11 @@ const BooksPage: React.FC = () => {
           ) : null}
         </section>
 
-        {!loading && filtered.length > 0 ? (
-          <section className="mt-8">
-            {totalPages > 1 ? (
-              <div className="flex items-center justify-center gap-3">
-                {paginationItems.map((item, idx) => {
-                  if (item === "ellipsis") {
-                    return (
-                      <span key={`ellipsis-${idx}`} className="inline-flex h-7 w-7 items-center justify-center text-[10px] font-bold text-[#8f7bd6]">
-                        ...
-                      </span>
-                    );
-                  }
-                  const active = item === safePage;
-                  return (
-                    <button
-                      key={item}
-                      type="button"
-                      onClick={() => setPage(item)}
-                      style={{ fontSize: "9.1px", lineHeight: 1 }}
-                      className={`h-7 w-7 rounded-full text-[7px] font-bold transition ${
-                        active
-                          ? "bg-[#5e17eb] text-white shadow-lg shadow-[#5e17eb]/25"
-                          : "border border-[#5e17eb]/25 bg-white text-[#5e17eb] hover:bg-[#5e17eb]/5"
-                      }`}
-                    >
-                      {item}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : null}
-          </section>
-        ) : null}
+        <Pagination
+          currentPage={safePage}
+          totalPages={totalPages}
+          onPageChange={setPage}
+        />
       </main>
     </div>
   );

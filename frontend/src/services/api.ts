@@ -298,8 +298,18 @@ export interface Book {
   sourceGuestId?: string | { _id: string; name?: string; title?: string } | null;
   status: 'draft' | 'published';
   publishedAt?: string;
+  publishedDate?: string;
   createdAt: string;
   updatedAt: string;
+  // 微信小店扩展字段
+  wxShopName?: string;
+  wxShopScore?: number;
+  wxSalePrice?: number;
+  wxMonthlySales?: number;
+  wxHeadImgs?: string[];
+  wxProductId?: string;
+  wxShopAppid?: string;
+  wxSyncAt?: string;
 }
 
 export interface LearningMaterial {
@@ -511,11 +521,11 @@ export interface LoginResponse {
 // 公开 API
 export const publicApi = {
   // 节目
-  getPrograms: () => api.get<Program[]>('/programs'),
+  getPrograms: (params?: { page?: number; pageSize?: number }) => api.get<{ programs: Program[]; total: number; page: number; pageSize: number; totalPages: number }>('/programs', { params }),
   getProgram: (id: string) => api.get<Program>(`/programs/${id}`),
 
   // 嘉宾智库
-  getGuests: (params?: { search?: string }) => api.get<PublicGuest[]>('/guests', { params }),
+  getGuests: (params?: { search?: string; page?: number; pageSize?: number }) => api.get<{ guests: PublicGuest[]; total: number; page: number; pageSize: number; totalPages: number }>('/guests', { params }),
   getGuest: (id: string) => api.get<PublicGuestDetail>(`/guests/${id}`),
   
   // 书单
@@ -621,6 +631,8 @@ export const adminApi = {
   importDictionaryFromPrograms: (programIds: string[]) =>
     api.post<DictionaryImportResult>("/admin/dictionary/import-from-programs", { programIds }),
   getDictionaryEntryPrograms: (id: string) => api.get<DictionaryRelatedProgram[]>(`/admin/dictionary/${id}/programs`),
+  deleteDictionaryEntry: (id: string) => api.delete(`/admin/dictionary/${id}`),
+  bulkDeleteDictionaryEntries: (ids: string[]) => api.post(`/admin/dictionary/bulk-delete`, { ids }),
   getGuests: (params?: { search?: string; status?: "active" | "inactive" }) => api.get<Guest[]>("/admin/guests", { params }),
   getGuest: (id: string) => api.get<Guest>(`/admin/guests/${id}`),
   getGuestProgramBindings: (id: string, params?: { search?: string }) =>
@@ -651,6 +663,8 @@ export const adminApi = {
     data,
     { timeout: 120000 }
   ),
+  batchPublishBooks: (data: { filter?: string; ids?: string[] }) =>
+    api.post<{ matched: number; modified: number }>('/admin/books/batch-publish', data),
   
   // 学习资料管理
   getMaterials: (status?: string) => api.get<LearningMaterial[]>('/admin/learning-materials', { params: { status } }),

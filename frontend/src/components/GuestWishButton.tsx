@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 interface GuestWishButtonProps {
-  programId: string;
+  programId?: string;
   guestId?: string;
 }
 
@@ -104,20 +104,13 @@ const GuestWishButton: React.FC<GuestWishButtonProps> = ({ programId, guestId })
 
       <button
         onClick={addWish}
-        className="group relative inline-flex items-center gap-2 rounded-full px-4 py-2 transition-all hover:scale-110"
+        className="group relative inline-flex items-center gap-1 transition-all hover:scale-110"
         style={{
-          background: "rgba(244,63,94,0.12)",
-          border: "1.5px solid rgba(244,63,94,0.3)",
+          background: "transparent",
+          border: "none",
           cursor: "pointer",
+          padding: 0,
           transform: animating ? "scale(1.2)" : "scale(1)",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = "rgba(244,63,94,0.2)";
-          e.currentTarget.style.borderColor = "rgba(244,63,94,0.5)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = "rgba(244,63,94,0.12)";
-          e.currentTarget.style.borderColor = "rgba(244,63,94,0.3)";
         }}
       >
         {/* 红心 */}
@@ -126,7 +119,7 @@ const GuestWishButton: React.FC<GuestWishButtonProps> = ({ programId, guestId })
           height="20"
           viewBox="0 0 24 24"
           fill="#F43F5E"
-          className="transition-transform group-hover:scale-110"
+          className="transition-transform group-hover:scale-110 drop-shadow-sm"
         >
           <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
         </svg>
@@ -135,11 +128,9 @@ const GuestWishButton: React.FC<GuestWishButtonProps> = ({ programId, guestId })
         {count > 0 ? (
         <span
           style={{
-            fontSize: 16,
+            fontSize: 13,
             fontWeight: 800,
             color: "#E11D48",
-            minWidth: 20,
-            textAlign: "center" as const,
           }}
         >
           {count}
@@ -148,7 +139,7 @@ const GuestWishButton: React.FC<GuestWishButtonProps> = ({ programId, guestId })
 
         {/* hover 才显示的 "返场心愿" */}
         <span
-          className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-gray-900 px-2 py-0.5 text-[10px] font-bold text-white opacity-0 transition-opacity group-hover:opacity-100"
+          className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-gray-900 px-2 py-0.5 text-[10px] font-bold text-white opacity-0 transition-opacity group-hover:opacity-100"
           style={{ pointerEvents: "none" }}
         >
           返场心愿

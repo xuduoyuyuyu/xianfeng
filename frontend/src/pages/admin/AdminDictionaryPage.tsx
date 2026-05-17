@@ -51,6 +51,8 @@ const AdminDictionaryPage: React.FC = () => {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   const filteredPrograms = useMemo(() => {
     if (!importQuery.trim()) return programOptions.slice(0, 20);
@@ -194,6 +196,51 @@ const AdminDictionaryPage: React.FC = () => {
     }
   };
 
+  const handleDeleteOne = async (item: AdminEducationDictionaryEntry) => {
+    if (!confirm(`确定删除词条「${item.term}」吗？关联节目不受影响。`)) return;
+    setDeleting(true);
+    try {
+      await adminApi.deleteDictionaryEntry(item._id);
+      setSelectedIds((prev) => { const next = new Set(prev); next.delete(item._id); return next; });
+      await loadEntries();
+    } catch (e: any) {
+      setError(e?.response?.data?.message || e?.message || "删除失败");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!selectedIds.size) return;
+    if (!confirm(`确定删除选中的 ${selectedIds.size} 个词条吗？关联节目不受影响。`)) return;
+    setDeleting(true);
+    try {
+      await adminApi.bulkDeleteDictionaryEntries(Array.from(selectedIds));
+      setSelectedIds(new Set());
+      await loadEntries();
+    } catch (e: any) {
+      setError(e?.response?.data?.message || e?.message || "批量删除失败");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === pagedItems.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(pagedItems.map((item) => item._id)));
+    }
+  };
+
   const handleImport = async () => {
     if (!selectedProgramIds.length) {
       setError("请至少选择一个节目");
@@ -246,6 +293,16 @@ const AdminDictionaryPage: React.FC = () => {
           </select>
         </div>
         <div className="flex items-center gap-3">
+          {selectedIds.size > 0 && (
+            <button
+              className="admin-pill-btn rounded-full border border-red-200 bg-red-50 px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-100"
+              onClick={handleBulkDelete}
+              disabled={deleting}
+              type="button"
+            >
+              {deleting ? "删除中…" : `删除选中 (${selectedIds.size})`}
+            </button>
+          )}
           <div className="rounded-full bg-stone-100 px-4 py-2 text-xs font-black uppercase tracking-[0.2em] text-stone-500">
             {items.length} 条词条
           </div>
@@ -271,6 +328,9 @@ const AdminDictionaryPage: React.FC = () => {
           <table className="w-full min-w-[1120px] text-left">
             <thead className="bg-stone-50 text-[11px] font-black uppercase tracking-[0.2em] text-stone-500">
               <tr>
+                <th className="px-3 py-4 w-10">
+                  <input type="checkbox" checked={pagedItems.length > 0 && selectedIds.size === pagedItems.length} onChange={toggleSelectAll} />
+                </th>
                 <th className="px-5 py-4">词条</th>
                 <th className="px-5 py-4">释义摘要</th>
                 <th className="px-5 py-4 whitespace-nowrap">关联节目</th>
@@ -295,6 +355,9 @@ const AdminDictionaryPage: React.FC = () => {
               ) : (
                 pagedItems.map((item) => (
                   <tr key={item._id} className="hover:bg-stone-50/60">
+                    <td className="px-3 py-5">
+                      <input type="checkbox" checked={selectedIds.has(item._id)} onChange={() => toggleSelect(item._id)} />
+                    </td>
                     <td className="px-5 py-5">
                       <div className="font-bold text-stone-900">{item.term}</div>
                       <div className="mt-1 text-xs text-stone-500">
@@ -337,6 +400,14 @@ const AdminDictionaryPage: React.FC = () => {
                           type="button"
                         >
                           {item.status === "active" ? "隐藏" : "启用"}
+                        </button>
+                        <button
+                          className="rounded-full border border-red-200 px-4 py-2 text-xs font-bold whitespace-nowrap text-red-600 hover:bg-red-50"
+                          onClick={() => handleDeleteOne(item)}
+                          type="button"
+                          disabled={deleting}
+                        >
+                          删除
                         </button>
                       </div>
                     </td>

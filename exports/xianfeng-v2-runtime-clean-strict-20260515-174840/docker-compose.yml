@@ -1,0 +1,56 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: xianfeng_mongo
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: xianfeng_backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      - PORT=${PORT:-3001}
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongo:27017/xianfeng}
+      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost}
+      - ALLOW_PUBLIC_REGISTER=${ALLOW_PUBLIC_REGISTER:-false}
+    depends_on:
+      - mongo
+    volumes:
+      - ./backend/data:/app/data
+      - ./backend/uploads:/app/uploads
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-}
+    container_name: xianfeng_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  gateway:
+    image: nginx:1.27-alpine
+    container_name: xianfeng_gateway
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./deploy/nginx.local.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend
+      - backend
+
+volumes:
+  mongo_data:

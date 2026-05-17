@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useDispatch } from "react-redux";
+import GlobalPublicNav from "./components/GlobalPublicNav";
 import ScreenPage from "./pages/ScreenPage";
 import AdminLoginPage from "./pages/admin/AdminLoginPage";
 import UserLoginPage from "./pages/UserLoginPage";
@@ -21,7 +22,9 @@ import AdminGuestsPage from "./pages/admin/AdminGuestsPage";
 import AdminAgentsPage from "./pages/admin/AdminAgentsPage";
 import AdminAgentsChatPage from "./pages/admin/AdminAgentsChatPage";
 import AdminInboxPage from "./pages/admin/AdminInboxPage";
+import AdminWorthBuyPage from "./pages/admin/AdminWorthBuyPage";
 import ProgramListPage from "./pages/ProgramListPage";
+import ProgramDetailPage from "./pages/ProgramDetailPage";
 import ExpertsPage from "./pages/ExpertsPage";
 import ExpertDetailPage from "./pages/ExpertDetailPage";
 import LandingPage from "./pages/LandingPage";
@@ -30,65 +33,76 @@ import BooksPage from "./pages/BooksPage";
 import PlanningPage from "./pages/PlanningPage";
 import TopicHubPage from "./pages/TopicHubPage";
 import TopicDetailPage from "./pages/TopicDetailPage";
+import WorthBuyPage from "./pages/WorthBuyPage";
+import WorthBuyDetailPage from "./pages/WorthBuyDetailPage";
 import PageViewTracker from "./components/PageViewTracker";
 import XiaowanziWidget from "./wel/components/XiaowanziWidget";
 
 const PublicScreenRouter: React.FC = () => {
   const { pathname, search } = useLocation();
+  const normalizedPathname = pathname.startsWith("/v2/") ? pathname.slice(3) : pathname === "/v2" ? "/" : pathname;
   const screenRev = "20260502-podcast-home-force-refresh-1";
   const cacheBust = String(Date.now());
 
-  if (pathname === "/") {
+  if (normalizedPathname === "/") {
     return <LandingPage />;
   }
 
-  if (pathname === "/programs") {
+  if (normalizedPathname === "/programs") {
     const src = `/wel/index.html?page=61&hideWidget=1&v=${screenRev}&cb=${cacheBust}`;
     return <ScreenPage src={src} title="播客列表（框架内）" />;
   }
 
-  if (pathname === "/programs/list") {
+  if (normalizedPathname === "/programs/list") {
     return <ProgramListPage />;
   }
 
-  if (/^\/programs\/[^/]+$/.test(pathname)) {
-    const programId = pathname.split("/")[2] || "";
-    const incoming = new URLSearchParams(search || "");
-    const preview = String(incoming.get("preview") || "").trim();
-    const exp = String(incoming.get("exp") || "").trim();
-    const previewParams =
-      preview && exp ? `&preview=${encodeURIComponent(preview)}&exp=${encodeURIComponent(exp)}` : "";
-    const src = `/wel/index.html?page=podcast-detail&programId=${encodeURIComponent(programId)}${previewParams}&hideWidget=1&v=${screenRev}&cb=${cacheBust}`;
-    return <ScreenPage src={src} title="播客详情（框架内）" />;
+  if (/^\/programs\/[^/]+$/.test(normalizedPathname)) {
+    const programId = normalizedPathname.split("/")[2] || "";
+    const src = `/screens/podcast-detail.html?programId=${encodeURIComponent(programId)}`;
+    return (
+      <>
+        <GlobalPublicNav />
+        <iframe src={src} style={{ width: "100%", height: "calc(100vh - 64px)", border: "none", marginTop: 64 }} title="节目详情" />
+      </>
+    );
   }
 
-  if (pathname === "/experts") {
+  if (normalizedPathname === "/experts") {
     return <ExpertsPage />;
   }
 
-  if (/^\/experts\/[^/]+$/.test(pathname)) {
+  if (/^\/experts\/[^/]+$/.test(normalizedPathname)) {
     return <ExpertDetailPage />;
   }
 
-  if (pathname === "/materials") {
+  if (normalizedPathname === "/materials") {
     return <MaterialsPage />;
   }
 
-  if (pathname === "/books") {
+  if (normalizedPathname === "/books" || normalizedPathname === "/reading") {
     return <BooksPage />;
   }
 
-  if (pathname === "/planning") {
+  if (normalizedPathname === "/planning") {
     return <PlanningPage />;
   }
 
-  if (pathname === "/topics") {
+  if (normalizedPathname === "/topics") {
     return <TopicHubPage />;
   }
 
-  if (/^\/topics\/[^/]+$/.test(pathname)) {
-    const slug = pathname.split("/")[2] || "";
+  if (/^\/topics\/[^/]+$/.test(normalizedPathname)) {
+    const slug = normalizedPathname.split("/")[2] || "";
     return <TopicDetailPage slug={slug} />;
+  }
+
+  if (normalizedPathname === "/worthbuy") {
+    return <WorthBuyPage />;
+  }
+
+  if (/^\/worthbuy\/[^/]+$/.test(normalizedPathname)) {
+    return <WorthBuyDetailPage />;
   }
 
   const routeMap: Record<string, { src: string; title: string }> = {
@@ -96,9 +110,9 @@ const PublicScreenRouter: React.FC = () => {
     "/community": { src: "/screens/public-community.html", title: "学习社区" },
   };
 
-  const match = routeMap[pathname];
+  const match = routeMap[normalizedPathname];
   if (!match) {
-    return <Navigate to="/programs" replace />;
+    return <Navigate to="/programs/list" replace />;
   }
   const joiner = search ? "&" : "?";
   const withQuery = `${search ? `${match.src}${search}` : match.src}${joiner}v=${screenRev}`;
@@ -152,6 +166,7 @@ const App: React.FC = () => {
             <Route path="agents/:botId/chat" element={<AdminAgentsChatPage />} />
             <Route path="multi-agents" element={<AdminMultiAgentsPage />} />
             <Route path="topics" element={<AdminTopicsPage />} />
+            <Route path="worthbuy" element={<AdminWorthBuyPage />} />
             <Route path="inbox" element={<AdminInboxPage />} />
             <Route path="*" element={<Navigate to="/admin" replace />} />
           </Route>

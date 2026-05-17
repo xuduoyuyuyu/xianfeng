@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="/wel/vendor/tailwindcdn.forms.container-queries.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#7f13ec",
+                        "electric-purple": "#9d4edd",
+                        "background-light": "#fbfaff",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "system-ui", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        @layer utilities {
+            .glass-panel {
+                background: rgba(255, 255, 255, 0.6);
+                backdrop-filter: blur(20px);
+                -webkit-backdrop-filter: blur(20px);
+                border: 1px solid rgba(127, 19, 236, 0.1);
+            }
+            .glow-primary {
+                box-shadow: 0 0 25px rgba(127, 19, 236, 0.5);
+            }
+            .glow-text-purple {
+                text-shadow: 0 0 10px rgba(157, 78, 221, 0.8);
+            }
+            .crystal-core {
+                background: radial-gradient(circle, rgba(127,19,236,0.2) 0%, rgba(157,78,221,0.05) 70%);
+                border: 1px solid rgba(127,19,236,0.2);
+            }
+            .connection-line {
+                background: linear-gradient(90deg, transparent, #7f13ec, transparent);
+                height: 1px;
+                opacity: 0.4;
+            }
+        }
+    </style>
+</head>
+<body class="bg-background-light font-display text-slate-900 min-h-screen overflow-hidden">
+<div class="fixed inset-0 z-0 pointer-events-none opacity-40">
+<div class="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-[100px]"></div>
+<div class="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-electric-purple/10 rounded-full blur-[120px]"></div>
+<svg class="w-full h-full opacity-10" xmlns="http://www.w3.org/2000/svg">
+<circle cx="20%" cy="30%" fill="#7f13ec" r="2"></circle>
+<circle cx="80%" cy="70%" fill="#7f13ec" r="3"></circle>
+<line stroke="#7f13ec" stroke-width="0.5" x1="20%" x2="50%" y1="30%" y2="50%"></line>
+<line stroke="#7f13ec" stroke-width="0.5" x1="80%" x2="50%" y1="70%" y2="50%"></line>
+</svg>
+</div>
+<div class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-white/40 backdrop-blur-md">
+<div class="glass-panel w-full max-w-6xl h-[85vh] rounded-2xl shadow-[0_32px_64px_-12px_rgba(0,0,0,0.1)] flex flex-col relative overflow-hidden">
+<header class="flex items-center justify-between px-8 py-5 border-b border-primary/5">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-3xl">psychology</span>
+<div>
+<h1 class="text-xl font-bold tracking-tight">AI 学习难点预测 <span class="text-xs font-normal text-slate-400 ml-2">Predictive Insight v3.0</span></h1>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center select-none">
+<img src="/logo.png" alt="Logo" class="h-6" />
+</div>
+<button class="text-slate-400 hover:text-slate-600 transition-colors">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+</header>
+<div class="flex-1 flex overflow-hidden">
+<div class="flex-[1.2] relative bg-white/20 p-8 flex items-center justify-center">
+<div class="relative z-10 w-64 h-64 crystal-core rounded-full flex items-center justify-center shadow-inner">
+<div class="w-32 h-32 bg-primary/20 rounded-full blur-xl absolute"></div>
+<div class="relative w-24 h-24 bg-gradient-to-br from-primary to-electric-purple rounded-2xl rotate-45 flex items-center justify-center shadow-lg border border-white/20">
+<span class="material-symbols-outlined text-white text-5xl -rotate-45">insights</span>
+</div>
+<div class="absolute -top-12 -right-8 bg-white/80 p-3 rounded-xl border border-primary/20 shadow-sm flex items-center gap-3 backdrop-blur-sm">
+<div class="size-2 rounded-full bg-primary shadow-[0_0_8px_#7f13ec]"></div>
+<span class="text-sm font-semibold text-slate-700">进阶物理模型</span>
+</div>
+<div class="absolute -bottom-10 -left-4 bg-white/80 p-3 rounded-xl border border-primary/20 shadow-sm flex items-center gap-3 backdrop-blur-sm">
+<div class="size-2 rounded-full bg-primary shadow-[0_0_8px_#7f13ec]"></div>
+<span class="text-sm font-semibold text-slate-700">复杂函数组合</span>
+</div>
+<div class="absolute top-1/2 -left-20 bg-white/80 p-3 rounded-xl border border-primary/20 shadow-sm flex items-center gap-3 backdrop-blur-sm">
+<div class="size-2 rounded-full bg-primary shadow-[0_0_8px_#7f13ec]"></div>
+<span class="text-sm font-semibold text-slate-700">多维矢量运算</span>
+</div>
+</div>
+<div class="absolute inset-0 pointer-events-none">
+<div class="connection-line absolute top-[30%] left-[20%] w-[40%] rotate-[25deg]"></div>
+<div class="connection-line absolute bottom-[25%] right-[15%] w-[35%] -rotate-[15deg]"></div>
+<div class="connection-line absolute top-[50%] right-[10%] w-[30%] rotate-[180deg]"></div>
+</div>
+<div class="absolute bottom-8 left-8 flex items-center gap-2">
+<span class="flex h-2 w-2 rounded-full bg-primary animate-pulse"></span>
+<span class="text-xs font-bold text-primary uppercase tracking-widest">Deep Perspective Analyzing...</span>
+</div>
+</div>
+<div class="flex-1 border-l border-primary/5 p-8 overflow-y-auto space-y-6">
+<h3 class="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">troubleshoot</span>
+                        高风险难点分析
+                    </h3>
+<div class="group bg-white/60 p-5 rounded-2xl border border-slate-100 hover:border-primary/30 transition-all">
+<div class="flex items-start justify-between mb-3">
+<h4 class="font-bold text-slate-800">动量能量综合应用</h4>
+<span class="text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">预测成功率 &lt; 45%</span>
+</div>
+<div class="space-y-3">
+<div>
+<p class="text-[11px] font-bold text-slate-400 uppercase mb-1">预测原因</p>
+<p class="text-xs text-slate-600 leading-relaxed">基于最近 3 次练习，您在多过程物理情境建模中耗时异常，且对能量转化临界点的判断存在模糊。</p>
+</div>
+<div class="p-3 bg-primary/5 rounded-xl border border-primary/10">
+<p class="text-[11px] font-bold text-primary uppercase mb-1">攻克建议</p>
+<p class="text-xs text-slate-700">优先建立“状态-过程-状态”模型，建议通过“可视化能量流向图”练习进行前置认知同步。</p>
+</div>
+</div>
+</div>
+<div class="group bg-white/60 p-5 rounded-2xl border border-slate-100 hover:border-primary/30 transition-all">
+<div class="flex items-start justify-between mb-3">
+<h4 class="font-bold text-slate-800">复合场运动轨迹分析</h4>
+<span class="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">高频瓶颈</span>
+</div>
+<div class="space-y-3">
+<div>
+<p class="text-[11px] font-bold text-slate-400 uppercase mb-1">预测原因</p>
+<p class="text-xs text-slate-600 leading-relaxed">知识图谱显示“洛伦兹力”与“向心力”关联节点活跃度低，可能在电磁感应综合题中遭遇阻碍。</p>
+</div>
+<div class="p-3 bg-primary/5 rounded-xl border border-primary/10">
+<p class="text-[11px] font-bold text-primary uppercase mb-1">攻克建议</p>
+<p class="text-xs text-slate-700">通过 wel 增强现实模型观测带电粒子偏转，加强矢量合成的几何直觉。</p>
+</div>
+</div>
+</div>
+<div class="pt-4">
+<button class="glow-primary w-full bg-primary text-white font-bold py-5 rounded-2xl flex items-center justify-center gap-3 hover:bg-electric-purple transition-all transform active:scale-[0.98] shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined">bolt</span>
+<span class="tracking-wide text-lg">预热同步挑战</span>
+</button>
+<p class="text-[10px] text-center text-slate-400 mt-4 leading-relaxed">
+                            点击开启针对性预习练习，AI 将动态调整难度以对冲预测难点
+                        </p>
+</div>
+</div>
+</div>
+<footer class="px-8 py-3 bg-white/40 border-t border-primary/5 flex items-center justify-between text-xs">
+<div class="flex items-center gap-4 text-slate-500">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">history_edu</span>
+<span>最近更新: 2023.10.24</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">analytics</span>
+<span>全网学情基准: 优秀</span>
+</div>
+</div>
+<div class="flex items-center gap-4 text-primary font-medium">
+<button class="flex items-center gap-1 hover:underline">
+<span class="material-symbols-outlined text-sm">share</span>
+                        分享预测结果
+                    </button>
+</div>
+</footer>
+</div>
+</div>
+
+</body></html>

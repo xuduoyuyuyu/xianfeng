@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>家长先疯 | 先疯管理</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "cream": "#FCF9F1",
+                        "muted-teal": "#5E8B8E",
+                        "soft-teal": "#E8F1F2",
+                        "signature-violet": "#630ed4",
+                        "warm-gray": "#7A746E",
+                        "editorial-bg": "#FAF8F6",
+                        "primary": "#630ed4",
+                        "surface": "#ffffff",
+                        "on-background": "#2D2926"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Noto Sans SC", "Plus Jakarta Sans"],
+                        "body": ["Noto Sans SC", "Plus Jakarta Sans"],
+                    }
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        @layer base {
+            body {
+                @apply bg-editorial-bg text-on-background antialiased min-h-screen;
+                font-family: 'Noto Sans SC', 'Plus Jakarta Sans', sans-serif;
+                background-image: radial-gradient(#630ed408 1px, transparent 1px);
+                background-size: 48px 48px;
+            }
+        }
+        .pearl-card {
+            background: #ffffff;
+            border: 1px solid rgba(122, 116, 110, 0.1);
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.04);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .pearl-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 40px 80px -20px rgba(99, 14, 212, 0.08);
+            border-color: rgba(99, 14, 212, 0.15);
+        }
+        .editorial-shadow {
+            box-shadow: 0 20px 40px -15px rgba(94, 139, 142, 0.15);
+        }
+        .gradient-violet {
+            background: linear-gradient(135deg, #630ed4 0%, #8b5cf6 100%);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body>
+<nav class="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-2xl h-20 flex justify-between items-center px-10 border-b border-stone-100">
+<div class="flex items-center gap-16">
+<span class="text-2xl font-black tracking-tighter text-signature-violet">家长先疯</span>
+<div class="hidden lg:flex items-center gap-10">
+<a class="text-warm-gray font-medium hover:text-signature-violet transition-colors relative group" href="#">
+                推荐书单
+                <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-signature-violet transition-all group-hover:w-full"></span>
+</a>
+<a class="text-warm-gray font-medium hover:text-signature-violet transition-colors relative group" href="#">
+                播客频道
+            </a>
+<a class="text-warm-gray font-medium hover:text-signature-violet transition-colors relative group" href="#">
+                专家名录
+            </a>
+<a class="text-signature-violet font-bold border-b-2 border-signature-violet pb-1" href="#">成功案例</a>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative group hidden md:block">
+<input class="bg-stone-100 border-none rounded-full py-2.5 px-6 w-72 focus:ring-2 focus:ring-signature-violet/10 text-sm" placeholder="搜索教育资源..." type="text"/>
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-stone-400 text-sm">search</span>
+</div>
+<button class="px-7 py-2.5 bg-signature-violet text-white font-bold rounded-full hover:shadow-lg hover:opacity-90 transition-all text-sm">登录控制台</button>
+</div>
+</nav>
+<main class="pt-36 pb-24 px-10 max-w-screen-2xl mx-auto space-y-12">
+<header class="flex flex-col md:flex-row justify-between items-end gap-8">
+<div class="space-y-3">
+<div class="flex items-center gap-2 text-muted-teal font-bold tracking-[0.2em] text-xs uppercase">
+<span class="w-8 h-[1px] bg-muted-teal"></span>
+                管理面板
+            </div>
+<h1 class="text-5xl font-black tracking-tight text-stone-900">资源库总览</h1>
+<p class="text-warm-gray text-xl font-light">一处上传，多维流转。为中国家长提供有温度的教育内容。</p>
+</div>
+<button class="px-10 py-5 gradient-violet text-white rounded-full font-bold flex items-center gap-3 editorial-shadow hover:scale-105 transition-all">
+<span class="material-symbols-outlined text-2xl">add_circle</span>
+            新增教育资源
+        </button>
+</header>
+<section class="grid grid-cols-1 md:grid-cols-4 gap-8">
+<div class="pearl-card p-10 rounded-2xl flex flex-col justify-between h-52">
+<div>
+<div class="w-12 h-12 bg-cream rounded-xl flex items-center justify-center mb-5">
+<span class="material-symbols-outlined text-muted-teal">inventory_2</span>
+</div>
+<h3 class="text-warm-gray font-medium text-sm">累计资源总数</h3>
+</div>
+<div class="flex items-baseline justify-between">
+<span class="text-4xl font-black tracking-tighter">12,842</span>
+<span class="text-emerald-600 text-sm font-bold bg-emerald-50 px-2 py-0.5 rounded">+12%</span>
+</div>
+</div>
+<div class="pearl-card p-10 rounded-2xl flex flex-col justify-between h-52">
+<div>
+<div class="w-12 h-12 bg-soft-teal rounded-xl flex items-center justify-center mb-5">
+<span class="material-symbols-outlined text-muted-teal">hub</span>
+</div>
+<h3 class="text-warm-gray font-medium text-sm">多维关联总计</h3>
+</div>
+<div class="flex items-baseline justify-between">
+<span class="text-4xl font-black tracking-tighter">48,219</span>
+<span class="text-emerald-600 text-sm font-bold">+4.5k</span>
+</div>
+</div>
+<div class="pearl-card p-10 rounded-2xl flex flex-col justify-between h-52">
+<div>
+<div class="w-12 h-12 bg-stone-100 rounded-xl flex items-center justify-center mb-5">
+<span class="material-symbols-outlined text-warm-gray">upload_file</span>
+</div>
+<h3 class="text-warm-gray font-medium text-sm">今日新增资源</h3>
+</div>
+<div class="flex items-baseline justify-between">
+<span class="text-4xl font-black tracking-tighter">156</span>
+<span class="text-stone-400 text-xs font-medium">额度 500</span>
+</div>
+</div>
+<div class="gradient-violet p-10 rounded-2xl flex flex-col justify-between h-52 text-white editorial-shadow relative overflow-hidden">
+<div class="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+<div>
+<div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mb-5">
+<span class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+</div>
+<h3 class="font-medium text-sm opacity-80">内容存储健康度</h3>
+</div>
+<div class="flex items-baseline justify-between relative z-10">
+<span class="text-4xl font-black tracking-tighter">99.9%</span>
+<span class="bg-white/20 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">正常运行</span>
+</div>
+</div>
+</section>
+<section class="grid grid-cols-1 lg:grid-cols-3 gap-10">
+<div class="lg:col-span-2 pearl-card p-12 rounded-[2.5rem] space-y-10">
+<div class="flex justify-between items-end">
+<div class="space-y-1">
+<h2 class="text-3xl font-black text-stone-900">内容发布中心</h2>
+<p class="text-warm-gray">轻松拖拽，将您的教育洞察传递给千家万户</p>
+</div>
+<span class="text-muted-teal text-sm font-bold bg-soft-teal px-4 py-1.5 rounded-full">待处理队列: 12 份文件</span>
+</div>
+<div class="border-2 border-dashed border-stone-200 bg-cream/30 rounded-3xl p-16 text-center group cursor-pointer hover:border-signature-violet/30 hover:bg-cream/50 transition-all">
+<div class="inline-flex w-24 h-24 items-center justify-center bg-white rounded-full shadow-sm mb-6 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-5xl text-signature-violet/40">cloud_upload</span>
+</div>
+<p class="text-xl font-bold text-stone-800">拖拽文件至此处，或 <span class="text-signature-violet underline underline-offset-4">点击浏览</span></p>
+<p class="text-sm text-warm-gray mt-4 max-w-sm mx-auto leading-relaxed">支持 PDF 教学手册、MP4 精品课件、高保真图片以及 SCORM 交互式课包。</p>
+</div>
+<div class="space-y-4">
+<div class="bg-stone-50 border border-stone-100 p-6 rounded-2xl flex items-center gap-6">
+<div class="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center">
+<span class="material-symbols-outlined text-signature-violet">picture_as_pdf</span>
+</div>
+<div class="flex-grow">
+<div class="flex justify-between mb-2">
+<span class="text-sm font-bold text-stone-700">2024_国际课程衔接指南_修订版.pdf</span>
+<span class="text-sm font-black text-signature-violet">85%</span>
+</div>
+<div class="w-full bg-stone-200 rounded-full h-2 overflow-hidden">
+<div class="bg-signature-violet h-full rounded-full transition-all duration-500" style="width: 85%"></div>
+</div>
+</div>
+<button class="material-symbols-outlined text-stone-300 hover:text-red-400 transition-colors">cancel</button>
+</div>
+</div>
+</div>
+<div class="pearl-card p-12 rounded-[2.5rem] bg-stone-50/50 relative overflow-hidden flex flex-col">
+<div class="absolute -right-20 -top-20 w-64 h-64 bg-muted-teal/5 rounded-full blur-3xl"></div>
+<div class="mb-10">
+<h2 class="text-2xl font-black mb-3">多维属性关联</h2>
+<p class="text-warm-gray text-sm leading-relaxed">一处发布，即刻同步至不同的教育路径与家长触点。</p>
+</div>
+<div class="space-y-8 flex-grow">
+<div class="space-y-4">
+<label class="text-[11px] font-black uppercase tracking-[0.15em] text-muted-teal flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-muted-teal"></span> 课程体系归类
+                    </label>
+<div class="flex flex-wrap gap-2.5">
+<span class="bg-white border border-stone-200 text-stone-700 px-4 py-2 rounded-xl text-xs font-bold hover:border-signature-violet transition-colors cursor-default">IB 小学项目 (PYP)</span>
+<span class="bg-white border border-stone-200 text-stone-700 px-4 py-2 rounded-xl text-xs font-bold hover:border-signature-violet transition-colors cursor-default">AP 微积分</span>
+<button class="bg-signature-violet/5 text-signature-violet border border-dashed border-signature-violet/30 px-4 py-2 rounded-xl text-xs font-bold hover:bg-signature-violet/10 transition-all">+ 添加标签</button>
+</div>
+</div>
+<div class="space-y-4">
+<label class="text-[11px] font-black uppercase tracking-[0.15em] text-muted-teal flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-muted-teal"></span> 育儿关注点
+                    </label>
+<div class="relative">
+<select class="w-full bg-white border border-stone-200 rounded-2xl py-3.5 px-5 text-sm focus:ring-4 focus:ring-signature-violet/5 focus:border-signature-violet transition-all appearance-none cursor-pointer">
+<option>情商教育与心理建设</option>
+<option>STEM 素养提升</option>
+<option>艺术审美与表达</option>
+<option>海外留学规划</option>
+</select>
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-stone-400">expand_more</span>
+</div>
+</div>
+<div class="mt-4">
+<div class="p-6 bg-cream rounded-3xl border border-stone-200 flex items-start gap-4 editorial-shadow shadow-stone-200/40">
+<div class="w-10 h-10 bg-white rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-muted-teal">auto_fix_high</span>
+</div>
+<p class="text-xs font-medium leading-relaxed text-stone-600">
+<span class="block font-bold text-stone-800 mb-1">AI 关联建议：</span>
+                            基于内容分析，该文件与“蒙特梭利早教体系”标签匹配度达 94%，建议同步关联。
+                        </p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section class="pearl-card rounded-[2.5rem] overflow-hidden border-stone-200/60">
+<div class="p-10 border-b border-stone-100 flex flex-col md:flex-row justify-between items-center gap-6 bg-white/50">
+<div class="flex items-center gap-5">
+<h2 class="text-2xl font-black text-stone-900">内容资源清单</h2>
+<span class="bg-stone-100 px-4 py-1.5 rounded-full text-[11px] font-black text-warm-gray uppercase tracking-widest">1,240 项内容</span>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex bg-stone-100 p-1.5 rounded-2xl">
+<button class="bg-white px-6 py-2 rounded-xl shadow-sm text-xs font-black text-stone-800">全部内容</button>
+<button class="px-6 py-2 rounded-xl text-xs font-bold text-warm-gray hover:text-stone-800 transition-colors">视频课件</button>
+<button class="px-6 py-2 rounded-xl text-xs font-bold text-warm-gray hover:text-stone-800 transition-colors">教学指南</button>
+</div>
+<div class="h-8 w-px bg-stone-200 mx-2"></div>
+<button class="w-10 h-10 flex items-center justify-center rounded-full border border-stone-200 text-stone-400 hover:text-signature-violet hover:border-signature-violet transition-all">
+<span class="material-symbols-outlined text-xl">filter_list</span>
+</button>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead class="bg-stone-50/50 text-warm-gray uppercase text-[10px] font-black tracking-[0.2em]">
+<tr>
+<th class="px-10 py-5 w-12"><input class="rounded-md border-stone-300 text-signature-violet focus:ring-signature-violet/20" type="checkbox"/></th>
+<th class="px-10 py-5">资源名称与标识</th>
+<th class="px-10 py-5">文件类型</th>
+<th class="px-10 py-5">关联标签</th>
+<th class="px-10 py-5 text-center">当前状态</th>
+<th class="px-10 py-5">上传日期</th>
+<th class="px-10 py-5 text-right">操作</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-stone-100">
+<tr class="hover:bg-cream/40 transition-colors">
+<td class="px-10 py-7"><input class="rounded-md border-stone-300 text-signature-violet" type="checkbox"/></td>
+<td class="px-10 py-7">
+<div class="flex items-center gap-5">
+<div class="w-12 h-12 bg-signature-violet/5 rounded-2xl flex items-center justify-center text-signature-violet shadow-sm">
+<span class="material-symbols-outlined text-2xl">video_library</span>
+</div>
+<div>
+<div class="font-bold text-stone-900 mb-0.5">深度解析 IB 学生培养目标 (Learner Profile)</div>
+<div class="text-[10px] text-warm-gray tracking-widest font-medium">UUID: 821-49-X2</div>
+</div>
+</div>
+</td>
+<td class="px-10 py-7">
+<span class="text-sm font-medium text-stone-600">视频课件 / MP4</span>
+</td>
+<td class="px-10 py-7">
+<div class="flex -space-x-2">
+<div class="w-8 h-8 rounded-full bg-stone-100 border-2 border-white flex items-center justify-center text-[9px] font-black text-stone-600" title="IB">IB</div>
+<div class="w-8 h-8 rounded-full bg-soft-teal border-2 border-white flex items-center justify-center text-[9px] font-black text-muted-teal" title="PYP">PYP</div>
+<div class="w-8 h-8 rounded-full bg-signature-violet/10 border-2 border-white flex items-center justify-center text-[9px] font-black text-signature-violet">+4</div>
+</div>
+</td>
+<td class="px-10 py-7 text-center">
+<span class="bg-emerald-50 text-emerald-700 px-4 py-1.5 rounded-full text-[11px] font-black">已发布</span>
+</td>
+<td class="px-10 py-7 text-sm font-bold text-stone-500">2024年10月12日</td>
+<td class="px-10 py-7 text-right">
+<button class="material-symbols-outlined text-stone-400 hover:text-signature-violet transition-colors">more_horiz</button>
+</td>
+</tr>
+<tr class="hover:bg-cream/40 transition-colors">
+<td class="px-10 py-7"><input class="rounded-md border-stone-300 text-signature-violet" type="checkbox"/></td>
+<td class="px-10 py-7">
+<div class="flex items-center gap-5">
+<div class="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-600 shadow-sm">
+<span class="material-symbols-outlined text-2xl">menu_book</span>
+</div>
+<div>
+<div class="font-bold text-stone-900 mb-0.5">2025 牛津大学入学申请全攻略</div>
+<div class="text-[10px] text-warm-gray tracking-widest font-medium">UUID: 104-58-L8</div>
+</div>
+</div>
+</td>
+<td class="px-10 py-7">
+<span class="text-sm font-medium text-stone-600">教育指南 / PDF</span>
+</td>
+<td class="px-10 py-7">
+<div class="flex -space-x-2">
+<div class="w-8 h-8 rounded-full bg-blue-50 border-2 border-white flex items-center justify-center text-[9px] font-black text-blue-600" title="UK">UK</div>
+<div class="w-8 h-8 rounded-full bg-orange-50 border-2 border-white flex items-center justify-center text-[9px] font-black text-orange-600" title="HE">HE</div>
+</div>
+</td>
+<td class="px-10 py-7 text-center">
+<span class="bg-amber-50 text-amber-700 px-4 py-1.5 rounded-full text-[11px] font-black">草稿箱</span>
+</td>
+<td class="px-10 py-7 text-sm font-bold text-stone-500">2024年10月10日</td>
+<td class="px-10 py-7 text-right">
+<button class="material-symbols-outlined text-stone-400 hover:text-signature-violet transition-colors">more_horiz</button>
+</td>
+</tr>
+<tr class="hover:bg-cream/40 transition-colors">
+<td class="px-10 py-7"><input class="rounded-md border-stone-300 text-signature-violet" type="checkbox"/></td>
+<td class="px-10 py-7">
+<div class="flex items-center gap-5">
+<div class="w-12 h-12 bg-stone-100 rounded-2xl flex items-center justify-center text-muted-teal shadow-sm">
+<span class="material-symbols-outlined text-2xl" style="font-variation-settings: 'FILL' 1;">mic</span>
+</div>
+<div>
+<div class="font-bold text-stone-900 mb-0.5">播客：如何应对青少年的焦虑情绪</div>
+<div class="text-[10px] text-warm-gray tracking-widest font-medium">UUID: 552-12-Q4</div>
+</div>
+</div>
+</td>
+<td class="px-10 py-7">
+<span class="text-sm font-medium text-stone-600">音频资源 / MP3</span>
+</td>
+<td class="px-10 py-7">
+<div class="flex -space-x-2">
+<div class="w-8 h-8 rounded-full bg-pink-50 border-2 border-white flex items-center justify-center text-[9px] font-black text-pink-600" title="EQ">EQ</div>
+</div>
+</td>
+<td class="px-10 py-7 text-center">
+<span class="bg-emerald-50 text-emerald-700 px-4 py-1.5 rounded-full text-[11px] font-black">已发布</span>
+</td>
+<td class="px-10 py-7 text-sm font-bold text-stone-500">2024年10月08日</td>
+<td class="px-10 py-7 text-right">
+<button class="material-symbols-outlined text-stone-400 hover:text-signature-violet transition-colors">more_horiz</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-10 bg-stone-50/50 flex justify-between items-center border-t border-stone-100">
+<span class="text-xs text-warm-gray font-bold uppercase tracking-widest">正在显示 1-10 项，共 1,240 项资源</span>
+<div class="flex gap-2">
+<button class="w-10 h-10 rounded-full flex items-center justify-center border border-stone-200 hover:bg-white transition-all text-stone-400 hover:text-signature-violet"><span class="material-symbols-outlined">chevron_left</span></button>
+<button class="w-10 h-10 rounded-full flex items-center justify-center gradient-violet text-white font-black text-sm shadow-md">1</button>
+<button class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white transition-all text-sm font-black border border-transparent hover:border-stone-200">2</button>
+<button class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white transition-all text-sm font-black border border-transparent hover:border-stone-200">3</button>
+<button class="w-10 h-10 rounded-full flex items-center justify-center border border-stone-200 hover:bg-white transition-all text-stone-400 hover:text-signature-violet"><span class="material-symbols-outlined">chevron_right</span></button>
+</div>
+</div>
+</section>
+</main>
+<footer class="bg-white border-t border-stone-100 py-16 px-10 w-full mt-24">
+<div class="max-w-screen-2xl mx-auto flex flex-col md:flex-row justify-between items-center gap-10">
+<div class="flex flex-col items-center md:items-start gap-4">
+<span class="text-2xl font-black text-signature-violet tracking-tighter">家长先疯</span>
+<p class="text-warm-gray text-sm font-medium">© 2024 Luminous Mentor. 打造有温度的教育叙事体验。</p>
+</div>
+<div class="flex flex-wrap justify-center gap-10">
+<a class="text-stone-400 hover:text-signature-violet transition-colors text-xs font-black uppercase tracking-widest" href="#">隐私政策</a>
+<a class="text-stone-400 hover:text-signature-violet transition-colors text-xs font-black uppercase tracking-widest" href="#">使用条款</a>
+<a class="text-stone-400 hover:text-signature-violet transition-colors text-xs font-black uppercase tracking-widest" href="#">家长指南</a>
+<a class="text-stone-400 hover:text-signature-violet transition-colors text-xs font-black uppercase tracking-widest" href="#">联系支持</a>
+</div>
+<div class="flex gap-5">
+<div class="w-12 h-12 rounded-2xl bg-stone-50 border border-stone-100 flex items-center justify-center cursor-pointer hover:bg-signature-violet/5 transition-all text-stone-400 hover:text-signature-violet">
+<span class="material-symbols-outlined" style="font-size: 22px;">share</span>
+</div>
+<div class="w-12 h-12 rounded-2xl bg-stone-50 border border-stone-100 flex items-center justify-center cursor-pointer hover:bg-signature-violet/5 transition-all text-stone-400 hover:text-signature-violet">
+<span class="material-symbols-outlined" style="font-size: 22px;">language</span>
+</div>
+</div>
+</div>
+</footer>
+
+</body></html>

@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<title>官方资源</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<script src="/wel/vendor/tailwindcdn.forms.container-queries.js"></script>
+<style>
+*{font-family:'Space Grotesk','Noto Sans SC',sans-serif}
+.ms{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;letter-spacing:normal;text-transform:none;display:inline-block;white-space:nowrap;user-select:none}
+.card{transition:all .18s ease}.card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(124,58,237,.12)}
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<div class="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-slate-100 px-6 py-3 flex items-center justify-between">
+  <div>
+    <div class="font-bold text-slate-800">官方资源</div>
+    <div class="text-xs text-slate-400">精选官方教材与深度整理的教学资源</div>
+  </div>
+  <div id="filters" class="flex gap-3">
+    <select id="f-grade" onchange="setFilter()" class="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1.5 rounded-lg border-none outline-none cursor-pointer hover:bg-slate-200 transition-colors">
+      <option value="全部">全部年级</option>
+      <option>初中七年级</option><option>初中八年级</option><option>初中九年级</option>
+      <option>高中一年级</option><option>高中二年级</option><option>高中三年级</option>
+    </select>
+    <select id="f-version" onchange="setFilter()" class="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1.5 rounded-lg border-none outline-none cursor-pointer hover:bg-slate-200 transition-colors">
+      <option value="全部">全部版本</option>
+      <option>人教版</option><option>北师大版</option><option>苏教版</option><option>沪教版</option><option>鲁教版</option>
+    </select>
+    <select id="f-subject" onchange="setFilter()" class="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1.5 rounded-lg border-none outline-none cursor-pointer hover:bg-slate-200 transition-colors">
+      <option value="全部">全部学科</option>
+      <option>数学</option><option>物理</option><option>化学</option><option>语文</option><option>英语</option><option>生物</option>
+    </select>
+  </div>
+</div>
+
+<div class="px-6 py-5">
+  <div class="flex items-center gap-2 mb-4">
+    <span class="ms text-lg text-purple-500">verified</span>
+    <span class="font-bold text-slate-700">精选教材</span>
+    <span class="text-xs text-slate-400 ml-1">深度整理的教学资源</span>
+  </div>
+  <div id="grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8"></div>
+
+  <div class="flex items-center gap-2 mb-4">
+    <span class="ms text-lg text-purple-500">menu_book</span>
+    <span class="font-bold text-slate-700">优选资料</span>
+    <span class="text-xs text-slate-400 ml-1">系统整理的专项讲义</span>
+  </div>
+  <div id="grid2" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+</div>
+
+<div id="modal" class="fixed inset-0 z-[200] items-center justify-center p-4 bg-black/40 backdrop-blur-sm hidden">
+  <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<script>
+const SUBJECTS=['全部','数学','物理','化学','语文','英语','生物'];
+// Default covers if none provided
+const COVERS=[
+  '/assets/wel-avatar/no-hat.png',
+  '/assets/wel-avatar/no-hat.png',
+  '/assets/wel-avatar/no-hat.png',
+];
+
+let RESOURCES = [];
+let HANDOUTS = []; // Can be used for separate category if needed
+
+async function loadResources() {
+  try {
+    const r = await fetch('/api/public/resources');
+    const data = await r.json();
+    if (data && data.resources) {
+      // Map API data to UI format
+      RESOURCES = data.resources.map(item => ({
+        id: item.id,
+        title: item.title,
+        subject: item.subject,
+        grade: item.grade || '通用',
+        ver: item.version || '通用',
+        cover_url: item.cover_image, // Use uploaded image or fallback
+        cover_idx: Math.floor(Math.random() * 3), // Fallback index
+        desc: item.overview || (item.content_text ? item.content_text.slice(0, 100)+'...' : '暂无简介'),
+        downloads: '1.2k', // Mock
+        nodes: item.nodes_count || 0,
+        chapter_count: item.chapter_count || 0
+      }));
+    }
+  } catch (e) {
+    console.error('Failed to load resources', e);
+  }
+  renderGrid();
+}
+
+const SUB_COLORS={数学:'bg-blue-100 text-blue-700',物理:'bg-purple-100 text-purple-700',化学:'bg-green-100 text-green-700',语文:'bg-red-100 text-red-700',英语:'bg-yellow-100 text-yellow-700',生物:'bg-teal-100 text-teal-700',地理:'bg-orange-100 text-orange-700'};
+
+function setFilter(){
+  renderGrid();
+}
+
+function renderGrid(){
+  const g = document.getElementById('f-grade').value;
+  const v = document.getElementById('f-version').value;
+  const s = document.getElementById('f-subject').value;
+
+  const filterFn = (item) => {
+    if (g !== '全部' && !item.grade.includes(g)) return false;
+    if (v !== '全部' && item.ver !== v && item.ver !== '通用') return false;
+    if (s !== '全部' && item.subject !== s) return false;
+    return true;
+  };
+
+  const r1=RESOURCES.filter(filterFn);
+  // Currently putting everything in grid 1, leaving grid 2 empty or for handouts if distinguished
+  document.getElementById('grid').innerHTML=r1.length?r1.map((r,i)=>cardHTML(r,i)).join(''):'<div class="col-span-3 py-10 text-center text-slate-300 text-sm">暂无该条件下的资源</div>';
+  document.getElementById('grid2').innerHTML='<div class="col-span-3 py-10 text-center text-slate-300 text-sm">暂无讲义资源</div>';
+}
+
+function cardHTML(r,i){
+  const sc=SUB_COLORS[r.subject]||'bg-slate-100 text-slate-600';
+  const img = r.cover_url || COVERS[r.cover_idx];
+  return `<div class="card bg-white rounded-2xl border border-slate-100 overflow-hidden cursor-pointer" onclick="showDetail(${r.id})">
+    <div class="relative h-36 overflow-hidden bg-slate-100">
+      <img src="${img}" class="w-full h-full object-cover transition-transform duration-500 hover:scale-105" onerror="this.src='${COVERS[0]}'"/>
+      <div class="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
+      <span class="absolute top-3 left-3 text-[11px] font-bold px-2 py-0.5 rounded-lg ${sc}">${r.subject} · ${r.ver||'通用'}</span>
+      <span class="absolute bottom-3 right-3 text-[10px] text-white/80 flex items-center gap-1">
+        <span class="ms text-xs">download</span>${r.downloads}次载入
+      </span>
+    </div>
+    <div class="p-4">
+      <div class="font-bold text-slate-800 text-sm mb-1">${r.title}</div>
+      <div class="text-xs text-slate-400 mb-3 leading-relaxed" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${r.desc}</div>
+      <div class="flex items-center justify-between">
+        <span class="text-xs text-slate-300 flex items-center gap-1"><span class="ms text-sm">hub</span>${r.nodes} 个知识节点</span>
+        <button onclick="event.stopPropagation();loadRes(${r.id})" class="flex items-center gap-1 bg-purple-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-purple-700 transition-colors">
+          <span class="ms text-sm">upload</span>载入
+        </button>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function fetchOfficialDetail(id, title){
+  const Z = window.__ZHI2 || (window.parent && window.parent.__ZHI2);
+  try{
+    if (id) {
+      if (Z && Z.api) {
+        const d = await Z.api('GET', `/api/textbooks/${id}`);
+        if (d && d.textbook) return d;
+      } else {
+        const r = await fetch(`/api/textbooks/${id}`);
+        if (r.ok) {
+          const d = await r.json();
+          if (d && d.textbook) return d;
+        }
+      }
+    }
+  }catch(e){}
+  try{
+    if (title) {
+      const ep = `/api/public/textbooks/by-title?title=${encodeURIComponent(title)}`;
+      if (Z && Z.api) {
+        const d = await Z.api('GET', ep);
+        if (d && d.textbook) return d;
+      } else {
+        const r = await fetch(ep);
+        if (r.ok) {
+          const d = await r.json();
+          if (d && d.textbook) return d;
+        }
+      }
+    }
+  }catch(e){}
+  return null;
+}
+
+async function showDetail(id){
+  const r=RESOURCES.find(x=>x.id===id); if(!r)return;
+  const Z = window.__ZHI2 || (window.parent && window.parent.__ZHI2);
+  const detail = await fetchOfficialDetail(r.id, r.title);
+  const tb = detail?.textbook || {};
+  const nodes = detail?.nodes || [];
+  const structure = detail?.structure || [];
+  const nodeCount = nodes.length || r.nodes || 0;
+  const chapterCount = structure.length || r.chapter_count || 0;
+  const desc = tb.overview || r.desc || '暂无简介';
+  const img = tb.cover_image || r.cover_url || COVERS[r.cover_idx];
+  
+  if (Z && Z.go) {
+    const safeDesc = (desc || '').substring(0, 150).replace(/\n/g, '').replace(/'/g, "\\'");
+    Z.go(52, {id: (tb.id || r.id), title: (tb.title || r.title), subject: (tb.subject || r.subject), cover: img, nodes: nodeCount, desc: safeDesc});
+  } else {
+    // Fallback for standalone preview
+    const sc=SUB_COLORS[(tb.subject || r.subject)]||'bg-slate-100 text-slate-600';
+    document.getElementById('modalContent').innerHTML=`
+      <div class="relative h-48 bg-slate-100 overflow-hidden">
+        <img src="${img}" class="w-full h-full object-cover" onerror="this.src='${COVERS[0]}'"/>
+        <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+        <button onclick="closeModal()" class="absolute top-3 right-3 w-8 h-8 bg-white/20 backdrop-blur rounded-lg flex items-center justify-center text-white hover:bg-white/40 transition-colors"><span class="ms text-base">close</span></button>
+        <div class="absolute bottom-4 left-4">
+          <span class="text-[11px] font-bold px-2 py-0.5 rounded-lg ${sc} mb-2 inline-block">${tb.subject || r.subject} · ${tb.grade || r.grade} · ${tb.version || r.ver || '通用'}</span>
+          <div class="font-bold text-white text-lg">${tb.title || r.title}</div>
+        </div>
+      </div>
+      <div class="p-5">
+        <p class="text-sm text-slate-500 leading-relaxed mb-4">${desc}</p>
+        <div class="flex gap-4 mb-5">
+          <div class="flex-1 bg-purple-50 rounded-xl p-3 text-center"><div class="font-bold text-purple-600 text-lg">${nodeCount}</div><div class="text-xs text-slate-400 mt-0.5">知识节点</div></div>
+          <div class="flex-1 bg-slate-50 rounded-xl p-3 text-center"><div class="font-bold text-slate-700 text-lg">${chapterCount}</div><div class="text-xs text-slate-400 mt-0.5">目录章节</div></div>
+          <div class="flex-1 bg-slate-50 rounded-xl p-3 text-center"><div class="font-bold text-slate-700 text-lg">${r.downloads}</div><div class="text-xs text-slate-400 mt-0.5">次载入</div></div>
+          <div class="flex-1 bg-slate-50 rounded-xl p-3 text-center"><div class="font-bold text-slate-700 text-lg">官方</div><div class="text-xs text-slate-400 mt-0.5">来源</div></div>
+        </div>
+        <button onclick="loadRes(${r.id});closeModal()" class="w-full bg-purple-600 text-white rounded-xl py-3 font-bold text-sm hover:bg-purple-700 transition-colors flex items-center justify-center gap-2">
+          <span class="ms">upload</span> 载入到我的知识库
+        </button>
+      </div>`;
+    const m=document.getElementById('modal');m.classList.remove('hidden');m.classList.add('flex');
+  }
+}
+function closeModal(){const m=document.getElementById('modal');m.classList.add('hidden');m.classList.remove('flex');}
+document.getElementById('modal').addEventListener('click',e=>{if(e.target===document.getElementById('modal'))closeModal();});
+
+async function loadRes(id){
+  const r=RESOURCES.find(x=>x.id===id); if(!r)return;
+  const Z = window.__ZHI2;
+  if(Z) {
+    Z.toast('正在添加到我的文件...', 'info');
+    try {
+      // Use existing endpoint, no is_official flag means personal
+      await Z.api('POST', '/api/textbooks', {
+        title: r.title,
+        subject: r.subject,
+        content_text: `[官方资源] ${r.title}\n${r.desc}\n\n已从官方库载入。`,
+        cover_image: r.cover_url,
+        version: r.ver,
+        grade: r.grade
+      });
+      Z.toast('已添加到我的文件！✨');
+    } catch(e) {
+      Z.toast('添加失败: ' + e.message, 'err');
+    }
+  } else {
+    let t=document.getElementById('_t');
+    if(!t){t=document.createElement('div');t.id='_t';t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(8px);opacity:0;transition:all .2s;z-index:9999;background:#1e293b;color:#fff;font-size:13px;font-weight:500;padding:10px 16px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.2);display:flex;align-items:center;gap:8px;pointer-events:none;white-space:nowrap';document.body.appendChild(t);}
+    t.innerHTML=`<span style="color:#34d399">✓</span> 「${r.title}」已载入到知识库 (演示)`;
+    t.style.opacity='1';t.style.transform='translateX(-50%) translateY(0)';
+    clearTimeout(t._t);t._t=setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(-50%) translateY(8px)';},2500);
+  }
+}
+
+// Initial load
+loadResources();
+</script>
+</body>
+</html>

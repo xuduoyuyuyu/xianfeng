@@ -1,0 +1,5 @@
+SOURCE=/Users/QUAN/Downloads/Project/xianfeng-v2
+TYPE=runtime-clean
+CREATED_AT=2026-05-15T17:48:02+08:00
+INCLUDED=backend,frontend,docker-compose.yml,docker-compose.prod.yml,.env.production.example,.gitignore,README_DEPLOY.md,vercel.json
+NOTE=Extracted by whitelist because source is not a git repository.

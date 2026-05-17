@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="/wel/vendor/tailwindcdn.forms.container-queries.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#7f13ec",
+                        "cyber-red": "#ff2d55",
+                        "electronic-purple": "#a855f7",
+                        "background-light": "#f7f6f8",
+                        "background-dark": "#191022",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .hexagon-grid {
+            background-image: radial-gradient(circle at 2px 2px, rgba(127, 19, 236, 0.05) 1px, transparent 0);
+            background-size: 32px 32px;
+        }
+        .pulse-red {
+            box-shadow: 0 0 0 0 rgba(255, 45, 85, 0.7);
+            animation: pulse-red-effect 2s infinite;
+        }
+        @keyframes pulse-red-effect {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 45, 85, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(255, 45, 85, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 45, 85, 0); }
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(127, 19, 236, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 antialiased overflow-hidden h-screen">
+<div class="flex h-full flex-col">
+<!-- Top Navigation -->
+<header class="flex items-center justify-between border-b border-primary/10 bg-white/80 dark:bg-background-dark/80 backdrop-blur-md px-10 py-3 z-50">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-3">
+<div class="size-8 text-primary">
+<svg fill="none" viewbox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path clip-rule="evenodd" d="M12.0799 24L4 19.2479L9.95537 8.75216L18.04 13.4961L18.0446 4H29.9554L29.96 13.4961L38.0446 8.75216L44 19.2479L35.92 24L44 28.7521L38.0446 39.2479L29.96 34.5039L29.9554 44H18.0446L18.04 34.5039L9.95537 39.2479L4 28.7521L12.0799 24Z" fill="currentColor" fill-rule="evenodd"></path>
+</svg>
+</div>
+<img src="/logo.png" alt="Logo" class="h-6" />
+</div>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-sm font-semibold hover:text-primary transition-colors" href="#">知识地图</a>
+<a class="text-sm font-semibold text-primary" href="#">能量预警</a>
+<a class="text-sm font-semibold hover:text-primary transition-colors" href="#">实验室</a>
+<a class="text-sm font-semibold hover:text-primary transition-colors" href="#">学习历程</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative hidden sm:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
+<input class="pl-10 pr-4 py-2 bg-primary/5 border-none rounded-full text-sm focus:ring-2 focus:ring-primary/20 w-64" placeholder="搜索知识节点..." type="text"/>
+</div>
+<button class="p-2 rounded-full hover:bg-primary/5 transition-colors">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-300">notifications</span>
+</button>
+<div class="size-9 rounded-full bg-gradient-to-tr from-primary to-electronic-purple border-2 border-white shadow-sm" data-alt="User profile avatar placeholder"></div>
+</div>
+</header>
+<main class="flex flex-1 overflow-hidden relative">
+<!-- Sidebar: Monitoring Panel (Left) -->
+<aside class="w-72 bg-white/50 dark:bg-background-dark/50 border-r border-primary/5 flex flex-col p-6 z-40 overflow-y-auto">
+<div class="mb-8">
+<h2 class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">核心状态概览</h2>
+<div class="space-y-4">
+<div class="p-4 rounded-xl bg-electronic-purple/10 border border-electronic-purple/20">
+<p class="text-[10px] text-electronic-purple font-bold uppercase mb-1">稳定节点</p>
+<p class="text-2xl font-bold text-slate-900 dark:text-white">128</p>
+</div>
+<div class="p-4 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200">
+<p class="text-[10px] text-slate-500 font-bold uppercase mb-1">能量衰减中</p>
+<p class="text-2xl font-bold text-slate-900 dark:text-white">42</p>
+</div>
+<div class="p-4 rounded-xl bg-cyber-red/10 border border-cyber-red/20">
+<p class="text-[10px] text-cyber-red font-bold uppercase mb-1">临界失稳</p>
+<p class="text-2xl font-bold text-cyber-red">07</p>
+</div>
+</div>
+</div>
+<div class="flex-1">
+<h2 class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">实时地图控制</h2>
+<div class="space-y-2">
+<button class="w-full flex items-center gap-3 px-3 py-2 rounded-lg bg-primary text-white text-sm font-medium">
+<span class="material-symbols-outlined text-lg">layers</span>
+                            3D 视图
+                        </button>
+<button class="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-primary/5 text-slate-600 dark:text-slate-400 text-sm font-medium transition-colors">
+<span class="material-symbols-outlined text-lg">filter_tilt_shift</span>
+                            能量透视
+                        </button>
+<button class="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-primary/5 text-slate-600 dark:text-slate-400 text-sm font-medium transition-colors">
+<span class="material-symbols-outlined text-lg">history</span>
+                            遗忘回溯
+                        </button>
+</div>
+</div>
+<div class="mt-auto pt-6 border-t border-primary/5">
+<button class="w-full py-3 bg-primary rounded-xl text-white font-bold text-sm shadow-lg shadow-primary/30 hover:shadow-primary/50 transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-lg">bolt</span>
+                        一键能量注入
+                    </button>
+</div>
+</aside>
+<!-- Main Map View -->
+<div class="flex-1 relative bg-background-light dark:bg-background-dark hexagon-grid overflow-hidden">
+<!-- Map UI Overlays -->
+<div class="absolute top-8 left-8 z-30">
+<h2 class="text-3xl font-black text-slate-900 dark:text-white">能量衰减预警地图</h2>
+<p class="text-slate-500 mt-1 flex items-center gap-2">
+<span class="flex h-2 w-2 rounded-full bg-cyber-red pulse-red"></span>
+                        检测到 7 个知识核心处于不稳定状态
+                    </p>
+</div>
+<!-- 3D Network Visualization (Simulated with layout) -->
+<div class="absolute inset-0 flex items-center justify-center p-12">
+<div class="relative w-full h-full" data-location="Knowledge Map Visualization" style="">
+<!-- High Energy Node (Stable) -->
+<div class="absolute top-1/4 left-1/4 group cursor-pointer">
+<div class="w-16 h-16 bg-electronic-purple rounded-xl rotate-45 flex items-center justify-center shadow-[0_0_30px_rgba(168,85,247,0.5)] transition-transform group-hover:scale-110">
+<span class="material-symbols-outlined text-white -rotate-45">school</span>
+</div>
+<div class="absolute -bottom-10 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-500 whitespace-nowrap bg-white px-2 py-1 rounded-full shadow-sm">量子力学基础</div>
+</div>
+<!-- Decaying Node (Gray) -->
+<div class="absolute top-1/2 left-1/3 opacity-40 group cursor-pointer">
+<div class="w-12 h-12 bg-slate-400 rounded-xl rotate-45 flex items-center justify-center transition-transform group-hover:scale-110">
+<span class="material-symbols-outlined text-white -rotate-45">function</span>
+</div>
+<div class="absolute -bottom-10 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400 whitespace-nowrap">线性代数</div>
+</div>
+<!-- Unstable Node (Critical Red) -->
+<div class="absolute top-1/3 right-1/4 group cursor-pointer">
+<div class="w-20 h-20 bg-cyber-red rounded-xl rotate-45 flex items-center justify-center pulse-red transition-transform group-hover:scale-110">
+<span class="material-symbols-outlined text-white -rotate-45">psychology</span>
+</div>
+<div class="absolute -top-12 left-1/2 -translate-x-1/2">
+<div class="bg-cyber-red text-white text-[10px] font-black px-3 py-1 rounded-full whitespace-nowrap shadow-xl">CRITICAL: 神经科学</div>
+</div>
+</div>
+<!-- Small Connection lines (SVG background) -->
+<svg class="absolute inset-0 w-full h-full pointer-events-none opacity-20" xmlns="http://www.w3.org/2000/svg">
+<line stroke="currentColor" stroke-dasharray="4 4" stroke-width="1" x1="25%" x2="33%" y1="25%" y2="50%"></line>
+<line stroke="currentColor" stroke-dasharray="4 4" stroke-width="1" x1="33%" x2="75%" y1="50%" y2="33%"></line>
+<circle cx="60%" cy="70%" fill="#a855f7" r="4"></circle>
+<circle cx="20%" cy="80%" fill="#94a3b8" r="3"></circle>
+</svg>
+</div>
+</div>
+<!-- Zoom Controls -->
+<div class="absolute bottom-8 right-8 flex flex-col gap-2 z-30">
+<button class="p-3 bg-white dark:bg-slate-800 rounded-xl shadow-xl hover:bg-slate-50 text-slate-600">
+<span class="material-symbols-outlined">add</span>
+</button>
+<button class="p-3 bg-white dark:bg-slate-800 rounded-xl shadow-xl hover:bg-slate-50 text-slate-600">
+<span class="material-symbols-outlined">remove</span>
+</button>
+<button class="p-3 bg-primary text-white rounded-xl shadow-xl hover:bg-primary/90">
+<span class="material-symbols-outlined">my_location</span>
+</button>
+</div>
+</div>
+<!-- Right Sidebar: Unstable Core Monitor -->
+<aside class="w-80 bg-white dark:bg-background-dark border-l border-primary/5 flex flex-col z-40">
+<div class="p-6 border-b border-primary/5 bg-cyber-red/5">
+<div class="flex items-center gap-2 text-cyber-red mb-1">
+<span class="material-symbols-outlined text-lg">warning</span>
+<h2 class="text-sm font-black uppercase tracking-widest">不稳定核心监控</h2>
+</div>
+<p class="text-xs text-slate-500">检测到极速能量流失，请及时干预</p>
+</div>
+<div class="flex-1 overflow-y-auto p-4 space-y-4">
+<!-- Alert Item 1 -->
+<div class="p-4 rounded-xl border border-cyber-red/20 bg-cyber-red/5 hover:bg-cyber-red/10 transition-colors group">
+<div class="flex justify-between items-start mb-3">
+<div>
+<h3 class="font-bold text-slate-900 dark:text-white group-hover:text-cyber-red transition-colors">神经科学核心</h3>
+<p class="text-[10px] text-slate-500">衰减速率: 1.4%/h</p>
+</div>
+<span class="material-symbols-outlined text-cyber-red">emergency_home</span>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-[10px] font-bold text-cyber-red uppercase">
+<span>崩溃倒计时</span>
+<span>04:12:05</span>
+</div>
+<div class="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+<div class="h-full bg-cyber-red w-1/4 pulse-red"></div>
+</div>
+</div>
+<button class="w-full mt-4 py-2 border border-cyber-red/30 rounded-lg text-[10px] font-bold text-cyber-red uppercase hover:bg-cyber-red hover:text-white transition-all">
+                            启动复习干预
+                        </button>
+</div>
+<!-- Alert Item 2 -->
+<div class="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 opacity-80">
+<div class="flex justify-between items-start mb-3">
+<div>
+<h3 class="font-bold text-slate-700 dark:text-slate-300">高等数学核心</h3>
+<p class="text-[10px] text-slate-500">衰减速率: 0.8%/h</p>
+</div>
+<span class="material-symbols-outlined text-slate-400">hourglass_empty</span>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-[10px] font-bold text-slate-500 uppercase">
+<span>崩塌预警</span>
+<span>18:45:22</span>
+</div>
+<div class="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+<div class="h-full bg-slate-400 w-3/4"></div>
+</div>
+</div>
+</div>
+<!-- Alert Item 3 -->
+<div class="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 opacity-80">
+<div class="flex justify-between items-start mb-3">
+<div>
+<h3 class="font-bold text-slate-700 dark:text-slate-300">宏观经济模型</h3>
+<p class="text-[10px] text-slate-500">衰减速率: 0.5%/h</p>
+</div>
+<span class="material-symbols-outlined text-slate-400">hourglass_empty</span>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-[10px] font-bold text-slate-500 uppercase">
+<span>崩塌预警</span>
+<span>34:10:09</span>
+</div>
+<div class="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+<div class="h-full bg-slate-400 w-4/5"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-primary/5">
+<div class="flex items-center gap-4">
+<div class="flex-1">
+<p class="text-[10px] font-bold text-slate-500 uppercase mb-1">系统稳定性</p>
+<div class="flex items-center gap-2">
+<div class="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[82%]"></div>
+</div>
+<span class="text-xs font-bold">82%</span>
+</div>
+</div>
+</div>
+</div>
+</aside>
+</main>
+<!-- Footer / Status Bar -->
+<footer class="h-8 bg-slate-900 text-[10px] text-slate-400 flex items-center justify-between px-10 border-t border-white/5">
+<div class="flex gap-4">
+<span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> 系统正常</span>
+<span class="flex items-center gap-1 text-cyber-red"><span class="w-1.5 h-1.5 rounded-full bg-cyber-red animate-pulse"></span> 探测到能量波动</span>
+</div>
+<div class="flex gap-4 uppercase font-bold tracking-widest">
+<span>Zhi² Engine v2.4.0</span>
+<span>加密渲染协议: HEX-NODE-3D</span>
+</div>
+</footer>
+</div>
+</body></html>

@@ -1004,9 +1004,10 @@ async function runAsyncParseTask(
       }).catch(() => {});
     }
   } catch (error: any) {
+    const parseMessage = normalizeParseFailureMessage(asText(error?.message || "解析任务执行失败"));
     await Program.findByIdAndUpdate(
       programId,
-      parseMetaPatch("failed", error?.message || "解析任务执行失败", 100, "failed"),
+      parseMetaPatch("failed", parseMessage, 100, "failed"),
       { new: false }
     );
     await createInboxMessage({
@@ -1016,12 +1017,12 @@ async function runAsyncParseTask(
       taskStatus: "failed",
       targetType: "program",
       targetId: programId,
-      summary: error?.message || "解析任务执行失败",
+      summary: parseMessage,
       payload: {
         programId,
         parseRunId,
         parseStatus: "failed",
-        parseMessage: error?.message || "解析任务执行失败",
+        parseMessage,
       },
     }).catch(() => {});
   } finally {
@@ -1239,17 +1240,43 @@ export class ProgramController {
     }
   }
 
-  async getAllPublic(_req: Request, res: Response): Promise<void> {
+  async getAllPublic(req: Request, res: Response): Promise<void> {
     try {
-      const programs = await Program.find({ status: "published" }).sort({
-        publishedAt: -1,
-        createdAt: -1,
-        _id: -1,
-      });
+      const pageRaw = Number(req.query.page);
+      const pageSizeRaw = Number(req.query.pageSize);
+      const page = Number.isFinite(pageRaw) && pageRaw > 0 ? Math.floor(pageRaw) : 1;
+      const pageSize = Number.isFinite(pageSizeRaw) && pageSizeRaw > 0 ? Math.min(100, Math.floor(pageSizeRaw)) : 20;
+
+      // 列表页只取必要字段，排除大字段提升性能（transcript/deepDive 可几十KB）
+      const total = await Program.countDocuments({ status: "published" });
+      const skip = (page - 1) * pageSize;
+      const programs = await Program.find({ status: "published" })
+        .select({
+          programCode: 1, title: 1, description: 1, coverImage: 1,
+          publishedAt: 1, createdAt: 1, updatedAt: 1,
+          summary: 1, episodes: 1, status: 1,
+          dictionaryEntryIds: 1, guestBindings: 1,
+        })
+        .sort({ publishedAt: -1, createdAt: -1, _id: -1 })
+        .skip(skip)
+        .limit(pageSize)
+        .lean();
       const attached = await attachDictionaryEntriesToPrograms(programs, false);
       const attachedGuests = await attachGuestBindingsToPrograms(attached);
-      const template = await getShowNotesDefaultTemplate();
-      res.status(200).json(await Promise.all((attachedGuests as any[]).map((item) => applyShowNotesRendering(item, template))));
+      // 补充轻量布尔字段（transcript/deepDive 原始数据不返回，节省数百KB）
+      const listWithFlags = attachedGuests.map((p: any) => ({
+        ...p,
+        hasTranscript: Array.isArray(p.transcript) ? p.transcript.length : 0,
+        hasDeepDive: !!(p.deepDive?.curatedReading?.length),
+      }));
+      res.status(200).json({
+        programs: listWithFlags,
+        data: listWithFlags,
+        total,
+        page,
+        pageSize,
+        totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      });
     } catch (error) {
       res.status(500).json({ message: "获取节目列表失败", error });
     }
@@ -1261,7 +1288,12 @@ export class ProgramController {
       const previewSig = asText(req.query.preview);
       const previewExp = Number(req.query.exp);
       const isPreviewCandidate = !!previewSig && Number.isFinite(previewExp);
-      const baseQuery = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { programCode: normalizeProgramCode(id) };
+      // 优先按 programCode 匹配（兼容 ObjectId 格式的 code），其次按 _id
+      const normalizedCode = normalizeProgramCode(id);
+      const isObjectId = mongoose.Types.ObjectId.isValid(id);
+      let baseQuery: any = isObjectId
+        ? { $or: [{ programCode: normalizedCode }, { _id: id }] }
+        : { programCode: normalizedCode };
       const program = await Program.findOne(baseQuery);
       if (!program) {
         res.status(404).json({ message: "节目不存在或未上架" });
@@ -1285,7 +1317,22 @@ export class ProgramController {
       }
       const attached = await attachDictionaryEntriesToPrograms(program, false);
       const attachedGuest = await attachGuestBindingsToPrograms(attached);
-      res.status(200).json(await applyShowNotesRendering(attachedGuest));
+      const result = await applyShowNotesRendering(attachedGuest);
+      // 如果 guest 无数据，从 guestBindings 第一项补全
+      if (!result.guest?.name && Array.isArray(result.guestBindings)) {
+        const firstGuest = result.guestBindings.find((b: any) => b?.guest);
+        if (firstGuest?.guest) {
+          result.guest = {
+            _id: firstGuest.guestId || firstGuest.guest._id || "",
+            name: firstGuest.guest.name || "",
+            title: firstGuest.guest.title || "",
+            bio: firstGuest.guest.bio || "",
+            avatar: firstGuest.guest.avatar || "",
+            profileUrl: firstGuest.guest.profileUrl || "",
+          };
+        }
+      }
+      res.status(200).json(result);
     } catch (error) {
       res.status(500).json({ message: "获取节目失败", error });
     }
@@ -1304,7 +1351,16 @@ export class ProgramController {
         status === "draft" || status === "published" ? { status } : {};
 
       if (!shouldUsePagination) {
-        const programs = await Program.find(filter).sort({ updatedAt: -1 });
+        const programs = await Program.find(filter)
+          .select({
+            programCode: 1, title: 1, description: 1, coverImage: 1,
+            publishedAt: 1, createdAt: 1, updatedAt: 1,
+            summary: 1, episodes: 1, status: 1, parseStatus: 1, parseProgress: 1, parseStage: 1,
+            transcript: 1, dictionaryEntryIds: 1, guestBindings: 1,
+            deepDive: 1, contentPack: 1,
+          })
+          .sort({ updatedAt: -1 })
+          .lean();
         await recycleStaleParsingPrograms(programs as any[]);
         const attached = await attachDictionaryEntriesToPrograms(programs, true);
         const attachedGuests = await attachGuestBindingsToPrograms(attached);
@@ -1327,7 +1383,16 @@ export class ProgramController {
       };
       const total = await Program.countDocuments(finalFilter);
       const skip = (page - 1) * pageSize;
-      const programs = await Program.find(finalFilter).sort({ updatedAt: -1 }).skip(skip).limit(pageSize);
+      const programs = await Program.find(finalFilter)
+        .select({
+          programCode: 1, title: 1, description: 1, coverImage: 1,
+          publishedAt: 1, createdAt: 1, updatedAt: 1,
+          summary: 1, episodes: 1, status: 1, parseStatus: 1, parseProgress: 1, parseStage: 1,
+          transcript: 1, dictionaryEntryIds: 1, guestBindings: 1,
+          deepDive: 1, contentPack: 1,
+        })
+        .sort({ updatedAt: -1 }).skip(skip).limit(pageSize)
+        .lean();
       await recycleStaleParsingPrograms(programs as any[]);
       const attached = await attachDictionaryEntriesToPrograms(programs, true);
       const attachedGuests = await attachGuestBindingsToPrograms(attached);
@@ -1335,6 +1400,8 @@ export class ProgramController {
       const rows = await Promise.all((attachedGuests as any[]).map((item) => applyShowNotesRendering(item, template)));
       res.status(200).json({
         items: rows,
+        data: rows,
+        programs: rows,
         total,
         page,
         pageSize,

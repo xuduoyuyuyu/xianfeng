@@ -1,0 +1,5 @@
+SOURCE=/Users/QUAN/Downloads/Project/xianfeng-v2
+TYPE=runtime-clean-strict
+CREATED_AT=2026-05-15T17:48:00+08:00
+EXCLUDES=node_modules,dist,.vite,npm-cache,.npm-cache,original-ref
+INCLUDED=backend,frontend,docker-compose.yml,docker-compose.prod.yml,.env.production.example,.gitignore,README_DEPLOY.md,vercel.json

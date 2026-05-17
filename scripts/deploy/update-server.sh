@@ -11,6 +11,8 @@ DEPLOY_GIT_RETRY_SLEEP_SEC="${DEPLOY_GIT_RETRY_SLEEP_SEC:-3}"
 
 cd "${ROOT_DIR}"
 
+"${ROOT_DIR}/scripts/release/verify-clean-structure.sh"
+
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "当前目录不是 git 仓库: ${ROOT_DIR}"
   exit 1

@@ -11,5 +11,7 @@ router.put("/:id", (req, res) => controller.update(req, res));
 router.patch("/:id/status", (req, res) => controller.updateStatus(req, res));
 router.post("/import-from-programs", (req, res) => controller.importFromPrograms(req, res));
 router.get("/:id/programs", (req, res) => controller.getPrograms(req, res));
+router.delete("/:id", (req, res) => controller.delete(req, res));
+router.post("/bulk-delete", (req, res) => controller.bulkDelete(req, res));
 
 export default router;

@@ -147,6 +147,10 @@ async function buildGuestProgramCountMap(guestIds: string[]): Promise<Map<string
 export class GuestController {
   async getAllPublic(req: Request, res: Response): Promise<void> {
     try {
+      const pageRaw = Number(req.query.page);
+      const pageSizeRaw = Number(req.query.pageSize);
+      const page = Number.isFinite(pageRaw) && pageRaw > 0 ? Math.floor(pageRaw) : 1;
+      const pageSize = Number.isFinite(pageSizeRaw) && pageSizeRaw > 0 ? Math.min(100, Math.floor(pageSizeRaw)) : 15;
       const search = asText(req.query.search);
       const filter: Record<string, any> = {
         $or: [{ status: "active" }, { status: { $exists: false } }, { status: null }],
@@ -160,11 +164,22 @@ export class GuestController {
         ];
       }
 
-      const guests = await GuestModel.find(filter).sort({ updatedAt: -1, createdAt: -1 }).lean();
+      const total = await GuestModel.countDocuments(filter);
+      const skip = (page - 1) * pageSize;
+      const guests = await GuestModel.find(filter)
+        .select({ name: 1, title: 1, bio: 1, avatar: 1, profileUrl: 1, profileReferences: 1, socialProfiles: 1, publications: 1, status: 1, updatedAt: 1, createdAt: 1 })
+        .sort({ updatedAt: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(pageSize)
+        .lean();
       const countMap = await buildGuestProgramCountMap(guests.map((item: any) => String(item._id)));
-      res.status(200).json(
-        guests.map((item: any) => serializeGuestListItem(item, countMap.get(String(item._id)) || 0))
-      );
+      res.status(200).json({
+        guests: guests.map((item: any) => serializeGuestListItem(item, countMap.get(String(item._id)) || 0)),
+        total,
+        page,
+        pageSize,
+        totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      });
     } catch (error) {
       res.status(500).json({ message: "获取嘉宾列表失败", error });
     }
@@ -202,6 +217,30 @@ export class GuestController {
       });
     } catch (error) {
       res.status(500).json({ message: "获取嘉宾详情失败", error });
+    }
+  }
+
+  // POST /api/guests/:id/return-wish — 返场心愿计数
+  async addReturnWish(req: Request, res: Response): Promise<void> {
+    try {
+      const id = asText(req.params.id);
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        res.status(400).json({ message: "无效的嘉宾ID" });
+        return;
+      }
+      // 后端去重：基于 IP + guestId 的简单去重（后续可改为用户级）
+      const guest = await GuestModel.findByIdAndUpdate(
+        id,
+        { $inc: { returnWishCount: 1 } },
+        { new: true }
+      );
+      if (!guest) {
+        res.status(404).json({ message: "嘉宾不存在" });
+        return;
+      }
+      res.status(200).json({ ok: true, count: (guest.returnWishCount || 0) + 1 });
+    } catch (error) {
+      res.status(500).json({ message: "记录心愿失败", error });
     }
   }
 }

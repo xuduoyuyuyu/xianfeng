@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html class="light" lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>家长先疯 - 课程资料</title>
+    <link href="/screens/public.css" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&amp;display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet" />
+  </head>
+  <body class="bg-hub-bg text-on-surface">
+    <nav class="fixed top-0 z-50 w-full border-b border-outline-light bg-white/80 backdrop-blur-xl">
+      <div class="mx-auto flex h-20 w-full max-w-[1440px] items-center justify-between px-8">
+        <div class="flex items-center gap-12">
+          <a href="/programs">
+            <img alt="家长先疯" class="nav-logo" src="/assets/logo.png" />
+          </a>
+          <div class="hidden items-center gap-8 xl:flex">
+            <div class="flex gap-8 border-r border-outline-light pr-8">
+              <a class="nav-link" href="/programs">播客节目</a>
+              <a class="nav-link" href="/community">学习社区</a>
+            </div>
+            <div class="flex gap-6">
+              <a class="nav-link" href="/articles"><span class="material-symbols-outlined text-lg">article</span>精选文稿</a>
+              <a class="nav-link" href="/books"><span class="material-symbols-outlined text-lg">auto_stories</span>推荐书单</a>
+              <a class="nav-link" href="/experts"><span class="material-symbols-outlined text-lg">forum</span>专家采访</a>
+              <a class="nav-link !text-on-surface font-bold relative after:absolute after:bottom-[-29px] after:left-0 after:h-1 after:w-full after:bg-primary-purple" href="/materials"><span class="material-symbols-outlined text-lg">collections_bookmark</span>课程资料</a>
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-6">
+          <div class="relative hidden lg:block">
+            <input class="w-64 rounded-xl border-none bg-[#ffffff] px-6 py-2.5 text-sm text-on-surface shadow-sm ring-1 ring-outline-light placeholder:text-on-surface-variant/60 focus:ring-2 focus:ring-primary-purple" placeholder="搜索资料..." type="text" />
+            <span class="material-symbols-outlined absolute right-4 top-2.5 text-xl text-on-surface-variant">search</span>
+          </div>
+          <a class="rounded-xl bg-primary-purple px-8 py-2.5 text-sm font-bold text-white shadow-lg shadow-primary-purple/20 transition-all hover:bg-primary-hover" href="/login">登录</a>
+        </div>
+      </div>
+    </nav>
+
+    <main class="mx-auto w-full max-w-[1440px] px-8 pt-28 pb-16">
+      <header class="mb-10">
+        <div class="mb-4 flex items-baseline gap-4">
+          <h1 class="text-4xl font-black tracking-tight">课程资料</h1>
+          <div class="h-1.5 w-12 rounded-full bg-primary-purple"></div>
+        </div>
+        <p class="max-w-2xl text-lg text-on-surface-variant">每个子项目都有独立路径：/materials。这里将接入资料列表与预览。</p>
+      </header>
+
+      <section class="magazine-card rounded-3xl p-10">
+        <div class="flex items-start gap-4">
+          <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-purple/10 text-primary-purple">
+            <span class="material-symbols-outlined text-2xl">collections_bookmark</span>
+          </div>
+          <div class="flex-1">
+            <div class="text-lg font-black">建设中</div>
+            <div class="mt-2 text-sm text-on-surface-variant">下一步：对接 /api/learning-materials，补齐列表、分类与详情路由（/materials/:id）。</div>
+          </div>
+          <a class="rounded-xl bg-primary-purple px-5 py-3 text-sm font-bold text-white shadow-md shadow-primary-purple/20" href="/admin/materials">去后台管理</a>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
+

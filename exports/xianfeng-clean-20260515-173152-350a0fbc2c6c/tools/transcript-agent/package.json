@@ -1,0 +1,20 @@
+{
+  "name": "transcript-agent",
+  "version": "2.0.0",
+  "description": "AI-powered transcript processing agent for xianfeng programs. Generates summaries, proofreads transcripts, and extracts educational dictionary terms.",
+  "type": "module",
+  "main": "index.mjs",
+  "scripts": {
+    "start": "node index.mjs",
+    "demo": "node index.mjs demo --dry-run"
+  },
+  "keywords": ["transcript", "ai", "education", "播客", "教育"],
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "dotenv": "^16.4.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

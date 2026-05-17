@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>wel AI 深度归因中心优化版</title>
+<script src="/wel/vendor/tailwindcdn.forms.container-queries.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#7f13ec",
+                        "background-light": "#fdfdfd",
+                        "pearl-white": "#fcfcfc",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "Noto Sans SC", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "3xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(127, 19, 236, 0.1);
+        }
+        .glow-button {
+            background: #7f13ec;
+            box-shadow: 0 0 15px rgba(127, 19, 236, 0.4);
+        }
+        .secondary-button {
+            border: 1px solid rgba(127, 19, 236, 0.3);
+            color: #7f13ec;
+            background: white;
+        }
+        .secondary-button:hover {
+            background: rgba(127, 19, 236, 0.05);
+            border-color: #7f13ec;
+        }
+        .thin-icon {
+            font-variation-settings: 'wght' 200, 'opsz' 24;
+        }
+        .map-bg {
+            background-image: radial-gradient(circle at 2px 2px, #f0e8f8 1px, transparent 0);
+            background-size: 32px 32px;
+        }
+        body {
+            font-family: 'Noto Sans SC', 'Space Grotesk', sans-serif;
+        }
+        .hud-panel {
+            background: rgba(255, 255, 255, 0.85);
+            border-left: 1px solid rgba(127, 19, 236, 0.15);
+            box-shadow: -10px 0 30px rgba(0, 0, 0, 0.02);
+        }
+        .reflective-tag {
+            border: 1px dashed rgba(127, 19, 236, 0.4);
+            color: #7f13ec;
+            padding: 3px 10px;
+            border-radius: 7px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .reflective-tag:hover {
+            background: rgba(127, 19, 236, 0.05);
+            border-style: solid;
+        }
+        .crystal-fix-area {
+            position: relative;
+            min-height: 64px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(245, 235, 255, 0.6) 100%);
+            border: 1px solid rgba(127, 19, 236, 0.2);
+            box-shadow: 0 -10px 40px rgba(127, 19, 236, 0.08);
+            transition: none;
+            transform-origin: bottom center;
+            will-change: transform, opacity;
+            overflow: visible;
+            pointer-events: auto;
+        }
+        [data-fix-wrap] {pointer-events: none;}
+        [data-fix-actions] {display:flex; align-items:center; gap:.75rem; padding-right: 11.4rem;}
+        [data-fix-wrap].is-collapsed {pointer-events: none;}
+        [data-fix-wrap].is-collapsed .crystal-fix-area {
+            padding: 1rem;
+            transform: scale(1);
+            opacity: 1;
+            background: transparent;
+            border-color: transparent;
+            box-shadow: none;
+            justify-content: flex-end;
+            backdrop-filter: none;
+            pointer-events: auto;
+        }
+        [data-fix-info],[data-fix-qset],[data-fix-next] {
+            max-width: 900px;
+            transition: none;
+        }
+        [data-fix-wrap].is-collapsed [data-fix-info],
+        [data-fix-wrap].is-collapsed [data-fix-qset],
+        [data-fix-wrap].is-collapsed [data-fix-next] {
+            opacity: 0;
+            max-width: 0;
+            transform: translateX(24px);
+            overflow: hidden;
+            pointer-events: none;
+        }
+        .hud-panel.reflect-compact {padding-bottom: .75rem;}
+        .hud-panel.reflect-compact [data-reflect-zone] {margin-top: calc(.75rem + 4px); margin-bottom: calc(.35rem + 4px);}
+        .hud-panel.reflect-compact [data-reflect-history] {margin-bottom: 0;}
+        .hud-panel.reflect-compact [data-reflect-history-list] {max-height: none; overflow: visible;}
+        [data-fix-go] {
+            position: absolute;
+            right: .9rem;
+            top: 50%;
+            transition: none !important;
+            transform: translateY(-50%) scale(1);
+            will-change: transform, box-shadow, filter;
+            flex-shrink: 0;
+            white-space: nowrap;
+            z-index: 4;
+            min-width: 146px;
+            justify-content: center;
+        }
+        [data-fix-wrap].is-collapsed [data-fix-go] {
+            transform: translateY(-50%) scale(1);
+        }
+        .option-card {
+            background: #fff;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 1rem;
+            padding: 1rem;
+            transition: all .25s;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,.05);
+        }
+        .option-card:hover {
+            border-color: rgba(127, 19, 236, .35);
+            box-shadow: 0 0 20px rgba(127, 19, 236, 0.12);
+            transform: translateY(-2px);
+        }
+        .ai-pulse {
+            position: relative;
+        }
+        .ai-pulse::after {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            border-radius: inherit;
+            border: 1px solid rgba(127, 19, 236, 0.5);
+            opacity: 0;
+        }
+    </style>
+</head>
+<body class="bg-pearl-white text-slate-900 font-display h-screen overflow-hidden flex flex-col">
+<div class="flex flex-1 overflow-hidden max-w-[1480px] w-full mx-auto px-6 py-6 gap-6">
+<main data-wrong-scroll class="flex-1 map-bg overflow-y-auto px-2 py-2 relative">
+<div class="max-w-5xl mx-auto space-y-8 pb-24">
+<div class="glass-card rounded-2xl p-8 border-slate-100">
+<div class="flex items-center justify-between mb-6">
+<div class="flex items-center gap-3">
+<button data-back-center="1" class="flex items-center gap-1 text-slate-500 hover:text-primary transition-colors font-bold text-sm group" title="返回错题中心">
+<span class="material-symbols-outlined text-xl group-hover:-translate-x-0.5 transition-transform">arrow_back</span>
+<span>返回</span>
+</button>
+<span class="px-2 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold rounded border border-blue-100 uppercase tracking-wider">立体几何</span>
+<h1 class="text-lg font-bold text-slate-800">题目 #P-1024 详情</h1>
+</div>
+<span class="text-xs text-slate-400">录入于 2023-10-24 14:20</span>
+</div>
+<div class="space-y-6">
+<div class="bg-white/50 p-6 rounded-xl border border-slate-100 leading-relaxed text-slate-700">
+<p class="mb-4">已知四棱锥 P-ABCD 的底面是边长为 2 的正方形，PA 垂直于底面，PA=2，E 为 PC 的中点。</p>
+<p class="mb-4">(1) 求证：BE 垂直于平面 PCD；</p>
+<p>(2) 求二面角 B-DE-C 的余弦值。</p>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-rose-50/60 border border-rose-100 rounded-xl p-4">
+<div class="text-[11px] font-bold text-rose-500 mb-1">你的作答</div>
+<p class="text-xs text-rose-700 leading-relaxed" data-wrong-answer>—</p>
+</div>
+<div class="bg-emerald-50/60 border border-emerald-100 rounded-xl p-4">
+<div class="text-[11px] font-bold text-emerald-500 mb-1">正确答案</div>
+<p class="text-xs text-emerald-700 leading-relaxed" data-correct-answer>—</p>
+</div>
+</div>
+<div class="border-t border-slate-100 pt-6">
+<h4 class="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-lg">psychology</span>
+                            深度分析
+                        </h4>
+<div class="space-y-4">
+<div class="flex gap-4">
+<div class="flex flex-col items-center">
+<div class="size-6 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+<span class="text-[10px] font-bold">1</span>
+</div>
+<div class="w-px flex-1 bg-slate-100 my-1"></div>
+</div>
+<div class="flex-1 pb-4">
+<h5 class="text-sm font-bold text-slate-800">知识提取障碍</h5>
+<p class="text-xs text-slate-500 mt-1">学生未能快速识别出“PA 垂直底面”隐含的直角坐标系建立条件，导致空间向量法运用受阻。</p>
+</div>
+</div>
+<div class="flex gap-4">
+<div class="flex flex-col items-center">
+<div class="size-6 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+<span class="text-[10px] font-bold">2</span>
+</div>
+<div class="w-px flex-1 bg-slate-100 my-1"></div>
+</div>
+<div class="flex-1 pb-4">
+<h5 class="text-sm font-bold text-slate-800">算理逻辑偏离</h5>
+<p class="text-xs text-slate-500 mt-1">在计算二面角法向量时，坐标代入错误，体现出对三维空间转化的不熟练。</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-6">
+<div class="glass-card rounded-2xl p-6 border-slate-100">
+<h4 class="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-lg">lightbulb</span>
+                        核心原理解析
+                    </h4>
+<p class="text-xs text-slate-600 leading-loose">
+                        二面角的求解核心在于确定两个平面的法向量。对于复杂几何体，建立空间直角坐标系是首选方案。需注意坐标原点的选择应满足三轴两两垂直。
+                    </p>
+</div>
+<div class="glass-card rounded-2xl p-6 border-slate-100">
+<h4 class="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-lg">auto_fix_high</span>
+                        闭坑指南
+                    </h4>
+<ul class="text-xs text-slate-600 space-y-2">
+<li class="flex items-start gap-2">
+<span class="size-1.5 bg-primary rounded-full mt-1"></span>
+<span>检查法向量的方向（指向二面角内部还是外部）</span>
+</li>
+<li class="flex items-start gap-2">
+<span class="size-1.5 bg-primary rounded-full mt-1"></span>
+<span>验证中点坐标计算的准确性</span>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div data-fix-wrap class="fixed bottom-0 left-0 right-0 z-40 px-8 py-4">
+<div class="max-w-5xl mx-auto crystal-fix-area rounded-3xl p-4 backdrop-blur-2xl flex items-center justify-between gap-4">
+<div data-fix-info class="flex items-center gap-4">
+<div class="size-11 bg-primary/10 rounded-xl flex items-center justify-center relative overflow-hidden group">
+<span class="material-symbols-outlined text-primary text-2xl">diamond</span>
+<div class="absolute inset-0 bg-primary/5 group-hover:bg-primary/10 transition-colors"></div>
+</div>
+<div>
+<h4 class="text-base font-bold text-slate-900 tracking-tight">错题重练：实战演练</h4>
+<p class="text-[11px] text-slate-500 mt-0.5">根据 AI 归因结果，推荐 3 道同类变式题以巩固知识点。</p>
+</div>
+</div>
+<div data-fix-actions class="flex items-center gap-3">
+<div data-fix-qset class="flex -space-x-2">
+<div class="size-8 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500">Q1</div>
+<div class="size-8 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500">Q2</div>
+<div class="size-8 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500">Q3</div>
+</div>
+<button data-fix-next data-next-repair class="secondary-button px-3.5 py-2 rounded-full text-[11px] font-semibold transition-all opacity-75 hover:opacity-100">
+<span>查看下一题</span>
+</button>
+<button data-fix-go class="glow-button flex items-center gap-2 text-white px-6 py-2.5 rounded-full text-sm font-bold shadow-xl">
+<span>立即修复</span>
+<span class="material-symbols-outlined text-lg">rocket_launch</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+<aside class="w-[340px] hud-panel flex flex-col p-5 overflow-y-auto rounded-2xl border border-primary/10 self-start h-auto max-h-[calc(100vh-178px)] pb-7">
+<div class="mb-5">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-sm font-bold text-slate-800">诊断 HUD</h3>
+<span class="text-[10px] px-2 py-0.5 bg-primary/10 text-primary rounded-full font-bold">LIVE</span>
+</div>
+<div class="space-y-3">
+<div class="p-3.5 bg-primary/5 rounded-xl border border-primary/10">
+<div class="flex justify-between text-[11px] mb-2 font-bold">
+<span class="text-primary">掌握程度预估</span>
+<span class="text-primary" data-hud-mastery>45%</span>
+</div>
+<div class="w-full bg-primary/10 h-1.5 rounded-full overflow-hidden">
+<div class="bg-primary h-full w-[45%] rounded-full shadow-[0_0_8px_rgba(127,19,236,0.6)]" data-hud-bar></div>
+</div>
+<div data-hud-topic class="mt-2 text-[11px] font-black text-primary tracking-wide truncate">知识点：未标注</div>
+</div>
+</div>
+</div>
+<div class="mt-2 pt-4 border-t border-slate-100">
+<div class="flex items-center justify-between mb-3">
+<h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+<span class="material-symbols-outlined text-lg !font-light">edit_square</span>
+                    自我反思归因
+                </h3>
+</div>
+<p class="text-[11px] text-slate-400 mb-3">AI 诊断仅供参考，请根据你的真实体感进行手动标记：</p>
+<div class="space-y-2.5">
+<div class="group">
+<span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">主观因素</span>
+<div class="flex flex-wrap gap-1.5">
+<button class="reflective-tag" data-reflect-tag="审题疏忽">审题疏忽</button>
+<button class="reflective-tag" data-reflect-tag="计算失误">计算失误</button>
+<button class="reflective-tag" data-reflect-tag="概念混淆">概念混淆</button>
+<button class="reflective-tag" data-reflect-tag="时间不足">时间不足</button>
+</div>
+</div>
+<div class="group pt-1.5">
+<span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">知识漏洞</span>
+<div class="flex flex-wrap gap-1.5">
+<button class="reflective-tag" data-reflect-tag="空间想像">空间想像</button>
+<button class="reflective-tag" data-reflect-tag="向量运算">向量运算</button>
+<button class="reflective-tag" data-reflect-tag="公式遗忘">公式遗忘</button>
+</div>
+</div>
+<div data-reflect-zone class="mt-[28px] mb-[12px]">
+<div data-reflect-history class="hidden mb-3 p-2 rounded-xl border border-primary/15 bg-primary/5">
+<div class="text-[10px] font-bold text-primary/80 mb-1.5">补充分析</div>
+<div data-reflect-history-list class="space-y-1 pr-0.5"></div>
+</div>
+<div data-reflect-editor>
+<textarea data-reflect-note class="w-full h-14 bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs focus:ring-1 focus:ring-primary focus:border-primary placeholder:text-slate-300 transition-all" placeholder="输入更详细的个人反思总结..."></textarea>
+<button data-reflect-save class="w-full mt-3 py-2 border border-primary/30 text-primary rounded-lg text-xs font-bold hover:bg-primary/5 transition-all">保存归因结果</button>
+</div>
+</div>
+</div>
+</div>
+</aside>
+</div>
+
+</body></html>

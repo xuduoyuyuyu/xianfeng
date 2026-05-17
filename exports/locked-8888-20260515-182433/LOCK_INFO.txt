@@ -1,0 +1,9 @@
+LOCK_TARGET=http://localhost:8888/programs
+LOCKED_AT=20260515-182433
+CONTAINER=xianfeng_local_gateway
+IMAGE=nginx:1.27-alpine
+PORT_BIND=0.0.0.0:8888->80/tcp
+FRONTEND_SOURCE=/Users/QUAN/Downloads/Project/xianfeng/backup-20260514-2033/frontend-dist
+NGINX_CONF_SOURCE=/tmp/xianfeng-gateway-local.conf
+MONGO_CONTAINER=xianfeng_mongo
+MONGO_BIND=127.0.0.1:27017->27017/tcp

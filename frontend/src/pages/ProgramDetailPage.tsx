@@ -138,22 +138,12 @@ const ProgramDetailPage: React.FC = () => {
       const id = getProgramIdFromPath();
 
       try {
-        const res = await fetch(
-          `/api/programs?programCode=${encodeURIComponent(id)}`
-        );
+        // 直接用 _id 查单个节目，API 返回的就是 program 对象本身
+        let res = await fetch(`/api/programs/${encodeURIComponent(id)}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        const programsList: Program[] = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
-        if (!active) return;
-        setPrograms(programsList);
-
-        let target =
-          programsList.find(
-            (item: any) =>
-              String(item.programCode || "").toLowerCase() === String(id || "").toLowerCase()
-          ) ||
-          programsList.find((item: any) => item._id === id) ||
-          null;
+        let data = await res.json();
+        // API 返回：可能是 {program:...} 包装，也可能是扁平结构（_id 在顶层）
+        let target: any = data?.program || data?.data || (data?._id ? data : null);
 
         if (!target) {
           throw new Error("节目数据加载失败，请刷新页面重试");

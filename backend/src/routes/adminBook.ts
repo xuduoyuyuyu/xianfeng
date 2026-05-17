@@ -13,6 +13,7 @@ router.get("/:id", bookController.getByIdAdmin);
 router.post("/", bookController.create);
 router.put("/:id", bookController.update);
 router.patch("/:id/status", bookController.updateStatus);
+router.post("/batch-publish", bookController.batchPublish);
 router.delete("/:id", bookController.delete);
 
 export default router;

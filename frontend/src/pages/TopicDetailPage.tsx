@@ -57,6 +57,51 @@ interface SiblingItem {
   title: string;
 }
 
+interface LayerNode {
+  key: string;
+  title: string;
+  summary: string;
+  icon?: string;
+}
+
+interface LayersInput {
+  [layerName: string]: LayerNode[];
+}
+
+const LAYER_NAMES: Record<string, string> = {
+  layer1: "认知篇",
+  layer2: "诊断篇",
+  layer3: "方法篇",
+  layer4: "工具篇",
+  layer5: "行动篇",
+};
+
+/** 把后端 layers（layer1/layer2/...）转成前端 tree 结构 */
+function transformLayersToTree(layers: LayersInput): BranchNode[] {
+  const branchKeys = Object.keys(layers).sort();
+  return branchKeys.map((key, bi) => {
+    const nodes = layers[key] as LayerNode[];
+    if (!Array.isArray(nodes)) return { id: bi, nodeKey: key, title: key, nodeType: "branch" as const, sortOrder: bi, children: [] };
+    const children: LeafNode[] = nodes.map((n, ci) => ({
+      id: ci,
+      nodeKey: n.key,
+      title: n.title,
+      nodeType: "leaf",
+      summary: n.summary,
+      questionCount: 0,
+      hasQuiz: false,
+    }));
+    return {
+      id: bi,
+      nodeKey: key,
+      title: LAYER_NAMES[key] || key,
+      nodeType: "branch",
+      sortOrder: bi,
+      children,
+    };
+  });
+}
+
 const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
   const [topic, setTopic] = useState<TopicInfo | null>(null);
   const [tree, setTree] = useState<BranchNode[]>([]);
@@ -70,6 +115,231 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
   const [questionInput, setQuestionInput] = useState("");
   const [asking, setAsking] = useState(false);
 
+  // 展开讲讲
+  const [expanding, setExpanding] = useState(false);
+  const [expandedContent, setExpandedContent] = useState<string | null>(null);
+  const [expandMsg, setExpandMsg] = useState("");
+  const [typewriterText, setTypewriterText] = useState("");
+  const typewriterRef = React.useRef<number | null>(null);
+  const deepExpandRef = React.useRef<number | null>(null); // 深度展开打字机定时器
+
+  // 打字机效果：逐字显示
+  const startTypewriter = (text: string, onDone?: () => void) => {
+    let idx = 0;
+    setTypewriterText("");
+    const timer = window.setInterval(() => {
+      idx++;
+      setTypewriterText(text.slice(0, idx));
+      if (idx >= text.length) {
+        if (typewriterRef.current) clearInterval(typewriterRef.current);
+        onDone?.();
+      }
+    }, 35);
+    typewriterRef.current = timer;
+  };
+
+  React.useEffect(() => {
+    return () => { if (typewriterRef.current) clearInterval(typewriterRef.current); };
+  }, []);
+
+  // ── 智能正文渲染 ──
+  const renderContent = (text: string) => {
+    const lines = text.split("\n");
+    const elements: React.ReactNode[] = [];
+    let key = 0;
+    let inList = false;
+    let listItems: React.ReactNode[] = [];
+
+    const parseBold = (s: string): React.ReactNode[] => {
+      const parts = s.split(/(\*\*.*?\*\*)/g);
+      return parts.map((part, i) => {
+        if (part.startsWith("**") && part.endsWith("**")) {
+          return <strong key={i} style={{ fontWeight: 700, color: "#1E1B4B" }}>{part.slice(2, -2)}</strong>;
+        }
+        return <React.Fragment key={i}>{part}</React.Fragment>;
+      });
+    };
+
+    const flushList = () => {
+      if (inList && listItems.length > 0) {
+        elements.push(
+          <ol key={key++} style={{
+            margin: "6px 0 12px 0",
+            paddingLeft: 24,
+            listStyle: "none",
+            counterReset: "item",
+          }}>
+            {listItems.map((item, i) => (
+              <li
+                key={i}
+                style={{
+                  counterIncrement: "item",
+                  marginBottom: 6,
+                  lineHeight: 1.7,
+                  position: "relative",
+                  paddingLeft: 4,
+                }}
+              >
+                <span style={{
+                  display: "inline-block",
+                  width: 20,
+                  height: 20,
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg, #7C3AED, #6D28D9)",
+                  color: "#fff",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  textAlign: "center",
+                  lineHeight: "20px",
+                  marginRight: 8,
+                  flexShrink: 0,
+                }}>
+                  {i + 1}
+                </span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ol>
+        );
+        listItems = [];
+        inList = false;
+      }
+    };
+
+    // 先合并连续空行→跳过
+    let prevBlank = false;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      // 分隔线
+      if (line === "---") {
+        flushList();
+        elements.push(
+          <div key={key++} style={{
+            borderTop: "2px dashed #DDD6FE",
+            margin: "16px 0",
+            textAlign: "center",
+          }}>
+            <span style={{
+              fontSize: 11,
+              color: "#9CA3AF",
+              background: "#F8F5FF",
+              padding: "2px 12px",
+              borderRadius: 10,
+              position: "relative",
+              top: -10,
+            }}>
+              📖 深度扩展
+            </span>
+          </div>
+        );
+        prevBlank = false;
+        continue;
+      }
+
+      // 二级标题 ##
+      if (line.startsWith("## ")) {
+        flushList();
+        elements.push(
+          <h3 key={key++} style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontSize: 17,
+            fontWeight: 700,
+            color: "#1E1B4B",
+            margin: "20px 0 10px",
+            padding: "8px 14px",
+            background: "linear-gradient(90deg, #F3EEFF 0%, #FAF8FF 100%)",
+            borderRadius: 10,
+            borderLeft: "4px solid #7C3AED",
+          }}>
+            <span style={{ fontSize: 18 }}>📌</span>
+            {parseBold(line.replace("## ", ""))}
+          </h3>
+        );
+        prevBlank = false;
+        continue;
+      }
+
+      // 三级标题 ###
+      if (line.startsWith("### ")) {
+        flushList();
+        elements.push(
+          <h4 key={key++} style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 15,
+            fontWeight: 600,
+            color: "#374151",
+            margin: "14px 0 6px",
+            paddingLeft: 6,
+            borderLeft: "3px solid #A78BFA",
+          }}>
+            <span style={{ fontSize: 14 }}>🔹</span>
+            {parseBold(line.replace("### ", ""))}
+          </h4>
+        );
+        prevBlank = false;
+        continue;
+      }
+
+      // 空行
+      if (line.trim() === "") {
+        flushList();
+        if (!prevBlank) {
+          elements.push(<div key={key++} style={{ height: 10 }} />);
+          prevBlank = true;
+        }
+        continue;
+      }
+
+      // 检测序号列表
+      const orderedMatch = line.match(/^(\d+)[\.\、\)]\s*(.+)/);
+      if (orderedMatch) {
+        if (!inList) { flushList(); inList = true; }
+        listItems.push(parseBold(orderedMatch[2]));
+        prevBlank = false;
+        continue;
+      }
+
+      // 普通段落
+      flushList();
+      // 大段落（>150字且无加粗标记）→ 智能分句
+      if (line.length > 150 && !line.includes("**")) {
+        const sentences = line.split(/。|；/).filter(s => s.trim());
+        if (sentences.length >= 3) {
+          elements.push(
+            <div key={key++} style={{ margin: "0 0 12px" }}>
+              {sentences.map((s, si) => (
+                <p key={si} style={{ margin: "0 0 6px", lineHeight: 1.8, fontSize: 14, color: "#374151" }}>
+                  {si === 0 ? <span style={{ fontSize: 11, fontWeight: 600, color: "#7C3AED", marginRight: 6 }}>▼</span> : null}
+                  {s.trim()}{si < sentences.length - 1 ? "；" : "。"}
+                </p>
+              ))}
+            </div>
+          );
+        } else {
+          elements.push(
+            <p key={key++} style={{ margin: "0 0 8px", lineHeight: 1.8, fontSize: 14 }}>
+              {parseBold(line)}
+            </p>
+          );
+        }
+      } else {
+        elements.push(
+          <p key={key++} style={{ margin: "0 0 8px", lineHeight: 1.8, fontSize: 14 }}>
+            {parseBold(line)}
+          </p>
+        );
+      }
+      prevBlank = false;
+    }
+    flushList();
+    return elements;
+  };
+
   useEffect(() => {
     fetchTopic();
   }, [slug]);
@@ -80,7 +350,16 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
       const data = await res.json();
       if (data.topic) {
         setTopic(data.topic);
-        setTree(data.tree || []);
+        const treeData = data.topic?.layers || data.tree || [];
+        const flatTree = transformLayersToTree(treeData);
+        setTree(flatTree);
+        // 自动选中第一个 branch 的第一个叶子节点
+        if (flatTree.length > 0) {
+          const firstBranch = flatTree[0];
+          if (firstBranch.children && firstBranch.children.length > 0) {
+            selectNode(firstBranch.children[0]);
+          }
+        }
       }
     } catch (e) {
       console.error("Failed to load topic", e);
@@ -90,8 +369,17 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
   };
 
   const selectNode = async (node: LeafNode) => {
+    // 终止旧的深度展开打字机
+    if (deepExpandRef.current !== null) {
+      window.clearTimeout(deepExpandRef.current);
+      deepExpandRef.current = null;
+    }
     setSelectedNode(node);
     setNodeLoading(true);
+    setExpandedContent(null);
+    setExpandMsg("");
+    setExpanding(false);
+    setTypewriterText("");
     try {
       const res = await fetch(`/api/topic-hub/${slug}/nodes/${node.nodeKey}`);
       const data = await res.json();
@@ -102,6 +390,83 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
       console.error("Failed to load node", e);
     } finally {
       setNodeLoading(false);
+    }
+  };
+
+  // 展开讲讲
+  const handleExpand = async () => {
+    if (!selectedNode || !nodeDetail || !topic) return;
+    setExpanding(true);
+    setExpandMsg("");
+    setTypewriterText("");
+    // 重新展开时去掉上次的「以上。」
+    const rawContent = (nodeDetail?.content || expandedContent || "").replace(/\n*以上。$/, "");
+    const currentContent = rawContent;
+    try {
+      const res = await fetch(`/api/topic-hub/${topic.slug}/expand`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nodeKey: selectedNode.nodeKey,
+          nodeTitle: nodeDetail.title || selectedNode.title,
+          topicTitle: topic.title,
+          deep: true,
+          existingContent: currentContent,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const expanded = data.expanded || "";
+        // deep/ai 返回：找增量部分，只对新内容打字机，老内容不动
+        const separatorIdx = expanded.indexOf("\n\n---\n\n");
+        const prefix = separatorIdx > -1 ? expanded.slice(0, separatorIdx) : "";
+        const suffix = separatorIdx > -1 ? expanded.slice(separatorIdx) : expanded;
+        if (separatorIdx > -1 && suffix.length > 8) {
+          // 老内容瞬间展示，增量逐字打字机（慢速 + 随机停顿 + 自动滚到底）
+          setExpandedContent(prefix);
+          setNodeDetail((prev) => prev ? { ...prev, content: prefix } : null);
+          let idx = 0;
+          let framePending = false;
+          const scrollToBottom = () => {
+            if (framePending) return;
+            framePending = true;
+            requestAnimationFrame(() => {
+              framePending = false;
+              const anchor = document.getElementById("topic-expand-anchor");
+              if (anchor) anchor.scrollIntoView({ behavior: "instant", block: "center" });
+            });
+          };
+          const typeNext = () => {
+            // 每次打 1~2 个字，偶尔停顿模拟思考
+            const step = Math.random() < 0.15 ? 0 : (Math.random() < 0.6 ? 1 : 2);
+            idx += step;
+            if (idx >= suffix.length) {
+              const finalContent = prefix + suffix + "\n\n以上。";
+              setExpandedContent(finalContent);
+              setNodeDetail((prev) => prev ? { ...prev, content: finalContent } : null);
+              setExpanding(false);
+              return;
+            }
+            setExpandedContent(prefix + suffix.slice(0, idx));
+            setNodeDetail((prev) => prev ? { ...prev, content: prefix + suffix.slice(0, idx) } : null);
+            scrollToBottom();
+            // 30~80ms 常规间隔，15% 概率停顿 150~400ms
+            const delay = step === 0 ? 150 + Math.random() * 250 : 30 + Math.random() * 50;
+            deepExpandRef.current = window.setTimeout(typeNext, delay);
+          };
+          typeNext();
+          return;
+        }
+        // 无分隔线或首次生成：直接展示
+        setExpandedContent(expanded);
+        setNodeDetail((prev) => prev ? { ...prev, content: expanded } : null);
+      } else {
+        setExpandMsg(data.error || "展开失败");
+      }
+    } catch (e: any) {
+      setExpandMsg(e.message || "网络错误");
+    } finally {
+      setExpanding(false);
     }
   };
 
@@ -173,6 +538,8 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
   const isMobile = typeof window !== "undefined" && window.innerWidth < 1024;
 
   return (
+    <>
+      <style>{`@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }`}</style>
     <div style={{ minHeight: "100vh", background: "#f8f6ff" }}>
             <GlobalPublicNav showPlanningEntry={true} />
 
@@ -181,7 +548,7 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
         style={{
           maxWidth: 1200,
           margin: "0 auto",
-          padding: "30px 20px 0",
+          padding: "50px 20px 0",
         }}
       >
         <Link
@@ -196,7 +563,6 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
           ← 返回话题广场
         </Link>
         <div style={{ marginTop: 16, marginBottom: 4 }}>
-          <span style={{ fontSize: 40 }}>{topic.coverEmoji}</span>
           <h1
             style={{
               fontSize: 26,
@@ -251,10 +617,10 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
                   gap: 10,
                   padding: "16px 20px",
                   cursor: "pointer",
-                  background: "#F8F5FF",
+                  background: "#EDE5FF",
                   borderBottom: collapsedBranches.has(branch.nodeKey)
                     ? "none"
-                    : "1px solid #EDE9FE",
+                    : "1px solid #D8C8F0",
                 }}
               >
                 <span
@@ -283,10 +649,10 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
                     style={{
                       padding: "14px 20px 14px 48px",
                       cursor: "pointer",
-                      borderBottom: "1px solid #EDE9FE",
+                      borderBottom: "1px solid #D8C8F0",
                       background:
                         selectedNode?.nodeKey === leaf.nodeKey
-                          ? "#F3EEFF"
+                          ? "#E4D4F8"
                           : "transparent",
                       borderLeft:
                         selectedNode?.nodeKey === leaf.nodeKey
@@ -296,7 +662,7 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
                     }}
                     onMouseEnter={(e) => {
                       if (selectedNode?.nodeKey !== leaf.nodeKey)
-                        e.currentTarget.style.background = "#FAF8FF";
+                        e.currentTarget.style.background = "#F0E8FC";
                     }}
                     onMouseLeave={(e) => {
                       if (selectedNode?.nodeKey !== leaf.nodeKey)
@@ -304,7 +670,6 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 16 }}>📝</span>
                       <span
                         style={{
                           fontSize: 14,
@@ -403,7 +768,7 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
                     margin: "0 0 8px",
                   }}
                 >
-                  📝 {nodeDetail?.title || selectedNode.title}
+                  {nodeDetail?.title || selectedNode.title}
                 </h2>
                 {nodeDetail?.hasQuiz && (
                   <span
@@ -449,7 +814,7 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
               </div>
 
               {/* 内容区 */}
-              <div style={{ padding: "20px 24px" }}>
+              <div style={{ padding: "20px 24px", maxHeight: "calc(100vh - 240px)", overflowY: "auto" }}>
                 {/* 核心观点 */}
                 {nodeDetail?.keyPoints && nodeDetail.keyPoints.length > 0 && (
                   <div
@@ -481,49 +846,12 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
                   </div>
                 )}
 
-                {/* Markdown 正文 */}
-                {nodeDetail?.content && (
-                  <div
-                    style={{
-                      fontSize: 14,
-                      color: "#374151",
-                      lineHeight: 1.8,
-                    }}
-                  >
-                    {nodeDetail.content.split("\n").map((line, i) => {
-                      if (line.startsWith("## ")) {
-                        return (
-                          <h3
-                            key={i}
-                            style={{
-                              fontSize: 16,
-                              fontWeight: 700,
-                              color: "#1E1B4B",
-                              margin: "16px 0 8px",
-                            }}
-                          >
-                            {line.replace("## ", "")}
-                          </h3>
-                        );
-                      }
-                      if (line.startsWith("### ")) {
-                        return (
-                          <h4
-                            key={i}
-                            style={{
-                              fontSize: 14,
-                              fontWeight: 600,
-                              color: "#374151",
-                              margin: "12px 0 6px",
-                            }}
-                          >
-                            {line.replace("### ", "")}
-                          </h4>
-                        );
-                      }
-                      if (line.trim() === "") return <br key={i} />;
-                      return <p key={i} style={{ margin: "0 0 6px" }}>{line}</p>;
-                    })}
+                {/* 正文 - 智能排版渲染 */}
+                {(nodeDetail?.content || expandedContent) && (
+                  <div style={{ color: "#374151" }}>
+                    {renderContent(expandedContent || nodeDetail!.content)}
+                    {/* 打字机自动滚动锚点 - 放在内容末尾 */}
+                    <div id="topic-expand-anchor" style={{ height: 1 }} />
                   </div>
                 )}
 
@@ -560,119 +888,55 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
                 )}
               </div>
 
-              {/* 家长提问区 */}
+            </div>
+          )}
+
+          {/* 展开讲讲 - 卡片外紧贴底部 */}
+          {selectedNode && nodeDetail && (
+            <div style={{ marginTop: 12 }}>
               <div
+                onClick={() => !expanding && handleExpand()}
                 style={{
-                  borderTop: "1px solid #E5E7EB",
-                  padding: "20px 24px",
+                  width: "100%",
+                  padding: "12px 0",
+                  borderRadius: 12,
+                  border: "none",
+                  background: expanding
+                    ? "linear-gradient(135deg, #A78BFA, #8B5CF6)"
+                    : "linear-gradient(135deg, #7C3AED, #6D28D9)",
+                  color: "#fff",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: expanding ? "wait" : "pointer",
+                  textAlign: "center",
+                  transition: "all 0.2s",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
                 }}
               >
-                <p
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 600,
-                    color: "#1E1B4B",
-                    margin: "0 0 16px",
-                  }}
-                >
-                  💬 家长们也在问 ({questions.length})
-                </p>
-
-                {questions.map((q) => (
-                  <div
-                    key={q.id}
-                    style={{
-                      background: "#FAF8FF",
-                      borderRadius: 10,
-                      padding: 14,
-                      marginBottom: 12,
-                    }}
-                  >
-                    <p
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 600,
-                        color: "#5B21B6",
-                        margin: "0 0 6px",
-                      }}
-                    >
-                      {q.user_name || "匿名家长"}：{q.question}
-                    </p>
-                    {q.ai_answer && (
-                      <div>
-                        <p
-                          style={{
-                            fontSize: 12,
-                            color: "#6B7280",
-                            lineHeight: 1.6,
-                            margin: "0 0 4px",
-                          }}
-                        >
-                          🤖 {q.ai_answer.length > 200
-                            ? q.ai_answer.slice(0, 200) + "..."
-                            : q.ai_answer}
-                        </p>
-                        <span style={{ fontSize: 11, color: "#9CA3AF" }}>
-                          👍 {q.helpful_count || 0}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                {/* 提问输入 */}
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    marginTop: 16,
-                  }}
-                >
-                  <input
-                    type="text"
-                    value={questionInput}
-                    onChange={(e) => setQuestionInput(e.target.value)}
-                    placeholder="我也有疑问..."
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        askQuestion();
-                      }
-                    }}
-                    style={{
-                      flex: 1,
-                      padding: "10px 14px",
-                      borderRadius: 10,
-                      border: "1px solid #E5E7EB",
-                      fontSize: 13,
-                      outline: "none",
-                      background: "rgba(255,255,255,0.06)",
-                    }}
-                  />
-                  <button
-                    onClick={askQuestion}
-                    disabled={asking || !questionInput.trim()}
-                    style={{
-                      padding: "10px 18px",
-                      borderRadius: 10,
-                      border: "none",
-                      background: asking ? "#C4B5FD" : "#7C3AED",
-                      color: "#1E1B4B",
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: asking ? "not-allowed" : "pointer",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {asking ? "思考中…" : "提交"}
-                  </button>
-                </div>
+                <span style={{ fontFamily: "'Material Symbols Rounded'", fontSize: 18 }}>auto_awesome</span>
+                {expanding ? "正在深度解析~" : "展开讲讲"}
               </div>
+              {expandMsg && (
+                <div style={{
+                  marginTop: 6,
+                  textAlign: "center",
+                  fontSize: 12,
+                  color: expandMsg.includes("失败") || expandMsg.includes("错误") ? "#DC2626" : "#166534",
+                  minHeight: 18,
+                }}>
+                  {typewriterText || expandMsg}
+                  {expanding && <span style={{ animation: "blink 0.8s infinite", marginLeft: 2 }}>▊</span>}
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
     </div>
+    </>
   );
 };
 

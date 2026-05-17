@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import GlobalPublicNav from "../components/GlobalPublicNav";
+import GuestWishButton from "../components/GuestWishButton";
 import { GuestPublication, GuestSocialProfile, publicApi, PublicGuest, PublicGuestDetail } from "../services/api";
 
 const FALLBACK_AVATAR = "/assets/podcast-cover-1.svg";
@@ -100,6 +101,8 @@ const ExpertDetailPage: React.FC = () => {
   }, [pathname, routeId]);
   const [guest, setGuest] = useState<PublicGuestDetail | null>(null);
   const [hasBoundBooks, setHasBoundBooks] = useState(false);
+  const [boundBooks, setBoundBooks] = useState<any[]>([]);
+  const [authoredBooks, setAuthoredBooks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -119,10 +122,20 @@ const ExpertDetailPage: React.FC = () => {
           if (merged?._id) {
             const booksResponse = await publicApi.getBooks();
             const books = Array.isArray(booksResponse.data) ? booksResponse.data : [];
-            const matched = books.some((book) => extractBookSourceGuestId(book.sourceGuestId) === merged._id);
-            setHasBoundBooks(matched);
+            const bound = books.filter((book) => extractBookSourceGuestId(book.sourceGuestId) === merged._id);
+            setHasBoundBooks(bound.length > 0);
+            setBoundBooks(bound);
+            // 著作：author 匹配嘉宾名字
+            const guestName = (merged.name || "").trim();
+            const authored = guestName ? books.filter((book) => {
+              const author = (book.author || "").trim();
+              return author && (author === guestName || author.includes(guestName) || guestName.includes(author));
+            }) : [];
+            setAuthoredBooks(authored);
           } else {
             setHasBoundBooks(false);
+            setBoundBooks([]);
+            setAuthoredBooks([]);
           }
           return;
         }
@@ -137,10 +150,20 @@ const ExpertDetailPage: React.FC = () => {
           if (mergedGuest?._id) {
             const booksResponse = await publicApi.getBooks();
             const books = Array.isArray(booksResponse.data) ? booksResponse.data : [];
-            const matched = books.some((book) => extractBookSourceGuestId(book.sourceGuestId) === mergedGuest._id);
-            setHasBoundBooks(matched);
+            const bound = books.filter((book) => extractBookSourceGuestId(book.sourceGuestId) === mergedGuest._id);
+            setHasBoundBooks(bound.length > 0);
+            setBoundBooks(bound);
+            // 著作：author 匹配嘉宾名字
+            const guestName = (mergedGuest.name || "").trim();
+            const authored = guestName ? books.filter((book) => {
+              const author = (book.author || "").trim();
+              return author && (author === guestName || author.includes(guestName) || guestName.includes(author));
+            }) : [];
+            setAuthoredBooks(authored);
           } else {
             setHasBoundBooks(false);
+            setBoundBooks([]);
+            setAuthoredBooks([]);
           }
           return;
         }
@@ -149,6 +172,8 @@ const ExpertDetailPage: React.FC = () => {
       } catch (err: any) {
         if (!alive) return;
         setHasBoundBooks(false);
+        setBoundBooks([]);
+        setAuthoredBooks([]);
         setError(err?.response?.data?.message || err?.message || "加载嘉宾详情失败");
       } finally {
         if (!alive) return;
@@ -183,6 +208,27 @@ const ExpertDetailPage: React.FC = () => {
   const hasSocialSection = socialProfiles.length > 0;
   const hasPublicationSection = publications.length > 0 || profileReferences.length > 0;
   const hasRelatedProgramsSection = relatedPrograms.length > 0;
+
+  // 按 sourceName 聚合去重书单
+  const bookGroups = useMemo(() => {
+    const seen = new Map<string, any>();
+    for (const b of boundBooks) {
+      const sn = String(b.sourceName || "").trim();
+      if (sn && !seen.has(sn)) {
+        seen.set(sn, b);
+      }
+    }
+    return Array.from(seen.values());
+  }, [boundBooks]);
+
+  // 嘉宾著作按出版时间倒序
+  const sortedAuthoredBooks = useMemo(() => {
+    return [...authoredBooks].sort((a, b) => {
+      const da = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+      const db = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+      return db - da;
+    });
+  }, [authoredBooks]);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#f3f2f8] text-[#1f1d1a]">
@@ -232,68 +278,92 @@ const ExpertDetailPage: React.FC = () => {
             未找到该嘉宾资料。
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[420px,1fr]">
-            <aside className="rounded-[2rem] border border-[#e2dcf0] bg-white p-6 shadow-[0_24px_80px_rgba(80,62,125,0.08)]">
-              <div className="overflow-hidden rounded-[1.5rem] bg-[linear-gradient(140deg,_#1f143a_0%,_#4b1db2_42%,_#b79bff_100%)]">
-                <img
-                  src={guest.avatar || FALLBACK_AVATAR}
-                  alt={guest.name || "嘉宾头像"}
-                  className="h-[420px] w-full object-cover"
-                  onError={(event) => {
-                    event.currentTarget.src = FALLBACK_AVATAR;
-                  }}
-                />
-              </div>
-              <div className="mt-6 space-y-3">
-                <div className="rounded-2xl border border-[#d9c8ff] bg-[#f6f0ff] px-4 py-3 text-sm text-[#7b6aa7]">
-                  关联节目 <span className="font-black text-[#2f1a3a]">{guest.programCount || 0}</span>
+          <div className="space-y-6">
+            {/* 顶部信息卡：头像右侧 + 名字 + 返场心愿 + 简介 + 统计 */}
+            <div className="rounded-[2rem] border border-[#e2dcf0] bg-white p-8 shadow-[0_24px_80px_rgba(80,62,125,0.08)]">
+              <div className="flex flex-col md:flex-row gap-6">
+                {/* 左侧文字区 */}
+                <div className="flex-1 min-w-0">
+                  <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.24em] text-[#5b3fa1]">
+                    Guest Profile
+                  </div>
+                  <div className="mt-5 flex items-center gap-3">
+                    <h1 className="text-4xl font-black tracking-tight text-[#241a3a]">{guest.name || "未命名嘉宾"}</h1>
+                    <GuestWishButton guestId={guest._id || ""} />
+                  </div>
+                  <p className="mt-3 text-sm font-black uppercase tracking-[0.22em] text-[#5e17eb]">{guest.title || "节目嘉宾"}</p>
+                  <p className="mt-5 max-w-3xl text-[15px] leading-8 text-[#6f66ad]">
+                    {guest.bio || "暂无简介，后续可在后台补充嘉宾背景、研究方向与代表经验。"}
+                  </p>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    <span className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[11px] font-bold text-[#7d6ca7]">
+                      节目 {guest.programCount || 0}
+                    </span>
+                    <span className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[11px] font-bold text-[#7d6ca7]">
+                      社交媒体 {socialProfiles.length}
+                    </span>
+                    <span className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[11px] font-bold text-[#7d6ca7]">
+                      公开成果 {publications.length || profileReferences.length}
+                    </span>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {guest.profileUrl ? (
+                      <a href={guest.profileUrl} target="_blank" rel="noreferrer"
+                        className="inline-flex items-center rounded-full bg-[#5e17eb] px-5 py-2.5 text-xs font-black text-white transition hover:bg-[#4a11d0]">
+                        查看官方档案
+                      </a>
+                    ) : null}
+                  
+                  </div>
                 </div>
-                <div className="rounded-2xl border border-[#d9c8ff] bg-[#f6f0ff] px-4 py-3 text-sm text-[#7b6aa7]">
-                  公开资料 <span className="font-black text-[#2f1a3a]">{profileReferences.length}</span>
+                {/* 右侧头像 */}
+                <div className="shrink-0 self-start mt-9">
+                  <div className="w-28 h-28 md:w-32 md:h-32 rounded-2xl overflow-hidden ring-4 ring-[#5e17eb]/10">
+                    <img
+                      src={guest.avatar || FALLBACK_AVATAR}
+                      alt={guest.name || "嘉宾头像"}
+                      className="w-full h-full object-cover"
+                      onError={(event) => { event.currentTarget.src = FALLBACK_AVATAR; }}
+                    />
+                  </div>
                 </div>
-                {guest.profileUrl ? (
-                  <a
-                    href={guest.profileUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center justify-center rounded-full bg-[#5e17eb] px-5 py-3 text-sm font-black text-white transition hover:bg-[#4a11d0]"
-                  >
-                    查看官方档案
-                  </a>
-                ) : null}
-                {guest._id && hasBoundBooks ? (
-                  <Link
-                    to={`/books?sourceGuestId=${encodeURIComponent(guest._id)}&guest=${encodeURIComponent(guest.name || "")}`}
-                    className="flex items-center justify-center rounded-full border border-[#b79bff] bg-[#f6f0ff] px-5 py-3 text-sm font-black text-[#5e17eb] transition hover:border-[#5e17eb] hover:text-[#4a11d0]"
-                  >
-                    查看关联书单
-                  </Link>
-                ) : null}
               </div>
-            </aside>
+            </div>
 
-            <section className="space-y-6">
+            {/* 嘉宾著作板块 - 紧接姓名板块 */}
+            {sortedAuthoredBooks.length > 0 ? (
               <div className="rounded-[2rem] border border-[#e2dcf0] bg-white p-8 shadow-[0_24px_80px_rgba(80,62,125,0.08)]">
                 <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.24em] text-[#5b3fa1]">
-                  Guest Profile
+                  Authored Works
                 </div>
-                <h1 className="mt-5 text-4xl font-black tracking-tight text-[#241a3a]">{guest.name || "未命名嘉宾"}</h1>
-                <p className="mt-3 text-sm font-black uppercase tracking-[0.22em] text-[#5e17eb]">{guest.title || "节目嘉宾"}</p>
-                <p className="mt-6 max-w-3xl text-[15px] leading-8 text-[#6f66ad]">
-                  {guest.bio || "暂无简介，后续可在后台补充嘉宾背景、研究方向与代表经验。"}
-                </p>
-                <div className="mt-6 flex flex-wrap gap-2">
-                  <span className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[11px] font-bold text-[#7d6ca7]">
-                    节目 {guest.programCount || 0}
-                  </span>
-                  <span className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[11px] font-bold text-[#7d6ca7]">
-                    社交媒体 {socialProfiles.length}
-                  </span>
-                  <span className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[11px] font-bold text-[#7d6ca7]">
-                    公开成果 {publications.length || profileReferences.length}
-                  </span>
+                <h2 className="mt-4 text-2xl font-black tracking-tight text-[#241a3a]">嘉宾著作</h2>
+                <p className="mt-2 text-sm text-[#7b70a4]">这位嘉宾自己的著作作品。</p>
+                <div className="mt-4 overflow-x-auto pb-2 -mx-2 px-2">
+                  <div className="flex gap-3" style={{ minWidth: "max-content" }}>
+                    {sortedAuthoredBooks.map((book) => {
+                      const pubYear = book.publishedAt ? new Date(book.publishedAt).getFullYear() : "";
+                      return (
+                      <div key={book._id} className="group shrink-0 w-[120px] sm:w-[140px] rounded-[1.25rem] border border-[#e8e0f2] bg-[#fcfaff] p-2.5 transition hover:border-[#b79bff] hover:bg-white">
+                        <div className="aspect-[2/3] overflow-hidden rounded-xl bg-[#f3eefc]">
+                          <img
+                            src={book.coverImage || `https://via.placeholder.com/240x360/630ed4/ffffff?text=${encodeURIComponent((book.title || '书').slice(0, 4))}`}
+                            alt={book.title || "著作封面"}
+                            className="w-full h-full object-cover transition group-hover:scale-105"
+                            loading="lazy"
+                            onError={(e) => { e.currentTarget.src = `https://via.placeholder.com/240x360/630ed4/ffffff?text=${encodeURIComponent((book.title || '书').slice(0, 4))}`; }}
+                          />
+                        </div>
+                        <div className="mt-2 text-center">
+                          <div className="text-xs font-black text-[#241a3a] line-clamp-2 leading-tight">{book.title || "未命名书籍"}</div>
+                          <div className="mt-0.5 text-[10px] font-bold text-[#8e81b3]">{pubYear}{pubYear && book.publisher ? " · " : ""}{book.publisher || ""}</div>
+                        </div>
+                      </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
+            ) : null}
 
               {hasSocialSection ? (
                 <div className="rounded-[2rem] border border-[#e2dcf0] bg-white p-8 shadow-[0_24px_80px_rgba(80,62,125,0.08)]">
@@ -387,12 +457,38 @@ const ExpertDetailPage: React.FC = () => {
                 </div>
               ) : null}
 
+              {/* 关联书单卡片 */}
+              {hasBoundBooks ? (
+                <div className="rounded-[2rem] border border-[#e2dcf0] bg-white p-8 shadow-[0_24px_80px_rgba(80,62,125,0.08)]">
+                  <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.24em] text-[#5b3fa1]">
+                    Recommended Books
+                  </div>
+                  <h2 className="mt-4 text-2xl font-black tracking-tight text-[#241a3a]">推荐书目</h2>
+                  <p className="mt-2 text-sm text-[#7b70a4]">这位嘉宾推荐或参与的书单。</p>
+                  <div className="mt-6 space-y-3">
+                    {bookGroups.map((book, index) => (
+                      <Link
+                        key={book._id || book.sourceName}
+                        to={`/books?sourceGuestId=${encodeURIComponent(guest._id || "")}&guest=${encodeURIComponent(guest.name || "")}`}
+                        className="flex items-center justify-between rounded-[1.1rem] border border-[#e8e0f2] bg-[#fcfaff] px-4 py-3 transition hover:border-[#b79bff] hover:bg-white"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#5b3fa1]">#{index + 1}</div>
+                          <div className="mt-1 text-base font-black text-[#241a3a]">{book.sourceName || "未命名书单"}</div>
+                        </div>
+                        <span className="material-symbols-outlined shrink-0 text-[#5e17eb]">arrow_outward</span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
               {hasRelatedProgramsSection ? (
                 <div className="rounded-[2rem] border border-[#e2dcf0] bg-white p-8 shadow-[0_24px_80px_rgba(80,62,125,0.08)]">
                 <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.24em] text-[#5b3fa1]">
                   Related Content
                 </div>
-                <h2 className="mt-4 text-2xl font-black tracking-tight text-[#241a3a]">关联节目</h2>
+                <h2 className="mt-4 text-2xl font-black tracking-tight text-[#241a3a]">参与节目</h2>
                 <p className="mt-2 text-sm text-[#7b70a4]">只保留标题，快速浏览这位嘉宾参与过的节目内容。</p>
                   <div className="mt-6 space-y-3">
                     {relatedPrograms.map((program, index) => {
@@ -414,7 +510,7 @@ const ExpertDetailPage: React.FC = () => {
                   </div>
                 </div>
               ) : null}
-            </section>
+          
           </div>
         )}
       </main>

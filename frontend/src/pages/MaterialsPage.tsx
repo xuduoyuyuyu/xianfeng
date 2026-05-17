@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import GlobalPublicNav from "../components/GlobalPublicNav";
-import { getCollapsedPages } from "../lib/pagination";
+import Pagination from "../components/Pagination";
 import { publicApi, LearningMaterial } from "../services/api";
 
 type MaterialMeta = {
@@ -272,6 +272,7 @@ const MaterialsPage: React.FC = () => {
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
 
+
   useEffect(() => {
     try {
       setShowHero(window.localStorage.getItem(MATERIALS_HERO_DISMISSED_KEY) !== "1");
@@ -372,7 +373,6 @@ const MaterialsPage: React.FC = () => {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
-  const paginationItems = useMemo(() => getCollapsedPages(safePage, totalPages, 1), [safePage, totalPages]);
   const start = (safePage - 1) * PAGE_SIZE;
   const paged = filtered.slice(start, start + PAGE_SIZE);
 
@@ -478,6 +478,7 @@ const MaterialsPage: React.FC = () => {
           0%,100% { transform: translate3d(0,0,0) scale(.92); opacity: .5; }
           55% { transform: translate3d(1.5%,-2.5%,0) scale(1.18); opacity: .78; }
         }
+        @keyframes materialsToastIn{from{opacity:0;transform:translate(-50%,-12px)}to{opacity:1;transform:translate(-50%,0)}}
       `}</style>
       <div className="pointer-events-none absolute inset-0 opacity-40">
         <div className="absolute inset-0 bg-[linear-gradient(rgba(118,83,205,0.05)_1.5px,transparent_1.5px),linear-gradient(90deg,rgba(118,83,205,0.05)_1.5px,transparent_1.5px)] bg-[size:28px_28px]" />
@@ -512,7 +513,7 @@ const MaterialsPage: React.FC = () => {
                 Resource Hub
               </div>
               <h1 className="mt-4 text-3xl font-black leading-tight tracking-tight text-[#2b1a3a] sm:text-5xl">
-                学习资料库
+                学习资料
               </h1>
               <p className="mt-3 text-sm leading-7 text-[#6f62a3] sm:text-base">
                 为家长整理可直接打开使用的学习资料。先按阶段和年级缩小范围，再按学科和资料类型精筛，能更快找到当下可用的内容。
@@ -623,7 +624,24 @@ const MaterialsPage: React.FC = () => {
             ? paged.map((item) => (
                 <article
                   key={item._id}
-                  className="group rounded-[1.4rem] border border-[#e2dcf0] bg-white p-5 shadow-[0_12px_40px_rgba(80,62,125,0.05)] transition hover:-translate-y-1 hover:border-[#d7b184] hover:shadow-[0_18px_55px_rgba(95,56,22,0.1)]"
+                  className="group rounded-[1.4rem] border border-[#e2dcf0] bg-white p-5 shadow-[0_12px_40px_rgba(80,62,125,0.05)] transition hover:-translate-y-1 hover:border-[#d7b184] hover:shadow-[0_18px_55px_rgba(95,56,22,0.1)] cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    const now = Date.now();
+                    if ((window as any).__materialsToastAt && now - (window as any).__materialsToastAt < 2500) return;
+                    (window as any).__materialsToastAt = now;
+                    navigator.clipboard.writeText(item.fileUrl || "").catch(() => {});
+                    let el = document.getElementById("materials-toast");
+                    if (el) el.remove();
+                    el = document.createElement("div");
+                    el.id = "materials-toast";
+                    el.className = "fixed left-1/2 top-5 z-[9999] -translate-x-1/2 rounded-full bg-[#2b1a3a] px-6 py-2.5 text-sm font-bold text-white shadow-lg";
+                    el.style.cssText = "animation:materialsToastIn .3s ease-out";
+                    el.textContent = "已复制链接";
+                    document.body.appendChild(el);
+                    setTimeout(() => { el.remove(); (window as any).__materialsToastAt = 0; }, 2000);
+                  }}
                 >
                   <h2 className="line-clamp-2 text-lg font-black leading-snug text-[#2b1a3a]">{item.title}</h2>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -658,6 +676,7 @@ const MaterialsPage: React.FC = () => {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 rounded-full bg-[#5e17eb] px-4 py-2 text-xs font-black !text-white transition hover:bg-[#4c12c3] hover:!text-white"
+                      onClick={(e) => e.stopPropagation()}
                     >
                       打开资料
                       <span className="material-symbols-outlined !text-[15px] !font-light !text-white">open_in_new</span>
@@ -668,39 +687,11 @@ const MaterialsPage: React.FC = () => {
             : null}
         </section>
 
-        {!loading && filtered.length > 0 ? (
-          <section className="mt-8">
-            {totalPages > 1 ? (
-              <div className="flex items-center justify-center gap-3">
-                {paginationItems.map((item, idx) => {
-                  if (item === "ellipsis") {
-                    return (
-                      <span key={`ellipsis-${idx}`} className="inline-flex h-7 w-7 items-center justify-center text-[10px] font-bold text-[#8f7bd6]">
-                        ...
-                      </span>
-                    );
-                  }
-                  const active = item === safePage;
-                  return (
-                    <button
-                      key={item}
-                      type="button"
-                      onClick={() => setPage(item)}
-                      style={{ fontSize: "9.1px", lineHeight: 1 }}
-                      className={`h-7 w-7 rounded-full text-[7px] font-bold transition ${
-                        active
-                          ? "bg-[#5e17eb] text-white shadow-lg shadow-[#5e17eb]/25"
-                          : "border border-[#5e17eb]/25 bg-white text-[#5e17eb] hover:bg-[#5e17eb]/5"
-                      }`}
-                    >
-                      {item}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : null}
-          </section>
-        ) : null}
+        <Pagination
+          currentPage={safePage}
+          totalPages={totalPages}
+          onPageChange={setPage}
+        />
       </main>
     </div>
   );

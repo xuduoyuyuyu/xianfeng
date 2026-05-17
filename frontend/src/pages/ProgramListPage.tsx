@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import GlobalPublicNav from "../components/GlobalPublicNav";
-import { getCollapsedPages } from "../lib/pagination";
+import Pagination from "../components/Pagination";
 
 const FALLBACK_COVER = "/assets/podcast-cover-1.svg";
 
@@ -30,25 +29,21 @@ function fmtDate(value?: string) {
   return d.toLocaleDateString("zh-CN");
 }
 
-function getProgramTimestamp(program: Program) {
-  const value = program.publishedAt || program.createdAt;
-  const timestamp = Date.parse(value || "");
-  return Number.isNaN(timestamp) ? 0 : timestamp;
-}
-
 function hasNonEmptyText(value?: string) {
   return String(value || "").trim().length > 0;
 }
 
-const PAGE_SIZE = 7;
 const PROGRAM_LIST_HERO_DISMISSED_KEY = "program_list_hero_dismissed_v1";
 
 const ProgramListPage: React.FC = () => {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [error, setError] = useState("");
   const [showHero, setShowHero] = useState(false);
+  const pageSize = 20;
 
   const keyword = useMemo(() => {
     try {
@@ -70,16 +65,18 @@ const ProgramListPage: React.FC = () => {
     let alive = true;
     setLoading(true);
     setError("");
-    fetch("/api/programs")
+    fetch(`/api/programs?page=${currentPage}&pageSize=${pageSize}`)
       .then((res) => {
         if (!res.ok) throw new Error("load failed");
         return res.json();
       })
-      .then((data: Program[]) => {
+      .then((raw: any) => {
         if (!alive) return;
-        const sorted = [...(Array.isArray(data) ? data : [])].sort((a, b) => getProgramTimestamp(b) - getProgramTimestamp(a));
-        setPrograms(sorted);
-        setCurrentPage(1);
+        const data: Program[] = Array.isArray(raw?.programs) ? raw.programs : Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : [];
+        setPrograms(data);
+        setTotalPages(raw?.totalPages || 1);
+        setTotal(raw?.total || data.length);
+        window.scrollTo({ top: 0, behavior: "smooth" });
       })
       .catch((err: any) => {
         if (!alive) return;
@@ -94,7 +91,7 @@ const ProgramListPage: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [currentPage]);
 
   const visiblePrograms = useMemo(() => {
     if (!keyword) return programs;
@@ -103,12 +100,6 @@ const ProgramListPage: React.FC = () => {
       return haystack.includes(keyword);
     });
   }, [keyword, programs]);
-
-  const totalPages = Math.max(1, Math.ceil(visiblePrograms.length / PAGE_SIZE));
-  const safePage = Math.min(currentPage, totalPages);
-  const start = (safePage - 1) * PAGE_SIZE;
-  const pagedPrograms = visiblePrograms.slice(start, start + PAGE_SIZE);
-  const paginationItems = useMemo(() => getCollapsedPages(safePage, totalPages, 1), [safePage, totalPages]);
 
   const dismissHero = () => {
     setShowHero(false);
@@ -186,13 +177,13 @@ const ProgramListPage: React.FC = () => {
             </button>
             <div className="max-w-3xl">
               <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.28em] text-[#5b3fa1]">
-                节目列表
+                Programs
               </div>
               <h1 className="mt-5 text-4xl font-black leading-[1.14] tracking-tight text-[#24180a] sm:text-5xl">
-                从完整节目索引中，快速定位你此刻最需要的一期
+                从完整节目索引中，快速定位你此刻最需要的内容
               </h1>
               <p className="mt-4 max-w-2xl text-sm leading-7 text-[#6f665d] sm:text-base">
-                这里汇总《家长先疯》已发布节目，按时间倒序呈现。你可以直接搜索标题与简介，并通过标签和内容类型快速判断每一期是否值得立即深听。
+                这里汇总已发布节目，按时间倒序呈现。你可以直接搜索标题与简介，并通过标签和内容类型快速判断每一期是否值得立即深听。
               </p>
             </div>
           </section>
@@ -215,15 +206,13 @@ const ProgramListPage: React.FC = () => {
             </div>
           ) : (
             <>
-              {pagedPrograms.map((program, idx) => {
+              {visiblePrograms.map((program, idx) => {
                 const routeId = program.programCode || program._id;
-                const hasTranscript = Array.isArray(program.transcript) && program.transcript.length > 0;
+                const hasTranscript = !!(program as any).hasTranscript;
                 const hasDictionary = (Array.isArray(program.dictionaryEntries) ? program.dictionaryEntries : []).some((entry) =>
                   hasNonEmptyText(entry?.term),
                 );
-                const hasReading = (Array.isArray(program.deepDive?.curatedReading) ? program.deepDive?.curatedReading : []).some((item) =>
-                  hasNonEmptyText(item?.title),
-                );
+                const hasReading = !!(program as any).hasDeepDive;
                 const tags = Array.isArray(program.summary?.tags)
                   ? program.summary.tags.map((tag) => String(tag || "").trim()).filter(Boolean).slice(0, 4)
                   : [];
@@ -249,7 +238,7 @@ const ProgramListPage: React.FC = () => {
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-[#5e17eb]">
-                            EP {(program.programCode || `ep${start + idx + 1}`).toUpperCase()}
+                            EP {(program.programCode || `ep${idx + 1}`).toUpperCase()}
                           </span>
                           <span className="text-xs font-medium text-[#8b8177]">{fmtDate(program.publishedAt || program.createdAt)}</span>
                         </div>
@@ -292,35 +281,13 @@ const ProgramListPage: React.FC = () => {
                 );
               })}
 
-              {totalPages > 1 ? (
-                <div className="flex items-center justify-center gap-3 pt-2">
-                  {paginationItems.map((item, idx) => {
-                    if (item === "ellipsis") {
-                      return (
-                        <span key={`ellipsis-${idx}`} className="inline-flex h-7 w-7 items-center justify-center text-[10px] font-bold text-[#8f7bd6]">
-                          ...
-                        </span>
-                      );
-                    }
-                    const active = item === safePage;
-                    return (
-                      <button
-                        key={item}
-                        type="button"
-                        onClick={() => setCurrentPage(item)}
-                        style={{ fontSize: "9.1px", lineHeight: 1 }}
-                        className={`h-7 w-7 rounded-full text-[7px] font-bold transition ${
-                          active
-                            ? "bg-[#5e17eb] text-white shadow-lg shadow-[#5e17eb]/25"
-                            : "border border-[#5e17eb]/25 bg-white text-[#5e17eb] hover:bg-[#5e17eb]/5"
-                        }`}
-                      >
-                        {item}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : null}
+              <div className="flex justify-center pt-4 pb-2">
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={(page) => setCurrentPage(page)}
+                />
+              </div>
             </>
           )}
         </section>

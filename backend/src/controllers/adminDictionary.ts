@@ -208,4 +208,60 @@ export class AdminDictionaryController {
       res.status(500).json({ message: "获取关联节目失败", error });
     }
   }
+
+  async delete(req: Request, res: Response): Promise<void> {
+    try {
+      const id = req.params.id as string;
+      if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+        res.status(400).json({ message: "无效的ID" });
+        return;
+      }
+      const entry = await EducationDictionaryEntry.findById(new mongoose.Types.ObjectId(id));
+      if (!entry) {
+        res.status(404).json({ message: "词条不存在" });
+        return;
+      }
+      // 解除与节目的关联
+      if (Array.isArray(entry.programIds) && entry.programIds.length > 0) {
+        await Program.updateMany(
+          { _id: { $in: entry.programIds as any[] } },
+          { $pull: { dictionaryEntryIds: entry._id as any } }
+        );
+      }
+      await EducationDictionaryEntry.findByIdAndDelete(new mongoose.Types.ObjectId(id));
+      res.status(200).json({ message: "删除成功" });
+    } catch (error) {
+      res.status(500).json({ message: "删除失败", error });
+    }
+  }
+
+  async bulkDelete(req: Request, res: Response): Promise<void> {
+    try {
+      const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+      if (!ids.length) {
+        res.status(400).json({ message: "请选择要删除的词条" });
+        return;
+      }
+      const validIds = ids.filter((id: string) => mongoose.Types.ObjectId.isValid(id));
+      if (!validIds.length) {
+        res.status(400).json({ message: "没有有效的ID" });
+        return;
+      }
+      const oids = validIds.map((id: string) => new mongoose.Types.ObjectId(id));
+      const entries = await EducationDictionaryEntry.find({ _id: { $in: oids } });
+      // 解除所有关联节目的绑定
+      for (const entry of entries) {
+        if (Array.isArray(entry.programIds) && entry.programIds.length > 0) {
+          await Program.updateMany(
+            { _id: { $in: entry.programIds as any[] } },
+            { $pull: { dictionaryEntryIds: entry._id as any } }
+          );
+        }
+      }
+      await EducationDictionaryEntry.deleteMany({ _id: { $in: oids } });
+      res.status(200).json({ message: `已删除 ${validIds.length} 个词条` });
+    } catch (error) {
+      res.status(500).json({ message: "批量删除失败", error });
+    }
+  }
 }

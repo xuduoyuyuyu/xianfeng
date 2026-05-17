@@ -1372,9 +1372,18 @@
       if (!btn) return;
       var guestId = (guests[activeGuestIdx] && guests[activeGuestIdx]._id) || (guest && guest._id);
       var programId = program._id;
-      var storageKey = "return_wish_" + programId + "_" + guestId;
+      // 与 GuestWishButton 共用同一套 localStorage key，key 统一用 guestId
+      var WISH_KEY = "xf_guest_wishes";
+      var WISH_SENT_KEY = "xf_guest_wishes_sent";
+      var wishKey = guestId || "";
       var hasRecorded = false;
-      try { hasRecorded = localStorage.getItem(storageKey) === "1"; } catch (_) {}
+      try {
+        var sent = JSON.parse(localStorage.getItem(WISH_SENT_KEY) || "{}");
+        hasRecorded = !!sent[wishKey];
+        // 初始化计数显示
+        var data = JSON.parse(localStorage.getItem(WISH_KEY) || "{}");
+        if (countLabel) countLabel.textContent = data[wishKey] || "";
+      } catch (_) {}
 
       function spawnBubbles() {
         var rect = btn.getBoundingClientRect();
@@ -1417,17 +1426,26 @@
         spawnBubbles();
         flashFeedback();
 
+        // 首次点击才计数 +1（与 GuestWishButton 共用 localStorage）
+        var currentWishKey = currentGuestId || "";
+        if (!hasRecorded) {
+          hasRecorded = true;
+          try {
+            var sent2 = JSON.parse(localStorage.getItem(WISH_SENT_KEY) || "{}");
+            sent2[currentWishKey] = true;
+            localStorage.setItem(WISH_SENT_KEY, JSON.stringify(sent2));
+            var data2 = JSON.parse(localStorage.getItem(WISH_KEY) || "{}");
+            data2[currentWishKey] = (data2[currentWishKey] || 0) + 1;
+            localStorage.setItem(WISH_KEY, JSON.stringify(data2));
+            if (countLabel) countLabel.textContent = data2[currentWishKey];
+          } catch (_) {}
+        }
+
         // 后端自动去重，每次都发请求让后端处理
         fetch("/api/guests/" + currentGuestId + "/return-wish", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ programId: programId })
-        }).then(function (res) {
-          return res.json().then(function (data) { return { ok: res.ok, data: data }; });
-        }).then(function (result) {
-          if (result.ok && countLabel) {
-            countLabel.textContent = result.data.total || "";
-          }
         }).catch(function () {});
       });
     })();
@@ -1874,9 +1892,9 @@
       let program = null;
       let lookupPrograms = [];
 
-      // 优先：直接按 ID 查单条（最快）
-      if (isMongoId(id)) {
-        const detailResponse = await fetch("/api/programs/" + id);
+      // 优先：直接按 ID 查单条（最快，支持 ObjectId 和 programCode）
+      if (id) {
+        const detailResponse = await fetch("/api/programs/" + encodeURIComponent(id));
         if (detailResponse.ok) {
           program = await detailResponse.json();
           lookupPrograms = [program];
@@ -1887,13 +1905,15 @@
       if (!program) {
         const listResponse = await fetch("/api/programs");
         if (!listResponse.ok) throw new Error("failed");
-        let programs = await listResponse.json();
+        let raw = await listResponse.json();
+        let programs = Array.isArray(raw) ? raw : (Array.isArray(raw.programs) ? raw.programs : Array.isArray(raw.data) ? raw.data : []);
         if ((!programs || programs.length === 0) && localStorage.getItem("token")) {
           const adminResponse = await fetch("/api/admin/programs", {
             headers: { Authorization: "Bearer " + localStorage.getItem("token") },
           });
           if (adminResponse.ok) {
-            programs = await adminResponse.json();
+            const adminRaw = await adminResponse.json();
+            programs = Array.isArray(adminRaw) ? adminRaw : (Array.isArray(adminRaw.programs) ? adminRaw.programs : Array.isArray(adminRaw.data) ? adminRaw.data : programs);
           }
         }
         const preferredPrograms = (programs || []).filter(function (item) { return !isTestProgram(item); });

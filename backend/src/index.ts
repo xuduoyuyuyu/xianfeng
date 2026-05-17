@@ -20,8 +20,10 @@ import adminDictionaryRoutes from "./routes/adminDictionary";
 import adminGuestRoutes from "./routes/adminGuest";
 import adminAgentTaskRoutes from "./routes/adminAgentTasks";
 import adminInboxRoutes from "./routes/adminInbox";
+import adminWorthbuyRoutes from "./routes/adminWorthbuy";
 import tutorbotRoutes from "./routes/tutorbot";
 import aiCompatRoutes from "./routes/aiCompat";
+import { publicRouter as topicPublicRoutes, adminRouter as topicAdminRoutes } from "./routes/topic";
 import { UserController } from "./controllers/user";
 import { authenticate } from "./middlewares/auth";
 import { startAgentTaskDispatcher } from "./services/agentTaskDispatcher";
@@ -91,8 +93,11 @@ app.use("/api/admin", adminSystemRoutes);
 app.use("/api/admin", adminMultiAgentsRoutes);
 app.use("/api/admin", adminAgentTaskRoutes);
 app.use("/api/admin", adminInboxRoutes);
+app.use("/api/admin/worthbuy", adminWorthbuyRoutes);
 app.use("/api/v1/tutorbot", tutorbotRoutes);
 app.use("/api/ai", aiCompatRoutes);
+app.use("/api/topic-hub", topicPublicRoutes);
+app.use("/api/admin/topic-hub", topicAdminRoutes);
 
 const uploadsDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadsDir)) {
@@ -111,7 +116,7 @@ app.use((error: any, _req: express.Request, res: express.Response, next: express
 });
 
 mongoose
-  .connect(process.env.MONGODB_URI || "mongodb://localhost:27017/xianfeng")
+  .connect(process.env.MONGO_URI || process.env.MONGODB_URI || "mongodb://localhost:27017/xianfeng")
   .then(() => console.log("MongoDB connected"))
   .catch((error) => console.error("MongoDB connection error:", error));
 

@@ -35,10 +35,11 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
   const { pathname } = useLocation();
   const activePrograms = pathname.startsWith("/programs");
   const activeExperts = pathname.startsWith("/experts");
-  const activeBooks = pathname.startsWith("/books");
+  const activeBooks = pathname.startsWith("/books") || pathname.startsWith("/reading");
   const activePlanning = pathname.startsWith("/planning");
   const activeTopics = pathname.startsWith("/topics");
   const activeMaterials = pathname.startsWith("/materials");
+  const activeWorthBuy = pathname.startsWith("/worthbuy");
   const [menuOpen, setMenuOpen] = useState(false);
   const [isLeader, setIsLeader] = useState(false);
   const navInstanceIdRef = useRef(`nav-${Math.random().toString(36).slice(2)}`);
@@ -78,7 +79,7 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
         #tb .tb-nav-btn{display:flex;align-items:center;gap:5px;height:100%;padding:0 12px;border:none;border-bottom:2px solid transparent;background:transparent;font:inherit;font-size:13px;font-weight:500;color:#6b7280;cursor:pointer;transition:all .15s;white-space:nowrap;position:relative;text-decoration:none}
         #tb .tb-nav-btn .ms{font-family:'Material Symbols Rounded';font-size:15px;line-height:1;font-variation-settings:'FILL' 0}
         #tb .tb-nav-btn:hover{color:#111118}
-        #tb .tb-nav-btn.on{color:#6c27d6;font-weight:600;border-bottom-color:#6c27d6}
+        #tb .tb-nav-btn.on{color:#6c27d6;font-weight:500;border-bottom-color:#6c27d6;text-shadow:0 0 .4px #6c27d6}
         #tb .tb-nav-btn.on .ms{font-variation-settings:'FILL' 1;color:#6c27d6}
         #tb .tb-right{display:flex;align-items:center;gap:4px;padding:0 8px;flex-shrink:0}
         #tb .search-wrap{display:flex;align-items:center;gap:6px;height:34px;padding:0 12px;border:1px solid rgba(17,10,8,.12);border-radius:9999px;background:#fff;width:230px;min-width:230px}
@@ -120,38 +121,42 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
 
           <nav className="tb-nav" id="tb-nav">
             {showProgramList ? (
-              <Link reloadDocument to="/programs/list" className={`tb-nav-btn ${activePrograms ? "on" : ""}`}>
+              <Link to="/programs/list" className={`tb-nav-btn ${activePrograms ? "on" : ""}`}>
                 <span className="ms">podcasts</span>
                 <span>节目列表</span>
               </Link>
             ) : null}
             {showExpertsEntry ? (
-              <Link reloadDocument to="/experts" className={`tb-nav-btn ${activeExperts ? "on" : ""}`}>
+              <Link to="/experts" className={`tb-nav-btn ${activeExperts ? "on" : ""}`}>
                 <span className="ms">person</span>
                 <span>先疯智库</span>
               </Link>
             ) : null}
             {showBooksEntry ? (
-              <Link reloadDocument to="/books" className={`tb-nav-btn ${activeBooks ? "on" : ""}`}>
-                <span className="ms">menu_book</span>
-                <span>推荐书单</span>
+              <Link to="/reading" className={`tb-nav-btn ${activeBooks ? "on" : ""}`}>
+                <img src="/assets/jiyue-logo.png" alt="及阅" style={{ height: 15 }} />
+                <span>及阅</span>
               </Link>
             ) : null}
             {showMaterialsEntry ? (
-              <Link reloadDocument to="/materials" className={`tb-nav-btn ${activeMaterials ? "on" : ""}`}>
+              <Link to="/materials" className={`tb-nav-btn ${activeMaterials ? "on" : ""}`}>
                 <span className="ms">inventory_2</span>
                 <span>学习资料</span>
               </Link>
             ) : null}
             {showPlanningEntry ? (
               <>
-                <Link reloadDocument to="/planning" className={`tb-nav-btn ${activePlanning ? "on" : ""}`}>
+                <Link to="/planning" className={`tb-nav-btn ${activePlanning ? "on" : ""}`}>
                   <span className="ms">route</span>
                   <span>教育规划</span>
                 </Link>
-                <Link reloadDocument to="/topics" className={`tb-nav-btn ${activeTopics ? "on" : ""}`}>
-                  <span className="ms">tag</span>
-                  <span>话题广场</span>
+                <Link to="/topics" className={`tb-nav-btn ${activeTopics ? "on" : ""}`}>
+                  <span style={{ fontSize: 16 }}>🙏🏻</span>
+                  <span>请教一下</span>
+                </Link>
+                <Link to="/worthbuy" className={`tb-nav-btn ${activeWorthBuy ? "on" : ""}`}>
+                  <span className="ms">verified</span>
+                  <span>知物</span>
                 </Link>
               </>
             ) : null}
@@ -195,7 +200,7 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
           {compactMobile ? (
             <>
               {showProgramEntry ? (
-                <Link reloadDocument to="/programs/list" className={`mobile-main-link ${activePrograms ? "on" : ""}`} onClick={() => setMenuOpen(false)}>
+                <Link to="/programs/list" className={`mobile-main-link ${activePrograms ? "on" : ""}`} onClick={() => setMenuOpen(false)}>
                   节目入口
                 </Link>
               ) : null}
@@ -209,20 +214,20 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
         {compactMobile && menuOpen ? (
           <div className="tb-mobile-panel">
             <div className="tb-mobile-grid">
-              <Link reloadDocument className={`tb-mobile-link ${activePrograms ? "on" : ""}`} to="/programs/list" onClick={() => setMenuOpen(false)}>
+              <Link className={`tb-mobile-link ${activePrograms ? "on" : ""}`} to="/programs/list" onClick={() => setMenuOpen(false)}>
                 <span className="ms">podcasts</span>
                 <span>播客节目</span>
               </Link>
               {showExpertsEntry ? (
-                <Link reloadDocument className={`tb-mobile-link ${activeExperts ? "on" : ""}`} to="/experts" onClick={() => setMenuOpen(false)}>
+                <Link className={`tb-mobile-link ${activeExperts ? "on" : ""}`} to="/experts" onClick={() => setMenuOpen(false)}>
                   <span className="ms">person</span>
                   <span>先疯智库</span>
                 </Link>
               ) : null}
               {showBooksEntry ? (
-                <Link className={`tb-mobile-link ${activeBooks ? "on" : ""}`} to="/books" onClick={() => setMenuOpen(false)}>
-                  <span className="ms">menu_book</span>
-                  <span>推荐书单</span>
+                <Link className={`tb-mobile-link ${activeBooks ? "on" : ""}`} to="/reading" onClick={() => setMenuOpen(false)}>
+                  <img src="/assets/jiyue-logo.png" alt="及阅" style={{ height: 15 }} />
+                  <span>及阅</span>
                 </Link>
               ) : null}
               {showMaterialsEntry ? (
@@ -238,8 +243,12 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
                     <span>教育规划</span>
                   </Link>
                   <Link className={`tb-mobile-link ${activeTopics ? "on" : ""}`} to="/topics" onClick={() => setMenuOpen(false)}>
-                    <span className="ms">tag</span>
-                    <span>话题广场</span>
+                    <span style={{ fontSize: 16 }}>🙏🏻</span>
+                    <span>请教一下</span>
+                  </Link>
+                  <Link className={`tb-mobile-link ${activeWorthBuy ? "on" : ""}`} to="/worthbuy" onClick={() => setMenuOpen(false)}>
+                    <span className="ms">verified</span>
+                    <span>知物</span>
                   </Link>
                 </>
               ) : null}

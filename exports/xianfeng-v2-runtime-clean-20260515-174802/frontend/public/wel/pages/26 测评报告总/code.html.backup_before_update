@@ -1,0 +1,1812 @@
+<!DOCTYPE html><html class="light" lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>成长报告版</title>
+<script src="/wel/vendor/tailwindcdn.forms.container-queries.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#7f13ec",
+                        "background-light": "#f7f6f8",
+                        "background-dark": "#191022",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "Noto Sans SC", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        @layer base {
+            body {
+                @apply font-display;
+            }
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased">
+<div class="relative flex h-auto min-h-screen w-full flex-col group/design-root overflow-x-hidden">
+<div class="layout-container flex h-full grow flex-col">
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-primary/10 bg-white/80 dark:bg-background-dark/80 backdrop-blur-md px-10 py-3 sticky top-0 z-50">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-4 text-primary">
+<img src="/logo.png" alt="Logo" class="h-6" />
+</div>
+<label class="flex flex-col min-w-40 h-10 max-w-64" style="">
+<div class="flex w-full flex-1 items-stretch rounded-lg h-full overflow-hidden border border-primary/10">
+<div class="text-primary flex bg-primary/5 items-center justify-center px-3">
+<span class="material-symbols-outlined text-xl" style="">search</span>
+</div>
+<input class="form-input flex w-full min-w-0 flex-1 border-none bg-primary/5 focus:ring-0 h-full placeholder:text-primary/50 px-2 text-sm font-normal" placeholder="搜索学生数据..." value="">
+</div>
+</label>
+</div>
+<div class="flex flex-1 justify-end gap-6 items-center">
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-slate-600 dark:text-slate-400 hover:text-primary text-sm font-medium transition-colors" href="#" style="">知识地图&nbsp;&nbsp;</a>
+<a class="text-slate-600 dark:text-slate-400 hover:text-primary text-sm font-medium transition-colors" href="#" style="">学习中心&nbsp;</a>
+<a class="text-primary text-sm font-semibold border-b-2 border-primary py-1" href="#" style="">能力分析&nbsp;</a>
+</nav>
+<div class="h-6 w-[1px] bg-primary/10 mx-2"></div>
+<button class="flex min-w-[84px] cursor-pointer items-center justify-center rounded-lg h-10 px-5 bg-primary text-white text-sm font-bold shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all" style="">
+<span class="" style="">个人中心</span>
+</button>
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 ring-2 ring-primary/20" style="background-image: url(&quot;https://lh3.googleusercontent.com/aida-public/AB6AXuB9-X31A1pE1IdoigaCRM5BZEe8hFPiKZZMRMu8oD4kFKWrBWICi6bwVM8TGW3PMY3-b1J2f-h-2YEooA9HgI-Nopj18SzerIbpHCT1WnZ0u3Xo-su1HatyQ7IXSSrwmjnliH4tCf5VfSq5t5qwxQFDH_pnNGgEwuXvvDecj9onqlMpxPgDR9ksve13m8xxbHhifLNQ8MFgtozmojgBtkEzZ2GUc4BnWhyCX7FijMDqSmnfyJkyc-UOxjAcqB9JtTQgowY86OJRLLbf&quot;);"></div>
+</div>
+</header>
+<main class="flex-1 max-w-[1200px] mx-auto w-full px-6 py-8 flex flex-col gap-8">
+<div class="flex flex-col gap-4">
+<div class="flex flex-wrap justify-between items-end gap-4">
+<div class="flex flex-col gap-1">
+<div class="flex items-center gap-3">
+<span class="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded tracking-wider uppercase" style="">成长报告版</span>
+<h1 class="text-slate-900 dark:text-slate-100 text-3xl font-black leading-tight tracking-tight" style="">成长洞察报告</h1>
+</div>
+<p class="text-slate-500 dark:text-slate-400 text-base" style="">深度分析对象：<span class="font-semibold text-primary" style="">李明华</span> • 4年级</p>
+</div>
+
+</div>
+</div>
+<section class="bg-white dark:bg-slate-900 rounded-xl p-8 border border-primary/5 shadow-sm">
+<div class="flex items-center justify-between mb-8">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" style="">insights</span>
+<h2 class="text-slate-900 dark:text-slate-100 text-xl font-bold tracking-wide" style="">掌握指数</h2>
+</div>
+<div class="flex gap-4">
+<div class="flex items-center gap-2">
+<div class="size-3 rounded-full bg-primary"></div>
+<span class="text-xs font-medium text-slate-500" style="">当前掌握度</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="size-3 rounded-full bg-primary/20"></div>
+<span class="text-xs font-medium text-slate-500" style="">同伴平均值</span>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+<div class="lg:col-span-4 flex flex-col items-center justify-center relative">
+<div class="relative size-64 flex items-center justify-center">
+<svg class="absolute inset-0 w-full h-full transform -rotate-90">
+<circle class="text-primary/5" cx="128" cy="128" fill="transparent" r="110" stroke="currentColor" stroke-width="12"></circle>
+<circle class="text-primary drop-shadow-[0_0_15px_rgba(127,19,236,0.4)]" cx="128" cy="128" fill="transparent" r="110" stroke="currentColor" stroke-dasharray="691" stroke-dashoffset="82" stroke-width="12"></circle>
+</svg>
+<div class="flex flex-col items-center">
+<span class="text-6xl font-black text-primary" style="">88%</span>
+<span class="text-sm font-bold text-slate-400 tracking-widest mt-1" style="">表现优异</span>
+</div>
+</div>
+<div class="mt-6 text-center">
+<p class="text-emerald-500 font-bold flex items-center justify-center gap-1" style="">
+<span class="material-symbols-outlined text-sm" style="">trending_up</span>
+                                提升了 5.2%
+                            </p>
+<p class="text-slate-400 text-xs" style="">对比上次评估 (2024年6月)</p>
+</div>
+</div>
+<div class="lg:col-span-8 grid grid-cols-2 md:grid-cols-5 gap-6 h-full min-h-[240px] items-end px-4">
+<div class="flex flex-col gap-3 items-center group">
+<div class="w-full bg-primary/5 rounded-t-lg relative flex items-end justify-center overflow-hidden h-[180px]">
+<div class="w-full bg-primary/20 h-[60%] absolute bottom-0"></div>
+<div class="w-[80%] bg-primary rounded-t-md h-[72%] relative z-10 transition-all group-hover:h-[75%]"></div>
+</div>
+<span class="text-xs font-bold text-slate-600 dark:text-slate-300" style="">数学</span>
+</div>
+<div class="flex flex-col gap-3 items-center group">
+<div class="w-full bg-primary/5 rounded-t-lg relative flex items-end justify-center overflow-hidden h-[180px]">
+<div class="w-full bg-primary/20 h-[75%] absolute bottom-0"></div>
+<div class="w-[80%] bg-primary rounded-t-md h-[91%] relative z-10 transition-all group-hover:h-[94%]"></div>
+</div>
+<span class="text-xs font-bold text-slate-600 dark:text-slate-300" style="">科学</span>
+</div>
+<div class="flex flex-col gap-3 items-center group">
+<div class="w-full bg-primary/5 rounded-t-lg relative flex items-end justify-center overflow-hidden h-[180px]">
+<div class="w-full bg-primary/20 h-[45%] absolute bottom-0"></div>
+<div class="w-[80%] bg-primary rounded-t-md h-[55%] relative z-10 transition-all group-hover:h-[58%]"></div>
+</div>
+<span class="text-xs font-bold text-slate-600 dark:text-slate-300" style="">逻辑</span>
+</div>
+<div class="flex flex-col gap-3 items-center group">
+<div class="w-full bg-primary/5 rounded-t-lg relative flex items-end justify-center overflow-hidden h-[180px]">
+<div class="w-full bg-primary/20 h-[85%] absolute bottom-0"></div>
+<div class="w-[80%] bg-primary rounded-t-md h-[95%] relative z-10 transition-all group-hover:h-[100%]"></div>
+</div>
+<span class="text-xs font-bold text-slate-600 dark:text-slate-300" style="">言语</span>
+</div>
+<div class="flex flex-col gap-3 items-center group">
+<div class="w-full bg-primary/5 rounded-t-lg relative flex items-end justify-center overflow-hidden h-[180px]">
+<div class="w-full bg-primary/20 h-[30%] absolute bottom-0"></div>
+<div class="w-[80%] bg-primary rounded-t-md h-[40%] relative z-10 transition-all group-hover:h-[43%]"></div>
+</div>
+<span class="text-xs font-bold text-slate-600 dark:text-slate-300" style="">记忆</span>
+</div>
+</div>
+</div>
+</section>
+<section class="bg-white dark:bg-slate-900 rounded-xl p-8 border border-primary/5 shadow-sm overflow-hidden">
+<div class="flex items-center gap-2 mb-8">
+<span class="material-symbols-outlined text-primary" style="">hub</span>
+<h2 class="text-slate-900 dark:text-slate-100 text-xl font-bold tracking-wide" style="">知识星图</h2>
+</div>
+<div class="relative w-full aspect-[21/9] bg-background-light dark:bg-slate-800 rounded-xl border border-primary/10 overflow-hidden flex items-center justify-center">
+<div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(circle at 2px 2px, #7f13ec 1px, transparent 0); background-size: 24px 24px;"></div>
+<div class="relative w-full h-full p-12">
+<svg class="absolute inset-0 w-full h-full pointer-events-none opacity-40">
+<line stroke="#7f13ec" stroke-dasharray="4" stroke-width="1" x1="20%" x2="50%" y1="30%" y2="50%"></line>
+<line stroke="#7f13ec" stroke-dasharray="4" stroke-width="1" x1="50%" x2="80%" y1="50%" y2="20%"></line>
+<line stroke="#7f13ec" stroke-dasharray="4" stroke-width="1" x1="50%" x2="40%" y1="50%" y2="80%"></line>
+<line stroke="#7f13ec" stroke-dasharray="4" stroke-width="1" x1="40%" x2="15%" y1="80%" y2="70%"></line>
+</svg>
+<div class="absolute top-[30%] left-[20%] group">
+<div class="size-4 bg-primary rounded-full shadow-[0_0_15px_#7f13ec] ring-4 ring-primary/10 transition-all group-hover:scale-125"></div>
+<div class="absolute top-6 left-0 bg-white dark:bg-slate-700 px-3 py-1 rounded text-[10px] font-bold shadow-md whitespace-nowrap border border-primary/10" style="">代数思维</div>
+</div>
+<div class="absolute top-[50%] left-[50%] group">
+<div class="size-6 bg-primary rounded-full shadow-[0_0_20px_#7f13ec] ring-4 ring-primary/10 transition-all group-hover:scale-125"></div>
+<div class="absolute top-8 -left-4 bg-white dark:bg-slate-700 px-3 py-1 rounded text-[10px] font-bold shadow-md whitespace-nowrap border border-primary/10" style="">阅读理解</div>
+</div>
+<div class="absolute top-[20%] left-[80%] group">
+<div class="size-3 bg-primary/40 rounded-full border-2 border-primary/60 transition-all group-hover:scale-125"></div>
+<div class="absolute top-5 left-0 bg-white dark:bg-slate-700 px-3 py-1 rounded text-[10px] font-bold shadow-md whitespace-nowrap border border-primary/10" style="">生物系统</div>
+</div>
+<div class="absolute top-[80%] left-[40%] group">
+<div class="size-5 bg-primary rounded-full shadow-[0_0_18px_#7f13ec] ring-4 ring-primary/10 transition-all group-hover:scale-125"></div>
+<div class="absolute top-7 -left-2 bg-white dark:bg-slate-700 px-3 py-1 rounded text-[10px] font-bold shadow-md whitespace-nowrap border border-primary/10" style="">逻辑推导</div>
+</div>
+<div class="absolute top-[70%] left-[15%] group">
+<div class="size-3 bg-primary/40 rounded-full border-2 border-primary/60 transition-all group-hover:scale-125"></div>
+<div class="absolute top-5 left-0 bg-white dark:bg-slate-700 px-3 py-1 rounded text-[10px] font-bold shadow-md whitespace-nowrap border border-primary/10" style="">抽象模式</div>
+</div>
+</div>
+<div class="absolute bottom-4 right-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur px-3 py-2 rounded-lg border border-primary/10 text-[10px] flex items-center gap-3">
+<div class="flex items-center gap-1" style=""><div class="size-2 rounded-full bg-primary shadow-[0_0_5px_#7f13ec]"></div> 已掌握</div>
+<div class="flex items-center gap-1" style=""><div class="size-2 rounded-full bg-primary/30"></div> 进阶中</div>
+</div>
+</div>
+</section>
+<section class="bg-white dark:bg-slate-900 rounded-xl border border-primary/5 shadow-sm overflow-hidden">
+<div class="p-8 pb-0 flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-rose-500" style="">error_outline</span>
+<h2 class="text-slate-900 dark:text-slate-100 text-xl font-bold tracking-wide" style="">薄弱环节点</h2>
+</div>
+<span class="text-xs font-bold text-rose-500 px-3 py-1 bg-rose-50 rounded-full" style="">识别出 12 个关键知识缺口</span>
+</div>
+<div class="p-8">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-primary/10">
+<th class="py-4 text-xs font-bold text-slate-400 uppercase tracking-widest" style="">知识板块</th>
+<th class="py-4 text-xs font-bold text-slate-400 uppercase tracking-widest" style="">错误率</th>
+<th class="py-4 text-xs font-bold text-slate-400 uppercase tracking-widest" style="">主要误区</th>
+<th class="py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-right" style="">行动建议</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-primary/5" id="weak-points-tbody">
+<!-- 数据由JavaScript动态渲染 -->
+</tbody>
+</table>
+
+<!-- 查看全部按钮 -->
+<div id="view-all-container" class="mt-6 text-center">
+    <button onclick="showAllWeakPoints()" class="px-6 py-2.5 rounded-lg border border-primary/20 text-primary text-sm font-bold hover:bg-primary/5 transition-colors flex items-center gap-2 mx-auto">
+        <span class="material-symbols-outlined text-sm">expand_more</span>
+        查看全部
+    </button>
+</div>
+
+<!-- 分页控制（初始隐藏） -->
+<div id="pagination-container" class="hidden mt-6 flex items-center justify-between">
+    <div class="text-sm text-slate-500">
+        共 <span id="total-count">12</span> 条，每页 20 条
+    </div>
+    <div class="flex items-center gap-2">
+        <button onclick="changePage(-1)" id="prev-btn" class="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+            <span class="material-symbols-outlined text-sm">chevron_left</span>
+        </button>
+        <span id="page-indicator" class="px-3 py-1 text-sm font-bold text-slate-700 dark:text-slate-300">1 / 1</span>
+        <button onclick="changePage(1)" id="next-btn" class="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+            <span class="material-symbols-outlined text-sm">chevron_right</span>
+        </button>
+    </div>
+</div>
+</div>
+</div>
+
+<script>
+// 薄弱环节点数据
+const weakPointsData = [
+    { subject: '分数除法', grade: '数学 · 4-5年级', rate: 65, mistake: '混淆了倒数与逆运算的概念' },
+    { subject: '句子句法', grade: '语文 · 复杂结构', rate: 60, mistake: '在叙事语境中出现流水句' },
+    { subject: '科学研究方法', grade: '科学 · 实验设计', rate: 58, mistake: '难以准确识别实验中的因变量' },
+    { subject: '动词时态', grade: '英语 · 过去时与现在时', rate: 55, mistake: '时态一致性掌握不好' },
+    { subject: '小数乘法', grade: '数学 · 4年级', rate: 52, mistake: '小数点位置处理不当' },
+    { subject: '修辞手法识别', grade: '语文 · 比喻与拟人', rate: 48, mistake: '难以区分比喻和拟人的区别' },
+    { subject: '物质状态变化', grade: '科学 · 物理变化', rate: 45, mistake: '混淆物理变化和化学变化' },
+    { subject: '名词单复数', grade: '英语 · 规则与不规则', rate: 40, mistake: '不规则名词复数容易出错' },
+    { subject: '分数约分', grade: '数学 · 5年级', rate: 38, mistake: '容易忘记约分到最简' },
+    { subject: '食物链与食物网', grade: '科学 · 生态系统', rate: 32, mistake: '容易遗漏分解者的作用' },
+    { subject: '介词搭配', grade: '英语 · 时间与地点', rate: 30, mistake: '时间和地点介词使用混淆' },
+    { subject: '标点符号使用', grade: '语文 · 逗号与句号', rate: 25, mistake: '逗号和句号使用不当' }
+];
+
+let currentPage = 1;
+const itemsPerPage = 20;
+const defaultShowCount = 8;
+let isExpanded = false;
+
+// 获取错误率颜色
+function getRateColor(rate) {
+    if (rate >= 50) return 'bg-rose-500 text-rose-500';
+    if (rate >= 35) return 'bg-rose-400 text-rose-400';
+    return 'bg-amber-500 text-amber-500';
+}
+
+// 渲染表格行
+function renderRow(item, index) {
+    const colorClass = getRateColor(item.rate);
+    return `
+        <tr class="group hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors weak-point-row" data-index="${index}">
+            <td class="py-4">
+                <div class="flex flex-col">
+                    <span class="text-sm font-bold text-slate-800 dark:text-slate-200">${item.subject}</span>
+                    <span class="text-xs text-slate-500">${item.grade}</span>
+                </div>
+            </td>
+            <td class="py-4">
+                <div class="flex items-center gap-2">
+                    <div class="w-16 h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div class="${colorClass.split(' ')[0]} h-full" style="width: ${item.rate}%;"></div>
+                    </div>
+                    <span class="text-xs font-bold ${colorClass.split(' ')[1]}">${item.rate}%</span>
+                </div>
+            </td>
+            <td class="py-4">
+                <span class="text-sm text-slate-600 dark:text-slate-400 italic">${item.mistake}</span>
+            </td>
+            <td class="py-4 text-right">
+                <button class="text-primary hover:bg-primary/10 px-3 py-1.5 rounded-md text-xs font-bold transition-all border border-primary/20">查看练习</button>
+            </td>
+        </tr>
+    `;
+}
+
+// 显示全部
+function showAllWeakPoints() {
+    isExpanded = true;
+    const tbody = document.getElementById('weak-points-tbody');
+    const viewAllContainer = document.getElementById('view-all-container');
+    const paginationContainer = document.getElementById('pagination-container');
+    
+    // 隐藏查看全部按钮
+    viewAllContainer.classList.add('hidden');
+    
+    // 显示分页控制
+    paginationContainer.classList.remove('hidden');
+    
+    // 渲染第一页（最多20条）
+    renderPage(1);
+}
+
+// 渲染指定页
+function renderPage(page) {
+    const tbody = document.getElementById('weak-points-tbody');
+    const start = (page - 1) * itemsPerPage;
+    const end = Math.min(start + itemsPerPage, weakPointsData.length);
+    
+    // 清空并重新渲染
+    tbody.innerHTML = weakPointsData.slice(start, end).map((item, idx) => renderRow(item, start + idx)).join('');
+    
+    // 更新分页指示器
+    currentPage = page;
+    const totalPages = Math.ceil(weakPointsData.length / itemsPerPage);
+    document.getElementById('page-indicator').textContent = `${currentPage} / ${totalPages}`;
+    document.getElementById('total-count').textContent = weakPointsData.length;
+    
+    // 更新按钮状态
+    document.getElementById('prev-btn').disabled = currentPage === 1;
+    document.getElementById('next-btn').disabled = currentPage >= totalPages;
+}
+
+// 切换页面
+function changePage(delta) {
+    const totalPages = Math.ceil(weakPointsData.length / itemsPerPage);
+    const newPage = currentPage + delta;
+    
+    if (newPage >= 1 && newPage <= totalPages) {
+        renderPage(newPage);
+    }
+}
+
+</script>
+
+</section>
+
+<!-- 学习计划模块 -->
+<section class="bg-white dark:bg-slate-900 rounded-xl p-6 border border-primary/5 shadow-sm" id="study-plan-section">
+    <!-- 标题行：图标+标题+文案+调整计划按钮 -->
+    <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined text-primary">calendar_month</span>
+            <h2 class="text-slate-900 dark:text-slate-100 text-xl font-bold tracking-wide">学习计划</h2>
+            <span class="text-slate-400 text-sm">|</span>
+            <p class="text-slate-500 dark:text-slate-400 text-sm">根据您的成长洞察报告，智能生成个性化学习计划</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <button id="btn-open-study-plan" class="px-4 py-2 rounded-lg bg-white dark:bg-slate-800 border border-primary/20 text-primary text-sm font-bold shadow-sm hover:bg-primary/5 transition-all flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm">tune</span>
+                调整计划
+            </button>
+            <div class="flex gap-2">
+                <button onclick="changePlanWeek(-1)" class="p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-primary transition-colors">
+                    <span class="material-symbols-outlined text-sm">chevron_left</span>
+                </button>
+                <span id="plan-week-label" class="px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-300">本周</span>
+                <button onclick="changePlanWeek(1)" class="p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-primary transition-colors">
+                    <span class="material-symbols-outlined text-sm">chevron_right</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 计划预览容器（默认显示生成的计划） -->
+    <div id="generated-plan-container">
+        
+        <!-- 7天规划表 -->
+        <div class="overflow-x-auto">
+            <div class="min-w-[700px]">
+                <div class="flex gap-2 mb-2">
+                    <!-- 时间槽标签占位 -->
+                    <div class="w-10"></div>
+                    <!-- 日期标签 -->
+                    <div class="flex-1 grid grid-cols-7 gap-2">
+                        <div class="text-center">
+                            <p class="text-[10px] text-slate-400">周一</p>
+                            <p class="text-sm font-bold text-slate-700 dark:text-slate-300 flex justify-center" id="plan-day-0">-</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-[10px] text-slate-400">周二</p>
+                            <p class="text-sm font-bold text-slate-700 dark:text-slate-300 flex justify-center" id="plan-day-1">-</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-[10px] text-slate-400">周三</p>
+                            <p class="text-sm font-bold text-slate-700 dark:text-slate-300 flex justify-center" id="plan-day-2">-</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-[10px] text-slate-400">周四</p>
+                            <p class="text-sm font-bold text-slate-700 dark:text-slate-300 flex justify-center" id="plan-day-3">-</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-[10px] text-slate-400">周五</p>
+                            <p class="text-sm font-bold text-slate-700 dark:text-slate-300 flex justify-center" id="plan-day-4">-</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-[10px] text-slate-400">周六</p>
+                            <p class="text-sm font-bold text-slate-700 dark:text-slate-300 flex justify-center" id="plan-day-5">-</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-[10px] text-slate-400">周日</p>
+                            <p class="text-sm font-bold text-slate-700 dark:text-slate-300 flex justify-center" id="plan-day-6">-</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="plan-grid">
+                    <!-- 动态生成 -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- 底部：统计信息 + 操作按钮 -->
+        <div class="mt-4 flex items-center justify-between pl-4">
+            <!-- 统计信息 -->
+            <div class="flex gap-6 items-center">
+                <div class="flex items-center gap-2">
+                    <span class="text-lg font-black text-primary" id="plan-total-days">0</span>
+                    <span class="text-xs text-slate-500">天</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-lg font-black text-primary" id="plan-total-hours">0</span>
+                    <span class="text-xs text-slate-500">小时</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-lg font-black text-primary" id="plan-daily-minutes">0</span>
+                    <span class="text-xs text-slate-500">分钟/天</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-lg font-black text-primary" id="plan-subjects">0</span>
+                    <span class="text-xs text-slate-500">学科</span>
+                </div>
+            </div>
+            
+            <!-- 提分潜质预测和操作按钮 -->
+            <div class="flex items-center gap-6">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary text-sm">trending_up</span>
+                    <span class="text-sm font-bold text-slate-900 dark:text-slate-100">提分目标：</span>
+                    <span class="text-sm text-primary font-bold">+10~18 分</span>
+                </div>
+                
+                <!-- 操作按钮 -->
+                <button onclick="applyStudyPlan()" class="px-5 py-2 rounded-lg bg-primary text-white text-sm font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-2">
+                    <span class="material-symbols-outlined text-sm">add_task</span>
+                    添加至学习计划
+                </button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- 学习计划制定弹窗 -->
+<div class="fixed inset-0 z-[100] bg-black/45 backdrop-blur-sm hidden items-center justify-center p-4" id="study-plan-modal">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+        <!-- 步骤1：筛选设置 -->
+        <div id="step-1" class="p-6">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-lg font-black text-slate-900 dark:text-slate-100">强化练习设置</h3>
+                <button onclick="closeStudyPlanModal()" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                    <span class="material-symbols-outlined text-slate-400">close</span>
+                </button>
+            </div>
+            
+            <!-- 总时长 -->
+            <div class="mb-5">
+                <div class="flex justify-between items-center mb-2">
+                    <label class="text-sm font-bold text-slate-700 dark:text-slate-300">总时长</label>
+                    <span class="text-sm font-bold text-primary" id="total-hours-value">8 小时</span>
+                </div>
+                <div class="relative h-2 bg-slate-200 dark:bg-slate-700 rounded-full">
+                    <div class="absolute left-0 top-0 h-full bg-gradient-to-r from-primary to-purple-500 rounded-full" id="total-hours-fill" style="width: 40%"></div>
+                    <input type="range" id="total-hours" min="1" max="20" value="8" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                </div>
+            </div>
+            
+            <!-- 每日时长 -->
+            <div class="mb-5">
+                <div class="flex justify-between items-center mb-2">
+                    <label class="text-sm font-bold text-slate-700 dark:text-slate-300">每日时长</label>
+                    <span class="text-sm font-bold text-primary" id="daily-minutes-value">30 分钟</span>
+                </div>
+                <div class="relative h-2 bg-slate-200 dark:bg-slate-700 rounded-full">
+                    <div class="absolute left-0 top-0 h-full bg-gradient-to-r from-primary to-purple-500 rounded-full" id="daily-minutes-fill" style="width: 18%"></div>
+                    <input type="range" id="daily-minutes" min="10" max="120" value="30" step="10" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                </div>
+            </div>
+            
+            <!-- 强度 -->
+            <div class="mb-5">
+                <div class="flex justify-between items-center mb-2">
+                    <label class="text-sm font-bold text-slate-700 dark:text-slate-300">强度</label>
+                    <span class="text-sm font-bold text-primary" id="intensity-value">标准</span>
+                </div>
+                <div class="relative h-2 bg-slate-200 dark:bg-slate-700 rounded-full">
+                    <div class="absolute left-0 top-0 h-full bg-gradient-to-r from-primary to-purple-500 rounded-full" id="intensity-fill" style="width: 50%"></div>
+                    <input type="range" id="intensity" min="0" max="2" value="1" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                </div>
+                <div class="flex justify-between text-xs text-slate-400 mt-1">
+                    <span>轻松</span>
+                    <span>标准</span>
+                    <span>冲刺</span>
+                </div>
+            </div>
+            
+            <!-- 学科选择 -->
+            <div class="mb-5">
+                <label class="text-sm font-bold text-slate-700 dark:text-slate-300 mb-3 block">学科（可多选）</label>
+                <div class="flex flex-wrap gap-2" id="subject-tags">
+                    <button type="button" onclick="toggleSubject(this, '化学')" class="px-4 py-2 rounded-full border border-dashed border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 text-sm font-semibold hover:border-primary hover:text-primary transition-all cursor-pointer" data-subject="化学">化学</button>
+                    <button type="button" onclick="toggleSubject(this, '数学')" class="px-4 py-2 rounded-full border border-dashed border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 text-sm font-semibold hover:border-primary hover:text-primary transition-all cursor-pointer" data-subject="数学">数学</button>
+                    <button type="button" onclick="toggleSubject(this, '物理')" class="px-4 py-2 rounded-full border border-dashed border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 text-sm font-semibold hover:border-primary hover:text-primary transition-all cursor-pointer" data-subject="物理">物理</button>
+                    <button type="button" onclick="toggleSubject(this, '生物')" class="px-4 py-2 rounded-full border border-dashed border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 text-sm font-semibold hover:border-primary hover:text-primary transition-all cursor-pointer" data-subject="生物">生物</button>
+                    <button type="button" onclick="toggleSubject(this, '语文')" class="px-4 py-2 rounded-full border border-dashed border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 text-sm font-semibold hover:border-primary hover:text-primary transition-all cursor-pointer" data-subject="语文">语文</button>
+                    <button type="button" onclick="toggleSubject(this, '英语')" class="px-4 py-2 rounded-full border border-dashed border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 text-sm font-semibold hover:border-primary hover:text-primary transition-all cursor-pointer" data-subject="英语">英语</button>
+                </div>
+            </div>
+            
+            <!-- 空闲时间设置 -->
+            <div class="mb-6">
+                <label class="text-sm font-bold text-slate-700 dark:text-slate-300 mb-3 block">空闲时间</label>
+                <div class="bg-slate-50 dark:bg-slate-800 rounded-xl p-4 mb-3">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="material-symbols-outlined text-primary text-sm">schedule</span>
+                        <span class="text-xs font-bold text-slate-600 dark:text-slate-400">自然语言输入</span>
+                    </div>
+                    <input type="text" id="free-time-text" placeholder="例如：每天晚上7点到9点，周末下午" class="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:border-primary dark:text-slate-200">
+                </div>
+                <!-- 快速选择时间段 -->
+                <div class="mb-3">
+                    <p class="text-xs font-bold text-slate-600 dark:text-slate-400 mb-2">快速选择时间段：</p>
+                    <div class="flex flex-wrap gap-2" id="time-slot-tags">
+                        <button class="time-slot-tag px-3 py-1.5 rounded-full border border-dashed border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 text-xs font-semibold hover:border-primary hover:text-primary transition-all" data-slot="morning">早晨 (7:00-9:00)</button>
+                        <button class="time-slot-tag px-3 py-1.5 rounded-full border border-dashed border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 text-xs font-semibold hover:border-primary hover:text-primary transition-all" data-slot="forenoon">上午 (9:00-12:00)</button>
+                        <button class="time-slot-tag px-3 py-1.5 rounded-full border border-dashed border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 text-xs font-semibold hover:border-primary hover:text-primary transition-all" data-slot="afternoon">下午 (14:00-17:00)</button>
+                        <button class="time-slot-tag px-3 py-1.5 rounded-full border border-dashed border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 text-xs font-semibold hover:border-primary hover:text-primary transition-all" data-slot="evening">晚上 (19:00-21:00)</button>
+                        <button class="time-slot-tag px-3 py-1.5 rounded-full border border-dashed border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 text-xs font-semibold hover:border-primary hover:text-primary transition-all" data-slot="weekend">周末全天</button>
+                    </div>
+                </div>
+                
+                <div>
+                    <p class="text-xs font-bold text-slate-600 dark:text-slate-400 mb-2">或在日历上选择可用时间：</p>
+                    <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3">
+                        <div class="grid grid-cols-7 gap-1 text-center mb-2">
+                            <span class="text-[10px] text-slate-400">一</span>
+                            <span class="text-[10px] text-slate-400">二</span>
+                            <span class="text-[10px] text-slate-400">三</span>
+                            <span class="text-[10px] text-slate-400">四</span>
+                            <span class="text-[10px] text-slate-400">五</span>
+                            <span class="text-[10px] text-slate-400">六</span>
+                            <span class="text-[10px] text-slate-400">日</span>
+                        </div>
+                        <div class="grid grid-cols-7 gap-1" id="free-time-calendar">
+                            <!-- 动态生成 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex justify-end gap-3">
+                <button onclick="closeStudyPlanModal()" class="px-5 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">取消</button>
+                <button onclick="generateStudyPlan()" class="px-5 py-2.5 rounded-lg bg-primary text-white font-bold hover:opacity-90 transition-opacity">生成规划表</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 学习计划状态
+let studyPlanState = {
+    totalHours: 8,
+    dailyMinutes: 30,
+    intensity: 1,
+    selectedSubjects: [],
+    freeTimeText: '',
+    selectedDates: new Set(),
+    currentPlanWeek: 0,
+    generatedPlan: null
+};
+
+const intensityLabels = ['轻松', '标准', '冲刺'];
+
+// 初始化
+function initStudyPlan() {
+    // 总时长滑块
+    const totalHoursInput = document.getElementById('total-hours');
+    totalHoursInput.addEventListener('input', (e) => {
+        studyPlanState.totalHours = parseInt(e.target.value);
+        updateSlider('total-hours', studyPlanState.totalHours, 1, 20, ' 小时');
+    });
+    
+    // 每日时长滑块
+    const dailyMinutesInput = document.getElementById('daily-minutes');
+    dailyMinutesInput.addEventListener('input', (e) => {
+        studyPlanState.dailyMinutes = parseInt(e.target.value);
+        updateSlider('daily-minutes', studyPlanState.dailyMinutes, 10, 120, ' 分钟');
+    });
+    
+    // 强度滑块
+    const intensityInput = document.getElementById('intensity');
+    intensityInput.addEventListener('input', (e) => {
+        studyPlanState.intensity = parseInt(e.target.value);
+        updateSlider('intensity', studyPlanState.intensity, 0, 2, '', intensityLabels);
+    });
+    
+    // 空闲时间文本输入
+    const freeTimeTextInput = document.getElementById('free-time-text');
+    freeTimeTextInput.addEventListener('input', (e) => {
+        studyPlanState.freeTimeText = e.target.value;
+    });
+    
+    // 时间段快速选择
+    const timeSlotMap = {
+        'morning': '每天早晨7点到9点',
+        'forenoon': '每天上午9点到12点',
+        'afternoon': '每天下午2点到5点',
+        'evening': '每天晚上7点到9点',
+        'weekend': '周末全天'
+    };
+    
+    document.querySelectorAll('.time-slot-tag').forEach(tag => {
+        tag.addEventListener('click', () => {
+            const slot = tag.dataset.slot;
+            const slotText = timeSlotMap[slot];
+            
+            // 切换选中状态
+            if (tag.classList.contains('selected')) {
+                tag.classList.remove('selected', 'bg-primary/10', 'border-primary', 'text-primary', 'border-solid');
+                tag.classList.add('border-dashed', 'border-slate-300', 'dark:border-slate-600', 'text-slate-600', 'dark:text-slate-400');
+                
+                // 从文本中移除
+                const currentText = freeTimeTextInput.value;
+                freeTimeTextInput.value = currentText.replace(slotText, '').replace(/，，/g, '，').replace(/^，|，$/g, '').trim();
+            } else {
+                tag.classList.add('selected', 'bg-primary/10', 'border-primary', 'text-primary', 'border-solid');
+                tag.classList.remove('border-dashed', 'border-slate-300', 'dark:border-slate-600', 'text-slate-600', 'dark:text-slate-400');
+                
+                // 添加到文本
+                const currentText = freeTimeTextInput.value;
+                freeTimeTextInput.value = currentText ? currentText + '，' + slotText : slotText;
+            }
+            
+            // 更新状态
+            studyPlanState.freeTimeText = freeTimeTextInput.value;
+        });
+    });
+    
+    // 初始化空闲时间日历
+    initFreeTimeCalendar();
+    
+    // 打开弹窗按钮
+    document.getElementById('btn-open-study-plan').addEventListener('click', openStudyPlanModal);
+}
+
+// 切换学科选择
+function toggleSubject(btn, subject) {
+    console.log('toggleSubject called:', subject, btn);
+    const subjectTag = btn.dataset.subject;
+    console.log('subjectTag:', subjectTag);
+    console.log('current selectedSubjects:', studyPlanState.selectedSubjects);
+    console.log('includes?', studyPlanState.selectedSubjects.includes(subjectTag));
+    
+    if (studyPlanState.selectedSubjects.includes(subjectTag)) {
+        studyPlanState.selectedSubjects = studyPlanState.selectedSubjects.filter(s => s !== subjectTag);
+        btn.classList.remove('bg-primary/10', 'border-primary', 'text-primary', 'border-solid');
+        btn.classList.add('border-dashed', 'border-slate-300', 'dark:border-slate-600', 'text-slate-600', 'dark:text-slate-400');
+    } else {
+        studyPlanState.selectedSubjects.push(subjectTag);
+        btn.classList.add('bg-primary/10', 'border-primary', 'text-primary', 'border-solid');
+        btn.classList.remove('border-dashed', 'border-slate-300', 'dark:border-slate-600', 'text-slate-600', 'dark:text-slate-400');
+    }
+    console.log('after toggle selectedSubjects:', studyPlanState.selectedSubjects);
+}
+
+// 更新滑块显示
+function updateSlider(id, value, min, max, suffix, labels) {
+    const percentage = ((value - min) / (max - min)) * 100;
+    document.getElementById(`${id}-fill`).style.width = `${percentage}%`;
+    const displayValue = labels ? labels[value] : value;
+    document.getElementById(`${id}-value`).textContent = displayValue + suffix;
+}
+
+// 初始化空闲时间日历 - 显示一个月（从今天开始，最多35天，保持5行×7列布局）
+function initFreeTimeCalendar() {
+    const calendar = document.getElementById('free-time-calendar');
+    if (!calendar) return;
+    
+    const today = new Date();
+    const todayStr = formatDate(today);
+    const todayMidnight = new Date(today);
+    todayMidnight.setHours(0, 0, 0, 0);
+    
+    const dayOfWeek = today.getDay();
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - dayOfWeek + 1);
+    if (dayOfWeek === 0) monday.setDate(monday.getDate() - 7);
+    
+    calendar.innerHTML = '';
+    
+    for (let i = 0; i < 35; i++) {
+        const date = new Date(monday);
+        date.setDate(monday.getDate() + i);
+        const dateStr = formatDate(date);
+        const dayEl = document.createElement('div');
+        
+        const isPast = date < todayMidnight;
+        const isToday = dateStr === todayStr;
+        
+        if (isPast) {
+            dayEl.className = 'w-8 h-8 flex items-center justify-center rounded-lg text-sm cursor-not-allowed text-slate-300';
+        } else {
+            dayEl.className = 'w-8 h-8 flex items-center justify-center rounded-lg text-sm cursor-pointer transition-all hover:bg-primary/10 text-slate-700 dark:text-slate-300';
+            dayEl.addEventListener('click', () => toggleDateSelection(dayEl, dateStr));
+        }
+        
+        dayEl.textContent = date.getDate();
+        dayEl.dataset.date = dateStr;
+        
+        if (isToday) {
+            dayEl.classList.add('bg-primary', 'text-white', 'font-bold');
+        }
+        
+        calendar.appendChild(dayEl);
+    }
+}
+
+// 切换日期选择
+function toggleDateSelection(el, dateStr) {
+    if (studyPlanState.selectedDates.has(dateStr)) {
+        studyPlanState.selectedDates.delete(dateStr);
+        el.classList.remove('bg-primary', 'text-white');
+        el.classList.add('text-slate-700', 'dark:text-slate-300');
+    } else {
+        studyPlanState.selectedDates.add(dateStr);
+        el.classList.add('bg-primary', 'text-white');
+        el.classList.remove('text-slate-700', 'dark:text-slate-300');
+    }
+}
+
+// 格式化日期
+function formatDate(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+// 打开弹窗
+function openStudyPlanModal() {
+    document.getElementById('study-plan-modal').classList.remove('hidden');
+    document.getElementById('study-plan-modal').classList.add('flex');
+}
+
+// 关闭弹窗
+function closeStudyPlanModal() {
+    document.getElementById('study-plan-modal').classList.add('hidden');
+    document.getElementById('study-plan-modal').classList.remove('flex');
+}
+
+// 生成学习计划
+function generateStudyPlan() {
+    if (studyPlanState.selectedSubjects.length === 0) {
+        alert('请至少选择一个学科');
+        return;
+    }
+    
+    // 时间段配置：每个时间段2小时
+    const timeSlots = [
+        { label: '早晨', startHour: 7, endHour: 9, key: 'morning' },
+        { label: '上午', startHour: 9, endHour: 12, key: 'morning' },
+        { label: '下午', startHour: 14, endHour: 17, key: 'afternoon' },
+        { label: '晚上', startHour: 19, endHour: 21, key: 'evening' }
+    ];
+    
+    // 计算学习天数
+    const totalMinutes = studyPlanState.totalHours * 60;
+    const dailyMinutes = studyPlanState.dailyMinutes;
+    const slotsPerDay = 2; // 工作日2个时间段， weekend 4个
+    let studyDays = Math.ceil(totalMinutes / (dailyMinutes * slotsPerDay));
+    
+    // 根据强度调整
+    if (studyPlanState.intensity === 0) studyDays = Math.ceil(studyDays * 1.3);
+    else if (studyPlanState.intensity === 2) studyDays = Math.ceil(studyDays * 0.8);
+    
+    studyDays = Math.min(studyDays, 14);
+    
+    // 生成规划
+    const plan = [];
+    const today = new Date();
+    let currentDay = 0;
+    let subjectIndex = 0;
+    
+    for (let i = 0; i < studyDays && currentDay < 14; currentDay++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() + currentDay);
+        const dateStr = formatDate(date);
+        const dayOfWeek = date.getDay();
+        
+        if (studyPlanState.selectedDates.size > 0 && !studyPlanState.selectedDates.has(dateStr)) {
+            continue;
+        }
+        
+        // 根据星期几确定可用时间段
+        let availableSlots;
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+            // 周末：所有时间段可用
+            availableSlots = timeSlots;
+        } else {
+            // 工作日：早晨、晚上可用
+            availableSlots = [timeSlots[0], timeSlots[3]];
+        }
+        
+        // 为每个可用时间段创建学习计划
+        for (let slotIdx = 0; slotIdx < availableSlots.length; slotIdx++) {
+            const slot = availableSlots[slotIdx];
+            const subject = studyPlanState.selectedSubjects[subjectIndex % studyPlanState.selectedSubjects.length];
+            const topics = getTopicsForSubject(subject);
+            const topic = topics[Math.floor(subjectIndex / studyPlanState.selectedSubjects.length) % topics.length];
+            
+            plan.push({
+                date: dateStr,
+                dayOfWeek: dayOfWeek || 7,
+                subject: subject,
+                topic: topic,
+                minutes: dailyMinutes,
+                dayIndex: i,
+                timeSlot: slot.label,
+                startHour: slot.startHour,
+                endHour: slot.endHour,
+                timeSlotIndex: slotIdx % 3
+            });
+            
+            subjectIndex++;
+        }
+        
+        i++;
+    }
+    
+    studyPlanState.generatedPlan = plan;
+    
+    // 自动保存到localStorage
+    const studyPlanData = {
+        plan: plan,
+        totalHours: studyPlanState.totalHours,
+        dailyMinutes: studyPlanState.dailyMinutes,
+        selectedSubjects: studyPlanState.selectedSubjects,
+        timestamp: new Date().toISOString()
+    };
+    localStorage.setItem('studyPlanData', JSON.stringify(studyPlanData));
+    console.log('学习计划已自动保存到localStorage:', studyPlanData);
+    
+    // 关闭弹窗并显示预览
+    closeStudyPlanModal();
+    showPlanPreview();
+    
+    // 切换显示
+    document.getElementById('study-plan-preview').parentElement.classList.add('hidden');
+    document.getElementById('generated-plan-container').classList.remove('hidden');
+}
+
+// 获取学科对应的学习主题
+function getTopicsForSubject(subject) {
+    const topics = {
+        '化学': ['化学方程式', '元素周期表', '化学反应', '有机化学', '化学实验'],
+        '数学': ['线性方程', '函数与图像', '几何证明', '概率统计', '微积分基础'],
+        '物理': ['力学基础', '电磁学', '光学', '热力学', '近代物理'],
+        '生物': ['细胞结构', '遗传学', '生态系统', '人体生理', '进化论'],
+        '语文': ['文言文阅读', '现代文写作', '诗词鉴赏', '阅读理解', '作文技巧'],
+        '英语': ['词汇积累', '语法精讲', '阅读理解', '听力训练', '写作表达']
+    };
+    return topics[subject] || ['综合练习'];
+}
+
+// 学科颜色配置
+const subjectColors = {
+    '数学': { bg: 'bg-purple-500', text: 'text-white', light: 'bg-purple-50', border: 'border-purple-200' },
+    '语文': { bg: 'bg-purple-600', text: 'text-white', light: 'bg-purple-50', border: 'border-purple-200' },
+    '英语': { bg: 'bg-purple-400', text: 'text-white', light: 'bg-purple-50', border: 'border-purple-200' },
+    '科学': { bg: 'bg-purple-500', text: 'text-white', light: 'bg-purple-50', border: 'border-purple-200' },
+    '化学': { bg: 'bg-purple-400', text: 'text-white', light: 'bg-purple-50', border: 'border-purple-200' },
+    '物理': { bg: 'bg-purple-600', text: 'text-white', light: 'bg-purple-50', border: 'border-purple-200' },
+    '生物': { bg: 'bg-purple-500', text: 'text-white', light: 'bg-purple-50', border: 'border-purple-200' }
+};
+
+// 获取学科颜色
+function getSubjectColor(subject) {
+    return subjectColors[subject] || { bg: 'bg-primary', text: 'text-white', light: 'bg-primary/10', border: 'border-primary/20' };
+}
+
+// 时间段配置
+const timeSlots = [
+    { key: 'morning', label: '上午', time: '8:00-12:00', icon: 'wb_sunny' },
+    { key: 'afternoon', label: '下午', time: '14:00-18:00', icon: 'schedule' },
+    { key: 'evening', label: '晚上', time: '19:00-22:00', icon: 'nights_stay' }
+];
+
+// 显示规划预览
+function showPlanPreview() {
+    const plan = studyPlanState.generatedPlan;
+    const weekOffset = studyPlanState.currentPlanWeek * 7;
+    
+    // 更新日期标签
+    const today = new Date();
+    const currentDate = new Date(); // 当天日期
+    let selectedDayIndex = -1;
+    
+    for (let i = 0; i < 7; i++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() + weekOffset + i);
+        const dayEl = document.getElementById(`plan-day-${i}`);
+        if (dayEl) {
+            // 检查是否是当天
+            const isToday = date.getDate() === currentDate.getDate() && 
+                           date.getMonth() === currentDate.getMonth() && 
+                           date.getFullYear() === currentDate.getFullYear();
+            
+            if (isToday) {
+                // 为当天添加特殊样式
+                dayEl.className = 'text-sm font-bold text-primary bg-primary/10 px-2 py-1 rounded-full';
+                dayEl.textContent = date.getDate();
+                selectedDayIndex = i;
+            } else {
+                // 恢复默认样式
+                dayEl.className = 'text-sm font-bold text-slate-700 dark:text-slate-300';
+                dayEl.textContent = date.getDate();
+            }
+            
+            // 添加点击事件
+            dayEl.onclick = function() {
+                selectDayColumn(i);
+            };
+        }
+    }
+    
+    // 默认选择当天
+    if (selectedDayIndex !== -1) {
+        selectDayColumn(selectedDayIndex);
+    }
+    
+    // 更新周标签
+    const weekLabel = document.getElementById('plan-week-label');
+    if (studyPlanState.currentPlanWeek === 0) weekLabel.textContent = '本周';
+    else if (studyPlanState.currentPlanWeek === 1) weekLabel.textContent = '下周';
+    else weekLabel.textContent = `${studyPlanState.currentPlanWeek + 1}周后`;
+    
+    // 生成规划网格 - 按时间段分行
+    const grid = document.getElementById('plan-grid');
+    grid.innerHTML = '';
+    
+    // 为每个时间段创建一行
+    timeSlots.forEach((timeSlot, slotIndex) => {
+        const row = document.createElement('div');
+        row.className = 'flex items-start gap-2 mb-2';
+        
+        // 添加时间段图标
+        const slotLabel = document.createElement('div');
+        slotLabel.className = 'w-10 text-right pr-2 pt-3';
+        slotLabel.innerHTML = `
+            <span class="material-symbols-outlined text-[14px] text-slate-400">${timeSlot.icon}</span>
+        `;
+        row.appendChild(slotLabel);
+        
+        // 为每天创建一个单元格
+        const dayCells = document.createElement('div');
+        dayCells.className = 'flex-1 grid grid-cols-7 gap-2';
+        
+        for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+            const cell = document.createElement('div');
+            cell.className = 'p-2 rounded-lg';
+            
+            const date = new Date(today);
+            date.setDate(today.getDate() + weekOffset + dayIndex);
+            const dateStr = formatDate(date);
+            
+            // 查找该日期和时间段的计划
+            const dayPlans = plan.filter(p => p.date === dateStr);
+            const slotPlan = dayPlans.find(p => p.timeSlotIndex === slotIndex); // 按时间段索引匹配
+            
+            if (slotPlan) {
+                // 同色系配色方案 - 使用不同深浅的紫色
+                const colorSchemes = {
+                    // 同色系方案：紫色系
+                    scheme1: [
+                        { bg: 'bg-purple-400', text: 'text-white' },  // 浅紫色
+                        { bg: 'bg-purple-500', text: 'text-white' },  // 中紫色
+                        { bg: 'bg-purple-600', text: 'text-white' },  // 深紫色
+                        { bg: 'bg-purple-700', text: 'text-white' },  // 更深紫色
+                        { bg: 'bg-purple-500', text: 'text-white' },  // 中紫色
+                        { bg: 'bg-purple-600', text: 'text-white' }   // 深紫色
+                    ]
+                };
+                
+                // 当前使用的配色方案
+                const currentScheme = colorSchemes.scheme1;
+                
+                // 颜色分配算法，确保相邻卡片颜色差异显著
+                const rowColorIndex = slotIndex % currentScheme.length;
+                const colColorIndex = (dayIndex + rowColorIndex) % currentScheme.length;
+                const colorIndex = (rowColorIndex * 2 + colColorIndex * 3) % currentScheme.length;
+                const colors = currentScheme[colorIndex];
+                
+                cell.className = `p-2 ${colors.bg} ${colors.text} rounded-lg shadow-md flex items-center justify-between`;
+                cell.innerHTML = `
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs font-bold truncate">${slotPlan.subject}</p>
+                        <p class="text-[10px] truncate">${slotPlan.topic}</p>
+                    </div>
+                    <div class="ml-2 text-right">
+                        <p class="text-[10px] opacity-70">${slotPlan.minutes}分钟</p>
+                    </div>
+                `;
+            } else {
+                cell.className = 'h-12 rounded-lg border border-dashed border-slate-200 dark:border-slate-700';
+            }
+            
+            dayCells.appendChild(cell);
+        }
+        
+        row.appendChild(dayCells);
+        grid.appendChild(row);
+    });
+    
+    // 更新统计
+    document.getElementById('plan-total-days').textContent = plan.length;
+    document.getElementById('plan-total-hours').textContent = studyPlanState.totalHours;
+    document.getElementById('plan-daily-minutes').textContent = studyPlanState.dailyMinutes;
+    document.getElementById('plan-subjects').textContent = studyPlanState.selectedSubjects.length;
+}
+
+// 选择日期列
+function selectDayColumn(dayIndex) {
+    // 移除所有列的选中状态
+    const grid = document.getElementById('plan-grid');
+    const cells = grid.querySelectorAll('div[class*="h-12"], div[class*="bg-purple"]');
+    cells.forEach(cell => {
+        cell.classList.remove('ring-2', 'ring-primary', 'ring-offset-2');
+    });
+    
+    // 为选中的列添加样式
+    timeSlots.forEach((_, slotIndex) => {
+        const row = grid.children[slotIndex];
+        if (row) {
+            const dayCells = row.querySelector('.flex-1');
+            if (dayCells) {
+                const cell = dayCells.children[dayIndex];
+                if (cell) {
+                    cell.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
+                }
+            }
+        }
+    });
+    
+    // 更新日期标签样式
+    for (let i = 0; i < 7; i++) {
+        const dayEl = document.getElementById(`plan-day-${i}`);
+        if (dayEl) {
+            if (i === dayIndex) {
+                dayEl.className = 'text-sm font-bold text-primary bg-primary/10 px-2 py-1 rounded-full';
+            } else {
+                dayEl.className = 'text-sm font-bold text-slate-700 dark:text-slate-300';
+            }
+        }
+    }
+}
+
+// 切换规划周
+function changePlanWeek(delta) {
+    studyPlanState.currentPlanWeek += delta;
+    if (studyPlanState.currentPlanWeek < 0) studyPlanState.currentPlanWeek = 0;
+    if (studyPlanState.currentPlanWeek > 3) studyPlanState.currentPlanWeek = 3;
+    showPlanPreview();
+}
+
+// 重新生成/调整计划
+function regeneratePlan() {
+    openStudyPlanModal();
+}
+
+// 应用学习计划
+async function applyStudyPlan() {
+    const plan = studyPlanState.generatedPlan;
+    if (!plan || plan.length === 0) return;
+
+    // 检查现有学习计划是否有冲突
+    const existingData = localStorage.getItem('studyPlanData');
+    let existingPlan = [];
+    if (existingData) {
+        try {
+            const parsed = JSON.parse(existingData);
+            existingPlan = parsed.plan || [];
+        } catch (e) {
+            console.error('解析现有计划失败:', e);
+        }
+    }
+
+    // 检测冲突（只检查同一日期是否有计划）
+    const conflicts = [];
+    plan.forEach(newTask => {
+        existingPlan.forEach(oldTask => {
+            if (newTask.date === oldTask.date) {
+                // 检查时间段是否重叠
+                const newStart = newTask.startHour || 8;
+                const newEnd = newTask.endHour || 10;
+                const oldStart = oldTask.startHour || 8;
+                const oldEnd = oldTask.endHour || 10;
+
+                const isOverlap = !(newEnd <= oldStart || newStart >= oldEnd);
+                if (isOverlap) {
+                    conflicts.push({
+                        date: newTask.date,
+                        newTask: newTask,
+                        oldTask: oldTask
+                    });
+                }
+            }
+        });
+    });
+
+    // 如果有冲突，显示时间调整弹窗
+    if (conflicts.length > 0) {
+        // 只传递与冲突日期相关的计划
+        const conflictDates = new Set(conflicts.map(c => c.date));
+        const conflictPlan = plan.filter(p => conflictDates.has(p.date));
+        openManualAdjustModal(conflictPlan, conflicts);
+        return;
+    }
+
+    // 没有冲突，合并新旧计划
+    const mergedPlan = [...existingPlan, ...plan];
+
+    const studyPlanData = {
+        plan: mergedPlan,
+        totalHours: studyPlanState?.totalHours || 8,
+        dailyMinutes: studyPlanState?.dailyMinutes || 30,
+        selectedSubjects: studyPlanState?.selectedSubjects || [],
+        timestamp: new Date().toISOString()
+    };
+    
+    try {
+        // 同时保存到后端API和localStorage
+        const entries = mergedPlan.map(p => ({
+            title: p.topic || p.title,
+            subject: p.subject,
+            scheduled_date: p.date,
+            minutes: p.minutes || 30
+        }));
+        
+        const apiData = {
+            total_hours: studyPlanState?.totalHours || 8,
+            daily_minutes: studyPlanState?.dailyMinutes || 30,
+            intensity: '标准',
+            subjects: studyPlanState?.selectedSubjects || [],
+            entries: entries
+        };
+        
+        // 获取token（尝试多种方式获取：URL参数、localStorage、parent）
+        const urlParams = new URLSearchParams(window.location.search);
+        const tok = urlParams.get('tok') || localStorage.getItem('wel_tok') || '';
+        
+        const response = await fetch('/api/study-plan/apply', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${tok}`
+            },
+            body: JSON.stringify(apiData)
+        });
+        
+        const result = await response.json();
+        console.log('后端API保存结果:', result);
+        
+        // 保存到localStorage作为备份
+        localStorage.setItem('studyPlanData', JSON.stringify(studyPlanData));
+        console.log('学习计划已存储到localStorage:', studyPlanData);
+        
+        showToast(`已成功添加 ${plan.length} 个学习计划，并同步到首页！`);
+    } catch (error) {
+        console.error('保存学习计划失败:', error);
+        // 即使API失败，也保存到localStorage
+        localStorage.setItem('studyPlanData', JSON.stringify(studyPlanData));
+        showToast(`已保存 ${plan.length} 个学习计划到本地！`);
+    }
+}
+
+// 显示提示
+function showToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'fixed top-20 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-xl font-bold shadow-lg z-[200]';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+
+// 下载报告功能 - PDF版本
+function downloadReport() {
+    // 显示加载提示
+    showToast('正在生成PDF报告...');
+    
+    // 引入jsPDF库和html2canvas（如果未加载）
+    if (typeof jsPDF === 'undefined' || typeof html2canvas === 'undefined') {
+        const script1 = document.createElement('script');
+        script1.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        script1.onload = function() {
+            const script2 = document.createElement('script');
+            script2.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+            script2.onload = function() {
+                generatePDF();
+            };
+            document.head.appendChild(script2);
+        };
+        document.head.appendChild(script1);
+    } else {
+        generatePDF();
+    }
+}
+
+// 生成PDF报告
+function generatePDF() {
+    try {
+        const { jsPDF } = window.jspdf;
+        
+        // 获取真实用户名称
+        let userName = '用户';
+        const userNameElement = document.querySelector('p.text-base span.font-semibold.text-primary');
+        if (userNameElement) {
+            userName = userNameElement.textContent.trim();
+        }
+        
+        // 获取页面主体内容
+        const mainContent = document.querySelector('main');
+        if (!mainContent) {
+            throw new Error('无法找到页面主体内容');
+        }
+        
+        // 使用html2canvas对页面进行截图
+        html2canvas(mainContent, {
+            scale: 2,
+            useCORS: true,
+            logging: false,
+            backgroundColor: '#ffffff',
+            windowWidth: mainContent.scrollWidth,
+            windowHeight: mainContent.scrollHeight
+        }).then(canvas => {
+            // 创建PDF
+            const imgData = canvas.toDataURL('image/png');
+            const doc = new jsPDF({ 
+                orientation: 'portrait', 
+                unit: 'mm', 
+                format: 'a4' 
+            });
+            
+            const imgWidth = 210;
+            const imgHeight = canvas.height * imgWidth / canvas.width;
+            
+            let heightLeft = imgHeight;
+            let position = 0;
+            
+            // 第一页
+            doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= 297;
+            
+            // 后续页面
+            while (heightLeft > 0) {
+                position = heightLeft - imgHeight;
+                doc.addPage();
+                doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= 297;
+            }
+            
+            // 保存PDF，文件名包含用户名称
+            const fileName = `${userName}_成长洞察报告_${new Date().toISOString().split('T')[0]}.pdf`;
+            doc.save(fileName);
+            
+            showToast('PDF报告下载成功！');
+        }).catch(error => {
+            console.error('生成PDF时出错:', error);
+            showToast('生成PDF报告失败，请重试');
+        });
+    } catch (error) {
+        console.error('生成PDF时出错:', error);
+        showToast('生成PDF报告失败，请重试');
+    }
+}
+
+// 格式化日期 - 保留这个函数用于PDF生成
+function formatDate(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+// 格式化日期
+function formatDate(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+// 根据薄弱环节点生成智能学习计划
+function generateSmartStudyPlan() {
+    // 从薄弱环节点提取学科（去重）
+    const subjectsFromWeakPoints = [...new Set(weakPointsData.map(item => {
+        // 从 grade 字段提取学科，如 "数学 · 4-5年级" -> "数学"
+        return item.grade.split(' · ')[0];
+    }))];
+    
+    // 默认设置
+    studyPlanState.totalHours = 10;
+    studyPlanState.dailyMinutes = 45;
+    studyPlanState.intensity = 1; // 标准强度
+    studyPlanState.selectedSubjects = subjectsFromWeakPoints.length > 0 ? subjectsFromWeakPoints : ['数学', '语文'];
+    
+    // 计算学习天数
+    const totalMinutes = studyPlanState.totalHours * 60;
+    const dailyMinutes = studyPlanState.dailyMinutes;
+    let studyDays = Math.ceil(totalMinutes / dailyMinutes);
+    studyDays = Math.min(studyDays, 14);
+    
+    // 生成规划
+    const plan = [];
+    const today = new Date();
+    
+    // 根据薄弱点生成每日学习任务
+    for (let i = 0; i < studyDays; i++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() + Math.floor(i / 3)); // 每个日期可以有多个时间段
+        const dateStr = formatDate(date);
+        
+        // 根据薄弱点循环分配学科
+        const weakPoint = weakPointsData[i % weakPointsData.length];
+        const subject = weakPoint.grade.split(' · ')[0];
+        const topic = weakPoint.subject; // 使用薄弱点的主题
+        
+        plan.push({
+            date: dateStr,
+            dayOfWeek: date.getDay() || 7,
+            subject: subject,
+            topic: topic,
+            minutes: dailyMinutes,
+            dayIndex: i,
+            timeSlotIndex: i % 3, // 0: morning, 1: afternoon, 2: evening
+            weakPoint: weakPoint // 关联薄弱点
+        });
+    }
+    
+    studyPlanState.generatedPlan = plan;
+    return plan;
+}
+
+// 修改后的添加学习计划函数（与首页相同）
+function addStudyPlanItem(dayIndex, subject, task, startTime, endTime) {
+  // 与首页相同的实现...
+}
+
+// 新增冲突处理对话框（与首页相同）
+function showConflictDialog(dayIndex, subject, task, startTime, endTime, conflicts) {
+  // 报告页保留原有占位提示，详细冲突在统一弹窗里处理
+  openManualAdjustModal(conflicts.map(c => ({
+    date: c.date,
+    subject: c.newTask.subject,
+    topic: c.newTask.topic,
+    minutes: c.newTask.minutes,
+    startHour: parseInt(startTime.split(':')[0]) || 8,
+    endHour: parseInt(endTime.split(':')[0]) || 10
+  })), conflicts);
+}
+
+// 新增自动调整时间（与首页相同）
+function autoAdjustTime(dayIndex, subject, task, startTime, endTime, conflicts) {
+  // 与首页相同的实现...
+}
+
+// 新增添加计划到存储（与首页相同）
+function addPlanToStorage(dayIndex, subject, task, startTime, endTime) {
+  // 与首页相同的实现...
+}
+
+// 打开手动调整弹窗
+function openManualAdjustModal(plan, conflicts) {
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 z-[190] flex items-center justify-center bg-black/50 p-4';
+    
+    if (!plan || plan.length === 0) return;
+    
+    // 保存计划和冲突信息到全局变量
+    window.tempNewPlan = plan;
+    window.tempConflicts = conflicts;
+    
+    const samplePlan = plan[0];
+    const duration = samplePlan.minutes || 90;
+    const timeSlots = getAvailableTimeSlots(samplePlan.date, duration);
+    const availableSlots = timeSlots.availableSlots;
+    const conflictSlots = timeSlots.conflictSlots;
+    
+    // 显示冲突信息
+    let conflictsHTML = '';
+    if (conflicts && conflicts.length > 0) {
+        const conflictList = conflicts.map(c => `
+            <div class="text-sm">
+                <span class="text-red-500">${c.date}:</span> ${c.oldTask.subject} - ${c.oldTask.topic}
+            </div>
+        `).join('');
+        conflictsHTML = `
+            <div class="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div class="font-bold text-red-600 mb-1">时间冲突</div>
+                ${conflictList}
+            </div>
+        `;
+    }
+    
+    // 生成时间段按钮
+    let timeSlotsHTML = `
+        <div class="mt-4">
+            <div class="font-bold mb-2">选择时间段</div>
+            <div class="grid grid-cols-2 gap-2">
+    `;
+    
+    // 先添加可用的时间段
+    availableSlots.forEach(slot => {
+        timeSlotsHTML += `
+            <button class="suggestion-btn p-3 bg-blue-50 rounded-lg hover:bg-blue-100 text-left transition cursor-pointer"
+                    data-start="${slot.startHour}" data-end="${slot.endHour}">
+                <div class="font-bold">${slot.label}</div>
+                <div class="text-sm text-gray-600">${slot.time}</div>
+            </button>
+        `;
+    });
+    
+    // 再添加冲突的时间段（灰掉）
+    conflictSlots.forEach(slot => {
+        timeSlotsHTML += `
+            <button class="p-3 bg-gray-100 rounded-lg text-left transition cursor-not-allowed opacity-60"
+                    disabled>
+                <div class="font-bold text-gray-500">${slot.label}</div>
+                <div class="text-sm text-gray-400">${slot.time}</div>
+                <div class="text-xs text-red-500 mt-1">已被占用</div>
+            </button>
+        `;
+    });
+    
+    timeSlotsHTML += `
+            </div>
+        </div>
+    `;
+    
+    // 生成时间选项
+    const timeOptions = [];
+    for (let hour = 0; hour < 24; hour++) {
+        for (let min = 0; min < 60; min += 30) {
+            const timeValue = hour * 60 + min;
+            const timeLabel = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+            timeOptions.push({ value: timeValue, label: timeLabel });
+        }
+    }
+    const startOptions = timeOptions.map(t => `<option value="${t.value}">${t.label}</option>`).join('');
+    const endOptions = timeOptions.map(t => `<option value="${t.value}">${t.label}</option>`).join('');
+    
+    modal.innerHTML = `
+        <div class="modal-panel bg-white rounded-3xl p-6 w-full max-w-lg">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold">选择时间</h3>
+                <button onclick="closeManualAdjustModal()" class="text-gray-400 hover:text-gray-600">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            
+            ${conflictsHTML}
+            
+            <div class="mb-4 p-3 bg-gray-50 rounded-lg">
+                <div class="font-medium">计划: ${samplePlan.subject} - ${samplePlan.topic}</div>
+                <div class="text-sm text-gray-600">日期: ${samplePlan.date}</div>
+            </div>
+            
+            ${timeSlotsHTML}
+            
+            <div class="mt-4 border-t pt-4">
+                <div class="font-bold mb-2">自定义时间</div>
+                <div class="flex items-center gap-4">
+                    <div class="flex-1">
+                        <label class="block text-sm text-gray-600 mb-1">开始时间</label>
+                        <select id="custom-start-time" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                            ${startOptions}
+                        </select>
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-sm text-gray-600 mb-1">结束时间</label>
+                        <select id="custom-end-time" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                            ${endOptions}
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-6 flex gap-3 justify-end">
+                <button onclick="closeManualAdjustModal()" class="px-4 py-2 border border-gray-300 rounded-lg font-medium">
+                    取消
+                </button>
+                <button onclick="applyManualAdjustment()" class="px-6 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition">
+                    确认
+                </button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    modal.querySelectorAll('.suggestion-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            modal.querySelectorAll('.suggestion-btn').forEach(b => b.classList.remove('bg-blue-200', 'ring-2', 'ring-blue-400'));
+            this.classList.add('bg-blue-200', 'ring-2', 'ring-blue-400');
+            window.selectedTimeStart = this.dataset.start;
+            window.selectedTimeEnd = this.dataset.end;
+        });
+    });
+}
+
+// 关闭手动调整弹窗
+function closeManualAdjustModal() {
+    window.selectedTimeStart = null;
+    window.selectedTimeEnd = null;
+    document.querySelectorAll('[class*="z-\[150\]"]').forEach(m => m.remove());
+}
+
+// 应用手动调整
+function applyManualAdjustment() {
+    // 优先获取自定义时间选择器的值
+    const customStartSelect = document.getElementById('custom-start-time');
+    const customEndSelect = document.getElementById('custom-end-time');
+
+    let selectedStart, selectedEnd;
+
+    if (customStartSelect && customEndSelect) {
+        selectedStart = customStartSelect.value;
+        selectedEnd = customEndSelect.value;
+    }
+
+    // 如果自定义时间未选择，尝试使用推荐时间段的选择
+    if (!selectedStart || !selectedEnd) {
+        selectedStart = window.selectedTimeStart;
+        selectedEnd = window.selectedTimeEnd;
+    }
+
+    if (!selectedStart || !selectedEnd) {
+        showToast('请选择或输入时间段');
+        return;
+    }
+
+    const plan = window.tempNewPlan || [];
+    const conflicts = window.tempConflicts || [];
+
+    // 更新计划中的时间为用户选择的时间
+    let startHour, endHour;
+    
+    // 检查是否是分钟数（自定义时间选择器）还是小时数（推荐时间段）
+    if (parseInt(selectedStart) > 24) {
+        // 是分钟数，转换为小时
+        startHour = parseInt(selectedStart) / 60;
+        endHour = parseInt(selectedEnd) / 60;
+    } else {
+        // 是小时数，直接使用
+        startHour = parseInt(selectedStart);
+        endHour = parseInt(selectedEnd);
+    }
+    
+    const updatedPlan = plan.map(p => ({
+        ...p,
+        startHour: startHour,
+        endHour: endHour,
+        timeSlot: getTimeSlotLabel(startHour)
+    }));
+
+    // 获取现有计划并合并（保留所有现有计划，直接追加新计划）
+    const existingData = localStorage.getItem('studyPlanData');
+    let existingPlan = [];
+    if (existingData) {
+        try {
+            const parsed = JSON.parse(existingData);
+            existingPlan = parsed.plan || [];
+        } catch (e) {}
+    }
+
+    // 合并计划：保留所有现有计划，追加修改后的新计划
+    const mergedPlan = [...existingPlan, ...updatedPlan];
+
+    const studyPlanData = {
+        plan: mergedPlan,
+        totalHours: studyPlanState?.totalHours || 8,
+        dailyMinutes: studyPlanState?.dailyMinutes || 30,
+        selectedSubjects: studyPlanState?.selectedSubjects || [],
+        timestamp: new Date().toISOString()
+    };
+
+    try {
+        // 同时保存到后端API和localStorage
+        const entries = mergedPlan.map(p => ({
+            title: p.topic || p.title,
+            subject: p.subject,
+            scheduled_date: p.date,
+            minutes: p.minutes || 30
+        }));
+        
+        const apiData = {
+            total_hours: studyPlanState?.totalHours || 8,
+            daily_minutes: studyPlanState?.dailyMinutes || 30,
+            intensity: '标准',
+            subjects: studyPlanState?.selectedSubjects || [],
+            entries: entries
+        };
+        
+        // 获取token（尝试多种方式获取：URL参数、localStorage、parent）
+        const urlParams = new URLSearchParams(window.location.search);
+        const tok = urlParams.get('tok') || localStorage.getItem('wel_tok') || '';
+        
+        fetch('/api/study-plan/apply', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${tok}`
+            },
+            body: JSON.stringify(apiData)
+        }).then(response => response.json())
+          .then(result => {
+              console.log('后端API保存结果:', result);
+          })
+          .catch(error => {
+              console.error('API保存失败:', error);
+          });
+
+        // 保存到localStorage
+        localStorage.setItem('studyPlanData', JSON.stringify(studyPlanData));
+        console.log('学习计划已存储:', studyPlanData);
+
+        // 关闭所有弹窗
+        document.querySelectorAll('[class*="z-\[150\]"]').forEach(m => m.remove());
+
+        // 刷新显示
+        if (typeof syncStudyPlanFromStorage === 'function') {
+            syncStudyPlanFromStorage();
+        }
+
+        showToast(`已成功添加 ${updatedPlan.length} 个学习计划！`);
+    } catch (error) {
+        console.error('保存学习计划失败:', error);
+        showToast('保存学习计划失败，请重试！');
+    }
+
+    // 清理全局变量
+    window.selectedTimeStart = null;
+    window.selectedTimeEnd = null;
+    window.tempNewPlan = null;
+    window.tempConflicts = null;
+}
+
+// 获取可用时间段建议
+function getAvailableTimeSlots(date, duration) {
+    const existingData = localStorage.getItem('studyPlanData');
+    let existingPlan = [];
+    if (existingData) {
+        try {
+            const parsed = JSON.parse(existingData);
+            existingPlan = parsed.plan || [];
+        } catch (e) {}
+    }
+    
+    // 只获取当天的计划
+    const dayPlans = existingPlan.filter(p => p.date === date);
+    
+    const timeSlots = [
+        { label: '早晨', startHour: 7, endHour: 9, time: '07:00 - 09:00' },
+        { label: '上午', startHour: 9, endHour: 12, time: '09:00 - 12:00' },
+        { label: '下午', startHour: 14, endHour: 17, time: '14:00 - 17:00' },
+        { label: '晚上', startHour: 19, endHour: 21, time: '19:00 - 21:00' }
+    ];
+    
+    const availableSlots = [];
+    const conflictSlots = [];
+    
+    for (const slot of timeSlots) {
+        const slotStart = slot.startHour * 60;
+        const slotEnd = slot.endHour * 60;
+        
+        // 检查是否与现有计划冲突
+        const hasConflict = dayPlans.some(p => {
+            const pStart = (p.startHour || 8) * 60;
+            const pEnd = (p.endHour || 10) * 60;
+            return (slotStart < pEnd && slotEnd > pStart);
+        });
+        
+        const slotInfo = {
+            label: slot.label,
+            time: slot.time,
+            startHour: slot.startHour,
+            endHour: slot.endHour,
+            hasConflict: hasConflict
+        };
+        
+        if (hasConflict) {
+            conflictSlots.push(slotInfo);
+        } else {
+            availableSlots.push(slotInfo);
+        }
+    }
+    
+    return { availableSlots, conflictSlots };
+}
+
+// 获取时间段标签
+function getTimeSlotLabel(hour) {
+    if (hour >= 7 && hour < 9) return '早晨';
+    if (hour >= 9 && hour < 12) return '上午';
+    if (hour >= 14 && hour < 17) return '下午';
+    if (hour >= 19 && hour < 21) return '晚上';
+    return '其他';
+}
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', function() {
+    initStudyPlan();
+    
+    // 初始化薄弱环节点 - 只显示前8条
+    const tbody = document.getElementById('weak-points-tbody');
+    if (tbody) {
+        tbody.innerHTML = weakPointsData.slice(0, defaultShowCount).map((item, idx) => renderRow(item, idx)).join('');
+    }
+    
+    // 检查是否有保存的学习计划
+    const savedPlanData = localStorage.getItem('studyPlanData');
+    if (savedPlanData) {
+        try {
+            const parsed = JSON.parse(savedPlanData);
+            if (parsed.plan && parsed.plan.length > 0) {
+                // 恢复保存的计划
+                studyPlanState.generatedPlan = parsed.plan;
+                studyPlanState.totalHours = parsed.totalHours || 8;
+                studyPlanState.dailyMinutes = parsed.dailyMinutes || 30;
+                studyPlanState.selectedSubjects = parsed.selectedSubjects || [];
+                showPlanPreview();
+                return;
+            }
+        } catch (e) {
+            console.error('恢复保存的计划失败:', e);
+        }
+    }
+    
+    // 没有保存的计划，生成默认智能学习计划
+    generateSmartStudyPlan();
+    showPlanPreview();
+});
+</script>
+
+</main>
+<footer class="mt-auto border-t border-primary/5 px-10 py-6 flex items-center justify-between text-slate-400 text-xs">
+<p class="" style="">© 2024 教育科技。保留所有权利。</p>
+<div class="flex gap-6">
+<a class="hover:text-primary" href="#" style="">隐私政策</a>
+<a class="hover:text-primary" href="#" style="">服务条款</a>
+<a class="hover:text-primary" href="#" style="">帮助中心</a>
+</div>
+</footer>
+<div id="floatingButtons" class="fixed bottom-6 left-1/2 -translate-x-1/2 flex justify-center gap-4 z-50 transition-all duration-300">
+<button onclick="downloadReport()" class="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-white dark:bg-slate-800 text-primary border border-primary/20 text-sm font-bold shadow-lg hover:scale-[1.02] active:scale-95 transition-all" style="">
+<span class="material-symbols-outlined text-lg" style="">download</span>
+                        下载报告
+                    </button>
+<button class="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-white text-sm font-bold shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-95 transition-all" style="">
+<span class="material-symbols-outlined text-lg" style="">archive</span>
+                        存入档案
+                    </button>
+</div>
+</div>
+</div>
+
+<script>
+    let lastScrollTop = 0;
+    const floatingButtons = document.getElementById('floatingButtons');
+    
+    window.addEventListener('scroll', function() {
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        const scrollHeight = document.documentElement.scrollHeight;
+        const clientHeight = document.documentElement.clientHeight;
+        const isAtBottom = scrollTop + clientHeight >= scrollHeight - 50;
+        
+        if (isAtBottom) {
+            floatingButtons.style.opacity = '1';
+            floatingButtons.style.transform = 'translateX(-50%) translateY(0)';
+            floatingButtons.style.pointerEvents = 'auto';
+        } else if (scrollTop > lastScrollTop) {
+            floatingButtons.style.opacity = '0';
+            floatingButtons.style.transform = 'translateX(-50%) translateY(100%)';
+            floatingButtons.style.pointerEvents = 'none';
+        } else {
+            floatingButtons.style.opacity = '1';
+            floatingButtons.style.transform = 'translateX(-50%) translateY(0)';
+            floatingButtons.style.pointerEvents = 'auto';
+        }
+        
+        lastScrollTop = scrollTop <= 0 ? 0 : scrollTop;
+    });
+</script>
+
+</body></html>

@@ -7,6 +7,14 @@ const authHeaders = (): Record<string, string> => {
 };
 
 /* ===== 类型定义 ===== */
+interface LayerNode {
+  key?: string;
+  title: string;
+  summary: string;
+  content: string;
+  icon?: string;
+}
+
 interface TopicHubItem {
   _id: string;
   id?: number;
@@ -17,9 +25,17 @@ interface TopicHubItem {
   tags?: string[];
   searchTerm?: string;
   submittedBy?: string;
+  createdBy?: string;
   status: "draft" | "published" | "hidden";
   result?: any;
   nodeCount?: number;
+  layers?: {
+    layer1?: LayerNode[];
+    layer2?: LayerNode[];
+    layer3?: LayerNode[];
+    layer4?: LayerNode[];
+    layer5?: LayerNode[];
+  };
   createdAt?: string;
   updatedAt?: string;
 }
@@ -32,6 +48,19 @@ const emptyForm = {
   coverEmoji: "📚",
   tags: "" as string,
   status: "draft" as "draft" | "published" | "hidden",
+};
+
+// 知识树节点编辑表单
+interface LayerEditData {
+  [layerKey: string]: { key: string; title: string; summary: string; content: string; icon: string }[];
+}
+
+const layerLabels: Record<string, string> = {
+  layer1: "🌿 认知篇",
+  layer2: "🔍 诊断篇",
+  layer3: "🎯 方法篇",
+  layer4: "🛠️ 工具篇",
+  layer5: "🚀 行动篇",
 };
 
 /* ===== 通用样式（同 AdminWorthBuyPage 风格） ===== */
@@ -129,8 +158,10 @@ const AdminTopicsPage: React.FC = () => {
   const [editForm, setEditForm] = useState({ ...emptyForm });
   const [saving, setSaving] = useState(false);
 
-  // 展开知识树 loading 状态
-  const [expandingId, setExpandingId] = useState<string | null>(null);
+  // 知识树编辑
+  const [layerEdit, setLayerEdit] = useState<LayerEditData>({});
+  const [activeLayerTab, setActiveLayerTab] = useState("layer1");
+  const [activeNodeIdx, setActiveNodeIdx] = useState(0);
 
   // ========== 加载列表 ==========
   const loadItems = async () => {
@@ -180,28 +211,22 @@ const AdminTopicsPage: React.FC = () => {
     }
   };
 
-  // ========== 展开知识树 ==========
-  const handleExpand = async (item: TopicHubItem) => {
-    const id = item._id;
-    if (!id) return;
-    setExpandingId(id);
-    try {
-      const res = await fetch(`/api/admin/topic-hub/${id}/expand`, {
-        method: "POST",
-        headers: authHeaders(),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setToast(`🌿 「${item.title}」知识树已展开，新增 ${data.nodeCount ?? data.nodesInserted ?? 0} 个节点`);
-        loadItems();
-      } else {
-        setToast(`❌ ${data.error || "展开失败"}`);
-      }
-    } catch (e: any) {
-      setToast(`❌ 网络错误: ${e.message}`);
-    } finally {
-      setExpandingId(null);
+  // ========== 编辑时加载 layers 到 layerEdit ==========
+  const initLayerEdit = (item: TopicHubItem) => {
+    const data: LayerEditData = {};
+    const layers = item.layers || {};
+    for (const key of ["layer1", "layer2", "layer3", "layer4", "layer5"]) {
+      data[key] = ((layers as any)[key] || []).map((n: any) => ({
+        key: n.key || "",
+        title: n.title || "",
+        summary: n.summary || "",
+        content: n.content || "",
+        icon: n.icon || "",
+      }));
     }
+    setLayerEdit(data);
+    setActiveLayerTab("layer1");
+    setActiveNodeIdx(0);
   };
 
   // ========== 编辑话题 ==========
@@ -215,6 +240,7 @@ const AdminTopicsPage: React.FC = () => {
       tags: Array.isArray(item.tags) ? item.tags.join(", ") : "",
       status: item.status || "draft",
     });
+    initLayerEdit(item);
   };
 
   const closeEdit = () => {
@@ -226,9 +252,15 @@ const AdminTopicsPage: React.FC = () => {
     if (!editingItem || !editForm.title.trim()) return;
     setSaving(true);
     try {
+      // 清理 layerEdit 空节点
+      const cleanLayers: Record<string, LayerNode[]> = {};
+      for (const key of ["layer1", "layer2", "layer3", "layer4", "layer5"]) {
+        cleanLayers[key] = (layerEdit[key] || []).filter((n) => n.title.trim());
+      }
       const payload = {
         ...editForm,
         tags: tagsFromString(editForm.tags),
+        layers: cleanLayers,
       };
       const res = await fetch(`/api/admin/topic-hub/${editingItem._id}`, {
         method: "PUT",
@@ -468,7 +500,7 @@ const AdminTopicsPage: React.FC = () => {
 
                 {/* 提交者 */}
                 <span style={{ textAlign: "center", fontSize: 12, color: "#6B7280" }}>
-                  {item.submittedBy || "-"}
+                  {item.createdBy || item.submittedBy || "-"}
                 </span>
 
                 {/* 时间 */}
@@ -478,26 +510,6 @@ const AdminTopicsPage: React.FC = () => {
 
                 {/* 操作按钮 */}
                 <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                  {item.status === "published" && (
-                    <button
-                      style={{
-                        padding: "4px 10px",
-                        borderRadius: 6,
-                        border: "1px solid #D1FAE5",
-                        background: "#F0FDF4",
-                        color: "#166534",
-                        fontSize: 11,
-                        fontWeight: 600,
-                        cursor: expandingId === item._id ? "not-allowed" : "pointer",
-                        whiteSpace: "nowrap",
-                        opacity: expandingId === item._id ? 0.5 : 1,
-                      }}
-                      disabled={expandingId === item._id}
-                      onClick={() => handleExpand(item)}
-                    >
-                      {expandingId === item._id ? "⏳" : "🌿"} 展开知识树
-                    </button>
-                  )}
                   <button
                     style={{
                       padding: "4px 10px",
@@ -537,7 +549,7 @@ const AdminTopicsPage: React.FC = () => {
         </div>
       )}
 
-      {/* ===== 编辑 Modal ===== */}
+      {/* ===== 编辑 Modal（含知识树编辑） ===== */}
       {editingItem && (
         <>
           {/* 遮罩 */}
@@ -560,8 +572,8 @@ const AdminTopicsPage: React.FC = () => {
               top: "50%",
               left: "50%",
               transform: "translate(-50%,-50%)",
-              width: 640,
-              maxHeight: "85vh",
+              width: 900,
+              maxHeight: "90vh",
               overflowY: "auto",
               background: "#fff",
               borderRadius: 16,
@@ -643,6 +655,191 @@ const AdminTopicsPage: React.FC = () => {
                     <option value="hidden">已隐藏</option>
                   </select>
                 </div>
+              </div>
+
+              {/* ===== 知识树编辑区 ===== */}
+              <div style={{
+                border: "1px solid #EDE9FE",
+                borderRadius: 12,
+                overflow: "hidden",
+              }}>
+                <div style={{
+                  background: "#F8F5FF",
+                  padding: "10px 16px",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: "#5B21B6",
+                  borderBottom: "1px solid #EDE9FE",
+                }}>
+                  🌿 知识树（在编辑中管理）
+                </div>
+
+                {/* Layer tabs */}
+                <div style={{ display: "flex", borderBottom: "1px solid #EDE9FE", overflow: "auto" }}>
+                  {["layer1", "layer2", "layer3", "layer4", "layer5"].map((key) => (
+                    <button
+                      key={key}
+                      onClick={() => { setActiveLayerTab(key); setActiveNodeIdx(0); }}
+                      style={{
+                        padding: "8px 14px",
+                        fontSize: 12,
+                        fontWeight: activeLayerTab === key ? 600 : 400,
+                        border: "none",
+                        borderBottom: activeLayerTab === key ? "2px solid #7C3AED" : "2px solid transparent",
+                        background: activeLayerTab === key ? "#fff" : "#FAF8FF",
+                        color: activeLayerTab === key ? "#7C3AED" : "#6B7280",
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {layerLabels[key]}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Node tabs */}
+                {layerEdit[activeLayerTab] && layerEdit[activeLayerTab].length > 0 && (
+                  <div style={{ display: "flex", borderBottom: "1px solid #EDE9FE", overflow: "auto", padding: "6px 8px", gap: 4 }}>
+                    {layerEdit[activeLayerTab].map((node, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setActiveNodeIdx(idx)}
+                        style={{
+                          padding: "4px 12px",
+                          borderRadius: 8,
+                          fontSize: 11,
+                          fontWeight: activeNodeIdx === idx ? 600 : 400,
+                          border: `1px solid ${activeNodeIdx === idx ? "#C4B5FD" : "#E5E7EB"}`,
+                          background: activeNodeIdx === idx ? "#F3EEFF" : "#fff",
+                          color: activeNodeIdx === idx ? "#7C3AED" : "#6B7280",
+                          cursor: "pointer",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {node.title || `节点${idx + 1}`}
+                      </button>
+                    ))}
+                    {/* 添加节点 */}
+                    <button
+                      onClick={() => {
+                        const updated = { ...layerEdit };
+                        updated[activeLayerTab] = [
+                          ...(updated[activeLayerTab] || []),
+                          { key: `${activeLayerTab}-${Date.now()}`, title: "", summary: "", content: "", icon: "📝" },
+                        ];
+                        setLayerEdit(updated);
+                        setActiveNodeIdx(updated[activeLayerTab].length - 1);
+                      }}
+                      style={{
+                        padding: "4px 12px",
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        border: "1px dashed #DDD6FE",
+                        background: "#fff",
+                        color: "#7C3AED",
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      + 添加
+                    </button>
+                  </div>
+                )}
+
+                {/* Node edit fields */}
+                {layerEdit[activeLayerTab] && layerEdit[activeLayerTab][activeNodeIdx] ? (
+                  <div style={{ padding: 12 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 60px", gap: 8, marginBottom: 10 }}>
+                      <div>
+                        <label style={{ ...labelStyle, fontSize: 11 }}>标题</label>
+                        <input
+                          style={{ ...inputStyle, fontSize: 12 }}
+                          value={layerEdit[activeLayerTab][activeNodeIdx].title}
+                          onChange={(e) => {
+                            const updated = { ...layerEdit };
+                            updated[activeLayerTab][activeNodeIdx].title = e.target.value;
+                            setLayerEdit(updated);
+                          }}
+                          placeholder="节点标题"
+                        />
+                      </div>
+                      <div>
+                        <label style={{ ...labelStyle, fontSize: 11 }}>摘要</label>
+                        <input
+                          style={{ ...inputStyle, fontSize: 12 }}
+                          value={layerEdit[activeLayerTab][activeNodeIdx].summary}
+                          onChange={(e) => {
+                            const updated = { ...layerEdit };
+                            updated[activeLayerTab][activeNodeIdx].summary = e.target.value;
+                            setLayerEdit(updated);
+                          }}
+                          placeholder="一句话概述"
+                        />
+                      </div>
+                      <div>
+                        <label style={{ ...labelStyle, fontSize: 11 }}>Icon</label>
+                        <input
+                          style={{ ...inputStyle, fontSize: 12, textAlign: "center" }}
+                          value={layerEdit[activeLayerTab][activeNodeIdx].icon}
+                          onChange={(e) => {
+                            const updated = { ...layerEdit };
+                            updated[activeLayerTab][activeNodeIdx].icon = e.target.value;
+                            setLayerEdit(updated);
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ ...labelStyle, fontSize: 11 }}>
+                        内容（Markdown，含展开讲讲追加的内容）
+                      </label>
+                      <textarea
+                        style={{
+                          ...inputStyle,
+                          fontSize: 12,
+                          fontFamily: "monospace",
+                          minHeight: 180,
+                          resize: "vertical",
+                          lineHeight: 1.6,
+                        }}
+                        value={layerEdit[activeLayerTab][activeNodeIdx].content}
+                        onChange={(e) => {
+                          const updated = { ...layerEdit };
+                          updated[activeLayerTab][activeNodeIdx].content = e.target.value;
+                          setLayerEdit(updated);
+                        }}
+                        placeholder="节点正文（支持 Markdown）..."
+                      />
+                    </div>
+                    {/* 删除节点 */}
+                    <button
+                      onClick={() => {
+                        const updated = { ...layerEdit };
+                        updated[activeLayerTab] = updated[activeLayerTab].filter((_, i) => i !== activeNodeIdx);
+                        setLayerEdit(updated);
+                        setActiveNodeIdx(0);
+                      }}
+                      style={{
+                        marginTop: 8,
+                        padding: "4px 12px",
+                        borderRadius: 6,
+                        border: "1px solid #FECACA",
+                        background: "#FEF2F2",
+                        color: "#DC2626",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      🗑 删除此节点
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ padding: 24, textAlign: "center", color: "#9CA3AF", fontSize: 13 }}>
+                    暂无节点，点击「+ 添加」创建知识树节点
+                  </div>
+                )}
               </div>
             </div>
 

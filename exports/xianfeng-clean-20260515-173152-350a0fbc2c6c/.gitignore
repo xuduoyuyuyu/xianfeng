@@ -1,0 +1,30 @@
+.DS_Store
+._*
+.vercel/
+.trae/
+tmp/
+
+# Local environment files
+.env
+.env.*
+!.env.production.example
+!backend/.env.example
+!frontend/.env.example
+
+# Dependencies and build output
+backend/node_modules/
+backend/npm-cache/
+backend/.npm-cache/
+backend/dist/
+frontend/node_modules/
+frontend/npm-cache/
+frontend/.vite/
+frontend/dist/
+
+# Runtime data
+backend/uploads/
+*.log
+frontend-history-*.bundle
+
+# Current nested repo should be backed up before migrating to a root repo
+frontend/.git/

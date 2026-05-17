@@ -31,6 +31,15 @@ const bookSchema = new mongoose.Schema(
     grade: { type: String, default: "", trim: true },
     coverImage: { type: String, required: true },
     recommendedGuest: { type: String, default: "", trim: true },
+    // 微信小店字段
+    wxProductId: { type: String, default: "" },
+    wxShopName: { type: String, default: "" },
+    wxShopAppid: { type: String, default: "" },
+    wxSalePrice: { type: Number, default: 0 },
+    wxMonthlySales: { type: Number, default: 0 },
+    wxShopScore: { type: Number, default: 0 },
+    wxHeadImgs: { type: [String], default: [] },
+    wxSyncAt: { type: Date, default: null },
     sourceName: { type: String, default: "" },
     sourceGuestId: { type: mongoose.Schema.Types.ObjectId, ref: "Guest", default: null, index: true },
     status: {

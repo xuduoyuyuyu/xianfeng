@@ -350,6 +350,25 @@ const AdminBooksPage: React.FC = () => {
         <div className="flex items-center gap-3">
           <button
             onClick={async () => {
+              const wxCount = books.filter(b => b.coverImage && /wxapp\.tc\.qq\.com|store\.mp\.video\.tencent-cloud/.test(b.coverImage) && b.status === 'draft').length;
+              if (wxCount === 0) { alert('没有封面正确且处于草稿状态的书'); return; }
+              if (!confirm(`确定批量发布 ${wxCount} 本封面正确的草稿书吗？`)) return;
+              try {
+                const res = await adminApi.batchPublishBooks({ filter: 'with_wx_cover' });
+                await fetchBooks();
+                alert(`批量发布完成：${res.data.modified} 本已发布`);
+              } catch (error) {
+                console.error('批量发布失败:', error);
+                alert('批量发布失败');
+              }
+            }}
+            className="admin-pill-btn admin-pill-btn-secondary"
+          >
+            <span className="material-symbols-outlined text-base">rocket_launch</span>
+            批量发布封面正确的书
+          </button>
+          <button
+            onClick={async () => {
               if (!confirm(`确定清空全部 ${books.length} 条书单吗？此操作不可恢复。`)) return;
               try {
                 const all = await adminApi.getBooks();
@@ -456,6 +475,7 @@ const AdminBooksPage: React.FC = () => {
                   <th className="px-6 py-4">书单信息</th>
                   <th className="px-6 py-4">著作者</th>
                   <th className="px-6 py-4">出版社/年级</th>
+                  <th className="px-6 py-4">微信小店</th>
                   <th className="px-6 py-4">出处</th>
                   <th className="px-6 py-4">绑定嘉宾</th>
                   <th className="px-6 py-4">状态</th>
@@ -485,6 +505,24 @@ const AdminBooksPage: React.FC = () => {
                       <span className="px-3 py-1 rounded-full bg-stone-100 text-stone-600 text-xs font-bold">
                         {[book.publisher || '-', book.grade || '-'].join(' / ')}
                       </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {book.wxShopName ? (
+                        <div className="flex items-center gap-2">
+                          {book.wxHeadImgs?.[0] ? (
+                            <img src={book.wxHeadImgs[0]} alt="" className="w-8 h-8 rounded-lg object-cover" />
+                          ) : null}
+                          <div>
+                            <div className="text-xs font-bold text-stone-700">{book.wxShopName}</div>
+                            <div className="text-[10px] text-stone-400">
+                              {book.wxSalePrice ? `¥${(book.wxSalePrice / 100).toFixed(1)}` : ''}
+                              {book.wxMonthlySales !== undefined && book.wxMonthlySales !== null ? ` · 月销${book.wxMonthlySales === 0 ? '<10' : book.wxMonthlySales >= 1000 ? `${Math.floor(book.wxMonthlySales/100)/10}k` : book.wxMonthlySales}` : ''}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-stone-400">-</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-sm text-stone-600">{book.sourceName || '-'}</td>
                     <td className="px-6 py-4 text-sm text-stone-600">{renderSourceGuest(book)}</td>

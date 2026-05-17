@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>登录 - wel</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;900&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,900&family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box}
+    :root{--p:#6c27d6}
+    html,body{height:100%;margin:0;font-family:'DM Sans','Noto Sans SC',sans-serif}
+    body{
+      background:
+        radial-gradient(1200px 500px at 50% -80px, rgba(124,58,237,.12), transparent 55%),
+        radial-gradient(900px 420px at 100% 100%, rgba(59,130,246,.08), transparent 60%),
+        linear-gradient(180deg,#ffffff 0%, #f8f9ff 100%);
+      color:#111827
+    }
+    .toplogo{
+      position:fixed;top:18px;left:18px;z-index:2;
+      display:flex;align-items:center;gap:10px;
+      text-decoration:none;color:#0f172a;font-weight:900;letter-spacing:-.2px
+    }
+    .toplogo img{height:28px;width:auto;display:block}
+    .toplogo span{display:none}
+    .bg-flow{
+      position:fixed;inset:-8%;pointer-events:none;z-index:0;
+      transform: translate3d(0,0,0);
+      will-change: transform;
+    }
+    .bg-flow-inner{
+      position:absolute;inset:0;
+      background:
+        radial-gradient(820px 680px at 48% 46%, rgba(124,58,237,.34), transparent 60%),
+        radial-gradient(680px 540px at 18% 22%, rgba(124,58,237,.34), transparent 58%),
+        radial-gradient(720px 560px at 86% 22%, rgba(59,130,246,.30), transparent 60%),
+        radial-gradient(700px 560px at 78% 86%, rgba(168,85,247,.32), transparent 58%),
+        radial-gradient(760px 620px at 22% 86%, rgba(79,70,229,.26), transparent 60%);
+      filter: blur(28px) saturate(1.25);
+      opacity: 0.75;
+      transform: translate3d(0,0,0);
+      animation: loginFlow 8s linear infinite;
+      will-change: transform;
+    }
+    @keyframes loginFlow{
+      0%{transform:translate3d(-180px,-140px,0) scale(1.06)}
+      25%{transform:translate3d(200px,-120px,0) scale(1.10)}
+      50%{transform:translate3d(160px,180px,0) scale(1.08)}
+      75%{transform:translate3d(-150px,210px,0) scale(1.10)}
+      100%{transform:translate3d(-180px,-140px,0) scale(1.06)}
+    }
+    .bg{
+      position:fixed;inset:0;pointer-events:none;
+      background-image:
+        linear-gradient(to right, rgba(124,58,237,.08) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(124,58,237,.08) 1px, transparent 1px);
+      background-size:52px 52px;
+      background-position: 0 0;
+      z-index:0;
+    }
+    .wrap{min-height:100%;display:flex;align-items:center;justify-content:center;padding:24px;position:relative;z-index:1}
+    .layout{width:min(1100px,calc(100vw - 64px));display:grid;grid-template-columns:1fr 420px;gap:64px;align-items:center}
+    .left{font-family:'Space Grotesk','Noto Sans SC',sans-serif}
+    .hero-badge{display:inline-flex;align-items:center;gap:10px;padding:10px 16px;border-radius:999px;background:rgba(127,19,236,.06);border:1px solid rgba(127,19,236,.14)}
+    .hero-dot{position:relative;width:10px;height:10px}
+    .hero-dot:before{content:'';position:absolute;inset:0;border-radius:999px;background:rgba(127,19,236,.9)}
+    .hero-dot:after{content:'';position:absolute;inset:0;border-radius:999px;background:rgba(127,19,236,.4);animation:heroPing 1.6s ease-out infinite}
+    @keyframes heroPing{0%{transform:scale(1);opacity:.6}100%{transform:scale(2.2);opacity:0}}
+    .hero-badge span{font-size:12px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;color:#7f13ec}
+    .hero-h1{margin:18px 0 10px;font-size:80px;line-height:1.06;letter-spacing:-1.6px;font-weight:900;color:#050505}
+    .hero-h1 .grad{background:linear-gradient(90deg,#7f13ec,#a855f7,#4f46e5);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .hero-p{margin:0;color:#64748b;font-size:20px;line-height:1.6;max-width:540px;font-weight:600}
+    .brand{display:flex;justify-content:center;margin-bottom:14px}
+    .card{background:rgba(255,255,255,.66);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.82);border-radius:18px;padding:26px;box-shadow:0 16px 40px -18px rgba(2,6,23,.18)}
+    .field{margin-bottom:12px}
+    .field label{display:block;font-size:11px;font-weight:800;color:#0f172a;margin-bottom:6px}
+    .field input{width:100%;height:46px;padding:0 13px;background:#fff;border:1px solid rgba(2,6,23,.10);border-radius:12px;color:#0f172a;font-size:14px;outline:none}
+    .field input::placeholder{color:#94a3b8}
+    .field input:focus{border-color:rgba(127,19,236,.6);box-shadow:0 0 0 4px rgba(127,19,236,.10)}
+    .mb-row{display:grid;grid-template-columns:86px 1fr;gap:8px}
+    .mb-code{height:46px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid rgba(2,6,23,.10);border-radius:12px;color:#334155;font-size:14px;font-weight:600}
+    .code-row{display:grid;grid-template-columns:1fr 132px;gap:8px}
+    .btn{width:100%;height:46px;border:none;border-radius:12px;background:var(--p);color:#fff;font-size:15px;font-weight:900;cursor:pointer}
+    .btn:hover{filter:brightness(1.05)}
+    .err{color:#ef4444;font-size:12px;min-height:18px;text-align:center;margin-top:6px}
+    .consent{margin-top:10px;font-size:12px;line-height:1.5;color:#64748b;text-align:center}
+    .consent a{color:#334155;text-decoration:none;border-bottom:1px solid rgba(2,6,23,.12)}
+    .consent a:hover{color:#0f172a;border-bottom-color:rgba(2,6,23,.25)}
+    .consent .sp{margin:0 4px;opacity:.7}
+    @media (max-width: 860px){
+      .layout{grid-template-columns:1fr;gap:18px;width:min(420px,calc(100vw - 48px))}
+      .left{display:none}
+    }
+    @media (prefers-reduced-motion: reduce){
+      .bg-flow-inner{animation-duration:16s;opacity:.85}
+    }
+  </style>
+</head>
+<body>
+  <a class="toplogo" href="/">
+    <img src="/logo.png" alt="wel">
+  </a>
+  <div class="bg-flow"><div class="bg-flow-inner"></div></div>
+  <div class="bg"></div>
+  <div class="wrap">
+    <div class="layout">
+      <div class="left">
+        <div class="hero-badge">
+          <i class="hero-dot"></i>
+          <span>VERSION 2.0 CORE</span>
+        </div>
+        <h1 class="hero-h1">洞察本质<br><span class="grad">同步未来</span></h1>
+        <p class="hero-p">wel 不只是一个教育平台，它是基于深度逻辑分析的进化引擎。在这里，每一次学习都是一次精准的破译。</p>
+      </div>
+      <div>
+        <div class="brand"><img src="/logo.png" alt="wel" style="height:34px"></div>
+        <div class="card">
+          <div class="field">
+            <label>手机号</label>
+            <div class="mb-row">
+              <div class="mb-code">+86</div>
+              <input id="mb-mobile" type="tel" placeholder="请输入手机号">
+            </div>
+          </div>
+          <div class="field">
+            <label>验证码</label>
+            <div class="code-row">
+              <input id="mb-code" type="text" placeholder="请输入验证码">
+              <button class="btn" id="mb-send-btn" onclick="sendMobileCode()">获取验证码</button>
+            </div>
+          </div>
+          <div class="err" id="mb-err"></div>
+          <button class="btn" onclick="doMobileAuth()">登录/注册</button>
+          <div class="consent">
+            登录视为您已阅读并同意
+            <a href="/terms-of-service" target="_blank" rel="noopener">服务条款</a>
+            <span class="sp">和</span>
+            <a href="/privacy-policy" target="_blank" rel="noopener">隐私政策</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const LOGIN_REQUIRED_KEY = 'wel_login_required';
+    const LOGIN_REQUIRED_ACTION_KEY = 'wel_login_required_action';
+    (function maybeBypassLoginWhenAuthed(){
+      const tok = localStorage.getItem('wel_tok') || '';
+      if (!tok) return;
+      const redirect = new URLSearchParams(location.search).get('redirect') || '/?page=zhongkao';
+      location.href = redirect;
+    })();
+
+    (function followPointerForBgFlow(){
+      const flow = document.querySelector('.bg-flow');
+      if (!flow) return;
+      const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const max = reduce ? 12 : 60;
+      const ease = reduce ? 0.08 : 0.22;
+      let tx = 0, ty = 0, cx = 0, cy = 0, raf = 0;
+      function schedule() {
+        if (raf) return;
+        raf = requestAnimationFrame(tick);
+      }
+      function tick() {
+        cx += (tx - cx) * ease;
+        cy += (ty - cy) * ease;
+        flow.style.transform = `translate3d(${cx.toFixed(2)}px,${cy.toFixed(2)}px,0)`;
+        if (Math.abs(tx - cx) + Math.abs(ty - cy) > 0.15) {
+          raf = requestAnimationFrame(tick);
+        } else {
+          raf = 0;
+        }
+      }
+      function onMove(e) {
+        const w = window.innerWidth || 1;
+        const h = window.innerHeight || 1;
+        const nx = (e.clientX / w - 0.5) * 2;
+        const ny = (e.clientY / h - 0.5) * 2;
+        tx = Math.max(-1, Math.min(1, nx)) * max;
+        ty = Math.max(-1, Math.min(1, ny)) * max;
+        schedule();
+      }
+      function reset() {
+        tx = 0; ty = 0;
+        schedule();
+      }
+      window.addEventListener('pointermove', onMove, { passive: true });
+      window.addEventListener('blur', reset, { passive: true });
+      document.addEventListener('mouseleave', reset, { passive: true });
+    })();
+
+    let _mbSendCooldown = 0;
+    let _mbSendTimer = null;
+    function api(method, path, body) {
+      const opts = { method, headers: { 'Content-Type':'application/json' } };
+      if (body) opts.body = JSON.stringify(body);
+      return fetch(path, opts).then(async (r) => {
+        const d = await r.json();
+        if (!r.ok && d.error) throw new Error(d.error);
+        return d;
+      });
+    }
+    function _tickMobileSendBtn() {
+      const btn = document.getElementById('mb-send-btn');
+      if (!btn) return;
+      if (_mbSendCooldown <= 0) {
+        btn.disabled = false;
+        btn.textContent = '获取验证码';
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = _mbSendCooldown + 's';
+      _mbSendCooldown -= 1;
+      _mbSendTimer = setTimeout(_tickMobileSendBtn, 1000);
+    }
+    async function sendMobileCode() {
+      const mobile = (document.getElementById('mb-mobile').value || '').trim();
+      const err = document.getElementById('mb-err');
+      err.textContent = '';
+      if (!/^1\d{10}$/.test(mobile)) return err.textContent = '请输入正确的11位手机号';
+      try {
+        const d = await api('POST', '/api/sms/send-code', { mobile, purpose: 'login' });
+        _mbSendCooldown = 60;
+        if (_mbSendTimer) clearTimeout(_mbSendTimer);
+        _tickMobileSendBtn();
+        if (d && d.debugCode) err.textContent = '测试验证码：' + d.debugCode + '（上线可关闭）';
+      } catch (e) {
+        err.textContent = e.message || '发送失败';
+      }
+    }
+    async function doMobileAuth() {
+      const mobile = (document.getElementById('mb-mobile').value || '').trim();
+      const code = (document.getElementById('mb-code').value || '').trim();
+      const err = document.getElementById('mb-err');
+      err.textContent = '';
+      if (!/^1\d{10}$/.test(mobile)) return err.textContent = '请输入正确的11位手机号';
+      if (!code) return err.textContent = '请输入验证码';
+      try {
+        const d = await api('POST', '/api/auth/mobile', { mobile, code, purpose: 'login' });
+        if (d && d.token) localStorage.setItem('wel_tok', d.token);
+        localStorage.removeItem(LOGIN_REQUIRED_KEY);
+        localStorage.removeItem(LOGIN_REQUIRED_ACTION_KEY);
+        const redirect = new URLSearchParams(location.search).get('redirect') || '/?page=zhongkao';
+        location.href = redirect;
+      } catch (e) {
+        err.textContent = e.message || '登录失败';
+      }
+    }
+  </script>
+</body>
+</html>

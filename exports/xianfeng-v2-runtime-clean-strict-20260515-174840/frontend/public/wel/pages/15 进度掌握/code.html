@@ -1,0 +1,220 @@
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>wel 同类强化挑战界面</title>
+<script src="/wel/vendor/tailwindcdn.forms.container-queries.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#7f13ec",
+                        "pearl": "#FDFCFB",
+                        "hud-bg": "rgba(255, 255, 255, 0.7)",
+                        "violet-glow": "rgba(127, 19, 236, 0.6)",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "Noto Sans SC", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        @layer components {
+            .hud-glass {
+                @apply bg-white/60 backdrop-blur-md border border-primary/20 shadow-[0_8px_32px_rgba(127,19,236,0.1)];
+            }
+            .glow-btn-purple {
+                @apply bg-primary text-white shadow-[0_0_20px_rgba(127,19,236,0.6)] hover:shadow-[0_0_35px_rgba(127,19,236,0.9)] transition-all duration-300 border border-primary/50;
+            }
+            .grid-bg {
+                background-image: radial-gradient(circle at 1px 1px, rgba(127, 19, 236, 0.05) 1px, transparent 0);
+                background-size: 32px 32px;
+            }
+            .paper-texture {
+                background-image: linear-gradient(#e5e7eb 1px, transparent 1px);
+                background-size: 100% 28px;
+            }
+            .scanline {
+                background: linear-gradient(to bottom, transparent, rgba(127, 19, 236, 0.05) 50%, transparent);
+            }
+        }
+    </style>
+</head>
+<body class="bg-pearl font-display text-slate-800 overflow-hidden">
+<div class="relative flex h-screen w-full flex-col">
+<header class="z-50 flex items-center justify-between border-b border-primary/10 bg-white/40 backdrop-blur-xl px-8 py-3">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-3">
+<img src="/logo.png" alt="Logo" class="h-6" />
+</div>
+<div class="h-8 w-px bg-primary/10"></div>
+<div class="flex flex-col">
+<div class="flex items-center gap-2 mb-1">
+<span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Current Challenge</span>
+<span data-practice-topic class="text-xs font-bold text-slate-900">同类强化：三角形判定深度解析</span>
+</div>
+<div class="w-64 h-1.5 bg-slate-100 rounded-full overflow-hidden flex">
+<div data-practice-progress class="h-full bg-primary w-2/3 shadow-[0_0_8px_rgba(127,19,236,0.4)]"></div>
+<div class="h-full bg-primary/20 w-1/3"></div>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex flex-col items-end">
+<span class="text-[10px] font-bold text-primary tracking-widest uppercase">Mastery Progress</span>
+<span data-practice-mastery class="text-sm font-bold text-slate-900">65% 掌握度验证中</span>
+</div>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden grid-bg relative">
+<div class="absolute left-6 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-20">
+<button data-practice-settings class="size-12 hud-glass rounded-2xl flex items-center justify-center text-primary hover:scale-105 transition-transform">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<button data-practice-draw class="size-12 hud-glass rounded-2xl flex items-center justify-center text-primary hover:scale-105 transition-transform">
+<span class="material-symbols-outlined">draw</span>
+</button>
+<button data-practice-aihint class="size-12 hud-glass rounded-2xl flex items-center justify-center text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">auto_fix_high</span>
+</button>
+</div>
+<main class="flex-1 flex flex-col items-center p-8 relative overflow-hidden">
+<div class="w-full max-w-4xl flex-1 flex flex-col gap-6">
+<div class="relative flex-1 group" data-practice-top-card>
+<div class="absolute -top-4 left-6 z-10 flex items-center gap-2 px-3 py-1 bg-white border border-primary/20 rounded-full shadow-sm">
+<span class="size-2 rounded-full bg-primary animate-pulse"></span>
+<span data-practice-badge class="text-[10px] font-bold text-primary tracking-widest">AI 精准匹配 · 高保真题目</span>
+</div>
+<div class="h-full hud-glass rounded-3xl p-10 flex flex-col overflow-y-auto">
+<div class="mb-8">
+<span data-practice-counter class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Question 01 / 03</span>
+<h3 data-practice-question class="text-xl font-medium text-slate-800 mt-2 leading-relaxed">
+                                    在 2019 年迎新联欢会上，数学老师和同学们做了一个游戏，她在 A，B，C 三个盘子里分别放了一些小球，小球数依次为 $a_0, b_0, c_0$，记为 $G_0 = (a_0, b_0, c_0)$，游戏规则如下：三个盘子中的小球数 $a_0 \neq b_0 \neq c_0$，则从小球最多的一个盘子中拿出两个，给另外两个盘子各放一个，记作一次操作，$n$ 次操作后的小球数记为 $G_n = (a_n, b_n, c_n)$，若 $G_0 = (3, 5, 19)$，则 $G_{2020} = (\underline{\quad}, \underline{\quad}, \underline{\quad})$。
+                                </h3>
+</div>
+<div data-practice-answer-wrap class="mb-8 space-y-3">
+<div data-practice-choice-wrap class="space-y-3 hidden"></div>
+<div data-practice-short-wrap class="hidden">
+<div class="text-xs font-bold text-slate-400 mb-2">本题为简答题，请输入答案后提交</div>
+<input data-practice-short-input type="text" class="w-full h-12 rounded-2xl border border-primary/35 bg-white px-4 text-sm font-medium text-slate-700 outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(127,19,236,.08)]" placeholder="请输入答案" />
+</div>
+</div>
+<div class="flex-1 relative group-hover:border-primary/20 transition-colors" data-practice-visual data-geom-theme="practice" data-geom-title="几何图形高保真还原区域">
+</div>
+</div>
+</div>
+<div class="h-[280px] relative">
+<div class="absolute -top-3 right-6 z-10 flex items-center gap-4">
+<div class="flex items-center gap-1">
+<span class="size-2 rounded-full bg-slate-300"></span>
+<span class="text-[10px] font-bold text-slate-400">智能笔迹同步</span>
+</div>
+<button data-practice-clear class="px-3 py-1 bg-white border border-slate-200 rounded-full text-[10px] font-bold text-slate-500 hover:border-primary/30 hover:text-primary transition-all flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">delete</span> 清空草稿
+                            </button>
+</div>
+<div class="h-full bg-white rounded-3xl border border-slate-200 shadow-sm paper-texture p-8 relative overflow-hidden group">
+<div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-primary/40">edit_note</span>
+<span class="text-xs font-bold text-slate-400 uppercase tracking-widest">灵感草稿纸 (Scratchpad)</span>
+</div>
+<div data-practice-hint contenteditable="true" spellcheck="false" class="text-slate-400 italic text-sm outline-none min-h-[90px]">
+                                此处可记录解题思路、辅助线尝试或公式推演...
+                            </div>
+<svg class="absolute inset-0 pointer-events-none opacity-20" height="100%" width="100%">
+<path d="M100,100 L250,150 L200,250 Z" fill="none" stroke="#7f13ec" stroke-dasharray="4" stroke-width="2"></path>
+<circle cx="200" cy="180" fill="none" r="40" stroke="#7f13ec" stroke-width="1"></circle>
+</svg>
+</div>
+</div>
+</main>
+<footer class="absolute bottom-8 left-1/2 -translate-x-1/2 w-full max-w-4xl px-8 z-30">
+<div class="flex items-center justify-between">
+<div class="flex gap-4">
+<button data-practice-prev class="px-6 py-3 rounded-2xl bg-white border border-slate-200 text-slate-600 font-bold text-sm hover:bg-slate-50 transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-lg">chevron_left</span>
+                            回顾讲解
+                        </button>
+</div>
+<button data-practice-next class="glow-btn-purple px-10 py-4 rounded-2xl font-bold flex items-center gap-3 group">
+<span class="material-symbols-outlined text-2xl group-hover:rotate-12 transition-transform">diamond</span>
+<span class="tracking-wide">提交</span>
+<span class="material-symbols-outlined text-xl">arrow_forward</span>
+</button>
+<div class="flex gap-4">
+<button data-practice-skip class="px-6 py-3 rounded-2xl bg-white border border-slate-200 text-slate-600 font-bold text-sm hover:bg-slate-50 transition-colors flex items-center gap-2">
+                            跳过此题
+                            <span class="material-symbols-outlined text-lg">skip_next</span>
+</button>
+</div>
+</div>
+</footer>
+</div>
+<div class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-[0.03] -z-10">
+<div class="text-[320px] font-black text-primary leading-none select-none">wel</div>
+</div>
+<div class="fixed bottom-10 left-10 pointer-events-none flex flex-col gap-2 opacity-30">
+<div class="text-[10px] font-bold text-primary uppercase tracking-[0.3em]">System Status</div>
+<div class="flex items-center gap-2">
+<div class="size-1.5 rounded-full bg-primary"></div>
+<div class="text-[8px] font-mono text-slate-500 uppercase">Neural Matcher Active</div>
+</div>
+<div class="flex items-center gap-2">
+<div class="size-1.5 rounded-full bg-primary"></div>
+<div class="text-[8px] font-mono text-slate-500 uppercase">Latency: 24ms</div>
+</div>
+</div>
+<div data-practice-settings-mask class="fixed inset-0 bg-black/35 backdrop-blur-sm z-[90] hidden items-center justify-center">
+<div class="w-[min(92vw,420px)] bg-white rounded-2xl border border-primary/15 shadow-2xl p-5">
+<div class="flex items-center justify-between mb-4">
+<div class="text-sm font-bold text-slate-800">强化练习设置</div>
+<button data-practice-settings-close class="size-8 rounded-lg border border-slate-200 text-slate-500 hover:text-primary hover:border-primary/30 flex items-center justify-center">
+<span class="material-symbols-outlined text-base">close</span>
+</button>
+</div>
+<div class="space-y-4">
+<label class="block">
+<span class="text-xs text-slate-500">题量</span>
+<div class="mt-1 rounded-xl border border-slate-200 px-3 py-2.5">
+<div class="flex items-center justify-between">
+<span class="text-xs text-slate-600">题量</span>
+<span data-practice-setting-limit-text class="text-xs font-bold text-primary">12 题</span>
+</div>
+<input data-practice-setting-limit type="range" min="8" max="20" step="4" value="12" class="mt-2 w-full accent-primary" />
+</div>
+</label>
+<label class="block">
+<span class="text-xs text-slate-500">难度</span>
+<div class="mt-1 rounded-xl border border-slate-200 px-3 py-2.5">
+<div class="flex items-center justify-between">
+<span class="text-xs text-slate-600">难度</span>
+<span data-practice-setting-difficulty-text class="text-xs font-bold text-primary">中等</span>
+</div>
+<input data-practice-setting-difficulty type="range" min="0" max="3" step="1" value="2" class="mt-2 w-full accent-primary" />
+</div>
+</label>
+<label class="block rounded-xl border border-slate-200 px-3 py-2.5">
+<div class="flex items-center justify-between">
+<span class="text-xs text-slate-600">练习时间</span>
+<span data-practice-setting-time-text class="text-xs font-bold text-primary">20 分钟</span>
+</div>
+<input data-practice-setting-time type="range" min="10" max="120" step="5" value="20" class="mt-2 w-full accent-primary" />
+</label>
+<div class="block">
+<span class="text-xs text-slate-500">学科（可多选）</span>
+<div data-practice-setting-subjects class="mt-1 rounded-xl border border-slate-200 p-2 min-h-[56px] flex flex-wrap gap-2 text-xs text-slate-600"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+</body></html>
