@@ -7,12 +7,25 @@ const PlanningPage: React.FC = () => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const src = `/wel/Planning/教育规划首页.html?v=${CACHE_BUST}`;
 
-  // Auto-resize iframe to fit content
+  // Force body background to match our container
+  useEffect(() => {
+    const prevBg = document.body.style.backgroundColor;
+    document.body.style.backgroundColor = "#f3f2f8";
+    return () => {
+      document.body.style.backgroundColor = prevBg;
+    };
+  }, []);
+
+  // Listen for auth requests from iframe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      if (event.data && typeof event.data === "object" && event.data.type === "resize" && event.data.height) {
-        if (iframeRef.current) {
-          iframeRef.current.style.height = `${event.data.height}px`;
+      if (event.data && typeof event.data === "object" && event.data.type === "get-xianfeng-token") {
+        const token = localStorage.getItem("token") || "";
+        if (iframeRef.current?.contentWindow) {
+          iframeRef.current.contentWindow.postMessage(
+            { type: "wel-auth", token, source: "xianfeng" },
+            "*"
+          );
         }
       }
     };
@@ -25,27 +38,21 @@ const PlanningPage: React.FC = () => {
       const iframe = iframeRef.current;
       if (!iframe || !iframe.contentWindow) return;
 
-      // Get xianfeng auth token
-      const xianfengToken = localStorage.getItem("token") || "";
+      // Ensure iframe fills wrapper completely - no dynamic JS height needed
+      // The CSS flex layout already handles this
 
-      // Pass token to wel iframe via postMessage
-      if (xianfengToken) {
+      // Pass xianfeng auth token to wel iframe
+      const token = localStorage.getItem("token") || "";
+      if (token) {
         iframe.contentWindow.postMessage(
-          {
-            type: "wel-auth",
-            token: xianfengToken,
-            source: "xianfeng",
-          },
+          { type: "wel-auth", token, source: "xianfeng" },
           "*"
         );
       }
 
-
-
-      // Try to get iframe content height
+      // Inject token bridge into iframe
       const doc = iframe.contentDocument || (iframe as any).contentWindow?.document;
       if (doc) {
-        // Inject token bridge script before page scripts run
         try {
           const script = doc.createElement("script");
           script.textContent = `
@@ -56,7 +63,6 @@ const PlanningPage: React.FC = () => {
                   try {
                     localStorage.setItem('wel_tok', event.data.token);
                     console.log('[wel-bridge] token synced from xianfeng');
-                    // Reload education plan data if on form page
                     if (typeof loadEducationPlanData === 'function') {
                       loadEducationPlanData();
                     }
@@ -64,8 +70,6 @@ const PlanningPage: React.FC = () => {
                 }
               });
 
-              // Override getAuthToken to check xianfeng token as fallback
-              var _origGetAuthToken = typeof getAuthToken === 'function' ? getAuthToken : null;
               window.__welBridgeGetToken = function() {
                 try {
                   var t = localStorage.getItem('wel_tok');
@@ -78,31 +82,14 @@ const PlanningPage: React.FC = () => {
                 } catch(e) {}
                 return '';
               };
+
+              // Request token from parent on load
+              window.parent.postMessage({ type: 'get-xianfeng-token' }, '*');
             })();
           `;
           doc.head.appendChild(script);
-
-          // Also try resize observer
-          const roScript = doc.createElement("script");
-          roScript.textContent = `
-            (function() {
-              var ro = new ResizeObserver(function() {
-                var h = document.documentElement.scrollHeight || document.body.scrollHeight;
-                window.parent.postMessage({ type: "resize", height: Math.min(h + 80, 8000) }, "*");
-              });
-              ro.observe(document.body);
-              var h = document.documentElement.scrollHeight || document.body.scrollHeight;
-              window.parent.postMessage({ type: "resize", height: Math.min(h + 80, 8000) }, "*");
-            })();
-          `;
-          doc.head.appendChild(roScript);
         } catch (_e) {
           /* cross-origin */
-        }
-
-        const height = doc.documentElement.scrollHeight || doc.body.scrollHeight;
-        if (height > 600) {
-          iframe.style.height = `${Math.min(height + 120, 8000)}px`;
         }
       }
     } catch (_e) {
@@ -111,9 +98,9 @@ const PlanningPage: React.FC = () => {
   };
 
   return (
-    <div className="relative min-h-screen overflow-auto bg-[#f3f2f8] text-[#1f1d1a]">
+    <div className="fixed inset-0 flex flex-col bg-[#f3f2f8] text-[#1f1d1a]">
       {/* PlanningPage: gentle hex grid + soft drifting orbs */}
-      <style>{`
+      <style key="plan-bg">{`
         @keyframes planOrb1 {
           0%,100% { transform: translate3d(0,0,0) scale(1); opacity: .5; }
           50% { transform: translate3d(1.5%,-2%,0) scale(1.1); opacity: .75; }
@@ -142,15 +129,19 @@ const PlanningPage: React.FC = () => {
         showMaterialsEntry
       />
 
-      <div className="relative z-10 w-full" style={{ paddingTop: 18 }}>
+      <div className="relative z-10 flex-1" style={{ overflow: "hidden", background: "transparent" }}>
         <iframe
           ref={iframeRef}
           src={src}
           title="教育规划"
-          className="w-full border-0"
-          loading="lazy"
+          className="w-full h-full border-0"
           onLoad={handleIframeLoad}
-          style={{ minHeight: "100vh", height: "800px", background: "transparent" }}
+          style={{
+            width: "100%",
+            height: "100%",
+            background: "transparent",
+            display: "block",
+          }}
         />
       </div>
     </div>

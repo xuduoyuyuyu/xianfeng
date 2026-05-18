@@ -50,9 +50,12 @@ export type Store = {
 
 // Keep storage path stable regardless of process cwd.
 // Both tsx (src/*) and compiled dist/* resolve to backend/data/multi_agents.
-const STORE_DIR = path.resolve(__dirname, "..", "..", "data", "multi_agents");
+// 使用已挂载的 uploads 目录确保持久化（容器重建不会丢失）
+const STORE_DIR = path.resolve(__dirname, "..", "..", "uploads", "_agents_store");
 const STORE_FILE = path.join(STORE_DIR, "store.json");
-const LEGACY_STORE_FILE = path.join(process.cwd(), "data", "multi_agents", "store.json");
+// 迁移兼容：旧路径 data/multi_agents
+const LEGACY_STORE_FILE_1 = path.join(process.cwd(), "data", "multi_agents", "store.json");
+const LEGACY_STORE_FILE_2 = path.resolve(__dirname, "..", "..", "data", "multi_agents", "store.json");
 
 const DEFAULT_MODEL_REGISTRY: ModelRegistryItem[] = [
   {
@@ -126,12 +129,15 @@ function migrateStore(parsed: any): Store {
 export function ensureStore(seedFactory: () => Omit<Store, "model_registry">): Store {
   fs.mkdirSync(STORE_DIR, { recursive: true });
   if (!fs.existsSync(STORE_FILE)) {
-    // One-time compatibility: migrate data from old cwd-based path if it exists.
-    if (fs.existsSync(LEGACY_STORE_FILE)) {
-      const parsed = JSON.parse(fs.readFileSync(LEGACY_STORE_FILE, "utf-8"));
-      const migrated = migrateStore(parsed);
-      fs.writeFileSync(STORE_FILE, JSON.stringify(migrated, null, 2), "utf-8");
-      return migrated;
+    // One-time compatibility: migrate from old paths
+    const legacySources = [LEGACY_STORE_FILE_1, LEGACY_STORE_FILE_2];
+    for (const legacyPath of legacySources) {
+      if (fs.existsSync(legacyPath)) {
+        const parsed = JSON.parse(fs.readFileSync(legacyPath, "utf-8"));
+        const migrated = migrateStore(parsed);
+        fs.writeFileSync(STORE_FILE, JSON.stringify(migrated, null, 2), "utf-8");
+        return migrated;
+      }
     }
     const seed = seedFactory();
     const full: Store = {

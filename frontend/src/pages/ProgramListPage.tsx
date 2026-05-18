@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import Pagination from "../components/Pagination";
 
-const FALLBACK_COVER = "/assets/podcast-cover-1.svg";
+const FALLBACK_COVER = "https://xianfeng.xinzhi.info/uploads/images/1779100618558-tx61bua1.png";
 
 interface Program {
   _id: string;
@@ -20,6 +20,7 @@ interface Program {
   };
   publishedAt?: string;
   createdAt?: string;
+  status?: "draft" | "published" | "group-only";
 }
 
 function fmtDate(value?: string) {
@@ -27,10 +28,6 @@ function fmtDate(value?: string) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "未发布";
   return d.toLocaleDateString("zh-CN");
-}
-
-function hasNonEmptyText(value?: string) {
-  return String(value || "").trim().length > 0;
 }
 
 const PROGRAM_LIST_HERO_DISMISSED_KEY = "program_list_hero_dismissed_v1";
@@ -208,11 +205,7 @@ const ProgramListPage: React.FC = () => {
             <>
               {visiblePrograms.map((program, idx) => {
                 const routeId = program.programCode || program._id;
-                const hasTranscript = !!(program as any).hasTranscript;
-                const hasDictionary = (Array.isArray(program.dictionaryEntries) ? program.dictionaryEntries : []).some((entry) =>
-                  hasNonEmptyText(entry?.term),
-                );
-                const hasReading = !!(program as any).hasDeepDive;
+
                 const tags = Array.isArray(program.summary?.tags)
                   ? program.summary.tags.map((tag) => String(tag || "").trim()).filter(Boolean).slice(0, 4)
                   : [];
@@ -237,9 +230,12 @@ const ProgramListPage: React.FC = () => {
 
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-[#5e17eb]">
-                            EP {(program.programCode || `ep${idx + 1}`).toUpperCase()}
-                          </span>
+                          {program.status === "group-only" && (
+                            <span className="rounded-full bg-orange-100 px-2.5 py-0.5 text-[10px] font-bold text-orange-600">群友特供</span>
+                          )}
+                          {program.status === "published" && (
+                            <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-600">公开发布</span>
+                          )}
                           <span className="text-xs font-medium text-[#8b8177]">{fmtDate(program.publishedAt || program.createdAt)}</span>
                         </div>
 
@@ -264,17 +260,7 @@ const ProgramListPage: React.FC = () => {
                           </div>
                         ) : null}
 
-                        <div className="mt-5 flex flex-wrap gap-2">
-                          {hasTranscript ? (
-                            <span className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[11px] font-bold text-[#5e17eb]">逐字稿</span>
-                          ) : null}
-                          {hasDictionary ? (
-                            <span className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[11px] font-bold text-[#5e17eb]">教育词典</span>
-                          ) : null}
-                          {hasReading ? (
-                            <span className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[11px] font-bold text-[#5e17eb]">书单延展</span>
-                          ) : null}
-                        </div>
+
                       </div>
                     </div>
                   </a>

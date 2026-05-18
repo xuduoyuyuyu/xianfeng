@@ -22,12 +22,15 @@ export interface ITopic extends mongoose.Document {
   subtitle: string;
   description: string;
   coverEmoji: string;
+  shortSummary: string;
   tags: string[];
   viewCount: number;
   questionCount: number;
   status: "pending" | "published" | "hidden";
   source: "system" | "ai" | "user"; // 话题来源
   createdBy?: string; // 创建者标识（user 来源时）
+  userOriginalInput?: string; // 用户提交的原始输入内容，仅管理员可见
+  suitableGrades: string[]; // 适配年级，如 ["小学1-3年级", "小学4-6年级"]
   layers: ITopicLayers;
   generatingProgress?: {
     total: number;
@@ -74,6 +77,7 @@ const topicSchema = new mongoose.Schema<ITopic>(
     subtitle: { type: String, default: "" },
     description: { type: String, default: "" },
     coverEmoji: { type: String, default: "📚" },
+    shortSummary: { type: String, default: "" },
     tags: { type: [String], default: [] },
     viewCount: { type: Number, default: 0 },
     questionCount: { type: Number, default: 0 },
@@ -88,6 +92,8 @@ const topicSchema = new mongoose.Schema<ITopic>(
       enum: ["system", "ai", "user"],
     },
     createdBy: { type: String, default: "" },
+    userOriginalInput: { type: String, default: "" },
+    suitableGrades: { type: [String], default: [] },
     layers: {
       type: topicLayersSchema,
       default: () => ({

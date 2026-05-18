@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { adminApi, AdminEducationDictionaryEntry, AgentTask, Guest, Program, ProgramGuestBinding } from "../../services/api";
+import { adminApi, AdminEducationDictionaryEntry, AgentTask, Guest, Program } from "../../services/api";
 import TopAlert from "../../components/TopAlert";
 
-type StatusFilter = "all" | "published" | "draft";
+type StatusFilter = "all" | "published" | "draft" | "group-only";
 type ParseEditorTab = "quickview" | "transcript";
 type FormState = {
   programCode: string;
@@ -26,7 +26,7 @@ type FormState = {
   showNotesTemplateOverride: string;
   deepDiveTitle: string;
   curatedReadingRaw: string;
-  status: "draft" | "published";
+  status: "draft" | "published" | "group-only";
 };
 
 type TranscriptEditorRow = {
@@ -37,7 +37,7 @@ type TranscriptEditorRow = {
   featured: boolean;
 };
 
-type UploadPhase = "idle" | "uploading" | "parsing" | "success" | "failed";
+type UploadPhase = "idle" | "uploading" | "success" | "failed";
 
 type UploadTask = {
   id: string;
@@ -46,7 +46,6 @@ type UploadTask = {
   progress: number;
   programId?: string;
   failureReason?: string;
-  parseStage?: string;
 };
 
 type TranscriptValidationIssue = {
@@ -99,35 +98,21 @@ const EMPTY_FORM: FormState = {
 const STATUS_LABEL: Record<Program["status"], string> = {
   draft: "草稿箱",
   published: "已发布",
+  "group-only": "群友特供",
 };
 
-const PARSE_STATUS_LABEL: Record<NonNullable<Program["parseStatus"]>, string> = {
-  idle: "待解析",
-  parsing: "解析中",
-  success: "解析完成",
-  failed: "解析失败",
+const STATUS_COLOR: Record<Program["status"], string> = {
+  draft: "bg-amber-50 text-amber-700",
+  published: "bg-emerald-50 text-emerald-700",
+  "group-only": "bg-orange-50 text-orange-700",
 };
 
 const UPLOAD_PROGRESS_START = 6;
 const UPLOAD_PROGRESS_END = 92;
-const PARSING_PROGRESS = 12;
 const UPLOAD_TASK_STORAGE_KEY = "admin-program-upload-task";
 const SPEAKER_SUGGESTIONS = ["主持人", "嘉宾1", "嘉宾2", "嘉宾"];
 const PROGRAMS_PAGE_SIZE = 20;
 const EDIT_MODAL_BUTTON_BASE = "rounded-full px-4 py-1.5 text-xs font-bold transition-colors disabled:opacity-60";
-function getParseStageLabel(stage = ""): string {
-  const stageMap: Record<string, string> = {
-    queued: "排队中",
-    transcribing: "语音转写中",
-    transcribed: "转写完成，整理文本中",
-    extracting: "提取结构信息中",
-    extracted: "结构提取完成",
-    saving: "写入草稿中",
-    completed: "解析完成",
-    failed: "解析失败",
-  };
-  return stageMap[stage.trim()] || "解析中";
-}
 
 function formatDate(date?: string): string {
   if (!date) return "-";
@@ -136,13 +121,9 @@ function formatDate(date?: string): string {
   return parsed.toLocaleDateString("zh-CN");
 }
 
-function buildUploadStageHint(phase: UploadPhase, progress: number, stage = ""): string {
+function buildUploadStageHint(phase: UploadPhase, progress: number): string {
   if (phase === "uploading") return `正在上传音频文件（整体 ${progress}%）...`;
-  if (phase === "parsing") {
-    const stageLabel = getParseStageLabel(stage);
-    return `上传完成，${stageLabel}（解析进度 ${progress}%）...`;
-  }
-  if (phase === "success") return "解析完成，草稿内容已自动生成。";
+  if (phase === "success") return "上传完成，草稿已自动创建。";
   if (phase === "failed") return "上传失败，请重新选择文件后重试。";
   return "";
 }
@@ -154,8 +135,7 @@ function mapUploadTransferProgress(percent: number): number {
 
 function buildUploadTaskTitle(phase: Exclude<UploadPhase, "idle">, progress: number): string {
   if (phase === "uploading") return `上传中 ${progress}%`;
-  if (phase === "parsing") return `解析中 ${progress}%`;
-  if (phase === "success") return "解析完成";
+  if (phase === "success") return "创建完成";
   return "处理失败";
 }
 
@@ -205,7 +185,6 @@ function readStoredUploadTask(): UploadTask | null {
       progress: typeof parsed.progress === "number" ? parsed.progress : 0,
       programId: typeof parsed.programId === "string" ? parsed.programId : undefined,
       failureReason: typeof parsed.failureReason === "string" ? parsed.failureReason : "",
-      parseStage: typeof parsed.parseStage === "string" ? parsed.parseStage : "",
     };
     if (restoredTask.phase === "uploading") {
       return {
@@ -593,8 +572,8 @@ const AdminProgramsPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [stickyParseErrors, setStickyParseErrors] = useState<Record<string, string>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isTranscriptModalOpen, setIsTranscriptModalOpen] = useState(false);
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [isUploadingAudio, setIsUploadingAudio] = useState(false);
@@ -626,8 +605,6 @@ const AdminProgramsPage: React.FC = () => {
   const [parseEditorTab, setParseEditorTab] = useState<ParseEditorTab>("quickview");
   const audioInputRef = useRef<HTMLInputElement | null>(null);
   const coverImageInputRef = useRef<HTMLInputElement | null>(null);
-  const parsePollTimerRef = useRef<number | null>(null);
-
   useEffect(() => {
     let active = true;
 
@@ -671,69 +648,6 @@ const AdminProgramsPage: React.FC = () => {
   useEffect(() => {
     persistUploadTask(currentUploadTask);
   }, [currentUploadTask]);
-
-  useEffect(() => {
-    if (!currentUploadTask?.programId) return;
-    const row = items.find((item) => item._id === currentUploadTask.programId);
-    if (!row?.parseStatus) return;
-    if (row.parseStatus === "success") {
-      setCurrentUploadTask((prev) =>
-        prev?.programId === row._id ? { ...prev, phase: "success", progress: 100, failureReason: "", parseStage: "completed" } : prev
-      );
-      return;
-    }
-    if (row.parseStatus === "failed") {
-      setCurrentUploadTask((prev) =>
-        prev?.programId === row._id
-          ? {
-              ...prev,
-              phase: "failed",
-              progress: Number(row.parseProgress) || PARSING_PROGRESS,
-              failureReason: row.parseError || "解析失败，请检查配置后重试。",
-              parseStage: row.parseStage || "failed",
-            }
-          : prev
-      );
-      return;
-    }
-    if (row.parseStatus === "parsing") {
-      const rawProgress = Number(row.parseProgress);
-      setCurrentUploadTask((prev) =>
-        prev?.programId === row._id
-          ? {
-              ...prev,
-              phase: "parsing",
-              progress: Number.isFinite(rawProgress) ? Math.max(0, Math.min(99, Math.floor(rawProgress))) : prev.progress,
-              failureReason: "",
-              parseStage: row.parseStage || prev.parseStage,
-            }
-          : prev
-      );
-    }
-  }, [items, currentUploadTask?.programId]);
-
-  useEffect(() => {
-    setStickyParseErrors((prev) => {
-      let changed = false;
-      const next = { ...prev };
-      for (const row of items) {
-        if (!row?._id) continue;
-        if (row.parseStatus === "failed") {
-          const message = (row.parseError || "").trim() || "解析失败，请检查配置后重试。";
-          if (next[row._id] !== message) {
-            next[row._id] = message;
-            changed = true;
-          }
-          continue;
-        }
-        if (row.parseStatus === "success" && next[row._id]) {
-          delete next[row._id];
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-  }, [items]);
 
   useEffect(() => {
     if (!isModalOpen || !editingProgram?._id) return;
@@ -942,6 +856,7 @@ const AdminProgramsPage: React.FC = () => {
       curatedReadingRaw: formatCuratedReadingForForm(program.deepDive?.curatedReading),
       status: program.status,
     });
+    const activeGuestIds = new Set((guestCandidates || []).map((g: Guest) => g._id));
     const fromBindings = (program.guestBindings || [])
       .map((item) => ({
         guestId: item.guestId,
@@ -949,6 +864,7 @@ const AdminProgramsPage: React.FC = () => {
         role: item.role || "main_guest",
         guest: item.guest || null,
       }))
+      .filter((item) => activeGuestIds.has(item.guestId))
       .sort((a, b) => a.order - b.order);
     if (fromBindings.length > 0) {
       setGuestBindingRows(fromBindings);
@@ -959,6 +875,41 @@ const AdminProgramsPage: React.FC = () => {
     }
   };
 
+  const loadContentEnhancementProgram = (program: Program) => {
+    setEditingProgram(program);
+    setForm({
+      programCode: program.programCode || "",
+      title: program.title,
+      description: program.description,
+      coverImage: program.coverImage,
+      episodeTitle: program.episodes[0]?.title || "",
+      episodeDuration: program.episodes[0]?.duration || "",
+      episodeUrl: program.episodes[0]?.url || "",
+      summaryHeadline: program.summary?.headline || "",
+      summaryBody: program.summary?.body || "",
+      summaryHighlightLabel: program.summary?.highlightLabel || "",
+      summaryHighlightText: program.summary?.highlightText || "",
+      summaryTags: (program.summary?.tags || []).join(", "),
+      transcriptRaw: formatTranscriptForForm(program.transcript),
+      quickViewRaw: formatQuickViewForForm(program.contentPack?.quickView),
+      minutesText: program.contentPack?.minutes?.text || "",
+      showNotesGuide: program.contentPack?.showNotes?.guide || "",
+      showNotesGuestIntro: program.contentPack?.showNotes?.guestIntro || "",
+      showNotesKeyMomentsRaw: formatShowNotesKeyMomentsForForm(program.contentPack?.showNotes?.keyMoments),
+      showNotesTemplateOverride: program.contentPack?.showNotes?.templateOverride || "",
+      deepDiveTitle: program.deepDive?.sectionTitle || "",
+      curatedReadingRaw: formatCuratedReadingForForm(program.deepDive?.curatedReading),
+      status: program.status,
+    });
+  };
+
+  const closeTranscriptEditor = () => {
+    setIsTranscriptModalOpen(false);
+    setEditingProgram(null);
+    setForm(EMPTY_FORM);
+    setParseEditorTab("quickview");
+  };
+
   const openEdit = (program: Program) => {
     loadProgramIntoForm(program);
     loadGuestCandidates("");
@@ -967,23 +918,10 @@ const AdminProgramsPage: React.FC = () => {
     setParseEditorTab("quickview");
   };
 
-  const openCreate = () => {
-    setEditingProgram(null);
-    setForm(EMPTY_FORM);
-    setGuestBindingRows([]);
-    setGuestSearch("");
-    setDictionaryCandidates([]);
-    setDictionarySearch("");
-    setSelectedDictionaryEntryIds([]);
-    setProgramAgentTasks([]);
-    loadGuestCandidates("");
-    setIsModalOpen(true);
-    setParseEditorTab("quickview");
-  };
-
   const openContentEnhancement = (program: Program) => {
-    loadProgramIntoForm(program);
+    loadContentEnhancementProgram(program);
     setParseEditorTab("quickview");
+    setIsTranscriptModalOpen(true);
   };
 
   const copyPreviewLink = async (program: Program) => {
@@ -1052,28 +990,6 @@ const AdminProgramsPage: React.FC = () => {
   const closeUploadDialog = () => {
     setIsUploadDialogOpen(false);
   };
-
-  useEffect(() => {
-    return () => {
-      if (parsePollTimerRef.current !== null) {
-        window.clearInterval(parsePollTimerRef.current);
-        parsePollTimerRef.current = null;
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!currentUploadTask || isUploadingAudio) return;
-    if (currentUploadTask.phase === "failed" && currentUploadTask.failureReason) {
-      setUploadFailureReason(currentUploadTask.failureReason);
-      setParseHint(currentUploadTask.failureReason);
-      return;
-    }
-    if (currentUploadTask.phase === "parsing" && currentUploadTask.programId) {
-      setParseHint("已恢复后台解析任务，正在同步最新状态...");
-      startParsePolling(currentUploadTask.programId);
-    }
-  }, [currentUploadTask, isUploadingAudio]);
 
   useEffect(() => {
     if (!isModalOpen) return;
@@ -1246,82 +1162,6 @@ const AdminProgramsPage: React.FC = () => {
     });
   };
 
-  const startParsePolling = (programId: string) => {
-    if (parsePollTimerRef.current !== null) {
-      window.clearInterval(parsePollTimerRef.current);
-      parsePollTimerRef.current = null;
-    }
-    parsePollTimerRef.current = window.setInterval(async () => {
-      try {
-        const response = await adminApi.getProgramParseStatus(programId);
-        const status = response.data?.parseStatus;
-        const stage = (response.data?.parseStage || "").trim();
-        const rawProgress = Number(response.data?.parseProgress);
-        const backendProgress = Number.isFinite(rawProgress) ? Math.max(0, Math.min(100, Math.floor(rawProgress))) : PARSING_PROGRESS;
-        if (status === "parsing") {
-          setUploadPhase("parsing");
-          setUploadProgress(backendProgress);
-          setParseHint(buildUploadStageHint("parsing", backendProgress, stage));
-          setCurrentUploadTask((prev) =>
-            prev?.programId === programId
-              ? {
-                  ...prev,
-                  phase: "parsing",
-                  progress: backendProgress,
-                  parseStage: stage,
-                  failureReason: "",
-                }
-              : prev
-          );
-          return;
-        }
-        if (parsePollTimerRef.current !== null) {
-          window.clearInterval(parsePollTimerRef.current);
-          parsePollTimerRef.current = null;
-        }
-        if (status === "success") {
-          setParseHint("解析完成，草稿内容已自动生成。");
-          setCurrentUploadTask((prev) =>
-            prev?.programId === programId ? { ...prev, phase: "success", progress: 100, failureReason: "" } : prev
-          );
-        } else if (status === "failed") {
-          setParseHint(`解析失败：${response.data?.parseError || "请稍后重试"}`);
-          setCurrentUploadTask((prev) =>
-            prev?.programId === programId
-              ? {
-                  ...prev,
-                  phase: "failed",
-                  progress: PARSING_PROGRESS,
-                  failureReason: response.data?.parseError || "请稍后重试",
-                }
-              : prev
-          );
-        } else {
-          setParseHint("");
-        }
-        await refreshList();
-      } catch (pollError: any) {
-        if (parsePollTimerRef.current !== null) {
-          window.clearInterval(parsePollTimerRef.current);
-          parsePollTimerRef.current = null;
-        }
-        const message = extractRequestErrorMessage(pollError, "轮询解析状态失败");
-        setUploadPhase("failed");
-        setUploadFailureReason(message);
-        setParseHint(message);
-        setCurrentUploadTask((prev) =>
-          prev?.programId === programId
-            ? {
-                ...prev,
-                phase: "failed",
-                failureReason: message,
-              }
-            : prev
-        );
-      }
-    }, 3000);
-  };
-
   const handleAudioUpload = async (file: File): Promise<boolean> => {
     const taskId = `${Date.now()}`;
     try {
@@ -1358,33 +1198,25 @@ const AdminProgramsPage: React.FC = () => {
           );
         },
       });
-      setUploadPhase("parsing");
-      setUploadProgress(PARSING_PROGRESS);
-      setParseHint(buildUploadStageHint("parsing", PARSING_PROGRESS));
+
       const createRes = await adminApi.createProgramFromAudio(uploadRes.data.url, file.name);
       const programId = createRes.data?.programId;
-      setCurrentUploadTask((prev) =>
-        prev?.id === taskId
-          ? {
-              ...prev,
-              phase: "parsing",
-              progress: PARSING_PROGRESS,
-              programId,
-              parseStage: createRes.data?.parseStage || "queued",
-            }
-          : prev
-      );
-      if (programId) {
-        setParseHint("解析任务已启动，正在处理...");
-        await refreshList();
-        startParsePolling(programId);
-        setIsUploadDialogOpen(false);
-      } else {
-        setParseHint("任务已提交，请刷新列表查看状态。");
-      }
+      setCurrentUploadTask({
+        id: taskId,
+        fileName: file.name,
+        phase: "success",
+        progress: 100,
+        programId,
+        failureReason: "",
+      });
+      setUploadPhase("success");
+      setUploadProgress(100);
+      setParseHint("上传完成，草稿已自动创建。");
+      await refreshList();
+      setIsUploadDialogOpen(false);
       return true;
     } catch (uploadError: any) {
-      const message = extractRequestErrorMessage(uploadError, "上传并解析失败");
+      const message = extractRequestErrorMessage(uploadError, "上传并创建草稿失败");
       setUploadPhase("failed");
       setUploadFailureReason(message);
       setError(message);
@@ -1415,11 +1247,6 @@ const AdminProgramsPage: React.FC = () => {
     await handleAudioUpload(file);
   };
 
-  const handleStartParseFromDialog = async () => {
-    if (isUploadingAudio) return;
-    audioInputRef.current?.click();
-  };
-
   const handleRetryUpload = async () => {
     if (!pendingAudioFile || isUploadingAudio) return;
     await handleAudioUpload(pendingAudioFile);
@@ -1429,28 +1256,6 @@ const AdminProgramsPage: React.FC = () => {
     if (isUploadingAudio) return;
     setIsUploadDialogOpen(true);
     audioInputRef.current?.click();
-  };
-
-  const handleReparse = async (program: Program) => {
-    if (program.parseStatus === "parsing") return;
-    try {
-      setError(null);
-      const response = await adminApi.triggerProgramParse(program._id);
-      const progress = Number(response.data?.parseProgress);
-      setCurrentUploadTask({
-        id: `${Date.now()}`,
-        fileName: program.episodes?.[0]?.title || program.title,
-        phase: "parsing",
-        progress: Number.isFinite(progress) ? progress : PARSING_PROGRESS,
-        programId: program._id,
-        parseStage: response.data?.parseStage || "queued",
-      });
-      setParseHint("已触发重新解析，正在处理...");
-      await refreshList();
-      startParsePolling(program._id);
-    } catch (parseError: any) {
-      setError(parseError?.response?.data?.message || parseError?.message || "触发重新解析失败");
-    }
   };
 
   const handleImageUpload = async (file: File, target: "coverImage") => {
@@ -1523,7 +1328,7 @@ const AdminProgramsPage: React.FC = () => {
   };
 
   const handleToggleStatus = async (program: Program) => {
-    const nextStatus = program.status === "published" ? "draft" : "published";
+    const nextStatus = (program.status === "published" || program.status === "group-only") ? "draft" : "published";
     try {
       await adminApi.updateProgramStatus(program._id, nextStatus);
       await refreshList();
@@ -1753,13 +1558,13 @@ const AdminProgramsPage: React.FC = () => {
               </button>
             </div>
             <div className="flex rounded-2xl bg-stone-100 p-1">
-              {(["all", "published", "draft"] as StatusFilter[]).map((filter) => (
+              {(["all", "published", "group-only", "draft"] as StatusFilter[]).map((filter) => (
                 <button
                   key={filter}
                   className={`rounded-xl px-5 py-1.5 text-[11px] font-semibold whitespace-nowrap ${statusFilter === filter ? "bg-white text-stone-800 shadow-[0_1px_2px_rgba(0,0,0,0.04)]" : "text-[#7A746E]"}`}
                   onClick={() => handleStatusFilterChange(filter)}
                 >
-                  {filter === "all" ? "全部内容" : filter === "published" ? "已发布" : "草稿箱"}
+                  {filter === "all" ? "全部内容" : filter === "published" ? "已发布" : filter === "group-only" ? "群友特供" : "草稿箱"}
                 </button>
               ))}
             </div>
@@ -1784,20 +1589,19 @@ const AdminProgramsPage: React.FC = () => {
                   <th className="px-10 py-5 text-center">关联标签</th>
                   <th className="px-10 py-5 text-center">当前状态</th>
                   <th className="px-10 py-5 text-center">上传日期</th>
-                  <th className="min-w-[180px] px-10 py-5 text-center">解析</th>
                   <th className="min-w-[460px] px-10 py-5 text-center">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[rgba(148,163,184,0.16)]">
                 {loading ? (
                   <tr>
-                    <td className="px-10 py-10 text-sm text-stone-500" colSpan={6}>
+                    <td className="px-10 py-10 text-sm text-stone-500" colSpan={5}>
                       正在加载节目数据...
                     </td>
                   </tr>
                 ) : items.length === 0 && !shouldShowStandaloneUploadTask ? (
                   <tr>
-                    <td className="px-10 py-10 text-sm text-stone-500" colSpan={6}>
+                    <td className="px-10 py-10 text-sm text-stone-500" colSpan={5}>
                       暂无匹配内容
                     </td>
                   </tr>
@@ -1805,7 +1609,7 @@ const AdminProgramsPage: React.FC = () => {
                   <>
                     {shouldShowStandaloneUploadTask && currentUploadTask ? (
                       <tr className="bg-[#faf7ff]" key={`upload-task-${currentUploadTask.id}`}>
-                        <td className="px-10 py-6" colSpan={6}>
+                        <td className="px-10 py-6" colSpan={5}>
                           <div className="rounded-[1.75rem] border border-[#5e17eb]/15 bg-white px-6 py-5">
                             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                               <div className="min-w-0">
@@ -1826,7 +1630,7 @@ const AdminProgramsPage: React.FC = () => {
                                 </div>
                                 <div className="mt-2 truncate text-sm font-bold text-stone-900">{currentUploadTask.fileName}</div>
                                 <div className="mt-1 text-xs text-stone-500">
-                                  {currentUploadTask.failureReason || buildUploadStageHint(currentUploadTask.phase, currentUploadTask.progress, currentUploadTask.parseStage)}
+                                  {currentUploadTask.failureReason || buildUploadStageHint(currentUploadTask.phase, currentUploadTask.progress)}
                                 </div>
                               </div>
                               <div className="w-full max-w-[320px]">
@@ -1844,11 +1648,6 @@ const AdminProgramsPage: React.FC = () => {
                       </tr>
                     ) : null}
                     {items.map((row) => {
-                      const rowUploadTask = currentUploadTask?.programId === row._id ? currentUploadTask : null;
-                      const stickyParseError = stickyParseErrors[row._id] || "";
-                      const hasTranscript = Array.isArray((row as any).transcript) && (row as any).transcript.length > 0;
-                      const isParseSuccess = row.parseStatus === "success" || hasTranscript;
-                      const isInlineEditingRow = !!editingProgram && !isModalOpen && editingProgram._id === row._id;
                       return (
                         <React.Fragment key={row._id}>
                           <tr>
@@ -1866,51 +1665,15 @@ const AdminProgramsPage: React.FC = () => {
                                     </div>
                                   </div>
                                   <div className="text-[15px] font-bold leading-[1.25] text-stone-900">{row.title}</div>
-                                  {rowUploadTask && rowUploadTask.phase !== "success" ? (
-                                    <div className="mt-2 max-w-[300px]">
-                                      <div className="flex items-center gap-2">
-                                        <div className={`text-[11px] font-bold ${rowUploadTask.phase === "failed" ? "text-red-500" : "text-[#5e17eb]"}`}>
-                                          {rowUploadTask.phase === "parsing" ? getParseStageLabel(rowUploadTask.parseStage) : buildUploadTaskTitle(rowUploadTask.phase, rowUploadTask.progress)}
-                                        </div>
-                                      </div>
-                                      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-stone-100">
-                                        <div
-                                          className={`h-full rounded-full transition-all ${rowUploadTask.phase === "failed" ? "bg-red-400" : "bg-[#5e17eb]"}`}
-                                          style={{ width: `${rowUploadTask.progress}%` }}
-                                        />
-                                      </div>
-                                      <div className="mt-1.5 line-clamp-2 text-[11px] leading-4 text-stone-500">
-                                        {rowUploadTask.failureReason || buildUploadStageHint(rowUploadTask.phase, rowUploadTask.progress, rowUploadTask.parseStage)}
-                                      </div>
-                                      {rowUploadTask.phase === "failed" ? (
-                                        <div className="mt-2">
-                                          <button
-                                            className="inline-flex items-center rounded-full bg-[#f7f3ff] px-[13px] py-[3px] !text-[13px] !font-bold leading-none whitespace-nowrap text-[#5e17eb] transition-colors hover:bg-[#efe5ff]"
-                                            onClick={() => handleReparse(row)}
-                                            type="button"
-                                          >
-                                            重新解析
-                                          </button>
-                                        </div>
-                                      ) : null}
-                                    </div>
-                                  ) : null}
-                                  {stickyParseError && row.parseStatus !== "success" ? (
-                                    <div className="mt-2 max-w-[300px] rounded-lg border border-red-100 bg-red-50 px-2.5 py-1.5 text-[11px] leading-4 text-red-600">
-                                      失败原因：{stickyParseError}
-                                    </div>
-                                  ) : null}
                                 </div>
                               </div>
                             </td>
                             <td className="px-10 py-6 text-center">
                               <div className="flex items-center justify-center gap-0">
                                 <span
-                                  className={`inline-flex h-7 min-w-9 items-center justify-center rounded-full px-2 text-[10px] font-bold ${
-                                    row.status === "published" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
-                                  }`}
+                                  className={`inline-flex h-7 min-w-9 items-center justify-center rounded-full px-3 text-[10px] font-bold ${STATUS_COLOR[row.status] || STATUS_COLOR.draft}`}
                                 >
-                                  {row.status === "published" ? "ON" : "OFF"}
+                                  {STATUS_LABEL[row.status] || row.status}
                                 </span>
                                 <div className="-ml-px text-xs text-stone-500 whitespace-nowrap">
                                   {(row.dictionaryEntries || []).length > 0 ? (
@@ -1924,31 +1687,11 @@ const AdminProgramsPage: React.FC = () => {
                               </div>
                             </td>
                             <td className="px-10 py-6 text-center">
-                              <span className={`inline-flex items-center justify-center whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-semibold ${row.status === "published" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                              <span className={`inline-flex items-center justify-center whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-semibold ${STATUS_COLOR[row.status] || STATUS_COLOR.draft}`}>
                                 {STATUS_LABEL[row.status]}
                               </span>
                             </td>
                             <td className="px-10 py-6 text-center text-[14px] font-semibold text-stone-500">{formatDate(row.publishedAt || row.createdAt)}</td>
-                            <td className="px-10 py-6 text-center">
-                              {row.parseStatus && row.parseStatus !== "idle" ? (
-                                isParseSuccess ? (
-                                  <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-[13px] py-[3px] !text-[13px] !font-bold leading-none whitespace-nowrap text-emerald-700">
-                                    解析成功
-                                  </span>
-                                ) : (
-                                  <button
-                                    className="inline-flex items-center rounded-full bg-[#f7f3ff] px-[13px] py-[3px] !text-[13px] !font-bold leading-none whitespace-nowrap text-[#5e17eb] transition-colors hover:bg-[#efe5ff] disabled:cursor-not-allowed disabled:opacity-60"
-                                    onClick={() => handleReparse(row)}
-                                    disabled={row.parseStatus === "parsing"}
-                                    type="button"
-                                  >
-                                    {row.parseStatus === "parsing" ? "解析中" : "重新解析"}
-                                  </button>
-                                )
-                              ) : (
-                                <span className="text-[11px] font-semibold text-stone-300">-</span>
-                              )}
-                            </td>
                             <td className="min-w-[460px] px-10 py-6 text-center">
                               <div className="flex items-center justify-center gap-2 whitespace-nowrap">
                                 <div className="grid grid-cols-3 gap-2">
@@ -1978,12 +1721,14 @@ const AdminProgramsPage: React.FC = () => {
                                     className={`shrink-0 whitespace-nowrap rounded-full px-3 py-0.5 font-semibold transition-colors ${
                                       row.status === "published"
                                         ? "border border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
+                                        : row.status === "group-only"
+                                        ? "border border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
                                         : "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                                     }`}
                                     style={{ fontSize: "12px" }}
                                     onClick={() => handleToggleStatus(row)}
                                   >
-                                    {row.status === "published" ? "下架" : "发布"}
+                                    {row.status === "published" || row.status === "group-only" ? "下架" : "发布"}
                                   </button>
                                   <button
                                     className="shrink-0 whitespace-nowrap rounded-full border border-stone-200 bg-stone-100 px-3 py-0.5 font-semibold text-stone-500 transition-colors hover:border-[#ff1f1f] hover:bg-[#ff1f1f] hover:text-white"
@@ -1996,43 +1741,7 @@ const AdminProgramsPage: React.FC = () => {
                               </div>
                             </td>
                           </tr>
-                          {isInlineEditingRow ? (
-                            <tr>
-                              <td colSpan={6} className="bg-stone-50/40 px-10 py-8">
-                                <div className="space-y-5 rounded-[1.5rem] border border-stone-200/80 bg-white p-6">
-                                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                                    <div>
-                                      <p className="text-xs font-black uppercase tracking-[0.2em] text-[#5e17eb]">Manuscript</p>
-                                      <h3 className="mt-2 text-xl font-black text-stone-900">{editingProgram.title}</h3>
-                                      <p className="mt-1 text-xs font-bold text-stone-500">编号：{(editingProgram.programCode || editingProgram._id.slice(-8)).toUpperCase()}</p>
-                                    </div>
-                                    <div className="flex flex-wrap gap-3">
-                                      <button
-                                        className="rounded-full border border-stone-200 bg-white px-5 py-2.5 text-sm font-bold text-stone-700 hover:border-[#5e17eb] hover:text-[#5e17eb]"
-                                        onClick={() => {
-                                          setEditingProgram(null);
-                                          setForm(EMPTY_FORM);
-                                          setParseEditorTab("quickview");
-                                        }}
-                                        type="button"
-                                      >
-                                        收起文稿
-                                      </button>
-                                      <button
-                                        className="rounded-full bg-[#5e17eb] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#5112d1] disabled:cursor-not-allowed disabled:opacity-60"
-                                        disabled={saving}
-                                        onClick={handleSaveContentEnhancement}
-                                        type="button"
-                                      >
-                                        {saving ? "保存中..." : "保存文稿"}
-                                      </button>
-                                    </div>
-                                  </div>
-                                  {renderContentEnhancementFields()}
-                                </div>
-                              </td>
-                            </tr>
-                          ) : null}
+                          {/* 文稿编辑已改为弹窗，不再行内展开 */}
                         </React.Fragment>
                       );
                     })}
@@ -2393,9 +2102,10 @@ const AdminProgramsPage: React.FC = () => {
                 </div>
               </div>
 
-              <select className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm md:col-span-2 admin-form-select" value={form.status} onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value as "draft" | "published" }))}>
+              <select className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm md:col-span-2 admin-form-select" value={form.status} onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value as "draft" | "published" | "group-only" }))}>
                 <option value="draft">保存为草稿</option>
-                <option value="published">直接发布</option>
+                <option value="published">公开发布</option>
+                <option value="group-only">群友特供</option>
               </select>
 
               <div className="mt-2 flex justify-end gap-3 md:col-span-2">
@@ -2706,13 +2416,48 @@ const AdminProgramsPage: React.FC = () => {
         </div>
       ) : null}
 
+      {isTranscriptModalOpen && editingProgram ? (
+        <div className="fixed inset-0 z-[65] overflow-y-auto bg-black/30 p-4 backdrop-blur-sm md:p-6" onClick={closeTranscriptEditor}>
+          <div
+            className="mx-auto my-6 w-full max-w-4xl rounded-[2rem] bg-white p-6 shadow-2xl md:my-10 md:p-8"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-[#5e17eb]">Manuscript</p>
+                <h3 className="mt-2 text-xl font-black text-stone-900">{editingProgram.title}</h3>
+                <p className="mt-1 text-xs font-bold text-stone-500">编号：{(editingProgram.programCode || editingProgram._id.slice(-8)).toUpperCase()}</p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  className="rounded-full border border-stone-200 bg-white px-5 py-2.5 text-sm font-bold text-stone-700 hover:border-[#5e17eb] hover:text-[#5e17eb]"
+                  onClick={closeTranscriptEditor}
+                  type="button"
+                >
+                  关闭
+                </button>
+                <button
+                  className="rounded-full bg-[#5e17eb] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#5112d1] disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={saving}
+                  onClick={handleSaveContentEnhancement}
+                  type="button"
+                >
+                  {saving ? "保存中..." : "保存文稿"}
+                </button>
+              </div>
+            </div>
+            {renderContentEnhancementFields()}
+          </div>
+        </div>
+      ) : null}
+
       {isUploadDialogOpen ? (
         <div className="fixed inset-0 z-[75] flex items-center justify-center bg-[#0b1020]/55 p-4 backdrop-blur-md" onClick={closeUploadDialog}>
           <div className="w-full max-w-[760px] rounded-3xl bg-white p-6 shadow-2xl md:p-8" onClick={(event) => event.stopPropagation()}>
             <div className="mb-5 flex items-start justify-between">
               <div>
-                <h3 className="text-2xl font-black text-stone-900">上传并解析</h3>
-                <p className="mt-1 text-sm text-stone-500">选中文件后立即开始上传，关闭弹窗后也会继续在后台执行，并在列表里展示进度。</p>
+                <h3 className="text-2xl font-black text-stone-900">上传并创建草稿</h3>
+                <p className="mt-1 text-sm text-stone-500">选中文件后立即开始上传，上传完成后会自动创建节目草稿。</p>
               </div>
               <button className="material-symbols-outlined text-stone-400 hover:text-stone-700" onClick={closeUploadDialog} type="button">
                 close
@@ -2763,14 +2508,10 @@ const AdminProgramsPage: React.FC = () => {
               <button
                 className="rounded-full bg-[#c7bbff] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#5e17eb] disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={isUploadingAudio}
-                onClick={handleStartParseFromDialog}
+                onClick={() => audioInputRef.current?.click()}
                 type="button"
               >
-                {isUploadingAudio
-                  ? uploadPhase === "uploading"
-                    ? "上传中..."
-                    : "处理中..."
-                  : "开始上传"}
+                {isUploadingAudio ? "上传中..." : "开始上传"}
               </button>
             </div>
           </div>

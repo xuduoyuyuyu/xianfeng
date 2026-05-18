@@ -69,7 +69,7 @@ function toFeatureModels(raw: any): { asr?: string; extract?: string } {
 
 const AdminMultiAgentsPage: React.FC = () => {
   const base = (import.meta.env.VITE_API_URL || "").trim();
-  const auth = { Authorization: `Bearer ${localStorage.getItem("token") || ""}` };
+  const auth = { Authorization: `Bearer ${localStorage.getItem("admin_token") || localStorage.getItem("token") || ""}` };
 
   const [items, setItems] = useState<AgentRow[]>([]);
   const [modelRegistry, setModelRegistry] = useState<ModelRegistryItem[]>([]);

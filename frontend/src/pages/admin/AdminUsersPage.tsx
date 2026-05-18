@@ -4,7 +4,7 @@ import { adminApi, User } from "../../services/api";
 import TopAlert from "../../components/TopAlert";
 import { RootState } from "../../store";
 
-type EditableUser = Pick<User, "_id" | "username" | "role" | "city" | "region" | "childGrade" | "createdAt">;
+type EditableUser = Pick<User, "_id" | "username" | "role" | "city" | "region" | "childGrade" | "grade" | "createdAt">;
 type UserModalMode = "create" | "edit" | null;
 
 type UserFormState = {
@@ -13,6 +13,7 @@ type UserFormState = {
   city: string;
   region: string;
   childGrade: string;
+  grade: string;
   password: string;
 };
 
@@ -22,6 +23,7 @@ const EMPTY_USER_FORM: UserFormState = {
   city: "",
   region: "",
   childGrade: "",
+  grade: "",
   password: "",
 };
 
@@ -51,6 +53,7 @@ function toEditableUser(row: User): EditableUser {
     city: row.city,
     region: row.region,
     childGrade: row.childGrade,
+    grade: row.grade,
     createdAt: row.createdAt,
   };
 }
@@ -96,7 +99,7 @@ const AdminUsersPage: React.FC = () => {
   const filteredItems = useMemo(() => {
     const key = keyword.trim().toLowerCase();
     if (!key) return items;
-    return items.filter((row) => `${row.username} ${row.role} ${row.city || ""} ${row.region || ""} ${row.childGrade || ""}`.toLowerCase().includes(key));
+    return items.filter((row) => `${row.username} ${row.role} ${row.city || ""} ${row.region || ""} ${row.childGrade || ""} ${row.grade || ""}`.toLowerCase().includes(key));
   }, [items, keyword]);
 
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE));
@@ -146,6 +149,7 @@ const AdminUsersPage: React.FC = () => {
       city: row.city || "",
       region: row.region || "",
       childGrade: row.childGrade || "",
+      grade: row.grade || "",
       password: "",
     });
     setModalMode("edit");
@@ -159,6 +163,7 @@ const AdminUsersPage: React.FC = () => {
         city: normalizeString(row.city),
         region: normalizeString(row.region),
         childGrade: normalizeString(row.childGrade),
+        grade: normalizeString(row.grade),
       };
       const response = await adminApi.updateUser(row._id, payload);
       updateLocal(row._id, toEditableUser(response.data));
@@ -197,6 +202,7 @@ const AdminUsersPage: React.FC = () => {
           city: form.city.trim(),
           region: form.region.trim(),
           childGrade: form.childGrade.trim(),
+          grade: form.grade.trim(),
         });
         await loadUsers();
       } else if (modalMode === "edit" && editingUser) {
@@ -206,6 +212,7 @@ const AdminUsersPage: React.FC = () => {
           city: form.city.trim(),
           region: form.region.trim(),
           childGrade: form.childGrade.trim(),
+          grade: form.grade.trim(),
         });
         updateLocal(editingUser._id, toEditableUser(response.data));
       }
@@ -334,7 +341,7 @@ const AdminUsersPage: React.FC = () => {
                   <th className="px-6 py-4">角色</th>
                   <th className="px-6 py-4">城市</th>
                   <th className="px-6 py-4">区域</th>
-                  <th className="px-6 py-4">孩子年级</th>
+                  <th className="px-6 py-4">年级</th>
                   <th className="px-6 py-4">注册时间</th>
                   <th className="px-6 py-4 text-right">操作</th>
                 </tr>
@@ -374,9 +381,9 @@ const AdminUsersPage: React.FC = () => {
                       <td className="px-6 py-4">
                         <input
                           className={`w-40 ${inputClass}`}
-                          value={row.childGrade || ""}
+                          value={row.grade || row.childGrade || ""}
                           placeholder="填写年级"
-                          onChange={(event) => updateLocal(row._id, { childGrade: event.target.value })}
+                          onChange={(event) => updateLocal(row._id, { grade: event.target.value })}
                         />
                       </td>
                       <td className="px-6 py-4">
@@ -492,7 +499,8 @@ const AdminUsersPage: React.FC = () => {
               </select>
               <input className={inputClass} placeholder="城市" value={form.city} onChange={(event) => setForm((prev) => ({ ...prev, city: event.target.value }))} />
               <input className={inputClass} placeholder="区域" value={form.region} onChange={(event) => setForm((prev) => ({ ...prev, region: event.target.value }))} />
-              <input className={`${inputClass} md:col-span-2`} placeholder="孩子年级" value={form.childGrade} onChange={(event) => setForm((prev) => ({ ...prev, childGrade: event.target.value }))} />
+              <input className={inputClass} placeholder="年级 (grade)" value={form.grade} onChange={(event) => setForm((prev) => ({ ...prev, grade: event.target.value }))} />
+              <input className={inputClass} placeholder="孩子年级 (childGrade)" value={form.childGrade} onChange={(event) => setForm((prev) => ({ ...prev, childGrade: event.target.value }))} />
               {modalMode === "create" ? (
                 <input
                   className={`${inputClass} md:col-span-2`}

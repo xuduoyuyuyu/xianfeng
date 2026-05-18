@@ -7,5 +7,6 @@ const guestController = new GuestController();
 router.get("/", (req, res) => guestController.getAllPublic(req, res));
 router.get("/:id", (req, res) => guestController.getByIdPublic(req, res));
 router.post("/:id/return-wish", (req, res) => guestController.addReturnWish(req, res));
+router.post("/:id/submit-wish", (req, res) => guestController.submitWish(req, res));
 
 export default router;

@@ -48,7 +48,7 @@ export default function AdminAgentsPage() {
     setLoading(true);
     try {
       const res = await fetch(apiUrl("/api/v1/tutorbot"), {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token") || ""}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem("admin_token") || localStorage.getItem("token") || ""}` },
       });
       setBots(await res.json());
     } finally {
@@ -59,7 +59,7 @@ export default function AdminAgentsPage() {
   const loadSouls = useCallback(async () => {
     try {
       const res = await fetch(apiUrl("/api/v1/tutorbot/souls"), {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token") || ""}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem("admin_token") || localStorage.getItem("token") || ""}` },
       });
       if (res.ok) setSouls(await res.json());
     } catch {
@@ -171,7 +171,7 @@ function BotsTab({
     try {
       const res = await fetch(apiUrl("/api/v1/tutorbot"), {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token") || ""}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("admin_token") || localStorage.getItem("token") || ""}` },
         body: JSON.stringify({
           bot_id: botId,
           name: formName.trim(),
@@ -195,7 +195,7 @@ function BotsTab({
     async (bid: string) => {
       const res = await fetch(apiUrl("/api/v1/tutorbot"), {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token") || ""}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("admin_token") || localStorage.getItem("token") || ""}` },
         body: JSON.stringify({ bot_id: bid }),
       });
       if (res.ok) {
@@ -210,7 +210,7 @@ function BotsTab({
     async (bid: string) => {
       const res = await fetch(apiUrl(`/api/v1/tutorbot/${bid}`), {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${localStorage.getItem("token") || ""}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem("admin_token") || localStorage.getItem("token") || ""}` },
       });
       if (res.ok) {
         onToast(`${bid} stopped`);
@@ -225,7 +225,7 @@ function BotsTab({
       if (!window.confirm(`Permanently delete "${name}" (${bid})? This cannot be undone.`)) return;
       const res = await fetch(apiUrl(`/api/v1/tutorbot/${bid}/destroy`), {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${localStorage.getItem("token") || ""}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem("admin_token") || localStorage.getItem("token") || ""}` },
       });
       if (res.ok) {
         onToast(`${name} deleted`);
@@ -343,7 +343,7 @@ function ProfilesTab({ bots, loading, onToast }: { bots: BotInfo[]; loading: boo
     if (!bid) return;
     setLoadingFiles(true);
     try {
-      const res = await fetch(apiUrl(`/api/v1/tutorbot/${bid}/files`), { headers: { Authorization: `Bearer ${localStorage.getItem("token") || ""}` } });
+      const res = await fetch(apiUrl(`/api/v1/tutorbot/${bid}/files`), { headers: { Authorization: `Bearer ${localStorage.getItem("admin_token") || localStorage.getItem("token") || ""}` } });
       const data: Record<string, string> = await res.json();
       setFiles(data);
       setEditor(data[activeFile] ?? "");
@@ -364,7 +364,7 @@ function ProfilesTab({ bots, loading, onToast }: { bots: BotInfo[]; loading: boo
     try {
       const res = await fetch(apiUrl(`/api/v1/tutorbot/${selectedBot}/files/${activeFile}`), {
         method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token") || ""}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("admin_token") || localStorage.getItem("token") || ""}` },
         body: JSON.stringify({ content: editor }),
       });
       if (res.ok) {
@@ -428,7 +428,7 @@ function SoulsTab({ souls, onReload, onToast }: { souls: SoulTemplate[]; onReloa
     try {
       const res = await fetch(apiUrl(`/api/v1/tutorbot/souls/${editing}`), {
         method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token") || ""}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("admin_token") || localStorage.getItem("token") || ""}` },
         body: JSON.stringify({ name: editName.trim(), content: editContent }),
       });
       if (res.ok) {
@@ -448,7 +448,7 @@ function SoulsTab({ souls, onReload, onToast }: { souls: SoulTemplate[]; onReloa
     try {
       const res = await fetch(apiUrl("/api/v1/tutorbot/souls"), {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token") || ""}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("admin_token") || localStorage.getItem("token") || ""}` },
         body: JSON.stringify({ id, name, content: newContent }),
       });
       if (res.ok) {
@@ -465,7 +465,7 @@ function SoulsTab({ souls, onReload, onToast }: { souls: SoulTemplate[]; onReloa
 
   const deleteSoul = useCallback(async (soul: SoulTemplate) => {
     if (!window.confirm(`Delete soul "${soul.name}"?`)) return;
-    const res = await fetch(apiUrl(`/api/v1/tutorbot/souls/${soul.id}`), { method: "DELETE", headers: { Authorization: `Bearer ${localStorage.getItem("token") || ""}` } });
+    const res = await fetch(apiUrl(`/api/v1/tutorbot/souls/${soul.id}`), { method: "DELETE", headers: { Authorization: `Bearer ${localStorage.getItem("admin_token") || localStorage.getItem("token") || ""}` } });
     if (res.ok) {
       if (editing === soul.id) cancelEdit();
       onToast(`"${soul.name}" deleted`);

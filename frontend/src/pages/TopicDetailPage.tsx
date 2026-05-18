@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useSelector } from "react-redux";
 import GlobalPublicNav from "../components/GlobalPublicNav";
+import type { RootState } from "../store";
+import { getTopicUserId } from "../utils/topicUserId";
 
 /* ── 光斑装饰 ── */
 
@@ -103,8 +106,10 @@ function transformLayersToTree(layers: LayersInput): BranchNode[] {
 }
 
 const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
+  const currentUser = useSelector((state: RootState) => state.user.user);
   const [topic, setTopic] = useState<TopicInfo | null>(null);
   const [tree, setTree] = useState<BranchNode[]>([]);
+  const [relatedTopics, setRelatedTopics] = useState<{title:string;slug:string;tags:string[]}[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedNode, setSelectedNode] = useState<LeafNode | null>(null);
   const [nodeDetail, setNodeDetail] = useState<NodeDetail | null>(null);
@@ -141,6 +146,35 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
   React.useEffect(() => {
     return () => { if (typewriterRef.current) clearInterval(typewriterRef.current); };
   }, []);
+
+  // ── 智能提炼卡片组件 ──
+  const SummarizedBlock: React.FC<{ summary: string; detail: string }> = ({ summary, detail }) => {
+    return (
+      <div style={{ margin: "0 0 16px" }}>
+        <span style={{
+          display: "inline-block",
+          fontSize: 11, fontWeight: 700, color: "#7C3AED",
+          background: "#EDE9FE", borderRadius: 6, padding: "2px 8px",
+          marginBottom: 6,
+        }}>
+          要点
+        </span>
+        <div style={{
+          borderRadius: 12,
+          border: "1px solid #EDE9FE",
+          background: "#FAF8FF",
+          overflow: "hidden",
+        }}>
+          <p style={{ margin: 0, padding: "12px 14px", fontSize: 14, color: "#1E1B4B", lineHeight: 1.6, fontWeight: 600 }}>
+            {summary}
+          </p>
+          <p style={{ margin: 0, padding: "0 14px 14px 14px", fontSize: 13, color: "#6B7280", lineHeight: 1.8 }}>
+            {detail}
+          </p>
+        </div>
+      </div>
+    );
+  };
 
   // ── 智能正文渲染 ──
   const renderContent = (text: string) => {
@@ -306,19 +340,15 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
 
       // 普通段落
       flushList();
-      // 大段落（>150字且无加粗标记）→ 智能分句
+      // 大段落（>150字且无加粗标记）→ 提炼首句 + 折叠展开
       if (line.length > 150 && !line.includes("**")) {
         const sentences = line.split(/。|；/).filter(s => s.trim());
         if (sentences.length >= 3) {
+          const firstSentence = sentences[0].trim() + "。";
+          const rest = sentences.slice(1).map(s => s.trim()).join("；") + "。";
+          const collapseKey = key++;
           elements.push(
-            <div key={key++} style={{ margin: "0 0 12px" }}>
-              {sentences.map((s, si) => (
-                <p key={si} style={{ margin: "0 0 6px", lineHeight: 1.8, fontSize: 14, color: "#374151" }}>
-                  {si === 0 ? <span style={{ fontSize: 11, fontWeight: 600, color: "#7C3AED", marginRight: 6 }}>▼</span> : null}
-                  {s.trim()}{si < sentences.length - 1 ? "；" : "。"}
-                </p>
-              ))}
-            </div>
+            <SummarizedBlock key={collapseKey} summary={firstSentence} detail={rest} />
           );
         } else {
           elements.push(
@@ -346,10 +376,12 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
 
   const fetchTopic = async () => {
     try {
-      const res = await fetch(`/api/topic-hub/${slug}`);
+      const uid = getTopicUserId(currentUser);
+      const res = await fetch(`/api/topic-hub/${slug}${uid ? `?userId=${uid}` : ""}`);
       const data = await res.json();
       if (data.topic) {
         setTopic(data.topic);
+        setRelatedTopics(data.relatedTopics || []);
         const treeData = data.topic?.layers || data.tree || [];
         const flatTree = transformLayersToTree(treeData);
         setTree(flatTree);
@@ -381,7 +413,8 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
     setExpanding(false);
     setTypewriterText("");
     try {
-      const res = await fetch(`/api/topic-hub/${slug}/nodes/${node.nodeKey}`);
+      const uid = getTopicUserId(currentUser);
+      const res = await fetch(`/api/topic-hub/${slug}/nodes/${node.nodeKey}${uid ? `?userId=${uid}` : ""}`);
       const data = await res.json();
       setNodeDetail(data.node || null);
       setQuestions(data.questions || []);
@@ -548,7 +581,7 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
         style={{
           maxWidth: 1200,
           margin: "0 auto",
-          padding: "50px 20px 0",
+          padding: "60px 20px 0",
         }}
       >
         <Link
@@ -574,7 +607,47 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
             {topic.title}
           </h1>
           {topic.subtitle && (
-            <p style={{ color: "#6B7280", fontSize: 14, margin: 0 }}>{topic.subtitle}</p>
+            <p style={{ color: "#6B7280", fontSize: 14, margin: 0 }}>
+              {topic.subtitle}
+              {/* 相关内容：与副标题同行 */}
+              {relatedTopics.length > 0 && (
+                <span style={{ fontSize: 12, color: "#9CA3AF", marginLeft: 16 }}>
+                  相关内容：
+                  {relatedTopics.map((rt, i) => (
+                    <span key={rt.slug}>
+                      <a
+                        href={`/topics/${rt.slug}`}
+                        style={{ color: "#7C3AED", textDecoration: "none" }}
+                        onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
+                        onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
+                      >
+                        {rt.title}
+                      </a>
+                      {i < relatedTopics.length - 1 && <span style={{ color: "#D1D5DB" }}> · </span>}
+                    </span>
+                  ))}
+                </span>
+              )}
+            </p>
+          )}
+          {/* 无副标题但有相关内容时，单独显示 */}
+          {!topic.subtitle && relatedTopics.length > 0 && (
+            <p style={{ color: "#9CA3AF", fontSize: 12, margin: "4px 0 0" }}>
+              相关内容：
+              {relatedTopics.map((rt, i) => (
+                <span key={rt.slug}>
+                  <a
+                    href={`/topics/${rt.slug}`}
+                    style={{ color: "#7C3AED", textDecoration: "none" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
+                    onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
+                  >
+                    {rt.title}
+                  </a>
+                  {i < relatedTopics.length - 1 && <span style={{ color: "#D1D5DB" }}> · </span>}
+                </span>
+              ))}
+            </p>
           )}
         </div>
       </div>

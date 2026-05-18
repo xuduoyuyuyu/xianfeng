@@ -4,7 +4,7 @@ import { useSelector } from 'react-redux';
 import { RootState } from '../store';
 
 const RequireAdmin: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, isLoading } = useSelector((state: RootState) => state.user);
+  const { admin, adminToken, isLoading } = useSelector((state: RootState) => state.admin);
   const [isInitialCheck, setIsInitialCheck] = useState(true);
 
   useEffect(() => {
@@ -13,7 +13,6 @@ const RequireAdmin: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     }
   }, [isLoading]);
 
-  // Allow initial loading
   if (isInitialCheck || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0b1020] text-[#e6e9f2]">
@@ -25,7 +24,7 @@ const RequireAdmin: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     );
   }
 
-  if (!user || user.role !== 'admin') {
+  if (!adminToken || !admin || admin.role !== 'admin') {
     return <Navigate to="/admin/login" replace />;
   }
 

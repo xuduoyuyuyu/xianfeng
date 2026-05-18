@@ -18,6 +18,20 @@ function toStatus(v: string): "draft" | "published" {
   return "draft";
 }
 
+/** 构造 _id 查询条件，兼容 string 和 ObjectId 类型 */
+function idQuery(id: string | string[]) {
+  const sid = Array.isArray(id) ? id[0] : id;
+  // 用 $expr + $eq 比较 _id 的字符串表示，绕过 Mongoose schema 的类型自动转换
+  return {
+    $expr: {
+      $or: [
+        { $eq: [{ $toString: "$_id" }, sid] },
+        { $eq: [{ $toString: "$_id" }, sid.toLowerCase()] },
+      ],
+    },
+  };
+}
+
 function normalizeBookPayload(raw: any, defaults?: { sourceName?: string; sourceGuestId?: string; recommendedGuest?: string }) {
   const title = pick(raw, ["书名", "title", "图书名称", "名称"]);
   return {
@@ -27,13 +41,24 @@ function normalizeBookPayload(raw: any, defaults?: { sourceName?: string; source
     author: pick(raw, ["著作者", "author", "作者", "Author", "作者姓名"]),
     translator: pick(raw, ["译者", "translator"]),
     publisher: pick(raw, ["出版社", "publisher"]),
+    isbn: pick(raw, ["isbn", "ISBN"]),
+    publishedDate: pick(raw, ["publishedDate", "published_date", "出版日期", "出版时间"]),
     grade: pick(raw, ["年级", "grade"]),
-    coverImage: pick(raw, ["封面图片", "coverImage", "封面", "封面图", "图片", "cover"]) || "https://via.placeholder.com/240x320/630ed4/ffffff?text=Book",
+    coverImage: pick(raw, ["封面图片", "coverImage", "封面", "封面图", "图片", "cover"]) ?? "https://via.placeholder.com/240x320/630ed4/ffffff?text=Book",
     recommendedGuest: pick(raw, ["推荐嘉宾", "recommendedGuest"]) || String(defaults?.recommendedGuest || "").trim(),
     sourceName: String(defaults?.sourceName || raw?.sourceName || "").trim(),
     sourceGuestId: defaults?.sourceGuestId && mongoose.Types.ObjectId.isValid(defaults.sourceGuestId)
       ? new mongoose.Types.ObjectId(defaults.sourceGuestId)
       : null,
+    // 微信小店字段
+    wxProductId: pick(raw, ["wxProductId", "productId"]),
+    wxShopName: pick(raw, ["wxShopName"]),
+    wxShopAppid: pick(raw, ["wxShopAppid"]),
+    wxSalePrice: Number(pick(raw, ["wxSalePrice", "salePrice"]) || 0),
+    wxMonthlySales: Number(pick(raw, ["wxMonthlySales", "monthlySales"]) || 0),
+    wxShopScore: Number(pick(raw, ["wxShopScore", "shopScore"]) || 0),
+    wxHeadImgs: raw?.wxHeadImgs || raw?.headImgs || [],
+    wxQrcodeUrl: pick(raw, ["wxQrcodeUrl", "qrcode", "qrcodeUrl"]),
     status: toStatus(pick(raw, ["status", "状态"])),
   };
 }
@@ -177,7 +202,7 @@ export class BookController {
   async getByIdAdmin(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const book = await Book.findById(id).populate("sourceGuestId", "name title");
+      const book = await Book.findOne(idQuery(id)).populate("sourceGuestId", "name title");
       if (!book) {
         res.status(404).json({ message: "书籍不存在" });
         return;
@@ -218,9 +243,16 @@ export class BookController {
     try {
       const { id } = req.params;
       const payload = req.body;
-      const normalized = normalizeBookPayload(payload, {
-        sourceName: payload?.sourceName,
-        sourceGuestId: payload?.sourceGuestId,
+      const existing = await Book.findOne(idQuery(id));
+      if (!existing) {
+        res.status(404).json({ message: "书籍不存在" });
+        return;
+      }
+      // 合并已有数据，确保 partial update 不丢失必要字段（如 title）
+      const merged = { ...(existing.toObject?.() || existing), ...payload };
+      const normalized = normalizeBookPayload(merged, {
+        sourceName: merged?.sourceName || (existing as any).sourceName,
+        sourceGuestId: merged?.sourceGuestId || (existing as any).sourceGuestId?.toString(),
       });
       if (!normalized.title) {
         res.status(400).json({ message: "书名不能为空" });
@@ -236,11 +268,7 @@ export class BookController {
       if (normalized.status === "draft") {
         (normalized as any).publishedAt = null;
       }
-      const book = await Book.findByIdAndUpdate(id, normalized as any, { new: true });
-      if (!book) {
-        res.status(404).json({ message: "书籍不存在" });
-        return;
-      }
+      const book = await Book.findOneAndUpdate(idQuery(id), normalized as any, { new: true });
       res.status(200).json(book);
     } catch (error) {
       res.status(400).json({ message: "更新书籍失败", error });
@@ -255,7 +283,7 @@ export class BookController {
         res.status(400).json({ message: "状态仅允许 draft 或 published" });
         return;
       }
-      const book = await Book.findByIdAndUpdate(id, statusUpdatePayload(status), {
+      const book = await Book.findOneAndUpdate(idQuery(id), statusUpdatePayload(status), {
         new: true,
       });
       if (!book) {
@@ -288,7 +316,7 @@ export class BookController {
   async delete(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const book = await Book.findByIdAndDelete(id);
+      const book = await Book.findOneAndDelete(idQuery(id));
       if (!book) {
         res.status(404).json({ message: "书籍不存在" });
         return;

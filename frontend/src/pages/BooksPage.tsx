@@ -6,7 +6,7 @@ import { Book, publicApi } from "../services/api";
 
 const PAGE_SIZE = 24;
 const UNKNOWN_GUEST = "未标注推荐人";
-const FALLBACK_COVER = "/assets/podcast-cover-1.svg";
+const FALLBACK_COVER = "https://xianfeng.xinzhi.info/uploads/images/1779100618558-tx61bua1.png";
 const BOOKS_HERO_DISMISSED_KEY = "books_hero_dismissed_v1";
 
 type EnrichedBook = Book & {
@@ -37,23 +37,13 @@ function uniq(values: string[]): string[] {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
-function buildWxStoreUrl(item: Book): string | null {
-  if (!item.wxProductId) return null;
-  // 使用微信小店 H5 链接
-  if (item.wxShopAppid) {
-    return `https://store.mp.video.tencent-cloud.com/pages/product/detail?productId=${item.wxProductId}&appid=${item.wxShopAppid}`;
-  }
-  return `https://store.mp.video.tencent-cloud.com/pages/product/detail?productId=${item.wxProductId}`;
-}
-
 const BookCard: React.FC<BookCardProps> = ({ item }) => {
-  const wxUrl = buildWxStoreUrl(item);
   return (
     <article className="group mb-3 break-inside-avoid overflow-hidden rounded-[1rem] border border-[#e2dcf0] bg-white shadow-[0_8px_18px_rgba(60,40,80,0.06)]">
       <div className="relative w-full p-2">
         <div className="flex items-center justify-center overflow-hidden rounded-lg bg-white">
           <img
-            src={item.coverImage || FALLBACK_COVER}
+            src={item.coverImage ? item.coverImage.replace(/^http:\/\//, "https://") : FALLBACK_COVER}
             alt={item.title || "书籍封面"}
             className="w-full object-contain"
             loading="lazy"
@@ -62,33 +52,7 @@ const BookCard: React.FC<BookCardProps> = ({ item }) => {
             }}
           />
         </div>
-        {wxUrl ? (
-          <>
-            {/* 桌面端：hover 显示二维码 */}
-            <div className="absolute inset-0 hidden items-center justify-center rounded-lg opacity-0 transition-opacity duration-200 sm:flex group-hover:opacity-100" style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(2px)' }}>
-              <div className="rounded-2xl bg-white px-4 py-3 text-center shadow-2xl">
-                <div className="mb-1 text-[10px] font-black text-[#8b7dbc] uppercase tracking-[0.15em]">微信扫码购买</div>
-                <div className="mx-auto mb-1.5 h-28 w-28 rounded-xl bg-[#f8f6ff] p-1.5">
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(wxUrl)}`}
-                    alt="购买二维码"
-                    className="h-full w-full"
-                  />
-                </div>
-              </div>
-            </div>
-            {/* 移动端：直接显示购买按钮 */}
-            <a
-              href={wxUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="absolute bottom-3 right-3 flex items-center gap-1 rounded-full bg-[#5e17eb] px-3 py-1.5 text-xs font-bold text-white shadow-lg active:scale-95 transition-transform sm:hidden"
-            >
-              <span className="material-symbols-outlined text-[14px]">shopping_cart</span>
-              购买
-            </a>
-          </>
-        ) : null}
+        {/* 购买功能暂隐藏 */}
       </div>
       <div className="px-3 pb-3 pt-1">
         <h3 className="line-clamp-2 text-[22px] font-black leading-tight text-[#2b1a3a]">{item.title || "未命名书籍"}</h3>
@@ -146,6 +110,7 @@ const BooksPage: React.FC = () => {
   const [boundGuestName, setBoundGuestName] = useState(initialGuestName);
   const [keyword, setKeyword] = useState(initialKeyword);
   const [selectedGrades, setSelectedGrades] = useState<string[]>(initialGrades);
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const fromGuestLink = Boolean(initialGuestId || initialGuestName);
 
   useEffect(() => {
@@ -243,11 +208,12 @@ const BooksPage: React.FC = () => {
     const q = keyword.toLowerCase();
     return guestBoundBase.filter((item) => {
       const byGrade = selectedGrades.length === 0 || selectedGrades.includes(normalizeText(item.grade));
+      const byTopic = selectedTopics.length === 0 || selectedTopics.includes(String(item.topic || "").trim());
       const haystack = `${item.title || ""} ${item.author || ""} ${item.publisher || ""} ${item.topic || ""} ${item.categoryLabel || ""} ${item.recommendedGuest || ""}`.toLowerCase();
       const byKeyword = !q || haystack.includes(q);
-      return byGrade && byKeyword;
+      return byGrade && byTopic && byKeyword;
     });
-  }, [guestBoundBase, keyword, selectedGrades]);
+  }, [guestBoundBase, keyword, selectedGrades, selectedTopics]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, EnrichedBook[]>();
@@ -305,6 +271,19 @@ const BooksPage: React.FC = () => {
   const toggleGrade = (grade: string) => {
     setSelectedGrades((prev) => (prev.includes(grade) ? prev.filter((item) => item !== grade) : [...prev, grade]));
   };
+
+  const toggleTopic = (topic: string) => {
+    setSelectedTopics((prev) => (prev.includes(topic) ? prev.filter((item) => item !== topic) : [...prev, topic]));
+  };
+
+  const topicOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const item of books) {
+      const t = String(item.topic || "").trim();
+      if (t) set.add(t);
+    }
+    return Array.from(set).sort();
+  }, [books]);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#f3f2f8] text-[#1f1d1a]">
@@ -394,7 +373,7 @@ const BooksPage: React.FC = () => {
             </div>
           ) : null}
 
-          <div className="flex flex-col gap-3 md:flex-row md:items-start">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start mb-4">
             <div className="w-[72px] pt-1 text-sm font-black tracking-[0.1em] text-[#6b5fa0]">年级</div>
             <div className="flex-1">
               <div className="flex flex-wrap gap-2">
@@ -408,7 +387,7 @@ const BooksPage: React.FC = () => {
                       className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
                         active
                           ? "border-[#5e17eb] bg-[#5e17eb] text-white"
-                          : "border-[#d8c8ef] bg-white text-[#5f5290] hover:border-[#5e17eb]"
+                          : "border-[#d8c8ef] bg-white text-[#6b5fa0] hover:border-[#5e17eb] hover:bg-[#faf8ff]"
                       }`}
                     >
                       {grade}
@@ -416,6 +395,32 @@ const BooksPage: React.FC = () => {
                   );
                 })}
                 {gradeOptions.length === 0 ? <span className="text-sm text-[#8b7db6]">暂无可筛选年级</span> : null}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 md:flex-row md:items-start mb-4">
+            <div className="w-[72px] pt-1 text-sm font-black tracking-[0.1em] text-[#6b5fa0]">主题</div>
+            <div className="flex-1">
+              <div className="flex flex-wrap gap-2">
+                {topicOptions.map((topic) => {
+                  const active = selectedTopics.includes(topic);
+                  return (
+                    <button
+                      key={topic}
+                      type="button"
+                      onClick={() => toggleTopic(topic)}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                        active
+                          ? "border-[#5e17eb] bg-[#5e17eb] text-white"
+                          : "border-[#d8c8ef] bg-white text-[#6b5fa0] hover:border-[#5e17eb] hover:bg-[#faf8ff]"
+                      }`}
+                    >
+                      {topic}
+                    </button>
+                  );
+                })}
+                {topicOptions.length === 0 ? <span className="text-sm text-[#8b7db6]">暂无可筛选主题</span> : null}
               </div>
             </div>
           </div>
@@ -428,6 +433,11 @@ const BooksPage: React.FC = () => {
             {selectedGrades.map((item) => (
               <span key={`grade-${item}`} className="rounded-full bg-[#eef3ff] px-2.5 py-1 text-xs font-bold text-[#3e4d88]">
                 年级: {item}
+              </span>
+            ))}
+            {selectedTopics.map((item) => (
+              <span key={`topic-${item}`} className="rounded-full bg-[#fef7ee] px-2.5 py-1 text-xs font-bold text-[#8e6b3e]">
+                主题: {item}
               </span>
             ))}
           </div>

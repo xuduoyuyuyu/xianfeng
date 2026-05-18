@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 
 const authHeaders = (): Record<string, string> => {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("admin_token") || localStorage.getItem("token");
   if (!token) return {};
   return { Authorization: `Bearer ${token}` };
 };
@@ -21,14 +21,18 @@ interface TopicHubItem {
   title: string;
   slug: string;
   subtitle?: string;
+  shortSummary?: string;
   coverEmoji?: string;
   tags?: string[];
+  suitableGrades?: string[];
   searchTerm?: string;
   submittedBy?: string;
   createdBy?: string;
-  status: "draft" | "published" | "hidden";
+  userOriginalInput?: string;
+  status: "draft" | "pending" | "published" | "hidden";
   result?: any;
   nodeCount?: number;
+  viewCount?: number;
   layers?: {
     layer1?: LayerNode[];
     layer2?: LayerNode[];
@@ -45,9 +49,11 @@ const emptyForm = {
   title: "",
   slug: "",
   subtitle: "",
+  shortSummary: "",
   coverEmoji: "📚",
   tags: "" as string,
-  status: "draft" as "draft" | "published" | "hidden",
+  status: "draft" as "draft" | "pending" | "published" | "hidden",
+  suitableGrades: "",
 };
 
 // 知识树节点编辑表单
@@ -130,12 +136,14 @@ const formatDate = (s: string | undefined) => {
 const statusColor = (s: string) => {
   if (s === "published") return { bg: "#F0FDF4", text: "#166534", border: "#D1FAE5" };
   if (s === "hidden") return { bg: "#FEF2F2", text: "#DC2626", border: "#FECACA" };
+  if (s === "pending") return { bg: "#F3EEFF", text: "#7C3AED", border: "#DDD6FE" };
   return { bg: "#FFFBEB", text: "#92400E", border: "#FDE68A" };
 };
 
 const statusLabel = (s: string) => {
   if (s === "published") return "已发布";
   if (s === "hidden") return "已隐藏";
+  if (s === "pending") return "待审核";
   return "草稿";
 };
 
@@ -168,7 +176,7 @@ const AdminTopicsPage: React.FC = () => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/admin/topic-hub", { headers: authHeaders() });
+      const res = await fetch("/api/admin/topic-hub?all=true", { headers: authHeaders() });
       const data = await res.json();
       const rawItems = Array.isArray(data.topics) ? data.topics : Array.isArray(data) ? data : [];
       setItems(rawItems);
@@ -236,9 +244,11 @@ const AdminTopicsPage: React.FC = () => {
       title: item.title || "",
       slug: item.slug || "",
       subtitle: item.subtitle || "",
+      shortSummary: (item as any).shortSummary || "",
       coverEmoji: item.coverEmoji || "📚",
       tags: Array.isArray(item.tags) ? item.tags.join(", ") : "",
       status: item.status || "draft",
+      suitableGrades: Array.isArray(item.suitableGrades) ? (item.suitableGrades).join(", ") : "",
     });
     initLayerEdit(item);
   };
@@ -260,6 +270,7 @@ const AdminTopicsPage: React.FC = () => {
       const payload = {
         ...editForm,
         tags: tagsFromString(editForm.tags),
+        suitableGrades: editForm.suitableGrades ? editForm.suitableGrades.split(/[,，]/).map((s) => s.trim()).filter(Boolean) : [],
         layers: cleanLayers,
       };
       const res = await fetch(`/api/admin/topic-hub/${editingItem._id}`, {
@@ -322,6 +333,26 @@ const AdminTopicsPage: React.FC = () => {
       } else {
         const data = await res.json();
         setToast(`❌ ${data.error || "删除失败"}`);
+      }
+    } catch (e: any) {
+      setToast(`❌ ${e.message}`);
+    }
+  };
+
+  const handleRegenerate = async (item: TopicHubItem) => {
+    if (!window.confirm(`确定重新解析「${item.title}」？AI 将重新生成所有知识树深度内容。`)) return;
+    try {
+      const res = await fetch(`/api/admin/topic-hub/${item.slug}/regenerate`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setToast(`🔄 「${item.title}」已重新开始解析（${data.totalNodes} 个节点），稍后刷新页面查看结果`);
+        loadItems();
+      } else {
+        const data = await res.json();
+        setToast(`❌ ${data.error || "操作失败"}`);
       }
     } catch (e: any) {
       setToast(`❌ ${e.message}`);
@@ -425,7 +456,7 @@ const AdminTopicsPage: React.FC = () => {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 100px 100px 110px 140px 170px",
+              gridTemplateColumns: "1fr 100px 70px 100px 120px 110px 170px",
               gap: 12,
               padding: "8px 16px",
               fontSize: 12,
@@ -435,6 +466,7 @@ const AdminTopicsPage: React.FC = () => {
           >
             <span>标题</span>
             <span style={{ textAlign: "center" }}>Slug</span>
+            <span style={{ textAlign: "center" }}>浏览</span>
             <span style={{ textAlign: "center" }}>状态</span>
             <span style={{ textAlign: "center" }}>提交者</span>
             <span>时间</span>
@@ -448,7 +480,7 @@ const AdminTopicsPage: React.FC = () => {
                 key={item._id}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1fr 100px 100px 110px 140px 170px",
+                  gridTemplateColumns: "1fr 100px 70px 100px 120px 110px 170px",
                   gap: 12,
                   alignItems: "center",
                   padding: "10px 16px",
@@ -475,6 +507,11 @@ const AdminTopicsPage: React.FC = () => {
                   {item.slug}
                 </span>
 
+                {/* 浏览量 */}
+                <span style={{ textAlign: "center", fontSize: 12, color: "#6B7280" }}>
+                  {item.viewCount ?? 0}
+                </span>
+
                 {/* 状态切换 */}
                 <div style={{ textAlign: "center" }}>
                   <select
@@ -493,6 +530,7 @@ const AdminTopicsPage: React.FC = () => {
                     }}
                   >
                     <option value="draft">草稿</option>
+                    <option value="pending">待审核</option>
                     <option value="published">已发布</option>
                     <option value="hidden">已隐藏</option>
                   </select>
@@ -583,9 +621,34 @@ const AdminTopicsPage: React.FC = () => {
               boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
             }}
           >
-            <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1E1B4B", margin: "0 0 16px" }}>
-              ✏️ 编辑话题：{editingItem.title}
-            </h2>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1E1B4B", margin: 0 }}>
+                ✏️ 编辑话题：{editingItem.title}
+              </h2>
+              {/* 重新解析按钮 */}
+              {editingItem.layers && (
+                <button
+                  onClick={() => handleRegenerate(editingItem)}
+                  title="重新触发AI深度生成"
+                  style={{
+                    padding: "6px 14px",
+                    borderRadius: 8,
+                    border: "1px solid #C4B5FD",
+                    background: "#F3EEFF",
+                    color: "#7C3AED",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                >
+                  🔄 重新解析
+                </button>
+              )}
+            </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {/* 标题 & Slug */}
@@ -632,6 +695,18 @@ const AdminTopicsPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* 概念定义（shortSummary） */}
+              <div>
+                <label style={labelStyle}>概念定义（30-50字）</label>
+                <textarea
+                  style={{ ...inputStyle, minHeight: 60, resize: "vertical" }}
+                  value={editForm.shortSummary || ""}
+                  onChange={(e) => setEditForm((p) => ({ ...p, shortSummary: e.target.value }))}
+                  placeholder="30-50字的概念定义，用1-2句话说清话题本质"
+                  rows={2}
+                />
+              </div>
+
               {/* 标签 & 状态 */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 140px", gap: 12 }}>
                 <div>
@@ -651,11 +726,43 @@ const AdminTopicsPage: React.FC = () => {
                     onChange={(e) => setEditForm((p) => ({ ...p, status: e.target.value as any }))}
                   >
                     <option value="draft">草稿</option>
+                    <option value="pending">待审核</option>
                     <option value="published">已发布</option>
                     <option value="hidden">已隐藏</option>
                   </select>
                 </div>
               </div>
+
+              {/* 适配年级 */}
+              <div style={{ marginBottom: 16 }}>
+                <label style={labelStyle}>🎓 适配年级（逗号分隔，只从以下选项中选择：孕期, 0-3岁, 幼儿园小班, 幼儿园中班, 幼儿园大班, 小学1-3年级, 小学4-6年级, 初中, 高中, 全学段）</label>
+                <input
+                  style={inputStyle}
+                  value={editForm.suitableGrades}
+                  onChange={(e) => setEditForm((p) => ({ ...p, suitableGrades: e.target.value }))}
+                  placeholder="如: 小学1-3年级, 小学4-6年级"
+                />
+              </div>
+
+              {/* 用户原始输入（仅展示，不对外，只读） */}
+              {editingItem.userOriginalInput && (
+                <div>
+                  <label style={labelStyle}>📝 用户原始提交内容（仅管理员可见）</label>
+                  <textarea
+                    readOnly
+                    value={editingItem.userOriginalInput}
+                    style={{
+                      ...inputStyle,
+                      height: 80,
+                      resize: "vertical",
+                      background: "#FAFAFA",
+                      color: "#6B7280",
+                      fontSize: 12,
+                      cursor: "default",
+                    }}
+                  />
+                </div>
+              )}
 
               {/* ===== 知识树编辑区 ===== */}
               <div style={{

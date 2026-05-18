@@ -7,6 +7,10 @@ function asText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function fixAvatarUrl(url: string): string {
+  return url.replace(/^http:\/\//i, "https://");
+}
+
 function escapeRegex(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -91,7 +95,7 @@ function serializeProgramCard(program: any) {
     _id: String(program?._id || ""),
     programCode: asText(program?.programCode),
     title: asText(program?.title),
-    coverImage: asText(program?.coverImage),
+    coverImage: fixAvatarUrl(asText(program?.coverImage)),
     publishedAt: program?.publishedAt || null,
     summary: asText(program?.summary?.headline) || asText(program?.description),
   };
@@ -110,7 +114,7 @@ function serializeGuestListItem(guest: any, programCount = 0) {
     name: asText(guest?.name),
     title: asText(guest?.title),
     bio: asText(guest?.bio),
-    avatar: asText(guest?.avatar),
+    avatar: fixAvatarUrl(asText(guest?.avatar)),
     profileUrl: asText(guest?.profileUrl),
     profileReferences: profileReferences
       .map((item: any) => ({
@@ -203,7 +207,7 @@ export class GuestController {
       }
 
       const relatedPrograms = await Program.find(
-        { "guestBindings.guestId": new mongoose.Types.ObjectId(id) },
+        { "guestBindings.guestId": new mongoose.Types.ObjectId(id), status: "published" },
         { _id: 1, programCode: 1, title: 1, coverImage: 1, publishedAt: 1, summary: 1, description: 1 }
       )
         .sort({ publishedAt: -1, updatedAt: -1, _id: -1 })
@@ -217,6 +221,74 @@ export class GuestController {
       });
     } catch (error) {
       res.status(500).json({ message: "获取嘉宾详情失败", error });
+    }
+  }
+
+  // POST /api/guests/:id/submit-wish — 用户许愿，走站内信
+  async submitWish(req: Request, res: Response): Promise<void> {
+    try {
+      const guestId = asText(req.params.id);
+      const userId = asText(req.body?.userId);
+      const personName = asText(req.body?.personName);
+      const personIntro = asText(req.body?.personIntro);
+
+      if (!userId) {
+        res.status(400).json({ message: "用户标识不能为空" });
+        return;
+      }
+      if (!personName || personName.length < 2) {
+        res.status(400).json({ message: "请输入人物姓名（至少2个字符）" });
+        return;
+      }
+
+      // 查一下当前嘉宾名字
+      let guestName = "";
+      try {
+        const g = await GuestModel.findById(guestId, { name: 1 }).lean();
+        guestName = asText((g as any)?.name);
+      } catch {}
+
+      const title = `用户许愿 · ${personName}`;
+      const summary = `来自页面：${guestName || guestId}\n用户ID：${userId}\n推荐人物：${personName}\n${personIntro ? `介绍：${personIntro}` : ""}`;
+
+      // 直接写 admin_inbox_messages 集合（绕过 schema 枚举限制）
+      const targetId = mongoose.Types.ObjectId.isValid(guestId)
+        ? new mongoose.Types.ObjectId(guestId)
+        : new mongoose.Types.ObjectId();
+
+      await mongoose.connection.db.collection("admin_inbox_messages").insertOne({
+        sourceType: "user_wish",
+        sourceId: userId,
+        taskType: "user_wish",
+        taskStatus: "new",
+        targetType: "guest",
+        targetId,
+        targetTitle: guestName || "未知嘉宾",
+        title,
+        summary,
+        payload: {
+          userId,
+          personName,
+          personIntro,
+          contextGuestId: guestId,
+          contextGuestName: guestName,
+        },
+        isRead: false,
+        readAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      res.status(201).json({
+        ok: true,
+        message: "许愿成功！我们已经收到你的推荐 ✨",
+        wish: {
+          personName,
+          personIntro,
+        },
+      });
+    } catch (error) {
+      res.status(500).json({ message: "许愿提交失败，请稍后重试", error });
     }
   }
 

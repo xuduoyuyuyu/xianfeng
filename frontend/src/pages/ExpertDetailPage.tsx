@@ -4,7 +4,7 @@ import GlobalPublicNav from "../components/GlobalPublicNav";
 import GuestWishButton from "../components/GuestWishButton";
 import { GuestPublication, GuestSocialProfile, publicApi, PublicGuest, PublicGuestDetail } from "../services/api";
 
-const FALLBACK_AVATAR = "/assets/podcast-cover-1.svg";
+const FALLBACK_AVATAR = "https://xianfeng.xinzhi.info/uploads/images/1779099163792-wl2rg1zt.png";
 const PUBLICATION_LABELS: Record<GuestPublication["type"], string> = {
   paper: "论文",
   book: "著作",
@@ -211,21 +211,25 @@ const ExpertDetailPage: React.FC = () => {
 
   // 按 sourceName 聚合去重书单
   const bookGroups = useMemo(() => {
+    // 嘉宾著作中出现的 sourceName，避免在推荐书目中重复
+    const authoredSourceNames = new Set(
+      authoredBooks.map((b) => String(b.sourceName || "").trim()).filter(Boolean)
+    );
     const seen = new Map<string, any>();
     for (const b of boundBooks) {
       const sn = String(b.sourceName || "").trim();
-      if (sn && !seen.has(sn)) {
+      if (sn && !seen.has(sn) && !authoredSourceNames.has(sn)) {
         seen.set(sn, b);
       }
     }
     return Array.from(seen.values());
-  }, [boundBooks]);
+  }, [boundBooks, authoredBooks]);
 
   // 嘉宾著作按出版时间倒序
   const sortedAuthoredBooks = useMemo(() => {
     return [...authoredBooks].sort((a, b) => {
-      const da = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
-      const db = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+      const da = (a.publishedDate || a.publishedAt) ? new Date(a.publishedDate || a.publishedAt).getTime() : 0;
+      const db = (b.publishedDate || b.publishedAt) ? new Date(b.publishedDate || b.publishedAt).getTime() : 0;
       return db - da;
     });
   }, [authoredBooks]);
@@ -341,10 +345,10 @@ const ExpertDetailPage: React.FC = () => {
                 <div className="mt-4 overflow-x-auto pb-2 -mx-2 px-2">
                   <div className="flex gap-3" style={{ minWidth: "max-content" }}>
                     {sortedAuthoredBooks.map((book) => {
-                      const pubYear = book.publishedAt ? new Date(book.publishedAt).getFullYear() : "";
+                      const pubYear = (book.publishedDate || book.publishedAt) ? new Date(book.publishedDate || book.publishedAt).getFullYear() : "";
                       return (
-                      <div key={book._id} className="group shrink-0 w-[120px] sm:w-[140px] rounded-[1.25rem] border border-[#e8e0f2] bg-[#fcfaff] p-2.5 transition hover:border-[#b79bff] hover:bg-white">
-                        <div className="aspect-[2/3] overflow-hidden rounded-xl bg-[#f3eefc]">
+                      <div key={book._id} className="group shrink-0 w-[120px] sm:w-[140px] rounded-[1.25rem] border border-[#e8e0f2] bg-[#fcfaff] p-2.5 transition hover:border-[#b79bff] hover:bg-white relative">
+                        <div className="aspect-[2/3] overflow-hidden rounded-xl bg-[#f3eefc] relative">
                           <img
                             src={book.coverImage || `https://via.placeholder.com/240x360/630ed4/ffffff?text=${encodeURIComponent((book.title || '书').slice(0, 4))}`}
                             alt={book.title || "著作封面"}
@@ -352,6 +356,7 @@ const ExpertDetailPage: React.FC = () => {
                             loading="lazy"
                             onError={(e) => { e.currentTarget.src = `https://via.placeholder.com/240x360/630ed4/ffffff?text=${encodeURIComponent((book.title || '书').slice(0, 4))}`; }}
                           />
+                          {/* 购买功能暂隐藏 */}
                         </div>
                         <div className="mt-2 text-center">
                           <div className="text-xs font-black text-[#241a3a] line-clamp-2 leading-tight">{book.title || "未命名书籍"}</div>

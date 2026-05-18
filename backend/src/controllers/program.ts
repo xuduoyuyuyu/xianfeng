@@ -17,8 +17,8 @@ import { createInboxMessage } from "../services/adminInbox";
 
 const execFileAsync = promisify(execFile);
 
-function statusUpdatePayload(status: "draft" | "published") {
-  if (status === "published") {
+function statusUpdatePayload(status: "draft" | "published" | "group-only") {
+  if (status === "published" || status === "group-only") {
     return { status, publishedAt: new Date() };
   }
   return { status, publishedAt: null };
@@ -189,7 +189,7 @@ function sanitizeTranscript(input: unknown) {
     .map((segment: any) => {
       const text = asText(segment?.text);
       if (!text || isTrivialTranscriptText(text)) return null;
-      const speaker = asText(segment?.speaker) || "嘉宾";
+      const speaker = asText(segment?.speaker) || "主播·阿力";
       const fallbackTime = asText(segment?.time);
       const tokens = findClockTokens(fallbackTime);
       let startSec =
@@ -270,7 +270,7 @@ function sanitizeTranscript(input: unknown) {
   return merged
     .map((segment) => ({
       time: buildRangeLabel(segment.startSec, segment.endSec, segment.fallbackTime),
-      speaker: segment.speaker || "嘉宾",
+      speaker: segment.speaker || "主播·阿力",
       text: segment.text,
       featured: segment.featured,
     }))
@@ -708,19 +708,34 @@ function ensureBaseFieldsFromGenerated(payload: any, generated: any, transcript:
   };
 }
 
-async function validateGuestBindingsOrThrow(bindings: Array<{ guestId: string; order: number; role: string }>) {
+async function validateGuestBindingsOrThrow(
+  bindings: Array<{ guestId: string; order: number; role: string }>,
+  opts?: { allowAutoClean?: boolean }
+): Promise<Array<{ guestId: string; order: number; role: string }> | void> {
   if (!Array.isArray(bindings) || bindings.length === 0) return;
   const guestIds = Array.from(new Set(bindings.map((item) => asText(item.guestId)).filter(Boolean)));
   const guests = await GuestModel.find({ _id: { $in: guestIds } }, { _id: 1, status: 1 }).lean();
   const guestMap = new Map(guests.map((guest: any) => [String(guest._id), guest]));
+  const missingIds: string[] = [];
   for (const guestId of guestIds) {
     if (!guestMap.has(guestId)) {
-      throw new Error(`嘉宾不存在：${guestId}`);
+      missingIds.push(guestId);
+      continue;
     }
     const guest = guestMap.get(guestId);
     if (guest?.status !== "active") {
       throw new Error(`嘉宾已停用，无法新增绑定：${guestId}`);
     }
+  }
+  if (missingIds.length > 0) {
+    if (opts?.allowAutoClean) {
+      const cleaned = bindings.filter((item) => !missingIds.includes(asText(item.guestId)));
+      if (cleaned.length === 0) {
+        throw new Error(`所有关联嘉宾均已不存在，请重新选择嘉宾后保存。`);
+      }
+      return cleaned;
+    }
+    throw new Error(`嘉宾不存在：${missingIds[0]}`);
   }
 }
 
@@ -1248,9 +1263,9 @@ export class ProgramController {
       const pageSize = Number.isFinite(pageSizeRaw) && pageSizeRaw > 0 ? Math.min(100, Math.floor(pageSizeRaw)) : 20;
 
       // 列表页只取必要字段，排除大字段提升性能（transcript/deepDive 可几十KB）
-      const total = await Program.countDocuments({ status: "published" });
+      const total = await Program.countDocuments({ status: { $in: ["published", "group-only"] } });
       const skip = (page - 1) * pageSize;
-      const programs = await Program.find({ status: "published" })
+      const programs = await Program.find({ status: { $in: ["published", "group-only"] } })
         .select({
           programCode: 1, title: 1, description: 1, coverImage: 1,
           publishedAt: 1, createdAt: 1, updatedAt: 1,
@@ -1462,7 +1477,7 @@ export class ProgramController {
       if (!hasText(payload.programCode)) {
         payload.programCode = await buildNextProgramCode();
       }
-      if (payload.status && !["draft", "published"].includes(payload.status)) {
+      if (payload.status && !["draft", "published", "group-only"].includes(payload.status)) {
         res.status(400).json({ message: "无效的状态值" });
         return;
       }
@@ -1507,13 +1522,14 @@ export class ProgramController {
       const hasIncomingGuestBindings = Array.isArray(req.body?.guestBindings);
       payload = await ensureGuestBindingsWithLazyMigration(payload, existing.toObject());
       if (hasIncomingGuestBindings) {
-        await validateGuestBindingsOrThrow(Array.isArray(payload.guestBindings) ? payload.guestBindings : []);
+        const cleaned = await validateGuestBindingsOrThrow(Array.isArray(payload.guestBindings) ? payload.guestBindings : [], { allowAutoClean: true });
+        if (cleaned) payload.guestBindings = cleaned;
       }
-      if (payload.status && !["draft", "published"].includes(payload.status)) {
+      if (payload.status && !["draft", "published", "group-only"].includes(payload.status)) {
         res.status(400).json({ message: "无效的状态值" });
         return;
       }
-      if (payload.status === "published" && !payload.publishedAt) {
+      if ((payload.status === "published" || payload.status === "group-only") && !payload.publishedAt) {
         payload.publishedAt = new Date();
       }
       if (payload.status === "draft") {
@@ -1607,22 +1623,17 @@ export class ProgramController {
       const program = new Program({
         programCode: nextCode,
         title: sourceTitle || buildPendingProgramTitle(),
-        description: "音频已上传，正在解析中。",
+        description: "音频已上传，请编辑节目信息。",
         coverImage: "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?q=80&w=1200&auto=format&fit=crop",
-        episodes: [{ title: sourceTitle || "待解析", duration: "待解析", url: uploadedAudioUrl }],
+        episodes: [{ title: sourceTitle || "待编辑", duration: "", url: uploadedAudioUrl }],
         status: "draft",
-        ...parseMetaPatch("parsing", "", 5, "queued"),
       });
       await program.save();
-      startAsyncParseTask(String(program._id), uploadedAudioUrl);
       res.status(201).json({
         programId: String(program._id),
-        parseStatus: "parsing",
-        parseStage: "queued",
-        parseProgress: 5,
       });
     } catch (error: any) {
-      res.status(400).json({ message: error?.message || "创建解析草稿失败", error });
+      res.status(400).json({ message: error?.message || "创建草稿失败", error });
     }
   }
 
@@ -1742,8 +1753,8 @@ export class ProgramController {
     try {
       const { id } = req.params;
       const { status } = req.body;
-      if (status !== "draft" && status !== "published") {
-        res.status(400).json({ message: "状态仅允许 draft 或 published" });
+      if (status !== "draft" && status !== "published" && status !== "group-only") {
+        res.status(400).json({ message: "状态仅允许 draft、published 或 group-only" });
         return;
       }
       const program = await Program.findByIdAndUpdate(

@@ -56,6 +56,7 @@ const AdminBooksPage: React.FC = () => {
   const [guests, setGuests] = useState<Guest[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'published' | 'draft'>('all');
+  const [searchText, setSearchText] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [editingBook, setEditingBook] = useState<Book | null>(null);
@@ -73,10 +74,23 @@ const AdminBooksPage: React.FC = () => {
     author: '',
     translator: '',
     publisher: '',
+    isbn: '',
+    publishedDate: '',
     grade: '',
     coverImage: '',
     recommendedGuest: '',
-    status: 'draft' as 'draft' | 'published',
+    sourceName: '',
+    sourceGuestId: '',
+    // 微信小店字段
+    wxProductId: '',
+    wxShopName: '',
+    wxShopAppid: '',
+    wxSalePrice: 0,
+    wxMonthlySales: 0,
+    wxShopScore: 0,
+    wxHeadImgs: [] as string[],
+    wxQrcodeUrl: '',
+    status: 'draft' as 'draft' | 'published' | 'group-only',
   });
 
   useEffect(() => {
@@ -109,11 +123,25 @@ const AdminBooksPage: React.FC = () => {
     }
   };
 
-  const totalPages = Math.max(1, Math.ceil(books.length / PAGE_SIZE));
+  const filteredBooks = useMemo(() => {
+    if (!searchText.trim()) return books;
+    const kw = searchText.trim().toLowerCase();
+    return books.filter((b) =>
+      (b.title || '').toLowerCase().includes(kw) ||
+      (b.author || '').toLowerCase().includes(kw) ||
+      (b.translator || '').toLowerCase().includes(kw) ||
+      (b.publisher || '').toLowerCase().includes(kw) ||
+      (b.isbn || '').toLowerCase().includes(kw) ||
+      (b.recommendedGuest || '').toLowerCase().includes(kw) ||
+      (b.sourceName || '').toLowerCase().includes(kw)
+    );
+  }, [books, searchText]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredBooks.length / PAGE_SIZE));
   const pagedBooks = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
-    return books.slice(start, start + PAGE_SIZE);
-  }, [books, currentPage]);
+    return filteredBooks.slice(start, start + PAGE_SIZE);
+  }, [filteredBooks, currentPage]);
 
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
@@ -128,9 +156,21 @@ const AdminBooksPage: React.FC = () => {
       author: '',
       translator: '',
       publisher: '',
+      isbn: '',
+      publishedDate: '',
       grade: '',
       coverImage: '',
       recommendedGuest: '',
+      sourceName: '',
+      sourceGuestId: '',
+      wxProductId: '',
+      wxShopName: '',
+      wxShopAppid: '',
+      wxSalePrice: 0,
+      wxMonthlySales: 0,
+      wxShopScore: 0,
+      wxHeadImgs: [],
+      wxQrcodeUrl: '',
       status: 'draft',
     });
     setShowModal(true);
@@ -145,9 +185,21 @@ const AdminBooksPage: React.FC = () => {
       author: book.author,
       translator: book.translator || '',
       publisher: book.publisher || '',
+      isbn: book.isbn || '',
+      publishedDate: book.publishedDate || '',
       grade: book.grade || '',
       coverImage: book.coverImage,
       recommendedGuest: book.recommendedGuest || '',
+      sourceName: book.sourceName || '',
+      sourceGuestId: typeof book.sourceGuestId === 'string' ? book.sourceGuestId : (book.sourceGuestId?._id || ''),
+      wxProductId: book.wxProductId || '',
+      wxShopName: book.wxShopName || '',
+      wxShopAppid: book.wxShopAppid || '',
+      wxSalePrice: book.wxSalePrice || 0,
+      wxMonthlySales: book.wxMonthlySales || 0,
+      wxShopScore: book.wxShopScore || 0,
+      wxHeadImgs: book.wxHeadImgs || [],
+      wxQrcodeUrl: book.wxQrcodeUrl || '',
       status: book.status,
     });
     setShowModal(true);
@@ -441,12 +493,12 @@ const AdminBooksPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 flex-wrap">
         <div className="flex bg-stone-100 p-1.5 rounded-2xl">
           {(['all', 'published', 'draft'] as const).map((f) => (
             <button
               key={f}
-              onClick={() => setFilter(f)}
+              onClick={() => { setFilter(f); setSearchText(''); setCurrentPage(1); }}
               className={`px-6 py-2 rounded-xl text-xs font-bold transition-all ${
                 filter === f
                   ? 'bg-white shadow-sm text-stone-900'
@@ -456,6 +508,25 @@ const AdminBooksPage: React.FC = () => {
               {f === 'all' ? '全部' : f === 'published' ? '已发布' : '草稿'}
             </button>
           ))}
+        </div>
+        <div className="relative">
+          <input
+            className="w-64 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-stone-900 caret-[#5e17eb] placeholder:text-stone-400"
+            placeholder="搜索书名 / 作者 / 出版社 / ISBN …"
+            value={searchText}
+            onChange={(e) => { setSearchText(e.target.value); setCurrentPage(1); }}
+          />
+          {searchText ? (
+            <button
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+              onClick={() => { setSearchText(''); setCurrentPage(1); }}
+              type="button"
+            >
+              <span className="material-symbols-outlined text-base">close</span>
+            </button>
+          ) : (
+            <span className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 text-base">search</span>
+          )}
         </div>
       </div>
 
@@ -566,7 +637,7 @@ const AdminBooksPage: React.FC = () => {
             )}
             {books.length > 0 && (
               <div className="flex items-center justify-between border-t border-stone-100 px-6 py-4 text-sm text-stone-500">
-                <div>第 {currentPage}/{totalPages} 页，每页 {PAGE_SIZE} 条，共 {books.length} 条</div>
+                <div>第 {currentPage}/{totalPages} 页，每页 {PAGE_SIZE} 条，共 {filteredBooks.length} 条{searchText.trim() ? `（搜索"${searchText.trim()}"）` : ''}</div>
                 <div className="flex gap-2">
                   <button
                     className="rounded-xl border border-stone-200 px-3 py-2 text-xs font-bold text-stone-700 disabled:cursor-not-allowed disabled:opacity-50"
@@ -759,6 +830,32 @@ const AdminBooksPage: React.FC = () => {
                     placeholder="如：人民教育出版社"
                   />
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#5E8B8E] mb-3">
+                      ISBN
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.isbn}
+                      onChange={(e) => setFormData({ ...formData, isbn: e.target.value })}
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl py-3 px-4 text-sm focus:ring-4 focus:ring-[#5e17eb]/5 focus:border-[#5e17eb] outline-none"
+                      placeholder="978-7-xxx-xxxxx-x"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#5E8B8E] mb-3">
+                      出版日期
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.publishedDate}
+                      onChange={(e) => setFormData({ ...formData, publishedDate: e.target.value })}
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl py-3 px-4 text-sm focus:ring-4 focus:ring-[#5e17eb]/5 focus:border-[#5e17eb] outline-none"
+                      placeholder="2020-06"
+                    />
+                  </div>
+                </div>
                 <div>
                   <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#5E8B8E] mb-3">
                     年级
@@ -796,12 +893,166 @@ const AdminBooksPage: React.FC = () => {
                   />
                 </div>
                 <div>
+                  <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#E88B2C] mb-3">
+                    📚 书单名称 (sourceName)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.sourceName}
+                    onChange={(e) => setFormData({ ...formData, sourceName: e.target.value })}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl py-3 px-4 text-sm focus:ring-4 focus:ring-[#5e17eb]/5 focus:border-[#5e17eb] outline-none"
+                    placeholder="如：重庆南明新学道1-6年级书梯"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#E88B2C] mb-3">
+                    🔗 绑定嘉宾 ID (sourceGuestId)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.sourceGuestId}
+                    onChange={(e) => setFormData({ ...formData, sourceGuestId: e.target.value })}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl py-3 px-4 text-sm focus:ring-4 focus:ring-[#5e17eb]/5 focus:border-[#5e17eb] outline-none"
+                    placeholder="如：6a0271567598bae86f44babc"
+                  />
+                </div>
+                {/* ===== 微信小店字段 ===== */}
+                <div className="border-t border-[#fce4c8] pt-4">
+                  <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#E88B2C] mb-3">
+                    🛒 微信小店字段
+                  </label>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-medium text-stone-500 mb-1">商品 ID</label>
+                    <input
+                      type="text"
+                      value={formData.wxProductId}
+                      onChange={(e) => setFormData({ ...formData, wxProductId: e.target.value })}
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[#5e17eb]/10 focus:border-[#5e17eb]"
+                      placeholder="10000795479475"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-stone-500 mb-1">店铺名称</label>
+                    <input
+                      type="text"
+                      value={formData.wxShopName}
+                      onChange={(e) => setFormData({ ...formData, wxShopName: e.target.value })}
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[#5e17eb]/10 focus:border-[#5e17eb]"
+                      placeholder="顺峰书馆"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-stone-500 mb-1">店铺 Appid</label>
+                    <input
+                      type="text"
+                      value={formData.wxShopAppid}
+                      onChange={(e) => setFormData({ ...formData, wxShopAppid: e.target.value })}
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[#5e17eb]/10 focus:border-[#5e17eb]"
+                      placeholder="wxc78e4b72f7bec385"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-stone-500 mb-1">售价 (分)</label>
+                    <input
+                      type="number"
+                      value={formData.wxSalePrice}
+                      onChange={(e) => setFormData({ ...formData, wxSalePrice: Number(e.target.value) })}
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[#5e17eb]/10 focus:border-[#5e17eb]"
+                      placeholder="8000"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-stone-500 mb-1">月销量</label>
+                    <input
+                      type="number"
+                      value={formData.wxMonthlySales}
+                      onChange={(e) => setFormData({ ...formData, wxMonthlySales: Number(e.target.value) })}
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[#5e17eb]/10 focus:border-[#5e17eb]"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-stone-500 mb-1">店铺评分</label>
+                    <input
+                      type="number"
+                      value={formData.wxShopScore}
+                      onChange={(e) => setFormData({ ...formData, wxShopScore: Number(e.target.value) })}
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[#5e17eb]/10 focus:border-[#5e17eb]"
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-stone-500 mb-1">购买二维码</label>
+                  <div className="flex gap-2 items-center mb-1.5">
+                    <label className="cursor-pointer inline-flex items-center gap-1.5 rounded-xl bg-[#5e17eb] px-3 py-2 text-xs font-bold text-white hover:bg-[#4a12c0] transition">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                      上传二维码
+                      <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const fd = new FormData();
+                        fd.append('file', file);
+                        try {
+                          const token = localStorage.getItem('token');
+                          const res = await fetch('/api/admin/upload', { method: 'POST', body: fd, headers: token ? { Authorization: `Bearer ${token}` } : {} });
+                          const data = await res.json();
+                          if (data.url) setFormData({ ...formData, wxQrcodeUrl: data.url });
+                        } catch (err) { console.error('上传失败', err); }
+                      }} />
+                    </label>
+                    {formData.wxQrcodeUrl ? (
+                      <>
+                        <img src={formData.wxQrcodeUrl} alt="二维码预览" className="h-10 w-10 rounded-lg object-cover border border-stone-200" />
+                        <button type="button" onClick={() => setFormData({ ...formData, wxQrcodeUrl: '' })} className="text-[10px] text-red-400 hover:text-red-600">移除</button>
+                      </>
+                    ) : null}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      value={formData.wxQrcodeUrl}
+                      onChange={(e) => setFormData({ ...formData, wxQrcodeUrl: e.target.value })}
+                      className="flex-1 bg-stone-50 border border-stone-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[#5e17eb]/10 focus:border-[#5e17eb]"
+                      placeholder="或手动填入二维码图片URL"
+                    />
+                  </div>
+                  <p className="mt-1 text-[10px] text-stone-400">从微信小店后台「商品管理 → 下载二维码」保存后上传，或粘贴图片URL</p>
+                </div>
+                {formData.wxProductId ? (
+                <div>
+                  <label className="block text-[11px] font-medium text-stone-500 mb-1">购买短链</label>
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="text"
+                      readOnly
+                      value={`https://store.mp.video.tencent-cloud.com/pages/product/detail?productId=${formData.wxProductId}&appid=${formData.wxShopAppid || ''}`}
+                      className="flex-1 bg-stone-50 border border-stone-200 rounded-xl py-2.5 px-3 text-xs text-stone-500 outline-none select-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(
+                          `https://store.mp.video.tencent-cloud.com/pages/product/detail?productId=${formData.wxProductId}&appid=${formData.wxShopAppid || ''}`
+                        );
+                      }}
+                      className="shrink-0 rounded-xl bg-[#5e17eb] px-3 py-2 text-xs font-bold text-white hover:bg-[#4a12c0] transition"
+                    >
+                      复制
+                    </button>
+                  </div>
+                  <p className="mt-1 text-[10px] text-stone-400">微信内点击此链接可直接打开商品页购买</p>
+                </div>
+                ) : null}
+                <div>
                   <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#5E8B8E] mb-3">
                     状态
                   </label>
                   <select
                     value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as 'draft' | 'published' })}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value as 'draft' | 'published' | 'group-only' })}
                     className="w-full bg-stone-50 border border-stone-200 rounded-xl py-3 px-4 text-sm focus:ring-4 focus:ring-[#5e17eb]/5 focus:border-[#5e17eb] outline-none"
                   >
                     <option value="draft">草稿</option>

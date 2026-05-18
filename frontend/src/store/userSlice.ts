@@ -48,6 +48,12 @@ const userSlice = createSlice({
     clearError: (state) => {
       state.error = null;
     },
+    updateUser: (state, action: PayloadAction<Partial<User & { avatar_image?: string; grade?: string; name?: string; avatar_initial?: string }>>) => {
+      if (state.user) {
+        Object.assign(state.user, action.payload);
+        localStorage.setItem('user', JSON.stringify(state.user));
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -70,5 +76,5 @@ const userSlice = createSlice({
   },
 });
 
-export const { logout, clearError } = userSlice.actions;
+export const { logout, clearError, updateUser } = userSlice.actions;
 export default userSlice.reducer;

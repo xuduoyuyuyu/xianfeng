@@ -25,6 +25,20 @@ function formatClock(totalSeconds: number): string {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
+/** 统一 speaker 显示名称：主播·阿力 / 主播·Jessie / 嘉宾·XXX */
+function speakerDisplay(raw: string): string {
+  const s = raw.trim();
+  const n = s.toLowerCase();
+  if (n === 'ali' || n === '阿力' || n === 'all' || n === '主持' || n === 'host' || n === '主播·阿力') return '主播·阿力';
+  if (n === 'jessie' || n === '主播·jessie') return '主播·Jessie';
+  if (n === '主持人') return '主播·阿力';
+  // 已经带前缀的直接返回
+  if (n.startsWith('主播·') || n.startsWith('主持人') || n.startsWith('嘉宾·') || n.startsWith('嘉宾')) return s;
+  // 强制 side effect 防止 tree-shake
+  if (typeof window !== 'undefined') (window as any).__speakerDisplay = speakerDisplay;
+  return '嘉宾·' + s;
+}
+
 function inferTranscript(program: Program | null): TranscriptSegment[] {
   if (!program) return [];
   if (program.transcript && program.transcript.length > 0) {
@@ -36,18 +50,18 @@ function inferTranscript(program: Program | null): TranscriptSegment[] {
   return [
     {
       time: "00:00",
-      speaker: "主持人",
+      speaker: "主播·阿力",
       text: `欢迎回到《家长先疯》。今天我们围绕「${program.title}」展开，对话从 ${titleLead} 开始，聚焦家长真正关心的成长问题。`,
     },
     {
       time: "02:45",
-      speaker: "嘉宾",
+      speaker: "主播·Jessie",
       text: description,
       featured: true,
     },
     {
       time: "04:12",
-      speaker: "主持人",
+      speaker: "主播·阿力",
       text: "如果把这些观察带回到家庭环境里，我们最先应该调整的，不只是方法，而是家长与孩子互动时的节奏、情绪和空间感。",
     },
   ];
@@ -397,7 +411,6 @@ const ProgramDetailPage: React.FC = () => {
             </div>
             <div className="flex-1">
               <div className="mb-6 flex items-center gap-3">
-                <span className="rounded bg-[#5e17eb] px-4 py-1 text-[11px] font-black tracking-[0.2em] text-white">EPISODE {String(programs.findIndex((item) => item._id === program._id) + 1 || 1).padStart(2, "0")}</span>
                 <span className="text-sm font-medium text-white/70">{episodeDuration} • {displayDate} 发布</span>
               </div>
               <h1 className="mb-6 text-4xl font-black leading-[1.15] tracking-tight md:text-6xl">{program.title}</h1>
@@ -516,7 +529,7 @@ const ProgramDetailPage: React.FC = () => {
                 {transcriptSegments.map((segment) => (
                   <div key={`${segment.time}-${segment.speaker}-${segment.text.slice(0, 8)}`} className="py-3">
                     <div className="mb-2 text-xs font-black text-[#5e17eb]">{segment.time}</div>
-                    {segment.speaker ? <p className="mb-1 text-[11px] font-bold text-[#5e17eb]/70">{segment.speaker}</p> : null}
+                    {segment.speaker ? <p className="mb-1 text-[11px] font-bold text-[#5e17eb]/70">{speakerDisplay(segment.speaker)}</p> : null}
                     <p className={`text-sm leading-relaxed ${segment.featured ? "font-semibold text-[#211a18]" : "text-[#211a18]/85"}`}>{segment.text}</p>
                   </div>
                 ))}
@@ -583,7 +596,6 @@ const ProgramDetailPage: React.FC = () => {
                 <div className="space-y-6">
                   {(relatedPrograms.length > 0 ? relatedPrograms : programs.slice(0, 4)).map((item, index) => (
                     <Link key={item._id} className="group block cursor-pointer border-b border-gray-50 pb-6 last:border-0" to={`/programs/${item._id}`}>
-                      <span className="sidebar-episode-num mb-1.5 block text-xs">EP. {String(index + 1).padStart(2, "0")}</span>
                       <h4 className="mb-2 text-[13px] font-bold leading-tight text-[#211a18] transition-colors group-hover:text-[#5e17eb]">{item.title}</h4>
                       <p className="line-clamp-2 text-[11px] leading-relaxed text-[#53433f]/70">{item.description}</p>
                     </Link>
@@ -609,10 +621,6 @@ const ProgramDetailPage: React.FC = () => {
             </div>
             <div className="min-w-0 pr-4">
               <h4 className="truncate text-[13px] font-black leading-tight text-[#211a18]">{program.title}</h4>
-              <div className="mt-0.5 flex items-center gap-2">
-                <span className="sidebar-episode-num text-[9px]">{currentEpisode?.title ? "EP. 01" : "EP. --"}</span>
-                <span className="text-[9px] font-bold uppercase tracking-widest text-[#53433f] opacity-60">{currentEpisode?.title || "暂无音频"}</span>
-              </div>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-6 px-4">

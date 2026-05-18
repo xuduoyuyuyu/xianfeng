@@ -1,12 +1,10 @@
 import React, { useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { useDispatch } from "react-redux";
 import GlobalPublicNav from "./components/GlobalPublicNav";
 import ScreenPage from "./pages/ScreenPage";
 import AdminLoginPage from "./pages/admin/AdminLoginPage";
 import UserLoginPage from "./pages/UserLoginPage";
 import RequireAdmin from "./components/RequireAdmin";
-import { fetchMe } from "./store/userSlice";
 import AdminLayout from "./components/AdminLayout";
 import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
 import AdminProgramsPage from "./pages/admin/AdminProgramsPage";
@@ -50,7 +48,12 @@ const PublicScreenRouter: React.FC = () => {
 
   if (normalizedPathname === "/programs") {
     const src = `/wel/index.html?page=61&hideWidget=1&v=${screenRev}&cb=${cacheBust}`;
-    return <ScreenPage src={src} title="播客列表（框架内）" />;
+    return (
+      <>
+        <GlobalPublicNav />
+        <ScreenPage src={src} title="播客列表（框架内）" />
+      </>
+    );
   }
 
   if (normalizedPathname === "/programs/list") {
@@ -120,7 +123,6 @@ const PublicScreenRouter: React.FC = () => {
 };
 
 const App: React.FC = () => {
-  const dispatch = useDispatch();
   const { pathname, search } = useLocation();
   const searchParams = new URLSearchParams(search);
   const hideWidget = searchParams.get("hideWidget") === "1" || searchParams.get("widgetOnly") === "1";
@@ -133,10 +135,8 @@ const App: React.FC = () => {
     !hideWidget;
 
   useEffect(() => {
-    if (localStorage.getItem("token")) {
-      dispatch(fetchMe() as any);
-    }
-  }, [dispatch]);
+    // Admin/User 登录态由各自的 slice 管理，不再统一 fetchMe
+  }, []);
 
   return (
     <>

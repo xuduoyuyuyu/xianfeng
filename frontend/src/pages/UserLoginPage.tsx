@@ -21,11 +21,8 @@ const UserLoginPage: React.FC = () => {
 
   useEffect(() => {
     if (!user) return;
-    if (user.role === "admin") {
-      navigate("/admin", { replace: true });
-      return;
-    }
-    navigate("/programs", { replace: true });
+    // 普通用户登录后只跳前台，不跳 admin
+    navigate("/programs/list", { replace: true });
   }, [navigate, user]);
 
   useEffect(() => {

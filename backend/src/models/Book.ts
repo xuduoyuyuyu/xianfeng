@@ -9,6 +9,8 @@ interface Book extends mongoose.Document {
   author: string;
   translator: string;
   publisher: string;
+  isbn: string;
+  publishedDate: string;
   grade: string;
   coverImage: string;
   recommendedGuest: string;
@@ -18,6 +20,16 @@ interface Book extends mongoose.Document {
   publishedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
+  // 微信小店字段
+  wxProductId?: string;
+  wxShopName?: string;
+  wxShopAppid?: string;
+  wxShopScore?: number;
+  wxSalePrice?: number;
+  wxMonthlySales?: number;
+  wxHeadImgs?: string[];
+  wxQrcodeUrl?: string;
+  wxSyncAt?: Date;
 }
 
 const bookSchema = new mongoose.Schema(
@@ -28,6 +40,8 @@ const bookSchema = new mongoose.Schema(
     author: { type: String, default: "", trim: true },
     translator: { type: String, default: "", trim: true },
     publisher: { type: String, default: "", trim: true },
+    isbn: { type: String, default: "", trim: true },
+    publishedDate: { type: String, default: "", trim: true },
     grade: { type: String, default: "", trim: true },
     coverImage: { type: String, required: true },
     recommendedGuest: { type: String, default: "", trim: true },
@@ -39,6 +53,7 @@ const bookSchema = new mongoose.Schema(
     wxMonthlySales: { type: Number, default: 0 },
     wxShopScore: { type: Number, default: 0 },
     wxHeadImgs: { type: [String], default: [] },
+    wxQrcodeUrl: { type: String, default: "" },
     wxSyncAt: { type: Date, default: null },
     sourceName: { type: String, default: "" },
     sourceGuestId: { type: mongoose.Schema.Types.ObjectId, ref: "Guest", default: null, index: true },

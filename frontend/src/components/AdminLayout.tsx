@@ -1,11 +1,13 @@
 import React from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
+import { useDispatch } from "react-redux";
+import { adminLogout } from "../store/adminSlice";
 
 const AdminLayout: React.FC = () => {
   const location = useLocation();
+  const dispatch = useDispatch();
   const handleAdminLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    dispatch(adminLogout());
     window.location.href = "/admin/login";
   };
 

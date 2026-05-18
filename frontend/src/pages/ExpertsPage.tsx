@@ -2,10 +2,11 @@ import React, { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import Pagination from "../components/Pagination";
+import WishModal from "../components/WishModal";
 import { publicApi, PublicGuest } from "../services/api";
 
 const PAGE_SIZE = 15;
-const FALLBACK_AVATAR = "/assets/podcast-cover-1.svg";
+const FALLBACK_AVATAR = "https://xianfeng.xinzhi.info/uploads/images/1779099163792-wl2rg1zt.png";
 const EXPERTS_HERO_DISMISSED_KEY = "experts_hero_dismissed_v1";
 
 const ExpertsPage: React.FC = () => {
@@ -17,6 +18,7 @@ const ExpertsPage: React.FC = () => {
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
   const [searchParams, setSearchParams] = useSearchParams();
+  const [wishModalOpen, setWishModalOpen] = useState(false);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -205,6 +207,23 @@ const ExpertsPage: React.FC = () => {
           currentPage={safePage}
           totalPages={totalPages}
           onPageChange={setPage}
+        />
+
+        {/* 许愿入口 — 列表页底部小字 */}
+        <div className="mt-6 text-center">
+          <button
+            onClick={() => setWishModalOpen(true)}
+            className="transition hover:text-[#5e17eb]"
+            style={{ fontSize: 7.7, color: "#b7a9d6" }}
+          >
+            🙏 女施主又来许愿了
+          </button>
+        </div>
+
+        <WishModal
+          open={wishModalOpen}
+          onClose={() => setWishModalOpen(false)}
+          guestId="guest-list"
         />
       </main>
     </div>

@@ -32,28 +32,31 @@ export interface TopicLayersResult {
 
 /* ===== AI 话题标题生成 ===== */
 
-export async function generateTopicTitle(keyword: string): Promise<{ title: string; subtitle: string } | null> {
-  const prompt = `你是一位资深教育领域的话题编辑。请根据用户输入的关键词，整理一个合适的话题名称和副标题。
+export async function generateTopicTitle(keyword: string): Promise<{ title: string; subtitle: string; shortSummary: string; coverEmoji: string; tags: string[]; suitableGrades: string[] } | null> {
+  // 截断过长输入，避免 prompt 太大导致 JSON 截断
+  const input = keyword.length > 100 ? keyword.slice(0, 100) + "…" : keyword;
+  const prompt = `你是一位资深教育领域的话题编辑。请根据用户输入的关键词，整理话题名称、副标题、概念简介和最贴切的 Emoji。
 
-用户搜索/提交的关键词：${keyword}
+用户输入：${input}
 
 要求：
-1. 标题不要机械地加"怎么办"，而是围绕关键词整理一个自然的话题名称
-2. 标题可以是陈述句、名词短语或者问句，根据关键词内容灵活选择
-3. 标题要精准、有吸引力、适合家长阅读
-4. 副标题是一句话补充说明，15字以内
+1. 标题：克制、客观、教育视角。用简洁的陈述句式概括教育问题本身，不要感叹号、不追求耸动、不模仿新闻标题。把用户的长篇描述浓缩为教育话题名称
+   ✅ 好标题：「隔代教养中的情绪管理」「孩子作业拖拉怎么引导」
+   ❌ 坏标题：「监控拍下震惊一幕」「家长崩溃了！」——禁止这种新闻标题风格
+2. subtitle 15字以内，简短吸引人的副标题或疑问句
+3. shortSummary 30-50字，是话题的概念总结。冷静精准地定义问题本质，与subtitle不同——subtitle负责用疑问/口号吸引点击，shortSummary是概念定义
+4. coverEmoji 是1个最贴切的 Emoji，根据话题语义精准对应，禁止使用📚📖📝💡这类通用表情
+5. tags 是1-3个核心教育关键词。例如"大路灯是不是智商税"提炼为["大路灯","护眼灯"]，"奶奶带娃发脾气"提炼为["隔代教养","情绪管理"]
+6. suitableGrades 是该话题最适合的家长群体年级，从以下选项中选择1-3个（只从列表中选，不要自己编）：["孕期","0-3岁","幼儿园小班","幼儿园中班","幼儿园大班","小学1-3年级","小学4-6年级","初中","高中","全学段"]。如果话题面向所有家长，选["全学段"]。只有确实通用的（如亲子沟通、营养健康等）才选全学段
 
-示例：
-- 关键词"拖延症" → 标题"告别拖延症"，副标题"帮孩子找回行动力"
-- 关键词"孩子不爱写作业" → 标题"作业不再是战场"，副标题"激发学习内驱力的秘诀"
-- 关键词"adhd" → 标题"理解ADHD"，副标题"看见不一样的大脑天赋"
-- 关键词"自驱力" → 标题"培养孩子的自驱力"，副标题"从要我学到我要学"
+示例1：关键词"拖延症" → {"title":"告别拖延症","subtitle":"帮孩子找回行动力","shortSummary":"拖延是大脑前额叶执行功能的发育滞后，表现为明知该做却无法启动，与意志力无关，需要科学的策略引导","coverEmoji":"⏰","tags":["拖延症","执行力"],"suitableGrades":["小学1-3年级","小学4-6年级"]}
+示例2：关键词"蛀牙" → {"title":"儿童蛀牙防治","subtitle":"一口好牙从小抓起","shortSummary":"蛀牙是口腔细菌利用食物残渣产酸，持续腐蚀牙釉质和牙本质的过程，早期无症状但进展不可逆","coverEmoji":"🦷","tags":["蛀牙","口腔健康"],"suitableGrades":["幼儿园小班","幼儿园中班","幼儿园大班"]}
+示例3：关键词"奶奶带娃打骂孩子" → {"title":"隔代教养中的情绪管理","subtitle":"老人发脾气时如何沟通","shortSummary":"隔代教养中老人因体力精力不足、教育观念差异易产生情绪失控，需要建立温和的沟通机制而非指责","coverEmoji":"👵","tags":["隔代教养","情绪管理"],"suitableGrades":["全学段"]}
 
-请直接返回 JSON 格式（不要markdown代码块）：
-{"title": "...", "subtitle": "..."}`;
+请直接返回 JSON：{"title":"...","subtitle":"...","shortSummary":"...","coverEmoji":"...","tags":["..."],"suitableGrades":["..."]}`;
 
   if (!AI_API_KEY) {
-    return { title: keyword, subtitle: `关于${keyword}的深度解读` };
+    return { title: keyword, subtitle: `关于${keyword}的深度解读`, shortSummary: keyword, coverEmoji: "💡", tags: [keyword], suitableGrades: ["全学段"] };
   }
 
   try {
@@ -63,7 +66,7 @@ export async function generateTopicTitle(keyword: string): Promise<{ title: stri
         model: AI_MODEL,
         messages: [{ role: "user", content: prompt }],
         temperature: 0.8,
-        max_tokens: 300,
+        max_tokens: 800,
         response_format: { type: "json_object" },
       },
       {
@@ -71,17 +74,39 @@ export async function generateTopicTitle(keyword: string): Promise<{ title: stri
           Authorization: `Bearer ${AI_API_KEY}`,
           "Content-Type": "application/json",
         },
-        timeout: 15000,
+        timeout: 30000,
       }
     );
 
     const text = res.data?.choices?.[0]?.message?.content || "";
-    const parsed = JSON.parse(text);
-    if (parsed.title && typeof parsed.title === "string") {
-      return {
-        title: parsed.title.trim(),
-        subtitle: parsed.subtitle || `关于${keyword}的深度解读`,
-      };
+    const extractResult = (parsed: any) => ({
+      title: parsed.title.trim(),
+      subtitle: parsed.subtitle || `关于${keyword}的深度解读`,
+      shortSummary: parsed.shortSummary || keyword,
+      coverEmoji: (parsed.coverEmoji || "💡").trim(),
+      tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 3) : [keyword],
+      suitableGrades: Array.isArray(parsed.suitableGrades) ? parsed.suitableGrades : ["全学段"],
+    });
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed.title && typeof parsed.title === "string") {
+        return extractResult(parsed);
+      }
+    } catch (parseErr) {
+      // JSON 可能被截断，尝试修复
+      console.warn("generateTopicTitle JSON parse failed, trying repair:", (parseErr as Error).message);
+      try {
+        // 尝试找最后一个完整的 key:value 对，截断后补全
+        const fixed = text.replace(/,\s*"[^"]*"\s*:\s*[^\]]*$/, "");
+        const lastBrace = fixed.lastIndexOf("}");
+        const repaired = lastBrace > 0 ? fixed.slice(0, lastBrace + 1) : fixed;
+        const parsed = JSON.parse(repaired);
+        if (parsed.title && typeof parsed.title === "string") {
+          return extractResult(parsed);
+        }
+      } catch {
+        // 修复也失败了
+      }
     }
     return null;
   } catch (e) {
@@ -317,25 +342,33 @@ export async function generateExpandContent(input: ExpandInput): Promise<string>
 节点：${nodeTitle}
 ${baseContent ? `已有摘要：${baseContent.slice(0, 200)}` : ""}
 
-请生成300-500字的深度内容，要求：
-1. ⚠️ 必须紧紧围绕"${topicTitle}"这个话题，不能写成通用模板
-2. 每段内容都要与"${topicTitle}"直接相关
-3. 按逻辑分段，每段2-5句话，段落之间用空行分隔
-4. **必须**把每段的核心观点用 **加粗** 标记（至少2处）
-5. 包含具体案例或研究数据支撑
-6. 给出可操作的建议或方法论（如有步骤请用 "1. " "2. " 序号列出）
-7. 语言温暖、专业、接地气，适合家长阅读
+请生成250-400字的深度内容，严格按以下结构输出：
+
+## 格式结构（必须遵守）
+1. **首段：核心观点提炼** — 开篇直接用1句话提炼最核心的观点，用**加粗**，后跟2-3句展开说明
+2. **中段：案例/研究支撑** — 用具体案例或研究数据支撑观点，可分段（空行分隔）
+3. **末段：可操作建议** — 给出2-3条具体建议，用编号列表（1. 2. 3.）
+
+## 内容要求
+1. 必须紧紧围绕"${topicTitle}"，不能写成通用模板
+2. 语言温暖专业接地气，适合家长阅读
+3. 控制全文250-400字，精炼不啰嗦
+4. 每段核心观点用**加粗**标记
 
 ## 严禁
-- 禁止输出任何开场白、引导语（如"以下是为您…""接下来我将…""好的，以下是…"等）
-- 直接输出干货内容，不要任何寒暄过渡
+- 禁止任何开场白/引导语/过渡词
+- 禁止"首先/其次/第一/第二/最后/总而言之/综上所述"等废话
+- 禁止重复节点标题作为开篇
+- 开篇即核心观点，不寒暄
 
-格式示例（以"孩子爱攀比"话题为例）：
-**攀比心理的根源在于孩子的自我认同尚未建立。** 6-12岁的孩子正处于社会比较敏感期，他们会通过与他人的对比来确认自己的位置...
-（空行）
-**家庭环境是攀比行为的放大器。** 研究表明，父母频繁使用"你看别人家的孩子"这种比较性语言，会让孩子产生...
-1. 停止横向比较，改用纵向评价...
-2. 帮助孩子建立自己的"进步日记"...`;
+## 示例（话题：孩子爱攀比，节点：攀比根源）
+**攀比心理的根源在于孩子的自我认同尚未建立。** 6-12岁的孩子处于社会比较敏感期，通过与他人对比确认自己的位置，这本质上是寻求认同感的表现。研究表明，过度攀比的孩子往往在家庭中长期缺乏具体的、有针对性的表扬。
+
+北京市某小学的调查显示，72%的"攀比型"孩子家长平时只夸"真棒""真聪明"，而很少指出孩子具体哪里做得好。这种空洞的表扬反而让孩子更依赖外部评价。
+
+1. 停止横向比较，改用纵向对比——只跟昨天的自己比
+2. 每天记录3件"今天我进步了"的小事
+3. 帮孩子建立"进步日记"，用具体事例替代空泛夸赞`;
 
   if (!AI_API_KEY) {
     return generateFallbackExpand(topicTitle, nodeTitle, baseContent);
@@ -355,14 +388,39 @@ ${baseContent ? `已有摘要：${baseContent.slice(0, 200)}` : ""}
           Authorization: `Bearer ${AI_API_KEY}`,
           "Content-Type": "application/json",
         },
-        timeout: 30000,
+        timeout: 90000,
       }
     );
 
     const text = res.data?.choices?.[0]?.message?.content || "";
-    return text.trim() || generateFallbackExpand(topicTitle, nodeTitle, baseContent);
+    const result = text.trim();
+    if (result && result.length > 80) return result;
+    return generateFallbackExpand(topicTitle, nodeTitle, baseContent);
   } catch (e) {
-    console.error("AI expand error:", e);
+    console.error("AI expand error (attempt 1):", (e as any)?.message);
+    // 重试一次
+    try {
+      const res2 = await axios.post(
+        `${AI_ENDPOINT}/chat/completions`,
+        {
+          model: AI_MODEL,
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.7,
+          max_tokens: 1200,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${AI_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          timeout: 60000,
+        }
+      );
+      const text2 = res2.data?.choices?.[0]?.message?.content || "";
+      if (text2.trim().length > 80) return text2.trim();
+    } catch (e2) {
+      console.error("AI expand error (retry):", (e2 as any)?.message);
+    }
     return generateFallbackExpand(topicTitle, nodeTitle, baseContent);
   }
 }
@@ -472,24 +530,159 @@ export async function generateTopicWithDeepContent(
   const total = allNodes.length;
   let done = 0;
 
-  // Step 3: 逐节点生成深度内容（独立生成，基于 title/summary）
-  for (const item of allNodes) {
-    try {
-      const deep = await generateExpandContent({
-        topicTitle: input.title,
-        nodeTitle: item.node.title,
-        existingSummary: item.node.summary || item.node.title,
-      });
-      if (deep && deep.length > 80) {
-        skeleton[item.layer][item.idx].content = deep;
-        console.log(`  Deep gen OK: "${item.node.title}" → ${deep.length} chars`);
-      }
-    } catch (e) {
-      console.error(`Deep gen failed for ${item.node.title}:`, e);
-    }
-    done++;
+  // Step 3: 并行批量生成深度内容（每批 3 个并发，15 个节点约 2-3 分钟）
+  const CONCURRENCY = 3;
+  for (let i = 0; i < allNodes.length; i += CONCURRENCY) {
+    const batch = allNodes.slice(i, i + CONCURRENCY);
+    const results = await Promise.allSettled(
+      batch.map(async (item) => {
+        try {
+          const deep = await generateExpandContent({
+            topicTitle: input.title,
+            nodeTitle: item.node.title,
+            existingSummary: item.node.summary || item.node.title,
+          });
+          if (deep && deep.length > 80) {
+            skeleton[item.layer][item.idx].content = deep;
+            console.log(`  Deep gen OK: "${item.node.title}" → ${deep.length} chars`);
+          }
+        } catch (e) {
+          console.error(`Deep gen failed for ${item.node.title}:`, e);
+        }
+      })
+    );
+    done += batch.length;
     if (onProgress) onProgress(done, total);
   }
 
   return skeleton;
+}
+
+/* ===== AI 话题有效性校验 ===== */
+
+export interface ValidateResult {
+  valid: boolean;
+  reason: string;
+  title?: string;
+}
+
+/**
+ * 从长文本中提炼核心搜索关键词
+ * 用户输入一整句话/段落时，AI 提取教育话题关键词
+ */
+export async function generateKeywordFromLongText(text: string): Promise<string | null> {
+  const prompt = `用户输入了一段话，请从中提取最核心的教育话题关键词（5-20字）。忽略寒暄、表情、无关描述，只保留核心问题。
+
+用户输入：${text}
+
+直接输出提炼后的关键词，不要任何解释：`;
+
+  if (!AI_API_KEY) return null;
+
+  try {
+    const res = await axios.post(
+      `${AI_ENDPOINT}/chat/completions`,
+      {
+        model: AI_MODEL,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.1,
+        max_tokens: 50,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${AI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        timeout: 10000,
+      }
+    );
+
+    const text = res.data?.choices?.[0]?.message?.content?.trim() || "";
+    // 去掉可能的引号、换行
+    return text.replace(/^["']|["']$/g, "").replace(/\n/g, "").slice(0, 30) || null;
+  } catch (e) {
+    console.error("generateKeywordFromLongText error:", e);
+    return null;
+  }
+}
+
+/**
+ * 校验用户输入的话题关键词是否合规（仅本地基础过滤，不调用 AI）
+ * 用户提交不再被 AI 阻拦，由后台审核
+ */
+export async function validateTopicKeyword(keyword: string): Promise<ValidateResult> {
+  const trimmed = keyword.trim();
+
+  // 仅拦截明显无效的输入：空、纯乱敲字符
+  if (trimmed.length <= 1) {
+    return { valid: false, reason: "请输入有意义的话题内容" };
+  }
+  if (/^[\d\s\.\,\!\?\-\+\=@#\$%\^&\*\(\)\[\]\{\}\/\\|~`]+$/.test(trimmed)) {
+    return { valid: false, reason: "请输入有意义的话题内容" };
+  }
+  if (/^(.)\1{2,}$/.test(trimmed)) {
+    return { valid: false, reason: "请输入有意义的话题内容" };
+  }
+  // 纯英文+数字短词可能是乱敲（排除大写缩写如 ADHD、PBL、RAZ）
+  if (/^[a-zA-Z0-9]{1,8}$/.test(trimmed) && !/^[A-Z]{2,}/.test(trimmed)) {
+    return { valid: false, reason: "请输入有意义的话题内容" };
+  }
+
+  // 其他所有输入直接放行
+  return { valid: true, reason: "" };
+}
+
+/**
+ * AI 根据话题语义自动匹配适配 Emoji
+ */
+export async function matchTopicEmoji(title: string, subtitle?: string): Promise<string> {
+  const prompt = `你是一个表情符号推荐助手。请根据以下教育话题内容，推荐一个最贴切的 Emoji。
+
+话题标题：${title}
+副标题：${subtitle || ""}
+
+要求：
+1. 只返回 1 个 Emoji，不要任何其他文字
+2. 优先选择与话题语义精准对应的 Emoji
+3. 避免使用太通用的 📚📖📝（除非确实最合适）
+
+示例：
+- 睡眠话题 → 😴 或 🌙
+- ADHD → 🧠
+- 拖延症 → ⏰
+- 亲子沟通 → 💬
+- 情绪管理 → 🎭
+- 数学学习 → 🧮
+- 阅读习惯 → 📖
+
+请直接返回一个 emoji 字符。`;
+
+  if (!AI_API_KEY) return "💡";
+
+  try {
+    const res = await axios.post(
+      `${AI_ENDPOINT}/chat/completions`,
+      {
+        model: AI_MODEL,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.8,
+        max_tokens: 10,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${AI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        timeout: 8000,
+      }
+    );
+
+    const text = (res.data?.choices?.[0]?.message?.content || "").trim();
+    // 提取第一个 emoji
+    const emojiMatch = text.match(/[\p{Emoji_Presentation}\p{Emoji}\u200d]/u);
+    return emojiMatch ? emojiMatch[0] : "💡";
+  } catch (e: any) {
+    console.error("matchTopicEmoji error:", e.message);
+    return "💡";
+  }
 }

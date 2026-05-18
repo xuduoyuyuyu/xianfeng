@@ -1,0 +1,21 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const book_1 = require("../controllers/book");
+const auth_1 = require("../middlewares/auth");
+const requireAdmin_1 = require("../middlewares/requireAdmin");
+const router = express_1.default.Router();
+const bookController = new book_1.BookController();
+router.use(auth_1.authenticate, requireAdmin_1.requireAdmin);
+router.get("/", bookController.getAllAdmin);
+router.post("/import", bookController.importBatch);
+router.get("/:id", bookController.getByIdAdmin);
+router.post("/", bookController.create);
+router.put("/:id", bookController.update);
+router.patch("/:id/status", bookController.updateStatus);
+router.post("/batch-publish", bookController.batchPublish);
+router.delete("/:id", bookController.delete);
+exports.default = router;

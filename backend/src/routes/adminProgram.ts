@@ -84,9 +84,7 @@ router.post("/upload-image", (req, res, next) => {
   });
 }, programController.uploadImage);
 router.post("/create-from-audio", programController.createFromAudio);
-router.post("/:id/parse", programController.triggerParse);
 router.post("/:id/preview-link", programController.createPreviewLink);
-router.get("/:id/parse-status", programController.getParseStatus);
 router.post("/:id/proofread/accept", (req, res) => programController.acceptProofread(req as any, res));
 router.get("/:id", programController.getByIdAdmin);
 router.post("/", programController.create);

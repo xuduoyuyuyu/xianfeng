@@ -77,7 +77,7 @@ const AdminMaterialsPage: React.FC = () => {
     description: '',
     fileUrl: '',
     category: '',
-    status: 'draft' as 'draft' | 'published',
+    status: 'draft' as 'draft' | 'published' | 'group-only',
   });
 
   useEffect(() => {
@@ -502,7 +502,7 @@ const AdminMaterialsPage: React.FC = () => {
                   </label>
                   <select
                     value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as 'draft' | 'published' })}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value as 'draft' | 'published' | 'group-only' })}
                     className="w-full bg-stone-50 border border-stone-200 rounded-xl py-3 px-4 text-sm focus:ring-4 focus:ring-[#5e17eb]/5 focus:border-[#5e17eb] outline-none"
                   >
                     <option value="draft">草稿</option>

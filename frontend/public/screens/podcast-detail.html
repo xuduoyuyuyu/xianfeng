@@ -718,16 +718,19 @@
   }
 
   function resolveSpeakerIdentity(speaker) {
-    const raw = String(speaker || "").trim();
-    const lower = raw.toLowerCase();
+    var raw = String(speaker || "").trim();
+    var lower = raw.toLowerCase();
     if (!raw) return { role: "嘉宾", name: "嘉宾" };
-    if (raw.indexOf("主持") >= 0 || lower.indexOf("host") >= 0 || lower.indexOf("jessie") >= 0) {
-      return { role: "主持人", name: raw.replace(/主持人?/g, "").trim() || raw };
+    // 阿力和Jessie — 数据库里可能存"阿力"或"主播·阿力"
+    if (lower === "ali" || lower === "阿力" || lower === "all" || lower === "主播·阿力") return { role: "主播·阿力", name: "主播·阿力" };
+    if (lower === "jessie" || lower === "主播·jessie") return { role: "主播·Jessie", name: "主播·Jessie" };
+    if (lower === "主持人" || lower === "host") return { role: "主播·阿力", name: "主播·阿力" };
+    // 嘉宾统一加"嘉宾·"前缀
+    var displayName = raw;
+    if (raw && raw.indexOf("嘉宾·") !== 0 && raw.indexOf("嘉宾") !== 0 && raw.indexOf("主播") !== 0) {
+      displayName = "嘉宾·" + raw;
     }
-    if (raw.indexOf("嘉宾") >= 0 || raw.indexOf("老师") >= 0 || raw.indexOf("博士") >= 0 || lower.indexOf("guest") >= 0) {
-      return { role: "嘉宾", name: raw.replace(/嘉宾/g, "").trim() || raw };
-    }
-    return { role: "嘉宾", name: raw };
+    return { role: "嘉宾", name: displayName };
   }
 
   function splitGuestNames(rawName) {
@@ -747,12 +750,25 @@
       if (names.indexOf(n) >= 0) return;
       names.push(n);
     };
+
+    // 1. 从节目绑定的 guest.name 和 guests 字段获取
     splitGuestNames(program && program.guest && program.guest.name).forEach(pushUnique);
-    (Array.isArray(transcriptRows) ? transcriptRows : []).forEach(function (row) {
-      const identity = resolveSpeakerIdentity(row && row.speaker);
-      if (!identity || identity.role !== "嘉宾") return;
-      splitGuestNames(identity.name).forEach(pushUnique);
+    var guestsField = Array.isArray(program && program.guests) ? program.guests : [];
+    guestsField.forEach(function (g) {
+      splitGuestNames(String(g || "")).forEach(pushUnique);
     });
+
+    // 2. 如果节目没有设置任何嘉宾，回退到从逐字稿中提取
+    if (names.length === 0) {
+      (Array.isArray(transcriptRows) ? transcriptRows : []).forEach(function (row) {
+        var identity = resolveSpeakerIdentity(row && row.speaker);
+        if (!identity || identity.role !== "嘉宾") return;
+        // 侧边栏去掉"嘉宾·"前缀
+        var guestName = identity.name.replace(/^嘉宾[·\.]/, "");
+        splitGuestNames(guestName).forEach(pushUnique);
+      });
+    }
+
     return names.slice(0, 8);
   }
 
@@ -1000,9 +1016,9 @@
 
   function transcriptFallback(program) {
     return [
-      { time: "00:00-01:10", speaker: "主持人", text: "欢迎回到《家长先疯》。今天我们围绕本期主题展开，先快速梳理问题背景和家庭场景中的常见误区。", featured: false },
+      { time: "00:00-01:10", speaker: "主播·阿力", text: "欢迎回到《家长先疯》。今天我们围绕本期主题展开，先快速梳理问题背景和家庭场景中的常见误区。", featured: false },
       { time: "01:10-02:40", speaker: "嘉宾", text: (program && program.description) || "核心观点讨论。", featured: true },
-      { time: "02:40-04:00", speaker: "主持人", text: "把这次讨论转化为家庭中可执行的行动步骤，并给出复盘节奏建议。", featured: false },
+      { time: "02:40-04:00", speaker: "主播·Jessie", text: "把这次讨论转化为家庭中可执行的行动步骤，并给出复盘节奏建议。", featured: false },
     ];
   }
 
@@ -1029,9 +1045,7 @@
       const range = getSegmentRange(segment, nextSegment);
       const speakerIdentity = resolveSpeakerIdentity(segment.speaker);
       const speakerName = String(speakerIdentity.name || "").trim();
-      const speakerLabel = speakerName && speakerName !== speakerIdentity.role
-        ? speakerIdentity.role + " " + speakerName
-        : speakerIdentity.role;
+      const speakerLabel = speakerIdentity.name || speakerIdentity.role;
       return '<div class="transcript-row ' + (featured ? "relative group" : "group") + '" data-subtitle-index="' + index + '" data-start-sec="' + range.startSec + '" data-end-sec="' + range.endSec + '">' +
         '<div class="py-3">' +
         '<div class="mb-2 text-xs font-black text-primary text-left transcript-time">' + escapeHtml(segment.time || "00:00-00:30") + ' <span class="text-primary/35">·</span> <span class="text-primary">' + escapeHtml(speakerLabel || "嘉宾") + "</span></div>" +

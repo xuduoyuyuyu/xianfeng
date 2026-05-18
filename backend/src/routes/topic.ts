@@ -1,6 +1,34 @@
 import { Router, Request, Response } from "express";
 import Topic from "../models/Topic";
-import { generateTopicLayers } from "../services/topicAiGenerator";
+import { generateTopicLayers, validateTopicKeyword } from "../services/topicAiGenerator";
+
+// 中文搜索关键词切词：按停用词和标点拆分，提取有意义的短词
+function extractSearchTerms(text: string): string[] {
+  // 停用词列表（会被用来切分句子）
+  const STOP_PATTERN = /几岁|应该|怎么|该如何|如何|什么|为什么|要不要|能不能|可不可以|是不是|请问|请教|一下|啊|吗|呢|吧|想和|想|各位|前辈|妈妈|们|现在|非常|比较|已经|还|就|都|也|不|可以|需要|去做|做|给|帮|我|你|他|她|小朋友|孩子|的|了|是|去|有|在|和|与|请教一下/g;
+  
+  // 步骤1：用停用词把句子切开，提取有意义片段
+  let cleaned = text.replace(STOP_PATTERN, '|').replace(/[，。！？、；：\s\[\]【】（）()《》""''…—\-/,]+/g, '|');
+  const chunks = cleaned.split('|').map(s => s.trim()).filter(s => s.length >= 2);
+  
+  // 步骤2：对每个片段，生成子串（2-4字滑动窗口）做模糊匹配
+  const terms = new Set<string>();
+  for (const chunk of chunks) {
+    terms.add(chunk); // 完整片段
+    if (chunk.length >= 3) {
+      for (let i = 0; i <= chunk.length - 2; i++) {
+        for (let len = 2; len <= 4 && i + len <= chunk.length; len++) {
+          const sub = chunk.slice(i, i + len);
+          if (sub.length >= 2) terms.add(sub);
+        }
+      }
+    }
+  }
+  
+  // 步骤3：去重、转义，返回用于正则匹配的词列表
+  const escaped = [...terms].map(t => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  return escaped.length > 0 ? escaped : [text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")];
+}
 
 // 辅助：根据 _id 或 slug 查话题
 async function findTopicBySlugOrId(param: string | string[]) {
@@ -36,12 +64,21 @@ publicRouter.get("/", async (req: Request, res: Response) => {
       tag,
       search,
       page = "1",
-      limit = "20",
+      limit = "21",
+      sort = "viewCount",
       userId,
+      grade,
     } = req.query as Record<string, string>;
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 20));
+    const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 21));
+
+    // 排序：默认按浏览量降序，支持 createdAt
+    const sortField = sort === "createdAt" ? "createdAt" : "viewCount";
+    const sortObj: Record<string, any> = {};
+    sortObj[sortField] = -1;
+    // 浏览量相同时按创建时间降序
+    if (sortField === "viewCount") sortObj.createdAt = -1;
 
     // 基础过滤：published 或当前用户自己的 pending
     const filter: Record<string, any> = {
@@ -63,26 +100,65 @@ publicRouter.get("/", async (req: Request, res: Response) => {
       filter.tags = { $in: [tag] };
     }
 
+    // 年级过滤：只返回匹配该年级的话题（含"全学段"的话题对所有人可见）
+    if (grade && grade !== "all" && grade !== "全部") {
+      filter.suitableGrades = { $in: [grade, "全学段"] };
+    }
+
     if (search) {
-      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      // 中文分词：拆成单关键词，同时保留原始搜索词做精确匹配
+      const searchTerms = extractSearchTerms(search);
       filter.$and = filter.$and || [];
       filter.$and.push({
-        $or: [
-          { title: { $regex: escaped, $options: "i" } },
-          { subtitle: { $regex: escaped, $options: "i" } },
-          { description: { $regex: escaped, $options: "i" } },
-        ],
+        $or: searchTerms.flatMap((term: string) => [
+          { title: { $regex: term, $options: "i" } },
+          { subtitle: { $regex: term, $options: "i" } },
+          { tags: { $regex: term, $options: "i" } },
+        ]),
       });
     }
 
     const [topics, total] = await Promise.all([
       Topic.find(filter)
-        .sort({ createdAt: -1 })
+        .sort(sortObj)
         .skip((pageNum - 1) * limitNum)
         .limit(limitNum)
         .lean(),
       Topic.countDocuments(filter),
     ]);
+
+    // 计算 nodeCount 的工具函数
+    const calcNodeCount = (t: any) => {
+      const layers = t.layers || {};
+      let count = 0;
+      for (const key of Object.keys(layers)) {
+        if (Array.isArray(layers[key])) count += layers[key].length;
+      }
+      return count;
+    };
+
+    // 如果是第一页且有 userId，把用户自己提交的所有话题排在前面
+    if (userId && pageNum === 1) {
+      const userTopics = await Topic.find({
+        createdBy: userId,
+        hiddenForUsers: { $ne: userId },
+      })
+        .sort({ createdAt: -1 })
+        .lean();
+
+      // 从主结果中移除重复项（主查询可能已有用户的话题）
+      const userSlugs = new Set(userTopics.map((t: any) => t.slug));
+      const filtered = topics.filter((t: any) => !userSlugs.has(t.slug));
+
+      // 合并：用户自己的话题在前，其他 topic 在后
+      const merged = [
+        ...userTopics.map((t: any) => ({ ...t, nodeCount: calcNodeCount(t) })),
+        ...filtered.map((t: any) => ({ ...t, nodeCount: calcNodeCount(t) })),
+      ];
+
+      res.json({ topics: merged, total: total + userTopics.length, page: pageNum, limit: limitNum });
+      return;
+    }
 
     // 计算 nodeCount
     const withNodeCount = topics.map((t: any) => {
@@ -147,9 +223,75 @@ publicRouter.get("/:slug", async (req: Request, res: Response) => {
         })),
       }));
 
-    res.json({ topic, tree });
+    // 关联话题：根据 tags 找到 3 个相关话题
+    let relatedTopics: any[] = [];
+    try {
+      const topicTags = (topic as any).tags || [];
+      if (topicTags.length > 0) {
+        const topicId = (topic as any)._id;
+        relatedTopics = await Topic.find({
+          _id: { $ne: topicId },
+          status: "published",
+          tags: { $in: topicTags },
+        })
+          .select("title slug tags")
+          .limit(3)
+          .lean();
+      }
+    } catch (_) {}
+
+    res.json({ topic, tree, relatedTopics });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/topic-hub/validate — AI 校验话题有效性
+// POST /api/topic-hub/validate — AI 校验话题有效性
+// POST /api/topic-hub/refine — AI 从长文本中提炼核心话题关键词（二次确认用）
+publicRouter.post("/refine", async (req: Request, res: Response) => {
+  try {
+    const { keyword } = req.body || {};
+    if (!keyword || !keyword.trim()) {
+      return res.status(400).json({ error: "keyword 为必填项" });
+    }
+
+    const text = keyword.trim();
+
+    // 短文本直接可用，不需要二次确认
+    if (text.length <= 15) {
+      return res.json({ refined: text, needConfirm: false });
+    }
+
+    // AI 提炼核心问题，让用户确认
+    try {
+      const { generateKeywordFromLongText } = await import("../services/topicAiGenerator.js");
+      const refined = await generateKeywordFromLongText(text);
+      if (refined && refined.length >= 2 && refined.length <= 30) {
+        // 提炼成功，让用户确认
+        return res.json({ original: text, refined, needConfirm: true });
+      }
+    } catch (e: any) {
+      console.error("Refine failed:", e.message);
+    }
+
+    // 提炼失败：降级截取
+    return res.json({ refined: text.slice(0, 50), needConfirm: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+publicRouter.post("/validate", async (req: Request, res: Response) => {
+  try {
+    const { keyword } = req.body || {};
+    if (!keyword || !keyword.trim()) {
+      return res.status(400).json({ valid: false, reason: "请输入话题内容" });
+    }
+    const result = await validateTopicKeyword(keyword.trim());
+    res.json(result);
+  } catch (e: any) {
+    res.status(500).json({ valid: false, reason: "校验服务异常，请稍后再试" });
   }
 });
 
@@ -161,52 +303,107 @@ publicRouter.post("/search-generate", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "keyword 为必填项" });
     }
 
-    const kw = keyword.trim();
+    let kw = keyword.trim();
+    const originalInput = kw; // 保存用户原始输入
     const creatorId = userId || req.ip || "anonymous";
 
-    // 先检查是否已存在类似话题
-    const existing = await Topic.findOne({
-      status: "published",
-      $or: [
-        { title: { $regex: kw.slice(0, 4), $options: "i" } },
-        { tags: { $regex: kw, $options: "i" } },
-      ],
-    }).lean();
-
-    if (existing) {
-      return res.json({ topic: existing, source: "existing" });
+    // 长文本先提炼关键词再搜索（避免用长原文匹配到不相关话题）
+    let searchTerm = kw.slice(0, 4);
+    if (kw.length > 15) {
+      try {
+        const { generateKeywordFromLongText } = await import("../services/topicAiGenerator.js");
+        const refined = await generateKeywordFromLongText(kw);
+        if (refined && refined.length >= 2 && refined.length <= 30) {
+          searchTerm = refined; // 用提炼后的关键词搜索
+        }
+      } catch { /* 提炼失败用原文前4字 */ }
     }
 
-    // AI 根据关键词生成话题标题（去掉生硬的"怎么办"后缀）
-    let title = kw;
-    let subtitle = `关于${kw}的深度分析与解决方案`;
+    // 搜索关联话题（不拦截创建，仅附带返回给前端参考）
+    let relatedTopics: any[] = [];
+    try {
+      relatedTopics = await Topic.find({
+        status: "published",
+        $or: [
+          { title: { $regex: searchTerm, $options: "i" } },
+          { tags: { $regex: searchTerm, $options: "i" } },
+        ],
+      }).limit(5).lean();
+    } catch { /* 搜索失败不影响创建 */ }
+
+    // AI 生成话题标题、标签（失败时 fallback，不拒绝提交）
+    let title: string;
+    let subtitle: string;
+    let shortSummary: string;
+    let matchedEmoji: string;
+    let tags: string[];
+    let suitableGrades: string[];
     try {
       const { generateTopicTitle } = await import("../services/topicAiGenerator.js");
       const aiTitle = await generateTopicTitle(kw);
-      if (aiTitle) {
-        title = aiTitle.title || title;
-        subtitle = aiTitle.subtitle || subtitle;
+      if (aiTitle && aiTitle.title) {
+        title = aiTitle.title;
+        subtitle = aiTitle.subtitle || kw;
+        shortSummary = aiTitle.shortSummary || kw;
+        matchedEmoji = aiTitle.coverEmoji || "💡";
+        tags = aiTitle.tags?.length ? aiTitle.tags : [kw];
+        suitableGrades = aiTitle.suitableGrades || ["全学段"];
+      } else {
+        // AI 生成失败，用 key 语义关键词做简单话题摘要
+        title = kw.length > 30 ? kw.slice(0, 30) + "…" : kw;
+        subtitle = `关于${kw.slice(0, 12)}的讨论`;
+        shortSummary = kw.slice(0, 50);
+        matchedEmoji = "💬";
+        tags = [kw.slice(0, 6)];
+        suitableGrades = ["全学段"];
       }
     } catch (e: any) {
-      console.error("Title generation failed, using keyword:", e.message);
+      console.error("Title generation failed:", e.message);
+      // fallback 不拒绝
+      title = kw.length > 30 ? kw.slice(0, 30) + "…" : kw;
+      subtitle = `关于${kw.slice(0, 12)}的讨论`;
+      shortSummary = kw.slice(0, 50);
+      matchedEmoji = "💬";
+      tags = [kw.slice(0, 6)];
+      suitableGrades = ["全学段"];
     }
 
-    // 创建话题（用户提交，直接发布，无需审核）
+    // 生成唯一 slug（避免重复键冲突）
+    let slug = title
+      .replace(/[^\w\u4e00-\u9fff]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .toLowerCase()
+      .slice(0, 80) || `topic-${Date.now()}`;
+    const slugConflict = await Topic.findOne({ slug });
+    if (slugConflict) {
+      // 已有相同 slug，加数字后缀
+      let counter = 2;
+      while (await Topic.findOne({ slug: `${slug}-${counter}` })) {
+        counter++;
+      }
+      slug = `${slug}-${counter}`;
+    }
+
+    // 创建话题（用户提交，初始仅本人可见，待审核后公开）
     const topic = await Topic.create({
       title,
       subtitle,
-      coverEmoji: "🔍",
-      tags: [kw],
-      status: "published",
+      shortSummary,
+      coverEmoji: matchedEmoji,
+      tags,
+      suitableGrades,
+      slug,
+      status: "pending",
       source: "user",
       createdBy: creatorId,
+      userOriginalInput: originalInput,
       generatingProgress: { total: 15, done: 0, status: "pending" },
     });
 
     // AI 生成五层知识树（快速骨架）
     try {
       const { generateTopicLayers } = await import("../services/topicAiGenerator.js");
-      const layers = await generateTopicLayers({ title, subtitle: topic.subtitle, tags: [kw] });
+      const layers = await generateTopicLayers({ title, subtitle: topic.subtitle, tags });
       topic.layers = layers;
       await topic.save();
     } catch (aiErr: any) {
@@ -218,7 +415,7 @@ publicRouter.post("/search-generate", async (req: Request, res: Response) => {
     topic.generatingProgress = { total: totalNodes, done: 0, status: "pending" };
     await topic.save();
 
-    res.status(201).json({ topic: topic.toJSON(), source: "generated" });
+    res.status(201).json({ topic: topic.toJSON(), source: "generated", relatedTopics });
 
     // 异步逐节点深度生成（不阻塞返回）
     const topicId = topic._id;
@@ -226,7 +423,7 @@ publicRouter.post("/search-generate", async (req: Request, res: Response) => {
       try {
         const { generateTopicWithDeepContent } = await import("../services/topicAiGenerator.js");
         const deepLayers = await generateTopicWithDeepContent(
-          { title, subtitle: topic.subtitle, tags: [kw] },
+          { title, subtitle: topic.subtitle, tags },
           async (done: number, total: number) => {
             // 实时更新进度到数据库
             try {
@@ -367,7 +564,17 @@ publicRouter.get("/:slug/nodes/:nodeKey", async (req: Request, res: Response) =>
   try {
     const { slug, nodeKey } = req.params;
 
-    const topic = await Topic.findOne({ slug, status: "published" }).lean();
+    const { userId } = req.query as Record<string, string>;
+
+    const filter: Record<string, any> = {
+      slug,
+      $or: [{ status: "published" }],
+    };
+    if (userId) {
+      filter.$or.push({ status: "pending", createdBy: userId });
+    }
+
+    const topic = await Topic.findOne(filter).lean();
     if (!topic) {
       return res.status(404).json({ error: "未找到该话题" });
     }
@@ -599,9 +806,11 @@ adminRouter.put("/:slug", async (req: Request, res: Response) => {
     const {
       title,
       subtitle,
+      shortSummary,
       description,
       coverEmoji,
       tags,
+      suitableGrades,
       layers,
       questionCount,
       viewCount,
@@ -611,9 +820,11 @@ adminRouter.put("/:slug", async (req: Request, res: Response) => {
 
     if (title !== undefined) update.title = title;
     if (subtitle !== undefined) update.subtitle = subtitle;
+    if (shortSummary !== undefined) update.shortSummary = shortSummary;
     if (description !== undefined) update.description = description;
     if (coverEmoji !== undefined) update.coverEmoji = coverEmoji;
     if (tags !== undefined) update.tags = tags;
+    if (suitableGrades !== undefined) update.suitableGrades = suitableGrades;
     if (layers !== undefined) update.layers = layers;
     if (questionCount !== undefined) update.questionCount = questionCount;
     if (viewCount !== undefined) update.viewCount = viewCount;
@@ -703,6 +914,76 @@ adminRouter.post("/:slug/expand", async (req: Request, res: Response) => {
     await Topic.findByIdAndUpdate(existing._id, { layers });
     const nodeCount = countLayerNodes(layers);
     res.json({ nodeCount, source: "generated" });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/admin/topic-hub/:slug/regenerate — 重新触发 AI 深度生成
+adminRouter.post("/:slug/regenerate", async (req: Request, res: Response) => {
+  try {
+    const existing = await findTopicBySlugOrId(req.params.slug);
+    if (!existing) {
+      return res.status(404).json({ error: "未找到该话题" });
+    }
+
+    // 计算节点总数
+    const totalNodes = countLayerNodes(existing.layers);
+    if (totalNodes === 0) {
+      // 还没有骨架，先创建骨架
+      const { generateTopicLayers } = await import("../services/topicAiGenerator.js");
+      const layers = await generateTopicLayers({
+        title: existing.title,
+        subtitle: existing.subtitle,
+        tags: existing.tags || [],
+      });
+      await Topic.findByIdAndUpdate(existing._id, { layers });
+      existing.layers = layers;
+    }
+
+    const finalTotal = countLayerNodes(existing.layers);
+    await Topic.findByIdAndUpdate(existing._id, {
+      $set: { generatingProgress: { total: finalTotal, done: 0, status: "pending" } },
+    });
+
+    // 立即返回，后台异步生成
+    res.json({ message: "重新生成已启动", slug: existing.slug, totalNodes: finalTotal });
+
+    // 异步深度生成
+    const topicId = existing._id;
+    const title = existing.title;
+    const subtitle = existing.subtitle;
+    const tags = existing.tags || [];
+
+    setImmediate(async () => {
+      try {
+        const { generateTopicWithDeepContent } = await import("../services/topicAiGenerator.js");
+        const deepLayers = await generateTopicWithDeepContent(
+          { title, subtitle, tags },
+          async (done: number, total: number) => {
+            try {
+              await Topic.findByIdAndUpdate(topicId, {
+                $set: { generatingProgress: { total, done, status: "generating" } },
+              });
+            } catch (_) {}
+          }
+        );
+        await Topic.findByIdAndUpdate(topicId, {
+          $set: {
+            layers: deepLayers,
+            generatingProgress: { total: 0, done: 0, status: "done" },
+          },
+        });
+        console.log(`Regenerate complete for "${title}"`);
+      } catch (e: any) {
+        console.error(`Regenerate error for "${title}":`, e.message);
+        try {
+          await Topic.findByIdAndUpdate(topicId, {
+            $set: { generatingProgress: { total: 0, done: 0, status: "error" } },
+          });
+        } catch (_) {}
+      }
+    });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

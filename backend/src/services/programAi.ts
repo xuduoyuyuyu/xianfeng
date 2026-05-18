@@ -510,14 +510,32 @@ function resolveRoleLabels(
   const guestLabelMap = new Map<string, string>();
   let guestIndex = 1;
 
+  // 把 host speaker 映射为"主播·{名字}"
+  const hostDisplayName = (() => {
+    const nam = normalizeSpeakerToken(hostKey);
+    if (/ali|阿力/.test(nam)) return "主播·阿力";
+    if (/jessie/.test(nam)) return "主播·Jessie";
+    return "主播·阿力";
+  })();
+
   return paragraphs.map((paragraph, index) => {
+    const explicitSpeaker = paragraph.speakerKey;
+    const normExplicit = normalizeSpeakerToken(explicitSpeaker);
+
+    // 明确是 host speaker
     if (paragraph.speakerKey === hostKey && hostKeyScore > 0) {
-      return "主持人";
+      return hostDisplayName;
+    }
+    if (isExplicitHostSpeaker(explicitSpeaker)) {
+      // 根据实际名字映射
+      if (/ali|阿力/.test(normExplicit)) return "主播·阿力";
+      if (/jessie/.test(normExplicit)) return "主播·Jessie";
+      return hostDisplayName;
     }
 
-    const explicitSpeaker = paragraph.speakerKey;
-    if (isExplicitHostSpeaker(explicitSpeaker)) {
-      return "主持人";
+    // 嘉宾绝对不能是阿力或 Jessie
+    if (/ali|阿力|jessie/.test(normExplicit)) {
+      return hostDisplayName;
     }
 
     const isUnknownSpeaker = explicitSpeaker.startsWith("__unknown");
@@ -532,10 +550,10 @@ function resolveRoleLabels(
     }
 
     if (index === 0 && !hostKeyScore && looksLikeHostParagraph(paragraph.text)) {
-      return "主持人";
+      return hostDisplayName;
     }
 
-    return guestIndex <= 1 || isUnknownSpeaker ? "嘉宾" : `嘉宾${Math.max(1, guestIndex - 1)}`;
+    return `嘉宾${Math.max(1, guestIndex - 1)}`;
   });
 }
 
@@ -706,7 +724,7 @@ function buildParagraphTranscriptFromTimedItems(items: TimedUtterance[], fallbac
   const featuredIndexes = new Set(ranked.map((item) => item.idx));
   const transcript = finalParagraphs.map((item, idx) => ({
     time: `${formatClock(item.startSec)}-${formatClock(item.endSec)}`,
-    speaker: speakerLabels[idx] || "嘉宾",
+    speaker: speakerLabels[idx] || "主播·阿力",
     text: item.text,
     featured: featuredIndexes.has(idx),
   }));
@@ -745,7 +763,7 @@ function splitToTranscriptParagraphs(text: string, durationSeconds: number): Tra
   const featuredIndexes = new Set(ranked.map((item) => item.idx));
   return outputParagraphs.map((item, idx) => ({
     time: `${formatClock(idx * gap)}-${formatClock(Math.min(safeDuration, (idx + 1) * gap))}`,
-    speaker: idx % 2 === 0 ? "主持人" : "嘉宾",
+    speaker: idx % 2 === 0 ? "主播·阿力" : "嘉宾",
     text: item.endsWith("。") ? item : `${item}。`,
     featured: featuredIndexes.has(idx),
   }));
@@ -1493,9 +1511,9 @@ class MockProgramAiProvider implements ProgramAiProvider {
     const inferredDuration = Math.max(180, Math.min(3600, Math.round(stats.size / 24000)));
     const topic = titleFromAudioPath(filePath);
     const transcript: TranscriptSegment[] = [
-      { time: "00:00-00:55", speaker: "主持人", text: `欢迎来到《${topic}》。今天我们聚焦家校协同中的关键挑战，先厘清为什么很多家庭在执行层面容易失速。`, featured: true },
+      { time: "00:00-00:55", speaker: "主播·阿力", text: `欢迎来到《${topic}》。今天我们聚焦家校协同中的关键挑战，先厘清为什么很多家庭在执行层面容易失速。`, featured: true },
       { time: "00:55-01:45", speaker: "嘉宾", text: "很多家庭的问题不在于方法缺失，而在于执行节奏和沟通顺序。要先建立最小可执行动作，再逐步迭代，而不是一开始就追求全面覆盖。", featured: true },
-      { time: "01:45-02:40", speaker: "主持人", text: "那我们先从一个最容易落地的观察动作开始，帮助家长建立反馈闭环。通过固定时间复盘，把行为变化与情绪反馈放到同一张记录表里。", featured: false },
+      { time: "01:45-02:40", speaker: "主播·阿力", text: "那我们先从一个最容易落地的观察动作开始，帮助家长建立反馈闭环。通过固定时间复盘，把行为变化与情绪反馈放到同一张记录表里。", featured: false },
       { time: "02:40-03:30", speaker: "嘉宾", text: "建议每周固定一次复盘，把具体行为与情绪体验都记录下来。连续三周后再判断策略效果，这样更容易看到稳定改善。", featured: false },
     ];
     return {

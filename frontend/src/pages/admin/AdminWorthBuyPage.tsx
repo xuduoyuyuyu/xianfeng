@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import axios from "axios";
 
 const authHeaders = () => {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("admin_token") || localStorage.getItem("token");
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
@@ -193,8 +193,12 @@ const AdminWorthBuyPage: React.FC = () => {
       setGenBrand("");
       loadItems();
     } catch (e: any) {
-      const errMsg = e.response?.data?.error || e.message;
-      setToast(`❌ ${errMsg}`);
+      if (e.response?.status === 401 || String(e.message || "").includes("not valid JSON")) {
+        setToast("登录已过期，请刷新页面重新登录");
+      } else {
+        const errMsg = e.response?.data?.error || e.message;
+        setToast(`❌ ${errMsg}`);
+      }
     } finally {
       setGenerating(false);
     }

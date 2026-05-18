@@ -381,12 +381,11 @@
       <span class="material-symbols-rounded relative z-10 text-xl">arrow_forward</span>
     </button>
   </div>
-</div>
-
-<p class="mt-10 text-slate-400 text-sm flex items-center gap-2">
+  <p class="mt-[6px] text-slate-400 text-sm flex items-center justify-center gap-2">
 <span class="material-symbols-rounded text-sm">verified</span>
 规划结果将基于您所在城市的升学政策和家庭情况，为您定制个性化教育路径
 </p>
+</div>
 </main>
 
 
@@ -1077,36 +1076,6 @@ function getWelUserData() {
     }
     return true;
   }
-  
-  // AI对话师 - Chat填写
-  window.startChatPlan = function(){
-    // 保存当前数据
-    const inputText = $('mainInput') ? $('mainInput').value.trim() : '';
-    const data = {
-      city: state.city,
-      district: state.district,
-      stage: state.stage,
-      grade: state.child,
-      birthDate: state.birthDate,
-      gender: state.gender,
-      hasTransfer: state.hasTransfer,
-      targetCity: state.targetCity,
-      targetDistrict: state.targetDistrict,
-      targetStreet: state.targetStreet,
-      quickTags: state.quickTags,
-      freeText: inputText,
-      openChat: true
-    };
-    
-    console.log('AI对话师填写，数据：', data);
-    
-    localStorage.setItem('ep_home_data', JSON.stringify(data));
-    localStorage.setItem('ep_force_policy_refresh_once', '1');
-    
-    // 跳转到教育规划页面
-    window.location.href = '/Planning/教育规划.html?openChat=true';
-  };
-
   // 教育规划聊天窗口功能
   window.openEpChat = function(){
     const mask = $('epChatMask');
@@ -1187,7 +1156,7 @@ function getWelUserData() {
     }
   });
 
-  // 直接跳转到AI表单生成页面
+  // 统一跳转到教育规划页面
   window.startPlanning = function(){
     if (!validateRequiredFiveFields()) return;
     const inputText = $('mainInput').value.trim();
@@ -1209,7 +1178,7 @@ function getWelUserData() {
     console.log('开始规划，数据：', data);
     localStorage.setItem('ep_home_data', JSON.stringify(data));
     localStorage.setItem('ep_force_policy_refresh_once', '1');
-    window.location.href = '/Planning/ai-form-generation.html';
+    window.location.href = '/wel/Planning/教育规划.html';
   };
 
   // 结构化表单填写
@@ -1234,7 +1203,7 @@ function getWelUserData() {
     console.log('结构化表单填写，数据：', data);
     localStorage.setItem('ep_home_data', JSON.stringify(data));
     localStorage.setItem('ep_force_policy_refresh_once', '1');
-    window.location.href = '/Planning/ai-form-generation.html';
+    window.location.href = '/wel/Planning/教育规划.html';
   };
   
   // AI对话师 - Chat填写
@@ -1261,7 +1230,7 @@ function getWelUserData() {
     console.log('AI对话师点击，数据：', data);
     localStorage.setItem('ep_home_data', JSON.stringify(data));
     localStorage.setItem('ep_force_policy_refresh_once', '1');
-    window.location.href = '/Planning/ai-form-generation.html?openChat=true';
+    window.location.href = '/wel/Planning/教育规划.html?openChat=true';
   };
   
   function init(){

@@ -115,8 +115,8 @@ const GuestWishButton: React.FC<GuestWishButtonProps> = ({ programId, guestId })
       >
         {/* 红心 */}
         <svg
-          width="20"
-          height="20"
+          width="30"
+          height="30"
           viewBox="0 0 24 24"
           fill="#F43F5E"
           className="transition-transform group-hover:scale-110 drop-shadow-sm"
@@ -128,7 +128,7 @@ const GuestWishButton: React.FC<GuestWishButtonProps> = ({ programId, guestId })
         {count > 0 ? (
         <span
           style={{
-            fontSize: 13,
+            fontSize: 16,
             fontWeight: 800,
             color: "#E11D48",
           }}

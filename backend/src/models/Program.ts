@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-type ContentStatus = "draft" | "published";
+type ContentStatus = "draft" | "published" | "group-only";
 type ParseStatus = "idle" | "parsing" | "success" | "failed";
 
 interface Episode {
@@ -288,7 +288,7 @@ const programSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["draft", "published"],
+      enum: ["draft", "published", "group-only"],
       default: "draft",
       index: true,
     },

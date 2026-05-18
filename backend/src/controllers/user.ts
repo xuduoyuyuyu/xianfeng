@@ -42,6 +42,7 @@ function buildWelProfile(user: any) {
     name: safeName,
     grade: user.grade || user.childGrade || "",
     city: user.city || "",
+    region: user.region || "",
     level: Number(user.level || 1),
     xp: Number(user.xp || 0),
     streak: Number(user.streak || 0),
@@ -137,17 +138,22 @@ export class UserController {
       const userQuery: Record<string, any> = {};
       if (roleFilter && roleFilter !== "all") userQuery.role = roleFilter;
       if (cityFilter && cityFilter !== "all") userQuery.city = cityFilter === "未填写" ? "" : cityFilter;
-      if (gradeFilter && gradeFilter !== "all") userQuery.childGrade = gradeFilter === "未填写" ? "" : gradeFilter;
+      if (gradeFilter && gradeFilter !== "all") {
+        userQuery.$or = [
+          { grade: gradeFilter === "未填写" ? "" : gradeFilter },
+          { childGrade: gradeFilter === "未填写" ? "" : gradeFilter },
+        ];
+      }
 
       const users = await User.find(userQuery)
-        .select("_id username role city region childGrade createdAt")
+        .select("_id username role city region childGrade grade name avatar_initial createdAt")
         .lean();
 
       const total = users.length;
       const admins = users.filter((row: any) => row.role === "admin").length;
       const standardUsers = total - admins;
       const completed = users.filter(
-        (row: any) => normalizeText(row.city) && normalizeText(row.region) && normalizeText(row.childGrade)
+        (row: any) => normalizeText(row.city) && normalizeText(row.region) && (normalizeText(row.childGrade) || normalizeText(row.grade))
       ).length;
       const completionRate = total ? Math.round((completed / total) * 100) : 0;
       const roleBreakdown = [
@@ -366,6 +372,7 @@ export class UserController {
       const body = req.body || {};
       if (typeof body.name === "string") user.name = body.name.trim();
       if (typeof body.city === "string") user.city = body.city.trim();
+      if (typeof body.region === "string") user.region = body.region.trim();
       if (typeof body.grade === "string") user.grade = body.grade.trim();
       if (typeof body.avatar_initial === "string") user.avatar_initial = body.avatar_initial.trim().slice(0, 2) || "探";
       if (typeof body.avatar_image === "string") user.avatar_image = body.avatar_image.trim();
@@ -373,6 +380,31 @@ export class UserController {
       res.status(200).json(buildWelProfile(user));
     } catch (error) {
       res.status(500).json({ error: "更新资料失败", message: String((error as Error)?.message || error) });
+    }
+  }
+
+  async uploadAvatar(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: "未登录或登录已过期" });
+        return;
+      }
+      const file = (req as any).file;
+      if (!file) {
+        res.status(400).json({ message: "请上传图片文件" });
+        return;
+      }
+      const host = `${req.protocol}://${req.get("host")}`;
+      const url = `${host}/uploads/avatars/${file.filename}`;
+      // 同时写入用户表
+      const user = await User.findById(req.user.id);
+      if (user) {
+        user.avatar_image = url;
+        await user.save();
+      }
+      res.status(201).json({ url });
+    } catch (error) {
+      res.status(500).json({ error: "头像上传失败", message: String((error as Error)?.message || error) });
     }
   }
 
@@ -404,7 +436,7 @@ export class UserController {
       res.status(200).json({
         token,
         welToken: welToken || undefined,
-        user: { id: user._id, username: user.username, role: user.role, mobile: user.mobile },
+        user: buildWelProfile(user),
       });
     } catch (error) {
       res.status(500).json({ message: "登录失败", error });
@@ -495,7 +527,7 @@ export class UserController {
         return;
       }
       const { id } = req.params;
-      const { username, password, role, city, region, childGrade } = req.body || {};
+      const { username, password, role, city, region, childGrade, grade, name } = req.body || {};
 
       const user = await User.findById(id);
       if (!user) {
@@ -521,6 +553,8 @@ export class UserController {
       if (typeof city === "string") user.city = city;
       if (typeof region === "string") user.region = region;
       if (typeof childGrade === "string") user.childGrade = childGrade;
+      if (typeof grade === "string") user.grade = grade;
+      if (typeof name === "string") user.name = name;
       if (typeof password === "string" && password.trim()) {
         user.password = await bcryptjs.hash(password, 10);
       }

@@ -17,7 +17,9 @@ const api: AxiosInstance = axios.create({
 // 请求拦截器 - 添加 token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    // 优先用 admin_token（后台管理页面），否则用 user token
+    const adminToken = localStorage.getItem('admin_token');
+    const token = adminToken || localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -26,15 +28,22 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// 响应拦截器 - 处理错误
+// 响应拦截器 - 处理 401 错误
 api.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
     if (error.response?.status === 401) {
-      // 未授权，清除 token 并跳转到登录页
+      // 清除所有 token
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      window.location.href = '/admin/login';
+      localStorage.removeItem('admin_token');
+      localStorage.removeItem('admin_user');
+      // 根据当前路径判断跳转哪个登录页
+      if (window.location.pathname.startsWith('/admin')) {
+        window.location.href = '/admin/login';
+      } else {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
@@ -140,7 +149,7 @@ export interface GuestBoundProgram {
   _id: string;
   title: string;
   programCode?: string;
-  status: "draft" | "published";
+  status: "draft" | "published" | "group-only";
   updatedAt?: string | null;
 }
 
@@ -185,7 +194,7 @@ export interface AdminEducationDictionaryEntry extends EducationDictionaryEntry 
 export interface DictionaryRelatedProgram {
   _id: string;
   title: string;
-  status: "draft" | "published";
+  status: "draft" | "published" | "group-only";
   coverImage?: string;
   publishedAt?: string | null;
   updatedAt?: string | null;
@@ -271,7 +280,7 @@ export interface Program {
       suggestedReadings?: CuratedReadingItem[];
     };
   };
-  status: 'draft' | 'published';
+  status: 'draft' | 'published' | 'group-only';
   parseStatus?: 'idle' | 'parsing' | 'success' | 'failed';
   parseStage?: string;
   parseProgress?: number;
@@ -291,14 +300,15 @@ export interface Book {
   author: string;
   translator: string;
   publisher: string;
+  isbn?: string;
+  publishedDate?: string;
   grade: string;
   coverImage: string;
   recommendedGuest: string;
   sourceName?: string;
   sourceGuestId?: string | { _id: string; name?: string; title?: string } | null;
-  status: 'draft' | 'published';
+  status: 'draft' | 'published' | 'group-only';
   publishedAt?: string;
-  publishedDate?: string;
   createdAt: string;
   updatedAt: string;
   // 微信小店扩展字段
@@ -309,6 +319,7 @@ export interface Book {
   wxHeadImgs?: string[];
   wxProductId?: string;
   wxShopAppid?: string;
+  wxQrcodeUrl?: string;
   wxSyncAt?: string;
 }
 
@@ -318,7 +329,7 @@ export interface LearningMaterial {
   description: string;
   fileUrl: string;
   category: string;
-  status: 'draft' | 'published';
+  status: 'draft' | 'published' | 'group-only';
   publishedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -331,6 +342,10 @@ export interface User {
   city?: string;
   region?: string;
   childGrade?: string;
+  avatar_image?: string;
+  avatar_initial?: string;
+  grade?: string;
+  name?: string;
   createdAt?: string;
   updatedAt?: string;
 }
