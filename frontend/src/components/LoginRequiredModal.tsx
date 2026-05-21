@@ -243,7 +243,7 @@ const LoginRequiredModal: React.FC<Props> = ({
 
         /* ===== 登录表单区域 ===== */
         .xf-login-form-section {
-          margin-top: 34px;
+          margin-top: 64px;
           display: flex;
           flex-direction: column;
           gap: 6px;
