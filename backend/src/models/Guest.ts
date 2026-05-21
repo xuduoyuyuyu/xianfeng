@@ -25,6 +25,16 @@ export interface GuestPublication {
   status?: GuestContentStatus;
 }
 
+export interface ListenerBenefit {
+  title: string;
+  description?: string;
+  url?: string;
+  image?: string;
+  note?: string;
+  order?: number;
+  status?: GuestContentStatus;
+}
+
 export interface Guest extends mongoose.Document {
   name: string;
   normalizedName: string;
@@ -36,6 +46,10 @@ export interface Guest extends mongoose.Document {
   profileReferences?: Array<{ title?: string; url: string; note?: string }>;
   socialProfiles?: GuestSocialProfile[];
   publications?: GuestPublication[];
+  listenerBenefits?: ListenerBenefit[];
+  avatarCandidates?: Array<{ url: string; label?: string; sourceUrl?: string }>;
+  mainAreas?: string[];
+  keywords?: string[];
   profileAvatarCandidates?: Array<{ url: string; label?: string; sourceUrl?: string }>;
   profileGeneratedAt?: Date | null;
   returnWishCount?: number;
@@ -102,6 +116,30 @@ const guestSchema = new mongoose.Schema(
         sourceUrl: { type: String, default: "", trim: true },
       },
     ],
+    avatarCandidates: [
+      {
+        url: { type: String, default: "", trim: true },
+        label: { type: String, default: "", trim: true },
+        sourceUrl: { type: String, default: "", trim: true },
+      },
+    ],
+    listenerBenefits: [
+      {
+        title: { type: String, default: "", trim: true },
+        description: { type: String, default: "", trim: true },
+        url: { type: String, default: "", trim: true },
+        image: { type: String, default: "", trim: true },
+        note: { type: String, default: "", trim: true },
+        order: { type: Number, default: 0 },
+        status: {
+          type: String,
+          enum: ["active", "inactive"],
+          default: "active",
+        },
+      },
+    ],
+    mainAreas: [{ type: String, trim: true }],
+    keywords: [{ type: String, trim: true }],
     profileGeneratedAt: { type: Date, default: null },
     status: {
       type: String,

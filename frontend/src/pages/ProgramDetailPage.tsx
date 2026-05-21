@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import GlobalPublicNav from "../components/GlobalPublicNav";
+import MindMapView from "../components/MindMapView";
 import { CuratedReadingItem, Program, ProgramGuest, TranscriptSegment, publicApi } from "../services/api";
 
 const COVER_FALLBACK =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuClCE9ekp3PPlQ8bcuZWinqGC_qfQf-TKqkEU8KY505YX7B7t4LSQZSAud82EAcnQ8DU6U5dhENuVIt1u7xMcWmrZYt96CrE3wPdvJEEU8D3QwFomwrExRMSX6sn5vIqZOzxsqYGyiAi4xd4dwF-CkAJ47nVOn-LcN0fX9B-jWTgrnx0RbS53aK04x_ceztbkSlZgTUPwIzjIPJCVkPhCLys2-E8Qn1x4fWfefog2RPPewNrTiiV3AL5R1IUaHBKVtTtXzyAoAD9KpW";
+  "http://xianfeng.xinzhi.info/uploads/images/1779264274027-tcplzfur.png";
 const EXPERT_AVATAR =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuBYXSSErHZG11IcSo5OCvCfuNClbWSgoOjLKRr3VExHhqUYe3TZZAIlEd2h04hDeVmQZVZmre1ppd18lTl7J4SkUY-Hfms9BNXnjEHC9huaslhbDjP-J_QsGuVXXHDi6-O8y3NnNjr3Bbm6C11Bae7EjQBmcsJQbpfKySZiB-eylKQXP_ULjKiGt9uZnXyYQHavo7d24ilHYNjhixYb0npTRCWv-EeMoSBmYX__zjzgxt3HaOqbW7BoTToksZ7T4q14vwNxYlTzBy9O";
+  "http://xianfeng.xinzhi.info/uploads/images/1779264157086-hgcd24g4.png";
 const FAVORITES_KEY = "favorite-programs";
 
 
@@ -95,11 +96,13 @@ const ProgramDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
-  const [contentViewMode, setContentViewMode] = useState<"quickview" | "transcript">("quickview");
+  const [contentViewMode, setContentViewMode] = useState<"quickview" | "transcript" | "mindmap">("quickview");
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1.5);
+  const [mindMapGenerating, setMindMapGenerating] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const transcriptSegments = inferTranscript(program);
   const currentEpisode = program?.episodes?.[0];
@@ -181,6 +184,12 @@ const ProgramDetailPage: React.FC = () => {
     return () => {
       active = false;
     };
+  }, []);
+
+  useEffect(() => {
+    // 检测是否管理员（有 admin_token）
+    const adminToken = localStorage.getItem("admin_token");
+    setIsAdmin(!!adminToken);
   }, []);
 
   useEffect(() => {
@@ -331,13 +340,74 @@ const ProgramDetailPage: React.FC = () => {
     window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
   };
 
-  const jumpToContentView = (mode: "quickview" | "transcript") => {
+  const jumpToContentView = (mode: "quickview" | "transcript" | "mindmap") => {
     setContentViewMode(mode);
     jumpToSection("content-section");
   };
 
+  /** 脑图点击节点 → 切到逐字稿 + 滚动到对应时间戳 */
+  const handleNavigateToTime = (startTime: string) => {
+    setContentViewMode("transcript");
+    // 等待视图切换 + 渲染完成后滚动到对应时间戳
+    setTimeout(() => {
+      jumpToSection("content-section");
+      // 高亮对应逐字稿段落
+      setTimeout(() => {
+        const section = document.getElementById("content-section");
+        if (!section) return;
+        const allTimes = section.querySelectorAll<HTMLElement>('[data-transcript-time]');
+        for (const el of allTimes as any as HTMLElement[]) {
+          const t = el.getAttribute("data-transcript-time") || "";
+          if (t === startTime) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            // 高亮闪烁
+            el.style.transition = "background 0.3s";
+            el.style.background = "rgba(94,23,235,0.08)";
+            setTimeout(() => {
+              el.style.background = "";
+            }, 2000);
+            break;
+          }
+        }
+      }, 150);
+    }, 100);
+  };
+
+  const handleGenerateMindMap = async () => {
+    const adminToken = localStorage.getItem("admin_token");
+    if (!adminToken) {
+      alert("请先在管理后台登录");
+      return;
+    }
+    if (!program?._id) return;
+
+    setMindMapGenerating(true);
+    try {
+      const res = await fetch(`/api/admin/programs/${encodeURIComponent(program._id)}/generate-mindmap`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          "Content-Type": "application/json",
+        },
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      if (data.mindMap) {
+        setProgram(prev => prev ? { ...prev, deepDive: { ...(prev.deepDive || {}), mindMap: data.mindMap } } : prev);
+      }
+    } catch (err: any) {
+      alert("生成失败: " + (err.message || "未知错误"));
+    } finally {
+      setMindMapGenerating(false);
+    }
+  };
+
   const progressRatio = duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0;
-  const heroImage = program?.coverImage || COVER_FALLBACK;
+  const rawHeroImage = program?.coverImage || COVER_FALLBACK;
+  const heroImage = rawHeroImage.replace(/\.png$/i, '.webp');
   const episodeDuration = currentEpisode?.duration || "45 分钟";
   const displayDate = formatDate(program?.publishedAt || program?.createdAt);
 
@@ -476,8 +546,9 @@ const ProgramDetailPage: React.FC = () => {
           <div className="flex flex-col gap-3">
             <div className="inline-flex w-fit items-center overflow-hidden rounded-full border border-stone-200 bg-[#fafafa] p-1 shadow-[inset_0_0_0_1px_rgba(17,10,8,0.03)]">
               {[
-                { key: "quickview", label: "速览" },
-                { key: "transcript", label: "逐字稿" },
+                { key: "quickview", label: "速览", icon: "view_timeline" },
+                { key: "transcript", label: "逐字稿", icon: "description" },
+                { key: "mindmap", label: "脉络图", icon: "account_tree" },
               ].map((item) => {
                 const isActive = contentViewMode === item.key;
                 return (
@@ -486,7 +557,7 @@ const ProgramDetailPage: React.FC = () => {
                     className={`min-w-[96px] rounded-full px-7 py-2.5 text-xl font-medium tracking-normal transition-colors ${
                       isActive ? "bg-[#5e17eb] text-white shadow-[0_10px_24px_rgba(94,23,235,0.22)]" : "text-[#211a18]/70 hover:text-[#5e17eb]"
                     }`}
-                    onClick={() => jumpToContentView(item.key as "quickview" | "transcript")}
+                    onClick={() => jumpToContentView(item.key as "quickview" | "transcript" | "mindmap")}
                     type="button"
                   >
                     {item.label}
@@ -503,12 +574,24 @@ const ProgramDetailPage: React.FC = () => {
           <section id="content-section" className="rounded-xl border border-gray-100 bg-white p-8 shadow-[0_4px_24px_rgba(0,0,0,0.03)] md:p-12">
             <div className="mb-6 flex items-center gap-3">
               <span className="material-symbols-outlined text-xl text-[#5e17eb]">
-                {contentViewMode === "transcript" ? "description" : "view_timeline"}
+                {contentViewMode === "transcript" ? "description" : contentViewMode === "mindmap" ? "account_tree" : "view_timeline"}
               </span>
               <h2 className="text-2xl font-black tracking-tight text-[#211a18]">
-                {contentViewMode === "transcript" ? "逐字稿" : "速览"}
+                {contentViewMode === "transcript" ? "逐字稿" : contentViewMode === "mindmap" ? "脉络图" : "速览"}
               </h2>
             </div>
+
+            {contentViewMode === "mindmap" ? (
+              <MindMapView
+                quickView={quickView}
+                title={program.title}
+                onNavigateToTime={handleNavigateToTime}
+                mode={(program.deepDive?.mindMap && program.deepDive.mindMap.root && (program.deepDive.mindMap.root.title || (program.deepDive.mindMap.root.children && program.deepDive.mindMap.root.children.length > 0))) ? "ai" : (program.contentPack?.quickView && program.contentPack.quickView.length > 0) ? "quickview" : isAdmin ? "ai" : "quickview"}
+                mindMapData={program.deepDive?.mindMap}
+                generating={mindMapGenerating}
+                onGenerate={isAdmin ? handleGenerateMindMap : undefined}
+              />
+            ) : null}
 
             {contentViewMode === "quickview" && quickView.length > 0 ? (
               <div className="space-y-4">
@@ -527,7 +610,7 @@ const ProgramDetailPage: React.FC = () => {
             {contentViewMode === "transcript" && transcriptSegments.length > 0 ? (
               <div className="space-y-4">
                 {transcriptSegments.map((segment) => (
-                  <div key={`${segment.time}-${segment.speaker}-${segment.text.slice(0, 8)}`} className="py-3">
+                  <div key={`${segment.time}-${segment.speaker}-${segment.text.slice(0, 8)}`} className="py-3" data-transcript-time={segment.time}>
                     <div className="mb-2 text-xs font-black text-[#5e17eb]">{segment.time}</div>
                     {segment.speaker ? <p className="mb-1 text-[11px] font-bold text-[#5e17eb]/70">{speakerDisplay(segment.speaker)}</p> : null}
                     <p className={`text-sm leading-relaxed ${segment.featured ? "font-semibold text-[#211a18]" : "text-[#211a18]/85"}`}>{segment.text}</p>

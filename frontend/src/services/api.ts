@@ -36,13 +36,19 @@ api.interceptors.response.use(
       // 清除所有 token
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      localStorage.removeItem('admin_token');
-      localStorage.removeItem('admin_user');
-      // 根据当前路径判断跳转哪个登录页
+      // admin 相关单独保留
       if (window.location.pathname.startsWith('/admin')) {
+        localStorage.removeItem('admin_token');
+        localStorage.removeItem('admin_user');
         window.location.href = '/admin/login';
       } else {
-        window.location.href = '/login';
+        // 非 admin 路径：弹窗引导登录，不跳页面
+        document.dispatchEvent(new CustomEvent('xf-show-login-modal', {
+          detail: {
+            title: '登录态已过期',
+            description: '请重新登录后继续操作，登录后可解锁完整功能。',
+          },
+        }));
       }
     }
     return Promise.reject(error);
@@ -91,6 +97,7 @@ export interface Guest {
   profileReferences?: Array<{ title?: string; url: string; note?: string }>;
   socialProfiles?: GuestSocialProfile[];
   publications?: GuestPublication[];
+  listenerBenefits?: ListenerBenefit[];
   profileAvatarCandidates?: Array<{ url: string; label?: string; sourceUrl?: string }>;
   profileGeneratedAt?: string | null;
   status: "active" | "inactive";
@@ -120,6 +127,16 @@ export interface GuestPublication {
   status?: "active" | "inactive";
 }
 
+export interface ListenerBenefit {
+  title: string;
+  description?: string;
+  url?: string;
+  image?: string;
+  note?: string;
+  order?: number;
+  status?: "active" | "inactive";
+}
+
 export interface PublicGuest {
   _id: string;
   name: string;
@@ -130,11 +147,13 @@ export interface PublicGuest {
   profileReferences?: Array<{ title?: string; url: string; note?: string }>;
   socialProfiles?: GuestSocialProfile[];
   publications?: GuestPublication[];
+  listenerBenefits?: ListenerBenefit[];
   programCount?: number;
   referenceCount?: number;
 }
 
 export interface PublicGuestDetail extends PublicGuest {
+  listenerBenefits?: ListenerBenefit[];
   relatedPrograms: Array<{
     _id: string;
     programCode?: string;
@@ -206,9 +225,23 @@ export interface CuratedReadingItem {
   url?: string;
 }
 
+export interface MindMapNode {
+  title: string;
+  summary: string;
+  emoji?: string;
+  source?: { type: string; time?: string; term?: string };
+  children?: MindMapNode[];
+}
+
+export interface MindMapData {
+  root: MindMapNode;
+  generatedAt?: string;
+}
+
 export interface ProgramDeepDive {
   sectionTitle?: string;
   curatedReading?: CuratedReadingItem[];
+  mindMap?: MindMapData;
 }
 
 export interface ProgramQuickViewItem {
@@ -216,6 +249,7 @@ export interface ProgramQuickViewItem {
   endTime: string;
   timeRangeLabel: string;
   summary: string;
+  parent?: ProgramQuickViewItem;
 }
 
 export interface ProgramMinutes {
@@ -281,6 +315,7 @@ export interface Program {
     };
   };
   status: 'draft' | 'published' | 'group-only';
+  mindMapStatus?: "idle" | "generating" | "done" | "error";
   parseStatus?: 'idle' | 'parsing' | 'success' | 'failed';
   parseStage?: string;
   parseProgress?: number;
@@ -611,6 +646,7 @@ export const adminApi = {
     api.post<ProgramPreviewLinkResponse>(`/admin/programs/${id}/preview-link`, { ttlHours }),
   getProgramParseStatus: (id: string) => api.get<ProgramParseTask>(`/admin/programs/${id}/parse-status`),
   acceptProgramProofread: (id: string) => api.post<Program>(`/admin/programs/${id}/proofread/accept`),
+  generateProgramMindMap: (id: string) => api.post<{ programId: string; mindMap: MindMapData }>(`/admin/programs/${id}/generate-mindmap`),
 
   createAgentTask: (data: {
     taskType: AgentTask["taskType"];

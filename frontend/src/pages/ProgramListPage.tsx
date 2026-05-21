@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useSelector } from "react-redux";
+import { RootState } from "../store";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import Pagination from "../components/Pagination";
 
-const FALLBACK_COVER = "https://xianfeng.xinzhi.info/uploads/images/1779100618558-tx61bua1.png";
+const FALLBACK_COVER = "https://xianfeng.xinzhi.info/uploads/images/1778322922471-0tkcrxd2.png";
 
 interface Program {
   _id: string;
@@ -33,6 +35,8 @@ function fmtDate(value?: string) {
 const PROGRAM_LIST_HERO_DISMISSED_KEY = "program_list_hero_dismissed_v1";
 
 const ProgramListPage: React.FC = () => {
+  const { user: currentUser, token } = useSelector((state: RootState) => state.user);
+  const isLoggedIn = !!currentUser && !!token;
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -271,7 +275,13 @@ const ProgramListPage: React.FC = () => {
                 <Pagination
                   currentPage={currentPage}
                   totalPages={totalPages}
-                  onPageChange={(page) => setCurrentPage(page)}
+                  onPageChange={(page) => {
+                    if (!isLoggedIn) {
+                      document.dispatchEvent(new CustomEvent('xf-show-login-modal', { detail: { title: '登录后可翻页', description: '登录后即可浏览全部节目、翻页查看往期内容。' } }));
+                      return;
+                    }
+                    setCurrentPage(page);
+                  }}
                 />
               </div>
             </>

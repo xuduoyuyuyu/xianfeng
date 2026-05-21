@@ -881,11 +881,11 @@ async function runProofreadTask(task: any) {
       correctedTranscript,
       report,
       runtimeConfig: {
-        agent_code: taskConfig.agentCode,
-        prompt_version: asText(taskConfig.promptDoc?.version),
-        prompt_created_at: asText(taskConfig.promptDoc?.created_at),
-        model_provider: asText(taskConfig.model?.provider),
-        model_name: asText(taskConfig.model?.model_name),
+        agent_code: "deepseek-direct",
+        prompt_version: "v2-guest-info",
+        prompt_created_at: new Date().toISOString(),
+        model_provider: "deepseek",
+        model_name: process.env.AI_MODEL || "deepseek-chat",
       },
     },
   };
@@ -996,18 +996,78 @@ async function runProgramEnrichmentTask(task: any) {
       suggestedReadings,
       mergedGlossaryCount: nextGlossary.length,
       runtimeConfig: {
-        agent_code: taskConfig.agentCode,
-        prompt_version: asText(taskConfig.promptDoc?.version),
-        prompt_created_at: asText(taskConfig.promptDoc?.created_at),
-        model_provider: asText(taskConfig.model?.provider),
-        model_name: asText(taskConfig.model?.model_name),
+        agent_code: "deepseek-direct",
+        prompt_version: "v2-guest-info",
+        prompt_created_at: new Date().toISOString(),
+        model_provider: "deepseek",
+        model_name: process.env.AI_MODEL || "deepseek-chat",
       },
     },
   };
 }
 
+/**
+ * 直接调用 DeepSeek API 获取嘉宾真实信息
+ */
+async function callDeepSeekForGuestInfo(
+  guestName: string,
+  guestTitle: string,
+  guestBio: string,
+  context: string
+): Promise<{ parsed: any; rawText: string; error?: string }> {
+  const apiKey = process.env.AI_API_KEY || "";
+  const baseUrl = (process.env.AI_API_BASE_URL || "https://api.deepseek.com/v1").replace(/\/+$/, "");
+  const model = process.env.AI_MODEL || "deepseek-chat";
+
+  if (!apiKey) return { parsed: null, rawText: "", error: "DeepSeek API Key 未配置" };
+
+  const systemPrompt = [
+    "你是嘉宾资料收集助手。根据提供的嘉宾信息，用你的训练知识整理该嘉宾的公开资料。",
+    "1. 请用你的训练数据尽力回忆该嘉宾的身份、背景、成就、著作",
+    "2. 不确定的地方标注「待核实」，但不要因为无法联网就不写",
+    "3. 优先回忆官方页面、权威百科、著作/论文/访谈中的信息",
+    "4. 所有链接必须是你确认真实存在的 URL，不确定就留空，禁止编造",
+    "5. 头像仅返回真实照片 URL，拿不到则留空数组",
+    "6. 严格输出 JSON，不要任何额外文字，不要使用代码块包裹",
+  ].join("\n");
+
+  const userPrompt = [
+    `嘉宾姓名：${guestName}`,
+    `头衔：${guestTitle || "未知"}`,
+    `简介：${guestBio || "无"}`,
+    context ? `\n关联节目：${context}` : "",
+    "",
+    "请基于你的训练知识，输出该嘉宾的公开资料。不确定的地方标注'待核实'，不要编造URL。",
+    "输出JSON（不要代码块，裸JSON）：",
+    '{"brief_intro":"介绍","main_areas":["领域"],"keywords":["标签"],',
+    '"references":[{"title":"标题","url":"https://...","note":"说明"}],',
+    '"materials":[{"material_type":"访谈/著作/论文/公开言论","title":"标题","source":"来源","publish_time":"时间","core_content":"摘要","source_link":"https://..."}],',
+    '"avatar_candidates":[{"url":"https://...","label":"来源","sourceUrl":"https://..."}],',
+    '"note":"补充说明"}',
+  ].join("\n");
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+    const resp = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST", signal: controller.signal,
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model, messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], temperature: 0.3, max_tokens: 4000, stream: false, response_format: { type: "json_object" } }),
+    });
+    clearTimeout(timeout);
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => "");
+      return { parsed: null, rawText: "", error: `DeepSeek ${resp.status}: ${errText.slice(0, 200)}` };
+    }
+    const data = await resp.json();
+    const rawText = asText(data?.choices?.[0]?.message?.content);
+    return { parsed: parseJsonFromModelText(rawText), rawText };
+  } catch (err: any) {
+    return { parsed: null, rawText: "", error: `DeepSeek调用失败: ${err.message}` };
+  }
+}
+
 async function runGuestProfileTask(task: any) {
-  const taskConfig = resolveTaskConfig(task.taskType as AgentTaskType);
   const guest = await GuestModel.findById(task.targetId);
   if (!guest) throw new Error("嘉宾不存在");
 
@@ -1084,78 +1144,34 @@ async function runGuestProfileTask(task: any) {
     .limit(5)
     .lean();
 
-  const fallbackReferences = [
+  // 只保留手工维护/覆盖链接，不自动生成百科/维基兜底
+  const safeReferences = [
     ...overrideReferences,
     ...existingReferences,
     profileUrl && looksLikeReferenceUrl(profileUrl)
       ? { title: `${guestName} 官方档案`, url: profileUrl, note: "手工维护来源" }
       : null,
-    {
-      title: `${guestName} 百科`,
-      url: `https://baike.baidu.com/item/${encodeURIComponent(guestName)}`,
-      note: "公开参考链接",
-    },
-    {
-      title: `${guestName} 维基`,
-      url: `https://zh.wikipedia.org/wiki/${encodeURIComponent(guestName)}`,
-      note: "公开参考链接",
-    },
   ].filter(Boolean) as Array<{ title: string; url: string; note: string }>;
-  const dedupedFallbackReferences = fallbackReferences.filter((item, index, list) => {
+  const dedupedSafeReferences = safeReferences.filter((item, index, list) => {
     const normalizedUrl = asText(item?.url);
     if (!normalizedUrl) return false;
     return list.findIndex((entry) => asText(entry?.url) === normalizedUrl) === index;
   });
 
-  const fallbackAvatarCandidates = [
-    asText((guest as any).avatar)
-      ? { url: asText((guest as any).avatar), label: "当前头像", sourceUrl: asText((guest as any).avatar) }
-      : null,
-  ].filter(Boolean) as Array<{ url: string; label: string; sourceUrl: string }>;
+  const fallbackAvatarCandidates: Array<{ url: string; label: string; sourceUrl: string }> = [];
 
-  const userPrompt = [
-    `目标嘉宾：${guestName}`,
-    `现有头衔：${guestTitle || "未知"}`,
-    `现有简介：${guestBio || "无"}`,
-    profileUrl ? `已有人工链接：${profileUrl}` : "",
-    (overrideReferences.length || existingReferences.length)
-      ? `已有公开参考链接：${[...overrideReferences, ...existingReferences]
-          .filter((item, index, list) => list.findIndex((entry) => asText(entry?.url) === asText(item?.url)) === index)
-          .map((item) => `${item.title || "未命名"}｜${item.url}${item.note ? `｜${item.note}` : ""}`)
-          .join("；")}`
-      : "",
-    relatedPrograms.length
-      ? `关联节目上下文：${relatedPrograms
-          .map((item: any) => {
-            const summaryHeadline = asText(item?.summary?.headline);
-            return `${asText(item?.title)}${asText(item?.programCode) ? `（${asText(item?.programCode)}）` : ""}${summaryHeadline ? `｜${summaryHeadline}` : ""}`;
-          })
-          .join("；")}`
-      : "",
-    "",
-    "请输出 JSON，字段必须包含：",
-    "{",
-    '  "brief_intro": "string",',
-    '  "main_areas": ["string"],',
-    '  "keywords": ["string"],',
-    '  "materials": [{"material_type":"访谈/著作/论文/公开言论","title":"string","source":"string","publish_time":"string","core_content":"string","source_link":"https://..."}],',
-    '  "references": [{"title":"string","url":"https://...","note":"string"}],',
-    '  "avatar_candidates": [{"url":"https://...","label":"string","sourceUrl":"https://..."}],',
-    '  "note": "string"',
-    "}",
-    "要求：",
-    "0) 必须结合姓名、头衔、简介、已有人工链接和关联节目上下文做人名消歧，只能寻找与这些身份线索一致的同一位嘉宾。",
-    "1) 仅保留公开可核验资料，不确定就留空或在 note 说明。",
-    "2) references/materials/source_link 尽量使用可访问链接，优先作者官网、机构页、百科词条页、出版页、访谈原文页。",
-    "3) 禁止返回任何搜索入口页、搜索结果页、图片检索页、占位头像或图库检索链接。",
-    "4) avatar_candidates 只返回真实人物照片或机构页公开头像，拿不到就留空数组。",
-    "5) 如果出现同名人物冲突，优先选择与头衔、机构、节目主题全部匹配的结果；如果无法确认，就不要编造链接，并在 note 里明确说明冲突原因。",
-    "6) 不要输出 markdown，不要输出代码块，只输出 JSON 对象。",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  // 构建关联节目上下文
+  const programContext = relatedPrograms.length
+    ? relatedPrograms
+        .map((item: any) => {
+          const summaryHeadline = asText(item?.summary?.headline);
+          return `${asText(item?.title)}${asText(item?.programCode) ? `（${asText(item?.programCode)}）` : ""}${summaryHeadline ? `｜${summaryHeadline}` : ""}`;
+        })
+        .join("；")
+    : "";
 
-  const aiResult = await callAgentModelForJson(taskConfig, userPrompt);
+  // 直接调用 DeepSeek API，不走后台 agent 配置
+  const aiResult = await callDeepSeekForGuestInfo(guestName, guestTitle, guestBio, programContext);
   const parsed = aiResult.parsed || {};
 
   const references = (Array.isArray(parsed?.references) ? parsed.references : [])
@@ -1165,7 +1181,7 @@ async function runGuestProfileTask(task: any) {
       note: asText(item?.note) || "公开参考链接",
     }))
     .filter((item: any) => item.title && isRealReferenceUrl(item.url));
-  const nextReferences = [...overrideReferences, ...existingReferences, ...(references.length ? references : dedupedFallbackReferences)]
+  const nextReferences = [...overrideReferences, ...existingReferences, ...references]
     .filter((item, index, list) => {
       const normalizedUrl = asText(item?.url);
       if (!normalizedUrl) return false;
@@ -1248,29 +1264,9 @@ async function runGuestProfileTask(task: any) {
     .filter((item: any) => item.title && (item.source || isRealReferenceUrl(item.source_link)))
     .slice(0, 12);
 
-  const fallbackMaterials = referenceDocs
-    .map(({ reference, doc }) => {
-      if (!reference.url) return null;
-      return {
-        material_type: "公开资料",
-        title: reference.title || doc.title || guestName,
-        source: reference.note || doc.title || "公开页面",
-        publish_time: "",
-        core_content: doc.description || `${guestName} 相关公开资料页，建议人工补充代表观点与经历。`,
-        source_link: reference.url,
-      };
-    })
-    .filter((item) => item && item.title && isRealReferenceUrl(item.source_link))
-    .slice(0, 6) as Array<{
-      material_type: string;
-      title: string;
-      source: string;
-      publish_time: string;
-      core_content: string;
-      source_link: string;
-    }>;
+  const fallbackMaterials: Array<{ material_type: string; title: string; source: string; publish_time: string; core_content: string; source_link: string }> = [];
 
-  const nextMaterials = materials.length ? materials : fallbackMaterials;
+  const nextMaterials = materials;
   const nextPublications = [...overridePublications, ...existingPublications, ...nextMaterials
     .map((item, index) => ({
       type: inferPublicationType(item.material_type, item.source_link),
@@ -1292,7 +1288,7 @@ async function runGuestProfileTask(task: any) {
     .slice(0, 12)
     .map((item, index) => ({ ...item, order: index + 1 }));
 
-  const briefIntro = asText(parsed?.brief_intro) || guestBio || "暂无完整简介，建议结合公开访谈、出版物和机构介绍补全。";
+  const briefIntro = asText(parsed?.brief_intro) || guestBio || "";
   const mainAreas = (Array.isArray(parsed?.main_areas) ? parsed.main_areas : [])
     .map((x: any) => asText(x))
     .filter(Boolean)
@@ -1319,25 +1315,31 @@ async function runGuestProfileTask(task: any) {
           (item) =>
             `- ${item.material_type}｜${item.title}${item.source ? `（${item.source}）` : ""}${item.publish_time ? `｜${item.publish_time}` : ""}${item.source_link ? `\n  - 链接：${item.source_link}` : ""}${item.core_content ? `\n  - 摘要：${item.core_content}` : ""}`
         )
-      : ["- 暂无可核验条目，请人工补充。"]),
+      : ["- 未找到可核验的公开条目。"]),
     "",
     "## 资料索引",
     ...nextReferences.map((item) => `- [${item.title}](${item.url})${item.note ? ` - ${item.note}` : ""}`),
     "",
     "## 节目相关备注",
-    `- ${note || "建议在节目详情中同步维护嘉宾核心观点与代表案例。"}${aiResult.error ? `（模型调用异常：${aiResult.error}）` : ""}`,
+    `- ${note || "建议在节目详情中同步维护嘉宾核心观点与代表案例。"}`,
   ].join("\n");
 
   await GuestModel.findByIdAndUpdate(
     task.targetId,
     {
       $set: {
+        bio: briefIntro || guestBio || "",
+        title: guestTitle || (guest as any).title || "",
+        mainAreas: mainAreas.length ? mainAreas : (guest as any).mainAreas || [],
+        keywords: keywords.length ? keywords : (guest as any).keywords || [],
         profileMarkdown: markdown,
         profileReferences: nextReferences,
         socialProfiles: nextSocialProfiles,
         publications: nextPublications,
+        avatarCandidates: nextAvatarCandidates,
         profileAvatarCandidates: nextAvatarCandidates,
         profileGeneratedAt: new Date(),
+        updatedAt: new Date(),
       },
     },
     { new: false }
@@ -1346,6 +1348,11 @@ async function runGuestProfileTask(task: any) {
   return {
     outputSummary: "已生成嘉宾资料草稿、外链索引与头像候选。",
     output: {
+      rawText: aiResult.rawText,
+      aiParsed: parsed,
+      mainAreas,
+      keywords,
+      briefIntro,
       profileMarkdown: markdown,
       profileReferences: nextReferences,
       socialProfiles: nextSocialProfiles,
@@ -1354,11 +1361,11 @@ async function runGuestProfileTask(task: any) {
       materials: nextMaterials,
       aiError: aiResult.error || "",
       runtimeConfig: {
-        agent_code: taskConfig.agentCode,
-        prompt_version: asText(taskConfig.promptDoc?.version),
-        prompt_created_at: asText(taskConfig.promptDoc?.created_at),
-        model_provider: asText(taskConfig.model?.provider),
-        model_name: asText(taskConfig.model?.model_name),
+        agent_code: "deepseek-direct",
+        prompt_version: "v2-guest-info",
+        prompt_created_at: new Date().toISOString(),
+        model_provider: "deepseek",
+        model_name: process.env.AI_MODEL || "deepseek-chat",
       },
     },
   };
@@ -1420,11 +1427,11 @@ async function runProgramArtworkTask(task: any) {
       parsedSignals,
       promptPackage,
       runtimeConfig: {
-        agent_code: taskConfig.agentCode,
-        prompt_version: asText(taskConfig.promptDoc?.version),
-        prompt_created_at: asText(taskConfig.promptDoc?.created_at),
-        model_provider: asText(taskConfig.model?.provider),
-        model_name: asText(taskConfig.model?.model_name),
+        agent_code: "deepseek-direct",
+        prompt_version: "v2-guest-info",
+        prompt_created_at: new Date().toISOString(),
+        model_provider: "deepseek",
+        model_name: process.env.AI_MODEL || "deepseek-chat",
       },
     },
   };

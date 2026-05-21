@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useSelector } from "react-redux";
+import { RootState } from "../store";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import Pagination from "../components/Pagination";
 import { Book, publicApi } from "../services/api";
@@ -90,6 +92,9 @@ const BookCard: React.FC<BookCardProps> = ({ item }) => {
 };
 
 const BooksPage: React.FC = () => {
+  const token = useSelector((state: RootState) => state.user.token);
+  const isLoggedIn = !!token || !!localStorage.getItem("token");
+
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -269,10 +274,18 @@ const BooksPage: React.FC = () => {
   };
 
   const toggleGrade = (grade: string) => {
+    if (!isLoggedIn) {
+      document.dispatchEvent(new CustomEvent("xf-show-login-modal", { detail: { title: "登录后即可筛选", description: "登录后可查看完整书单、使用筛选功能，获得个性化阅读推荐。" } }));
+      return;
+    }
     setSelectedGrades((prev) => (prev.includes(grade) ? prev.filter((item) => item !== grade) : [...prev, grade]));
   };
 
   const toggleTopic = (topic: string) => {
+    if (!isLoggedIn) {
+      document.dispatchEvent(new CustomEvent("xf-show-login-modal", { detail: { title: "登录后即可筛选", description: "登录后可查看完整书单、使用筛选功能，获得个性化阅读推荐。" } }));
+      return;
+    }
     setSelectedTopics((prev) => (prev.includes(topic) ? prev.filter((item) => item !== topic) : [...prev, topic]));
   };
 
@@ -345,7 +358,13 @@ const BooksPage: React.FC = () => {
                 <span className="material-symbols-outlined text-[#8f7bd6]">search</span>
                 <input
                   value={keyword}
-                  onChange={(event) => setKeyword(event.target.value)}
+                  onChange={(event) => {
+                    if (!isLoggedIn) {
+                      document.dispatchEvent(new CustomEvent("xf-show-login-modal", { detail: { title: "登录后即可搜索", description: "登录后可查看完整书单、使用搜索和筛选功能，获得个性化阅读推荐。" } }));
+                      return;
+                    }
+                    setKeyword(event.target.value);
+                  }}
                   placeholder="搜索书名、作者、出版社、推荐人"
                   className="materials-search-input w-full border-0 bg-transparent text-sm outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
                 />

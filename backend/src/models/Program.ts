@@ -38,9 +38,23 @@ interface CuratedReadingItem {
   url?: string;
 }
 
+interface MindMapNode {
+  title: string;
+  summary: string;
+  emoji?: string;
+  source?: { type: string; time?: string; term?: string };
+  children?: MindMapNode[];
+}
+
+interface MindMapData {
+  root: MindMapNode;
+  generatedAt?: Date;
+}
+
 interface ProgramDeepDive {
   sectionTitle?: string;
   curatedReading?: CuratedReadingItem[];
+  mindMap?: MindMapData;
 }
 
 interface ProgramQuickViewItem {
@@ -48,6 +62,7 @@ interface ProgramQuickViewItem {
   endTime: string;
   timeRangeLabel: string;
   summary: string;
+  parent?: ProgramQuickViewItem;
 }
 
 interface ProgramMinutes {
@@ -218,6 +233,20 @@ const programSchema = new mongoose.Schema(
           url: { type: String, default: "" },
         },
       ],
+      mindMap: {
+        root: {
+          title: { type: String, default: "" },
+          summary: { type: String, default: "" },
+          emoji: { type: String, default: "" },
+          source: {
+            type: { type: String, default: "" },
+            time: { type: String, default: "" },
+            term: { type: String, default: "" },
+          },
+          children: [{ type: mongoose.Schema.Types.Mixed }],
+        },
+        generatedAt: { type: Date },
+      },
     },
     contentPack: {
       quickView: [

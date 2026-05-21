@@ -6,7 +6,7 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import Program from "../models/Program";
 import GuestModel from "../models/Guest";
-import { resolveProgramAiProvider } from "../services/programAi";
+import { generateMindMap, resolveProgramAiProvider } from "../services/programAi";
 import mongoose from "mongoose";
 import { attachDictionaryEntriesToPrograms, isHighQualityEducationTerm, removeProgramFromDictionary, syncProgramDictionaryEntries } from "../services/educationDictionary";
 import { buildShowNotesKeyMomentsText, getShowNotesDefaultTemplate, renderShowNotesTemplate, truncateByChars } from "../services/showNotes";
@@ -492,6 +492,9 @@ function sanitizeProgramPayload(payload: any, requireEpisode: boolean) {
     cleaned.deepDive = {
       sectionTitle: asText(cleaned.deepDive.sectionTitle),
       curatedReading: sanitizeCuratedReading(cleaned.deepDive.curatedReading),
+      mindMap: cleaned.deepDive.mindMap && cleaned.deepDive.mindMap.root && (cleaned.deepDive.mindMap.root.title || (cleaned.deepDive.mindMap.root.children && cleaned.deepDive.mindMap.root.children.length > 0))
+        ? cleaned.deepDive.mindMap
+        : undefined,
     };
   }
 
@@ -586,6 +589,9 @@ function mergeAiIntoPayload(payload: any, generated: any, transcript: any[]) {
   next.deepDive = {
     sectionTitle: mergePreferManualText(next.deepDive?.sectionTitle, generated?.deepDive?.sectionTitle),
     curatedReading: mergePreferManualArray(next.deepDive?.curatedReading, generated?.deepDive?.curatedReading),
+    mindMap: next.deepDive?.mindMap && next.deepDive.mindMap.root && (next.deepDive.mindMap.root.title || (next.deepDive.mindMap.root.children && next.deepDive.mindMap.root.children.length > 0))
+      ? next.deepDive.mindMap
+      : undefined,
   };
 
   next.contentPack = mergeContentPack(next.contentPack, generated?.contentPack);
@@ -674,6 +680,7 @@ function buildParseFailurePayload(payload: any, uploadedAudioUrl: string) {
     deepDive: {
       sectionTitle: "",
       curatedReading: [],
+      mindMap: undefined,
     },
     contentPack: {
       quickView: [],
@@ -1693,6 +1700,7 @@ export class ProgramController {
           deepDive: {
             sectionTitle: "",
             curatedReading: [],
+            mindMap: undefined,
           },
           contentPack: {
             quickView: [],
@@ -1771,6 +1779,59 @@ export class ProgramController {
       res.status(200).json(await applyShowNotesRendering(attachedGuest));
     } catch (error) {
       res.status(400).json({ message: "更新节目状态失败", error });
+    }
+  }
+
+  async generateMindMap(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const id = asText(req.params?.id);
+      if (!id) {
+        res.status(400).json({ message: "无效的节目 ID" });
+        return;
+      }
+      if (!mongoose.Types.ObjectId.isValid(String(id))) {
+        res.status(400).json({ message: "无效的节目 ID" });
+        return;
+      }
+      const program = await Program.findById(id);
+      if (!program) {
+        res.status(404).json({ message: "节目不存在" });
+        return;
+      }
+      const p = program.toObject() as any;
+      const summary = p.summary || {};
+      // dictionaryEntries 通过 attachDictionaryEntriesToPrograms 附加，不在 model schema 中
+      const dictEntries = (p.dictionaryEntries || p.termGlossary || []).map((d: any) => ({
+        term: d.term || "",
+        definition: typeof d.definition === "string" ? d.definition : JSON.stringify(d.definition || "").slice(0, 120)
+      })).filter((d: any) => d.term && d.definition);
+      const quickView = (p.contentPack?.quickView || []).map((q: any) => ({
+        timeRangeLabel: q.timeRangeLabel || "",
+        summary: q.summary || ""
+      }));
+
+      const node = await generateMindMap({
+        title: p.title || "",
+        summaryBody: (summary as any).body || p.description || "",
+        highlightText: (summary as any).highlightText || "",
+        dictionaryEntries: dictEntries,
+        quickView: quickView,
+      });
+
+      if (!node) {
+        res.status(500).json({ message: "AI 知识树生成失败，请检查 AI API 配置或稍后重试" });
+        return;
+      }
+
+      const mindMap = { root: node, generatedAt: new Date() };
+      await Program.findByIdAndUpdate(id, { "deepDive.mindMap": mindMap });
+
+      res.status(200).json({
+        programId: id,
+        mindMap,
+      });
+    } catch (error: any) {
+      res.status(400).json({ message: error?.message || "生成知识树失败", error });
     }
   }
 

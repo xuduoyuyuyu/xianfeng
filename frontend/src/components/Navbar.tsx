@@ -1,8 +1,10 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useLoginModal } from './LoginModalProvider';
 
 const Navbar: React.FC = () => {
   const location = useLocation();
+  const { showLoginModal } = useLoginModal();
   
   const isActive = (path: string) => location.pathname.startsWith(path);
 
@@ -55,12 +57,12 @@ const Navbar: React.FC = () => {
               type="text"
             />
           </div>
-          <Link 
-            to="/login"
+          <button
+            onClick={() => showLoginModal('登录后继续浏览', '登录后可解锁完整课程、查看详细内容，获得个性化成长推荐。')}
             className="bg-[#5e17eb] text-white px-5 py-2 rounded-full text-xs font-bold hover:opacity-90 transition-opacity"
           >
             登录 / 注册
-          </Link>
+          </button>
         </div>
       </div>
     </nav>

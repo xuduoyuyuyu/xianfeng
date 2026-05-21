@@ -418,6 +418,16 @@
 // 统一的数据共享工具
 const WEL_USER_DATA_KEY = 'wel_user_basic_info';
 
+// 登录检测：通过 postMessage 通知父窗口弹登录引导
+function isLoggedInForWel() {
+  var token = localStorage.getItem('token');
+  if (token) return true;
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({ type: 'WEL_LOGIN_REQUIRED', title: '登录后即可使用', description: '登录后可获取个性化教育规划方案，基于您的城市政策和家庭情况定制专属路径。' }, '*');
+  }
+  return false;
+}
+
 function saveWelUserData(data) {
   try {
     const existing = getWelUserData() || {};
@@ -1158,6 +1168,7 @@ function getWelUserData() {
 
   // 统一跳转到教育规划页面
   window.startPlanning = function(){
+    if (!isLoggedInForWel()) return;
     if (!validateRequiredFiveFields()) return;
     const inputText = $('mainInput').value.trim();
     const data = {
@@ -1183,6 +1194,7 @@ function getWelUserData() {
 
   // 结构化表单填写
   window.startStructuredPlan = function(){
+    if (!isLoggedInForWel()) return;
     if (!validateRequiredFiveFields()) return;
     const inputText = $('mainInput').value.trim();
     const data = {
@@ -1208,6 +1220,7 @@ function getWelUserData() {
   
   // AI对话师 - Chat填写
   window.startChatPlan = function(){
+    if (!isLoggedInForWel()) return;
     if (!validateRequiredFiveFields()) return;
     const inputText = $('mainInput') ? $('mainInput').value.trim() : '';
     const data = {

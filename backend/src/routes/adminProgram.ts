@@ -86,6 +86,7 @@ router.post("/upload-image", (req, res, next) => {
 router.post("/create-from-audio", programController.createFromAudio);
 router.post("/:id/preview-link", programController.createPreviewLink);
 router.post("/:id/proofread/accept", (req, res) => programController.acceptProofread(req as any, res));
+router.post("/:id/generate-mindmap", (req, res) => programController.generateMindMap(req as any, res));
 router.get("/:id", programController.getByIdAdmin);
 router.post("/", programController.create);
 router.put("/:id", programController.update);

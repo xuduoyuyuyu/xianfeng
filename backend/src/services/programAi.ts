@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
+import axios from "axios";
 import { ensureStore } from "./agentModelRegistry";
 
 type TranscriptSegment = {
@@ -16,6 +17,14 @@ type TimedUtterance = {
   text: string;
   speaker?: string;
 };
+
+interface MindMapNode {
+  title: string;
+  summary: string;
+  emoji?: string;
+  source?: { type: string; time?: string; term?: string };
+  children?: MindMapNode[];
+}
 
 type ProgramAiResult = {
   episodeTitle?: string;
@@ -1530,6 +1539,98 @@ class MockProgramAiProvider implements ProgramAiProvider {
       ...input,
       fallbackTitle: "AI 自动生成：家校协同实践",
     });
+  }
+}
+
+export async function generateMindMap(input: {
+  title: string;
+  summaryBody: string;
+  highlightText: string;
+  dictionaryEntries: Array<{ term: string; definition: string }>;
+  quickView: Array<{ timeRangeLabel: string; summary: string }>;
+}): Promise<MindMapNode | null> {
+
+  const AI_ENDPOINT = process.env.AI_API_BASE_URL || "https://api.deepseek.com/v1";
+  const AI_API_KEY = process.env.AI_API_KEY || process.env.VOLCENGINE_API_KEY || "";
+  const AI_MODEL = process.env.AI_MODEL || "deepseek-v4-flash";
+
+  if (!AI_API_KEY) return null;
+
+  const termsText = (input.dictionaryEntries || []).slice(0, 10)
+    .map(d => `${d.term}: ${d.definition.slice(0, 80)}`)
+    .join("\n");
+  const quickViewText = (input.quickView || []).slice(0, 8)
+    .map(q => `[${q.timeRangeLabel}] ${q.summary.slice(0, 120)}`)
+    .join("\n");
+
+  const prompt = `你是一位教育播客的知识结构分析师。请根据以下节目信息，生成一个层级知识树。
+
+节目标题：${input.title}
+内容摘要：${input.summaryBody.slice(0, 300)}
+核心观点：${input.highlightText.slice(0, 200)}
+
+关键术语：
+${termsText}
+
+时间线摘要：
+${quickViewText}
+
+请输出一个完整的知识树 JSON，结构为：
+{
+  "root": {
+    "title": "一句话概括本期主题",
+    "summary": "50字以内概述，说明本期核心议题",
+    "emoji": "1个最贴切的emoji",
+    "children": [
+      {
+        "title": "核心观点标题（简洁，10字以内）",
+        "summary": "该观点的详细阐述，包含节目中的具体论据（30-60字）",
+        "emoji": "匹配内容的1个emoji",
+        "children": [
+          {
+            "title": "具体论据或案例",
+            "summary": "节目中提到的具体例证或数据（20-40字）",
+            "source": { "type": "transcript", "time": "对应的时间段如00:15:30" }
+          }
+        ]
+      }
+    ]
+  }
+}
+
+要求：
+1. root.children 必须有 3-5 个核心观点节点
+2. 每个核心观点下面有 1-3 个子节点（论据/案例/方法/术语解释）
+3. root.children 的最后一项固定为标题"行动建议"，包含 2-3 条家长可执行的具体建议作为子节点
+4. 如果术语表中有重要概念，整合到相关观点下而不是单独列出
+5. emoji 要精准匹配内容语义，不同节点用不同 emoji
+6. source.time 根据 quickView 时间线填写，确保时间格式为 HH:MM:SS（如 00:15:30）
+7. 只输出 JSON，不要任何解释文字、不要 markdown 代码块标记
+
+请直接返回 JSON：`;
+
+  try {
+    const res = await axios.post(`${AI_ENDPOINT}/chat/completions`, {
+      model: AI_MODEL,
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.6,
+      max_tokens: 3000,
+      response_format: { type: "json_object" },
+    }, {
+      headers: {
+        Authorization: `Bearer ${AI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      timeout: 60000,
+    });
+
+    const content = res.data?.choices?.[0]?.message?.content;
+    if (!content) return null;
+    const parsed = JSON.parse(content);
+    return parsed.root || parsed;
+  } catch (error) {
+    console.error("[generateMindMap] failed:", error);
+    return null;
   }
 }
 

@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSelector } from "react-redux";
+import { RootState } from "../store";
 import { Link, useNavigate } from "react-router-dom";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 
@@ -482,6 +484,7 @@ function scoreColor(s: number): string {
 
 /* ===== 页面 ===== */
 const WorthBuyPage: React.FC = () => {
+  const token = useSelector((state: RootState) => state.user.token);
   const navigate = useNavigate();
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -582,6 +585,11 @@ const WorthBuyPage: React.FC = () => {
 
   /* 调用 API — 3 步流程 */
   const analyze = useCallback(async () => {
+    const isLoggedIn = !!token || !!localStorage.getItem("token");
+    if (!isLoggedIn) {
+      document.dispatchEvent(new CustomEvent("xf-show-login-modal", { detail: { title: "登录后即可分析", description: "登录后可使用品牌分析功能，获取个性化消费建议。" } }));
+      return;
+    }
     const trimmed = input.trim();
     if (!trimmed) return;
     setError(null);
@@ -728,7 +736,12 @@ const WorthBuyPage: React.FC = () => {
   };
 
   /* 示例点击 */
-  const demoAnalyze = (query: string) => {
+  const demoAnalyze = useCallback((query: string) => {
+    const isLoggedIn = !!token || !!localStorage.getItem("token");
+    if (!isLoggedIn) {
+      document.dispatchEvent(new CustomEvent("xf-show-login-modal", { detail: { title: "登录后即可分析", description: "登录后可使用品牌分析功能，获取个性化消费建议。" } }));
+      return;
+    }
     setInput(query);
     setError(null);
     setLoading(false);
@@ -739,7 +752,7 @@ const WorthBuyPage: React.FC = () => {
       saveToBackend(query, query, demoResult).catch(() => {});
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     }
-  };
+  }, [token, setInput, setError, setResult]);
 
   return (
     <div className="worthbuy-page" style={{ minHeight: "100vh", background: "#f8f6ff" }}>

@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+import { useSelector } from "react-redux";
+import { RootState } from "../store";
 import { Link, useSearchParams } from "react-router-dom";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import Pagination from "../components/Pagination";
@@ -6,10 +8,11 @@ import WishModal from "../components/WishModal";
 import { publicApi, PublicGuest } from "../services/api";
 
 const PAGE_SIZE = 15;
-const FALLBACK_AVATAR = "https://xianfeng.xinzhi.info/uploads/images/1779099163792-wl2rg1zt.png";
+const FALLBACK_AVATAR = "http://xianfeng.xinzhi.info/uploads/images/1779264157086-hgcd24g4.png";
 const EXPERTS_HERO_DISMISSED_KEY = "experts_hero_dismissed_v1";
 
 const ExpertsPage: React.FC = () => {
+  const token = useSelector((state: RootState) => state.user.token);
   const [guests, setGuests] = useState<PublicGuest[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -212,7 +215,14 @@ const ExpertsPage: React.FC = () => {
         {/* 许愿入口 — 列表页底部小字 */}
         <div className="mt-6 text-center">
           <button
-            onClick={() => setWishModalOpen(true)}
+            onClick={() => {
+              const isLoggedIn = !!token || !!localStorage.getItem("token");
+              if (!isLoggedIn) {
+                document.dispatchEvent(new CustomEvent("xf-show-login-modal", { detail: { title: "登录后即可互动", description: "登录后可提交心愿、了解教育行业顶尖从业者。" } }));
+                return;
+              }
+              setWishModalOpen(true);
+            }}
             className="transition hover:text-[#5e17eb]"
             style={{ fontSize: 7.7, color: "#b7a9d6" }}
           >

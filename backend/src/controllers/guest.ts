@@ -101,6 +101,23 @@ function serializeProgramCard(program: any) {
   };
 }
 
+function normalizeListenerBenefits(input: unknown) {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((item: any, index) => ({
+      title: asText(item?.title),
+      description: asText(item?.description),
+      url: asText(item?.url),
+      image: asText(item?.image),
+      note: asText(item?.note),
+      order: Number(item?.order) || index + 1,
+      status: normalizeContentStatus(item?.status),
+    }))
+    .filter((item) => item.title)
+    .sort((a, b) => a.order - b.order)
+    .map((item, index) => ({ ...item, order: index + 1 }));
+}
+
 function serializeGuestListItem(guest: any, programCount = 0) {
   const profileReferences = Array.isArray(guest?.profileReferences) ? guest.profileReferences : [];
   const socialProfiles = normalizeSocialProfiles(Array.isArray(guest?.socialProfiles) ? guest.socialProfiles : []).filter((item) => item.status === "active");
@@ -109,6 +126,7 @@ function serializeGuestListItem(guest: any, programCount = 0) {
       ? normalizePublications(Array.isArray(guest?.publications) ? guest.publications : [])
       : mapLegacyReferencesToPublications(profileReferences)
   ).filter((item) => item.status === "active");
+  const listenerBenefits = normalizeListenerBenefits(Array.isArray(guest?.listenerBenefits) ? guest.listenerBenefits : []).filter((item) => item.status === "active");
   return {
     _id: String(guest?._id || ""),
     name: asText(guest?.name),
@@ -125,6 +143,7 @@ function serializeGuestListItem(guest: any, programCount = 0) {
       .filter((item: any) => item.url),
     socialProfiles,
     publications,
+    listenerBenefits,
     programCount,
     referenceCount: publications.length || profileReferences.filter((item: any) => asText(item?.url)).length,
   };
@@ -171,7 +190,7 @@ export class GuestController {
       const total = await GuestModel.countDocuments(filter);
       const skip = (page - 1) * pageSize;
       const guests = await GuestModel.find(filter)
-        .select({ name: 1, title: 1, bio: 1, avatar: 1, profileUrl: 1, profileReferences: 1, socialProfiles: 1, publications: 1, status: 1, updatedAt: 1, createdAt: 1 })
+        .select({ name: 1, title: 1, bio: 1, avatar: 1, profileUrl: 1, profileReferences: 1, socialProfiles: 1, publications: 1, listenerBenefits: 1, status: 1, updatedAt: 1, createdAt: 1 })
         .sort({ updatedAt: -1, createdAt: -1 })
         .skip(skip)
         .limit(pageSize)
@@ -197,10 +216,12 @@ export class GuestController {
         return;
       }
 
+      console.log(`[getByIdPublic] id=${id}, isValid=${mongoose.Types.ObjectId.isValid(id)}`);
       const guest = await GuestModel.findOne({
         _id: new mongoose.Types.ObjectId(id),
         $or: [{ status: "active" }, { status: { $exists: false } }, { status: null }],
       }).lean();
+      console.log(`[getByIdPublic] found=${!!guest}, name=${(guest as any)?.name || "N/A"}`);
       if (!guest) {
         res.status(404).json({ message: "嘉宾不存在或未启用" });
         return;

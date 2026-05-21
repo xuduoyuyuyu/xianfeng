@@ -178,16 +178,23 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
           <div className="tb-right">
             {showSearch ? (
               <>
-                <label className="search-wrap" id="tb-program-search-wrap">
+                <label
+                  className="search-wrap"
+                  id="tb-program-search-wrap"
+                  onClick={() => { if (!isLoggedIn) { document.dispatchEvent(new CustomEvent('xf-show-login-modal', { detail: { title: '登录后可搜索', description: '登录后即可搜索节目内容、筛选标签、翻页浏览全部课程。' } })); } }}
+                  style={!isLoggedIn ? { cursor: 'pointer' } : undefined}
+                >
                   <span className="ms0" style={{ fontFamily: "'Material Symbols Rounded'", fontSize: 16, color: "#9ca3af", lineHeight: 1 }}>
                     search
                   </span>
                   <input
                     id="tb-program-search-input"
                     type="text"
-                    placeholder={searchPlaceholder}
+                    placeholder={isLoggedIn ? searchPlaceholder : '登录后可使用搜索'}
                     value={typeof searchValue === "string" ? searchValue : undefined}
                     onChange={(event) => onSearchChange?.(event.target.value)}
+                    disabled={!isLoggedIn}
+                    style={!isLoggedIn ? { pointerEvents: 'none' } : undefined}
                   />
                 </label>
                 {showAiOnline ? <span className="search-divider" id="tb-search-divider" /> : null}
@@ -229,10 +236,13 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
                 ) : null}
               </>
             ) : (
-              <Link className="uc" id="uc" to="/login">
+              <button
+                className="uc" id="uc"
+                onClick={() => { document.dispatchEvent(new CustomEvent('xf-show-login-modal', { detail: { title: '登录后继续浏览', description: '登录后可解锁完整课程、查看详细内容，获得个性化成长推荐。' } })); }}
+              >
                 <div className="uc-av" id="uc-av">登</div>
                 <span className="uc-name" id="uc-name">登录/注册</span>
-              </Link>
+              </button>
             )}
           </div>
 
@@ -291,10 +301,13 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
                   </Link>
                 </>
               ) : null}
-              <Link className="tb-mobile-link" to="/login" onClick={() => setMenuOpen(false)}>
+              <button
+                className="tb-mobile-link"
+                onClick={() => { setMenuOpen(false); document.dispatchEvent(new CustomEvent('xf-show-login-modal', { detail: { title: '登录后继续浏览', description: '登录后可解锁完整课程、查看详细内容，获得个性化成长推荐。' } })); }}
+              >
                 <span className="ms">login</span>
                 <span>登录/注册</span>
-              </Link>
+              </button>
             </div>
             <p className="tb-mobile-muted">面向家长的教育决策内容平台</p>
           </div>
@@ -406,6 +419,7 @@ const ProfileEditor: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
   const [loaded, setLoaded] = useState(false);
+  const [onboardingMode, setOnboardingMode] = useState(false);
 
   // 根据城市获取可用区域列表
   const districtOptions = (() => {
@@ -444,6 +458,15 @@ const ProfileEditor: React.FC = () => {
       }
       setAvatar(d.avatar_image || '');
       setLoaded(true);
+
+      // 首次登录引导：标记需要弹出资料编辑
+      if (sessionStorage.getItem("xf_show_profile") === "1") {
+        sessionStorage.removeItem("xf_show_profile");
+        setOnboardingMode(true);
+        setTimeout(() => {
+          document.getElementById('xf-profile-mask')?.classList.remove('hidden');
+        }, 500);
+      }
     }).catch(() => setLoaded(true));
   }, [token, loaded]);
 
@@ -549,32 +572,54 @@ const ProfileEditor: React.FC = () => {
               </div>
               <input id="xf-avatar-file" type="file" accept="image/*" style={{ display:'none' }} onChange={handleAvatarPick} />
             </div>
-            <div className="xf-pfield" style={{ marginBottom: 10 }}><label>昵称</label><input value={name} onChange={e => setName(e.target.value)} placeholder="请输入昵称" /></div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10 }}>
-              <div className="xf-pfield"><label>城市</label><input value={city} onChange={e => handleCityChange(e.target.value)} placeholder="如：上海" /></div>
-              <div className="xf-pfield"><label>区域</label>
-                {districtOptions.length > 0 ? (
-                  <select value={district} onChange={e => setDistrict(e.target.value)}>
-                    <option value="">请选择区域</option>
-                    {districtOptions.map(d => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                ) : (
-                  <input value={district} onChange={e => setDistrict(e.target.value)} placeholder={city ? '手动输入区域' : '先选城市'} />
-                )}
+            {onboardingMode ? (
+              <div style={{ marginBottom: 10, borderRadius: 12, border: "1px solid rgba(108,39,214,.16)", background: "rgba(108,39,214,.04)", padding: "10px 12px" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#5b21b6", marginBottom: 4 }}>完成 1 分钟资料引导</div>
+                <div style={{ fontSize: 12, color: "#7c3aed" }}>仅需昵称和城市，即可开启本地化教育推荐与成长路径建议。</div>
               </div>
-              <div className="xf-pfield"><label>学段</label><select value={stage} onChange={s => { setStage(s.target.value as Stage); const grades = getGradesForStageAndCity(s.target.value as Stage, city); setGradeName(grades[0]); }}>
-                {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select></div>
-              <div className="xf-pfield"><label>年级</label><select value={gradeName} onChange={e => setGradeName(e.target.value)}>
-                {getGradesForStageAndCity(stage, city).map(g => <option key={g} value={g}>{g}</option>)}
-              </select></div>
-            </div>
+            ) : null}
+            <div className="xf-pfield" style={{ marginBottom: 10 }}><label>昵称</label><input value={name} onChange={e => setName(e.target.value)} placeholder="请输入昵称" /></div>
+            {onboardingMode ? (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div className="xf-pfield"><label>城市</label><input value={city} onChange={e => handleCityChange(e.target.value)} placeholder="如：上海" /></div>
+                <div className="xf-pfield"><label>区域（可选）</label>
+                  {districtOptions.length > 0 ? (
+                    <select value={district} onChange={e => setDistrict(e.target.value)}>
+                      <option value="">请选择区域</option>
+                      {districtOptions.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  ) : (
+                    <input value={district} onChange={e => setDistrict(e.target.value)} placeholder={city ? '手动输入区域' : '先选城市'} />
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10 }}>
+                <div className="xf-pfield"><label>城市</label><input value={city} onChange={e => handleCityChange(e.target.value)} placeholder="如：上海" /></div>
+                <div className="xf-pfield"><label>区域</label>
+                  {districtOptions.length > 0 ? (
+                    <select value={district} onChange={e => setDistrict(e.target.value)}>
+                      <option value="">请选择区域</option>
+                      {districtOptions.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  ) : (
+                    <input value={district} onChange={e => setDistrict(e.target.value)} placeholder={city ? '手动输入区域' : '先选城市'} />
+                  )}
+                </div>
+                <div className="xf-pfield"><label>学段</label><select value={stage} onChange={s => { setStage(s.target.value as Stage); const grades = getGradesForStageAndCity(s.target.value as Stage, city); setGradeName(grades[0]); }}>
+                  {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select></div>
+                <div className="xf-pfield"><label>年级</label><select value={gradeName} onChange={e => setGradeName(e.target.value)}>
+                  {getGradesForStageAndCity(stage, city).map(g => <option key={g} value={g}>{g}</option>)}
+                </select></div>
+              </div>
+            )}
             {msg && <div style={{ fontSize: 12, marginTop: 8, color: '#dc2626' }}>{msg}</div>}
           </div>
           <div className="xf-pft">
-            <button className="xf-pbtn" onClick={close}>取消</button>
+            <button className="xf-pbtn" onClick={close}>{onboardingMode ? "稍后完善" : "取消"}</button>
             <button className="xf-pbtn primary" onClick={handleSave} disabled={saving} style={{ opacity: saving ? 0.6 : 1 }}>
-              {saving ? '保存中…' : '保存资料'}
+              {saving ? '保存中…' : (onboardingMode ? "开启个性化推荐" : "保存资料")}
             </button>
           </div>
         </div>

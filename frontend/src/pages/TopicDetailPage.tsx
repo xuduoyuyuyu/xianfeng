@@ -4,6 +4,8 @@ import { useSelector } from "react-redux";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import type { RootState } from "../store";
 import { getTopicUserId } from "../utils/topicUserId";
+import QRCode from "qrcode";
+
 
 /* ── 光斑装饰 ── */
 
@@ -105,6 +107,17 @@ function transformLayersToTree(layers: LayersInput): BranchNode[] {
   });
 }
 
+
+/** 加载图片 */
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
 const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
   const currentUser = useSelector((state: RootState) => state.user.user);
   const [topic, setTopic] = useState<TopicInfo | null>(null);
@@ -119,6 +132,8 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
   const [collapsedBranches, setCollapsedBranches] = useState<Set<string>>(new Set());
   const [questionInput, setQuestionInput] = useState("");
   const [asking, setAsking] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareImageUrl, setShareImageUrl] = useState<string | null>(null);
 
   // 展开讲讲
   const [expanding, setExpanding] = useState(false);
@@ -146,6 +161,323 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
   React.useEffect(() => {
     return () => { if (typewriterRef.current) clearInterval(typewriterRef.current); };
   }, []);
+
+  // ── 分享图生成 ──
+  const generateShareImage = async () => {
+    if (!topic) return;
+    setShareModalOpen(true);
+    setShareImageUrl(null);
+
+    const shareUrl = `https://xianfeng.xinzhi.info/topics/${encodeURIComponent(topic.slug)}`;
+
+    // 收集所有叶子节点
+    const allLeaves: LeafNode[] = [];
+    const collectLeaves = (nodes: any[]) => {
+      for (const node of nodes) {
+        if (node.nodeType === "leaf") {
+          allLeaves.push(node as LeafNode);
+        } else if (node.children) {
+          for (const child of node.children) {
+            if (child.nodeType === "leaf") allLeaves.push(child as LeafNode);
+            else if (child.children) collectLeaves([child]);
+          }
+        }
+      }
+    };
+    collectLeaves(tree as any[]);
+
+    // 并发获取前8个叶子节点的内容
+    const leavesToFetch = allLeaves.slice(0, 8);
+    const nodeContents: { title: string; summary: string }[] = [];
+    const uid = getTopicUserId(currentUser);
+
+    const results = await Promise.allSettled(
+      leavesToFetch.map(leaf =>
+        fetch(`/api/topic-hub/${encodeURIComponent(topic.slug)}/nodes/${leaf.nodeKey}${uid ? `?userId=${uid}` : ""}`)
+          .then(r => r.ok ? r.json() : null)
+      )
+    );
+
+    for (let i = 0; i < leavesToFetch.length; i++) {
+      const leaf = leavesToFetch[i];
+      const result = results[i];
+      let summary = leaf.summary || "";
+      if (result.status === "fulfilled" && result.value?.node) {
+        summary = result.value.node.summary || result.value.node.content?.replace(/\*\*/g, "").slice(0, 120) || summary;
+      }
+      if (summary) {
+        nodeContents.push({ title: leaf.title, summary });
+      }
+    }
+
+    // ── Canvas 参数 ──
+    const W = 1242;
+    const P = 88;
+    const contentW = W - P * 2;
+    const cardW = (contentW - 28) / 2;
+
+    // ── 辅助函数 ──
+    function wrapText2(ctx2: CanvasRenderingContext2D, text: string, maxWidth: number, fontSize: number): string[] {
+      ctx2.font = `bold ${fontSize}px 'PingFang SC', 'Noto Sans SC', sans-serif`;
+      const lines: string[] = [];
+      let current = "";
+      for (const char of text) {
+        const test = current + char;
+        if (ctx2.measureText(test).width > maxWidth && current.length > 0) {
+          lines.push(current);
+          current = char;
+        } else {
+          current = test;
+        }
+      }
+      if (current) lines.push(current);
+      return lines;
+    }
+    function roundRect2(ctx2: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+      ctx2.beginPath();
+      ctx2.moveTo(x + r, y);
+      ctx2.lineTo(x + w - r, y);
+      ctx2.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx2.lineTo(x + w, y + h - r);
+      ctx2.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx2.lineTo(x + r, y + h);
+      ctx2.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx2.lineTo(x, y + r);
+      ctx2.quadraticCurveTo(x, y, x + r, y);
+      ctx2.closePath();
+    }
+
+    // 预估高度
+    let estH = 100 + 700;
+    estH += 90 + 200;
+    estH += 80;
+    estH += 80 + 70;
+    estH += Math.ceil(Math.min(nodeContents.length, 8) / 2) * 240;
+    estH += 100 + 300;
+    estH += 140;
+    const H = Math.max(2300, Math.min(estH + 80, 4000));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d")!;
+
+    // 背景
+    ctx.fillStyle = "#F6F4FB";
+    ctx.fillRect(0, 0, W, H);
+    // ═══════ HERO ═══════
+    const heroGrad = ctx.createLinearGradient(0, 0, 0, 780);
+    heroGrad.addColorStop(0, "#F6F4FB");
+    heroGrad.addColorStop(0.35, "#EDE8FF");
+    heroGrad.addColorStop(1, "#F6F4FB");
+    ctx.fillStyle = heroGrad;
+    ctx.fillRect(0, 0, W, 780);
+
+    // 右侧装饰光圈（参考图有插图区域，此处用渐变光晕模拟）
+    const glowGr = ctx.createRadialGradient(W - 260, 340, 0, W - 260, 340, 400);
+    glowGr.addColorStop(0, "rgba(124,77,255,0.07)");
+    glowGr.addColorStop(0.5, "rgba(167,139,250,0.03)");
+    glowGr.addColorStop(1, "transparent");
+    ctx.fillStyle = glowGr;
+    ctx.beginPath(); ctx.arc(W - 260, 340, 400, 0, Math.PI * 2); ctx.fill();
+
+    // 右下角小光点
+    const dots: [number, number, number][] = [[W-180, 200, 140], [W-350, 480, 90], [W-140, 520, 60]];
+    for (const [gx, gy, gr] of dots) {
+      const g2 = ctx.createRadialGradient(gx, gy, 0, gx, gy, gr);
+      g2.addColorStop(0, "rgba(124,77,255,0.04)");
+      g2.addColorStop(1, "transparent");
+      ctx.fillStyle = g2;
+      ctx.beginPath(); ctx.arc(gx, gy, gr, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // 品牌标识
+    let y = 96;
+    ctx.fillStyle = "rgba(124,77,255,0.08)";
+    roundRect2(ctx, P, y - 4, 260, 40, 100);
+    ctx.fill();
+    ctx.fillStyle = "#7C4DFF";
+    ctx.font = "600 20px 'PingFang SC', 'Noto Sans SC', sans-serif";
+    ctx.fillText("⭐ 家长先疯 · 先疯智库", P + 18, y + 24);
+    y += 64;
+
+    // 主标题（更深色，参考图颜色 #0A0030 区域）
+    ctx.fillStyle = "#1A1150";
+    ctx.font = "bold 72px/88px 'PingFang SC', 'Noto Sans SC', sans-serif";
+    const titleText = topic.title;
+    const titleLines = wrapText2(ctx, titleText, W - P * 2 - 160, 72);
+    for (let li = 0; li < titleLines.length; li++) {
+      ctx.fillText(titleLines[li], P, y + 56);
+      y += 92;
+    }
+    y += 16;
+
+    // 副标题
+    if (topic.subtitle) {
+      ctx.fillStyle = "#6B6480";
+      ctx.font = "28px/40px 'PingFang SC', 'Noto Sans SC', sans-serif";
+      ctx.fillText(topic.subtitle, P, y + 24);
+      y += 56;
+    }
+
+    // 标签胶囊
+    const tags = topic.tags || [];
+    if (tags.length > 0) {
+      let tagX = P;
+      for (const tag of tags.slice(0, 4)) {
+        const tw = ctx.measureText(tag).width + 56;
+        ctx.fillStyle = "rgba(124,77,255,0.07)";
+        roundRect2(ctx, tagX, y + 8, tw, 44, 100);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(124,77,255,0.12)"; ctx.lineWidth = 1.5;
+        roundRect2(ctx, tagX, y + 8, tw, 44, 100); ctx.stroke();
+        ctx.fillStyle = "#7C4DFF";
+        ctx.font = "18px 'PingFang SC', sans-serif";
+        ctx.fillText(tag, tagX + 28, y + 36);
+        tagX += tw + 20;
+      }
+      y += 72;
+    }
+
+    // ═══════ OVERVIEW CARD ═══════
+    y += 40;
+    ctx.fillStyle = "#FFFFFF";
+    roundRect2(ctx, P, y, contentW, 190, 28); ctx.fill();
+    ctx.shadowColor = "rgba(124,77,255,0.05)"; ctx.shadowBlur = 32; ctx.fill();
+    ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
+
+    const barGrad = ctx.createLinearGradient(0, y + 42, 0, y + 190 - 42);
+    barGrad.addColorStop(0, "#7C4DFF"); barGrad.addColorStop(1, "#A78BFA");
+    ctx.fillStyle = barGrad; ctx.fillRect(P, y + 42, 6, 190 - 84);
+
+    ctx.fillStyle = "#1A1150"; ctx.font = "bold 30px 'PingFang SC', sans-serif";
+    ctx.fillText("📖 知识总览", P + 38, y + 68);
+
+    const ovText = (topic as any).shortSummary || topic.description || "";
+    if (ovText) {
+      ctx.fillStyle = "#6B6480"; ctx.font = "20px/36px 'PingFang SC', sans-serif";
+      const ovLines = wrapText2(ctx, ovText, contentW - 80, 20);
+      for (let i = 0; i < Math.min(ovLines.length, 3); i++) {
+        ctx.fillText(ovLines[i], P + 38, y + 106 + i * 36);
+      }
+    }
+    y += 280;
+
+    // ═══════ KNOWLEDGE CARDS ═══════
+    ctx.fillStyle = "#1A1150"; ctx.font = "bold 34px 'PingFang SC', sans-serif";
+    ctx.fillText("🌿 核心知识点", P, y + 42);
+    ctx.fillStyle = "#6B6480"; ctx.font = "19px 'PingFang SC', sans-serif";
+    ctx.fillText("完整知识树 · 8大核心模块", P + 240, y + 44);
+    y += 110;
+
+    const cardData = nodeContents.slice(0, 8);
+    const icons = ["🎯", "⚠️", "🧊", "🛡️", "📈", "📋", "🧪", "🏆"];
+    for (let i = 0; i < cardData.length; i++) {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const cx = P + col * (cardW + 28);
+      const cy = y + row * 230;
+      const nc = cardData[i];
+
+      // Card bg
+      ctx.fillStyle = "#FFFFFF";
+      roundRect2(ctx, cx, cy, cardW, 206, 28); ctx.fill();
+      ctx.strokeStyle = "#E9E3F8"; ctx.lineWidth = 1;
+      roundRect2(ctx, cx, cy, cardW, 206, 28); ctx.stroke();
+
+      // Number badge (right side)
+      ctx.fillStyle = "rgba(124,77,255,0.06)";
+      roundRect2(ctx, cx + cardW - 80, cy + 44, 48, 48, 16); ctx.fill();
+      ctx.fillStyle = "#A78BFA"; ctx.font = "bold 20px 'PingFang SC', sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(String(i + 1).padStart(2, "0"), cx + cardW - 56, cy + 74);
+      ctx.textAlign = "left";
+
+      // Icon badge
+      ctx.fillStyle = "rgba(124,77,255,0.06)";
+      roundRect2(ctx, cx + 44, cy + 40, 56, 56, 18); ctx.fill();
+      ctx.font = "28px 'PingFang SC', sans-serif";
+      ctx.fillText(icons[i] || "📝", cx + 58, cy + 74);
+
+      // Title
+      ctx.fillStyle = "#1A1150"; ctx.font = "bold 24px 'PingFang SC', sans-serif";
+      ctx.fillText(nc.title, cx + 44, cy + 128);
+
+      // Summary
+      ctx.fillStyle = "#6B6480"; ctx.font = "17px/26px 'PingFang SC', sans-serif";
+      const sLines = wrapText2(ctx, nc.summary.slice(0, 40), cardW - 88, 17);
+      if (sLines.length > 0) ctx.fillText(sLines[0], cx + 44, cy + 158);
+
+      // Link
+      ctx.fillStyle = "#7C4DFF"; ctx.font = "bold 16px 'PingFang SC', sans-serif";
+      ctx.fillText("查看知识 →", cx + 44, cy + 192);
+    }
+
+    const lastCardRow = Math.ceil(cardData.length / 2) - 1;
+    y = y + (lastCardRow + 1) * 230 + 90;
+
+    // ═══════ CTA ═══════
+    ctx.fillStyle = "#FFFFFF";
+    roundRect2(ctx, P, y, contentW, 260, 28); ctx.fill();
+    ctx.shadowColor = "rgba(124,77,255,0.05)"; ctx.shadowBlur = 32; ctx.fill();
+    ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
+
+    // QR code
+    let qrDataUrl = "";
+    try {
+      qrDataUrl = await QRCode.toDataURL(shareUrl, {
+        width: 260, margin: 2,
+        color: { dark: "#1A1150", light: "#FFFFFF" },
+      });
+    } catch { /* ignore */ }
+
+    if (qrDataUrl) {
+      const qrImg = await loadImage(qrDataUrl);
+      const qx = W - P - 200, qy = y + 30;
+      ctx.fillStyle = "#FFFFFF"; roundRect2(ctx, qx, qy, 200, 200, 20); ctx.fill();
+      ctx.strokeStyle = "#E9E3F8"; ctx.lineWidth = 2;
+      roundRect2(ctx, qx, qy, 200, 200, 20); ctx.stroke();
+      ctx.drawImage(qrImg, qx + 16, qy + 16, 168, 168);
+    }
+
+    const ctaMidX = P + 76;
+    ctx.fillStyle = "#1A1150"; ctx.font = "bold 32px 'PingFang SC', sans-serif";
+    ctx.fillText("扫码查看完整知识树", ctaMidX, y + 66);
+    ctx.fillStyle = "#6B6480"; ctx.font = "19px 'PingFang SC', sans-serif";
+    ctx.fillText("打开家长先疯，了解更多教育话题", ctaMidX, y + 104);
+
+    const feats = ["100+ 教育专题", "可视化学习路径", "持续更新"];
+    let featX = ctaMidX;
+    ctx.fillStyle = "#1A1150"; ctx.font = "500 17px 'PingFang SC', sans-serif";
+    for (const f of feats) {
+      ctx.fillText("✓ " + f, featX, y + 148);
+      featX += ctx.measureText("✓ " + f).width + 32;
+    }
+
+    if (qrDataUrl) {
+      const qx = W - P - 200;
+      ctx.fillStyle = "rgba(124,77,255,0.06)";
+      roundRect2(ctx, qx, y + 210, 200, 44, 100); ctx.fill();
+      ctx.fillStyle = "#7C4DFF"; ctx.font = "bold 16px 'PingFang SC', sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("长按扫码进入", qx + 100, y + 238);
+      ctx.textAlign = "left";
+    }
+
+    y += 320;
+    ctx.fillStyle = "#B0A8C8"; ctx.font = "17px 'PingFang SC', sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("家长先疯 · 先疯智库 — 让每个家长都成为教育专家", W / 2, y);
+    ctx.textAlign = "left";
+
+    // → Blob
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/png")
+    );
+    if (blob) {
+      setShareImageUrl(URL.createObjectURL(blob));
+    }
+  };
 
   // ── 智能提炼卡片组件 ──
   const SummarizedBlock: React.FC<{ summary: string; detail: string }> = ({ summary, detail }) => {
@@ -595,7 +927,7 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
         >
           ← 返回话题广场
         </Link>
-        <div style={{ marginTop: 16, marginBottom: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 16, marginBottom: 4 }}>
           <h1
             style={{
               fontSize: 26,
@@ -606,6 +938,23 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
           >
             {topic.title}
           </h1>
+          <button
+            onClick={generateShareImage}
+            style={{
+              flexShrink: 0,
+              padding: "10px 20px",
+              borderRadius: 10,
+              border: "1px solid #E9E3F8",
+              background: "#fff",
+              color: "#7C4DFF",
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            📤 分享
+          </button>
           {topic.subtitle && (
             <p style={{ color: "#6B7280", fontSize: 14, margin: 0 }}>
               {topic.subtitle}
@@ -1009,6 +1358,117 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
         </div>
       </div>
     </div>
+      {/* 分享弹窗 */}
+      {shareModalOpen && (
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShareModalOpen(false);
+              setShareImageUrl(null);
+            }
+          }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 20,
+              padding: 24,
+              maxWidth: 420,
+              width: "100%",
+              maxHeight: "90vh",
+              overflow: "auto",
+              textAlign: "center",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <span style={{ fontSize: 18, fontWeight: 700, color: "#1E1B4B" }}>📤 分享话题</span>
+              <button
+                onClick={() => { setShareModalOpen(false); setShareImageUrl(null); }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  fontSize: 24,
+                  color: "#9CA3AF",
+                  cursor: "pointer",
+                  padding: 0,
+                  lineHeight: 1,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            {shareImageUrl ? (
+              <>
+                <img
+                  src={shareImageUrl}
+                  alt="分享图"
+                  style={{ width: "100%", borderRadius: 12, marginBottom: 16 }}
+                />
+                <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+                  <a
+                    href={shareImageUrl}
+                    download={`${topic?.title || "话题"}_分享图.png`}
+                    style={{
+                      padding: "10px 24px",
+                      borderRadius: 10,
+                      background: "linear-gradient(135deg, #7C4DFF, #A78BFA)",
+                      color: "#fff",
+                      fontSize: 14,
+                      fontWeight: 600,
+                      textDecoration: "none",
+                    }}
+                  >
+                    💾 保存图片
+                  </a>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const blob = await fetch(shareImageUrl).then(r => r.blob());
+                        await navigator.clipboard.write([
+                          new ClipboardItem({ [blob.type]: blob })
+                        ]);
+                        alert("已复制到剪贴板");
+                      } catch {
+                        alert("复制失败，请长按图片保存");
+                      }
+                    }}
+                    style={{
+                      padding: "10px 24px",
+                      borderRadius: 10,
+                      border: "1px solid #E9E3F8",
+                      background: "#fff",
+                      color: "#7C4DFF",
+                      fontSize: 14,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    📋 复制图片
+                  </button>
+                </div>
+                <p style={{ fontSize: 12, color: "#9CA3AF", marginTop: 12 }}>
+                  长按图片也可保存到相册
+                </p>
+              </>
+            ) : (
+              <div style={{ padding: 40 }}>
+                <p style={{ color: "#9CA3AF" }}>正在生成分享图…</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
     </>
   );
 };

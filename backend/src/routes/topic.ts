@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import Topic from "../models/Topic";
+import User from "../models/User";
 import { generateTopicLayers, validateTopicKeyword } from "../services/topicAiGenerator";
 
 // 中文搜索关键词切词：按停用词和标点拆分，提取有意义的短词
@@ -368,12 +369,15 @@ publicRouter.post("/search-generate", async (req: Request, res: Response) => {
       suitableGrades = ["全学段"];
     }
 
-    // 生成唯一 slug（避免重复键冲突）
-    let slug = title
-      .replace(/[^\w\u4e00-\u9fff]+/g, "-")
+    // 生成唯一 slug（避免重复键冲突），中文转拼音确保 URL 兼容
+    const { pinyin } = require("pinyin");
+    const pinyinSlug = pinyin(title, { style: "normal" })
+      .map((x: string[]) => x[0])
+      .join("-")
+      .replace(/[^a-z0-9-]+/g, "-")
       .replace(/^-|-$/g, "")
-      .toLowerCase()
-      .slice(0, 80) || `topic-${Date.now()}`;
+      .slice(0, 80);
+    let slug = pinyinSlug || `topic-${Date.now()}`;
     const slugConflict = await Topic.findOne({ slug });
     if (slugConflict) {
       // 已有相同 slug，加数字后缀
@@ -680,6 +684,44 @@ publicRouter.get("/:slug/progress", async (req: Request, res: Response) => {
 // ============================================================
 // 后台 Router（需 admin 认证，由 index.ts 挂载中间件）
 // ============================================================
+
+/** 根据 createdBy (userId) 查找用户可读名称，找不到则脱敏显示 */
+async function resolveSubmitterName(createdBy: string): Promise<string> {
+  if (!createdBy) return "-";
+  // 尝试按 userId (_id) 查
+  try {
+    const u = await User.findById(createdBy).select("name username mobile").lean();
+    if (u) {
+      // 优先显示 name，其次 username，最后脱敏手机号
+      if (u.name) return u.name;
+      if (u.username) return u.username;
+      if (u.mobile) {
+        // 手机号脱敏: 138****8000
+        const m = String(u.mobile);
+        if (m.length >= 11) return m.slice(0, 3) + "****" + m.slice(-4);
+        return m;
+      }
+      return createdBy;
+    }
+  } catch { /* 查不到就用原始值 */ }
+  // 直接按手机号查（旧数据可能 createdBy 存的是手机号）
+  try {
+    const u = await User.findOne({ mobile: createdBy }).select("name username mobile").lean();
+    if (u) {
+      if (u.name) return u.name;
+      if (u.username) return u.username;
+      const m = String(u.mobile);
+      if (m.length >= 11) return m.slice(0, 3) + "****" + m.slice(-4);
+      return m;
+    }
+  } catch { /* 查不到就用原始值 */ }
+  // 都不是的话，如果是11位手机号就脱敏
+  if (/^1\d{10}$/.test(createdBy)) {
+    return createdBy.slice(0, 3) + "****" + createdBy.slice(-4);
+  }
+  return createdBy;
+}
+
 export const adminRouter = Router();
 
 // GET /api/admin/topic-hub — 全量列表（含 pending/hidden）
@@ -725,14 +767,26 @@ adminRouter.get("/", async (req: Request, res: Response) => {
       Topic.countDocuments(filter),
     ]);
 
-    // 计算 nodeCount
+    // 批量解析提交者名称
+    const submitterNames = new Map<string, string>();
+    const userLookupPromises = topics
+      .map((t: any) => t.createdBy)
+      .filter((id: string) => id && !submitterNames.has(id))
+      .map(async (id: string) => {
+        const name = await resolveSubmitterName(id);
+        submitterNames.set(id, name);
+      });
+    await Promise.all(userLookupPromises);
+
+    // 计算 nodeCount + 注入 submitterName
     const withNodeCount = topics.map((t: any) => {
       const layers = t.layers || {};
       let nodeCount = 0;
       for (const key of Object.keys(layers)) {
         if (Array.isArray(layers[key])) nodeCount += layers[key].length;
       }
-      return { ...t, nodeCount };
+      const submitterName = t.createdBy ? (submitterNames.get(t.createdBy) || t.createdBy) : "-";
+      return { ...t, nodeCount, submitterName };
     });
 
     res.json({ topics: withNodeCount, total, page: pageNum, limit: limitNum });
@@ -829,14 +883,16 @@ adminRouter.put("/:slug", async (req: Request, res: Response) => {
     if (questionCount !== undefined) update.questionCount = questionCount;
     if (viewCount !== undefined) update.viewCount = viewCount;
 
-    // 如果更新了 title，同步更新 slug
+    // 如果更新了 title，同步更新 slug（中文转拼音）
     if (title !== undefined) {
-      update.slug =
-        title
-          .replace(/[^\w\u4e00-\u9fff]+/g, "-")
-          .replace(/^-|-$/g, "")
-          .toLowerCase()
-          .slice(0, 80) || `topic-${Date.now()}`;
+      const { pinyin } = require("pinyin");
+      const pinyinSlug = pinyin(title, { style: "normal" })
+        .map((x: string[]) => x[0])
+        .join("-")
+        .replace(/[^a-z0-9-]+/g, "-")
+        .replace(/^-|-$/g, "")
+        .slice(0, 80);
+      update.slug = pinyinSlug || `topic-${Date.now()}`;
     }
 
     const topic = await Topic.findByIdAndUpdate(

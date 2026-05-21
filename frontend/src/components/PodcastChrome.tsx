@@ -1,11 +1,13 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import { useLoginModal } from "./LoginModalProvider";
 
 type NavProps = {
   detail?: boolean;
 };
 
 export const PodcastHomeNav: React.FC = () => {
+  const { showLoginModal } = useLoginModal();
   return (
     <nav className="fixed top-0 z-50 w-full border-b border-[#e2e8f0] bg-white/80 backdrop-blur-xl">
       <div className="mx-auto flex h-20 w-full max-w-6xl items-center justify-between px-8">
@@ -51,9 +53,9 @@ export const PodcastHomeNav: React.FC = () => {
             />
             <span className="material-symbols-outlined absolute right-4 top-2.5 text-xl text-[#64748b]">search</span>
           </div>
-          <Link to="/login" className="rounded-xl bg-[#5e17eb] px-8 py-2.5 text-sm font-bold text-white shadow-lg shadow-[#5e17eb]/20 transition-all hover:bg-[#4a12ba]">
+          <button onClick={() => showLoginModal('登录后继续浏览', '登录后可解锁完整课程、查看详细内容，获得个性化成长推荐。')} className="rounded-xl bg-[#5e17eb] px-8 py-2.5 text-sm font-bold text-white shadow-lg shadow-[#5e17eb]/20 transition-all hover:bg-[#4a12ba]">
             登录
-          </Link>
+          </button>
         </div>
       </div>
     </nav>
@@ -61,6 +63,7 @@ export const PodcastHomeNav: React.FC = () => {
 };
 
 export const PodcastDetailNav: React.FC<NavProps> = () => {
+  const { showLoginModal } = useLoginModal();
   return (
     <nav className="fixed top-0 z-50 h-16 w-full border-b border-gray-100 bg-white/80 backdrop-blur-md">
       <div className="mx-auto flex h-full w-full max-w-screen-2xl items-center justify-between px-6">
@@ -88,9 +91,9 @@ export const PodcastDetailNav: React.FC<NavProps> = () => {
             <span className="material-symbols-outlined mr-2 text-lg text-[#5e17eb]">search</span>
             <input className="w-40 border-none bg-transparent text-xs placeholder:text-[#53433f]/50 focus:ring-0" placeholder="搜索育儿洞察..." type="text" />
           </div>
-          <Link to="/login" className="rounded-full bg-[#5e17eb] px-5 py-2 text-xs font-bold text-white transition-opacity hover:opacity-90">
+          <button onClick={() => showLoginModal('登录后继续浏览', '登录后可解锁完整课程、查看详细内容，获得个性化成长推荐。')} className="rounded-full bg-[#5e17eb] px-5 py-2 text-xs font-bold text-white transition-opacity hover:opacity-90">
             登录 / 注册
-          </Link>
+          </button>
         </div>
       </div>
     </nav>

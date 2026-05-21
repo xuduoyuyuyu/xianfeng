@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useSelector } from "react-redux";
+import { RootState } from "../store";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import Pagination from "../components/Pagination";
 import { publicApi, LearningMaterial } from "../services/api";
@@ -262,6 +264,7 @@ function gradeRank(value: string): number {
 }
 
 const MaterialsPage: React.FC = () => {
+  const token = useSelector((state: RootState) => state.user.token);
   const [materials, setMaterials] = useState<LearningMaterial[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -396,6 +399,11 @@ const MaterialsPage: React.FC = () => {
   };
 
   const toggle = (value: string, selected: string[], setSelected: (next: string[]) => void) => {
+    const isLoggedIn = !!token || !!localStorage.getItem("token");
+    if (!isLoggedIn) {
+      document.dispatchEvent(new CustomEvent("xf-show-login-modal", { detail: { title: "登录后即可筛选", description: "登录后可查看全部学习资料、使用筛选功能，获得个性化学习推荐。" } }));
+      return;
+    }
     if (selected.includes(value)) {
       setSelected(selected.filter((item) => item !== value));
       return;
@@ -404,6 +412,11 @@ const MaterialsPage: React.FC = () => {
   };
 
   const handleStageToggle = (value: string) => {
+    const isLoggedIn = !!token || !!localStorage.getItem("token");
+    if (!isLoggedIn) {
+      document.dispatchEvent(new CustomEvent("xf-show-login-modal", { detail: { title: "登录后即可筛选", description: "登录后可查看全部学习资料、使用筛选功能，获得个性化学习推荐。" } }));
+      return;
+    }
     const nextStages = selectedStages.includes(value) ? [] : [value];
     setSelectedStages(nextStages);
     if (nextStages.length === 0) return;

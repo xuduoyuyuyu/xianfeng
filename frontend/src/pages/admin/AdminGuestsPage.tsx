@@ -607,12 +607,12 @@ const AdminGuestsPage: React.FC = () => {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <img
-                        src={item.avatar || "https://xianfeng.xinzhi.info/uploads/images/1779099163792-wl2rg1zt.png"}
+                        src={item.avatar || "http://xianfeng.xinzhi.info/uploads/images/1779264157086-hgcd24g4.png"}
                         className="h-10 w-10 rounded-full object-cover"
                         onError={(event) => {
                           const target = event.currentTarget;
-                          if (target.src.endsWith("1779099163792-wl2rg1zt.png")) return;
-                          target.src = "https://xianfeng.xinzhi.info/uploads/images/1779099163792-wl2rg1zt.png";
+                          if (target.src.endsWith("1779264157086-hgcd24g4.png")) return;
+                          target.src = "http://xianfeng.xinzhi.info/uploads/images/1779264157086-hgcd24g4.png";
                         }}
                       />
                       <div>

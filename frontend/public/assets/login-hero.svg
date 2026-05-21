@@ -1,0 +1,245 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 440" fill="none">
+  <defs>
+    <linearGradient id="bgG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F8F5FF" />
+      <stop offset="100%" stop-color="#FEFDFF" />
+    </linearGradient>
+    <linearGradient id="purple1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7868E6" />
+      <stop offset="100%" stop-color="#9B8CF2" />
+    </linearGradient>
+    <linearGradient id="purple2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#5B4DBC" />
+      <stop offset="100%" stop-color="#8678E8" />
+    </linearGradient>
+    <linearGradient id="pinkAccent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F093B0" />
+      <stop offset="100%" stop-color="#F8BAD0" />
+    </linearGradient>
+    <linearGradient id="yellowAccent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FCC44C" />
+      <stop offset="100%" stop-color="#FDE598" />
+    </linearGradient>
+    <linearGradient id="orangeAccent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F9995C" />
+      <stop offset="100%" stop-color="#FBBF91" />
+    </linearGradient>
+    <linearGradient id="clothing" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6C5CE7" />
+      <stop offset="100%" stop-color="#A29BFE" />
+    </linearGradient>
+    <clipPath id="clip">
+      <rect width="480" height="440" rx="24" />
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#clip)">
+    <!-- Background -->
+    <rect width="480" height="440" fill="url(#bgG)" />
+    
+    <!-- Big decorative blob circles -->
+    <circle cx="400" cy="60" r="80" fill="#EDE6FF" opacity="0.5" />
+    <circle cx="80" cy="370" r="90" fill="#EDE6FF" opacity="0.4" />
+    <circle cx="430" cy="370" r="50" fill="#F0EAFF" opacity="0.5" />
+    <circle cx="60" cy="90" r="45" fill="#F0EAFF" opacity="0.35" />
+    
+    <!-- Small dots pattern -->
+    <circle cx="100" cy="60" r="3" fill="#D0C0F0" opacity="0.5" />
+    <circle cx="420" cy="130" r="2.5" fill="#D0C0F0" opacity="0.4" />
+    <circle cx="70" cy="210" r="3" fill="#D0C0F0" opacity="0.45" />
+    <circle cx="440" cy="280" r="2" fill="#D0C0F0" opacity="0.4" />
+    <circle cx="150" cy="50" r="2.5" fill="#D0C0F0" opacity="0.35" />
+    <circle cx="370" cy="220" r="3" fill="#D0C0F0" opacity="0.3" />
+    
+    <!-- ⭐ Stars -->
+    <g transform="translate(350, 110)" opacity="0.7">
+      <path d="M0,-14 L3.5,-5 L14,-5 L5.5,1.5 L8.5,12 L0,6 L-8.5,12 L-5.5,1.5 L-14,-5 L-3.5,-5 Z" fill="url(#yellowAccent)" />
+    </g>
+    <g transform="translate(85, 170)" opacity="0.5">
+      <path d="M0,-9 L2.2,-3 L9,-3 L3.6,1 L5.4,7.5 L0,3.5 L-5.4,7.5 L-3.6,1 L-9,-3 L-2.2,-3 Z" fill="url(#yellowAccent)" />
+    </g>
+    <g transform="translate(395, 310)" opacity="0.45">
+      <path d="M0,-7 L1.7,-2.5 L7,-2.5 L2.8,0.8 L4.3,6 L0,2.8 L-4.3,6 L-2.8,0.8 L-7,-2.5 L-1.7,-2.5 Z" fill="url(#yellowAccent)" />
+    </g>
+    
+    <!-- 🏫 Building silhouette -->
+    <g transform="translate(55, 65)" opacity="0.3">
+      <rect x="0" y="15" width="55" height="45" rx="3" fill="url(#purple2)" />
+      <rect x="12" y="0" width="12" height="18" rx="2" fill="url(#purple1)" />
+      <rect x="30" y="-4" width="12" height="22" rx="2" fill="url(#purple1)" />
+      <rect x="7" y="25" width="9" height="9" rx="1.5" fill="white" opacity="0.6" />
+      <rect x="22" y="25" width="9" height="9" rx="1.5" fill="white" opacity="0.6" />
+      <rect x="37" y="25" width="9" height="9" rx="1.5" fill="white" opacity="0.6" />
+      <rect x="7" y="40" width="9" height="9" rx="1.5" fill="white" opacity="0.6" />
+      <rect x="22" y="40" width="9" height="9" rx="1.5" fill="white" opacity="0.6" />
+      <rect x="37" y="40" width="9" height="9" rx="1.5" fill="white" opacity="0.6" />
+    </g>
+    
+    <!-- 📊 Chart -->
+    <g transform="translate(50, 350)" opacity="0.35">
+      <rect x="0" y="0" width="48" height="42" rx="4" fill="white" stroke="#B8A6EE" stroke-width="1" />
+      <line x1="12" y1="34" x2="12" y2="8" stroke="#C8BAF2" stroke-width="1.5" />
+      <line x1="12" y1="34" x2="42" y2="34" stroke="#C8BAF2" stroke-width="1.5" />
+      <rect x="15" y="18" width="7" height="16" rx="1.5" fill="#7868E6" opacity="0.6" />
+      <rect x="24" y="8" width="7" height="26" rx="1.5" fill="#7868E6" opacity="0.8" />
+      <rect x="33" y="22" width="7" height="12" rx="1.5" fill="#7868E6" opacity="0.5" />
+    </g>
+    
+    <!-- 🔍 Magnifying glass with data -->
+    <g transform="translate(340, 220)" opacity="0.55">
+      <circle cx="0" cy="0" r="22" stroke="#6C5CE7" stroke-width="3.5" fill="none" />
+      <line x1="15" y1="15" x2="34" y2="34" stroke="#6C5CE7" stroke-width="4" stroke-linecap="round" />
+      <circle cx="-4" cy="-4" r="10" fill="#6C5CE7" opacity="0.12" />
+      <line x1="-10" y1="2" x2="2" y2="2" stroke="#6C5CE7" stroke-width="1.2" opacity="0.4" />
+      <line x1="-10" y1="7" x2="-2" y2="7" stroke="#6C5CE7" stroke-width="1.2" opacity="0.4" />
+      <circle cx="-6" cy="-9" r="3" fill="#6C5CE7" opacity="0.25" />
+    </g>
+    
+    <!-- 💡 Lightbulb -->
+    <g transform="translate(380, 75)" opacity="0.5">
+      <path d="M-3,16 Q-13,-3 0,-16 Q13,-3 3,16 L0,20 L-3,16 Z" fill="url(#yellowAccent)" />
+      <rect x="-4" y="20" width="8" height="4" rx="2" fill="#FBB040" />
+      <line x1="-18" y1="-6" x2="-10" y2="-3" stroke="#FDE598" stroke-width="2" stroke-linecap="round" />
+      <line x1="18" y1="-6" x2="10" y2="-3" stroke="#FDE598" stroke-width="2" stroke-linecap="round" />
+      <line x1="0" y1="-22" x2="0" y2="-16" stroke="#FDE598" stroke-width="2" stroke-linecap="round" />
+      <line x1="-12" y1="-16" x2="-6" y2="-12" stroke="#FDE598" stroke-width="2" stroke-linecap="round" />
+      <line x1="12" y1="-16" x2="6" y2="-12" stroke="#FDE598" stroke-width="2" stroke-linecap="round" />
+    </g>
+    
+    <!-- 👩‍🎓 Person figure - main character -->
+    <g transform="translate(185, 130)">
+      <!-- Body -->
+      <path d="M-24,40 Q-28,50 -36,85 L-20,92 L-12,60 L-8,52 L0,48 L8,52 L12,60 L20,92 L36,85 Q28,50 24,40 Z" fill="url(#clothing)" />
+      
+      <!-- Collar -->
+      <path d="M-12,43 L0,58 L12,43" stroke="white" stroke-width="2" fill="none" opacity="0.35" />
+      <path d="M-4,43 L0,52 L4,43" stroke="white" stroke-width="1.5" fill="none" opacity="0.3" />
+      
+      <!-- Left Arm -->
+      <path d="M-24,44 Q-40,65 -46,88" stroke="url(#clothing)" stroke-width="12" fill="none" stroke-linecap="round" />
+      <!-- Left Hand -->
+      <circle cx="-46" cy="88" r="6" fill="#F8DCC8" />
+      
+      <!-- Right Arm -->
+      <path d="M24,44 Q36,60 38,78" stroke="url(#clothing)" stroke-width="12" fill="none" stroke-linecap="round" />
+      <!-- Right Hand holding phone -->
+      <circle cx="38" cy="78" r="6" fill="#F8DCC8" />
+      
+      <!-- Phone in right hand -->
+      <rect x="34" y="58" width="22" height="34" rx="4" fill="#7868E6" opacity="0.8" />
+      <rect x="36" y="61" width="18" height="24" rx="2" fill="white" opacity="0.9" />
+      <circle cx="47" cy="88" r="1.5" fill="white" opacity="0.4" />
+      <line x1="39" y1="66" x2="51" y2="66" stroke="#D0C0F0" stroke-width="1.2" stroke-linecap="round" />
+      <line x1="39" y1="71" x2="48" y2="71" stroke="#D0C0F0" stroke-width="1.2" stroke-linecap="round" />
+      <line x1="39" y1="76" x2="49" y2="76" stroke="#D0C0F0" stroke-width="1.2" stroke-linecap="round" />
+      
+      <!-- Neck -->
+      <rect x="-9" y="30" width="18" height="10" rx="2" fill="#F0C8B0" />
+      
+      <!-- Head -->
+      <ellipse cx="0" cy="8" rx="30" ry="28" fill="#F8DCC8" />
+      
+      <!-- Hair -->
+      <path d="M-30,0 Q-28,-28 0,-30 Q28,-28 30,0 Q24,-18 0,-16 Q-24,-18 -30,0 Z" fill="#3D2918" />
+      <path d="M-30,0 Q-28,4 -24,6" stroke="#3D2918" stroke-width="3" fill="none" />
+      <path d="M24,6 Q28,4 30,0" stroke="#3D2918" stroke-width="3" fill="none" />
+      <!-- Hair sides -->
+      <path d="M-30,0 Q-32,12 -24,20 Q-20,22 -14,18" fill="#3D2918" />
+      <path d="M30,0 Q32,12 24,20 Q20,22 14,18" fill="#3D2918" />
+      <!-- Bangs -->
+      <path d="M-24,-6 Q-16,-14 0,-10 Q16,-14 24,-6" stroke="#3D2918" stroke-width="3" fill="none" stroke-linecap="round" />
+      <!-- Hair bun top -->
+      <ellipse cx="8" cy="-28" rx="10" ry="12" fill="#3D2918" />
+      
+      <!-- Glasses -->
+      <circle cx="-10" cy="2" r="8.5" stroke="#5B4DBC" stroke-width="2.5" fill="rgba(107,92,231,0.08)" />
+      <circle cx="10" cy="2" r="8.5" stroke="#5B4DBC" stroke-width="2.5" fill="rgba(107,92,231,0.08)" />
+      <line x1="-1.5" y1="2" x2="1.5" y2="2" stroke="#5B4DBC" stroke-width="2.5" />
+      <line x1="-18.5" y1="2" x2="-24" y2="0" stroke="#5B4DBC" stroke-width="2" />
+      <line x1="18.5" y1="2" x2="24" y2="0" stroke="#5B4DBC" stroke-width="2" />
+      
+      <!-- Eyes -->
+      <ellipse cx="-10" cy="1" rx="3" ry="4.5" fill="#2D1B0E" />
+      <ellipse cx="10" cy="1" rx="3" ry="4.5" fill="#2D1B0E" />
+      <circle cx="-9" cy="-0.5" r="1.3" fill="white" />
+      <circle cx="11" cy="-0.5" r="1.3" fill="white" />
+      
+      <!-- Eyebrows -->
+      <path d="M-16,-7 Q-10,-11 -4,-7" stroke="#3D2918" stroke-width="1.8" fill="none" stroke-linecap="round" />
+      <path d="M4,-7 Q10,-11 16,-7" stroke="#3D2918" stroke-width="1.8" fill="none" stroke-linecap="round" />
+      
+      <!-- Nose -->
+      <path d="M0,4 Q2,9 4,9" stroke="#E0B098" stroke-width="1.2" fill="none" stroke-linecap="round" />
+      
+      <!-- Mouth -->
+      <path d="M-6,11 Q0,17.5 6,11" stroke="#D49573" stroke-width="1.8" fill="none" stroke-linecap="round" />
+      
+      <!-- Blush -->
+      <ellipse cx="-18" cy="9" rx="7" ry="3.5" fill="#F5B0B0" opacity="0.3" />
+      <ellipse cx="18" cy="9" rx="7" ry="3.5" fill="#F5B0B0" opacity="0.3" />
+    </g>
+    
+    <!-- 📝 Clipboard / document floating near left arm -->
+    <g transform="translate(55, 200)" opacity="0.5">
+      <rect x="0" y="0" width="50" height="60" rx="5" fill="white" stroke="#9B8CF2" stroke-width="1.8" />
+      <rect x="-2" y="8" width="54" height="6" rx="2" fill="#9B8CF2" opacity="0.2" />
+      <line x1="10" y1="22" x2="40" y2="22" stroke="#C8BAF2" stroke-width="2" stroke-linecap="round" />
+      <line x1="10" y1="30" x2="33" y2="30" stroke="#C8BAF2" stroke-width="2" stroke-linecap="round" />
+      <line x1="10" y1="38" x2="37" y2="38" stroke="#C8BAF2" stroke-width="2" stroke-linecap="round" />
+      <line x1="10" y1="46" x2="28" y2="46" stroke="#C8BAF2" stroke-width="2" stroke-linecap="round" />
+      <!-- Checkmark -->
+      <path d="M34,50 L38,55 L48,40" stroke="#7868E6" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    </g>
+    
+    <!-- 🎓 Graduation cap near top -->
+    <g transform="translate(150, 68)" opacity="0.45">
+      <path d="M-22,6 L0,-12 L22,6 L0,2 Z" fill="#6C5CE7" />
+      <rect x="-3" y="6" width="6" height="10" rx="1.5" fill="#3D2918" />
+      <line x1="-2" y1="17" x2="2" y2="17" stroke="#6C5CE7" stroke-width="1.5" stroke-linecap="round" />
+      <circle cx="0" cy="-6" r="2.5" fill="#FCC44C" />
+    </g>
+    
+    <!-- 📚 Book stack - bottom right area -->
+    <g transform="translate(365, 340)" opacity="0.3">
+      <rect x="0" y="24" width="55" height="10" rx="2" fill="#7868E6" />
+      <rect x="5" y="14" width="48" height="12" rx="2" fill="#9B8CF2" />
+      <rect x="8" y="4" width="42" height="12" rx="2" fill="#B8A6EE" />
+      <!-- Book lines -->
+      <line x1="12" y1="28" x2="50" y2="28" stroke="white" stroke-width="0.8" opacity="0.4" />
+      <line x1="12" y1="18" x2="46" y2="18" stroke="white" stroke-width="0.8" opacity="0.4" />
+      <line x1="12" y1="8" x2="44" y2="8" stroke="white" stroke-width="0.8" opacity="0.4" />
+    </g>
+    
+    <!-- 📅 Calendar -->
+    <g transform="translate(310, 335)" opacity="0.35">
+      <rect x="0" y="0" width="44" height="48" rx="5" fill="white" stroke="#9B8CF2" stroke-width="1.5" />
+      <rect x="0" y="0" width="44" height="14" rx="5" fill="#7868E6" opacity="0.5" />
+      <rect x="0" y="9" width="44" height="5" fill="#7868E6" opacity="0.5" />
+      <text x="22" y="37" text-anchor="middle" font-size="18" font-weight="900" fill="#5B4DBC" opacity="0.6">17</text>
+    </g>
+    
+    <!-- Floating abstract shapes -->
+    <rect x="70" y="280" width="18" height="18" rx="4" fill="url(#pinkAccent)" opacity="0.3" transform="rotate(15 79 289)" />
+    <circle cx="420" cy="250" r="12" fill="url(#purple1)" opacity="0.2" />
+    <rect x="280" y="390" width="14" height="14" rx="3" fill="url(#orangeAccent)" opacity="0.25" transform="rotate(-20 287 397)" />
+    
+    <!-- City skyline bottom -->
+    <g transform="translate(0, 405)" opacity="0.1">
+      <rect x="10" y="8" width="35" height="27" rx="2" fill="#6C5CE7" />
+      <rect x="55" y="2" width="22" height="33" rx="2" fill="#6C5CE7" />
+      <rect x="90" y="12" width="28" height="23" rx="2" fill="#6C5CE7" />
+      <rect x="130" y="-2" width="20" height="37" rx="2" fill="#6C5CE7" />
+      <rect x="162" y="10" width="38" height="25" rx="2" fill="#6C5CE7" />
+      <rect x="215" y="4" width="24" height="31" rx="2" fill="#6C5CE7" />
+      <rect x="252" y="12" width="30" height="23" rx="2" fill="#6C5CE7" />
+      <rect x="295" y="-1" width="18" height="36" rx="2" fill="#6C5CE7" />
+      <rect x="328" y="8" width="34" height="27" rx="2" fill="#6C5CE7" />
+      <rect x="375" y="3" width="22" height="32" rx="2" fill="#6C5CE7" />
+      <rect x="410" y="10" width="28" height="25" rx="2" fill="#6C5CE7" />
+      <rect x="450" y="6" width="30" height="29" rx="2" fill="#6C5CE7" />
+    </g>
+    
+    <!-- Bottom wave decoration -->
+    <path d="M0,418 Q50,400 100,415 Q150,428 200,418 Q250,406 300,420 Q350,432 400,414 Q430,408 480,420" fill="#6C5CE7" opacity="0.08" />
+  </g>
+</svg>

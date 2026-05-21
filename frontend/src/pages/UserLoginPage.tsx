@@ -21,7 +21,11 @@ const UserLoginPage: React.FC = () => {
 
   useEffect(() => {
     if (!user) return;
-    // 普通用户登录后只跳前台，不跳 admin
+    const hasName = user.name && user.name !== user.username;
+    const hasCity = !!(user as any).city;
+    if (!hasName || !hasCity) {
+      sessionStorage.setItem("xf_show_profile", "1");
+    }
     navigate("/programs/list", { replace: true });
   }, [navigate, user]);
 
@@ -70,7 +74,7 @@ const UserLoginPage: React.FC = () => {
       await dispatch(login({ username: phone, password }) as any).unwrap();
       return;
     } catch (_err) {
-      // user not exists or password mismatch, try register
+      // user not exists, try register
     }
 
     try {
@@ -90,34 +94,37 @@ const UserLoginPage: React.FC = () => {
       <style>{`
         .phone-login-page {
           min-height: 100vh;
-          overflow: hidden;
+          min-height: 100dvh;
+          overflow-y: auto;
           background: #f7f2ff;
           font-family: "Noto Sans SC", "Plus Jakarta Sans", sans-serif;
         }
         .phone-login-bg {
           position: fixed;
           inset: 0;
+          pointer-events: none;
           background-image:
-            linear-gradient(to right, rgba(138,99,255,0.10) 1px, transparent 1px),
-            linear-gradient(to bottom, rgba(138,99,255,0.10) 1px, transparent 1px),
             radial-gradient(circle at 15% 20%, rgba(186,141,255,0.22), transparent 38%),
             radial-gradient(circle at 85% 80%, rgba(116,82,255,0.16), transparent 45%);
-          background-size: 40px 40px, 40px 40px, 100% 100%, 100% 100%;
         }
+
+        /* ===== 桌面端：左右两栏 ===== */
         .phone-login-wrap {
           position: relative;
-          max-width: 1440px;
+          max-width: 1200px;
           margin: 0 auto;
           min-height: 100vh;
+          min-height: 100dvh;
           display: flex;
           align-items: center;
-          justify-content: space-between;
-          gap: 48px;
-          padding: 24px 40px;
+          justify-content: center;
+          gap: 60px;
+          padding: 32px 40px;
         }
+
         .phone-left {
           flex: 1;
-          min-width: 0;
+          max-width: 560px;
         }
         .phone-left-logo {
           height: 44px;
@@ -126,50 +133,63 @@ const UserLoginPage: React.FC = () => {
         }
         .phone-tag {
           display: inline-flex;
-          margin-top: 48px;
+          margin-top: 40px;
           border-radius: 999px;
           border: 1px solid rgba(123,68,255,.2);
           background: rgba(255,255,255,.8);
           color: #7b44ff;
-          padding: 8px 18px;
+          padding: 7px 16px;
           font-size: 12px;
           font-weight: 800;
-          letter-spacing: .2em;
+          letter-spacing: .18em;
         }
         .phone-title {
-          margin: 16px 0 0;
-          font-size: 92px;
-          line-height: .95;
+          margin: 14px 0 0;
+          font-size: 80px;
+          line-height: .96;
           letter-spacing: -.02em;
           font-weight: 900;
           color: #111018;
         }
         .phone-title span { color: #6b3df0; }
         .phone-desc {
-          margin-top: 22px;
-          max-width: 620px;
-          font-size: 34px;
+          margin-top: 18px;
+          font-size: 28px;
           line-height: 1.55;
           color: #6c778f;
           font-weight: 700;
         }
-        .phone-card {
+
+        .phone-right-illustration {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          max-width: 400px;
+        }
+        .login-illustration-img {
           width: 100%;
-          max-width: 620px;
+          max-width: 340px;
+          height: auto;
+          object-fit: contain;
+          filter: drop-shadow(0 12px 32px rgba(107,61,240,0.12));
+        }
+        .phone-card {
+          flex-shrink: 0;
+          width: 440px;
           border-radius: 28px;
           border: 1px solid rgba(255,255,255,.8);
           background: rgba(255,255,255,.95);
           box-shadow: 0 20px 60px -20px rgba(92,43,234,.3);
-          padding: 28px 28px 22px;
+          padding: 32px 32px 26px;
         }
         .brand {
           text-align: center;
-          margin-bottom: 18px;
-          display: flex;
-          justify-content: center;
+          margin-bottom: 20px;
         }
         .brand img {
           display: block;
+          margin: 0 auto;
           height: 40px;
           width: auto;
           object-fit: contain;
@@ -184,16 +204,16 @@ const UserLoginPage: React.FC = () => {
         }
         .row {
           display: flex;
-          gap: 14px;
-          margin-bottom: 18px;
+          gap: 12px;
+          margin-bottom: 16px;
         }
         .country {
           flex-shrink: 0;
-          width: 110px;
+          width: 100px;
           border: 1px solid #e7e7f0;
-          border-radius: 20px;
+          border-radius: 18px;
           background: #fff;
-          font-size: 18px;
+          font-size: 17px;
           font-weight: 800;
           color: #1f2937;
           display: flex;
@@ -204,12 +224,12 @@ const UserLoginPage: React.FC = () => {
         .input {
           width: 100%;
           border: 1px solid #e7e7f0;
-          border-radius: 20px;
+          border-radius: 18px;
           background: #fff;
           font-size: 16px;
           font-weight: 700;
           color: #111827;
-          padding: 12px 16px;
+          padding: 12px 14px;
           outline: none;
         }
         .input::placeholder {
@@ -223,14 +243,14 @@ const UserLoginPage: React.FC = () => {
         .code-btn {
           flex-shrink: 0;
           border: none;
-          border-radius: 20px;
+          border-radius: 18px;
           background: #5b3cf0;
           color: #fff;
-          font-size: 18px;
+          font-size: 17px;
           font-weight: 900;
-          padding: 0 24px;
+          padding: 0 22px;
           cursor: pointer;
-          min-width: 170px;
+          min-width: 150px;
         }
         .code-btn:disabled {
           opacity: .6;
@@ -238,9 +258,9 @@ const UserLoginPage: React.FC = () => {
         }
         .submit-btn {
           width: 100%;
-          margin-top: 8px;
+          margin-top: 4px;
           border: none;
-          border-radius: 20px;
+          border-radius: 18px;
           background: #5b3cf0;
           color: #fff;
           font-size: 18px;
@@ -253,27 +273,27 @@ const UserLoginPage: React.FC = () => {
           cursor: not-allowed;
         }
         .error {
-          margin: 8px 0 10px;
+          margin: 6px 0 8px;
           border: 1px solid #fecaca;
           background: #fef2f2;
           border-radius: 14px;
           padding: 10px 14px;
           color: #dc2626;
-          font-size: 16px;
+          font-size: 15px;
           font-weight: 700;
         }
         .hint {
-          margin: 8px 0 10px;
+          margin: 6px 0 8px;
           border: 1px solid #ddd6fe;
           background: #f5f3ff;
           border-radius: 14px;
           padding: 10px 14px;
           color: #5b21b6;
-          font-size: 16px;
+          font-size: 15px;
           font-weight: 700;
         }
         .policy {
-          margin-top: 14px;
+          margin-top: 16px;
           text-align: center;
           color: #7d8aa7;
           font-size: 12px;
@@ -284,33 +304,41 @@ const UserLoginPage: React.FC = () => {
           text-decoration: none;
           border-bottom: 2px solid rgba(47,63,105,0.25);
         }
+
+        /* ===== 中等屏幕 ===== */
         @media (max-width: 1280px) {
-          .phone-title { font-size: 68px; }
-          .phone-desc { font-size: 26px; }
-          .input, .code-btn, .submit-btn { font-size: 16px; }
-          .policy { font-size: 12px; }
+          .phone-title { font-size: 62px; }
+          .phone-desc { font-size: 22px; }
+          .phone-card { width: 400px; }
+          .phone-right-illustration { max-width: 320px; }
+          .login-illustration-img { max-width: 270px; }
         }
+
         @media (max-width: 980px) {
-          .phone-login-wrap { flex-direction: column; justify-content: center; padding: 24px; }
-          .phone-left { width: 100%; }
-          .phone-title { font-size: 56px; }
-          .phone-desc { font-size: 20px; max-width: 100%; }
-          .phone-tag { margin-top: 24px; }
-          .phone-card { max-width: 620px; padding: 24px; }
-          .field-label { font-size: 14px; }
+          .phone-login-wrap { flex-direction: column; justify-content: flex-start; gap: 28px; padding: 24px; }
+          .phone-left { width: 100%; max-width: 100%; }
+          .phone-left-logo { height: 36px; }
+          .phone-tag { margin-top: 20px; }
+          .phone-title { font-size: 48px; }
+          .phone-desc { font-size: 18px; max-width: 100%; }
+          .phone-right-illustration { display: none; }
+          .phone-card { width: 100%; max-width: 500px; }
+          .field-label { font-size: 13px; }
           .input, .country, .code-btn { font-size: 15px; border-radius: 14px; }
           .submit-btn { font-size: 16px; border-radius: 14px; }
-          .policy { font-size: 14px; }
-          .code-btn { min-width: 140px; }
+          .code-btn { min-width: 130px; }
         }
+
+        /* ===== 手机端 ===== */
         @media (max-width: 768px) {
           .phone-login-wrap {
-            gap: 20px;
-            padding: 18px 14px 24px;
-            align-items: stretch;
+            gap: 18px;
+            padding: 14px 14px 28px;
+            justify-content: center;
+            align-items: center;
           }
           .phone-left-logo {
-            height: 34px;
+            height: 32px;
           }
           .phone-tag {
             margin-top: 14px;
@@ -319,32 +347,31 @@ const UserLoginPage: React.FC = () => {
             letter-spacing: .14em;
           }
           .phone-title {
-            margin-top: 10px;
-            font-size: 38px;
-            line-height: 1.04;
+            margin-top: 8px;
+            font-size: 36px;
+            line-height: 1.05;
           }
           .phone-desc {
-            margin-top: 12px;
-            font-size: 16px;
-            line-height: 1.65;
+            margin-top: 10px;
+            font-size: 15px;
+            line-height: 1.6;
           }
           .phone-card {
-            max-width: none;
             border-radius: 22px;
-            padding: 18px 14px 16px;
+            padding: 22px 16px 18px;
           }
           .brand {
-            margin-bottom: 12px;
+            margin-bottom: 14px;
           }
           .brand img {
             height: 32px;
           }
           .row {
-            gap: 10px;
+            gap: 8px;
             margin-bottom: 12px;
           }
           .country {
-            width: 78px;
+            width: 70px;
             font-size: 14px;
             border-radius: 12px;
             padding: 10px 0;
@@ -355,33 +382,34 @@ const UserLoginPage: React.FC = () => {
             padding: 10px 12px;
           }
           .code-btn {
-            min-width: 112px;
+            min-width: 110px;
             border-radius: 12px;
             font-size: 14px;
-            padding: 0 10px;
+            padding: 0 12px;
           }
           .submit-btn {
             border-radius: 12px;
-            font-size: 15px;
-            padding: 11px 14px;
+            font-size: 16px;
+            padding: 12px 14px;
           }
           .error, .hint {
             font-size: 13px;
             border-radius: 10px;
             padding: 8px 10px;
-            margin-bottom: 8px;
+            margin: 4px 0 6px;
           }
           .policy {
+            margin-top: 12px;
             font-size: 11px;
           }
         }
+
+        /* ===== 极小屏 ===== */
         @media (max-width: 420px) {
-          .phone-title {
-            font-size: 34px;
-          }
-          .phone-desc {
-            font-size: 15px;
-          }
+          .phone-login-wrap { padding: 12px 10px 20px; gap: 14px; }
+          .phone-title { font-size: 30px; }
+          .phone-desc { font-size: 14px; }
+          .phone-card { padding: 18px 12px 14px; }
           .row {
             flex-wrap: wrap;
           }
@@ -392,6 +420,7 @@ const UserLoginPage: React.FC = () => {
           .row .code-btn {
             width: 100%;
             min-height: 40px;
+            padding: 10px 0;
           }
         }
       `}</style>
@@ -407,7 +436,12 @@ const UserLoginPage: React.FC = () => {
             <br />
             <span>同步未来</span>
           </h1>
-          <p className="phone-desc">家长先疯不仅是一个教育平台，它是基于深度理解分析的进化引擎。在这里，每一次学习都是一次精准的破译。</p>
+          <p className="phone-desc">
+            家长先疯不仅是一个教育平台，它是基于深度理解分析的进化引擎。在这里，每一次学习都是一次精准的破译。
+          </p>
+        </div>
+        <div className="phone-right-illustration">
+          <img alt="安全守护" src="/assets/login-illustration.png" className="login-illustration-img" />
         </div>
         <div className="phone-card">
           <div className="brand">
@@ -417,13 +451,28 @@ const UserLoginPage: React.FC = () => {
             <label className="field-label">手机号</label>
             <div className="row">
               <div className="country">+86</div>
-              <input className="input" placeholder="请输入手机号" value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 11))} />
+              <input
+                className="input"
+                placeholder="请输入手机号"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 11))}
+              />
             </div>
 
             <label className="field-label">验证码</label>
             <div className="row">
-              <input className="input" placeholder="请输入验证码" value={verifyCode} onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6))} />
-              <button type="button" className="code-btn" onClick={handleGetCode} disabled={!canGetCode}>
+              <input
+                className="input"
+                placeholder="请输入验证码"
+                value={verifyCode}
+                onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              />
+              <button
+                type="button"
+                className="code-btn"
+                onClick={handleGetCode}
+                disabled={!canGetCode}
+              >
                 {countdown > 0 ? `${countdown}s` : "获取验证码"}
               </button>
             </div>

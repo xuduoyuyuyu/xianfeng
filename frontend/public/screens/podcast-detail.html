@@ -6,6 +6,7 @@
 <link href="/screens/public.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;family=JetBrains+Mono:wght@700&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/markmap-autoloader@0.17.0"></script>
 <style>
         :root {
             --flat-border: rgba(17, 10, 8, 0.1);
@@ -289,6 +290,14 @@
                 top: 6rem;
                 align-self: flex-start;
             }
+            #mindmap-main-container svg {
+                width: 100% !important;
+                min-height: 420px;
+                max-width: none !important;
+            }
+            #mindmap-main-container svg g {
+                transform: none !important;
+            }
         }
 
         @media (max-width: 768px) {
@@ -507,15 +516,18 @@
 <section id="transcript-section" class="bg-white/95 rounded-3xl p-8 md:p-12 shadow-sm border border-gray-200">
 <div class="mb-8 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
 <div class="detail-view-switch inline-flex w-fit rounded-full p-1">
-<button id="detail-mode-quickview" type="button" class="transcript-tool-btn is-active inline-flex items-center justify-center rounded-full px-7">
+<button id="detail-mode-mindmap" type="button" class="transcript-tool-btn is-active inline-flex items-center justify-center rounded-full px-7">
+脉络
+</button>
+<button id="detail-mode-quickview" type="button" class="transcript-tool-btn inline-flex items-center justify-center rounded-full px-7">
 速览
 </button>
 <button id="detail-mode-transcript" type="button" class="transcript-tool-btn inline-flex items-center justify-center rounded-full px-7">
 逐字稿
 </button>
 </div>
-<div id="detail-view-toolbar" class="detail-view-toolbar flex-wrap xl:flex-nowrap items-center gap-2">
-<label class="transcript-search-pill h-10 flex items-center gap-2 px-4 min-w-[180px] lg:w-[260px]">
+<div id="detail-view-toolbar" class="detail-view-toolbar flex-wrap items-center gap-2 w-full mt-3">
+<label class="transcript-search-pill h-10 flex items-center gap-2 px-4 flex-1 min-w-0 max-w-full">
 <span class="material-symbols-outlined text-on-surface/70 text-[20px]" style="font-variation-settings: 'FILL' 0, 'wght' 650, 'GRAD' 0, 'opsz' 24;">search</span>
 <input id="transcript-search-input" type="text" placeholder="搜索逐字稿" class="w-full bg-transparent border-none focus:ring-0 text-xs text-on-surface placeholder:text-on-surface-variant/60"/>
 </label>
@@ -534,6 +546,11 @@
 </div>
 <div id="transcript-panel" class="hidden">
 <div id="transcript-list" class="space-y-4 w-full"></div>
+</div>
+<div id="mindmap-panel" class="hidden">
+<div id="mindmap-main-container" class="w-full" style="min-height:420px;width:100%;">
+<div class="flex items-center justify-center py-16 text-sm text-stone-400">加载脉络图...</div>
+</div>
 </div></section>
 </div>
 <aside id="deep-dive-aside" class="lg:col-span-4 lg:self-stretch relative">
@@ -541,7 +558,7 @@
 <section class="bg-white/95 rounded-3xl p-8 border border-gray-200 shadow-sm text-center">
 <div id="guest-roster-pills" class="mb-3 flex flex-wrap items-center justify-center gap-2"></div>
 <div class="relative inline-block mb-2">
-<img id="guest-avatar" alt="专家头像" class="w-32 h-32 rounded-2xl object-cover ring-8 ring-primary/5 bg-gray-100" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBYXSSErHZG11IcSo5OCvCfuNClbWSgoOjLKRr3VExHhqUYe3TZZAIlEd2h04hDeVmQZVZmre1ppd18lTl7J4SkUY-Hfms9BNXnjEHC9huaslhbDjP-J_QsGuVXXHDi6-O8y3NnNjr3Bbm6C11Bae7EjQBmcsJQbpfKySZiB-eylKQXP_ULjKiGt9uZnXyYQHavo7d24ilHYNjhixYb0npTRCWv-EeMoSBmYX__zjzgxt3HaOqbW7BoTToksZ7T4q14vwNxYlTzBy9O" onerror="this.style.opacity='0.3'"/>
+<img id="guest-avatar" alt="专家头像" class="w-32 h-32 rounded-2xl object-cover object-center ring-8 ring-primary/5 bg-gray-100" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBYXSSErHZG11IcSo5OCvCfuNClbWSgoOjLKRr3VExHhqUYe3TZZAIlEd2h04hDeVmQZVZmre1ppd18lTl7J4SkUY-Hfms9BNXnjEHC9huaslhbDjP-J_QsGuVXXHDi6-O8y3NnNjr3Bbm6C11Bae7EjQBmcsJQbpfKySZiB-eylKQXP_ULjKiGt9uZnXyYQHavo7d24ilHYNjhixYb0npTRCWv-EeMoSBmYX__zjzgxt3HaOqbW7BoTToksZ7T4q14vwNxYlTzBy9O" onerror="this.style.opacity='0.3'"/>
 <div class="absolute -bottom-2 -right-2 bg-rose-500 text-white p-1.5 rounded-2xl shadow-lg cursor-pointer transition-all hover:scale-110 hover:bg-rose-600 group" id="return-wish-btn" title="返场心愿">
 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
 <span class="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">返场心愿</span>
@@ -569,6 +586,7 @@
 <div id="curated-reading-list" class="space-y-4">
 <div class="group cursor-pointer">
 
+</div>
 </div>
 </div>
 </div>
@@ -680,7 +698,7 @@
     isFavorite: false,
   };
   const detailViewState = {
-    mode: "quickview",
+    mode: "mindmap",
   };
   function formatDate(value) {
     if (!value) return "未发布";
@@ -1174,17 +1192,22 @@
 	  }
 
 	  function setDetailViewMode(mode) {
-	    detailViewState.mode = mode === "transcript" ? "transcript" : "quickview";
+	    detailViewState.mode = mode;
 	    const quickPanel = document.getElementById("quickview-panel");
 	    const transcriptPanel = document.getElementById("transcript-panel");
+	    const mindmapPanel = document.getElementById("mindmap-panel");
 	    const toolbar = document.getElementById("detail-view-toolbar");
 	    const quickBtn = document.getElementById("detail-mode-quickview");
 	    const transcriptBtn = document.getElementById("detail-mode-transcript");
-	    if (quickPanel) quickPanel.classList.toggle("hidden", detailViewState.mode !== "quickview");
-	    if (transcriptPanel) transcriptPanel.classList.toggle("hidden", detailViewState.mode !== "transcript");
-	    if (toolbar) toolbar.classList.toggle("is-visible", detailViewState.mode === "transcript");
-	    if (quickBtn) quickBtn.classList.toggle("is-active", detailViewState.mode === "quickview");
-	    if (transcriptBtn) transcriptBtn.classList.toggle("is-active", detailViewState.mode === "transcript");
+	    const mindmapBtn = document.getElementById("detail-mode-mindmap");
+	    if (quickPanel) quickPanel.classList.toggle("hidden", mode !== "quickview");
+	    if (transcriptPanel) transcriptPanel.classList.toggle("hidden", mode !== "transcript");
+	    if (mindmapPanel) mindmapPanel.classList.toggle("hidden", mode !== "mindmap");
+	    if (toolbar) toolbar.classList.toggle("is-visible", mode === "transcript");
+	    if (quickBtn) quickBtn.classList.toggle("is-active", mode === "quickview");
+	    if (transcriptBtn) transcriptBtn.classList.toggle("is-active", mode === "transcript");
+	    if (mindmapBtn) mindmapBtn.classList.toggle("is-active", mode === "mindmap");
+	    if (mode === "mindmap") renderMindMapPanel();
 	  }
 
   function applyProgram(program, programs) {
@@ -1356,7 +1379,7 @@
           ? "is-guest-active bg-primary/10 text-primary border border-primary/30"
           : "bg-white text-on-surface border border-gray-200 hover:border-primary/40";
         var avatarHtml = g.avatar
-          ? "<img src=\"" + escapeHtml(g.avatar) + "\" class=\"w-6 h-6 rounded-full object-cover flex-shrink-0 bg-gray-100\" onerror=\"this.style.display='none'\"/>"
+          ? "<img src=\"" + escapeHtml(g.avatar) + "\" class=\"w-6 h-6 rounded-full object-cover object-center flex-shrink-0 bg-gray-100\" onerror=\"this.style.display='none'\"/>"
           : "<span class=\"w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 text-[10px] text-primary font-bold\">" + (g.name ? g.name[0] : "?") + "</span>";
         return "<button type=\"button\" onclick=\"window._selectGuest(" + idx + ")\" data-guest-idx=\"" + idx + "\" class=\"inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-bold transition-all cursor-pointer " + cls + "\">" + avatarHtml + "<span class=\"truncate max-w-[80px]\">" + escapeHtml(g.name || "") + "</span></button>";
       }).join("");
@@ -1473,6 +1496,7 @@
     }).join("");
 
     renderRelated(program, programs);
+    initMindMapData(deepDive);
     requestDeepDiveFloatingUpdate();
     syncFavoriteButton(program);
   }
@@ -1638,6 +1662,7 @@
     if (heroShareBtn) heroShareBtn.addEventListener("click", shareProgram);
 	    const detailModeQuickBtn = document.getElementById("detail-mode-quickview");
 	    const detailModeTranscriptBtn = document.getElementById("detail-mode-transcript");
+	    const detailModeMindmapBtn = document.getElementById("detail-mode-mindmap");
 	    if (detailModeQuickBtn) {
 	      detailModeQuickBtn.addEventListener("click", function () {
 	        setDetailViewMode("quickview");
@@ -1646,6 +1671,11 @@
 	    if (detailModeTranscriptBtn) {
 	      detailModeTranscriptBtn.addEventListener("click", function () {
 	        setDetailViewMode("transcript");
+      });
+    }
+	    if (detailModeMindmapBtn) {
+	      detailModeMindmapBtn.addEventListener("click", function () {
+	        setDetailViewMode("mindmap");
       });
     }
     setDetailViewMode(detailViewState.mode);
@@ -1954,6 +1984,68 @@
   updateProgressUI();
   bindPlayerEvents();
   setupDeepDiveFloatingFallback();
+
+  // === MindMap Renderer ===
+  function buildMindMapMarkdown(node, level) {
+    level = level || 1;
+    var lines = [];
+    var prefix = '#'.repeat(Math.min(level, 6));
+    var emoji = node.emoji ? node.emoji + ' ' : '';
+    lines.push(prefix + ' ' + emoji + node.title);
+    if (node.summary && level <= 3) lines.push('> ' + node.summary);
+    if (node.children && node.children.length) {
+      lines.push('');
+      node.children.forEach(function(child) {
+        lines.push(buildMindMapMarkdown(child, level + 1));
+      });
+    }
+    return lines.join('\n');
+  }
+
+  var mindMapRendered = false;
+  var mindMapDataCache = null;
+  function renderMindMapPanel() {
+    var container = document.getElementById('mindmap-main-container');
+    if (!container) return;
+    if (!mindMapDataCache) {
+      container.innerHTML = '<div class="flex items-center justify-center py-16 text-sm text-stone-400">暂无可用的脉络数据</div>';
+      return;
+    }
+    if (mindMapRendered) return;
+    try {
+      var markdown = buildMindMapMarkdown(mindMapDataCache.root);
+      var wrapper = document.createElement('div');
+      wrapper.className = 'markmap';
+      wrapper.innerHTML = '<pre class="markmap-code" style="display:none">' + markdown.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>';
+      container.innerHTML = '';
+      container.appendChild(wrapper);
+      if (window.markmap) {
+        window.markmap.autoLoader.renderAll();
+        setTimeout(function() {
+          var svg = container.querySelector('svg');
+          if (svg) {
+            svg.style.width = '100%';
+            svg.style.height = 'auto';
+            svg.removeAttribute('width');
+            svg.removeAttribute('height');
+            svg.style.display = 'block';
+            var g = svg.querySelector('g');
+            if (g) g.style.transform = '';
+          }
+        }, 400);
+      }
+      mindMapRendered = true;
+    } catch(e) {
+      console.warn('MindMap render failed', e);
+      container.innerHTML = '<div class="flex items-center justify-center py-16 text-sm text-stone-400">脉络图渲染失败</div>';
+    }
+  }
+  function initMindMapData(deepDive) {
+    var mindMap = deepDive && deepDive.mindMap;
+    if (!mindMap || !mindMap.root || !mindMap.root.title) return;
+    mindMapDataCache = mindMap;
+  }
+
   load();
 })();
 </script>

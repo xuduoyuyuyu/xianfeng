@@ -28,6 +28,7 @@ interface TopicHubItem {
   searchTerm?: string;
   submittedBy?: string;
   createdBy?: string;
+  submitterName?: string;
   userOriginalInput?: string;
   status: "draft" | "pending" | "published" | "hidden";
   result?: any;
@@ -538,7 +539,7 @@ const AdminTopicsPage: React.FC = () => {
 
                 {/* 提交者 */}
                 <span style={{ textAlign: "center", fontSize: 12, color: "#6B7280" }}>
-                  {item.createdBy || item.submittedBy || "-"}
+                  {item.submitterName || item.createdBy || item.submittedBy || "-"}
                 </span>
 
                 {/* 时间 */}

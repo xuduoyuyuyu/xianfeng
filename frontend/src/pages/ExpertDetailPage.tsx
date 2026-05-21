@@ -2,9 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import GuestWishButton from "../components/GuestWishButton";
-import { GuestPublication, GuestSocialProfile, publicApi, PublicGuest, PublicGuestDetail } from "../services/api";
+import { GuestPublication, GuestSocialProfile, ListenerBenefit, publicApi, PublicGuest, PublicGuestDetail } from "../services/api";
 
-const FALLBACK_AVATAR = "https://xianfeng.xinzhi.info/uploads/images/1779099163792-wl2rg1zt.png";
+const FALLBACK_AVATAR = "http://xianfeng.xinzhi.info/uploads/images/1779264157086-hgcd24g4.png";
 const PUBLICATION_LABELS: Record<GuestPublication["type"], string> = {
   paper: "论文",
   book: "著作",
@@ -83,6 +83,11 @@ function mergeGuestSummary(detail: Partial<PublicGuestDetail> | null | undefined
       ? detail!.publications
       : Array.isArray(summary?.publications)
       ? summary!.publications
+      : [],
+    listenerBenefits: Array.isArray(detail?.listenerBenefits)
+      ? detail!.listenerBenefits
+      : Array.isArray(summary?.listenerBenefits)
+      ? summary!.listenerBenefits
       : [],
     programCount: Number(detail?.programCount || summary?.programCount || 0),
     referenceCount: Number(detail?.referenceCount || summary?.referenceCount || 0),
@@ -200,6 +205,15 @@ const ExpertDetailPage: React.FC = () => {
     () => (Array.isArray(guest?.publications) ? guest.publications.filter((item) => String(item?.url || "").trim() && String(item?.title || "").trim()) : []),
     [guest]
   );
+  const listenerBenefits = useMemo(
+    () => {
+      if (!Array.isArray(guest?.listenerBenefits)) return [];
+      return guest.listenerBenefits
+        .filter((item) => String(item?.title || "").trim())
+        .sort((a, b) => (a.order || 0) - (b.order || 0));
+    },
+    [guest]
+  );
   const relatedPrograms = useMemo(
     () => (Array.isArray(guest?.relatedPrograms) ? guest.relatedPrograms.filter((item) => String(item?._id || "").trim()) : []),
     [guest]
@@ -208,6 +222,7 @@ const ExpertDetailPage: React.FC = () => {
   const hasSocialSection = socialProfiles.length > 0;
   const hasPublicationSection = publications.length > 0 || profileReferences.length > 0;
   const hasRelatedProgramsSection = relatedPrograms.length > 0;
+  const hasListenerBenefitsSection = listenerBenefits.length > 0;
 
   // 按 sourceName 聚合去重书单
   const bookGroups = useMemo(() => {
@@ -321,12 +336,12 @@ const ExpertDetailPage: React.FC = () => {
                   </div>
                 </div>
                 {/* 右侧头像 */}
-                <div className="shrink-0 self-start mt-9">
+                <div className="shrink-0 self-center md:self-start mt-9">
                   <div className="w-28 h-28 md:w-32 md:h-32 rounded-2xl overflow-hidden ring-4 ring-[#5e17eb]/10">
                     <img
                       src={guest.avatar || FALLBACK_AVATAR}
                       alt={guest.name || "嘉宾头像"}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover object-center"
                       onError={(event) => { event.currentTarget.src = FALLBACK_AVATAR; }}
                     />
                   </div>
@@ -366,6 +381,64 @@ const ExpertDetailPage: React.FC = () => {
                       );
                     })}
                   </div>
+                </div>
+              </div>
+            ) : null}
+
+            {/* 听友福利板块 - 紧接嘉宾著作板块 */}
+            {hasListenerBenefitsSection ? (
+              <div className="rounded-[2rem] border border-[#e2dcf0] bg-white p-8 shadow-[0_24px_80px_rgba(80,62,125,0.08)]">
+                <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.24em] text-[#5b3fa1]">
+                  Listener Benefits
+                </div>
+                <h2 className="mt-4 text-2xl font-black tracking-tight text-[#241a3a]">听友福利</h2>
+                <p className="mt-2 text-sm text-[#7b70a4]">专属福利，感谢各位听友一路陪伴。</p>
+                <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {listenerBenefits.map((item: ListenerBenefit, index: number) => {
+                    const hasUrl = Boolean(String(item.url || "").trim());
+                    const hasImage = Boolean(String(item.image || "").trim());
+                    const cardClass =
+                      "block rounded-[1.25rem] border border-[#e8e0f2] bg-[#fcfaff] px-5 py-4 transition hover:border-[#b79bff] hover:bg-white";
+                    const content = (
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                          <div className="text-base font-black text-[#241a3a]">{item.title || "未命名福利"}</div>
+                          {item.description ? <div className="mt-2 text-sm text-[#7c70af]">{item.description}</div> : null}
+                          {hasImage ? (
+                            <div className="mt-3 overflow-hidden rounded-xl border border-[#e8e0f2]">
+                              <img
+                                src={item.image}
+                                alt={item.title || "福利图片"}
+                                className="w-full h-auto object-cover transition duration-300 hover:scale-110 cursor-zoom-in"
+                                title="点击查看大图"
+                                loading="lazy"
+                              />
+                            </div>
+                          ) : null}
+                          {item.note ? <div className="mt-2 text-xs text-[#9788a8]">{item.note}</div> : null}
+                        </div>
+                        {hasUrl ? <span className="material-symbols-outlined shrink-0 text-[#5e17eb]">open_in_new</span> : null}
+                      </div>
+                    );
+                    if (!hasUrl) {
+                      return (
+                        <div key={`benefit-${item.title}-${index}`} className={cardClass}>
+                          {content}
+                        </div>
+                      );
+                    }
+                    return (
+                      <a
+                        key={`benefit-${item.url}-${index}`}
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={cardClass}
+                      >
+                        {content}
+                      </a>
+                    );
+                  })}
                 </div>
               </div>
             ) : null}

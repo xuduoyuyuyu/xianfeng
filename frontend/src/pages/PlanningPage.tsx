@@ -19,13 +19,22 @@ const PlanningPage: React.FC = () => {
   // Listen for auth requests from iframe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      if (event.data && typeof event.data === "object" && event.data.type === "get-xianfeng-token") {
-        const token = localStorage.getItem("token") || "";
-        if (iframeRef.current?.contentWindow) {
-          iframeRef.current.contentWindow.postMessage(
-            { type: "wel-auth", token, source: "xianfeng" },
-            "*"
-          );
+      if (event.data && typeof event.data === "object") {
+        if (event.data.type === "get-xianfeng-token") {
+          const token = localStorage.getItem("token") || "";
+          if (iframeRef.current?.contentWindow) {
+            iframeRef.current.contentWindow.postMessage(
+              { type: "wel-auth", token, source: "xianfeng" },
+              "*"
+            );
+          }
+        } else if (event.data.type === "WEL_LOGIN_REQUIRED") {
+          document.dispatchEvent(new CustomEvent("xf-show-login-modal", {
+            detail: {
+              title: event.data.title || "登录后即可使用",
+              description: event.data.description || "登录后可获取个性化教育规划方案，基于您的城市政策和家庭情况定制专属路径。"
+            }
+          }));
         }
       }
     };

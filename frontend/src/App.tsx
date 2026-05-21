@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import GlobalPublicNav from "./components/GlobalPublicNav";
+import { LoginModalProvider } from "./components/LoginModalProvider";
 import ScreenPage from "./pages/ScreenPage";
 import AdminLoginPage from "./pages/admin/AdminLoginPage";
 import UserLoginPage from "./pages/UserLoginPage";
@@ -33,6 +34,7 @@ import TopicHubPage from "./pages/TopicHubPage";
 import TopicDetailPage from "./pages/TopicDetailPage";
 import WorthBuyPage from "./pages/WorthBuyPage";
 import WorthBuyDetailPage from "./pages/WorthBuyDetailPage";
+import WithLoginGate from "./components/WithLoginGate";
 import PageViewTracker from "./components/PageViewTracker";
 import XiaowanziWidget from "./wel/components/XiaowanziWidget";
 
@@ -64,10 +66,10 @@ const PublicScreenRouter: React.FC = () => {
     const programId = normalizedPathname.split("/")[2] || "";
     const src = `/screens/podcast-detail.html?programId=${encodeURIComponent(programId)}`;
     return (
-      <>
+      <WithLoginGate backTo="/programs/list" title="登录后查看完整内容" description="登录后即可查看节目逐字稿、AI分析、嘉宾详情等完整内容。">
         <GlobalPublicNav />
         <iframe src={src} style={{ width: "100%", height: "calc(100vh - 64px)", border: "none", marginTop: 64 }} title="节目详情" />
-      </>
+      </WithLoginGate>
     );
   }
 
@@ -76,7 +78,11 @@ const PublicScreenRouter: React.FC = () => {
   }
 
   if (/^\/experts\/[^/]+$/.test(normalizedPathname)) {
-    return <ExpertDetailPage />;
+    return (
+      <WithLoginGate backTo="/experts" title="登录后查看完整内容" description="登录后即可查看专家详细资料、论文著作、相关节目等完整信息。">
+        <ExpertDetailPage />
+      </WithLoginGate>
+    );
   }
 
   if (normalizedPathname === "/materials") {
@@ -97,7 +103,11 @@ const PublicScreenRouter: React.FC = () => {
 
   if (/^\/topics\/[^/]+$/.test(normalizedPathname)) {
     const slug = normalizedPathname.split("/")[2] || "";
-    return <TopicDetailPage slug={slug} />;
+    return (
+      <WithLoginGate backTo="/topics" title="登录后查看完整内容" description="登录后即可查看完整知识树、深入话题内容，获得个性化学习推荐。">
+        <TopicDetailPage slug={slug} />
+      </WithLoginGate>
+    );
   }
 
   if (normalizedPathname === "/worthbuy") {
@@ -105,7 +115,11 @@ const PublicScreenRouter: React.FC = () => {
   }
 
   if (/^\/worthbuy\/[^/]+$/.test(normalizedPathname)) {
-    return <WorthBuyDetailPage />;
+    return (
+      <WithLoginGate backTo="/worthbuy" title="登录后查看完整内容" description="登录后即可查看完整分析结果、品牌对比详情，获取个性化消费建议。">
+        <WorthBuyDetailPage />
+      </WithLoginGate>
+    );
   }
 
   const routeMap: Record<string, { src: string; title: string }> = {
@@ -139,7 +153,7 @@ const App: React.FC = () => {
   }, []);
 
   return (
-    <>
+    <LoginModalProvider>
       <div id="app-shell">
         <PageViewTracker />
         <Routes>
@@ -174,7 +188,7 @@ const App: React.FC = () => {
         </Routes>
       </div>
       {shouldRenderGlobalXiaowanzi ? <XiaowanziWidget /> : null}
-    </>
+    </LoginModalProvider>
   );
 };
 

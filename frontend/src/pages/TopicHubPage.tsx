@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useSelector } from "react-redux";
 import GlobalPublicNav from "../components/GlobalPublicNav";
+
 import Pagination from "../components/Pagination";
 import type { RootState } from "../store";
 import { getTopicUserId } from "../utils/topicUserId";
@@ -142,6 +143,10 @@ const TopicHubPage: React.FC = () => {
 
   // ===== 提交前：AI 提炼 → 二次确认 → 校验 → 创建 =====
   const handleSubmit = async (skipSearch = false) => {
+    if (!currentUser) {
+      document.dispatchEvent(new CustomEvent('xf-show-login-modal', { detail: { title: '登录后提交', description: '登录后即可搜索话题、提交问题，获得AI生成的知识树。' } }));
+      return;
+    }
     const q = searchText.trim();
     if (!q) return;
     setSubmitMsg(null);
@@ -252,18 +257,32 @@ const TopicHubPage: React.FC = () => {
         const newTopic: TopicItem = {
           ...data.topic,
           tags: safeTags(data.topic.tags),
+          nodeCount: data.topic.nodeCount ?? 0,
+          questionCount: data.topic.questionCount ?? 0,
+          viewCount: data.topic.viewCount ?? 0,
         };
         if (data.source === "existing") {
           setSubmitMsg({ text: `📌 已有相似话题「${data.topic.title}」`, type: "existingMatch", slug: data.topic.slug });
         } else {
           setSubmitMsg({ text: "✨ 话题已创建，AI 正在为你生成知识树…", type: "success" });
+          // 立即将新话题插入列表头部，确保用户第一时间看到卡片
+          setTopics((prev) => [newTopic, ...prev]);
+          // 同时更新标签列表（新话题的标签可能不在 allTags 中）
+          setAllTags((prev) => {
+            const newTags = (newTopic.tags as string[]);
+            const merged = new Set(prev);
+            newTags.forEach((t) => merged.add(t));
+            return ["全部", ...Array.from(merged).filter((t) => t !== "全部")];
+          });
         }
         if (data.relatedTopics?.length) {
           setRelatedTopics(data.relatedTopics.map((t: any) => ({ ...t, tags: safeTags(t.tags) })));
         }
         setSearchText("");
-        await fetchTopics({});
-        if (newTopic.slug && !newTopic.generatingProgress && (newTopic as any).source !== "existing") {
+        // 后台静默刷新列表，保持与服务端数据一致（不阻塞 UI）
+        fetchTopics({});
+        // 新创建的话题始终启动进度轮询
+        if (newTopic.slug && data.source !== "existing") {
           pollProgress(newTopic.slug);
         }
       } else {
@@ -320,6 +339,12 @@ const TopicHubPage: React.FC = () => {
 
   // 点击话题卡片
   const handleTopicClick = (e: React.MouseEvent, topic: TopicItem) => {
+    const isLoggedIn = !!currentUser || !!localStorage.getItem("token");
+    if (!isLoggedIn) {
+      e.preventDefault();
+      document.dispatchEvent(new CustomEvent("xf-show-login-modal", { detail: { title: "登录后即可查看", description: "登录后可查看完整知识树、深入话题内容，获得个性化学习推荐。" } }));
+      return;
+    }
     const prog = topic.generatingProgress;
     const isProcessing = prog && prog.status !== "done" && prog.status !== "error" && prog.done < prog.total;
     if (isProcessing) {
@@ -605,7 +630,7 @@ const TopicHubPage: React.FC = () => {
                 )}
                 {submitMsg.type === "existingMatch" && submitMsg.slug && (
                   <Link
-                    to={`/topics/${submitMsg.slug}`}
+                    to={`/topics/${encodeURIComponent(submitMsg.slug)}`}
                     style={{
                       padding: "6px 16px",
                       borderRadius: 8,
@@ -634,7 +659,7 @@ const TopicHubPage: React.FC = () => {
                 {relatedTopics.map((rt) => (
                   <Link
                     key={rt.id || rt._id}
-                    to={`/topics/${rt.slug}`}
+                    to={`/topics/${encodeURIComponent(rt.slug)}`}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -673,17 +698,24 @@ const TopicHubPage: React.FC = () => {
         {allTags.length > 1 && (
           <div style={{ marginBottom: 28 }}>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
-              {visibleTags.map((tag) => (
+              {visibleTags.map((tag) => {
+                const handleTagClick = () => {
+                  const isLoggedIn = !!currentUser || !!localStorage.getItem("token");
+                  if (!isLoggedIn) {
+                    document.dispatchEvent(new CustomEvent("xf-show-login-modal", { detail: { title: "登录后即可筛选", description: "登录后可搜索话题、提交问题，获得AI生成的知识树。" } }));
+                    return;
+                  }
+                  setActiveTag(tag);
+                  setCurrentPage(1);
+                  // 「全部」重新请求后端（支持分页），其他标签纯前端过滤避免页面跳动
+                  if (tag === "全部") {
+                    fetchTopics({});
+                  }
+                };
+                return (
                 <button
                   key={tag}
-                  onClick={() => {
-                    setActiveTag(tag);
-                    setCurrentPage(1);
-                    // 「全部」重新请求后端（支持分页），其他标签纯前端过滤避免页面跳动
-                    if (tag === "全部") {
-                      fetchTopics({});
-                    }
-                  }}
+                  onClick={handleTagClick}
                   style={{
                     padding: "6px 16px",
                     borderRadius: 20,
@@ -698,7 +730,8 @@ const TopicHubPage: React.FC = () => {
                 >
                   {tag}
                 </button>
-              ))}
+                );
+              })}
             </div>
             {hasMoreTags && (
               <div style={{ textAlign: "center", marginTop: 10 }}>
@@ -754,7 +787,7 @@ const TopicHubPage: React.FC = () => {
               return (
               <div key={topic.id || topic._id} className="topic-card-wrapper" style={{ position: "relative" }}>
                 <Link
-                  to={`/topics/${topic.slug}`}
+                  to={`/topics/${encodeURIComponent(topic.slug)}`}
                   style={{ textDecoration: "none" }}
                   onClick={(e) => handleTopicClick(e, topic)}
                 >
@@ -903,6 +936,7 @@ const TopicHubPage: React.FC = () => {
         )}
       </div>
     </div>
+
     </>
   );
 };
