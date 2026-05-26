@@ -8,7 +8,7 @@ import { Book, publicApi } from "../services/api";
 
 const PAGE_SIZE = 24;
 const UNKNOWN_GUEST = "未标注推荐人";
-const FALLBACK_COVER = "https://xianfeng.xinzhi.info/uploads/images/1779100618558-tx61bua1.png";
+
 const BOOKS_HERO_DISMISSED_KEY = "books_hero_dismissed_v1";
 
 type EnrichedBook = Book & {
@@ -44,15 +44,18 @@ const BookCard: React.FC<BookCardProps> = ({ item }) => {
     <article className="group mb-3 break-inside-avoid overflow-hidden rounded-[1rem] border border-[#e2dcf0] bg-white shadow-[0_8px_18px_rgba(60,40,80,0.06)]">
       <div className="relative w-full p-2">
         <div className="flex items-center justify-center overflow-hidden rounded-lg bg-white">
-          <img
-            src={item.coverImage ? item.coverImage.replace(/^http:\/\//, "https://") : FALLBACK_COVER}
-            alt={item.title || "书籍封面"}
-            className="w-full object-contain"
-            loading="lazy"
-            onError={(event) => {
-              event.currentTarget.src = FALLBACK_COVER;
-            }}
-          />
+          {item.coverImage ? (
+            <img
+              src={item.coverImage.replace(/^http:\/\//, "https://")}
+              alt={item.title || "书籍封面"}
+              className="w-full object-contain"
+              loading="lazy"
+            />
+          ) : (
+            <div className="w-full aspect-[3/4] bg-stone-100 rounded-lg flex items-center justify-center">
+              <span className="text-stone-300 text-4xl">📖</span>
+            </div>
+          )}
         </div>
         {/* 购买功能暂隐藏 */}
       </div>

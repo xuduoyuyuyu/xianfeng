@@ -62,11 +62,12 @@ const TopicHubPage: React.FC = () => {
   const [refinedKeyword, setRefinedKeyword] = useState("");
   const [relatedTopics, setRelatedTopics] = useState<TopicItem[]>([]);
   const [validating, setValidating] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<string>("");
-  const [progressPolling, setProgressPolling] = useState<ReturnType<typeof setInterval> | null>(null);
-
   // 获取 userId：优先用登录用户手机号 > _id > 匿名随机 ID
   const getUserId = (): string => getTopicUserId(currentUser);
+
+  // userId 初始值立即用 getUserId()，避免首帧空字符串导致提交/查询 id 不一致
+  const [currentUserId, setCurrentUserId] = useState<string>(() => getUserId());
+  const [progressPolling, setProgressPolling] = useState<ReturnType<typeof setInterval> | null>(null);
 
   // userId 跟随登录状态变化
   useEffect(() => {

@@ -226,6 +226,8 @@ export async function syncProgramDictionaryEntries(
   createdFrom: "ai_program" | "migration" = "ai_program",
   options: SyncDictionaryOptions = {}
 ) {
+  const t0 = Date.now();
+  const logStep = (step: string) => console.log(`[PERF:syncDict ${programId}] ${step} +${Date.now() - t0}ms`);
   const sourceText = asText(options.sourceText);
   let glossary = sanitizeDictionaryGlossary(glossaryInput);
   if (sourceText) {
@@ -271,6 +273,7 @@ export async function syncProgramDictionaryEntries(
   }
 
   await detachProgramFromRemovedEntries(programId, nextEntryIds);
+  logStep("detachRemoved");
 
   await Program.findByIdAndUpdate(
     programId,
@@ -279,8 +282,13 @@ export async function syncProgramDictionaryEntries(
     },
     { new: false }
   );
+  logStep("updateProgramEntryIds");
 
-  await recalculateAllRelatedDictionaryEntries();
+  // 异步重算关联词条，不阻塞保存接口
+  recalculateAllRelatedDictionaryEntries().catch((err) => {
+    console.error("[syncProgramDictionary] recalculate failed:", err);
+  });
+  logStep("done");
   return nextEntryIds;
 }
 

@@ -4,7 +4,7 @@ import { RootState } from "../store";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import Pagination from "../components/Pagination";
 
-const FALLBACK_COVER = "https://xianfeng.xinzhi.info/uploads/images/1778322922471-0tkcrxd2.png";
+const FALLBACK_COVER = "http://xianfeng.xinzhi.info/uploads/images/1779669071894-42qbgvdv.png";
 
 interface Program {
   _id: string;

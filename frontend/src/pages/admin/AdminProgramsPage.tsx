@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { adminApi, AdminEducationDictionaryEntry, AgentTask, Guest, Program } from "../../services/api";
+import MindMapView from "../../components/MindMapView";
 import TopAlert from "../../components/TopAlert";
 
 type StatusFilter = "all" | "published" | "draft" | "group-only";
-type ParseEditorTab = "quickview" | "transcript";
+type ParseEditorTab = "quickview" | "transcript" | "mindmap";
 type FormState = {
   programCode: string;
   title: string;
@@ -26,6 +27,7 @@ type FormState = {
   showNotesTemplateOverride: string;
   deepDiveTitle: string;
   curatedReadingRaw: string;
+  mindMapRaw: string;
   status: "draft" | "published" | "group-only";
 };
 
@@ -92,6 +94,7 @@ const EMPTY_FORM: FormState = {
   showNotesTemplateOverride: "",
   deepDiveTitle: "",
   curatedReadingRaw: "",
+  mindMapRaw: "",
   status: "draft",
 };
 
@@ -113,6 +116,26 @@ const UPLOAD_TASK_STORAGE_KEY = "admin-program-upload-task";
 const SPEAKER_SUGGESTIONS = ["主持人", "嘉宾1", "嘉宾2", "嘉宾"];
 const PROGRAMS_PAGE_SIZE = 20;
 const EDIT_MODAL_BUTTON_BASE = "rounded-full px-4 py-1.5 text-xs font-bold transition-colors disabled:opacity-60";
+
+// ---- MindMapPreview：接收 markdown 实时渲染脑图 ----
+function MindMapPreview({ markdown, title }: { markdown: string; title: string }) {
+  const mindMap = useMemo(() => markdownToMindMap(markdown), [markdown]);
+  const hasData = !!mindMap?.root;
+
+  if (!hasData) {
+    return <p className="text-xs text-stone-400">输入 Markdown 后此处实时预览脑图</p>;
+  }
+
+  return (
+    <MindMapView
+      key={`preview-${markdown.length}`}
+      mode="ai"
+      mindMapData={mindMap}
+      quickView={[]}
+      title={title}
+    />
+  );
+}
 
 function formatDate(date?: string): string {
   if (!date) return "-";
@@ -442,6 +465,100 @@ function formatShowNotesKeyMomentsForForm(
   return keyMoments.map((item) => `${item.time || ""}|${item.point || ""}`).join("\n");
 }
 
+// ---- MindMap ↔ Markdown 互转 ----
+function mindMapToMarkdown(mindMap?: any): string {
+  if (!mindMap?.root) return "";
+  const lines: string[] = [];
+  function walk(node: any, depth: number) {
+    if (!node) return;
+    const prefix = "#".repeat(Math.min(depth + 1, 6));
+    lines.push(prefix + " " + (node.title || ""));
+    lines.push("");
+    if (node.summary) {
+      lines.push(node.summary);
+      lines.push("");
+    }
+    if (Array.isArray(node.children)) {
+      node.children.forEach((child: any) => walk(child, depth + 1));
+    }
+  }
+  walk(mindMap.root, 0);
+  return lines.join("\n").trim();
+}
+
+function markdownToMindMap(md: string): any {
+  if (!md.trim()) return undefined;
+  const lines = md.split("\n");
+  const rootStack: any[] = []; // [{ depth, node }]
+  let root: any = null;
+  let pendingSummary = "";
+
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    const hMatch = line.match(/^(#{1,6})\s+(.+)/);
+    if (hMatch) {
+      // flush pending summary to previous node
+      if (pendingSummary.trim() && rootStack.length > 0) {
+        const prev = rootStack[rootStack.length - 1].node;
+        if (!prev.summary) prev.summary = pendingSummary.trim();
+      }
+      pendingSummary = "";
+
+      const depth = hMatch[1].length; // 1 = #, 2 = ##, ...
+      const title = hMatch[2].trim();
+      const node: any = { title, children: [] };
+
+      // pop to correct parent
+      while (rootStack.length > 0 && rootStack[rootStack.length - 1].depth >= depth) {
+        rootStack.pop();
+      }
+
+      if (rootStack.length === 0) {
+        if (!root) {
+          root = node;
+        }
+      } else {
+        const parent = rootStack[rootStack.length - 1].node;
+        parent.children.push(node);
+      }
+      rootStack.push({ depth, node });
+    } else if (line.trim() === "") {
+      if (pendingSummary.trim() && rootStack.length > 0) {
+        const prev = rootStack[rootStack.length - 1].node;
+        if (!prev.summary) prev.summary = pendingSummary.trim();
+      }
+      pendingSummary = "";
+    } else {
+      if (pendingSummary) pendingSummary += "\n";
+      pendingSummary += line.trim();
+    }
+  }
+  // final flush
+  if (pendingSummary.trim() && rootStack.length > 0) {
+    const prev = rootStack[rootStack.length - 1].node;
+    if (!prev.summary) prev.summary = pendingSummary.trim();
+  }
+
+  if (!root) return undefined;
+  return { root, generatedAt: new Date().toISOString() };
+}
+
+// keep old parsers for backward compat
+function formatMindMapForForm(mindMap?: Program["deepDive"] extends { mindMap?: infer M } ? M : any): string {
+  if (!mindMap || !(mindMap as any)?.root) return "";
+  return mindMapToMarkdown(mindMap);
+}
+
+function parseMindMap(raw: string): any {
+  if (!raw.trim()) return undefined;
+  // try parse as JSON first (backward compat), then as markdown
+  try {
+    const json = JSON.parse(raw);
+    if (json?.root) return json;
+  } catch { /* not JSON */ }
+  return markdownToMindMap(raw);
+}
+
 function parseTranscriptRows(raw: string): TranscriptEditorRow[] {
   const lines = raw
     .split("\n")
@@ -545,6 +662,7 @@ function buildProgramPayload(form: FormState, guestBindings: Array<{ guestId: st
     deepDive: {
       sectionTitle: form.deepDiveTitle.trim(),
       curatedReading: parseCuratedReading(form.curatedReadingRaw),
+      mindMap: parseMindMap(form.mindMapRaw),
     },
     contentPack: {
       quickView: parseQuickView(form.quickViewRaw),
@@ -603,6 +721,7 @@ const AdminProgramsPage: React.FC = () => {
   const [programAgentLoading, setProgramAgentLoading] = useState(false);
   const [applyArtworkLoading, setApplyArtworkLoading] = useState(false);
   const [parseEditorTab, setParseEditorTab] = useState<ParseEditorTab>("quickview");
+  const [mindMapMarkdown, setMindMapMarkdown] = useState("");
   const audioInputRef = useRef<HTMLInputElement | null>(null);
   const coverImageInputRef = useRef<HTMLInputElement | null>(null);
   useEffect(() => {
@@ -846,7 +965,7 @@ const AdminProgramsPage: React.FC = () => {
       summaryHighlightText: program.summary?.highlightText || "",
       summaryTags: (program.summary?.tags || []).join(", "),
       transcriptRaw: formatTranscriptForForm(program.transcript),
-      quickViewRaw: formatQuickViewForForm(program.contentPack?.quickView),
+      quickViewRaw: formatQuickViewForForm(program.contentPack?.quickView) || fallbackQuickViewFromKM(program),
       minutesText: program.contentPack?.minutes?.text || "",
       showNotesGuide: program.contentPack?.showNotes?.guide || "",
       showNotesGuestIntro: program.contentPack?.showNotes?.guestIntro || "",
@@ -854,8 +973,10 @@ const AdminProgramsPage: React.FC = () => {
       showNotesTemplateOverride: program.contentPack?.showNotes?.templateOverride || "",
       deepDiveTitle: program.deepDive?.sectionTitle || "",
       curatedReadingRaw: formatCuratedReadingForForm(program.deepDive?.curatedReading),
+      mindMapRaw: formatMindMapForForm(program.deepDive?.mindMap),
       status: program.status,
     });
+    setMindMapMarkdown(formatMindMapForForm(program.deepDive?.mindMap));
     const activeGuestIds = new Set((guestCandidates || []).map((g: Guest) => g._id));
     const fromBindings = (program.guestBindings || [])
       .map((item) => ({
@@ -876,6 +997,13 @@ const AdminProgramsPage: React.FC = () => {
   };
 
   const loadContentEnhancementProgram = (program: Program) => {
+    fillContentForm(program);
+  };
+
+  const fillContentForm = (program: Program) => {
+    console.log("[DEBUG fillContentForm] deepDive:", !!program.deepDive, "mindMap:", !!program.deepDive?.mindMap, "root:", program.deepDive?.mindMap?.root?.title);
+    const mmFormatted = formatMindMapForForm(program.deepDive?.mindMap);
+    console.log("[DEBUG fillContentForm] mindMapRaw formatted length:", mmFormatted?.length || 0, "first 50 chars:", mmFormatted?.substring(0, 50));
     setEditingProgram(program);
     setForm({
       programCode: program.programCode || "",
@@ -891,7 +1019,7 @@ const AdminProgramsPage: React.FC = () => {
       summaryHighlightText: program.summary?.highlightText || "",
       summaryTags: (program.summary?.tags || []).join(", "),
       transcriptRaw: formatTranscriptForForm(program.transcript),
-      quickViewRaw: formatQuickViewForForm(program.contentPack?.quickView),
+      quickViewRaw: formatQuickViewForForm(program.contentPack?.quickView) || fallbackQuickViewFromKM(program),
       minutesText: program.contentPack?.minutes?.text || "",
       showNotesGuide: program.contentPack?.showNotes?.guide || "",
       showNotesGuestIntro: program.contentPack?.showNotes?.guestIntro || "",
@@ -899,14 +1027,25 @@ const AdminProgramsPage: React.FC = () => {
       showNotesTemplateOverride: program.contentPack?.showNotes?.templateOverride || "",
       deepDiveTitle: program.deepDive?.sectionTitle || "",
       curatedReadingRaw: formatCuratedReadingForForm(program.deepDive?.curatedReading),
+      mindMapRaw: mmFormatted,
       status: program.status,
     });
+    setMindMapMarkdown(mmFormatted);
+  };
+
+  const fallbackQuickViewFromKM = (program: Program): string => {
+    const qv = program.contentPack?.quickView;
+    if (qv && qv.length > 0) return "";
+    const km = program.contentPack?.showNotes?.keyMoments;
+    if (!km || km.length === 0) return "";
+    return km.map((item) => `${item.time || ""}|${item.point || ""}`).join("\n");
   };
 
   const closeTranscriptEditor = () => {
     setIsTranscriptModalOpen(false);
     setEditingProgram(null);
     setForm(EMPTY_FORM);
+    setMindMapMarkdown("");
     setParseEditorTab("quickview");
   };
 
@@ -918,8 +1057,15 @@ const AdminProgramsPage: React.FC = () => {
     setParseEditorTab("quickview");
   };
 
-  const openContentEnhancement = (program: Program) => {
-    loadContentEnhancementProgram(program);
+  const openContentEnhancement = async (program: Program) => {
+    // 列表接口不返回 contentPack/transcript/termGlossary，需单独请求完整数据
+    try {
+      const response = await adminApi.getProgram(program._id);
+      fillContentForm(response.data);
+    } catch {
+      // 获取完整数据失败时，回退到列表数据
+      fillContentForm(program);
+    }
     setParseEditorTab("quickview");
     setIsTranscriptModalOpen(true);
   };
@@ -977,6 +1123,7 @@ const AdminProgramsPage: React.FC = () => {
     setDictionaryLoading(false);
     setTranscriptRows([]);
     setEditingProgram(null);
+    setMindMapMarkdown("");
     setForm(EMPTY_FORM);
     setProgramAgentTasks([]);
     setProgramAgentLoading(false);
@@ -1463,6 +1610,7 @@ const AdminProgramsPage: React.FC = () => {
             {([
               { key: "quickview", label: "速览" },
               { key: "transcript", label: "逐字稿" },
+              { key: "mindmap", label: "脉络" },
             ] as Array<{ key: ParseEditorTab; label: string }>).map((tab) => (
               <button
                 key={tab.key}
@@ -1506,6 +1654,51 @@ const AdminProgramsPage: React.FC = () => {
                   <span className="material-symbols-outlined text-sm">splitscreen_right</span>
                   打开逐字稿校对视窗
                 </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {parseEditorTab === "mindmap" ? (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {/* 左侧：Markdown 编辑 */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-stone-500">📝 Markdown 编辑（标题层级即脑图结构）</label>
+              <textarea
+                className="min-h-[420px] w-full rounded-2xl border border-stone-200 bg-[#fafafa] px-4 py-3 font-mono text-sm leading-relaxed admin-form-textarea resize-y"
+                placeholder={`# 核心主题
+
+核心主题的一句话概括。
+
+## 分支 1
+
+分支 1 的详细描述。
+
+### 子节点 A
+
+子节点 A 的说明。
+
+### 子节点 B
+
+子节点 B 的说明。
+
+## 分支 2
+
+分支 2 的详细描述。`}
+                value={mindMapMarkdown}
+                onChange={(event) => {
+                  const md = event.target.value;
+                  setMindMapMarkdown(md);
+                  setForm((prev) => ({ ...prev, mindMapRaw: md }));
+                }}
+              />
+              <p className="text-xs text-stone-400">💡 用 # / ## / ### 表示层级，标题下方段落为摘要。保存时自动转成脑图 JSON。</p>
+            </div>
+            {/* 右侧：脑图实时预览 */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-stone-500">🧠 实时预览</label>
+              <div className="min-h-[420px] rounded-2xl border border-stone-200 bg-white flex items-center justify-center">
+                <MindMapPreview key={mindMapMarkdown} markdown={mindMapMarkdown} title={editingProgram?.title || ""} />
               </div>
             </div>
           </div>
@@ -1826,7 +2019,48 @@ const AdminProgramsPage: React.FC = () => {
               </div>
               <input className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-input" placeholder="单集标题" required value={form.episodeTitle} onChange={(event) => setForm((prev) => ({ ...prev, episodeTitle: event.target.value }))} />
               <input className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-input" placeholder="时长（如 45分钟）" required value={form.episodeDuration} onChange={(event) => setForm((prev) => ({ ...prev, episodeDuration: event.target.value }))} />
-              <input className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm md:col-span-2 admin-form-input" placeholder="音频 URL" required value={form.episodeUrl} onChange={(event) => setForm((prev) => ({ ...prev, episodeUrl: event.target.value }))} />
+              <div className="flex gap-2 md:col-span-2">
+                <input className="flex-1 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-input" placeholder="音频 URL" required value={form.episodeUrl} onChange={(event) => setForm((prev) => ({ ...prev, episodeUrl: event.target.value }))} />
+                <label className={`inline-flex cursor-pointer items-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold transition-all ${isUploadingAudio ? 'bg-violet-100 text-violet-600' : 'bg-violet-50 text-violet-600 hover:bg-violet-100 active:bg-violet-200'}`}>
+                  {isUploadingAudio ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                      {uploadProgress}%
+                    </span>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-lg">upload_file</span>
+                      上传音频
+                    </>
+                  )}
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    className="hidden"
+                    disabled={isUploadingAudio}
+                    onChange={async (event) => {
+                      const file = event.target.files?.[0];
+                      if (!file) return;
+                      setIsUploadingAudio(true);
+                      setUploadProgress(0);
+                      try {
+                        const uploadRes = await adminApi.uploadProgramAudio(file, {
+                          sourceFileName: file.name,
+                          onProgress: (percent) => setUploadProgress(percent),
+                        });
+                        setForm((prev) => ({ ...prev, episodeUrl: uploadRes.data.url }));
+                      } catch (err: any) {
+                        setError(err?.message || '音频上传失败');
+                      } finally {
+                        setIsUploadingAudio(false);
+                        setUploadProgress(0);
+                        // reset input so same file can be re-selected
+                        event.target.value = '';
+                      }
+                    }}
+                  />
+                </label>
+              </div>
               <div className="md:col-span-2">
                 <textarea
                   className="min-h-[140px] w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-textarea"

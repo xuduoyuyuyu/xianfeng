@@ -170,70 +170,8 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
 
     const shareUrl = `https://xianfeng.xinzhi.info/topics/${encodeURIComponent(topic.slug)}`;
 
-    // 收集所有叶子节点
-    const allLeaves: LeafNode[] = [];
-    const collectLeaves = (nodes: any[]) => {
-      for (const node of nodes) {
-        if (node.nodeType === "leaf") {
-          allLeaves.push(node as LeafNode);
-        } else if (node.children) {
-          for (const child of node.children) {
-            if (child.nodeType === "leaf") allLeaves.push(child as LeafNode);
-            else if (child.children) collectLeaves([child]);
-          }
-        }
-      }
-    };
-    collectLeaves(tree as any[]);
-
-    // 并发获取前8个叶子节点的内容
-    const leavesToFetch = allLeaves.slice(0, 8);
-    const nodeContents: { title: string; summary: string }[] = [];
-    const uid = getTopicUserId(currentUser);
-
-    const results = await Promise.allSettled(
-      leavesToFetch.map(leaf =>
-        fetch(`/api/topic-hub/${encodeURIComponent(topic.slug)}/nodes/${leaf.nodeKey}${uid ? `?userId=${uid}` : ""}`)
-          .then(r => r.ok ? r.json() : null)
-      )
-    );
-
-    for (let i = 0; i < leavesToFetch.length; i++) {
-      const leaf = leavesToFetch[i];
-      const result = results[i];
-      let summary = leaf.summary || "";
-      if (result.status === "fulfilled" && result.value?.node) {
-        summary = result.value.node.summary || result.value.node.content?.replace(/\*\*/g, "").slice(0, 120) || summary;
-      }
-      if (summary) {
-        nodeContents.push({ title: leaf.title, summary });
-      }
-    }
-
-    // ── Canvas 参数 ──
-    const W = 1242;
-    const P = 88;
-    const contentW = W - P * 2;
-    const cardW = (contentW - 28) / 2;
-
-    // ── 辅助函数 ──
-    function wrapText2(ctx2: CanvasRenderingContext2D, text: string, maxWidth: number, fontSize: number): string[] {
-      ctx2.font = `bold ${fontSize}px 'PingFang SC', 'Noto Sans SC', sans-serif`;
-      const lines: string[] = [];
-      let current = "";
-      for (const char of text) {
-        const test = current + char;
-        if (ctx2.measureText(test).width > maxWidth && current.length > 0) {
-          lines.push(current);
-          current = char;
-        } else {
-          current = test;
-        }
-      }
-      if (current) lines.push(current);
-      return lines;
-    }
-    function roundRect2(ctx2: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+    // ── Canvas 辅助函数 ──
+    const roundRect2 = (ctx2: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
       ctx2.beginPath();
       ctx2.moveTo(x + r, y);
       ctx2.lineTo(x + w - r, y);
@@ -245,229 +183,340 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
       ctx2.lineTo(x, y + r);
       ctx2.quadraticCurveTo(x, y, x + r, y);
       ctx2.closePath();
-    }
+    };
 
-    // 预估高度
-    let estH = 100 + 700;
-    estH += 90 + 200;
-    estH += 80;
-    estH += 80 + 70;
-    estH += Math.ceil(Math.min(nodeContents.length, 8) / 2) * 240;
-    estH += 100 + 300;
-    estH += 140;
-    const H = Math.max(2300, Math.min(estH + 80, 4000));
+    const wrapText2 = (ctx2: CanvasRenderingContext2D, text: string, maxWidth: number, _fontSize: number): string[] => {
+      const lines: string[] = [];
+      let currentLine = "";
+      for (let i = 0; i < text.length; i++) {
+        const testLine = currentLine + text[i];
+        const metrics = ctx2.measureText(testLine);
+        if (metrics.width > maxWidth && currentLine.length > 0) {
+          lines.push(currentLine);
+          currentLine = text[i];
+        } else {
+          currentLine = testLine;
+        }
+      }
+      if (currentLine) lines.push(currentLine);
+      return lines;
+    };
+
+    /** 绘制紫色渐变圆形 icon（φ40dp, #773EF1→#5A1FCF 渐变，内含白色 emoji） */
+    const drawPurpleCircleIcon = (ctx2: CanvasRenderingContext2D, cx: number, cy: number, r: number, emoji: string) => {
+      const cGrad = ctx2.createLinearGradient(cx, cy - r, cx, cy + r);
+      cGrad.addColorStop(0, "#773EF1");
+      cGrad.addColorStop(1, "#5A1FCF");
+      ctx2.fillStyle = cGrad;
+      ctx2.beginPath();
+      ctx2.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.fillStyle = "#FFFFFF";
+      ctx2.font = `${Math.round(r * 1.1)}px 'PingFang SC', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif`;
+      ctx2.textAlign = "center";
+      ctx2.textBaseline = "middle";
+      ctx2.fillText(emoji, cx, cy + 1);
+      ctx2.textAlign = "left";
+      ctx2.textBaseline = "alphabetic";
+    };
+
+    // ── Canvas 参数（750×1125）──
+    const W = 750;
+    const H = 1125;
+    const P = 48;
 
     const canvas = document.createElement("canvas");
     canvas.width = W;
     canvas.height = H;
     const ctx = canvas.getContext("2d")!;
 
-    // 背景
-    ctx.fillStyle = "#F6F4FB";
+    // ═══════ 0. 背景渐变 #dccdfc → #f8f5fe ═══════
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+    bgGrad.addColorStop(0, "#dccdfc");
+    bgGrad.addColorStop(1, "#f8f5fe");
+    ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, W, H);
-    // ═══════ HERO ═══════
-    const heroGrad = ctx.createLinearGradient(0, 0, 0, 780);
-    heroGrad.addColorStop(0, "#F6F4FB");
-    heroGrad.addColorStop(0.35, "#EDE8FF");
-    heroGrad.addColorStop(1, "#F6F4FB");
-    ctx.fillStyle = heroGrad;
-    ctx.fillRect(0, 0, W, 780);
 
-    // 右侧装饰光圈（参考图有插图区域，此处用渐变光晕模拟）
-    const glowGr = ctx.createRadialGradient(W - 260, 340, 0, W - 260, 340, 400);
-    glowGr.addColorStop(0, "rgba(124,77,255,0.07)");
-    glowGr.addColorStop(0.5, "rgba(167,139,250,0.03)");
-    glowGr.addColorStop(1, "transparent");
-    ctx.fillStyle = glowGr;
-    ctx.beginPath(); ctx.arc(W - 260, 340, 400, 0, Math.PI * 2); ctx.fill();
+    // ═══════ 1. 品牌区域（图形化品牌图案：金色弧形 + 紫色文字）═══════
+    const brandX = P + 20; // 68
+    const brandY = 35;
+    const brandW = 240;
+    const brandH = 40;
 
-    // 右下角小光点
-    const dots: [number, number, number][] = [[W-180, 200, 140], [W-350, 480, 90], [W-140, 520, 60]];
-    for (const [gx, gy, gr] of dots) {
-      const g2 = ctx.createRadialGradient(gx, gy, 0, gx, gy, gr);
-      g2.addColorStop(0, "rgba(124,77,255,0.04)");
-      g2.addColorStop(1, "transparent");
-      ctx.fillStyle = g2;
-      ctx.beginPath(); ctx.arc(gx, gy, gr, 0, Math.PI * 2); ctx.fill();
+    // 尝试加载品牌 logo 图片，失败则手绘
+    let brandImg: HTMLImageElement | null = null;
+    try {
+      brandImg = await loadImage("/assets/brand-logo.png");
+    } catch { /* ignore */ }
+
+    if (brandImg && brandImg.width > 0 && brandImg.height > 0) {
+      const imgAspect = brandImg.width / brandImg.height;
+      const boxAspect = brandW / brandH;
+      let sw = brandImg.width, sh = brandImg.height, sx = 0, sy = 0;
+      if (imgAspect > boxAspect) {
+        sw = brandImg.height * boxAspect;
+        sx = (brandImg.width - sw) / 2;
+      } else {
+        sh = brandImg.width / boxAspect;
+        sy = (brandImg.height - sh) / 2;
+      }
+      ctx.drawImage(brandImg, sx, sy, sw, sh, brandX, brandY, brandW, brandH);
+    } else {
+      // ── 手绘：左侧金色弧形（模拟设计稿金色区域）──
+      const arcCx = brandX + 18;
+      const arcCy = brandY + brandH / 2 + 2;
+      const arcR = 16;
+      const arcGrad = ctx.createRadialGradient(arcCx - 3, arcCy - 4, 2, arcCx, arcCy, arcR);
+      arcGrad.addColorStop(0, "#fde68a");
+      arcGrad.addColorStop(0.3, "#f8c629");
+      arcGrad.addColorStop(0.6, "#eca10b");
+      arcGrad.addColorStop(1, "#c78708");
+      ctx.fillStyle = arcGrad;
+      ctx.beginPath();
+      ctx.moveTo(arcCx - arcR * 0.4, arcCy - arcR);
+      ctx.quadraticCurveTo(arcCx + arcR * 1.3, arcCy - arcR * 0.3, arcCx + arcR * 0.5, arcCy + arcR * 0.8);
+      ctx.quadraticCurveTo(arcCx - arcR * 0.1, arcCy + arcR * 0.3, arcCx - arcR * 0.4, arcCy - arcR);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(arcCx, arcCy - 0.2 * arcR, arcR * 0.95, 0.35 * Math.PI, 1.55 * Math.PI);
+      ctx.fill();
+
+      // ── 右侧紫色文字 + 装饰点 ──
+      const purpleX = brandX + 48;
+      const purpleY = brandY + 13;
+      const pGrad1 = ctx.createRadialGradient(purpleX + 4, purpleY + 4, 1, purpleX + 4, purpleY + 4, 6);
+      pGrad1.addColorStop(0, "#8B5CF6");
+      pGrad1.addColorStop(1, "#6D3BEC");
+      ctx.fillStyle = pGrad1;
+      ctx.beginPath();
+      ctx.arc(purpleX + 4, purpleY + 4, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#6D3BEC";
+      ctx.font = "bold 18px 'PingFang SC', 'Noto Sans SC', sans-serif";
+      ctx.fillText("家长先疯 · 先疯智库", purpleX + 16, purpleY + 14);
     }
 
-    // 品牌标识
-    let y = 96;
-    ctx.fillStyle = "rgba(124,77,255,0.08)";
-    roundRect2(ctx, P, y - 4, 260, 40, 100);
-    ctx.fill();
-    ctx.fillStyle = "#7C4DFF";
-    ctx.font = "600 20px 'PingFang SC', 'Noto Sans SC', sans-serif";
-    ctx.fillText("⭐ 家长先疯 · 先疯智库", P + 18, y + 24);
-    y += 64;
+    // ═══════ 2. 标题区域 ═══════
+    let titleY = brandY + brandH + 32; // 品牌底部 + 间距 → 约 107
 
-    // 主标题（更深色，参考图颜色 #0A0030 区域）
-    ctx.fillStyle = "#1A1150";
-    ctx.font = "bold 72px/88px 'PingFang SC', 'Noto Sans SC', sans-serif";
-    const titleText = topic.title;
-    const titleLines = wrapText2(ctx, titleText, W - P * 2 - 160, 72);
-    for (let li = 0; li < titleLines.length; li++) {
-      ctx.fillText(titleLines[li], P, y + 56);
-      y += 92;
-    }
-    y += 16;
+    // 加载右侧插画
+    let illImg: HTMLImageElement | null = null;
+    try {
+      illImg = await loadImage("/assets/topic-share-illustration.png");
+    } catch { /* ignore */ }
 
-    // 副标题
-    if (topic.subtitle) {
-      ctx.fillStyle = "#6B6480";
-      ctx.font = "28px/40px 'PingFang SC', 'Noto Sans SC', sans-serif";
-      ctx.fillText(topic.subtitle, P, y + 24);
-      y += 56;
+    const illW = 185;
+    const illX = W - P - illW; // ≈ 517
+    const illY = 55;
+    const titleMaxW = illX - P - 20; // 标题区域最大宽度（留 20dp 与插画间距）
+
+    // 主标题：#080649, bold 44px, line-height 1.3, 最多2行
+    ctx.fillStyle = "#080649";
+    ctx.font = "bold 44px 'PingFang SC', 'Noto Sans SC', sans-serif";
+    const titleText = topic.title || "";
+    const titleLines = wrapText2(ctx, titleText, titleMaxW, 44);
+    const displayTitleLines = titleLines.slice(0, 2);
+    const titleLineH = Math.round(44 * 1.3); // ≈ 57
+    for (let li = 0; li < displayTitleLines.length; li++) {
+      ctx.fillText(displayTitleLines[li], P, titleY);
+      titleY += titleLineH;
     }
 
-    // 标签胶囊
+    // 标题下方间距 12dp
+    titleY += 12;
+
+    // ═══════ 3. 副标题区域 ═══════
+    const subtitleText = topic.subtitle || "";
+    let subtitleEndY = titleY;
+    if (subtitleText) {
+      ctx.fillStyle = "#7C6BAA";
+      ctx.font = "16px 'PingFang SC', 'Noto Sans SC', sans-serif";
+      const subLines = wrapText2(ctx, subtitleText, titleMaxW, 16);
+      const displaySubLines = subLines.slice(0, 2);
+      const subLineH = Math.round(16 * 1.5); // 24
+      for (let i = 0; i < displaySubLines.length; i++) {
+        ctx.fillText(displaySubLines[i], P, subtitleEndY);
+        subtitleEndY += subLineH;
+      }
+    }
+
+    // ═══════ 4. 右侧插画 ═══════
+    let illEndY = illY;
+    let illActualH = 280; // 默认插画高度
+    if (illImg && illImg.width > 0 && illImg.height > 0) {
+      // 高度自适应：覆盖标题到标签之间，至少覆盖到副标题底部+24
+      const minH = subtitleEndY - illY + 24;
+      illActualH = Math.max(280, minH);
+      ctx.save();
+      roundRect2(ctx, illX, illY, illW, illActualH, 20);
+      ctx.clip();
+      const imgAspect = illImg.width / illImg.height;
+      const boxAspect = illW / illActualH;
+      let sw = illImg.width, sh = illImg.height, sx = 0, sy = 0;
+      if (imgAspect > boxAspect) {
+        sw = illImg.height * boxAspect;
+        sx = (illImg.width - sw) / 2;
+      } else {
+        sh = illImg.width / boxAspect;
+        sy = (illImg.height - sh) / 2;
+      }
+      ctx.drawImage(illImg, sx, sy, sw, sh, illX, illY, illW, illActualH);
+      ctx.restore();
+      illEndY = illY + illActualH;
+    }
+
+    // ═══════ 5. 标签胶囊 ═══════
+    // 标签区域从插画底部和副标题底部较大值 + 36dp 开始
+    let tagY = Math.max(illEndY, subtitleEndY) + 36;
+
     const tags = topic.tags || [];
     if (tags.length > 0) {
       let tagX = P;
-      for (const tag of tags.slice(0, 4)) {
-        const tw = ctx.measureText(tag).width + 56;
-        ctx.fillStyle = "rgba(124,77,255,0.07)";
-        roundRect2(ctx, tagX, y + 8, tw, 44, 100);
+      ctx.font = "15px 'PingFang SC', 'Noto Sans SC', sans-serif";
+      const tagH = 36;
+      for (const tag of tags.slice(0, 3)) {
+        const tw = ctx.measureText(tag).width + 32; // padding 16*2
+        // 换行检查：如果当前行放不下，换行
+        if (tagX + tw > W - P && tagX > P) {
+          tagX = P;
+          tagY += tagH + 12;
+        }
+        // 浅紫色背景 + 紫色边框
+        ctx.fillStyle = "rgba(124,77,255,0.06)";
+        roundRect2(ctx, tagX, tagY, tw, tagH, 100);
         ctx.fill();
-        ctx.strokeStyle = "rgba(124,77,255,0.12)"; ctx.lineWidth = 1.5;
-        roundRect2(ctx, tagX, y + 8, tw, 44, 100); ctx.stroke();
+        ctx.strokeStyle = "rgba(124,77,255,0.20)";
+        ctx.lineWidth = 1;
+        roundRect2(ctx, tagX, tagY, tw, tagH, 100);
+        ctx.stroke();
+        // 紫色文字 #7C4DFF
         ctx.fillStyle = "#7C4DFF";
-        ctx.font = "18px 'PingFang SC', sans-serif";
-        ctx.fillText(tag, tagX + 28, y + 36);
-        tagX += tw + 20;
+        ctx.fillText(tag, tagX + 16, tagY + tagH / 2 + 5);
+        tagX += tw + 12;
       }
-      y += 72;
+      tagY += tagH + 40; // 标签底部 + 到 bullet 的 40dp 间距
+    } else {
+      tagY += 20;
     }
 
-    // ═══════ OVERVIEW CARD ═══════
-    y += 40;
-    ctx.fillStyle = "#FFFFFF";
-    roundRect2(ctx, P, y, contentW, 190, 28); ctx.fill();
-    ctx.shadowColor = "rgba(124,77,255,0.05)"; ctx.shadowBlur = 32; ctx.fill();
-    ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
+    // ═══════ 6. 三个卖点 Bullet ═══════
+    const bullets = [
+      { emoji: "📘", title: "体系化的育儿知识图谱", desc: "从基础到进阶，构建清晰教育认知" },
+      { emoji: "💡", title: "节目嘉宾专家的前沿观点", desc: "一线教育工作者的真实经验与思考" },
+      { emoji: "👥", title: "多元化的家长互动与社群支持", desc: "同频家长交流心得，不再独自焦虑" },
+    ];
 
-    const barGrad = ctx.createLinearGradient(0, y + 42, 0, y + 190 - 42);
-    barGrad.addColorStop(0, "#7C4DFF"); barGrad.addColorStop(1, "#A78BFA");
-    ctx.fillStyle = barGrad; ctx.fillRect(P, y + 42, 6, 190 - 84);
+    const bulletIconR = 20; // φ40dp → r=20
+    const bulletIconCX = P + bulletIconR;
+    const bulletTextX = P + 56; // 图标右侧 + 16dp 间距
+    const bulletLineStartX = bulletIconCX + bulletIconR + 12;
+    let bulletEndY = tagY;
 
-    ctx.fillStyle = "#1A1150"; ctx.font = "bold 30px 'PingFang SC', sans-serif";
-    ctx.fillText("📖 知识总览", P + 38, y + 68);
+    for (let i = 0; i < bullets.length; i++) {
+      const bl = bullets[i];
+      const centerY = bulletEndY + bulletIconR; // icon 中心 Y
 
-    const ovText = (topic as any).shortSummary || topic.description || "";
-    if (ovText) {
-      ctx.fillStyle = "#6B6480"; ctx.font = "20px/36px 'PingFang SC', sans-serif";
-      const ovLines = wrapText2(ctx, ovText, contentW - 80, 20);
-      for (let i = 0; i < Math.min(ovLines.length, 3); i++) {
-        ctx.fillText(ovLines[i], P + 38, y + 106 + i * 36);
+      // 紫色圆形图标
+      drawPurpleCircleIcon(ctx, bulletIconCX, centerY, bulletIconR, bl.emoji);
+
+      // 标题：#0B082B, bold 18px
+      ctx.fillStyle = "#0B082B";
+      ctx.font = "bold 18px 'PingFang SC', 'Noto Sans SC', sans-serif";
+      ctx.fillText(bl.title, bulletTextX, centerY - 8);
+
+      // 描述：#6B6480, 14px
+      ctx.fillStyle = "#6B6480";
+      ctx.font = "14px 'PingFang SC', 'Noto Sans SC', sans-serif";
+      ctx.fillText(bl.desc, bulletTextX, centerY + 14);
+
+      // bullet 之间分隔线
+      if (i < bullets.length - 1) {
+        const sepY = centerY + bulletIconR + 16;
+        ctx.strokeStyle = "rgba(124,77,255,0.08)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(bulletLineStartX, sepY);
+        ctx.lineTo(W - P, sepY);
+        ctx.stroke();
       }
-    }
-    y += 280;
 
-    // ═══════ KNOWLEDGE CARDS ═══════
-    ctx.fillStyle = "#1A1150"; ctx.font = "bold 34px 'PingFang SC', sans-serif";
-    ctx.fillText("🌿 核心知识点", P, y + 42);
-    ctx.fillStyle = "#6B6480"; ctx.font = "19px 'PingFang SC', sans-serif";
-    ctx.fillText("完整知识树 · 8大核心模块", P + 240, y + 44);
-    y += 110;
-
-    const cardData = nodeContents.slice(0, 8);
-    const icons = ["🎯", "⚠️", "🧊", "🛡️", "📈", "📋", "🧪", "🏆"];
-    for (let i = 0; i < cardData.length; i++) {
-      const col = i % 2;
-      const row = Math.floor(i / 2);
-      const cx = P + col * (cardW + 28);
-      const cy = y + row * 230;
-      const nc = cardData[i];
-
-      // Card bg
-      ctx.fillStyle = "#FFFFFF";
-      roundRect2(ctx, cx, cy, cardW, 206, 28); ctx.fill();
-      ctx.strokeStyle = "#E9E3F8"; ctx.lineWidth = 1;
-      roundRect2(ctx, cx, cy, cardW, 206, 28); ctx.stroke();
-
-      // Number badge (right side)
-      ctx.fillStyle = "rgba(124,77,255,0.06)";
-      roundRect2(ctx, cx + cardW - 80, cy + 44, 48, 48, 16); ctx.fill();
-      ctx.fillStyle = "#A78BFA"; ctx.font = "bold 20px 'PingFang SC', sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText(String(i + 1).padStart(2, "0"), cx + cardW - 56, cy + 74);
-      ctx.textAlign = "left";
-
-      // Icon badge
-      ctx.fillStyle = "rgba(124,77,255,0.06)";
-      roundRect2(ctx, cx + 44, cy + 40, 56, 56, 18); ctx.fill();
-      ctx.font = "28px 'PingFang SC', sans-serif";
-      ctx.fillText(icons[i] || "📝", cx + 58, cy + 74);
-
-      // Title
-      ctx.fillStyle = "#1A1150"; ctx.font = "bold 24px 'PingFang SC', sans-serif";
-      ctx.fillText(nc.title, cx + 44, cy + 128);
-
-      // Summary
-      ctx.fillStyle = "#6B6480"; ctx.font = "17px/26px 'PingFang SC', sans-serif";
-      const sLines = wrapText2(ctx, nc.summary.slice(0, 40), cardW - 88, 17);
-      if (sLines.length > 0) ctx.fillText(sLines[0], cx + 44, cy + 158);
-
-      // Link
-      ctx.fillStyle = "#7C4DFF"; ctx.font = "bold 16px 'PingFang SC', sans-serif";
-      ctx.fillText("查看知识 →", cx + 44, cy + 192);
+      // 更新 bullet 底部 Y
+      bulletEndY = centerY + bulletIconR + (i < bullets.length - 1 ? 36 : 0);
     }
 
-    const lastCardRow = Math.ceil(cardData.length / 2) - 1;
-    y = y + (lastCardRow + 1) * 230 + 90;
+    // ═══════ 7. CTA 卡片 ═══════
+    const ctaY = bulletEndY + 40;
+    const ctaW = W - P * 2;
+    const ctaH = 110;
 
-    // ═══════ CTA ═══════
+    // 白色背景 + 阴影
+    ctx.save();
+    ctx.shadowColor = "rgba(124,77,255,0.06)";
+    ctx.shadowBlur = 24;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 4;
     ctx.fillStyle = "#FFFFFF";
-    roundRect2(ctx, P, y, contentW, 260, 28); ctx.fill();
-    ctx.shadowColor = "rgba(124,77,255,0.05)"; ctx.shadowBlur = 32; ctx.fill();
-    ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
+    roundRect2(ctx, P, ctaY, ctaW, ctaH, 24);
+    ctx.fill();
+    ctx.restore();
 
-    // QR code
+    // 左侧 4dp 紫色渐变装饰条（#7738EE→透明，从上到下）
+    const ctaBarX = P + 10;
+    const ctaBarW = 4;
+    const ctaBarY = ctaY + ctaH * 0.15;
+    const ctaBarH = ctaH * 0.7;
+    const ctaBarGrad = ctx.createLinearGradient(0, ctaBarY, 0, ctaBarY + ctaBarH);
+    ctaBarGrad.addColorStop(0, "#7738EE");
+    ctaBarGrad.addColorStop(1, "rgba(119,56,238,0)");
+    ctx.fillStyle = ctaBarGrad;
+    roundRect2(ctx, ctaBarX, ctaBarY, ctaBarW, ctaBarH, ctaBarW / 2);
+    ctx.fill();
+
+    // CTA 左侧文字
+    const ctaTextX = P + 28;
+    ctx.fillStyle = "#0B082B";
+    ctx.font = "bold 22px 'PingFang SC', 'Noto Sans SC', sans-serif";
+    ctx.fillText("扫码查看完整知识树", ctaTextX, ctaY + 38);
+
+    ctx.fillStyle = "#6B6480";
+    ctx.font = "13px 'PingFang SC', 'Noto Sans SC', sans-serif";
+    ctx.fillText("打开家长先疯，开启系统化育儿学习之旅", ctaTextX, ctaY + 64);
+
+    // QR Code：76x76，白色边框 3px，圆角 8
+    const qrS = 76;
+    const qrPadding = 3;
+    const qrBoxS = qrS + qrPadding * 2; // 82
+    const qrX = W - P - qrBoxS;
+    const qrY = ctaY + (ctaH - qrBoxS) / 2;
+
     let qrDataUrl = "";
     try {
       qrDataUrl = await QRCode.toDataURL(shareUrl, {
-        width: 260, margin: 2,
-        color: { dark: "#1A1150", light: "#FFFFFF" },
+        width: 200, margin: 1,
+        color: { dark: "#0B082B", light: "#FFFFFF" },
       });
     } catch { /* ignore */ }
 
     if (qrDataUrl) {
       const qrImg = await loadImage(qrDataUrl);
-      const qx = W - P - 200, qy = y + 30;
-      ctx.fillStyle = "#FFFFFF"; roundRect2(ctx, qx, qy, 200, 200, 20); ctx.fill();
-      ctx.strokeStyle = "#E9E3F8"; ctx.lineWidth = 2;
-      roundRect2(ctx, qx, qy, 200, 200, 20); ctx.stroke();
-      ctx.drawImage(qrImg, qx + 16, qy + 16, 168, 168);
+      // 白色边框
+      ctx.fillStyle = "#FFFFFF";
+      roundRect2(ctx, qrX, qrY, qrBoxS, qrBoxS, 8);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(124,77,255,0.10)";
+      ctx.lineWidth = 3;
+      roundRect2(ctx, qrX, qrY, qrBoxS, qrBoxS, 8);
+      ctx.stroke();
+      // 绘制二维码（留 3px padding）
+      ctx.drawImage(qrImg, qrX + qrPadding, qrY + qrPadding, qrS, qrS);
     }
 
-    const ctaMidX = P + 76;
-    ctx.fillStyle = "#1A1150"; ctx.font = "bold 32px 'PingFang SC', sans-serif";
-    ctx.fillText("扫码查看完整知识树", ctaMidX, y + 66);
-    ctx.fillStyle = "#6B6480"; ctx.font = "19px 'PingFang SC', sans-serif";
-    ctx.fillText("打开家长先疯，了解更多教育话题", ctaMidX, y + 104);
-
-    const feats = ["100+ 教育专题", "可视化学习路径", "持续更新"];
-    let featX = ctaMidX;
-    ctx.fillStyle = "#1A1150"; ctx.font = "500 17px 'PingFang SC', sans-serif";
-    for (const f of feats) {
-      ctx.fillText("✓ " + f, featX, y + 148);
-      featX += ctx.measureText("✓ " + f).width + 32;
-    }
-
-    if (qrDataUrl) {
-      const qx = W - P - 200;
-      ctx.fillStyle = "rgba(124,77,255,0.06)";
-      roundRect2(ctx, qx, y + 210, 200, 44, 100); ctx.fill();
-      ctx.fillStyle = "#7C4DFF"; ctx.font = "bold 16px 'PingFang SC', sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText("长按扫码进入", qx + 100, y + 238);
-      ctx.textAlign = "left";
-    }
-
-    y += 320;
-    ctx.fillStyle = "#B0A8C8"; ctx.font = "17px 'PingFang SC', sans-serif";
+    // ═══════ 8. 底部 slogan ═══════
+    const sloganY = ctaY + ctaH + 28;
+    ctx.fillStyle = "#9996AE";
+    ctx.font = "12px 'PingFang SC', 'Noto Sans SC', sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("家长先疯 · 先疯智库 — 让每个家长都成为教育专家", W / 2, y);
+    ctx.fillText("家长先疯 · 先疯智库 — 让每个家长都成为教育专家", W / 2, sloganY + 16);
     ctx.textAlign = "left";
 
     // → Blob
@@ -478,6 +527,7 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
       setShareImageUrl(URL.createObjectURL(blob));
     }
   };
+
 
   // ── 智能提炼卡片组件 ──
   const SummarizedBlock: React.FC<{ summary: string; detail: string }> = ({ summary, detail }) => {
@@ -927,34 +977,36 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
         >
           ← 返回话题广场
         </Link>
-        <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 16, marginBottom: 4 }}>
-          <h1
-            style={{
-              fontSize: 26,
-              fontWeight: 700,
-              color: "#1E1B4B",
-              margin: "8px 0 4px",
-            }}
-          >
-            {topic.title}
-          </h1>
-          <button
-            onClick={generateShareImage}
-            style={{
-              flexShrink: 0,
-              padding: "10px 20px",
-              borderRadius: 10,
-              border: "1px solid #E9E3F8",
-              background: "#fff",
-              color: "#7C4DFF",
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-            }}
-          >
-            📤 分享
-          </button>
+        <div style={{ marginTop: 16, marginBottom: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <h1
+              style={{
+                fontSize: 26,
+                fontWeight: 700,
+                color: "#1E1B4B",
+                margin: "8px 0 4px",
+              }}
+            >
+              {topic.title}
+            </h1>
+            <button
+              onClick={generateShareImage}
+              style={{
+                flexShrink: 0,
+                padding: "10px 20px",
+                borderRadius: 10,
+                border: "1px solid #E9E3F8",
+                background: "#fff",
+                color: "#7C4DFF",
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              📤 分享
+            </button>
+          </div>
           {topic.subtitle && (
             <p style={{ color: "#6B7280", fontSize: 14, margin: 0 }}>
               {topic.subtitle}

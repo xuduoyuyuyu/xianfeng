@@ -21,6 +21,7 @@ export const XIAOWANZI_AVATARS = [
   "/assets/wel-avatar/image_20260326200218_0b7cef10e5f487c19578d533a5c75c43.png",
   "/assets/wel-avatar/image_20260326200731_97b6e2af5eef15dc941f60dd2de266d7.png",
   "/assets/wel-avatar/image_20260327000818_79c1cacdc9ceb0cf646a139d3f1045b9.png",
+  "http://xianfeng.xinzhi.info/uploads/images/1779668991727-vzxkyx0x.png",
 ] as const;
 
 export const FAB_SIZE = 48;

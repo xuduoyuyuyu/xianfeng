@@ -34,11 +34,18 @@ const LoginRequiredModal: React.FC<Props> = ({
 
   useEffect(() => {
     if (!user) return;
-    const hasName = user.name && user.name !== user.username;
-    const hasCity = !!(user as any).city;
-    if (!hasName || !hasCity) {
-      sessionStorage.setItem("xf_show_profile", "1");
-    }
+    // 从后端获取最新用户数据来判断是否需要引导，避免因 Redux 缓存不完整导致重复弹窗
+    const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || '';
+    fetch(`${API_BASE_URL}/api/users/me`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+    }).then(r => r.json()).then(meData => {
+      if (!meData || meData.error) return;
+      const hasName = meData.name && meData.name !== meData.username;
+      const hasCity = !!(meData.city);
+      if (!hasName || !hasCity) {
+        sessionStorage.setItem("xf_show_profile", "1");
+      }
+    }).catch(() => {});
     onClose();
   }, [user]);
 
@@ -172,7 +179,7 @@ const LoginRequiredModal: React.FC<Props> = ({
         .xf-badge {
           display: inline-flex;
           padding: 5px 11px;
-          margin-top: -13px;
+          margin-top: -16px;
           border-radius: 999px;
           background: rgba(124, 77, 255, 0.1);
           color: #6642ce;
@@ -201,7 +208,7 @@ const LoginRequiredModal: React.FC<Props> = ({
           display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 6px;
-          margin-top: 2px;
+          margin-top: 27px;
           margin-bottom: 0;
         }
 
@@ -210,7 +217,7 @@ const LoginRequiredModal: React.FC<Props> = ({
           border: 1px solid #ece5fb;
           background: linear-gradient(180deg, #fff, #fdfbff);
           box-shadow: 0 3px 8px rgba(77, 56, 136, 0.05);
-          padding: 8px 6px 7px;
+          padding: 12px 6px 11px;
           text-align: center;
         }
 
@@ -243,10 +250,12 @@ const LoginRequiredModal: React.FC<Props> = ({
 
         /* ===== 登录表单区域 ===== */
         .xf-login-form-section {
-          margin-top: 64px;
+          margin-top: 49px;
           display: flex;
           flex-direction: column;
           gap: 6px;
+          position: relative;
+          top: -10px;
         }
         .xf-login-form-section label {
           display: block;

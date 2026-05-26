@@ -53,7 +53,7 @@ type LandingCaseItem = {
   updatedTs: number;
 };
 
-const FALLBACK_COVER = "/assets/podcast-cover-1.svg";
+const FALLBACK_COVER = "http://xianfeng.xinzhi.info/uploads/images/1779669071894-42qbgvdv.png";
 const CASE_PAGE_SIZE = 8;
 const CASE_MAX_PROGRAMS = 8;
 

@@ -10,7 +10,7 @@ ENV VITE_API_URL=${VITE_API_URL}
 RUN npm run build
 
 FROM nginx:1.27-alpine
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /app/dist/ /usr/share/nginx/html/
 COPY ./deploy/nginx.conf /etc/nginx/conf.d/default.conf
 RUN chmod -R a+rX /usr/share/nginx/html
 

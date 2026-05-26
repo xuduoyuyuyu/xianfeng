@@ -66,10 +66,12 @@ const PublicScreenRouter: React.FC = () => {
     const programId = normalizedPathname.split("/")[2] || "";
     const src = `/screens/podcast-detail.html?programId=${encodeURIComponent(programId)}`;
     return (
-      <WithLoginGate backTo="/programs/list" title="登录后查看完整内容" description="登录后即可查看节目逐字稿、AI分析、嘉宾详情等完整内容。">
+      <>
         <GlobalPublicNav />
-        <iframe src={src} style={{ width: "100%", height: "calc(100vh - 64px)", border: "none", marginTop: 64 }} title="节目详情" />
-      </WithLoginGate>
+        <WithLoginGate backTo="/programs/list" title="登录后查看完整内容" description="登录后即可查看节目逐字稿、AI分析、嘉宾详情等完整内容。">
+          <iframe src={src} style={{ width: "100%", height: "calc(100vh - 64px)", border: "none", marginTop: 64 }} title="节目详情" />
+        </WithLoginGate>
+      </>
     );
   }
 

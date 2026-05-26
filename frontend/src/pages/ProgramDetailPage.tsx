@@ -5,9 +5,9 @@ import MindMapView from "../components/MindMapView";
 import { CuratedReadingItem, Program, ProgramGuest, TranscriptSegment, publicApi } from "../services/api";
 
 const COVER_FALLBACK =
-  "http://xianfeng.xinzhi.info/uploads/images/1779264274027-tcplzfur.png";
+  "http://xianfeng.xinzhi.info/uploads/images/1779669071894-42qbgvdv.png";
 const EXPERT_AVATAR =
-  "http://xianfeng.xinzhi.info/uploads/images/1779264157086-hgcd24g4.png";
+  "http://xianfeng.xinzhi.info/uploads/images/1779668991727-vzxkyx0x.png";
 const FAVORITES_KEY = "favorite-programs";
 
 
@@ -96,7 +96,7 @@ const ProgramDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
-  const [contentViewMode, setContentViewMode] = useState<"quickview" | "transcript" | "mindmap">("quickview");
+  const [contentViewMode, setContentViewMode] = useState<"quickview" | "transcript" | "mindmap">("mindmap");
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -108,10 +108,10 @@ const ProgramDetailPage: React.FC = () => {
   const currentEpisode = program?.episodes?.[0];
   const relatedPrograms = programs.filter((item) => item._id !== program?._id).slice(0, 4);
   const summary = program?.summary;
-  const summaryHeadline = summary?.headline || "感官环境的神经学重塑";
+  const summaryHeadline = summary?.headline || "";
   const summaryBody = summary?.body || program?.description || "本期节目围绕家庭教育与成长展开讨论。";
-  const summaryHighlightLabel = summary?.highlightLabel || "低摩擦环境";
-  const summaryHighlightText = summary?.highlightText || transcriptSegments[1]?.text || summaryBody;
+  const summaryHighlightLabel = summary?.highlightLabel || "";
+  const summaryHighlightText = summary?.highlightText || (transcriptSegments[1]?.text && transcriptSegments[1].text !== summaryBody ? transcriptSegments[1].text : "");
   const summaryTags = (summary?.tags || []).filter(Boolean).slice(0, 4);
   const guest = program?.guest;
   const guestName = guest?.name || "节目特邀嘉宾";
@@ -412,7 +412,31 @@ const ProgramDetailPage: React.FC = () => {
   const displayDate = formatDate(program?.publishedAt || program?.createdAt);
 
   if (loading) {
-    return <div className="flex min-h-screen items-center justify-center bg-[#fdfbf9] text-sm text-[#53433f]">正在加载节目详情...</div>;
+    return (
+      <div className="min-h-screen bg-[#fdfbf9]">
+        {/* Hero skeleton */}
+        <div className="relative overflow-hidden bg-[#5e17eb]/5 px-6 pb-16 pt-24">
+          <div className="mx-auto max-w-3xl">
+            <div className="mb-3 h-3 w-64 animate-pulse rounded-full bg-[#5e17eb]/15" />
+            <div className="mb-2 h-8 w-full animate-pulse rounded-lg bg-[#5e17eb]/10" />
+            <div className="h-8 w-3/4 animate-pulse rounded-lg bg-[#5e17eb]/10" />
+          </div>
+        </div>
+        {/* Content skeleton */}
+        <div className="mx-auto max-w-3xl px-6 py-8 space-y-6">
+          <div className="h-5 w-32 animate-pulse rounded bg-stone-200" />
+          <div className="space-y-3">
+            <div className="h-4 w-full animate-pulse rounded bg-stone-100" />
+            <div className="h-4 w-5/6 animate-pulse rounded bg-stone-100" />
+            <div className="h-4 w-4/6 animate-pulse rounded bg-stone-100" />
+          </div>
+          <div className="space-y-3 pt-4">
+            <div className="h-4 w-full animate-pulse rounded bg-stone-100" />
+            <div className="h-4 w-3/4 animate-pulse rounded bg-stone-100" />
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (error || !program) {
@@ -524,14 +548,16 @@ const ProgramDetailPage: React.FC = () => {
                   <p className="text-sm leading-relaxed text-[#53433f] md:text-[15px]">{summaryBody}</p>
                 </div>
                 <div className="flex flex-col gap-3">
-                  <div className="flex-1 rounded-xl border border-[#5e17eb]/10 bg-[#5e17eb]/5 p-5">
-                    <p className="text-sm leading-normal text-[#211a18]">
-                      <span className="font-black text-[#5e17eb]">{summaryHighlightLabel}：</span>
-                      {summaryHighlightText}
-                    </p>
-                  </div>
+                  {(summaryHighlightLabel || summaryHighlightText) && (
+                    <div className="flex-1 rounded-xl border border-[#5e17eb]/10 bg-[#5e17eb]/5 p-5">
+                      <p className="text-sm leading-normal text-[#211a18]">
+                        {summaryHighlightLabel && <span className="font-black text-[#5e17eb]">{summaryHighlightLabel}：</span>}
+                        {summaryHighlightText}
+                      </p>
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-2">
-                    {(summaryTags.length > 0 ? summaryTags : ["神经可塑性", "环境心理学"]).map((tag) => (
+                    {summaryTags.map((tag) => (
                       <span key={tag} className="whitespace-nowrap rounded-full bg-gray-100 px-3 py-1 text-[10px] font-bold text-gray-500">
                         {tag}
                       </span>
@@ -583,14 +609,15 @@ const ProgramDetailPage: React.FC = () => {
 
             {contentViewMode === "mindmap" ? (
               <MindMapView
-                quickView={quickView}
-                title={program.title}
-                onNavigateToTime={handleNavigateToTime}
-                mode={(program.deepDive?.mindMap && program.deepDive.mindMap.root && (program.deepDive.mindMap.root.title || (program.deepDive.mindMap.root.children && program.deepDive.mindMap.root.children.length > 0))) ? "ai" : (program.contentPack?.quickView && program.contentPack.quickView.length > 0) ? "quickview" : isAdmin ? "ai" : "quickview"}
-                mindMapData={program.deepDive?.mindMap}
-                generating={mindMapGenerating}
-                onGenerate={isAdmin ? handleGenerateMindMap : undefined}
-              />
+                  key={`${program._id}-${program.deepDive?.mindMap?.root ? "ai" : "qv"}-${quickView.length}`}
+                  quickView={quickView}
+                  title={program.title}
+                  onNavigateToTime={handleNavigateToTime}
+                  mode={(program.deepDive?.mindMap && program.deepDive.mindMap.root && (program.deepDive.mindMap.root.title || (program.deepDive.mindMap.root.children && program.deepDive.mindMap.root.children.length > 0))) ? "ai" : (program.contentPack?.quickView && program.contentPack.quickView.length > 0) ? "quickview" : isAdmin ? "ai" : "quickview"}
+                  mindMapData={program.deepDive?.mindMap}
+                  generating={mindMapGenerating}
+                  onGenerate={isAdmin ? handleGenerateMindMap : undefined}
+                />
             ) : null}
 
             {contentViewMode === "quickview" && quickView.length > 0 ? (
@@ -626,7 +653,7 @@ const ProgramDetailPage: React.FC = () => {
 
         <aside className="space-y-10 lg:col-span-4">
           <section className="rounded-xl border border-gray-100 bg-white p-8 text-center shadow-sm">
-            <div className="relative mb-6 inline-block">
+            <div className="relative mb-6 flex justify-center">
               <img alt="专家头像" className="h-32 w-32 rounded-2xl object-cover ring-8 ring-[#5e17eb]/5" src={guestAvatar} />
               <div className="absolute -right-2 -bottom-2 rounded-lg bg-[#5e17eb] p-1.5 text-white shadow-lg">
                 <span className="material-symbols-outlined text-sm">verified</span>

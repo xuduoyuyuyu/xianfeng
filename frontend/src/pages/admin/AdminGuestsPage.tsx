@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { adminApi, AgentTask, Guest, GuestBoundProgram, GuestPublication, GuestSocialProfile, Program } from "../../services/api";
+import { adminApi, AgentTask, Guest, GuestBoundProgram, GuestPublication, GuestSocialProfile, ListenerBenefit, Program } from "../../services/api";
 import TopAlert from "../../components/TopAlert";
 
 type GuestForm = {
@@ -12,6 +12,7 @@ type GuestForm = {
   profileReferences: Array<{ title: string; url: string; note: string }>;
   socialProfiles: GuestSocialProfile[];
   publications: GuestPublication[];
+  listenerBenefits: ListenerBenefit[];
   status: "active" | "inactive";
 };
 
@@ -25,6 +26,7 @@ const EMPTY_FORM: GuestForm = {
   profileReferences: [],
   socialProfiles: [],
   publications: [],
+  listenerBenefits: [],
   status: "active",
 };
 const PAGE_SIZE = 20;
@@ -33,8 +35,8 @@ const PUBLICATION_TYPE_OPTIONS: Array<{ value: GuestPublication["type"]; label: 
   { value: "paper", label: "论文" },
   { value: "book", label: "著作" },
   { value: "interview", label: "采访" },
-  { value: "media", label: "公开内容" },
-  { value: "other", label: "其他资料" },
+  { value: "media", label: "文章" },
+  { value: "other", label: "拓展" },
 ];
 
 function normalizeGuestName(value: string): string {
@@ -70,6 +72,21 @@ function normalizePublicationsForForm(input: Guest["publications"] | undefined):
     order: Number(item?.order) || index + 1,
     status: item?.status === "inactive" ? "inactive" : "active",
   }));
+}
+
+function normalizeListenerBenefitsForForm(input: Guest["listenerBenefits"] | undefined): ListenerBenefit[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter((item) => String(item?.status || "") !== "inactive")
+    .map((item, index) => ({
+      title: String(item?.title || ""),
+      description: String(item?.description || ""),
+      url: String(item?.url || ""),
+      image: String(item?.image || ""),
+      note: String(item?.note || ""),
+      order: Number(item?.order) || index + 1,
+      status: item?.status === "inactive" ? "inactive" : "active",
+    }));
 }
 
 function normalizeMaybeUrl(value: string): string {
@@ -204,6 +221,7 @@ const AdminGuestsPage: React.FC = () => {
         : [],
       socialProfiles: normalizeSocialProfilesForForm(guest.socialProfiles),
       publications: normalizePublicationsForForm(guest.publications),
+      listenerBenefits: normalizeListenerBenefitsForForm(guest.listenerBenefits),
       status: guest.status || "active",
     });
     setAvatarUploadHint("");
@@ -271,6 +289,7 @@ const AdminGuestsPage: React.FC = () => {
             profileReferences: form.profileReferences,
             socialProfiles: form.socialProfiles,
             publications: form.publications,
+            listenerBenefits: form.listenerBenefits,
           },
         },
       });
@@ -426,6 +445,40 @@ const AdminGuestsPage: React.FC = () => {
     }));
   };
 
+  const updateListenerBenefit = (index: number, key: keyof ListenerBenefit, value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      listenerBenefits: prev.listenerBenefits.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [key]: key === "order" ? Number(value) || itemIndex + 1 : value } : item
+      ),
+    }));
+  };
+
+  const addListenerBenefit = () => {
+    setForm((prev) => ({
+      ...prev,
+      listenerBenefits: [
+        ...prev.listenerBenefits,
+        {
+          title: "",
+          description: "",
+          url: "",
+          image: "",
+          note: "",
+          order: prev.listenerBenefits.length + 1,
+          status: "active",
+        },
+      ],
+    }));
+  };
+
+  const removeListenerBenefit = (index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      listenerBenefits: prev.listenerBenefits.filter((_, itemIndex) => itemIndex !== index),
+    }));
+  };
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     const normalizedIncomingName = normalizeGuestName(form.name);
@@ -461,6 +514,11 @@ const AdminGuestsPage: React.FC = () => {
       publications: (Array.isArray(form.publications) ? form.publications : []).map((item) => ({
         ...item,
         url: normalizeMaybeUrl(String(item?.url || "")),
+      })),
+      listenerBenefits: (Array.isArray(form.listenerBenefits) ? form.listenerBenefits : []).map((item) => ({
+        ...item,
+        url: normalizeMaybeUrl(String(item?.url || "")),
+        image: normalizeMaybeUrl(String(item?.image || "")),
       })),
     };
 
@@ -797,7 +855,7 @@ const AdminGuestsPage: React.FC = () => {
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
                           <div className="text-xs font-black uppercase tracking-widest text-[#7A746E]">公开成果与资料</div>
-                          <div className="mt-1 text-[11px] text-stone-500">按论文、著作、采访、公开内容等分类维护，前台人物页会分栏展示。</div>
+                          <div className="mt-1 text-[11px] text-stone-500">按论文、著作、采访、文章、拓展等分类维护，前台人物页会分栏展示。</div>
                         </div>
                         <button
                           type="button"
@@ -844,6 +902,48 @@ const AdminGuestsPage: React.FC = () => {
                       </div>
                     </div>
                 </div>
+              <div className="rounded-2xl border border-stone-100 bg-stone-50 p-3 md:col-span-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="text-xs font-black uppercase tracking-widest text-[#7A746E]">听友福利</div>
+                    <div className="mt-1 text-[11px] text-stone-500">添加嘉宾专属福利信息，将在前台人物详情页展示。支持标题、描述、链接、图片。</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addListenerBenefit}
+                    className="rounded-full border border-[#5e17eb]/20 px-3 py-1 text-[11px] font-bold text-[#5e17eb]"
+                  >
+                    + 添加福利
+                  </button>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {form.listenerBenefits.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-stone-200 bg-white px-3 py-3 text-xs text-stone-400">
+                      暂无听友福利，可手动添加。
+                    </div>
+                  ) : (
+                    form.listenerBenefits.map((item, idx) => (
+                      <div key={`benefit-${idx}`} className="rounded-xl border border-stone-200 bg-white p-3">
+                        <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr,1fr,1.5fr,1.5fr,0.6fr,0.6fr,auto]">
+                          <input className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs admin-form-input" placeholder="标题" value={item.title || ""} onChange={(event) => updateListenerBenefit(idx, "title", event.target.value)} />
+                          <input className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs admin-form-input" placeholder="链接" value={item.url || ""} onChange={(event) => updateListenerBenefit(idx, "url", event.target.value)} />
+                          <input className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs admin-form-input" placeholder="图片 URL" value={item.image || ""} onChange={(event) => updateListenerBenefit(idx, "image", event.target.value)} />
+                          <input className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs admin-form-input" placeholder="备注" value={item.note || ""} onChange={(event) => updateListenerBenefit(idx, "note", event.target.value)} />
+                          <input className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs admin-form-input" placeholder="排序" value={String(item.order || idx + 1)} onChange={(event) => updateListenerBenefit(idx, "order", event.target.value)} />
+                          <select className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs admin-form-input" value={item.status || "active"} onChange={(event) => updateListenerBenefit(idx, "status", event.target.value)}>
+                            <option value="active">启用</option>
+                            <option value="inactive">停用</option>
+                          </select>
+                          <button type="button" onClick={() => removeListenerBenefit(idx)} className="rounded-full border border-red-100 px-3 py-2 text-[11px] font-bold text-red-500">
+                            移除
+                          </button>
+                        </div>
+                        <textarea className="mt-2 min-h-[54px] w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs admin-form-textarea" placeholder="描述" value={item.description || ""} onChange={(event) => updateListenerBenefit(idx, "description", event.target.value)} />
+                      </div>
+                    ))
+                  )}
+                </div>
+
               </div>
               <div className="rounded-2xl border border-stone-200 bg-white p-4 md:col-span-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -915,6 +1015,7 @@ const AdminGuestsPage: React.FC = () => {
                     ))
                   )}
                 </div>
+              </div>
               </div>
               <div className="mt-2 flex justify-end gap-3 md:col-span-2">
                 <button className="rounded-full border border-stone-200 px-6 py-3 text-sm font-bold text-stone-700" onClick={closeModal} type="button">取消</button>

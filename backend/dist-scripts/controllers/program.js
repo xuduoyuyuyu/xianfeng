@@ -659,7 +659,7 @@ function ensureBaseFieldsFromGenerated(payload, generated, transcript) {
         title: mergePreferManualText(payload?.title, generated?.episodeTitle),
         description: mergePreferManualText(payload?.description, summaryBody || transcriptText),
         coverImage: asText(payload?.coverImage) ||
-            "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?q=80&w=1200&auto=format&fit=crop",
+            "http://xianfeng.xinzhi.info/uploads/images/1779669071894-42qbgvdv.png",
     };
 }
 async function validateGuestBindingsOrThrow(bindings) {
@@ -1499,7 +1499,7 @@ class ProgramController {
                 programCode: nextCode,
                 title: sourceTitle || buildPendingProgramTitle(),
                 description: "音频已上传，请编辑节目信息。",
-                coverImage: "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?q=80&w=1200&auto=format&fit=crop",
+                coverImage: "http://xianfeng.xinzhi.info/uploads/images/1779669071894-42qbgvdv.png",
                 episodes: [{ title: sourceTitle || "待编辑", duration: "", url: uploadedAudioUrl }],
                 status: "draft",
             });
@@ -1548,33 +1548,9 @@ class ProgramController {
                 res.status(400).json({ message: "当前音频非后台上传资源，无法解析" });
                 return;
             }
-            await Program_1.default.findByIdAndUpdate(id, {
-                ...parseMetaPatch("parsing", "", 5, "queued"),
-                transcript: [],
-                summary: {
-                    headline: "",
-                    body: "",
-                    highlightLabel: "",
-                    highlightText: "",
-                    tags: [],
-                },
-                termGlossary: [],
-                deepDive: {
-                    sectionTitle: "",
-                    curatedReading: [],
-                },
-                contentPack: {
-                    quickView: [],
-                    minutes: { text: "" },
-                    showNotes: {
-                        guide: "",
-                        guestIntro: "",
-                        keyMoments: [],
-                        renderedText: "",
-                        templateOverride: "",
-                    },
-                },
-            }, { new: false });
+            // 只标记解析状态，不清空现有数据。
+            // 旧数据在 AI 解析成功写入后自然被替换；解析失败则保留旧数据不丢失。
+            await Program_1.default.findByIdAndUpdate(id, parseMetaPatch("parsing", "", 5, "queued"), { new: false });
             startAsyncParseTask(id, uploadedAudioUrl, { forceTranscriptRegenerate: true });
             res.status(202).json({ programId: id, parseStatus: "parsing", parseStage: "queued", parseProgress: 5 });
         }

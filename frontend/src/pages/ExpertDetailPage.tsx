@@ -4,13 +4,13 @@ import GlobalPublicNav from "../components/GlobalPublicNav";
 import GuestWishButton from "../components/GuestWishButton";
 import { GuestPublication, GuestSocialProfile, ListenerBenefit, publicApi, PublicGuest, PublicGuestDetail } from "../services/api";
 
-const FALLBACK_AVATAR = "http://xianfeng.xinzhi.info/uploads/images/1779264157086-hgcd24g4.png";
+const FALLBACK_AVATAR = "http://xianfeng.xinzhi.info/uploads/images/1779668991727-vzxkyx0x.png";
 const PUBLICATION_LABELS: Record<GuestPublication["type"], string> = {
   paper: "论文",
   book: "著作",
   interview: "采访",
-  media: "公开内容",
-  other: "其他资料",
+  media: "文章",
+  other: "拓展",
 };
 
 function fmtDate(value?: string | null) {
@@ -494,7 +494,7 @@ const ExpertDetailPage: React.FC = () => {
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <h2 className="text-2xl font-black tracking-tight text-[#241a3a]">公开成果与资料</h2>
-                    <p className="mt-2 text-sm text-[#7b70a4]">按论文、著作、采访与公开内容分组整理，便于快速判断这位嘉宾的研究与表达路径。</p>
+                    <p className="mt-2 text-sm text-[#7b70a4]">按论文、著作、采访、文章与拓展分组整理，便于快速判断这位嘉宾的研究与表达路径。</p>
                   </div>
                 </div>
                   <div className="mt-6 space-y-6">

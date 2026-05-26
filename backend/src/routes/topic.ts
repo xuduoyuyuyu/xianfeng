@@ -66,7 +66,7 @@ publicRouter.get("/", async (req: Request, res: Response) => {
       search,
       page = "1",
       limit = "21",
-      sort = "viewCount",
+      sort = "createdAt",
       userId,
       grade,
     } = req.query as Record<string, string>;
@@ -74,8 +74,8 @@ publicRouter.get("/", async (req: Request, res: Response) => {
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 21));
 
-    // 排序：默认按浏览量降序，支持 createdAt
-    const sortField = sort === "createdAt" ? "createdAt" : "viewCount";
+    // 排序：默认按创建时间降序，支持 viewCount
+    const sortField = sort === "viewCount" ? "viewCount" : "createdAt";
     const sortObj: Record<string, any> = {};
     sortObj[sortField] = -1;
     // 浏览量相同时按创建时间降序
@@ -102,8 +102,20 @@ publicRouter.get("/", async (req: Request, res: Response) => {
     }
 
     // 年级过滤：只返回匹配该年级的话题（含"全学段"的话题对所有人可见）
+    // 但用户自己创建的话题跳过年级过滤，确保用户能看到自己的提交
     if (grade && grade !== "all" && grade !== "全部") {
-      filter.suitableGrades = { $in: [grade, "全学段"] };
+      if (userId) {
+        // 用户可见范围：匹配年级的话题 OR 该用户自己创建的
+        filter["$and"] = filter["$and"] || [];
+        filter["$and"].push({
+          "$or": [
+            { suitableGrades: { "$in": [grade, "全学段"] } },
+            { createdBy: userId },
+          ],
+        });
+      } else {
+        filter.suitableGrades = { "$in": [grade, "全学段"] };
+      }
     }
 
     if (search) {
@@ -397,7 +409,7 @@ publicRouter.post("/search-generate", async (req: Request, res: Response) => {
       tags,
       suitableGrades,
       slug,
-      status: "pending",
+      status: "published",
       source: "user",
       createdBy: creatorId,
       userOriginalInput: originalInput,

@@ -1,4 +1,5 @@
 import fs from "fs/promises";
+import { existsSync } from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
 import axios from "axios";
@@ -150,7 +151,7 @@ function detectAudioFormatFromUrl(sourceUrl: string): string {
   return "mp3";
 }
 
-async function uploadLocalAudioToTosAndSign(filePath: string): Promise<string | null> {
+export async function uploadLocalAudioToTosAndSign(filePath: string): Promise<string | null> {
   const cfg = resolveTosBridgeConfig();
   if (!cfg) return null;
   const moduleName = "@volcengine/tos-sdk";
@@ -183,6 +184,7 @@ async function uploadLocalAudioToTosAndSign(filePath: string): Promise<string | 
       key: objectKey,
       body: bytes,
       contentType: guessAudioContentType(filePath),
+      acl: "public-read",
     });
   } else if (typeof client.getPreSignedUrl === "function") {
     const putUrl = client.getPreSignedUrl({
@@ -202,16 +204,9 @@ async function uploadLocalAudioToTosAndSign(filePath: string): Promise<string | 
   } else {
     throw new Error("@volcengine/tos-sdk 不支持 putObject/getPreSignedUrl");
   }
-  if (typeof client.getPreSignedUrl !== "function") {
-    throw new Error("@volcengine/tos-sdk 缺少 getPreSignedUrl，无法生成临时下载链接");
-  }
-  const signedUrl = client.getPreSignedUrl({
-    method: "GET",
-    bucket: cfg.bucket,
-    key: objectKey,
-    expires: cfg.signedUrlTtlSeconds,
-  });
-  return asText(String(signedUrl));
+  // TOS bucket 已设为公共读，直接拼接永久直链，不走预签名
+  const publicUrl = `https://${cfg.bucket}.${cfg.endpoint}/${objectKey}`;
+  return publicUrl;
 }
 
 function isLocalSourceUrl(url: string): boolean {
@@ -778,6 +773,11 @@ function splitToTranscriptParagraphs(text: string, durationSeconds: number): Tra
   }));
 }
 
+/**
+ * 当 AI 元数据提取（DeepSeek / Ark）均失败时的本地回退。
+ * 原则：绝不把逐字稿原文片段当成摘要或速览展示。
+ * 所有字段使用占位说明性文本，并明确标记为「AI 暂不可用」。
+ */
 function buildHeuristicMetadata(input: {
   transcript: TranscriptSegment[];
   plainText: string;
@@ -785,56 +785,45 @@ function buildHeuristicMetadata(input: {
   fallbackTitle?: string;
 }): ProgramAiResult {
   const fallbackTitle = asText(input.fallbackTitle) || "AI 自动解析节目";
-  const firstLine = asText(input.transcript[0]?.text) || asText(input.plainText).slice(0, 40);
-  const secondLine = asText(input.transcript[1]?.text) || "";
-  const summaryBody = [firstLine, secondLine].filter(Boolean).join(" ");
-  const quickView = normalizeQuickView([], input.transcript, input.durationSeconds);
-  const minutesText = truncateByChars(
-    [summaryBody, asText(input.plainText).slice(0, 800)].filter(Boolean).join("\n\n"),
-    1000
-  );
-  const keyMoments = quickView.slice(0, 6).map((item) => ({
-    time: item.timeRangeLabel,
-    point: truncateByChars(item.summary, 90),
-  }));
+  const durationMinutes = Math.max(1, Math.round((input.durationSeconds || 180) / 60));
+
+  // 安全摘要文本 — 绝不拼接逐字稿原文
+  const safeSummaryBody =
+    "AI 元数据提取服务暂时不可用，本期节目的 Ai 摘要将在服务恢复后自动补全。当前版本仅展示基础信息，您仍可收听完整音频。";
+  const safeMinutesText =
+    "AI 解析服务正在恢复中，完整会议纪要将在后台 AI 服务就绪后自动生成。带来不便，敬请谅解。";
+
   return {
     episodeTitle: fallbackTitle,
-    episodeDuration: `${Math.max(1, Math.round((input.durationSeconds || 180) / 60))} 分钟`,
+    episodeDuration: `${durationMinutes} 分钟`,
     summary: {
-      headline: "AI 解析摘要",
-      body: summaryBody || "本期节目聚焦教育场景中的关键问题与可执行方法。",
-      highlightLabel: "核心观点",
-      highlightText: firstLine || "先识别问题，再拆解执行路径。",
-      tags: ["播客解析", "家庭教育", "实践方法"],
+      headline: "⏳ AI 摘要暂不可用",
+      body: safeSummaryBody,
+      highlightLabel: "提示",
+      highlightText: "本期音频转写已完成，AI 深度解析将在服务恢复后自动生成。",
+      tags: ["播客解析", "待AI补全"],
     },
-    termGlossary: [
-      { term: "保研", definition: "通常指本科阶段通过推免方式获得研究生录取资格。", sourceUrl: "" },
-      { term: "推免", definition: "推荐免试攻读研究生，不参加统一初试。", sourceUrl: "" },
-      { term: "夏令营", definition: "高校面向优秀本科生组织的提前选拔活动。", sourceUrl: "" },
-    ],
+    termGlossary: [],
     guest: {
-      name: "节目特邀嘉宾",
-      title: "教育实践分享者",
-      bio: "围绕真实教育场景分享经验与方法，帮助家长形成可执行策略。",
+      name: "待解析",
+      title: "",
+      bio: "嘉宾信息将在 AI 解析完成后自动填充。",
       avatar: "",
       profileUrl: "",
     },
     deepDive: {
       sectionTitle: "延伸阅读",
-      curatedReading: [
-        { title: "从问题识别到行动落地", subtitle: "教育场景方法论", url: "" },
-        { title: "家庭沟通节奏设计", subtitle: "每周复盘模板", url: "" },
-      ],
+      curatedReading: [],
     },
     contentPack: {
-      quickView,
+      quickView: [],
       minutes: {
-        text: minutesText || "本期内容围绕真实教育场景展开，重点是把讨论沉淀为可执行的家庭行动清单。",
+        text: safeMinutesText,
       },
       showNotes: {
-        guide: truncateByChars(summaryBody || firstLine, 220),
-        guestIntro: "节目特邀嘉宾，围绕家庭教育与成长实践展开分享。",
-        keyMoments,
+        guide: "本期节目 AI 解析暂不可用，完整 Show Notes 将在服务恢复后生成。",
+        guestIntro: "嘉宾信息待 AI 解析补全。",
+        keyMoments: [],
         renderedText: "",
         templateOverride: "",
       },
@@ -944,16 +933,16 @@ function normalizeMetadataResult(
 }
 
 function resolveDeepSeekMetadataConfig(): MetadataLlmConfig | null {
-  const apiKey = asText(process.env.DEEPSEEK_API_KEY);
-  const modelId = asText(process.env.DEEPSEEK_MODEL_ID) || "jiahewanshi";
+  const apiKey = asText(process.env.DEEPSEEK_API_KEY) || asText(process.env.AI_API_KEY);
+  const modelId = asText(process.env.DEEPSEEK_MODEL_ID) || asText(process.env.AI_MODEL) || "deepseek-chat";
   const baseUrl = asText(process.env.DEEPSEEK_BASE_URL) || "https://api.deepseek.com";
   if (!apiKey || !modelId) return null;
   return { apiKey, modelId, baseUrl, providerName: "DeepSeek" };
 }
 
 function resolveArkMetadataConfig(): MetadataLlmConfig | null {
-  const apiKey = asText(process.env.ARK_API_KEY);
-  const modelId = asText(process.env.ARK_MODEL_ID) || asText(process.env.VOLCENGINE_ARK_ENDPOINT_ID);
+  const apiKey = asText(process.env.ARK_API_KEY) || asText(process.env.VOLCENGINE_API_KEY) || asText(process.env.AI_API_KEY);
+  const modelId = asText(process.env.ARK_MODEL_ID) || asText(process.env.VOLCENGINE_ARK_ENDPOINT_ID) || asText(process.env.AI_MODEL) || "deepseek-chat";
   const baseUrl = asText(process.env.ARK_BASE_URL) || "https://ark.cn-beijing.volces.com/api/v3";
   if (!apiKey || !modelId) return null;
   return { apiKey, modelId, baseUrl, providerName: "Ark" };
@@ -1348,15 +1337,23 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
         }
       }
     }
-    const bytes = await fs.readFile(filePath);
+    // 非本地音频走 standard 模式不需要读文件
+    const needsLocalFile = isLocalSourceUrl || forceFlashFallback;
+    let bytes: Buffer | null = null;
+    if (needsLocalFile || !this.resourceIds.some((r: string) => this.shouldUseStandard(r))) {
+      if (!filePath || !existsSync(filePath)) {
+        throw new Error(`音频文件不存在: ${filePath || "(空路径)"}，远程音频请确保已配置 VOLCENGINE_PUBLIC_BASE_URL 并使用标准模式`);
+      }
+      bytes = await fs.readFile(filePath);
+    }
     const flashHardLimitBytes = getVolcengineFlashHardLimitBytes();
     const maxFlashLocalBytes = getVolcengineFlashMaxLocalBytes();
-    if (isLocalSourceUrl && bytes.length > maxFlashLocalBytes) {
+    if (isLocalSourceUrl && bytes && bytes.length > maxFlashLocalBytes) {
       throw new Error(
         `火山请求超时风险：本地音频 ${Math.round(bytes.length / 1024 / 1024)}MB 超过 flash 直传建议上限 ${Math.round(maxFlashLocalBytes / 1024 / 1024)}MB；请配置 VOLCENGINE_PUBLIC_BASE_URL 使用公网 URL 转写，或上传更小音频`
       );
     }
-    const payload = {
+    const payload = bytes ? {
       user: { uid: this.appId || "podcast-admin" },
       audio: {
         format: this.detectFormat(filePath),
@@ -1367,7 +1364,7 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
         show_utterances: true,
         enable_punc: true,
       },
-    };
+    } : null;
     let json: any = {};
     const flashFallbackResourceIds = Array.from(
       new Set([
@@ -1380,7 +1377,7 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
       (forceFlashFallback || isLocalSourceUrl) && flashFallbackResourceIds.length > 0
         ? flashFallbackResourceIds
         : this.resourceIds;
-    if ((forceFlashFallback || isLocalSourceUrl) && bytes.length > flashHardLimitBytes) {
+    if ((forceFlashFallback || isLocalSourceUrl) && bytes && bytes.length > flashHardLimitBytes) {
       throw new Error(
         `当前音频约 ${Math.round(bytes.length / 1024 / 1024)}MB，超出 flash 稳定处理上限 ${Math.round(
           flashHardLimitBytes / 1024 / 1024

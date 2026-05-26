@@ -293,10 +293,7 @@
             #mindmap-main-container svg {
                 width: 100% !important;
                 min-height: 420px;
-                max-width: none !important;
-            }
-            #mindmap-main-container svg g {
-                transform: none !important;
+                overflow: hidden !important;
             }
         }
 
@@ -514,7 +511,7 @@
 <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start lg:items-stretch">
 <div class="lg:col-span-8 space-y-16">
 <section id="transcript-section" class="bg-white/95 rounded-3xl p-8 md:p-12 shadow-sm border border-gray-200">
-<div class="mb-8 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+<div class="mb-8 flex flex-col gap-4">
 <div class="detail-view-switch inline-flex w-fit rounded-full p-1">
 <button id="detail-mode-mindmap" type="button" class="transcript-tool-btn is-active inline-flex items-center justify-center rounded-full px-7">
 脉络
@@ -526,8 +523,8 @@
 逐字稿
 </button>
 </div>
-<div id="detail-view-toolbar" class="detail-view-toolbar flex-wrap items-center gap-2 w-full mt-3">
-<label class="transcript-search-pill h-10 flex items-center gap-2 px-4 flex-1 min-w-0 max-w-full">
+<div id="detail-view-toolbar" class="detail-view-toolbar flex items-center gap-2 w-full">
+<label class="transcript-search-pill h-10 flex items-center gap-2 px-4 flex-1 min-w-0 w-0">
 <span class="material-symbols-outlined text-on-surface/70 text-[20px]" style="font-variation-settings: 'FILL' 0, 'wght' 650, 'GRAD' 0, 'opsz' 24;">search</span>
 <input id="transcript-search-input" type="text" placeholder="搜索逐字稿" class="w-full bg-transparent border-none focus:ring-0 text-xs text-on-surface placeholder:text-on-surface-variant/60"/>
 </label>
@@ -548,7 +545,7 @@
 <div id="transcript-list" class="space-y-4 w-full"></div>
 </div>
 <div id="mindmap-panel" class="hidden">
-<div id="mindmap-main-container" class="w-full" style="min-height:420px;width:100%;">
+<div id="mindmap-main-container" class="w-full" style="min-height:420px;width:100%;overflow:hidden;">
 <div class="flex items-center justify-center py-16 text-sm text-stone-400">加载脉络图...</div>
 </div>
 </div></section>
@@ -558,7 +555,7 @@
 <section class="bg-white/95 rounded-3xl p-8 border border-gray-200 shadow-sm text-center">
 <div id="guest-roster-pills" class="mb-3 flex flex-wrap items-center justify-center gap-2"></div>
 <div class="relative inline-block mb-2">
-<img id="guest-avatar" alt="专家头像" class="w-32 h-32 rounded-2xl object-cover object-center ring-8 ring-primary/5 bg-gray-100" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBYXSSErHZG11IcSo5OCvCfuNClbWSgoOjLKRr3VExHhqUYe3TZZAIlEd2h04hDeVmQZVZmre1ppd18lTl7J4SkUY-Hfms9BNXnjEHC9huaslhbDjP-J_QsGuVXXHDi6-O8y3NnNjr3Bbm6C11Bae7EjQBmcsJQbpfKySZiB-eylKQXP_ULjKiGt9uZnXyYQHavo7d24ilHYNjhixYb0npTRCWv-EeMoSBmYX__zjzgxt3HaOqbW7BoTToksZ7T4q14vwNxYlTzBy9O" onerror="this.style.opacity='0.3'"/>
+<img id="guest-avatar" alt="专家头像" class="w-32 h-32 rounded-2xl object-cover object-center ring-8 ring-primary/5 bg-gray-100" src="http://xianfeng.xinzhi.info/uploads/images/1779668991727-vzxkyx0x.png" onerror="this.style.opacity='0.3'"/>
 <div class="absolute -bottom-2 -right-2 bg-rose-500 text-white p-1.5 rounded-2xl shadow-lg cursor-pointer transition-all hover:scale-110 hover:bg-rose-600 group" id="return-wish-btn" title="返场心愿">
 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
 <span class="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">返场心愿</span>
@@ -667,7 +664,8 @@
 
 <script>
 (function () {
-  const FALLBACK_COVER = "https://lh3.googleusercontent.com/aida-public/AB6AXuClCE9ekp3PPlQ8bcuZWinqGC_qfQf-TKqkEU8KY505YX7B7t4LSQZSAud82EAcnQ8DU6U5dhENuVIt1u7xMcWmrZYt96CrE3wPdvJEEU8D3QwFomwrExRMSX6sn5vIqZOzxsqYGyiAi4xd4dwF-CkAJ47nVOn-LcN0fX9B-jWTgrnx0RbS53aK04x_ceztbkSlZgTUPwIzjIPJCVkPhCLys2-E8Qn1x4fWfefog2RPPewNrTiiV3AL5R1IUaHBKVtTtXzyAoAD9KpW";
+  const FALLBACK_COVER = "http://xianfeng.xinzhi.info/uploads/images/1779669071894-42qbgvdv.png";
+  const FALLBACK_AVATAR = "http://xianfeng.xinzhi.info/uploads/images/1779668991727-vzxkyx0x.png";
   const audio = new Audio();
   audio.preload = "metadata";
 
@@ -1355,7 +1353,7 @@
       document.getElementById("guest-bio").textContent = g.bio || guest.bio || "";
       var avatarEl = document.getElementById("guest-avatar");
       avatarEl.style.opacity = "1";
-      avatarEl.src = g.avatar || guest.avatar || FALLBACK_COVER;
+      avatarEl.src = g.avatar || guest.avatar || FALLBACK_AVATAR;
 
       // 切换嘉宾后更新返场心愿按钮状态
       var wishBtn = document.getElementById("return-wish-btn");
@@ -1389,7 +1387,7 @@
     document.getElementById("guest-name").textContent = guests[0] && guests[0].name || guest.name || "节目特邀嘉宾";
     document.getElementById("guest-title").textContent = (guests.length > 1 ? ("本期嘉宾 " + guests.length + " 位") : "") + " " + (guests[0] && guests[0].title || guest.title || "教育与成长观察者");
     document.getElementById("guest-bio").textContent = guests[0] && guests[0].bio || guest.bio || "围绕家庭关系、成长节奏与学习环境，提炼节目中的关键视角。";
-    document.getElementById("guest-avatar").src = guests[0] && guests[0].avatar || guest.avatar || FALLBACK_COVER;
+    document.getElementById("guest-avatar").src = guests[0] && guests[0].avatar || guest.avatar || FALLBACK_AVATAR;
     renderGuestPills();
     // 隐藏旧的 roster（纯文字版）
     var oldRosterEl = document.getElementById("guest-roster");
@@ -2002,39 +2000,63 @@
     return lines.join('\n');
   }
 
-  var mindMapRendered = false;
   var mindMapDataCache = null;
   function renderMindMapPanel() {
     var container = document.getElementById('mindmap-main-container');
     if (!container) return;
+
+    // 清空容器重新渲染
+    container.innerHTML = '';
+
     if (!mindMapDataCache) {
       container.innerHTML = '<div class="flex items-center justify-center py-16 text-sm text-stone-400">暂无可用的脉络数据</div>';
       return;
     }
-    if (mindMapRendered) return;
+
     try {
       var markdown = buildMindMapMarkdown(mindMapDataCache.root);
       var wrapper = document.createElement('div');
       wrapper.className = 'markmap';
       wrapper.innerHTML = '<pre class="markmap-code" style="display:none">' + markdown.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>';
-      container.innerHTML = '';
       container.appendChild(wrapper);
-      if (window.markmap) {
-        window.markmap.autoLoader.renderAll();
-        setTimeout(function() {
+
+      // 等待 markmap-autoloader 触发
+      setTimeout(function() {
+        if (window.markmap && window.markmap.autoLoader) {
+          window.markmap.autoLoader.renderAll();
+        }
+        // 轮询等待 SVG 渲染完成，然后强制 fit
+        var attempts = 0;
+        var fitInterval = setInterval(function() {
           var svg = container.querySelector('svg');
           if (svg) {
-            svg.style.width = '100%';
-            svg.style.height = 'auto';
+            clearInterval(fitInterval);
             svg.removeAttribute('width');
             svg.removeAttribute('height');
+            svg.style.width = '100%';
+            svg.style.minHeight = '420px';
             svg.style.display = 'block';
+            svg.style.overflow = 'hidden';
             var g = svg.querySelector('g');
-            if (g) g.style.transform = '';
+            if (g) {
+              var cw = container.clientWidth || 800;
+              var svgG = svg.querySelector('g.markmap-zoom');
+              if (svgG) {
+                var bbox = svgG.getBBox();
+                if (bbox && bbox.width > 0) {
+                  var pad = 20;
+                  var vw = Math.max(bbox.width + pad * 2, cw);
+                  var vh = Math.max(bbox.height + pad * 2, 420);
+                  svg.setAttribute('viewBox', (-pad) + ' ' + (-pad) + ' ' + vw + ' ' + vh);
+                  g.setAttribute('transform', 'translate(' + pad + ',' + pad + ')');
+                }
+              }
+            }
           }
-        }, 400);
-      }
-      mindMapRendered = true;
+          attempts++;
+          if (attempts > 20) clearInterval(fitInterval);
+        }, 150);
+      }, 100);
     } catch(e) {
       console.warn('MindMap render failed', e);
       container.innerHTML = '<div class="flex items-center justify-center py-16 text-sm text-stone-400">脉络图渲染失败</div>';
@@ -2042,8 +2064,11 @@
   }
   function initMindMapData(deepDive) {
     var mindMap = deepDive && deepDive.mindMap;
-    if (!mindMap || !mindMap.root || !mindMap.root.title) return;
+    if (!mindMap || !mindMap.root || (!mindMap.root.title && (!mindMap.root.children || !mindMap.root.children.length))) return;
     mindMapDataCache = mindMap;
+    if (detailViewState.mode === "mindmap") {
+      renderMindMapPanel();
+    }
   }
 
   load();

@@ -8,7 +8,7 @@ import WishModal from "../components/WishModal";
 import { publicApi, PublicGuest } from "../services/api";
 
 const PAGE_SIZE = 15;
-const FALLBACK_AVATAR = "http://xianfeng.xinzhi.info/uploads/images/1779264157086-hgcd24g4.png";
+const FALLBACK_AVATAR = "http://xianfeng.xinzhi.info/uploads/images/1779668991727-vzxkyx0x.png";
 const EXPERTS_HERO_DISMISSED_KEY = "experts_hero_dismissed_v1";
 
 const ExpertsPage: React.FC = () => {
@@ -177,7 +177,10 @@ const ExpertsPage: React.FC = () => {
                   <img
                     src={guest.avatar || FALLBACK_AVATAR}
                     alt={guest.name || "嘉宾头像"}
+                    loading="lazy"
+                    decoding="async"
                     className="h-56 w-full object-cover transition duration-700 group-hover:scale-105"
+                    style={{ contentVisibility: 'auto' }}
                     onError={(event) => {
                       event.currentTarget.src = FALLBACK_AVATAR;
                     }}

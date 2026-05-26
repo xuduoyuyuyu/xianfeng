@@ -84,6 +84,23 @@ function normalizeSocialProfiles(input: unknown) {
     .map((item, index) => ({ ...item, order: index + 1 }));
 }
 
+function normalizeListenerBenefits(input: unknown) {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((item: any, index) => ({
+      title: asText(item?.title),
+      description: asText(item?.description),
+      url: asText(item?.url),
+      image: asText(item?.image),
+      note: asText(item?.note),
+      order: Number(item?.order) || index + 1,
+      status: normalizeContentStatus(item?.status),
+    }))
+    .filter((item) => item.title)
+    .sort((a, b) => a.order - b.order)
+    .map((item, index) => ({ ...item, order: index + 1 }));
+}
+
 function normalizePublications(input: unknown) {
   if (!Array.isArray(input)) return [];
   const seen = new Set<string>();
@@ -205,6 +222,7 @@ function serializeGuest(guest: any, programCount = 0) {
     profileReferences,
     socialProfiles,
     publications,
+    listenerBenefits: normalizeListenerBenefits(Array.isArray(guest.listenerBenefits) ? guest.listenerBenefits : []),
     profileAvatarCandidates: Array.isArray(guest.profileAvatarCandidates) ? guest.profileAvatarCandidates : [],
     profileGeneratedAt: guest.profileGeneratedAt || null,
     status: guest.status === "inactive" ? "inactive" : "active",
@@ -284,6 +302,11 @@ export class AdminGuestController {
           : Array.isArray((existing as any)?.publications)
           ? normalizePublications((existing as any).publications)
           : [];
+        const nextListenerBenefits = Array.isArray(req.body?.listenerBenefits)
+          ? normalizeListenerBenefits(req.body.listenerBenefits)
+          : Array.isArray((existing as any)?.listenerBenefits)
+          ? normalizeListenerBenefits((existing as any).listenerBenefits)
+          : [];
         const nextProfileAvatarCandidates = Array.isArray(req.body?.profileAvatarCandidates)
           ? req.body.profileAvatarCandidates
           : Array.isArray((existing as any)?.profileAvatarCandidates)
@@ -300,12 +323,13 @@ export class AdminGuestController {
             normalizedName,
             title: asText(req.body?.title),
             bio: asText(req.body?.bio),
-            avatar: asText(req.body?.avatar),
+            avatar: asText(req.body?.avatar) || "http://xianfeng.xinzhi.info/uploads/images/1779668991727-vzxkyx0x.png",
             profileUrl: asText(req.body?.profileUrl),
             profileMarkdown: nextProfileMarkdown,
             profileReferences: nextProfileReferences,
             socialProfiles: nextSocialProfiles,
             publications: nextPublications,
+            listenerBenefits: nextListenerBenefits,
             profileAvatarCandidates: nextProfileAvatarCandidates,
             profileGeneratedAt: nextProfileGeneratedAt,
             status: req.body?.status === "inactive" ? "inactive" : "active",
@@ -331,12 +355,13 @@ export class AdminGuestController {
         normalizedName,
         title: asText(req.body?.title),
         bio: asText(req.body?.bio),
-        avatar: asText(req.body?.avatar),
+        avatar: asText(req.body?.avatar) || "http://xianfeng.xinzhi.info/uploads/images/1779668991727-vzxkyx0x.png",
         profileUrl: asText(req.body?.profileUrl),
         profileMarkdown: asText(req.body?.profileMarkdown),
         profileReferences: normalizeProfileReferences(req.body?.profileReferences),
         socialProfiles: normalizeSocialProfiles(req.body?.socialProfiles),
         publications: normalizePublications(req.body?.publications),
+        listenerBenefits: normalizeListenerBenefits(req.body?.listenerBenefits),
         profileAvatarCandidates: Array.isArray(req.body?.profileAvatarCandidates) ? req.body.profileAvatarCandidates : [],
         profileGeneratedAt: req.body?.profileGeneratedAt || null,
         status: req.body?.status === "inactive" ? "inactive" : "active",
@@ -376,6 +401,9 @@ export class AdminGuestController {
       }
       if (Array.isArray(req.body?.publications)) {
         payload.publications = normalizePublications(req.body.publications);
+      }
+      if (Array.isArray(req.body?.listenerBenefits)) {
+        payload.listenerBenefits = normalizeListenerBenefits(req.body.listenerBenefits);
       }
       if (Array.isArray(req.body?.profileAvatarCandidates)) {
         payload.profileAvatarCandidates = req.body.profileAvatarCandidates;

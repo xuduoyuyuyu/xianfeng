@@ -90,7 +90,8 @@ const AdminDictionaryPage: React.FC = () => {
       try {
         const response = await adminApi.getPrograms();
         if (active) {
-          setProgramOptions(response.data || []);
+          const raw: any = response.data || {};
+          setProgramOptions(Array.isArray(raw) ? raw : (raw.items || raw.data || raw.programs || []));
         }
       } catch (_error) {}
     }

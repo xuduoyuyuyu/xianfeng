@@ -19,7 +19,7 @@ const WelTopNav: React.FC = () => {
             window.location.href = "/";
           }}
         >
-          <img src="/logo.png" alt="Logo" style={{ height: 22 }} />
+          <img src="/assets/logo.png" alt="Logo" style={{ height: 22 }} />
         </div>
         <nav className="tb-nav" id="tb-nav" />
         <div className="tb-right">

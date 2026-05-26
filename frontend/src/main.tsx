@@ -6,6 +6,9 @@ import App from "./App";
 import { store } from "./store";
 import "./styles.css";
 
+// 强制保留 MindMapView 和 markmap 依赖防止 tree-shaking
+import "./components/MindMapView";
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <Provider store={store}>
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>

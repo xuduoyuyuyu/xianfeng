@@ -30,11 +30,18 @@ const InlineLoginForm: React.FC<Props> = ({ onSuccess, onClose, compact }) => {
 
   useEffect(() => {
     if (!user) return;
-    const hasName = user.name && user.name !== user.username;
-    const hasCity = !!(user as any).city;
-    if (!hasName || !hasCity) {
-      sessionStorage.setItem("xf_show_profile", "1");
-    }
+    // 从后端获取最新用户数据来判断是否需要引导
+    const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || '';
+    fetch(`${API_BASE_URL}/api/users/me`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+    }).then(r => r.json()).then(meData => {
+      if (!meData || meData.error) return;
+      const hasName = meData.name && meData.name !== meData.username;
+      const hasCity = !!(meData.city);
+      if (!hasName || !hasCity) {
+        sessionStorage.setItem("xf_show_profile", "1");
+      }
+    }).catch(() => {});
     if (onSuccess) {
       onSuccess();
     } else {

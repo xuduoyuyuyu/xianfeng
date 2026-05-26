@@ -459,13 +459,18 @@ const ProfileEditor: React.FC = () => {
       setAvatar(d.avatar_image || '');
       setLoaded(true);
 
-      // 首次登录引导：标记需要弹出资料编辑
-      if (sessionStorage.getItem("xf_show_profile") === "1") {
+      // 首次登录引导：检查是否需要弹出资料编辑
+      const hasName = !!(d.name && d.name !== d.username);
+      const hasCity = !!d.city;
+      const needsOnboarding = sessionStorage.getItem("xf_show_profile") === "1";
+      if (needsOnboarding) {
         sessionStorage.removeItem("xf_show_profile");
-        setOnboardingMode(true);
-        setTimeout(() => {
-          document.getElementById('xf-profile-mask')?.classList.remove('hidden');
-        }, 500);
+        if (!hasName || !hasCity) {
+          setOnboardingMode(true);
+          setTimeout(() => {
+            document.getElementById('xf-profile-mask')?.classList.remove('hidden');
+          }, 500);
+        }
       }
     }).catch(() => setLoaded(true));
   }, [token, loaded]);
@@ -537,6 +542,7 @@ const ProfileEditor: React.FC = () => {
           avatar_image: avatar || (currentUser as any)?.avatar_image || '',
           avatar_initial: name.trim()[0] || '探',
         }));
+        setOnboardingMode(false);
         close();
       } else {
         const err = await resp.json().catch(() => ({}));
@@ -575,45 +581,29 @@ const ProfileEditor: React.FC = () => {
             {onboardingMode ? (
               <div style={{ marginBottom: 10, borderRadius: 12, border: "1px solid rgba(108,39,214,.16)", background: "rgba(108,39,214,.04)", padding: "10px 12px" }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: "#5b21b6", marginBottom: 4 }}>完成 1 分钟资料引导</div>
-                <div style={{ fontSize: 12, color: "#7c3aed" }}>仅需昵称和城市，即可开启本地化教育推荐与成长路径建议。</div>
+                <div style={{ fontSize: 12, color: "#7c3aed" }}>完善昵称、城市和学段信息，开启本地化教育推荐与成长路径建议。</div>
               </div>
             ) : null}
             <div className="xf-pfield" style={{ marginBottom: 10 }}><label>昵称</label><input value={name} onChange={e => setName(e.target.value)} placeholder="请输入昵称" /></div>
-            {onboardingMode ? (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <div className="xf-pfield"><label>城市</label><input value={city} onChange={e => handleCityChange(e.target.value)} placeholder="如：上海" /></div>
-                <div className="xf-pfield"><label>区域（可选）</label>
-                  {districtOptions.length > 0 ? (
-                    <select value={district} onChange={e => setDistrict(e.target.value)}>
-                      <option value="">请选择区域</option>
-                      {districtOptions.map(d => <option key={d} value={d}>{d}</option>)}
-                    </select>
-                  ) : (
-                    <input value={district} onChange={e => setDistrict(e.target.value)} placeholder={city ? '手动输入区域' : '先选城市'} />
-                  )}
-                </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10 }}>
+              <div className="xf-pfield"><label>城市</label><input value={city} onChange={e => handleCityChange(e.target.value)} placeholder="如：上海" /></div>
+              <div className="xf-pfield"><label>区域</label>
+                {districtOptions.length > 0 ? (
+                  <select value={district} onChange={e => setDistrict(e.target.value)}>
+                    <option value="">请选择区域</option>
+                    {districtOptions.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                ) : (
+                  <input value={district} onChange={e => setDistrict(e.target.value)} placeholder={city ? '手动输入区域' : '先选城市'} />
+                )}
               </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10 }}>
-                <div className="xf-pfield"><label>城市</label><input value={city} onChange={e => handleCityChange(e.target.value)} placeholder="如：上海" /></div>
-                <div className="xf-pfield"><label>区域</label>
-                  {districtOptions.length > 0 ? (
-                    <select value={district} onChange={e => setDistrict(e.target.value)}>
-                      <option value="">请选择区域</option>
-                      {districtOptions.map(d => <option key={d} value={d}>{d}</option>)}
-                    </select>
-                  ) : (
-                    <input value={district} onChange={e => setDistrict(e.target.value)} placeholder={city ? '手动输入区域' : '先选城市'} />
-                  )}
-                </div>
-                <div className="xf-pfield"><label>学段</label><select value={stage} onChange={s => { setStage(s.target.value as Stage); const grades = getGradesForStageAndCity(s.target.value as Stage, city); setGradeName(grades[0]); }}>
-                  {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
-                </select></div>
-                <div className="xf-pfield"><label>年级</label><select value={gradeName} onChange={e => setGradeName(e.target.value)}>
-                  {getGradesForStageAndCity(stage, city).map(g => <option key={g} value={g}>{g}</option>)}
-                </select></div>
-              </div>
-            )}
+              <div className="xf-pfield"><label>学段</label><select value={stage} onChange={s => { setStage(s.target.value as Stage); const grades = getGradesForStageAndCity(s.target.value as Stage, city); setGradeName(grades[0]); }}>
+                {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select></div>
+              <div className="xf-pfield"><label>年级</label><select value={gradeName} onChange={e => setGradeName(e.target.value)}>
+                {getGradesForStageAndCity(stage, city).map(g => <option key={g} value={g}>{g}</option>)}
+              </select></div>
+            </div>
             {msg && <div style={{ fontSize: 12, marginTop: 8, color: '#dc2626' }}>{msg}</div>}
           </div>
           <div className="xf-pft">

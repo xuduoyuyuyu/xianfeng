@@ -70,10 +70,20 @@ export function renderShowNotesTemplate(payload: {
   return rendered;
 }
 
+let cachedTemplate: string | null = null;
+let cachedTemplateMs = 0;
+const TEMPLATE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 分钟缓存
+
 export async function getShowNotesDefaultTemplate(): Promise<string> {
+  const now = Date.now();
+  if (cachedTemplate !== null && now - cachedTemplateMs < TEMPLATE_CACHE_TTL_MS) {
+    return cachedTemplate;
+  }
   const row = await SystemSetting.findOne({ key: SHOW_NOTES_TEMPLATE_SETTING_KEY }).lean();
-  const value = asText((row as any)?.value?.template);
-  return value || DEFAULT_SHOW_NOTES_TEMPLATE;
+  const value = asText((row as any)?.value?.template) || DEFAULT_SHOW_NOTES_TEMPLATE;
+  cachedTemplate = value;
+  cachedTemplateMs = now;
+  return cachedTemplate;
 }
 
 export async function saveShowNotesDefaultTemplate(template: string): Promise<string> {
@@ -83,6 +93,8 @@ export async function saveShowNotesDefaultTemplate(template: string): Promise<st
     { key: SHOW_NOTES_TEMPLATE_SETTING_KEY, value: { template: normalized } },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   );
+  cachedTemplate = normalized;
+  cachedTemplateMs = Date.now();
   return normalized;
 }
 

@@ -7,6 +7,7 @@ import { promisify } from "util";
 import Program from "../models/Program";
 import GuestModel from "../models/Guest";
 import { generateMindMap, resolveProgramAiProvider } from "../services/programAi";
+import { uploadLocalAudioToTosAndSign } from "../services/programAi";
 import mongoose from "mongoose";
 import { attachDictionaryEntriesToPrograms, isHighQualityEducationTerm, removeProgramFromDictionary, syncProgramDictionaryEntries } from "../services/educationDictionary";
 import { buildShowNotesKeyMomentsText, getShowNotesDefaultTemplate, renderShowNotesTemplate, truncateByChars } from "../services/showNotes";
@@ -711,7 +712,7 @@ function ensureBaseFieldsFromGenerated(payload: any, generated: any, transcript:
     description: mergePreferManualText(payload?.description, summaryBody || transcriptText),
     coverImage:
       asText(payload?.coverImage) ||
-      "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?q=80&w=1200&auto=format&fit=crop",
+      "http://xianfeng.xinzhi.info/uploads/images/1779669071894-42qbgvdv.png",
   };
 }
 
@@ -819,8 +820,38 @@ async function applyShowNotesRendering(payload: any, defaultTemplate?: string) {
       })
     : "";
 
+  // 当 quickView 为空时，反向填充 quickView 供后台编辑使用
+  let rebuilQuickView = quickView;
+  if (!quickView.length && keyMoments.length > 0) {
+    rebuilQuickView = keyMoments.map((item: any) => ({
+      timeRangeLabel: item.time || "",
+      summary: item.point || "",
+    }));
+  } else if (!quickView.length) {
+    // keyMoments 也为空时，尝试从 transcript 提取速览（取 transcript 前 8 条）
+    const transcript = Array.isArray(next.transcript) ? next.transcript : [];
+    if (transcript.length > 0) {
+      const sampleSize = Math.min(transcript.length, 8);
+      const step = Math.max(1, Math.floor(transcript.length / sampleSize));
+      rebuilQuickView = [];
+      for (let i = 0; i < transcript.length && rebuilQuickView.length < 8; i += step) {
+        const seg = transcript[i];
+        if (seg?.time && seg?.text) {
+          rebuilQuickView.push({
+            timeRangeLabel: seg.time,
+            summary: truncateByChars(seg.text, 120),
+          });
+        }
+      }
+    } else if (minutesText) {
+      // 连 transcript 都没有，用 summary body 作为一条速览
+      rebuilQuickView = [{ timeRangeLabel: "00:00", summary: truncateByChars(minutesText, 200) }];
+    }
+  }
+
   next.contentPack = {
     ...contentPack,
+    quickView: rebuilQuickView,
     minutes: {
       text: truncateByChars(minutesText, 1000),
     },
@@ -835,7 +866,7 @@ async function applyShowNotesRendering(payload: any, defaultTemplate?: string) {
   return next;
 }
 
-const parsingProgramIds = new Set<string>();
+export const parsingProgramIds = new Set<string>();
 function getParseStaleTimeoutMs(): number {
   const configured = Number(process.env.PARSE_STALE_TIMEOUT_MS);
   if (Number.isFinite(configured) && configured >= 30 * 60 * 1000) return Math.floor(configured);
@@ -959,7 +990,7 @@ function normalizeProgramForAiSource(
   return normalized;
 }
 
-async function runAsyncParseTask(
+export async function runAsyncParseTask(
   programId: string,
   uploadedAudioUrl: string,
   options?: { forceTranscriptRegenerate?: boolean }
@@ -1068,6 +1099,7 @@ async function tryAutoGenerate(
 ): Promise<{ payload: any; aiStatus?: string; aiMessage?: string }> {
   const autoGenerate = payload.autoGenerate === true || payload.autoGenerate === "true";
   if (!autoGenerate) {
+    console.log(`[PERF:tryAutoGenerate] skipped (autoGenerate=false)`);
     return { payload, aiStatus: "skipped" };
   }
   const uploadedAudioUrl = asText(payload.uploadedAudioUrl) || asText(payload?.episodes?.[0]?.url);
@@ -1075,14 +1107,74 @@ async function tryAutoGenerate(
     return { payload, aiStatus: "failed", aiMessage: "未提供音频地址，跳过 AI 生成" };
   }
   const localFilePath = resolveLocalAudioPath(uploadedAudioUrl);
-  if (!localFilePath || !fs.existsSync(localFilePath)) {
-    return { payload, aiStatus: "failed", aiMessage: "仅支持后台上传音频进行 AI 生成" };
+  const isRemoteAudio = !localFilePath || !fs.existsSync(localFilePath);
+  if (isRemoteAudio && !uploadedAudioUrl.startsWith("http")) {
+    return { payload, aiStatus: "failed", aiMessage: "仅支持后台上传或远程音频进行 AI 生成" };
   }
 
   try {
     const provider = resolveProgramAiProvider();
-    const transcribePath = localFilePath;
-    const sourceUrlForAsr: string | undefined = uploadedAudioUrl; // 始终保留 sourceUrl，支持 Standard 模式
+    // 远程音频：先下载到临时文件，避免 fs.readFile 空路径报错
+    let transcribePath: string;
+    let sourceUrlForAsr: string | undefined;
+    if (isRemoteAudio && uploadedAudioUrl.startsWith("http")) {
+      // 下载远程音频到本地临时文件
+      const tmpDir = path.join(process.cwd(), "uploads", "tmp");
+      const tmpFile = path.join(tmpDir, `remote-${Date.now()}.mp3`);
+      await fs.promises.mkdir(tmpDir, { recursive: true });
+      try {
+        const https = await import("https");
+        const http = await import("http");
+        const urlModule = await import("url");
+        await new Promise<void>((resolve, reject) => {
+          const parsedUrl = new urlModule.URL(uploadedAudioUrl);
+          const client = parsedUrl.protocol === "https:" ? https.default : http.default;
+          client.get(uploadedAudioUrl, (res: any) => {
+            if (res.statusCode >= 400) {
+              reject(new Error(`HTTP ${res.statusCode} downloading audio`));
+              return;
+            }
+            const fileStream = fs.createWriteStream(tmpFile);
+            res.pipe(fileStream);
+            fileStream.on("finish", () => resolve());
+            fileStream.on("error", reject);
+          }).on("error", reject);
+        });
+        transcribePath = tmpFile;
+        sourceUrlForAsr = undefined;
+        console.log("[ai-program] downloaded remote audio to", tmpFile);
+      } catch (dlErr: any) {
+        // 下载失败则尝试直接用远程 URL（standard 模式不需要本地文件）
+        console.warn("[ai-program] download failed, trying direct URL:", dlErr.message);
+        transcribePath = "";
+        sourceUrlForAsr = uploadedAudioUrl;
+      }
+    } else {
+      // 本地文件存在，先检查是否有压缩版本
+      const compressedDir = path.join(process.cwd(), "uploads", "audio", "compressed");
+      const compressedPath = localFilePath ? path.join(compressedDir, path.basename(localFilePath).replace(/\.mp3$/i, "-compressed.mp3")) : null;
+      if (compressedPath && fs.existsSync(compressedPath)) {
+        const origStat = fs.statSync(localFilePath!);
+        const compStat = fs.statSync(compressedPath);
+        console.log(`[ai-program] 使用压缩音频: ${Math.round(origStat.size/1024/1024)}MB → ${Math.round(compStat.size/1024/1024)}MB`);
+        transcribePath = compressedPath;
+        sourceUrlForAsr = undefined;
+      } else {
+        // 本地文件存在，但大文件（>60MB）应走 Standard 模式用远程 URL
+        const localStat = fs.statSync(localFilePath!);
+        const FLASH_SAFE_MB = 60;
+        const isTooBig = localStat.size > FLASH_SAFE_MB * 1024 * 1024;
+        const publicBaseUrl = process.env.VOLCENGINE_PUBLIC_BASE_URL || "";
+        if (isTooBig && publicBaseUrl && uploadedAudioUrl.startsWith("http")) {
+          console.log(`[ai-program] 本地音频 ${Math.round(localStat.size/1024/1024)}MB 超过 ${FLASH_SAFE_MB}MB，使用 Standard 模式 + 远程 URL`);
+          transcribePath = "";
+          sourceUrlForAsr = uploadedAudioUrl;
+        } else {
+          transcribePath = localFilePath || "";
+          sourceUrlForAsr = undefined;
+        }
+      }
+    }
     await onProgress?.(12, "transcribing");
     console.log("[ai-program] start transcription", { transcribePath, sourceUrlForAsr: sourceUrlForAsr || "(local-only)" });
     const transcription = await provider.transcribeAudio(transcribePath, {
@@ -1366,30 +1458,10 @@ export class ProgramController {
       const pageRaw = Number(req.query?.page);
       const pageSizeRaw = Number(req.query?.pageSize);
       const search = asText(req.query?.search);
-      const shouldUsePagination = Number.isFinite(pageRaw) || Number.isFinite(pageSizeRaw) || hasText(search);
       const page = Number.isFinite(pageRaw) && pageRaw > 0 ? Math.floor(pageRaw) : 1;
       const pageSize = Number.isFinite(pageSizeRaw) && pageSizeRaw > 0 ? Math.min(100, Math.floor(pageSizeRaw)) : 20;
       const filter =
         status === "draft" || status === "published" ? { status } : {};
-
-      if (!shouldUsePagination) {
-        const programs = await Program.find(filter)
-          .select({
-            programCode: 1, title: 1, description: 1, coverImage: 1,
-            publishedAt: 1, createdAt: 1, updatedAt: 1,
-            summary: 1, episodes: 1, status: 1, parseStatus: 1, parseProgress: 1, parseStage: 1,
-            transcript: 1, dictionaryEntryIds: 1, guestBindings: 1,
-            deepDive: 1, contentPack: 1,
-          })
-          .sort({ updatedAt: -1 })
-          .lean();
-        await recycleStaleParsingPrograms(programs as any[]);
-        const attached = await attachDictionaryEntriesToPrograms(programs, true);
-        const attachedGuests = await attachGuestBindingsToPrograms(attached);
-        const template = await getShowNotesDefaultTemplate();
-        res.status(200).json(await Promise.all((attachedGuests as any[]).map((item) => applyShowNotesRendering(item, template))));
-        return;
-      }
 
       const keywordFilter = hasText(search)
         ? {
@@ -1403,23 +1475,29 @@ export class ProgramController {
         ...filter,
         ...keywordFilter,
       };
-      const total = await Program.countDocuments(finalFilter);
-      const skip = (page - 1) * pageSize;
-      const programs = await Program.find(finalFilter)
-        .select({
-          programCode: 1, title: 1, description: 1, coverImage: 1,
-          publishedAt: 1, createdAt: 1, updatedAt: 1,
-          summary: 1, episodes: 1, status: 1, parseStatus: 1, parseProgress: 1, parseStage: 1,
-          transcript: 1, dictionaryEntryIds: 1, guestBindings: 1,
-          deepDive: 1, contentPack: 1,
-        })
-        .sort({ updatedAt: -1 }).skip(skip).limit(pageSize)
-        .lean();
+      // 并发：countDocuments、分页 find、template 并行执行
+      // 后台列表只需要摘要字段，不加载 transcript/contentPack/deepDive 等重数据
+      const listSelect = {
+        programCode: 1, title: 1, description: 1, coverImage: 1,
+        publishedAt: 1, createdAt: 1, updatedAt: 1,
+        "summary.tags": 1, status: 1, parseStatus: 1, parseProgress: 1, parseStage: 1,
+        "episodes.title": 1, "episodes.url": 1, "episodes.duration": 1,
+        dictionaryEntryIds: 1, guestBindings: 1,
+      };
+      const [total, programs, template] = await Promise.all([
+        Program.countDocuments(finalFilter),
+        Program.find(finalFilter)
+          .select(listSelect)
+          .sort({ updatedAt: -1 }).skip((page - 1) * pageSize).limit(pageSize)
+          .lean(),
+        getShowNotesDefaultTemplate(),
+      ]);
       await recycleStaleParsingPrograms(programs as any[]);
-      const attached = await attachDictionaryEntriesToPrograms(programs, true);
-      const attachedGuests = await attachGuestBindingsToPrograms(attached);
-      const template = await getShowNotesDefaultTemplate();
-      const rows = await Promise.all((attachedGuests as any[]).map((item) => applyShowNotesRendering(item, template)));
+      const attached = await attachGuestBindingsToPrograms(
+        await attachDictionaryEntriesToPrograms(programs, true)
+      );
+      // 后台列表跳过 showNotes 渲染，减少不必要计算
+      const rows = attached;
       res.status(200).json({
         items: rows,
         data: rows,
@@ -1462,7 +1540,7 @@ export class ProgramController {
   async getByIdAdmin(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const program = await Program.findById(id);
+      const program = await Program.findById(id).lean();
       if (!program) {
         res.status(404).json({ message: "节目不存在" });
         return;
@@ -1517,20 +1595,27 @@ export class ProgramController {
   }
 
   async update(req: Request, res: Response): Promise<void> {
+    const t0 = Date.now();
+    const logStep = (step: string) => console.log(`[PERF:update ${req.params.id}] ${step} +${Date.now() - t0}ms`);
     try {
       const { id } = req.params;
       const existing = await Program.findById(id);
+      logStep("findById");
       if (!existing) {
         res.status(404).json({ message: "节目不存在" });
         return;
       }
       const aiResult = await tryAutoGenerate(req.body || {});
+      logStep("tryAutoGenerate");
       let payload = await applyShowNotesRendering(sanitizeProgramPayload(aiResult.payload, false));
+      logStep("applyShowNotesRendering");
       const hasIncomingGuestBindings = Array.isArray(req.body?.guestBindings);
       payload = await ensureGuestBindingsWithLazyMigration(payload, existing.toObject());
+      logStep("ensureGuestBindings");
       if (hasIncomingGuestBindings) {
         const cleaned = await validateGuestBindingsOrThrow(Array.isArray(payload.guestBindings) ? payload.guestBindings : [], { allowAutoClean: true });
         if (cleaned) payload.guestBindings = cleaned;
+        logStep("validateGuestBindings");
       }
       if (payload.status && !["draft", "published", "group-only"].includes(payload.status)) {
         res.status(400).json({ message: "无效的状态值" });
@@ -1543,6 +1628,7 @@ export class ProgramController {
         payload.publishedAt = null;
       }
       const program = await Program.findByIdAndUpdate(id, payload, { new: true });
+      logStep("findByIdAndUpdate");
       if (!program) {
         res.status(404).json({ message: "节目不存在" });
         return;
@@ -1550,7 +1636,9 @@ export class ProgramController {
       await syncProgramDictionaryEntries(String(program._id), payload.termGlossary, "ai_program", {
         sourceText: buildProgramSourceTextForDictionary(payload),
       });
+      logStep("syncProgramDictionary");
       const latestProgram = await Program.findById(program._id);
+      logStep("findById-after");
       if (!latestProgram) {
         res.status(500).json({ message: "节目更新成功，但读取结果失败" });
         return;
@@ -1561,6 +1649,7 @@ export class ProgramController {
           aiMessage: aiResult.aiMessage || "",
         })
       );
+      logStep("done");
     } catch (error: any) {
       if (error?.code === 11000 && String(Object.keys(error?.keyPattern || {})[0] || "") === "programCode") {
         res.status(400).json({ message: "节目编号已存在，请换一个，例如 ep12", error });
@@ -1577,9 +1666,26 @@ export class ProgramController {
         res.status(400).json({ message: "请上传音频文件" });
         return;
       }
+      const sourceFileName = asText(req.body?.sourceFileName);
+
+      // 优先上传到火山引擎 TOS
+      const tosUrl = await uploadLocalAudioToTosAndSign(file.path);
+      if (tosUrl) {
+        // 上传成功，删除本地临时文件
+        fs.unlink(file.path, () => {});
+        res.status(201).json({
+          url: tosUrl,
+          filename: file.filename,
+          originalName: sourceFileName || file.originalname,
+          mimeType: file.mimetype,
+          size: file.size,
+        });
+        return;
+      }
+
+      // TOS 不可用，回退到本地 URL
       const baseUrl = resolvePublicBaseUrl(req);
       const audioUrl = `${baseUrl}/uploads/audio/${file.filename}`;
-      const sourceFileName = asText(req.body?.sourceFileName);
       res.status(201).json({
         url: audioUrl,
         filename: file.filename,
@@ -1621,17 +1727,12 @@ export class ProgramController {
         res.status(400).json({ message: "缺少 uploadedAudioUrl" });
         return;
       }
-      const localPath = resolveLocalAudioPath(uploadedAudioUrl);
-      if (!localPath || !fs.existsSync(localPath)) {
-        res.status(400).json({ message: "仅支持后台已上传的音频地址" });
-        return;
-      }
       const nextCode = await buildNextProgramCode();
       const program = new Program({
         programCode: nextCode,
         title: sourceTitle || buildPendingProgramTitle(),
         description: "音频已上传，请编辑节目信息。",
-        coverImage: "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?q=80&w=1200&auto=format&fit=crop",
+        coverImage: "http://xianfeng.xinzhi.info/uploads/images/1779669071894-42qbgvdv.png",
         episodes: [{ title: sourceTitle || "待编辑", duration: "", url: uploadedAudioUrl }],
         status: "draft",
       });
@@ -1680,40 +1781,17 @@ export class ProgramController {
         return;
       }
       const localPath = resolveLocalAudioPath(uploadedAudioUrl);
-      if (!localPath || !fs.existsSync(localPath)) {
+      // 支持远程音频：本地有文件直接用，否则用远程 URL
+      const isRemoteAudio = !localPath || !fs.existsSync(localPath);
+      if (isRemoteAudio && !uploadedAudioUrl.startsWith("http")) {
         res.status(400).json({ message: "当前音频非后台上传资源，无法解析" });
         return;
       }
+      // 只标记解析状态，不清空现有数据。
+      // 旧数据在 AI 解析成功写入后自然被替换；解析失败则保留旧数据不丢失。
       await Program.findByIdAndUpdate(
         id,
-        {
-          ...parseMetaPatch("parsing", "", 5, "queued"),
-          transcript: [],
-          summary: {
-            headline: "",
-            body: "",
-            highlightLabel: "",
-            highlightText: "",
-            tags: [],
-          },
-          termGlossary: [],
-          deepDive: {
-            sectionTitle: "",
-            curatedReading: [],
-            mindMap: undefined,
-          },
-          contentPack: {
-            quickView: [],
-            minutes: { text: "" },
-            showNotes: {
-              guide: "",
-              guestIntro: "",
-              keyMoments: [],
-              renderedText: "",
-              templateOverride: "",
-            },
-          },
-        },
+        parseMetaPatch("parsing", "", 5, "queued"),
         { new: false }
       );
       startAsyncParseTask(id, uploadedAudioUrl, { forceTranscriptRegenerate: true });

@@ -160,19 +160,20 @@ const MindMapView: React.FC<MindMapViewProps> = ({
   const svgRef = useRef<SVGSVGElement | null>(null);
   const toolbarRef = useRef<HTMLDivElement | null>(null);
   const mmRef = useRef<Markmap | null>(null);
+  const retryCountRef = useRef(0);
   const [loading, setLoading] = useState(true);
 
   // 决定使用哪个数据源构建 Markdown
   const isAiMode = mode === "ai" && mindMapData?.root;
 
   useEffect(() => {
+    let cancelled = false;
+    retryCountRef.current = 0;
+
     if (mmRef.current) {
       mmRef.current.destroy();
       mmRef.current = null;
     }
-
-    const svg = svgRef.current;
-    if (!svg) return;
 
     // 只有有数据时才渲染
     const hasData =
@@ -184,97 +185,119 @@ const MindMapView: React.FC<MindMapViewProps> = ({
 
     setLoading(true);
 
-    requestAnimationFrame(() => {
-      let markdown: string;
-      if (isAiMode && mindMapData?.root) {
-        markdown = buildAiMarkdown(mindMapData.root);
-      } else {
-        markdown = buildMarkdown(quickView, title);
+    // 重试渲染：等待 SVG 元素在 DOM 中且具有可见尺寸
+    const tryRender = () => {
+      if (cancelled) return;
+      const svg = svgRef.current;
+      if (!svg || !svg.isConnected || svg.clientWidth === 0) {
+        if (retryCountRef.current++ < 50) {
+          requestAnimationFrame(tryRender);
+        } else {
+          setLoading(false);
+        }
+        return;
       }
 
-      const { root } = transformer.transform(markdown);
+      try {
+        let markdown: string;
+        if (isAiMode && mindMapData?.root) {
+          markdown = buildAiMarkdown(mindMapData.root);
+        } else {
+          markdown = buildMarkdown(quickView, title);
+        }
 
-      const mm = Markmap.create(svg, {
-        autoFit: true,
-        duration: 400,
-        maxWidth: 260,
-        initialExpandLevel: 2,
-      } as any);
+        const { root } = transformer.transform(markdown);
 
-      mm.setData(root);
-      mm.fit();
+        // 清空 SVG 子元素
+        while (svg.firstChild) {
+          svg.firstChild.remove();
+        }
 
-      // 点击节点 → 跳转逐字稿对应时间戳
-      if (onNavigateToTime) {
-        setTimeout(() => {
-          const svgEl = svgRef.current;
-          if (!svgEl) return;
-          const gEls = svgEl.querySelectorAll("g.markmap-node");
+        const mm = Markmap.create(svg, {
+          autoFit: true,
+          duration: 400,
+          maxWidth: 260,
+          initialExpandLevel: 2,
+        } as any);
 
-          // AI 模式下预先收集所有带 time 的节点映射
-          const aiTimeNodeMap = isAiMode && mindMapData?.root
-            ? collectAiTimeNodes(mindMapData.root)
-            : null;
+        mm.setData(root);
+        mm.fit();
 
-          gEls.forEach((gEl) => {
-            const cloned = gEl.cloneNode(true) as HTMLElement;
-            gEl.parentNode?.replaceChild(cloned, gEl);
-            cloned.addEventListener("click", (e) => {
-              const text =
-                (cloned.querySelector("text")?.textContent || "").trim();
-              if (!text) return;
+        // 点击节点 → 跳转逐字稿对应时间戳
+        if (onNavigateToTime) {
+          setTimeout(() => {
+            if (cancelled) return;
+            const svgEl = svgRef.current;
+            if (!svgEl) return;
+            const gEls = svgEl.querySelectorAll("g.markmap-node");
 
-              // AI 模式：通过节点文本匹配 time
-              if (aiTimeNodeMap) {
-                for (const [titleKey, time] of aiTimeNodeMap.entries()) {
-                  if (text.includes(titleKey)) {
+            const aiTimeNodeMap = isAiMode && mindMapData?.root
+              ? collectAiTimeNodes(mindMapData.root)
+              : null;
+
+            gEls.forEach((gEl) => {
+              const cloned = gEl.cloneNode(true) as HTMLElement;
+              gEl.parentNode?.replaceChild(cloned, gEl);
+              cloned.addEventListener("click", (e) => {
+                const text =
+                  (cloned.querySelector("text")?.textContent || "").trim();
+                if (!text) return;
+
+                if (aiTimeNodeMap) {
+                  for (const [titleKey, time] of aiTimeNodeMap.entries()) {
+                    if (text.includes(titleKey)) {
+                      e.stopPropagation();
+                      onNavigateToTime(time);
+                      return;
+                    }
+                  }
+                }
+
+                for (const item of quickView) {
+                  const label = item.timeRangeLabel || `${item.startTime}-${item.endTime}`;
+                  if (text.includes(label.replace(/[\n\[\]]/g, " ").slice(0, 30))) {
                     e.stopPropagation();
-                    onNavigateToTime(time);
+                    onNavigateToTime(item.startTime);
                     return;
                   }
                 }
-              }
 
-              // QuickView 模式：查找匹配的时间段
-              for (const item of quickView) {
-                const label = item.timeRangeLabel || `${item.startTime}-${item.endTime}`;
-                if (text.includes(label.replace(/[\n\[\]]/g, " ").slice(0, 30))) {
-                  e.stopPropagation();
-                  onNavigateToTime(item.startTime);
-                  return;
+                for (const item of quickView) {
+                  const s = item.summary?.trim().slice(0, 30);
+                  if (s && text.includes(s)) {
+                    e.stopPropagation();
+                    onNavigateToTime(item.startTime);
+                    return;
+                  }
                 }
-              }
-
-              // 也尝试匹配 summary
-              for (const item of quickView) {
-                const s = item.summary?.trim().slice(0, 30);
-                if (s && text.includes(s)) {
-                  e.stopPropagation();
-                  onNavigateToTime(item.startTime);
-                  return;
-                }
-              }
+              });
             });
-          });
-        }, 200);
+          }, 200);
+        }
+
+        mmRef.current = mm;
+
+        // 渲染 toolbar
+        const toolbarWrap = toolbarRef.current;
+        if (toolbarWrap) {
+          while (toolbarWrap.firstChild) toolbarWrap.firstChild.remove();
+          const toolbar = new Toolbar();
+          toolbar.attach(mm);
+          toolbarWrap.append(toolbar.render());
+        }
+
+        setLoading(false);
+        onReady?.();
+      } catch (err) {
+        console.error("MindMapView render error:", err);
+        setLoading(false);
       }
+    };
 
-      mmRef.current = mm;
-
-      // 渲染 toolbar
-      const toolbarWrap = toolbarRef.current;
-      if (toolbarWrap) {
-        while (toolbarWrap.firstChild) toolbarWrap.firstChild.remove();
-        const toolbar = new Toolbar();
-        toolbar.attach(mm);
-        toolbarWrap.append(toolbar.render());
-      }
-
-      setLoading(false);
-      onReady?.();
-    });
+    requestAnimationFrame(tryRender);
 
     return () => {
+      cancelled = true;
       if (mmRef.current) {
         mmRef.current.destroy();
         mmRef.current = null;
@@ -377,3 +400,8 @@ const MindMapView: React.FC<MindMapViewProps> = ({
 };
 
 export default MindMapView;
+
+// Prevent tree-shaking: register global side effect
+if (typeof window !== "undefined") {
+  (window as any).__MindMapView = MindMapView;
+}
