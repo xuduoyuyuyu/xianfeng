@@ -140,6 +140,7 @@ app.use("/api/admin/books", adminBookRoutes);
 app.use("/api/admin/learning-materials", adminLearningMaterialRoutes);
 app.use("/api/admin/dictionary", adminDictionaryRoutes);
 app.use("/api/admin/guests", adminGuestRoutes);
+app.use("/api/admin/topic-hub", authenticate, requireAdmin, topicAdminRoutes);
 app.use("/api/admin", adminSystemRoutes);
 app.use("/api/admin", adminMultiAgentsRoutes);
 app.use("/api/admin", adminAgentTaskRoutes);
@@ -148,7 +149,6 @@ app.use("/api/admin/worthbuy", adminWorthbuyRoutes);
 app.use("/api/v1/tutorbot", tutorbotRoutes);
 app.use("/api/ai", aiCompatRoutes);
 app.use("/api/topic-hub", topicPublicRoutes);
-app.use("/api/admin/topic-hub", topicAdminRoutes);
 
 const uploadsDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadsDir)) {

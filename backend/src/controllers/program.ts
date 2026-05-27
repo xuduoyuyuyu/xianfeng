@@ -1140,9 +1140,19 @@ async function tryAutoGenerate(
             fileStream.on("error", reject);
           }).on("error", reject);
         });
-        transcribePath = tmpFile;
-        sourceUrlForAsr = undefined;
-        console.log("[ai-program] downloaded remote audio to", tmpFile);
+        // 下载成功，检查文件大小：大文件（>60MB）走 Standard 模式用远程 URL
+        const dlStat = fs.statSync(tmpFile);
+        const FLASH_SAFE_MB = 60;
+        const publicBaseUrl = process.env.VOLCENGINE_PUBLIC_BASE_URL || "";
+        if (dlStat.size > FLASH_SAFE_MB * 1024 * 1024 && publicBaseUrl && uploadedAudioUrl.startsWith("http")) {
+          console.log(`[ai-program] 远程音频 ${Math.round(dlStat.size/1024/1024)}MB 超过 ${FLASH_SAFE_MB}MB，使用 Standard 模式 + 远程 URL`);
+          transcribePath = "";
+          sourceUrlForAsr = uploadedAudioUrl;
+        } else {
+          transcribePath = tmpFile;
+          sourceUrlForAsr = undefined;
+          console.log("[ai-program] downloaded remote audio to", tmpFile);
+        }
       } catch (dlErr: any) {
         // 下载失败则尝试直接用远程 URL（standard 模式不需要本地文件）
         console.warn("[ai-program] download failed, trying direct URL:", dlErr.message);
@@ -1733,7 +1743,7 @@ export class ProgramController {
         title: sourceTitle || buildPendingProgramTitle(),
         description: "音频已上传，请编辑节目信息。",
         coverImage: "http://xianfeng.xinzhi.info/uploads/images/1779669071894-42qbgvdv.png",
-        episodes: [{ title: sourceTitle || "待编辑", duration: "", url: uploadedAudioUrl }],
+        episodes: [{ title: sourceTitle || "待编辑", duration: "待补时长", url: uploadedAudioUrl }],
         status: "draft",
       });
       await program.save();

@@ -7,6 +7,45 @@ import Pagination from "../components/Pagination";
 import type { RootState } from "../store";
 import { getTopicUserId } from "../utils/topicUserId";
 
+// ===== 本地暂存话题保护机制 =====
+// 解决：创建话题后刷新页面，话题丢失的问题
+// 原理：将最近创建的话题 slug 持久化到 localStorage，每次加载列表时自动合并到顶部
+const STICKY_TOPICS_KEY = "xianfeng_topic_sticky_slugs";
+interface StickyRecord { slug: string; createdAt: number; userId: string }
+function getStickySlugs(userId: string): StickyRecord[] {
+  try {
+    const raw = localStorage.getItem(STICKY_TOPICS_KEY);
+    if (!raw) return [];
+    const records: StickyRecord[] = JSON.parse(raw);
+    const now = Date.now();
+    // 24 小时过期，且匹配当前 userId
+    return records.filter(r => r.userId === userId && now - r.createdAt < 86400000);
+  } catch { return []; }
+}
+function saveStickySlug(slug: string, userId: string) {
+  try {
+    const records = getStickySlugs(userId);
+    const exists = records.find(r => r.slug === slug);
+    if (!exists) {
+      records.push({ slug, createdAt: Date.now(), userId });
+    }
+    localStorage.setItem(STICKY_TOPICS_KEY, JSON.stringify(records));
+  } catch {}
+}
+function removeStickySlug(slug: string, userId: string) {
+  try {
+    const records = getStickySlugs(userId);
+    const filtered = records.filter(r => r.slug !== slug);
+    localStorage.setItem(STICKY_TOPICS_KEY, JSON.stringify(filtered));
+  } catch {}
+}
+function cleanupStickyTopics(userId: string) {
+  try {
+    const records = getStickySlugs(userId);
+    localStorage.setItem(STICKY_TOPICS_KEY, JSON.stringify(records));
+  } catch {}
+}
+
 interface TopicItem {
   id: number;
   _id?: string;
@@ -22,6 +61,7 @@ interface TopicItem {
   viewCount: number;
   status?: string;
   createdBy?: string;
+  gradeMatch?: boolean;
   generatingProgress?: { total: number; done: number; status: string };
 }
 
@@ -75,11 +115,17 @@ const TopicHubPage: React.FC = () => {
   }, [currentUser]);
 
   // 拉取话题列表（支持搜索/分页参数）
-  const fetchTopics = useCallback(async (opts?: { search?: string; page?: number }) => {
+  // mergeNewSlugs: 合并时保留这些 slug 的话题在列表头部（即使服务端尚未返回）
+  const fetchTopics = useCallback(async (opts?: { search?: string; page?: number; mergeNewSlugs?: string[] }) => {
     try {
       const uid = currentUserId || getUserId();
       const search = opts?.search;
       const pageNum = opts?.page || 1;
+      // mergeNewSlugs: 传入的临时保护 + localStorage 持久化保护
+      const tempSlugs = opts?.mergeNewSlugs || [];
+      const stickyRecords = getStickySlugs(uid);
+      const stickySlugs = stickyRecords.map(r => r.slug);
+      const mergeSlugs = [...new Set([...tempSlugs, ...stickySlugs])];
 
       let limit = ITEMS_PER_PAGE;
       if (search) limit = 50;
@@ -98,10 +144,34 @@ const TopicHubPage: React.FC = () => {
         nodeCount: t.nodeCount ?? 0,
         questionCount: t.questionCount ?? 0,
         viewCount: t.viewCount ?? 0,
+        gradeMatch: t.gradeMatch ?? true,
       }));
-      setTopics(cleaned);
+      // 根据年级匹配度排序：匹配年级的优先，不匹配的排在后面（但仍然展示）
+      cleaned.sort((a, b) => {
+        if (a.gradeMatch && !b.gradeMatch) return -1;
+        if (!a.gradeMatch && b.gradeMatch) return 1;
+        return 0; // 同级保持服务端返回顺序
+      });
+      // 合并本地暂存的新话题（防止竞态覆盖刚创建的卡片）
+      setTopics((prev) => {
+        const existingSlugs = new Set(cleaned.map((t: TopicItem) => t.slug));
+        const stickyTopics = prev.filter((t) => mergeSlugs.includes(t.slug) && !existingSlugs.has(t.slug));
+        return [...stickyTopics, ...cleaned];
+      });
       setTotalItems(data.total || cleaned.length);
       setCurrentPage(pageNum);
+
+      // 清理已在服务端列表中确认存在且生成完成的 sticky slug
+      const serverSlugs = new Set(cleaned.map(t => t.slug));
+      for (const rec of stickyRecords) {
+        if (serverSlugs.has(rec.slug)) {
+          const serverTopic = cleaned.find(t => t.slug === rec.slug);
+          // 当话题生成完成时，移除 sticky 保护
+          if (serverTopic?.generatingProgress?.status === "done") {
+            removeStickySlug(rec.slug, uid);
+          }
+        }
+      }
 
       // 仅在无搜索时更新标签
       if (!search) {
@@ -115,9 +185,12 @@ const TopicHubPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentUserId]);
+  }, [currentUserId, userGrade]);
 
   useEffect(() => {
+    // 组件挂载时清理过期的 sticky slugs
+    const uid = currentUserId || getUserId();
+    cleanupStickyTopics(uid);
     fetchTopics({});
   }, [fetchTopics]);
 
@@ -211,7 +284,7 @@ const TopicHubPage: React.FC = () => {
         if (hits.length > 0) {
           setActiveTag("全部");
           await fetchTopics({ search: q });
-          setSubmitMsg({ text: `🔍 找到 ${hits.length} 个相关话题，已为你展示。如果没有你想要的，可以继续提交`, type: "searchResults" });
+          setSubmitMsg({ text: `🔍 找到以下相关话题，已为你展示。如果没有你想要的，可以继续提交`, type: "searchResults" });
           return;
         }
       } catch { /* 搜索失败继续创建流程 */ }
@@ -266,22 +339,31 @@ const TopicHubPage: React.FC = () => {
           setSubmitMsg({ text: `📌 已有相似话题「${data.topic.title}」`, type: "existingMatch", slug: data.topic.slug });
         } else {
           setSubmitMsg({ text: "✨ 话题已创建，AI 正在为你生成知识树…", type: "success" });
-          // 立即将新话题插入列表头部，确保用户第一时间看到卡片
-          setTopics((prev) => [newTopic, ...prev]);
-          // 同时更新标签列表（新话题的标签可能不在 allTags 中）
-          setAllTags((prev) => {
-            const newTags = (newTopic.tags as string[]);
-            const merged = new Set(prev);
-            newTags.forEach((t) => merged.add(t));
-            return ["全部", ...Array.from(merged).filter((t) => t !== "全部")];
-          });
         }
+        // 无论新建还是已存在，都把话题卡片插入列表头部
+        setTopics((prev) => {
+          console.log("[TopicHub] 插入话题到列表头部:", newTopic.slug, "当前列表长度:", prev.length);
+          return [newTopic, ...prev];
+        });
+        // 同时更新标签列表（新话题的标签可能不在 allTags 中）
+        setAllTags((prev) => {
+          const newTags = (newTopic.tags as string[]);
+          const merged = new Set(prev);
+          newTags.forEach((t) => merged.add(t));
+          return ["全部", ...Array.from(merged).filter((t) => t !== "全部")];
+        });
         if (data.relatedTopics?.length) {
           setRelatedTopics(data.relatedTopics.map((t: any) => ({ ...t, tags: safeTags(t.tags) })));
         }
         setSearchText("");
-        // 后台静默刷新列表，保持与服务端数据一致（不阻塞 UI）
-        fetchTopics({});
+        // 保存新创建的 slug 到 localStorage，确保刷新后不会丢失
+        const newSlug = newTopic.slug;
+        saveStickySlug(newSlug, uid);
+        // 立即刷新列表：新话题已通过 setTopics 插入头部，
+        // 传入 mergeNewSlugs 确保刚创建的卡片不会被 fetchTopics 竞态覆盖
+        setTimeout(() => {
+          fetchTopics({ mergeNewSlugs: [newSlug] });
+        }, 3000);
         // 新创建的话题始终启动进度轮询
         if (newTopic.slug && data.source !== "existing") {
           pollProgress(newTopic.slug);

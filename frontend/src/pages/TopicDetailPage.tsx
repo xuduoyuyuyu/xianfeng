@@ -1007,33 +1007,15 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
               📤 分享
             </button>
           </div>
+          {/* 副标题：独占一行 */}
           {topic.subtitle && (
             <p style={{ color: "#6B7280", fontSize: 14, margin: 0 }}>
               {topic.subtitle}
-              {/* 相关内容：与副标题同行 */}
-              {relatedTopics.length > 0 && (
-                <span style={{ fontSize: 12, color: "#9CA3AF", marginLeft: 16 }}>
-                  相关内容：
-                  {relatedTopics.map((rt, i) => (
-                    <span key={rt.slug}>
-                      <a
-                        href={`/topics/${rt.slug}`}
-                        style={{ color: "#7C3AED", textDecoration: "none" }}
-                        onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
-                        onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
-                      >
-                        {rt.title}
-                      </a>
-                      {i < relatedTopics.length - 1 && <span style={{ color: "#D1D5DB" }}> · </span>}
-                    </span>
-                  ))}
-                </span>
-              )}
             </p>
           )}
-          {/* 无副标题但有相关内容时，单独显示 */}
-          {!topic.subtitle && relatedTopics.length > 0 && (
-            <p style={{ color: "#9CA3AF", fontSize: 12, margin: "4px 0 0" }}>
+          {/* 相关内容：始终在副标题下一行 */}
+          {relatedTopics.length > 0 && (
+            <p style={{ color: "#9CA3AF", fontSize: 12, margin: topic.subtitle ? "6px 0 0" : "4px 0 0" }}>
               相关内容：
               {relatedTopics.map((rt, i) => (
                 <span key={rt.slug}>

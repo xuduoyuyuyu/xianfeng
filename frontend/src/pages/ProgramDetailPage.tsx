@@ -701,7 +701,7 @@ const ProgramDetailPage: React.FC = () => {
                 </div>
               </div>
               <div className="mb-8 h-px w-full bg-gray-100"></div>
-              <div>
+              <div className="mb-10">
                 <p className="mb-4 text-[10px] font-black uppercase tracking-widest text-gray-400">相关内容推荐 Related Content</p>
                 <div className="space-y-6">
                   {(relatedPrograms.length > 0 ? relatedPrograms : programs.slice(0, 4)).map((item, index) => (

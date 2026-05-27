@@ -21,21 +21,36 @@ const AdminDashboardPage: React.FC = () => {
           adminApi.getMaterials(),
         ]);
 
-        const programs = programsRes.data;
+        // getPrograms 返回分页对象 { items, data, programs, total, ... }
+        // getBooks / getMaterials 直接返回数组
+        const programsRaw = programsRes.data as any;
+        const programTotal = typeof programsRaw?.total === 'number' ? programsRaw.total : (Array.isArray(programsRaw) ? programsRaw.length : 0);
         const books = booksRes.data;
         const materials = materialsRes.data;
 
-        const allItems = [...programs, ...books, ...materials];
-        const published = allItems.filter((item: Program | Book | LearningMaterial) => item.status === 'published').length;
-        const drafts = allItems.filter((item: Program | Book | LearningMaterial) => item.status === 'draft').length;
-
         setStats({
-          programs: programs.length,
+          programs: programTotal,
           books: books.length,
           materials: materials.length,
-          published,
-          drafts,
+          published: 0,
+          drafts: 0,
         });
+
+        // 异步获取已发布和草稿数量（节目）
+        const [pubRes, draftRes] = await Promise.all([
+          adminApi.getPrograms('published'),
+          adminApi.getPrograms('draft'),
+        ]);
+        const pubRaw = pubRes.data as any;
+        const draftRaw = draftRes.data as any;
+        const pubCount = typeof pubRaw?.total === 'number' ? pubRaw.total : (Array.isArray(pubRaw) ? pubRaw.length : 0);
+        const draftCount = typeof draftRaw?.total === 'number' ? draftRaw.total : (Array.isArray(draftRaw) ? draftRaw.length : 0);
+
+        setStats(prev => ({
+          ...prev,
+          published: pubCount,
+          drafts: draftCount,
+        }));
       } catch (error) {
         console.error('获取统计数据失败:', error);
       } finally {

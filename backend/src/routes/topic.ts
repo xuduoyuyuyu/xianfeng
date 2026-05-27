@@ -87,7 +87,8 @@ publicRouter.get("/", async (req: Request, res: Response) => {
     };
 
     // 如果提供了 userId，也返回该用户的 pending 话题
-    if (userId) {
+    // 注意：userId 可能是空字符串（前端异常时），需要同时检查非空
+    if (userId && userId.trim()) {
       filter.$or.push({ status: "pending", createdBy: userId });
       // 排除该用户已隐藏的话题
       filter.hiddenForUsers = { $ne: userId };
@@ -101,22 +102,8 @@ publicRouter.get("/", async (req: Request, res: Response) => {
       filter.tags = { $in: [tag] };
     }
 
-    // 年级过滤：只返回匹配该年级的话题（含"全学段"的话题对所有人可见）
-    // 但用户自己创建的话题跳过年级过滤，确保用户能看到自己的提交
-    if (grade && grade !== "all" && grade !== "全部") {
-      if (userId) {
-        // 用户可见范围：匹配年级的话题 OR 该用户自己创建的
-        filter["$and"] = filter["$and"] || [];
-        filter["$and"].push({
-          "$or": [
-            { suitableGrades: { "$in": [grade, "全学段"] } },
-            { createdBy: userId },
-          ],
-        });
-      } else {
-        filter.suitableGrades = { "$in": [grade, "全学段"] };
-      }
-    }
+    // 年级参数不再用于硬过滤，仅用于标记匹配度（前端可根据 matchGrade 调整排序优先级）
+    const gradeForMatch = grade && grade !== "all" && grade !== "全部" ? grade : null;
 
     if (search) {
       // 中文分词：拆成单关键词，同时保留原始搜索词做精确匹配
@@ -150,8 +137,22 @@ publicRouter.get("/", async (req: Request, res: Response) => {
       return count;
     };
 
-    // 如果是第一页且有 userId，把用户自己提交的所有话题排在前面
-    if (userId && pageNum === 1) {
+    // 判断某条 topic 是否匹配当前年级（用于前端排序偏向）
+    const matchGrade = (t: any): boolean => {
+      if (!gradeForMatch) return true; // 无年级参数时都算匹配
+      const grades = t.suitableGrades || [];
+      if (grades.length === 0) return true; // 旧数据未设年级，算匹配
+      return grades.includes("全学段") || grades.includes(gradeForMatch);
+    };
+
+    const attachMeta = (t: any) => ({
+      ...t,
+      nodeCount: calcNodeCount(t),
+      gradeMatch: matchGrade(t),
+    });
+
+    // 如果是第一页且有有效的 userId，把用户自己提交的所有话题排在前面
+    if (userId && userId.trim() && pageNum === 1) {
       const userTopics = await Topic.find({
         createdBy: userId,
         hiddenForUsers: { $ne: userId },
@@ -163,25 +164,18 @@ publicRouter.get("/", async (req: Request, res: Response) => {
       const userSlugs = new Set(userTopics.map((t: any) => t.slug));
       const filtered = topics.filter((t: any) => !userSlugs.has(t.slug));
 
-      // 合并：用户自己的话题在前，其他 topic 在后
+      // 合并：用户自己的话题在前，匹配年级的次之，其他在后
       const merged = [
-        ...userTopics.map((t: any) => ({ ...t, nodeCount: calcNodeCount(t) })),
-        ...filtered.map((t: any) => ({ ...t, nodeCount: calcNodeCount(t) })),
+        ...userTopics.map(attachMeta),
+        ...filtered.map(attachMeta),
       ];
 
       res.json({ topics: merged, total: total + userTopics.length, page: pageNum, limit: limitNum });
       return;
     }
 
-    // 计算 nodeCount
-    const withNodeCount = topics.map((t: any) => {
-      const layers = t.layers || {};
-      let nodeCount = 0;
-      for (const key of Object.keys(layers)) {
-        if (Array.isArray(layers[key])) nodeCount += layers[key].length;
-      }
-      return { ...t, nodeCount };
-    });
+    // 附加元数据：nodeCount + gradeMatch（用于前端排序偏向）
+    const withNodeCount = topics.map(attachMeta);
 
     res.json({ topics: withNodeCount, total, page: pageNum, limit: limitNum });
   } catch (e: any) {
@@ -199,7 +193,7 @@ publicRouter.get("/:slug", async (req: Request, res: Response) => {
       slug: req.params.slug,
       $or: [{ status: "published" }],
     };
-    if (userId) {
+    if (userId && userId.trim()) {
       filter.$or.push({ status: "pending", createdBy: userId });
     }
 
@@ -318,7 +312,8 @@ publicRouter.post("/search-generate", async (req: Request, res: Response) => {
 
     let kw = keyword.trim();
     const originalInput = kw; // 保存用户原始输入
-    const creatorId = userId || req.ip || "anonymous";
+    // userId 可能是空字符串，用 trim 确保有效；降级为 IP 或 anonymous
+    const creatorId = (userId && userId.trim()) || req.ip || "anonymous";
 
     // 长文本先提炼关键词再搜索（避免用长原文匹配到不相关话题）
     let searchTerm = kw.slice(0, 4);
@@ -381,6 +376,15 @@ publicRouter.post("/search-generate", async (req: Request, res: Response) => {
       suitableGrades = ["全学段"];
     }
 
+    // 重复检查：AI 生成标题后，用标题精确匹配已有话题
+    const existingTopic = await Topic.findOne({
+      status: { $in: ["published", "pending"] },
+      title: { $regex: new RegExp("^" + title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$", "i") },
+    }).lean();
+    if (existingTopic) {
+      return res.status(200).json({ topic: existingTopic, source: "existing" });
+    }
+
     // 生成唯一 slug（避免重复键冲突），中文转拼音确保 URL 兼容
     const { pinyin } = require("pinyin");
     const pinyinSlug = pinyin(title, { style: "normal" })
@@ -409,7 +413,7 @@ publicRouter.post("/search-generate", async (req: Request, res: Response) => {
       tags,
       suitableGrades,
       slug,
-      status: "published",
+      status: "pending",
       source: "user",
       createdBy: creatorId,
       userOriginalInput: originalInput,
@@ -586,7 +590,7 @@ publicRouter.get("/:slug/nodes/:nodeKey", async (req: Request, res: Response) =>
       slug,
       $or: [{ status: "published" }],
     };
-    if (userId) {
+    if (userId && userId.trim()) {
       filter.$or.push({ status: "pending", createdBy: userId });
     }
 
@@ -659,16 +663,14 @@ publicRouter.post("/:slug/ask", async (req: Request, res: Response) => {
 publicRouter.delete("/:slug", async (req: Request, res: Response) => {
   try {
     const { userId } = req.body || {};
-    const filter: any = { slug: req.params.slug };
-    if (userId) {
-      filter.createdBy = userId;
-    }
-    const topic = await Topic.findOne(filter).lean();
+    const validUserId = userId && userId.trim();
+    // 任何用户都可以隐藏自己不想看的卡片（不限于创建者）
+    const topic = await Topic.findOne({ slug: req.params.slug }).lean();
     if (!topic) {
-      return res.status(404).json({ error: "未找到该话题或无权删除" });
+      return res.status(404).json({ error: "未找到该话题" });
     }
     // 将当前用户加入 hiddenFor 列表，不物理删除
-    const hider = userId || req.ip || "anonymous";
+    const hider = validUserId || req.ip || "anonymous";
     await Topic.findByIdAndUpdate(topic._id, {
       $addToSet: { hiddenForUsers: hider },
     });
@@ -747,13 +749,14 @@ adminRouter.get("/", async (req: Request, res: Response) => {
       limit = "20",
     } = req.query as Record<string, string>;
 
-    const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 20));
+    const allMode = all && all !== "false";
+    const pageNum = allMode ? 1 : Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = allMode ? 1000 : Math.max(1, Math.min(100, parseInt(limit, 10) || 20));
 
     const filter: Record<string, any> = {};
 
     // 非 all 模式只返回 published
-    if (!all || all === "false") {
+    if (!allMode) {
       filter.status = "published";
     }
 
@@ -773,7 +776,7 @@ adminRouter.get("/", async (req: Request, res: Response) => {
     const [topics, total] = await Promise.all([
       Topic.find(filter)
         .sort({ createdAt: -1 })
-        .skip((pageNum - 1) * limitNum)
+        .skip(allMode ? 0 : (pageNum - 1) * limitNum)
         .limit(limitNum)
         .lean(),
       Topic.countDocuments(filter),
@@ -823,20 +826,23 @@ adminRouter.get("/:slug", async (req: Request, res: Response) => {
 // POST /api/admin/topic-hub/generate — AI 生成话题
 adminRouter.post("/generate", async (req: Request, res: Response) => {
   try {
-    const { title, subtitle, coverEmoji, tags } = req.body || {};
+    const { title, subtitle, coverEmoji, tags, userId } = req.body || {};
 
     if (!title) {
       return res.status(400).json({ error: "title 为必填项" });
     }
 
     // 1. 先创建话题（status=pending）
+    // 关键：必须设置 suitableGrades 和 createdBy，否则发布后用户可能因年级过滤看不到
     const topic = await Topic.create({
       title,
       subtitle: subtitle || "",
       coverEmoji: coverEmoji || "📚",
       tags: tags || [],
+      suitableGrades: ["全学段"],
       status: "pending",
       source: "ai",
+      createdBy: (userId && userId.trim()) || req.ip || "admin",
     });
 
     // 2. AI 生成五层知识树

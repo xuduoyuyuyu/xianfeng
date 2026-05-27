@@ -1118,16 +1118,24 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
       "X-Api-Request-Id": requestId,
       "X-Api-Sequence": "-1",
     };
+    // Standard（seedasr）优先试用 APP_ID + ACCESS_TOKEN（兼容性更好）
+    // Flash（bigasr）也用 APP_ID + ACCESS_TOKEN
+    // VOLCENGINE_API_KEY 保留作 fallback
+    const useAppAuth = !!(this.appId && this.accessToken);
+    if (useAppAuth) {
+      headers["X-Api-App-Key"] = this.appId;
+      headers["X-Api-Access-Key"] = this.accessToken;
+      // SeedASR standard 端点要求同时传 Resource-Id 为 volc.seedasr.auc
+      if (shouldUseVolcengineStandardEndpoint(resourceId, this.mode)) {
+        headers["X-Api-Resource-Id"] = "volc.seedasr.auc";
+      }
+      return headers;
+    }
     if (this.apiKey) {
       headers["X-Api-Key"] = this.apiKey;
       return headers;
     }
-    if (!this.appId || !this.accessToken) {
-      throw new Error("VOLCENGINE_API_KEY 或 VOLCENGINE_APP_ID + VOLCENGINE_ACCESS_TOKEN 未配置");
-    }
-    headers["X-Api-App-Key"] = this.appId;
-    headers["X-Api-Access-Key"] = this.accessToken;
-    return headers;
+    throw new Error("VOLCENGINE_API_KEY 或 VOLCENGINE_APP_ID + VOLCENGINE_ACCESS_TOKEN 未配置");
   }
 
   private shouldUseStandard(resourceId: string): boolean {
