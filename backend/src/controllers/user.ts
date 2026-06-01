@@ -5,9 +5,11 @@ import bcryptjs from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import { AuthenticatedRequest } from "../middlewares/auth";
+import { sendMobileCodeByVolcengine } from "../services/smsVolcengine";
 
 dotenv.config();
 const smsCodeStore = new Map<string, { code: string; expiresAt: number }>();
+const smsSendLock = new Map<string, number>();
 
 const WEL_ADMIN_KEY = process.env.WEL_ADMIN_KEY || "weladmin2024";
 const WEL_SYNC_URL = process.env.WEL_SYNC_URL || "http://172.19.0.1:18888/api/auth/sync";
@@ -275,9 +277,24 @@ export class UserController {
       res.status(400).json({ error: "请输入正确的11位手机号" });
       return;
     }
+    const now = Date.now();
+    const lastSentAt = smsSendLock.get(mobile) || 0;
+    if (now - lastSentAt < 60 * 1000) {
+      res.status(429).json({ error: "请求过于频繁，请60秒后再试" });
+      return;
+    }
     const code = String(Math.floor(100000 + Math.random() * 900000));
-    smsCodeStore.set(mobile, { code, expiresAt: Date.now() + 10 * 60 * 1000 });
-    res.status(200).json({ ok: true, debugCode: code });
+    const sendResult = await sendMobileCodeByVolcengine({ mobile, code });
+    if (!sendResult.ok) {
+      const errMsg = sendResult.code
+        ? `${sendResult.error || "短信发送失败"} (${sendResult.code})`
+        : (sendResult.error || "短信发送失败");
+      res.status(500).json({ error: errMsg });
+      return;
+    }
+    smsSendLock.set(mobile, now);
+    smsCodeStore.set(mobile, { code, expiresAt: now + 10 * 60 * 1000 });
+    res.status(200).json({ ok: true, expireSeconds: 600 });
   }
 
   async mobileAuth(req: Request, res: Response): Promise<void> {
@@ -296,6 +313,17 @@ export class UserController {
       smsCodeStore.delete(mobile);
 
       let user = await User.findOne({ mobile });
+      // Backfill legacy accounts that were created before `mobile` was reliably persisted.
+      // Some rows only kept `username` as `u<mobile>` or raw `<mobile>`.
+      if (!user) {
+        user = await User.findOne({
+          $or: [{ username: `u${mobile}` }, { username: mobile }],
+        });
+        if (user && !user.mobile) {
+          user.mobile = mobile;
+          await user.save();
+        }
+      }
       if (!user) {
         const username = `u${mobile}`;
         const password = await bcryptjs.hash(`mob-${mobile}-${Date.now()}`, 10);

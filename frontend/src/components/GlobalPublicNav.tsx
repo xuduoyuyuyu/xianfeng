@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../store";
 import { logout, updateUser } from "../store/userSlice";
@@ -36,6 +36,7 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
   onSearchChange,
 }) => {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const activePrograms = pathname.startsWith("/programs");
   const activeExperts = pathname.startsWith("/experts");
   const activeBooks = pathname.startsWith("/books") || pathname.startsWith("/reading");
@@ -44,6 +45,8 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
   const activeMaterials = pathname.startsWith("/materials");
   const activeWorthBuy = pathname.startsWith("/worthbuy");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchSheetOpen, setSearchSheetOpen] = useState(false);
+  const [innerSearch, setInnerSearch] = useState("");
   const [isLeader, setIsLeader] = useState(false);
   const navInstanceIdRef = useRef(`nav-${Math.random().toString(36).slice(2)}`);
 
@@ -51,11 +54,45 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
   const dispatch = useDispatch();
   const { user: currentUser, token } = useSelector((state: RootState) => state.user);
   const isLoggedIn = !!currentUser && !!token;
+  const effectiveSearchValue = typeof searchValue === "string" ? searchValue : innerSearch;
+
+  useEffect(() => {
+    if (typeof searchValue === "string") {
+      setInnerSearch(searchValue);
+      return;
+    }
+    try {
+      const q = String(new URLSearchParams(window.location.search).get("q") || "");
+      setInnerSearch(q);
+    } catch (_err) {
+      setInnerSearch("");
+    }
+  }, [searchValue, pathname]);
 
   const handleLogout = () => {
     dispatch(logout());
     window.location.href = "/";
   };
+
+  const doSearch = (raw: string) => {
+    const value = String(raw || "").trim();
+    if (onSearchChange) {
+      onSearchChange(value);
+      return;
+    }
+    const next = value ? `/programs/list?q=${encodeURIComponent(value)}` : "/programs/list";
+    navigate(next);
+  };
+
+  const mobilePrimaryLink = (() => {
+    if (activeWorthBuy) return { to: "/worthbuy", label: "知物", on: true, iconType: "ms", icon: "verified" as const };
+    if (activeTopics) return { to: "/topics", label: "请教一下", on: true, iconType: "emoji", icon: "🙏🏻" as const };
+    if (activePlanning) return { to: "/planning", label: "教育规划", on: true, iconType: "ms", icon: "route" as const };
+    if (activeMaterials) return { to: "/materials", label: "学习资料", on: true, iconType: "ms", icon: "inventory_2" as const };
+    if (activeBooks) return { to: "/reading", label: "及阅", on: true, iconType: "image", icon: "/assets/jiyue-logo.png" as const };
+    if (activeExperts) return { to: "/experts", label: "先疯智库", on: true, iconType: "ms", icon: "person" as const };
+    return { to: "/programs/list", label: "节目列表", on: activePrograms, iconType: "ms", icon: "podcasts" as const };
+  })();
 
   useEffect(() => {
     const ownerKey = "__xf_global_public_nav_owner__";
@@ -80,6 +117,24 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
     };
   }, []);
 
+  useEffect(() => {
+    setMenuOpen(false);
+    setSearchSheetOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    const cls = "xf-mobile-tab-enabled";
+    if (compactMobile) {
+      document.body.classList.add(cls);
+    } else {
+      document.body.classList.remove(cls);
+    }
+    return () => {
+      document.body.classList.remove(cls);
+    };
+  }, [compactMobile]);
+
+
   if (!isLeader) return null;
 
   return (
@@ -90,7 +145,9 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
         #tb .tb-logo:hover{background:rgba(108,39,214,.05);border-color:rgba(108,39,214,.16)}
         #tb .tb-nav{flex:1;display:flex;align-items:center;padding:0 4px;gap:2px;height:100%;overflow:visible}
         #tb .tb-nav-btn{display:flex;align-items:center;gap:5px;height:100%;padding:0 12px;border:none;border-bottom:2px solid transparent;background:transparent;font:inherit;font-size:13px;font-weight:500;color:#6b7280;cursor:pointer;transition:all .15s;white-space:nowrap;position:relative;text-decoration:none}
-        #tb .tb-nav-btn .ms{font-family:'Material Symbols Rounded';font-size:15px;line-height:1;font-variation-settings:'FILL' 0}
+        #tb .tb-nav-btn .ms{font-family:'Material Symbols Rounded';font-size:15px;line-height:1;font-variation-settings:'FILL' 0;display:inline-flex;align-items:center;justify-content:center;width:16px;flex:0 0 16px}
+        #tb .tb-nav-btn .icon-slot{display:inline-flex;align-items:center;justify-content:center;width:16px;flex:0 0 16px}
+        #tb .tb-nav-btn .jiyue-icon{display:block;width:16px;height:16px;object-fit:contain;transform:translateY(-0.5px)}
         #tb .tb-nav-btn:hover{color:#111118}
         #tb .tb-nav-btn.on{color:#6c27d6;font-weight:500;border-bottom-color:#6c27d6;text-shadow:0 0 .4px #6c27d6}
         #tb .tb-nav-btn.on .ms{font-variation-settings:'FILL' 1;color:#6c27d6}
@@ -108,8 +165,11 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
         #tb .uc-name{font-size:11.5px;font-weight:600;color:#111118}
         #tb .ibtn{width:30px;height:30px;border:none;border-radius:7px;background:transparent;color:#6b7280;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Rounded';font-size:16px;font-variation-settings:'FILL' 0;transition:all .12s}
         #tb .mobile-toggle{display:none}
+        #tb .mobile-search{display:none}
         #tb .mobile-main-link{display:none}
         .tb-mobile-panel{display:none}
+        .tb-mobile-search-sheet{display:none}
+        .tb-mobile-tab{display:none}
 
         @media (max-width: 768px){
           #tb{height:56px;padding:0 8px}
@@ -117,13 +177,43 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
           #tb .tb-nav{display:none}
           #tb .tb-right{display:none}
           #tb .mobile-toggle{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border:1px solid rgba(17,10,8,.12);background:#fff;border-radius:10px;color:#4b5563;font-family:'Material Symbols Rounded';font-size:20px;line-height:1}
-          #tb .mobile-main-link{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:0 12px;border-radius:10px;border:1px solid rgba(17,10,8,.08);font-size:12px;font-weight:700;color:#374151;background:#fff;text-decoration:none}
+          #tb .mobile-search{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border:1px solid rgba(17,10,8,.12);background:#fff;border-radius:10px;color:#4b5563;font-family:'Material Symbols Rounded';font-size:20px;line-height:1}
+          #tb .mobile-main-link{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:38px;padding:0 12px;border-radius:10px;border:1px solid rgba(17,10,8,.08);font-size:12px;font-weight:700;color:#374151;background:#fff;text-decoration:none}
           #tb .mobile-main-link.on{color:#6c27d6;border-color:rgba(108,39,214,.3);background:rgba(108,39,214,.06)}
+          #tb .mobile-main-link .ms{font-family:'Material Symbols Rounded';font-size:16px;line-height:1}
+          #tb .mobile-main-link .emoji{font-size:14px;line-height:1}
+          #tb .mobile-main-link .jiyue-icon{display:block;width:16px;height:16px;object-fit:contain;transform:translateY(-0.5px)}
           .tb-mobile-panel{display:block;position:fixed;top:56px;left:0;right:0;background:rgba(255,255,255,.98);backdrop-filter:blur(10px);border-bottom:1px solid rgba(17,10,8,.08);z-index:49;padding:10px 12px 14px;box-shadow:0 14px 30px rgba(30,41,59,.08)}
           .tb-mobile-grid{display:grid;gap:8px}
           .tb-mobile-link{min-height:44px;display:flex;align-items:center;gap:8px;padding:0 12px;border-radius:12px;border:1px solid rgba(148,163,184,.3);text-decoration:none;color:#334155;font-size:13px;font-weight:700;background:#fff}
+          .tb-mobile-link .jiyue-icon{display:block;width:16px;height:16px;object-fit:contain;transform:translateY(-0.5px)}
           .tb-mobile-link.on{border-color:rgba(108,39,214,.35);background:rgba(108,39,214,.06);color:#6c27d6}
           .tb-mobile-muted{margin-top:8px;font-size:11px;color:#64748b;font-weight:600}
+          .tb-mobile-search-sheet{display:block;position:fixed;inset:56px 0 auto 0;background:rgba(255,255,255,.98);backdrop-filter:blur(10px);z-index:55;border-bottom:1px solid rgba(17,10,8,.08);padding:10px 12px 12px}
+          .tb-mobile-search-inner{display:flex;align-items:center;gap:8px}
+          .tb-mobile-search-input{height:42px;flex:1;border:1px solid rgba(17,10,8,.12);border-radius:999px;padding:0 14px;font-size:14px;background:#fff}
+          .tb-mobile-search-btn{height:42px;padding:0 14px;border-radius:999px;border:1px solid rgba(108,39,214,.25);background:#6c27d6;color:#fff;font-size:12px;font-weight:700}
+          .tb-mobile-tab{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));position:fixed;left:0;right:0;bottom:0;padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:rgba(255,255,255,.97);backdrop-filter:blur(14px);border-top:1px solid rgba(17,10,8,.08);z-index:60;overflow:visible}
+          .tb-mobile-tab-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:48px;text-decoration:none;color:#6b7280;border-radius:12px}
+          .tb-mobile-tab-item-btn{border:0;background:transparent;cursor:pointer;width:100%;padding:0}
+          .tb-mobile-tab-item-btn.xw-avatar-only{position:relative;gap:0;transform:none}
+          .tb-mobile-tab-item-btn.xw-avatar-only .jiyue-icon{
+            position:relative;
+            z-index:1;
+            width:34px;
+            height:34px;
+            transform:none;
+            border-radius:9999px;
+            object-fit:cover;
+            background:transparent;
+            padding:0;
+            border:none;
+          }
+          .tb-mobile-tab-item .ms{font-family:'Material Symbols Rounded';font-size:18px;line-height:1}
+          .tb-mobile-tab-item .jiyue-icon{display:block;width:20px;height:20px;object-fit:contain;transform:translateY(-0.5px)}
+          .tb-mobile-tab-item .txt{font-size:10px;font-weight:700}
+          .tb-mobile-tab-item.on{color:#6c27d6;background:rgba(108,39,214,.08)}
+          body.xf-mobile-tab-enabled{padding-bottom:78px}
         }
       `}</style>
       <nav className="fixed top-0 z-50 w-full">
@@ -147,7 +237,7 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
             ) : null}
             {showBooksEntry ? (
               <Link to="/reading" className={`tb-nav-btn ${activeBooks ? "on" : ""}`}>
-                <img src="/assets/jiyue-logo.png" alt="及阅" style={{ height: 18, width: 18, objectFit: 'contain' }} />
+                <span className="icon-slot"><img className="jiyue-icon" src="/assets/jiyue-logo.png" alt="及阅" /></span>
                 <span>及阅</span>
               </Link>
             ) : null}
@@ -191,8 +281,16 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
                     id="tb-program-search-input"
                     type="text"
                     placeholder={isLoggedIn ? searchPlaceholder : '登录后可使用搜索'}
-                    value={typeof searchValue === "string" ? searchValue : undefined}
-                    onChange={(event) => onSearchChange?.(event.target.value)}
+                    value={effectiveSearchValue}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setInnerSearch(value);
+                      onSearchChange?.(value);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter") return;
+                      doSearch((event.currentTarget as HTMLInputElement).value || "");
+                    }}
                     disabled={!isLoggedIn}
                     style={!isLoggedIn ? { pointerEvents: 'none' } : undefined}
                   />
@@ -249,9 +347,17 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
           {compactMobile ? (
             <>
               {showProgramEntry ? (
-                <Link to="/programs/list" className={`mobile-main-link ${activePrograms ? "on" : ""}`} onClick={() => setMenuOpen(false)}>
-                  节目入口
+                <Link to={mobilePrimaryLink.to} className={`mobile-main-link ${mobilePrimaryLink.on ? "on" : ""}`} onClick={() => setMenuOpen(false)}>
+                  {mobilePrimaryLink.iconType === "ms" ? <span className="ms">{mobilePrimaryLink.icon}</span> : null}
+                  {mobilePrimaryLink.iconType === "emoji" ? <span className="emoji">{mobilePrimaryLink.icon}</span> : null}
+                  {mobilePrimaryLink.iconType === "image" ? <img className="jiyue-icon" src={mobilePrimaryLink.icon} alt="及阅" /> : null}
+                  {mobilePrimaryLink.label}
                 </Link>
+              ) : null}
+              {showSearch ? (
+                <button type="button" className="mobile-search" onClick={() => setSearchSheetOpen((v) => !v)} aria-label="打开搜索">
+                  search
+                </button>
               ) : null}
               <button type="button" className="mobile-toggle" onClick={() => setMenuOpen((v) => !v)} aria-label="打开导航菜单">
                 menu
@@ -275,7 +381,7 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
               ) : null}
               {showBooksEntry ? (
                 <Link className={`tb-mobile-link ${activeBooks ? "on" : ""}`} to="/reading" onClick={() => setMenuOpen(false)}>
-                  <img src="/assets/jiyue-logo.png" alt="及阅" style={{ height: 18, width: 18, objectFit: 'contain' }} />
+                  <img className="jiyue-icon" src="/assets/jiyue-logo.png" alt="及阅" />
                   <span>及阅</span>
                 </Link>
               ) : null}
@@ -310,6 +416,50 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = ({
               </button>
             </div>
             <p className="tb-mobile-muted">面向家长的教育决策内容平台</p>
+          </div>
+        ) : null}
+        {compactMobile && showSearch && searchSheetOpen ? (
+          <div className="tb-mobile-search-sheet">
+            <div className="tb-mobile-search-inner">
+              <input
+                className="tb-mobile-search-input"
+                type="text"
+                placeholder={isLoggedIn ? searchPlaceholder : "登录后可使用搜索"}
+                value={effectiveSearchValue}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setInnerSearch(value);
+                  onSearchChange?.(value);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") return;
+                  doSearch((event.currentTarget as HTMLInputElement).value || "");
+                  setSearchSheetOpen(false);
+                }}
+                disabled={!isLoggedIn}
+              />
+              <button type="button" className="tb-mobile-search-btn" onClick={() => { doSearch(effectiveSearchValue); setSearchSheetOpen(false); }} disabled={!isLoggedIn}>
+                搜索
+              </button>
+            </div>
+          </div>
+        ) : null}
+        {compactMobile ? (
+          <div className="tb-mobile-tab">
+            <Link className={`tb-mobile-tab-item ${activePrograms ? "on" : ""}`} to="/programs/list"><span className="ms">podcasts</span><span className="txt">节目</span></Link>
+            <Link className={`tb-mobile-tab-item ${activeBooks ? "on" : ""}`} to="/reading"><img className="jiyue-icon" src="/assets/jiyue-logo.png" alt="及阅" /><span className="txt">及阅</span></Link>
+            <button
+              type="button"
+              className="tb-mobile-tab-item tb-mobile-tab-item-btn xw-avatar-only"
+              onClick={() => {
+                document.dispatchEvent(new CustomEvent("xf-open-xiaowanzi", { detail: { source: "mobile-tab" } }));
+              }}
+              aria-label="小玩子"
+            >
+              <img className="jiyue-icon" src="/assets/wel-avatar/no-hat.png" alt="小玩子" />
+            </button>
+            <Link className={`tb-mobile-tab-item ${activeMaterials ? "on" : ""}`} to="/materials"><span className="ms">inventory_2</span><span className="txt">资料</span></Link>
+            <Link className={`tb-mobile-tab-item ${activeTopics ? "on" : ""}`} to="/topics"><span style={{ fontSize: "16px", lineHeight: 1, display: "inline-flex", alignItems: "center" }}>🙏🏻</span><span className="txt">请教</span></Link>
           </div>
         ) : null}
       </nav>
@@ -459,17 +609,20 @@ const ProfileEditor: React.FC = () => {
       setAvatar(d.avatar_image || '');
       setLoaded(true);
 
-      // 首次登录引导：检查是否需要弹出资料编辑
-      const hasName = !!(d.name && d.name !== d.username);
-      const hasCity = !!d.city;
+      // 首次登录引导：地址(城市) + 年级填写后即视为完成，不再弹窗
+      const hasCity = !!String(d.city || '').trim();
+      const hasGrade = !!String(d.grade || '').trim();
+      const profileCompleted = hasCity && hasGrade;
       const needsOnboarding = sessionStorage.getItem("xf_show_profile") === "1";
       if (needsOnboarding) {
         sessionStorage.removeItem("xf_show_profile");
-        if (!hasName || !hasCity) {
+        if (!profileCompleted) {
           setOnboardingMode(true);
           setTimeout(() => {
             document.getElementById('xf-profile-mask')?.classList.remove('hidden');
           }, 500);
+        } else {
+          setOnboardingMode(false);
         }
       }
     }).catch(() => setLoaded(true));

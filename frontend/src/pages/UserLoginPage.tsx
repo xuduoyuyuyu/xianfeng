@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "../store";
-import { login } from "../store/userSlice";
+import { loginByMobile } from "../store/userSlice";
 import { userApi } from "../services/api";
 
 const PHONE_REGEX = /^1\d{10}$/;
@@ -10,8 +10,8 @@ const PHONE_REGEX = /^1\d{10}$/;
 const UserLoginPage: React.FC = () => {
   const [phone, setPhone] = useState("");
   const [verifyCode, setVerifyCode] = useState("");
-  const [sentCode, setSentCode] = useState("");
   const [countdown, setCountdown] = useState(0);
+  const [isSendingCode, setIsSendingCode] = useState(false);
   const [localError, setLocalError] = useState("");
   const [hint, setHint] = useState("");
 
@@ -44,18 +44,25 @@ const UserLoginPage: React.FC = () => {
     return () => window.clearInterval(timer);
   }, [countdown]);
 
-  const canGetCode = useMemo(() => PHONE_REGEX.test(phone) && countdown === 0, [phone, countdown]);
+  const canGetCode = useMemo(() => PHONE_REGEX.test(phone) && countdown === 0 && !isSendingCode, [phone, countdown, isSendingCode]);
 
-  const handleGetCode = () => {
+  const handleGetCode = async () => {
     if (!PHONE_REGEX.test(phone)) {
       setLocalError("请输入正确的 11 位手机号");
       return;
     }
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    setSentCode(code);
-    setCountdown(60);
-    setLocalError("");
-    setHint(`验证码已发送（演示）：${code}`);
+    try {
+      setIsSendingCode(true);
+      await userApi.sendMobileCode(phone);
+      setCountdown(60);
+      setLocalError("");
+      setHint("验证码已发送，请注意查收短信。");
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || err?.response?.data?.message || err?.message || "发送验证码失败";
+      setLocalError(msg);
+    } finally {
+      setIsSendingCode(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -67,32 +74,16 @@ const UserLoginPage: React.FC = () => {
       setLocalError("请输入正确的 11 位手机号");
       return;
     }
-    if (!sentCode) {
-      setLocalError("请先获取验证码");
+    if (!/^\d{6}$/.test(verifyCode)) {
+      setLocalError("请输入 6 位验证码");
       return;
     }
-    if (verifyCode !== sentCode) {
-      setLocalError("验证码不正确");
-      return;
-    }
-
-    const password = `sms_${phone}`;
     try {
-      await dispatch(login({ username: phone, password }) as any).unwrap();
+      await dispatch(loginByMobile({ mobile: phone, code: verifyCode }) as any).unwrap();
       return;
-    } catch (_err) {
-      // user not exists, try register
-    }
-
-    try {
-      await userApi.register(phone, password, "user");
-      await dispatch(login({ username: phone, password }) as any).unwrap();
     } catch (registerErr: any) {
-      const message = registerErr?.response?.data?.message || registerErr?.message || "注册失败，请稍后重试";
+      const message = registerErr?.response?.data?.error || registerErr?.response?.data?.message || registerErr?.message || "登录失败，请稍后重试";
       setLocalError(message);
-      if (String(message).includes("不允许公开注册")) {
-        setHint("当前环境关闭了公开注册，请联系管理员开通或先由管理员创建账号。");
-      }
     }
   };
 
@@ -480,7 +471,7 @@ const UserLoginPage: React.FC = () => {
                 onClick={handleGetCode}
                 disabled={!canGetCode}
               >
-                {countdown > 0 ? `${countdown}s` : "获取验证码"}
+                {isSendingCode ? "发送中..." : countdown > 0 ? `${countdown}s` : "获取验证码"}
               </button>
             </div>
 

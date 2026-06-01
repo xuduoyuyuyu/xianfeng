@@ -159,7 +159,7 @@ export async function uploadLocalAudioToTosAndSign(filePath: string): Promise<st
   try {
     sdk = await import(moduleName);
   } catch (_error) {
-    throw new Error("缺少 @volcengine/tos-sdk 依赖，请在 backend 安装后重试");
+    throw new Error("缺少 @volcengine/tos-sdk 依赖,请在 backend 安装后重试");
   }
   const TosClientCtor =
     sdk?.TosClient ||
@@ -168,7 +168,7 @@ export async function uploadLocalAudioToTosAndSign(filePath: string): Promise<st
     sdk?.default?.TOS ||
     sdk?.default;
   if (!TosClientCtor) {
-    throw new Error("@volcengine/tos-sdk 初始化失败，请检查版本");
+    throw new Error("@volcengine/tos-sdk 初始化失败,请检查版本");
   }
   const client = new TosClientCtor({
     accessKeyId: cfg.accessKeyId,
@@ -204,7 +204,7 @@ export async function uploadLocalAudioToTosAndSign(filePath: string): Promise<st
   } else {
     throw new Error("@volcengine/tos-sdk 不支持 putObject/getPreSignedUrl");
   }
-  // TOS bucket 已设为公共读，直接拼接永久直链，不走预签名
+  // TOS bucket 已设为公共读,直接拼接永久直链,不走预签名
   const publicUrl = `https://${cfg.bucket}.${cfg.endpoint}/${objectKey}`;
   return publicUrl;
 }
@@ -322,7 +322,7 @@ async function fetchVolcengine(url: string, init: RequestInit): Promise<Response
     return await fetch(url, { ...init, signal: init.signal || controller.signal });
   } catch (error: any) {
     if (error?.name === "AbortError") {
-      throw new Error(`火山请求超时（${Math.round(timeoutMs / 1000)}秒）: ${url}`);
+      throw new Error(`火山请求超时(${Math.round(timeoutMs / 1000)}秒): ${url}`);
     }
     throw error;
   } finally {
@@ -469,7 +469,7 @@ function looksLikeHostParagraph(text: string): boolean {
 function looksLikeQuestionPrompt(text: string): boolean {
   const normalized = asText(text);
   if (!normalized) return false;
-  return /[？?]/.test(normalized) || /为什么|怎么|如何|能不能|可不可以|是不是|请你|请您|想请教/.test(normalized);
+  return /[??]/.test(normalized) || /为什么|怎么|如何|能不能|可不可以|是不是|请你|请您|想请教/.test(normalized);
 }
 
 function getTimedUtteranceSpeakerKey(item: TimedUtterance, index: number): string {
@@ -577,7 +577,7 @@ function estimateDurationFromBytes(byteLength: number): number {
 
 function normalizeFillerCheckText(value: string): string {
   return asText(value)
-    .replace(/[，。！？、,.!?\s~～…]/g, "")
+    .replace(/[,。!?、,.!?\s~~...]/g, "")
     .toLowerCase();
 }
 
@@ -623,7 +623,7 @@ function isLikelyLyricText(value: string): boolean {
     .map((line) => line.trim())
     .filter(Boolean);
   if (lines.length >= 3) {
-    const unique = new Set(lines.map((line) => line.replace(/[，。！？、,.!?\s~～…]/g, "")));
+    const unique = new Set(lines.map((line) => line.replace(/[,。!?、,.!?\s~~...]/g, "")));
     if (unique.size <= Math.max(1, Math.floor(lines.length / 2))) return true;
   }
   return false;
@@ -645,7 +645,7 @@ function scoreFeaturedParagraph(text: string): number {
   const compactLength = normalizeFillerCheckText(normalized).length;
   if (compactLength >= 40) score += 3;
   if (compactLength >= 70) score += 2;
-  if (/[。！？!?]/.test(normalized)) score += 1;
+  if (/[。!?!?]/.test(normalized)) score += 1;
   if (/关键|核心|总结|结论|建议|方法|步骤|重点|模型|原则|框架/.test(normalized)) score += 3;
   if (/就是|那个|然后|嗯|啊/.test(normalized) && compactLength < 20) score -= 2;
   return score;
@@ -662,6 +662,27 @@ function buildParagraphTranscriptFromTimedItems(items: TimedUtterance[], fallbac
     .filter((item) => !!item.text && !isFillerOnlyText(item.text) && !isLikelyLyricText(item.text))
     .sort((a, b) => a.startSec - b.startSec);
   if (!normalizedItems.length) return [];
+
+  // Fix timestamp rollback: when ASR batches have different time baselines,
+  // detect segments where time jumps backward and offset them forward.
+  let offsetSec = 0;
+  let prevEndSec = 0;
+  for (let i = 0; i < normalizedItems.length; i++) {
+    const item = normalizedItems[i];
+    const rawStart = item.startSec;
+    // If startSec suddenly drops more than 60s compared to previous end, it's a new batch
+    if (i > 0 && rawStart + offsetSec < prevEndSec - 60) {
+      offsetSec = prevEndSec;
+    }
+    item.startSec += offsetSec;
+    item.endSec += offsetSec;
+    if (item.endSec <= item.startSec) {
+      item.endSec = item.startSec + 4;
+    }
+    prevEndSec = Math.max(prevEndSec, item.endSec);
+  }
+  // Re-sort after offset correction
+  normalizedItems.sort((a, b) => a.startSec - b.startSec);
 
   const minParagraphChars = 70;
   const maxParagraphChars = 180;
@@ -741,7 +762,7 @@ function splitToTranscriptParagraphs(text: string, durationSeconds: number): Tra
   const normalized = asText(text).replace(/\s+/g, " ");
   if (!normalized) return [];
   const pieces = normalized
-    .split(/[。！？!?\n]/)
+    .split(/[。!?!?\n]/)
     .map((item) => item.trim())
     .filter(Boolean);
   const segments = pieces.length > 0 ? pieces : [normalized];
@@ -774,9 +795,9 @@ function splitToTranscriptParagraphs(text: string, durationSeconds: number): Tra
 }
 
 /**
- * 当 AI 元数据提取（DeepSeek / Ark）均失败时的本地回退。
- * 原则：绝不把逐字稿原文片段当成摘要或速览展示。
- * 所有字段使用占位说明性文本，并明确标记为「AI 暂不可用」。
+ * 当 AI 元数据提取(DeepSeek / Ark)均失败时的本地回退。
+ * 原则:绝不把逐字稿原文片段当成摘要或速览展示。
+ * 所有字段使用占位说明性文本,并明确标记为「AI 暂不可用」。
  */
 function buildHeuristicMetadata(input: {
   transcript: TranscriptSegment[];
@@ -787,11 +808,11 @@ function buildHeuristicMetadata(input: {
   const fallbackTitle = asText(input.fallbackTitle) || "AI 自动解析节目";
   const durationMinutes = Math.max(1, Math.round((input.durationSeconds || 180) / 60));
 
-  // 安全摘要文本 — 绝不拼接逐字稿原文
+  // 安全摘要文本 - 绝不拼接逐字稿原文
   const safeSummaryBody =
-    "AI 元数据提取服务暂时不可用，本期节目的 Ai 摘要将在服务恢复后自动补全。当前版本仅展示基础信息，您仍可收听完整音频。";
+    "AI 元数据提取服务暂时不可用,本期节目的 Ai 摘要将在服务恢复后自动补全。当前版本仅展示基础信息,您仍可收听完整音频。";
   const safeMinutesText =
-    "AI 解析服务正在恢复中，完整会议纪要将在后台 AI 服务就绪后自动生成。带来不便，敬请谅解。";
+    "AI 解析服务正在恢复中,完整会议纪要将在后台 AI 服务就绪后自动生成。带来不便,敬请谅解。";
 
   return {
     episodeTitle: fallbackTitle,
@@ -800,7 +821,7 @@ function buildHeuristicMetadata(input: {
       headline: "⏳ AI 摘要暂不可用",
       body: safeSummaryBody,
       highlightLabel: "提示",
-      highlightText: "本期音频转写已完成，AI 深度解析将在服务恢复后自动生成。",
+      highlightText: "本期音频转写已完成,AI 深度解析将在服务恢复后自动生成。",
       tags: ["播客解析", "待AI补全"],
     },
     termGlossary: [],
@@ -821,7 +842,7 @@ function buildHeuristicMetadata(input: {
         text: safeMinutesText,
       },
       showNotes: {
-        guide: "本期节目 AI 解析暂不可用，完整 Show Notes 将在服务恢复后生成。",
+        guide: "本期节目 AI 解析暂不可用,完整 Show Notes 将在服务恢复后生成。",
         guestIntro: "嘉宾信息待 AI 解析补全。",
         keyMoments: [],
         renderedText: "",
@@ -833,14 +854,25 @@ function buildHeuristicMetadata(input: {
 
 function buildMetadataPrompt(input: { plainText: string }): string {
   return [
-    "你是播客内容运营助手。请根据文本提取节目详情页结构化字段。",
-    "只输出 JSON，不要输出任何解释。",
-    "JSON 结构：",
+    "你是教育播客内容运营专家。请根据下方文本,提取节目详情页结构化字段。",
+    "",
+    "⚠️ 纯净度铁律(必须遵守,违反则输出无效):",
+    "• 禁止输出 ASR 转写中的音乐歌词、歌曲信息(如作词/作曲/演唱/副歌)",
+    "• 禁止输出口头禅填充词(嗯、呃、就是、那个、然后、对对对等)",
+    "• 禁止输出重复雷同的段落",
+    "• 禁止输出 JSON 标记或代码块标记(如 ```json)",
+    "• 禁止字段值留空（空字符串 '' 直接不输出该字段）",
+    "• 禁止使用系统兜底话术（如'AI解析暂不可用'、'服务恢复后生成'）",
+    "• 禁止截断句子:每个字段以完整句号。!?结尾,不以逗号或连接词结尾",
+    "• 所有内容用规范中文表达,剔除口语化赘词",
+    "",
+    "只输出 JSON,不要任何解释文字。",
+    "JSON 结构:",
     "{",
-    '  "episodeTitle": "单集标题",',
+    '  "episodeTitle": "单集标题(15字以内,不含标点)",',
     '  "summary": { "headline": "", "body": "", "highlightLabel": "", "highlightText": "", "tags": [""] },',
-    '  "termGlossary": [{ "term": "术语", "definition": "通俗解释", "sourceUrl": "可选链接" }],',
-    '  "guest": { "name": "", "title": "", "bio": "", "avatar": "", "profileUrl": "" },',
+    '  "termGlossary": [{ "term": "术语", "definition": "一句话通俗解释", "sourceUrl": "可选链接" }],',
+    '  "guest": { "name": "", "title": "职务(≤10字)", "bio": "", "avatar": "", "profileUrl": "" },',
     '  "deepDive": { "sectionTitle": "", "curatedReading": [{ "title": "", "subtitle": "", "url": "" }] },',
     '  "contentPack": {',
     '    "quickView": [{ "startTime": "01:23", "endTime": "03:40", "timeRangeLabel": "01:23-03:40", "summary": "" }],',
@@ -853,16 +885,17 @@ function buildMetadataPrompt(input: { plainText: string }): string {
     "    }",
     "  }",
     "}",
-    "规则：",
-    "1) 中文表达，简洁专业。",
-    "2) tags 返回 2-5 个。",
-    "3) 无法确定嘉宾姓名时使用“节目特邀嘉宾”。",
-    "4) 术语表 termGlossary 返回 3-10 个，definition 用一句话解释，避免空值。",
-    "5) quickView 生成 5-12 段，按时间递增，每段 summary 不超过 300 字。",
-    "6) minutes.text 为整期纪要，不基于时间戳，控制在 1000 字以内。",
-    "7) showNotes.keyMoments 使用“时间 + 要点”，要点尽量可直接转发。",
+    "规则:",
+    "1) 中文表达,简洁专业。每个字段以完整句号结尾。",
+    "2) tags 返回 2-5 个核心关键词。",
+    "3) 无法确定嘉宾姓名时使用'节目特邀嘉宾'。guest.title 只写职务，不超过 10 字。",
+    "4) 术语表 termGlossary 返回 3-10 个教育专业术语,definition 一句话解释。",
+    "5) quickView 生成 5-12 段,按时间递增,每段 summary 不超过 300 字,为第三方视角的梗概而非流水账。",
+    "6) minutes.text 为整期内容纪要,不基于时间戳,控制在 1000 字以内,用段落形式而非列表。",
+    "7) showNotes.keyMoments 使用'时间 + 要点'格式，要点可直接转发分享。",
+    "8) 忽略文本中的音乐片段、歌词、歌曲信息--这些不属于节目内容。",
     "",
-    "文本内容：",
+    "文本内容(注意:去除了音乐/歌词段的纯净文本):",
     input.plainText.slice(0, 12000),
   ].join("\n");
 }
@@ -872,46 +905,99 @@ function normalizeMetadataResult(
   input: { durationSeconds: number; transcript?: TranscriptSegment[] },
   fallbackTitle: string
 ): ProgramAiResult {
-  const quickView = normalizeQuickView(parsed?.contentPack?.quickView, input.transcript || [], input.durationSeconds);
-  const minutesText = truncateByChars(parsed?.contentPack?.minutes?.text, 1000);
-  const showNotesKeyMoments = normalizeShowNotesKeyMoments(parsed?.contentPack?.showNotes?.keyMoments);
+  // ---- 文本清洗层:移除音乐歌词、口头语、乱码、截断等脏数据 ----
+  const cleanStr = (value: unknown): string => {
+    const raw = typeof value === "string" ? value.trim() : "";
+    if (!raw) return "";
+    // 音乐歌词 → 丢弃
+    if (/[♪♫🎵🎶]/u.test(raw)) return "";
+    if (/作词|作曲|编曲|演唱|歌词|副歌|主歌/i.test(raw) && raw.length < 80) return "";
+    // 纯口头语堆叠 → 丢弃
+    if (/^([嗯啊哦呃哎诶对是好的行可以那个然后就是]){3,}$/u.test(raw.replace(/[,。!?、,.!?\s~~...()()]/g, ""))) return "";
+    // 乱码/非正常字符 → 丢弃
+    if (/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g.test(raw)) return "";
+    if (raw.includes("\uFFFD")) return "";
+    // 系统兜底占位文本 → 丢弃
+    const placeholders = [
+      "AI 摘要暂不可用", "AI 元数据提取服务暂时不可用",
+      "AI 解析服务正在恢复", "待解析", "待AI补全",
+      "嘉宾信息将在 AI 解析完成后自动填充",
+      "完整会议纪要将在后台 AI 服务就绪后自动生成",
+      "本期节目 AI 解析暂不可用", "完整 Show Notes 将在服务恢复后生成",
+    ];
+    if (placeholders.some((p) => raw.includes(p))) return "";
+    // JSON残留 → 清理
+    let result = raw;
+    result = result.replace(/^```(?:json)?\s*/gm, "").replace(/```\s*$/gm, "");
+    if (/^\{[\s\S]*\}$/.test(result) && result.length < 200) return "";
+    // 截断句子修补:逗号/连接词结尾 → 换成句号
+    result = result.replace(/[,,、和与及和]$/, "。");
+    // 口头语归一
+    result = result.replace(/([嗯啊哦呃哎诶]){2,}/gu, (_, char: string) => char);
+    // 全角半角统一
+    result = result.replace(/[,,]/g, ",").replace(/[。.]/g, "。").replace(/[!!]/g, "!").replace(/[??]/g, "?");
+    return result.trim();
+  };
+
+  const cleanArray = (arr: unknown): string[] =>
+    Array.isArray(arr)
+      ? arr.map((item) => cleanStr(item)).filter(Boolean).slice(0, 8)
+      : [];
+
+  const quickView = normalizeQuickView(
+    parsed?.contentPack?.quickView,
+    input.transcript || [],
+    input.durationSeconds
+  ).map((item) => ({
+    ...item,
+    summary: cleanStr(item?.summary) || item?.summary,
+  })).filter((item) => item.summary);
+
+  const minutesText = cleanStr(parsed?.contentPack?.minutes?.text) || "";
+  const showNotesKeyMoments = normalizeShowNotesKeyMoments(parsed?.contentPack?.showNotes?.keyMoments)
+    .map((item) => ({
+      ...item,
+      point: cleanStr(item?.point) || item?.point,
+    }))
+    .filter((item) => item.point);
+
+  const episodeTitle = cleanStr(parsed?.episodeTitle) || fallbackTitle;
+
   return {
-    episodeTitle: asText(parsed?.episodeTitle) || fallbackTitle,
+    episodeTitle,
     episodeDuration: `${Math.max(1, Math.round((input.durationSeconds || 180) / 60))} 分钟`,
     summary: {
-      headline: asText(parsed?.summary?.headline),
-      body: asText(parsed?.summary?.body),
-      highlightLabel: asText(parsed?.summary?.highlightLabel),
-      highlightText: asText(parsed?.summary?.highlightText),
-      tags: Array.isArray(parsed?.summary?.tags)
-        ? parsed.summary.tags.map((item: unknown) => asText(item)).filter(Boolean).slice(0, 8)
-        : [],
+      headline: cleanStr(parsed?.summary?.headline),
+      body: cleanStr(parsed?.summary?.body),
+      highlightLabel: cleanStr(parsed?.summary?.highlightLabel),
+      highlightText: cleanStr(parsed?.summary?.highlightText),
+      tags: cleanArray(parsed?.summary?.tags),
     },
     termGlossary: Array.isArray(parsed?.termGlossary)
       ? parsed.termGlossary
           .map((item: any) => ({
-            term: asText(item?.term),
-            definition: asText(item?.definition),
-            sourceUrl: asText(item?.sourceUrl),
+            term: cleanStr(item?.term),
+            definition: cleanStr(item?.definition),
+            sourceUrl: cleanStr(item?.sourceUrl),
           }))
           .filter((item: { term: string; definition: string }) => !!item.term && !!item.definition)
           .slice(0, 20)
       : [],
     guest: {
-      name: asText(parsed?.guest?.name),
-      title: asText(parsed?.guest?.title),
-      bio: asText(parsed?.guest?.bio),
-      avatar: asText(parsed?.guest?.avatar),
-      profileUrl: asText(parsed?.guest?.profileUrl),
+      name: cleanStr(parsed?.guest?.name),
+      title: cleanStr(parsed?.guest?.title),
+      bio: cleanStr(parsed?.guest?.bio),
+      avatar: cleanStr(parsed?.guest?.avatar),
+      profileUrl: cleanStr(parsed?.guest?.profileUrl),
     },
     deepDive: {
-      sectionTitle: asText(parsed?.deepDive?.sectionTitle),
+      sectionTitle: cleanStr(parsed?.deepDive?.sectionTitle),
       curatedReading: Array.isArray(parsed?.deepDive?.curatedReading)
         ? parsed.deepDive.curatedReading
             .map((item: any) => ({
-              title: asText(item?.title),
-              subtitle: asText(item?.subtitle),
-              url: asText(item?.url),
+              title: cleanStr(item?.title),
+              subtitle: cleanStr(item?.subtitle),
+              url: cleanStr(item?.url),
             }))
             .filter((item: { title: string }) => !!item.title)
         : [],
@@ -919,14 +1005,14 @@ function normalizeMetadataResult(
     contentPack: {
       quickView,
       minutes: {
-        text: minutesText,
+        text: cleanStr(minutesText),
       },
       showNotes: {
-        guide: truncateByChars(parsed?.contentPack?.showNotes?.guide, 260),
-        guestIntro: truncateByChars(parsed?.contentPack?.showNotes?.guestIntro, 260),
+        guide: cleanStr(parsed?.contentPack?.showNotes?.guide),
+        guestIntro: cleanStr(parsed?.contentPack?.showNotes?.guestIntro),
         keyMoments: showNotesKeyMoments,
         renderedText: "",
-        templateOverride: asText(parsed?.contentPack?.showNotes?.templateOverride),
+        templateOverride: cleanStr(parsed?.contentPack?.showNotes?.templateOverride),
       },
     },
   };
@@ -969,7 +1055,7 @@ async function extractMetadataWithOpenAiCompatibleProvider(
         temperature: 0.2,
         response_format: { type: "json_object" },
         messages: [
-          { role: "system", content: `你是教育播客内容运营助手，通过 ${config.providerName} 只输出 JSON。` },
+          { role: "system", content: `你是教育播客内容运营助手,通过 ${config.providerName} 只输出 JSON。` },
           { role: "user", content: prompt },
         ],
       }),
@@ -1074,11 +1160,11 @@ class OpenAIProgramAiProvider implements ProgramAiProvider {
   }
 
   async extractProgramMetadata(input: { transcript: TranscriptSegment[]; plainText: string; durationSeconds: number }): Promise<ProgramAiResult> {
-    const generated = await extractMetadataWithPreferredTextProvider(input, "AI 自动生成：家校协同实践");
+    const generated = await extractMetadataWithPreferredTextProvider(input, "AI 自动生成:家校协同实践");
     if (generated) return generated;
     return buildHeuristicMetadata({
       ...input,
-      fallbackTitle: "AI 自动生成：家校协同实践",
+      fallbackTitle: "AI 自动生成:家校协同实践",
     });
   }
 }
@@ -1118,8 +1204,8 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
       "X-Api-Request-Id": requestId,
       "X-Api-Sequence": "-1",
     };
-    // Standard（seedasr）优先试用 APP_ID + ACCESS_TOKEN（兼容性更好）
-    // Flash（bigasr）也用 APP_ID + ACCESS_TOKEN
+    // Standard(seedasr)优先试用 APP_ID + ACCESS_TOKEN(兼容性更好)
+    // Flash(bigasr)也用 APP_ID + ACCESS_TOKEN
     // VOLCENGINE_API_KEY 保留作 fallback
     const useAppAuth = !!(this.appId && this.accessToken);
     if (useAppAuth) {
@@ -1181,7 +1267,7 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
     onProgress?: (progress: number, stage: string) => Promise<void> | void
   ): Promise<{ transcript: TranscriptSegment[]; plainText: string; durationSeconds: number }> {
     if (this.isLocalUrl(sourceUrl)) {
-      throw new Error("火山标准版需要公网可访问音频 URL；当前是本地地址 localhost/127.0.0.1");
+      throw new Error("火山标准版需要公网可访问音频 URL;当前是本地地址 localhost/127.0.0.1");
     }
     const requestId = randomUUID();
     const headers = this.buildHeaders(requestId, resourceId);
@@ -1277,7 +1363,7 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
     }
     if (!standardCompleted) {
       const statusText = asText(lastJson?.result?.status_text) || asText(lastJson?.message) || "处理超时";
-      throw new Error(`[resource_id=${resourceId}] 标准版轮询超时，未拿到完整转写结果: ${statusText}`);
+      throw new Error(`[resource_id=${resourceId}] 标准版轮询超时,未拿到完整转写结果: ${statusText}`);
     }
     await onProgress?.(60, "transcribed");
     const utterances = Array.isArray(lastJson?.result?.utterances) ? lastJson.result.utterances : [];
@@ -1286,7 +1372,7 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
     const durationMs = Number(lastJson?.audio_info?.duration) || Number(lastJson?.result?.additions?.duration) || 0;
     const durationSeconds = durationMs > 1000 ? Math.round(durationMs / 1000) : 0;
     if (!plainText && transcript.length === 0) {
-      throw new Error(`[resource_id=${resourceId}] 标准版返回空转写结果，请检查音频 URL 是否公网可访问: ${sourceUrl}`);
+      throw new Error(`[resource_id=${resourceId}] 标准版返回空转写结果,请检查音频 URL 是否公网可访问: ${sourceUrl}`);
     }
     return { transcript: transcript.length ? transcript : splitToTranscriptParagraphs(plainText, durationSeconds || 180), plainText, durationSeconds: durationSeconds || 180 };
   }
@@ -1350,7 +1436,7 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
     let bytes: Buffer | null = null;
     if (needsLocalFile || !this.resourceIds.some((r: string) => this.shouldUseStandard(r))) {
       if (!filePath || !existsSync(filePath)) {
-        throw new Error(`音频文件不存在: ${filePath || "(空路径)"}，远程音频请确保已配置 VOLCENGINE_PUBLIC_BASE_URL 并使用标准模式`);
+        throw new Error(`音频文件不存在: ${filePath || "(空路径)"},远程音频请确保已配置 VOLCENGINE_PUBLIC_BASE_URL 并使用标准模式`);
       }
       bytes = await fs.readFile(filePath);
     }
@@ -1358,7 +1444,7 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
     const maxFlashLocalBytes = getVolcengineFlashMaxLocalBytes();
     if (isLocalSourceUrl && bytes && bytes.length > maxFlashLocalBytes) {
       throw new Error(
-        `火山请求超时风险：本地音频 ${Math.round(bytes.length / 1024 / 1024)}MB 超过 flash 直传建议上限 ${Math.round(maxFlashLocalBytes / 1024 / 1024)}MB；请配置 VOLCENGINE_PUBLIC_BASE_URL 使用公网 URL 转写，或上传更小音频`
+        `火山请求超时风险:本地音频 ${Math.round(bytes.length / 1024 / 1024)}MB 超过 flash 直传建议上限 ${Math.round(maxFlashLocalBytes / 1024 / 1024)}MB;请配置 VOLCENGINE_PUBLIC_BASE_URL 使用公网 URL 转写,或上传更小音频`
       );
     }
     const payload = bytes ? {
@@ -1387,7 +1473,7 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
         : this.resourceIds;
     if ((forceFlashFallback || isLocalSourceUrl) && bytes && bytes.length > flashHardLimitBytes) {
       throw new Error(
-        `当前音频约 ${Math.round(bytes.length / 1024 / 1024)}MB，超出 flash 稳定处理上限 ${Math.round(
+        `当前音频约 ${Math.round(bytes.length / 1024 / 1024)}MB,超出 flash 稳定处理上限 ${Math.round(
           flashHardLimitBytes / 1024 / 1024
         )}MB。请在 https://xianfeng.xinzhi.info/admin/programs 上传并使用 standard 模式解析。`
       );
@@ -1406,7 +1492,7 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
       }
       if (!shouldAttemptVolcengineFlashEndpoint(resourceId, modeForThisRun)) {
         if (!lastErrorMessage) {
-          lastErrorMessage = `[resource_id=${resourceId}] 标准版需要公网可访问音频 URL；请配置 VOLCENGINE_PUBLIC_BASE_URL 为公网域名`;
+          lastErrorMessage = `[resource_id=${resourceId}] 标准版需要公网可访问音频 URL;请配置 VOLCENGINE_PUBLIC_BASE_URL 为公网域名`;
         }
         continue;
       }
@@ -1436,10 +1522,10 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
           try {
             return await this.transcribeByStandard(sourceUrl, resourceId);
           } catch (error: any) {
-            lastErrorMessage = `[resource_id=${resourceId}] flash 请求体过大，标准版 fallback 失败: ${asText(error?.message) || message}`;
+            lastErrorMessage = `[resource_id=${resourceId}] flash 请求体过大,标准版 fallback 失败: ${asText(error?.message) || message}`;
           }
         } else if (isPayloadTooLarge && isLocalSourceUrl) {
-          lastErrorMessage = `[resource_id=${resourceId}] flash 请求体过大（HTTP 413）；请配置 VOLCENGINE_PUBLIC_BASE_URL 为公网域名以启用标准版 URL 转写`;
+          lastErrorMessage = `[resource_id=${resourceId}] flash 请求体过大(HTTP 413);请配置 VOLCENGINE_PUBLIC_BASE_URL 为公网域名以启用标准版 URL 转写`;
         }
         const isTransientGatewayIssue =
           response.status >= 500 ||
@@ -1472,7 +1558,7 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
         }
       }
       if (!asText(process.env.OPENAI_API_KEY)) {
-        lastErrorMessage = `${lastErrorMessage}；当前未配置 OPENAI_API_KEY，无法启用转写兜底`;
+        lastErrorMessage = `${lastErrorMessage};当前未配置 OPENAI_API_KEY,无法启用转写兜底`;
       }
       throw new Error(`火山语音转写失败: ${lastErrorMessage}`);
     }
@@ -1499,7 +1585,7 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
     const durationMs = Number(json?.audio_info?.duration) || Number(json?.result?.additions?.duration) || 0;
     const durationSeconds = durationMs > 1000 ? Math.round(durationMs / 1000) : estimateDurationFromBytes(bytes.length);
     if (!plainText && transcript.length === 0) {
-      throw new Error("火山语音转写失败: flash 返回空转写结果，请检查资源 ID、鉴权配置和音频格式");
+      throw new Error("火山语音转写失败: flash 返回空转写结果,请检查资源 ID、鉴权配置和音频格式");
     }
     await options?.onProgress?.(60, "transcribed");
     return { transcript: transcript.length ? transcript : splitToTranscriptParagraphs(plainText, durationSeconds), plainText, durationSeconds };
@@ -1525,24 +1611,24 @@ class MockProgramAiProvider implements ProgramAiProvider {
     const inferredDuration = Math.max(180, Math.min(3600, Math.round(stats.size / 24000)));
     const topic = titleFromAudioPath(filePath);
     const transcript: TranscriptSegment[] = [
-      { time: "00:00-00:55", speaker: "主播·阿力", text: `欢迎来到《${topic}》。今天我们聚焦家校协同中的关键挑战，先厘清为什么很多家庭在执行层面容易失速。`, featured: true },
-      { time: "00:55-01:45", speaker: "嘉宾", text: "很多家庭的问题不在于方法缺失，而在于执行节奏和沟通顺序。要先建立最小可执行动作，再逐步迭代，而不是一开始就追求全面覆盖。", featured: true },
-      { time: "01:45-02:40", speaker: "主播·阿力", text: "那我们先从一个最容易落地的观察动作开始，帮助家长建立反馈闭环。通过固定时间复盘，把行为变化与情绪反馈放到同一张记录表里。", featured: false },
-      { time: "02:40-03:30", speaker: "嘉宾", text: "建议每周固定一次复盘，把具体行为与情绪体验都记录下来。连续三周后再判断策略效果，这样更容易看到稳定改善。", featured: false },
+      { time: "00:00-00:55", speaker: "主播·阿力", text: `欢迎来到《${topic}》。今天我们聚焦家校协同中的关键挑战,先厘清为什么很多家庭在执行层面容易失速。`, featured: true },
+      { time: "00:55-01:45", speaker: "嘉宾", text: "很多家庭的问题不在于方法缺失,而在于执行节奏和沟通顺序。要先建立最小可执行动作,再逐步迭代,而不是一开始就追求全面覆盖。", featured: true },
+      { time: "01:45-02:40", speaker: "主播·阿力", text: "那我们先从一个最容易落地的观察动作开始,帮助家长建立反馈闭环。通过固定时间复盘,把行为变化与情绪反馈放到同一张记录表里。", featured: false },
+      { time: "02:40-03:30", speaker: "嘉宾", text: "建议每周固定一次复盘,把具体行为与情绪体验都记录下来。连续三周后再判断策略效果,这样更容易看到稳定改善。", featured: false },
     ];
     return {
       transcript,
-      plainText: transcript.map((item) => `${item.speaker}：${item.text}`).join("\n"),
+      plainText: transcript.map((item) => `${item.speaker}:${item.text}`).join("\n"),
       durationSeconds: inferredDuration,
     };
   }
 
   async extractProgramMetadata(input: { transcript: TranscriptSegment[]; plainText: string; durationSeconds: number }): Promise<ProgramAiResult> {
-    const generated = await extractMetadataWithPreferredTextProvider(input, "AI 自动生成：家校协同实践");
+    const generated = await extractMetadataWithPreferredTextProvider(input, "AI 自动生成:家校协同实践");
     if (generated) return generated;
     return buildHeuristicMetadata({
       ...input,
-      fallbackTitle: "AI 自动生成：家校协同实践",
+      fallbackTitle: "AI 自动生成:家校协同实践",
     });
   }
 }
@@ -1568,33 +1654,39 @@ export async function generateMindMap(input: {
     .map(q => `[${q.timeRangeLabel}] ${q.summary.slice(0, 120)}`)
     .join("\n");
 
-  const prompt = `你是一位教育播客的知识结构分析师。请根据以下节目信息，生成一个层级知识树。
+  const prompt = `你是一位教育播客的知识结构分析师。请根据以下节目信息,生成一个层级知识树。
 
-节目标题：${input.title}
-内容摘要：${input.summaryBody.slice(0, 300)}
-核心观点：${input.highlightText.slice(0, 200)}
+节目主题:${input.title}
+内容摘要:${input.summaryBody.slice(0, 300)}
+核心观点:${input.highlightText.slice(0, 200)}
 
-关键术语：
+关键术语:
 ${termsText}
 
-时间线摘要：
+时间线摘要:
 ${quickViewText}
 
-请输出一个完整的知识树 JSON，结构为：
+⚠️ 纯净度要求:
+- 禁止输出ASR中的音乐歌词、歌曲信息
+- 禁止输出口头禅(嗯、呃、就是、那个等)
+- 禁止字段留空或使用占位语
+- 所有文本以完整句子结束,不以逗号或连接词结尾
+
+请输出一个完整的知识树 JSON,结构为:
 {
   "root": {
     "title": "一句话概括本期主题",
-    "summary": "50字以内概述，说明本期核心议题",
+    "summary": "50字以内概述,说明本期核心议题",
     "emoji": "1个最贴切的emoji",
     "children": [
       {
-        "title": "核心观点标题（简洁，10字以内）",
-        "summary": "该观点的详细阐述，包含节目中的具体论据（30-60字）",
+        "title": "核心观点标题(简洁,10字以内)",
+        "summary": "该观点的详细阐述,包含节目中的具体论据(30-60字)",
         "emoji": "匹配内容的1个emoji",
         "children": [
           {
             "title": "具体论据或案例",
-            "summary": "节目中提到的具体例证或数据（20-40字）",
+            "summary": "节目中提到的具体例证或数据(20-40字)",
             "source": { "type": "transcript", "time": "对应的时间段如00:15:30" }
           }
         ]
@@ -1603,14 +1695,15 @@ ${quickViewText}
   }
 }
 
-要求：
+要求:
 1. root.children 必须有 3-5 个核心观点节点
-2. 每个核心观点下面有 1-3 个子节点（论据/案例/方法/术语解释）
-3. root.children 的最后一项固定为标题"行动建议"，包含 2-3 条家长可执行的具体建议作为子节点
-4. 如果术语表中有重要概念，整合到相关观点下而不是单独列出
-5. emoji 要精准匹配内容语义，不同节点用不同 emoji
-6. source.time 根据 quickView 时间线填写，确保时间格式为 HH:MM:SS（如 00:15:30）
+2. 每个核心观点下面有 1-3 个子节点(论据/案例/方法/术语解释)
+3. root.children 的最后一项固定为标题"行动建议",包含 2-3 条家长可执行的具体建议作为子节点
+4. 如果术语表中有重要概念,整合到相关观点下而不是单独列出
+5. emoji 要精准匹配内容语义,不同节点用不同 emoji
+6. source.time 根据 quickView 时间线填写,确保时间格式为 HH:MM:SS(如 00:15:30)
 7. 只输出 JSON，不要任何解释文字、不要 markdown 代码块标记
+8. 忽略输入文本中的音乐片段、歌词——它们不属于知识树内容
 
 请直接返回 JSON：`;
 
@@ -1643,7 +1736,7 @@ export function resolveProgramAiProvider(): ProgramAiProvider {
   const provider = asText(process.env.AI_PROVIDER) || "openai";
   const isProduction = asText(process.env.NODE_ENV).toLowerCase() === "production";
   if (provider === "mock" && isProduction) {
-    throw new Error("生产环境禁止使用 AI_PROVIDER=mock，请改为 volcengine 或 openai");
+    throw new Error("生产环境禁止使用 AI_PROVIDER=mock,请改为 volcengine 或 openai");
   }
   if (provider === "openai") {
     return new OpenAIProgramAiProvider();

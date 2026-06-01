@@ -82,10 +82,24 @@ interface ProgramShowNotes {
   templateOverride?: string;
 }
 
+interface StructureNode {
+  title: string;
+  summary?: string;
+  emoji?: string;
+  source?: { type: string; time?: string; term?: string };
+  children?: StructureNode[];
+}
+
+interface ProgramStructure {
+  root?: StructureNode;
+  layers?: Record<string, StructureNode>;
+}
+
 interface ProgramContentPack {
   quickView?: ProgramQuickViewItem[];
   minutes?: ProgramMinutes;
   showNotes?: ProgramShowNotes;
+  structure?: ProgramStructure;
 }
 
 interface ProgramTermGlossaryItem {
@@ -272,6 +286,7 @@ const programSchema = new mongoose.Schema(
         renderedText: { type: String, default: "" },
         templateOverride: { type: String, default: "" },
       },
+      structure: { type: mongoose.Schema.Types.Mixed, default: null },
     },
     agentOutputs: {
       proofread: {

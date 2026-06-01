@@ -442,7 +442,7 @@ const MaterialsPage: React.FC = () => {
     onExpandToggle?: () => void;
   }) => (
     <div className="flex flex-col gap-3 md:flex-row md:items-start">
-      <div className="w-[72px] pt-1 text-sm font-black tracking-[0.1em] text-[#6b5fa0]">{title}</div>
+      <div className="materials-mobile-label w-[72px] pt-1 text-sm font-black tracking-[0.1em] text-[#6b5fa0]">{title}</div>
       <div className="flex-1">
         {options.length > limit ? (
           <div className="mb-2 flex items-center justify-end">
@@ -492,6 +492,42 @@ const MaterialsPage: React.FC = () => {
           55% { transform: translate3d(1.5%,-2.5%,0) scale(1.18); opacity: .78; }
         }
         @keyframes materialsToastIn{from{opacity:0;transform:translate(-50%,-12px)}to{opacity:1;transform:translate(-50%,0)}}
+        .materials-hero-search {
+          border: 1px solid rgba(124, 77, 255, 0.22);
+          background: rgba(255, 255, 255, 0.94);
+          box-shadow: 0 4px 14px rgba(124, 77, 255, 0.09);
+          transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+        }
+        .materials-hero-control {
+          height: 56px;
+          min-height: 56px;
+          max-height: 56px;
+          border-radius: 16px;
+        }
+        .materials-hero-search:focus-within {
+          border-color: rgba(124, 77, 255, 0.46);
+          box-shadow: 0 8px 20px rgba(124, 77, 255, 0.16);
+          transform: translateY(-1px);
+        }
+        .materials-hero-search .materials-search-input {
+          font-size: 16px;
+          line-height: 1.2;
+          color: #43336f;
+          height: 100%;
+          min-height: 100%;
+          max-height: 100%;
+        }
+        .materials-hero-search .materials-search-input::placeholder {
+          color: #9a8fc4;
+          font-weight: 500;
+        }
+        @media (max-width: 768px) {
+          .materials-mobile-main { padding-top: 70px !important; padding-bottom: calc(120px + env(safe-area-inset-bottom)) !important; }
+          .materials-mobile-hero { padding: 16px !important; border-radius: 20px !important; }
+          .materials-mobile-filter { padding: 12px !important; border-radius: 16px !important; }
+          .materials-mobile-label { width: 56px !important; font-size: 12px !important; }
+          .materials-mobile-grid { gap: 12px !important; }
+        }
       `}</style>
       <div className="pointer-events-none absolute inset-0 opacity-40">
         <div className="absolute inset-0 bg-[linear-gradient(rgba(118,83,205,0.05)_1.5px,transparent_1.5px),linear-gradient(90deg,rgba(118,83,205,0.05)_1.5px,transparent_1.5px)] bg-[size:28px_28px]" />
@@ -510,9 +546,9 @@ const MaterialsPage: React.FC = () => {
         searchValue={keyword}
         onSearchChange={setKeyword}
       />
-      <main className="mx-auto max-w-7xl px-4 pb-16 pt-[76px] sm:px-6 lg:px-8">
+      <main className="materials-mobile-main mx-auto max-w-7xl px-4 pb-16 pt-[76px] sm:px-6 lg:px-8">
         {showHero ? (
-          <section className="group relative overflow-hidden rounded-[2rem] border border-[#d8d0ef] bg-[radial-gradient(circle_at_85%_15%,_rgba(143,100,255,0.1),_transparent_38%),linear-gradient(135deg,_#f4f1fd_0%,_#faf8ff_48%,_#f0ebff_100%)] p-7 shadow-[0_24px_80px_rgba(80,62,125,0.1)] sm:p-9">
+          <section className="materials-mobile-hero group relative overflow-hidden rounded-[2rem] border border-[#d8d0ef] bg-[radial-gradient(circle_at_85%_15%,_rgba(143,100,255,0.1),_transparent_38%),linear-gradient(135deg,_#f4f1fd_0%,_#faf8ff_48%,_#f0ebff_100%)] p-7 shadow-[0_24px_80px_rgba(80,62,125,0.1)] sm:p-9">
             <button
               type="button"
               onClick={dismissHero}
@@ -533,8 +569,8 @@ const MaterialsPage: React.FC = () => {
               </p>
             </div>
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <label className="flex h-12 flex-1 items-center gap-2 rounded-2xl border border-[#d8d0ef] bg-white px-4 shadow-sm">
-                <span className="material-symbols-outlined text-[#8f7bd6]">search</span>
+              <label className="materials-hero-search materials-hero-control inline-flex flex-1 items-center gap-2 border border-[#d8d0ef] bg-white px-4 shadow-sm">
+                <span className="material-symbols-outlined text-[#8f7bd6]" style={{ fontSize: 22, lineHeight: 1 }}>search</span>
                 <input
                   value={keyword}
                   onChange={(event) => setKeyword(event.target.value)}
@@ -545,7 +581,7 @@ const MaterialsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={clearFilters}
-                className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#cfc2ee] bg-white px-5 text-sm font-bold text-[#654f88] transition hover:border-[#5e17eb] hover:text-[#5e17eb]"
+                className="materials-hero-control inline-flex items-center justify-center border border-[#cfc2ee] bg-white px-5 text-sm font-bold text-[#654f88] transition hover:border-[#5e17eb] hover:text-[#5e17eb]"
             >
               清空筛选
             </button>
@@ -553,7 +589,7 @@ const MaterialsPage: React.FC = () => {
           </section>
         ) : null}
 
-        <section className="mt-6 rounded-[1.8rem] border border-[#e0d9f2] bg-white p-5 shadow-[0_16px_50px_rgba(80,62,125,0.06)] sm:p-6">
+        <section className="materials-mobile-filter mt-6 rounded-[1.8rem] border border-[#e0d9f2] bg-white p-5 shadow-[0_16px_50px_rgba(80,62,125,0.06)] sm:p-6">
           <div className="space-y-5">
             <FilterGroup
               title="阶段"
@@ -562,7 +598,7 @@ const MaterialsPage: React.FC = () => {
               onToggle={handleStageToggle}
             />
             <div className="flex flex-col gap-3 md:flex-row md:items-start">
-              <div className="w-[72px] pt-1 text-sm font-black tracking-[0.1em] text-[#6b5fa0]">年级</div>
+              <div className="materials-mobile-label w-[72px] pt-1 text-sm font-black tracking-[0.1em] text-[#6b5fa0]">年级</div>
               <div className="flex-1">
                 <div className="overflow-x-auto pb-1 [scrollbar-width:thin]">
                   <div className="flex min-w-max flex-nowrap gap-2">
@@ -616,7 +652,7 @@ const MaterialsPage: React.FC = () => {
 
         {error ? <div className="mt-6 rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm text-red-500">{error}</div> : null}
 
-        <section className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <section className="materials-mobile-grid mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {loading
             ? Array.from({ length: 9 }).map((_, index) => (
                 <div key={index} className="animate-pulse rounded-[1.4rem] border border-[#e2dcf0] bg-white p-5">

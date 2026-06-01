@@ -58,6 +58,18 @@ interface HistoryItem {
   createdAt: string;
 }
 
+async function parseJsonSafe(resp: Response): Promise<any> {
+  const raw = await resp.text();
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const txt = raw.trim();
+    const isHtml = txt.startsWith("<!DOCTYPE") || txt.startsWith("<html");
+    throw new Error(isHtml ? "服务暂时不可用，请稍后重试" : "返回数据格式异常，请稍后重试");
+  }
+}
+
 /* ===== 常量 ===== */
 const HISTORY_KEY = "xf_worthbuy_history";
 const MAX_HISTORY = 10;
@@ -497,6 +509,11 @@ const WorthBuyPage: React.FC = () => {
 
   const resultRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const openDetail = useCallback((query: string, res: AnalysisResult) => {
+    navigate(`/worthbuy/${encodeURIComponent(query)}`, {
+      state: { result: res, query },
+    });
+  }, [navigate]);
   const userId = useMemo(() => {
     let id = localStorage.getItem("xianfeng_user_id");
     if (!id) {
@@ -511,7 +528,7 @@ const WorthBuyPage: React.FC = () => {
     try {
       const resp = await fetch(`/api/worthbuy/my?userId=${encodeURIComponent(userId)}`);
       if (!resp.ok) return;
-      const data = await resp.json();
+      const data = await parseJsonSafe(resp);
       const items: HistoryItem[] = (data.items || []).map((item: any) => ({
         query: item.brand || item.query || "",
         url: item.result?.url || null,
@@ -600,23 +617,21 @@ const WorthBuyPage: React.FC = () => {
     // 1️⃣ 先查 DEMO_DATA（预置示例）
     const demoHit = DEMO_DATA[trimmed];
     if (demoHit) {
-      setResult(demoHit);
       setLoading(false);
       saveToHistory(trimmed, demoHit);
       saveToBackend(trimmed, trimmed, demoHit).catch(() => {});
       fetchMySubmissions();
-      setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+      openDetail(trimmed, demoHit);
       return;
     }
 
     // 2️⃣ 再查历史记录
     const historyHit = history.find((h) => h.query === trimmed);
     if (historyHit) {
-      setResult(historyHit.result);
       setLoading(false);
       saveToBackend(trimmed, trimmed, historyHit.result).catch(() => {});
       fetchMySubmissions();
-      setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+      openDetail(trimmed, historyHit.result);
       return;
     }
 
@@ -648,7 +663,7 @@ const WorthBuyPage: React.FC = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(submitBody),
       });
-      const submitData = await submitResp.json();
+      const submitData = await parseJsonSafe(submitResp);
 
       if (!submitResp.ok) {
         throw new Error(submitData?.error || `提交失败 (${submitResp.status})`);
@@ -656,13 +671,12 @@ const WorthBuyPage: React.FC = () => {
 
       // 步骤 B: 如果直接返回了结果（已有收录），直接展示
       if (submitData.score !== undefined && submitData.score !== null) {
-        setResult(submitData);
         setError(null);
         setLoading(false);
         saveToHistory(trimmed, submitData);
         saveToBackend(trimmed, trimmed, submitData).catch(() => {});
         fetchMySubmissions();
-        setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+        openDetail(trimmed, submitData);
         return;
       }
 
@@ -680,17 +694,16 @@ const WorthBuyPage: React.FC = () => {
           const checkResp = await fetch(
             `/api/worthbuy/check?brand=${encodeURIComponent(brand)}&request_id=${requestId}`
           );
-          const checkData = await checkResp.json();
+          const checkData = await parseJsonSafe(checkResp);
 
           if (checkData.status === "done" && checkData.result) {
             // 分析完成！
             if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
-            setResult(checkData.result);
             setError(null);
             setLoading(false);
             saveToHistory(trimmed, checkData.result);
             saveToBackend(trimmed, trimmed, checkData.result).catch(() => {});
-            setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+            openDetail(trimmed, checkData.result);
           } else if (checkData.status === "failed") {
             // 分析失败
             if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
@@ -719,7 +732,7 @@ const WorthBuyPage: React.FC = () => {
       setResult(null);
       setLoading(false);
     }
-  }, [input, saveToHistory, saveToBackend, history]);
+  }, [input, saveToHistory, saveToBackend, history, openDetail, fetchMySubmissions]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !loading) analyze();
@@ -742,21 +755,17 @@ const WorthBuyPage: React.FC = () => {
       document.dispatchEvent(new CustomEvent("xf-show-login-modal", { detail: { title: "登录后即可分析", description: "登录后可使用品牌分析功能，获取个性化消费建议。" } }));
       return;
     }
-    setInput(query);
-    setError(null);
-    setLoading(false);
     const demoResult = DEMO_DATA[query];
     if (demoResult) {
-      setResult(demoResult);
-      saveToHistory(query, demoResult);
-      saveToBackend(query, query, demoResult).catch(() => {});
-      setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+      navigate(`/worthbuy/${encodeURIComponent(query)}`, {
+        state: { result: demoResult, query },
+      });
     }
-  }, [token, setInput, setError, setResult]);
+  }, [token, navigate]);
 
   return (
     <div className="worthbuy-page" style={{ minHeight: "100vh", background: "#f8f6ff" }}>
-      <GlobalPublicNav showPlanningEntry={true} />
+      <GlobalPublicNav compactMobile showPlanningEntry={true} />
 
       {/* ===== Hero 区域 ===== */}
       <main className="worthbuy-hero mx-auto max-w-7xl px-4 pt-[76px] pb-2 sm:px-6 lg:px-8">
@@ -774,10 +783,7 @@ const WorthBuyPage: React.FC = () => {
           </div>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <label
-              className="flex h-12 flex-1 items-center gap-2 rounded-2xl border border-[#d8d0ef] bg-white px-4 shadow-sm"
-              style={{ transition: "border-color 0.2s" }}
-              onFocus={(e) => { e.currentTarget.style.borderColor = "#7C3AED"; }}
-              onBlur={(e) => { e.currentTarget.style.borderColor = "#d8d0ef"; }}
+              className="worthbuy-hero-search worthbuy-hero-control flex flex-1 items-center gap-2 border border-[#d8d0ef] bg-white px-4 shadow-sm"
             >
               <span className="material-symbols-outlined text-[#8f7bd6]">search</span>
               <input
@@ -794,7 +800,7 @@ const WorthBuyPage: React.FC = () => {
             <button
               onClick={analyze}
               disabled={loading || !input.trim()}
-              className="inline-flex h-12 items-center justify-center rounded-2xl px-6 text-sm font-bold !text-white transition disabled:opacity-50"
+              className="worthbuy-hero-control inline-flex items-center justify-center px-6 text-sm font-bold !text-white transition disabled:opacity-50"
               style={{
                 background: loading || !input.trim()
                   ? "#D1D5DB"
@@ -829,10 +835,9 @@ const WorthBuyPage: React.FC = () => {
                 <button
                   key={item.query}
                   onClick={() => {
-                    setResult(item.result);
-                    setInput(item.query);
-                    setError(null);
-                    setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+                    navigate(`/worthbuy/${encodeURIComponent(item.query)}`, {
+                      state: { result: item.result, query: item.query },
+                    });
                   }}
                   className="group worthbuy-submission-card"
                   style={{
@@ -928,7 +933,6 @@ const WorthBuyPage: React.FC = () => {
               { q: "斑马AI课年卡", icon: "📚", tag: "智商税" },
               { q: "iEnglish训练系统", icon: "💸", tag: "智商税" },
               { q: "妙思乐润肤乳", icon: "✨", tag: "母婴" },
-              { q: "贝亲宽口径", icon: "🍼", tag: "喂哺" },
             ].map((demo) => (
               <button
                 key={demo.q}
@@ -1110,9 +1114,9 @@ const WorthBuyPage: React.FC = () => {
             {/* ── 3a. 顶部：商品识别 + 核心判断 ── */}
             <div style={{ padding: "24px", paddingLeft: 4 }}>
               {/* 可信指数 —— 圆环 + 多维评分 + 标签信息 整体排版 */}
-              <div style={{ display: "flex", alignItems: "center", gap: "clamp(20px, 4vw, 36px)", margin: "20px auto 24px", justifyContent: "center", maxWidth: "clamp(380px, 70vw, 700px)" }}>
+              <div className="worthbuy-score-layout" style={{ display: "flex", alignItems: "center", gap: "clamp(20px, 4vw, 36px)", margin: "20px auto 24px", justifyContent: "center", maxWidth: "clamp(380px, 70vw, 700px)" }}>
                 {/* 左侧：圆环 + 下方多维评分条 */}
-                <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", transform: "translateX(-40px)" }}>
+                <div className="worthbuy-score-left" style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", transform: "translateX(-40px)" }}>
                   <div style={{
                     width: "clamp(120px, 25vw, 200px)",
                     height: "clamp(120px, 25vw, 200px)",
@@ -1179,7 +1183,7 @@ const WorthBuyPage: React.FC = () => {
                 </div>
 
                 {/* 右侧标签信息 */}
-                <div style={{ flex: 1, minWidth: 200 }}>
+                <div className="worthbuy-score-right" style={{ flex: 1, minWidth: 200 }}>
                   <p style={{ fontSize: 20, fontWeight: 700, color: "#7C3AED", letterSpacing: "0.1em", margin: "0 0 10px" }}>可信指数</p>
                   <p style={{ fontSize: 15, fontWeight: 700, color: scoreColor(result.score), margin: "0 0 16px" }}>
                     {result.score >= 85 ? "强烈推荐 ✨" : result.score >= 70 ? "值得考虑 👍" : result.score >= 55 ? "谨慎购买 🤔" : result.score >= 40 ? "不太推荐 ⚠️" : "建议避坑 🚫"}
@@ -1506,11 +1510,9 @@ const WorthBuyPage: React.FC = () => {
                 <button
                   key={i}
                   onClick={() => {
-                    setResult(item.result);
-                    setInput(item.query);
+                    pickHistory(item);
                     setShowHistory(false);
                     setError(null);
-                    setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
                   }}
                   style={{
                     display: "flex",
@@ -1598,6 +1600,35 @@ const WorthBuyPage: React.FC = () => {
           50% { margin-left: 30%; width: 50%; }
           100% { margin-left: 100%; width: 30%; }
         }
+        .worthbuy-hero-search {
+          border: 1px solid rgba(124, 77, 255, 0.22);
+          background: rgba(255, 255, 255, 0.94);
+          box-shadow: 0 4px 14px rgba(124, 77, 255, 0.09);
+          transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+        }
+        .worthbuy-hero-search:focus-within {
+          border-color: rgba(124, 77, 255, 0.46);
+          box-shadow: 0 8px 20px rgba(124, 77, 255, 0.16);
+          transform: translateY(-1px);
+        }
+        .worthbuy-hero-control {
+          height: 56px;
+          min-height: 56px;
+          max-height: 56px;
+          border-radius: 16px;
+        }
+        .worthbuy-hero-search input {
+          font-size: 16px !important;
+          line-height: 1.2;
+          color: #43336f;
+          height: 100%;
+          min-height: 100%;
+          max-height: 100%;
+        }
+        .worthbuy-hero-search input::placeholder {
+          color: #9a8fc4;
+          font-weight: 500;
+        }
         @media (max-width: 768px) {
           .worthbuy-page h1 { font-size: 22px !important; }
           .worthbuy-page [style*="fontSize: 28"] { font-size: 22px !important; }
@@ -1605,6 +1636,19 @@ const WorthBuyPage: React.FC = () => {
           .worthbuy-page [style*="minmax(200px"] { grid-template-columns: 1fr !important; }
           .worthbuy-page [style*="max-width: 720"] { padding-left: 16px !important; padding-right: 16px !important; }
           .worthbuy-page [style*="padding: 60px 20px 0"] { padding: 40px 16px 0 !important; }
+          .worthbuy-page .worthbuy-score-layout {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 14px !important;
+            margin: 8px 0 18px !important;
+            max-width: 100% !important;
+          }
+          .worthbuy-page .worthbuy-score-left {
+            transform: none !important;
+          }
+          .worthbuy-page .worthbuy-score-right {
+            min-width: 0 !important;
+          }
         }
         @media (max-width: 480px) {
           .worthbuy-page h1 { font-size: 18px !important; }

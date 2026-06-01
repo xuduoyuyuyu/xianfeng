@@ -233,6 +233,19 @@ export interface MindMapNode {
   children?: MindMapNode[];
 }
 
+export interface StructureNode {
+  title: string;
+  summary?: string;
+  emoji?: string;
+  source?: { type: string; time?: string; term?: string };
+  children?: StructureNode[];
+}
+
+export interface ProgramStructure {
+  root?: StructureNode;
+  layers?: Record<string, StructureNode>;
+}
+
 export interface MindMapData {
   root: MindMapNode;
   generatedAt?: string;
@@ -273,6 +286,7 @@ export interface ProgramContentPack {
   quickView?: ProgramQuickViewItem[];
   minutes?: ProgramMinutes;
   showNotes?: ProgramShowNotes;
+  structure?: ProgramStructure;
 }
 
 export interface Program {
@@ -373,6 +387,7 @@ export interface LearningMaterial {
 export interface User {
   _id: string;
   username: string;
+  mobile?: string;
   role: 'admin' | 'user';
   city?: string;
   region?: string;
@@ -568,6 +583,11 @@ export interface LoginResponse {
   user: User;
 }
 
+export interface MobileCodeSendResponse {
+  ok: boolean;
+  expireSeconds?: number;
+}
+
 // 公开 API
 export const publicApi = {
   // 节目
@@ -749,6 +769,10 @@ export const adminApi = {
 export const userApi = {
   login: (username: string, password: string) => 
     api.post<LoginResponse>('/users/login', { username, password }),
+  sendMobileCode: (mobile: string) =>
+    api.post<MobileCodeSendResponse>("/users/sms/send-code", { mobile }),
+  mobileAuth: (mobile: string, code: string) =>
+    api.post<LoginResponse>("/users/auth/mobile", { mobile, code }),
   getMe: () => api.get<User>('/users/me'),
   trackPageView: (data: { pagePath: string; pageTitle: string; sessionId: string; deviceType: string }) =>
     api.post<{ ok: boolean; deduped?: boolean }>("/users/page-view", data),

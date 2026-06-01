@@ -1,5 +1,6 @@
 import React from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import GlobalPublicNav from "../components/GlobalPublicNav";
 
 /* ===== 类型 ===== */
 interface RatingDimensions {
@@ -73,6 +74,7 @@ const WorthBuyDetailPage: React.FC = () => {
   if (!result) {
     return (
       <div className="worthbuy-detail-page" style={{ minHeight: "100vh", background: "#f8f6ff" }}>
+        <GlobalPublicNav compactMobile showPlanningEntry={true} />
         
         <div style={{ maxWidth: 720, margin: "80px auto", textAlign: "center", padding: "0 20px" }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>📭</div>
@@ -99,6 +101,7 @@ const WorthBuyDetailPage: React.FC = () => {
 
   return (
     <div className="worthbuy-detail-page" style={{ minHeight: "100vh", background: "#f8f6ff" }}>
+      <GlobalPublicNav compactMobile showPlanningEntry={true} />
       
 
       <style>{`
@@ -107,6 +110,34 @@ const WorthBuyDetailPage: React.FC = () => {
           .worthbuy-detail-page h1 { font-size: 20px !important; }
           .worthbuy-detail-page [style*="gridTemplateColumns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
           .worthbuy-detail-page [style*="minmax(220px"] { grid-template-columns: 1fr !important; }
+          .worthbuy-detail-page .wb-detail-top {
+            flex-direction: column !important;
+            align-items: center !important;
+            gap: 18px !important;
+          }
+          .worthbuy-detail-page .wb-detail-gauge {
+            width: 100%;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            text-align: center !important;
+            margin: 0 auto !important;
+          }
+          .worthbuy-detail-page .wb-detail-info {
+            width: 100%;
+            min-width: 0 !important;
+            text-align: center !important;
+          }
+          .worthbuy-detail-page .wb-detail-tags {
+            justify-content: center !important;
+          }
+          .worthbuy-detail-page .wb-detail-reason {
+            text-align: center !important;
+          }
+          .worthbuy-detail-page .wb-detail-audience {
+            justify-content: center !important;
+          }
         }
         @media (max-width: 480px) {
           .worthbuy-detail-page h1 { font-size: 18px !important; }
@@ -144,9 +175,9 @@ const WorthBuyDetailPage: React.FC = () => {
             padding: 28, marginBottom: 20,
           }}
         >
-          <div style={{ display: "flex", gap: 32, alignItems: "center", flexWrap: "wrap" }}>
+          <div className="wb-detail-top" style={{ display: "flex", gap: 32, alignItems: "center", flexWrap: "wrap" }}>
             {/* 评分仪表盘 —— 放大 */}
-            <div style={{ textAlign: "center", flexShrink: 0, minWidth: 180 }}>
+            <div className="wb-detail-gauge" style={{ textAlign: "center", flexShrink: 0, minWidth: 180 }}>
               <p style={{ fontSize: 16, fontWeight: 800, color: "#1E1B4B", letterSpacing: "0.08em", margin: "0 0 12px" }}>可信指数</p>
               <div
                 style={{
@@ -171,7 +202,7 @@ const WorthBuyDetailPage: React.FC = () => {
             </div>
 
             {/* 右侧信息 */}
-            <div style={{ flex: 1, minWidth: 280 }}>
+            <div className="wb-detail-info" style={{ flex: 1, minWidth: 280 }}>
               {/* 品牌/链接 */}
               {result.url && (
                 <p style={{ fontSize: 13, color: "#7C3AED", fontWeight: 600, margin: "0 0 4px", wordBreak: "break-all" }}>
@@ -187,7 +218,7 @@ const WorthBuyDetailPage: React.FC = () => {
               )}
 
               {/* 智商税标签 + 价格 */}
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+              <div className="wb-detail-tags" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
                 <span style={{
                   display: "inline-flex", alignItems: "center", gap: 6,
                   padding: "6px 14px", borderRadius: 20,
@@ -207,13 +238,13 @@ const WorthBuyDetailPage: React.FC = () => {
                 )}
               </div>
 
-              <p style={{ fontSize: 14, color: "#6B7280", lineHeight: 1.8, margin: "0 0 12px" }}>
+              <p className="wb-detail-reason" style={{ fontSize: 14, color: "#6B7280", lineHeight: 1.8, margin: "0 0 12px" }}>
                 {result.reason}
               </p>
 
               {/* 适合/不适合人群 */}
               {(result.suitableFor?.length || result.notSuitableFor?.length) ? (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                <div className="wb-detail-audience" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                   {result.suitableFor?.map((s, i) => (
                     <span key={`sf-${i}`} style={{
                       padding: "4px 10px", borderRadius: 8,

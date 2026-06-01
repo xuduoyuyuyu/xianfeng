@@ -318,6 +318,40 @@ const BooksPage: React.FC = () => {
           35% { transform: translate3d(2.5%,-1%,0) scale(.88); opacity: .68; }
           80% { transform: translate3d(-1.8%,2%,0) scale(1.2); opacity: .82; }
         }
+        .books-hero-search {
+          border: 1px solid rgba(124, 77, 255, 0.22);
+          background: rgba(255, 255, 255, 0.94);
+          box-shadow: 0 4px 14px rgba(124, 77, 255, 0.09);
+          transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+        }
+        .books-hero-search:focus-within {
+          border-color: rgba(124, 77, 255, 0.46);
+          box-shadow: 0 8px 20px rgba(124, 77, 255, 0.16);
+          transform: translateY(-1px);
+        }
+        .books-hero-search .materials-search-input {
+          font-size: 16px;
+          line-height: 1.2;
+          color: #43336f;
+          height: 100%;
+        }
+        .books-hero-search .materials-search-input::placeholder {
+          color: #9a8fc4;
+          font-weight: 500;
+        }
+        .books-hero-control {
+          height: 56px;
+          min-height: 56px;
+          max-height: 56px;
+          border-radius: 16px;
+        }
+        @media (max-width: 768px) {
+          .books-mobile-main { padding-top: 70px !important; padding-bottom: calc(120px + env(safe-area-inset-bottom)) !important; }
+          .books-mobile-hero { padding: 16px !important; border-radius: 20px !important; }
+          .books-mobile-filter { padding: 12px !important; border-radius: 16px !important; }
+          .books-mobile-label { width: 56px !important; font-size: 12px !important; }
+          .books-mobile-card h3 { font-size: 16px !important; }
+        }
       `}</style>
       <div className="pointer-events-none absolute inset-0 opacity-45">
         <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(118,83,205,0.09)_1px,transparent_1px)] bg-[size:24px_24px]" />
@@ -336,9 +370,9 @@ const BooksPage: React.FC = () => {
         searchValue={keyword}
         onSearchChange={setKeyword}
       />
-      <main className="mx-auto max-w-7xl px-4 pb-16 pt-[76px] sm:px-6 lg:px-8">
+      <main className="books-mobile-main mx-auto max-w-7xl px-4 pb-16 pt-[76px] sm:px-6 lg:px-8">
         {showHero ? (
-          <section className="group relative overflow-hidden rounded-[2rem] border border-[#d8d0ef] bg-[radial-gradient(circle_at_10%_0%,_rgba(143,100,255,0.1),_transparent_40%),linear-gradient(135deg,_#f4f1fd_0%,_#faf8ff_48%,_#f0ebff_100%)] p-7 shadow-[0_24px_80px_rgba(80,62,125,0.1)] sm:p-9">
+          <section className="books-mobile-hero group relative overflow-hidden rounded-[2rem] border border-[#d8d0ef] bg-[radial-gradient(circle_at_10%_0%,_rgba(143,100,255,0.1),_transparent_40%),linear-gradient(135deg,_#f4f1fd_0%,_#faf8ff_48%,_#f0ebff_100%)] p-7 shadow-[0_24px_80px_rgba(80,62,125,0.1)] sm:p-9">
             <button
               type="button"
               onClick={dismissHero}
@@ -351,13 +385,17 @@ const BooksPage: React.FC = () => {
               <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.26em] text-[#5b3fa1]">
                 Reading Shelf
               </div>
-              <img src="/assets/jiyue-hero-logo.png" alt="及阅 · 成长及阅读" className="mt-4 h-14 sm:h-16" />
+              <img
+                src="/assets/jiyue-hero-logo.png"
+                alt="及阅 · 成长及阅读"
+                className="mt-4 block h-auto w-full max-w-[300px] object-contain sm:max-w-[360px]"
+              />
               <p className="mt-3 text-sm leading-7 text-[#6f62a3] sm:text-base">
                 基于节目实践沉淀的书籍清单。可先按推荐人聚合浏览，再结合年级和关键词快速筛选。
               </p>
             </div>
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <label className="flex h-12 flex-1 items-center gap-2 rounded-2xl border border-[#d8d0ef] bg-white px-4 shadow-sm">
+              <label className="books-hero-search books-hero-control inline-flex flex-1 items-center gap-2 border border-[#d8d0ef] bg-white px-4 shadow-sm">
                 <span className="material-symbols-outlined text-[#8f7bd6]">search</span>
                 <input
                   value={keyword}
@@ -375,7 +413,7 @@ const BooksPage: React.FC = () => {
               <button
                 type="button"
                 onClick={clearFilters}
-                className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#cfc2ee] bg-white px-5 text-sm font-bold text-[#654f88] transition hover:border-[#5e17eb] hover:text-[#5e17eb]"
+                className="books-hero-control inline-flex items-center justify-center border border-[#cfc2ee] bg-white px-5 text-sm font-bold text-[#654f88] transition hover:border-[#5e17eb] hover:text-[#5e17eb]"
               >
                 清空筛选
               </button>
@@ -383,7 +421,7 @@ const BooksPage: React.FC = () => {
           </section>
         ) : null}
 
-        <section className="mt-6 rounded-[1.8rem] border border-[#e0d9f2] bg-white p-5 shadow-[0_16px_50px_rgba(80,62,125,0.06)] sm:p-6">
+        <section className="books-mobile-filter mt-6 rounded-[1.8rem] border border-[#e0d9f2] bg-white p-5 shadow-[0_16px_50px_rgba(80,62,125,0.06)] sm:p-6">
           {boundGuestId || boundGuestName ? (
             <div className="mb-4 flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-[#eef3ff] px-2.5 py-1 text-xs font-bold text-[#3e4d88]">
@@ -396,7 +434,7 @@ const BooksPage: React.FC = () => {
           ) : null}
 
           <div className="flex flex-col gap-3 md:flex-row md:items-start mb-4">
-            <div className="w-[72px] pt-1 text-sm font-black tracking-[0.1em] text-[#6b5fa0]">年级</div>
+            <div className="books-mobile-label w-[72px] pt-1 text-sm font-black tracking-[0.1em] text-[#6b5fa0]">年级</div>
             <div className="flex-1">
               <div className="flex flex-wrap gap-2">
                 {gradeOptions.map((grade) => {
@@ -422,7 +460,7 @@ const BooksPage: React.FC = () => {
           </div>
 
           <div className="flex flex-col gap-3 md:flex-row md:items-start mb-4">
-            <div className="w-[72px] pt-1 text-sm font-black tracking-[0.1em] text-[#6b5fa0]">主题</div>
+            <div className="books-mobile-label w-[72px] pt-1 text-sm font-black tracking-[0.1em] text-[#6b5fa0]">主题</div>
             <div className="flex-1">
               <div className="flex flex-wrap gap-2">
                 {topicOptions.map((topic) => {
@@ -499,7 +537,7 @@ const BooksPage: React.FC = () => {
                   </header>
                   <div className="columns-1 gap-4 md:columns-2 xl:columns-3">
                     {group.items.map((item) => (
-                      <BookCard key={item._id} item={item} />
+                      <div key={item._id} className="books-mobile-card"><BookCard item={item} /></div>
                     ))}
                   </div>
                 </section>
@@ -510,7 +548,7 @@ const BooksPage: React.FC = () => {
             <section className="rounded-[1.5rem] border border-[#e2dcf0] bg-white p-5 shadow-[0_12px_40px_rgba(80,62,125,0.05)]">
               <div className="columns-1 gap-4 md:columns-2 xl:columns-3">
                 {pagedFlat.map((item) => (
-                  <BookCard key={item._id} item={item} />
+                  <div key={item._id} className="books-mobile-card"><BookCard item={item} /></div>
                 ))}
               </div>
             </section>

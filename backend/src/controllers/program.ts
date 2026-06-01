@@ -367,10 +367,12 @@ function sanitizeContentPack(input: unknown) {
     renderedText: asText((raw as any)?.showNotes?.renderedText),
     templateOverride: asText((raw as any)?.showNotes?.templateOverride),
   };
+  const structure = (raw as any)?.structure ?? null;
   return {
     quickView,
     minutes: { text: minutesText },
     showNotes,
+    structure: structure && typeof structure === "object" ? structure : null,
   };
 }
 
@@ -1370,11 +1372,22 @@ export class ProgramController {
       const pageSizeRaw = Number(req.query.pageSize);
       const page = Number.isFinite(pageRaw) && pageRaw > 0 ? Math.floor(pageRaw) : 1;
       const pageSize = Number.isFinite(pageSizeRaw) && pageSizeRaw > 0 ? Math.min(100, Math.floor(pageSizeRaw)) : 20;
+      const q = asText(req.query.q).toLowerCase();
+      const baseFilter: any = { status: { $in: ["published", "group-only"] } };
+      if (q) {
+        const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const pattern = new RegExp(escaped, "i");
+        baseFilter.$or = [
+          { title: pattern },
+          { description: pattern },
+          { programCode: pattern },
+        ];
+      }
 
       // 列表页只取必要字段，排除大字段提升性能（transcript/deepDive 可几十KB）
-      const total = await Program.countDocuments({ status: { $in: ["published", "group-only"] } });
+      const total = await Program.countDocuments(baseFilter);
       const skip = (page - 1) * pageSize;
-      const programs = await Program.find({ status: { $in: ["published", "group-only"] } })
+      const programs = await Program.find(baseFilter)
         .select({
           programCode: 1, title: 1, description: 1, coverImage: 1,
           publishedAt: 1, createdAt: 1, updatedAt: 1,

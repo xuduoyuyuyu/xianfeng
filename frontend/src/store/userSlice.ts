@@ -30,6 +30,20 @@ export const login = createAsyncThunk(
   }
 );
 
+export const loginByMobile = createAsyncThunk(
+  "user/loginByMobile",
+  async ({ mobile, code }: { mobile: string; code: string }) => {
+    const response = await userApi.mobileAuth(mobile, code);
+    const { token, user, welToken } = response.data;
+    localStorage.setItem("token", token);
+    if (welToken) {
+      localStorage.setItem("wel_tok", welToken);
+    }
+    localStorage.setItem("user", JSON.stringify(user));
+    return { token, user };
+  }
+);
+
 export const fetchMe = createAsyncThunk('user/fetchMe', async () => {
   const response = await userApi.getMe();
   return response.data;
@@ -69,6 +83,19 @@ const userSlice = createSlice({
       .addCase(login.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.error.message || '登录失败';
+      })
+      .addCase(loginByMobile.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(loginByMobile.fulfilled, (state, action: PayloadAction<{ token: string; user: User }>) => {
+        state.isLoading = false;
+        state.token = action.payload.token;
+        state.user = action.payload.user;
+      })
+      .addCase(loginByMobile.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.error.message || "短信登录失败";
       })
       .addCase(fetchMe.fulfilled, (state, action: PayloadAction<User>) => {
         state.user = action.payload;

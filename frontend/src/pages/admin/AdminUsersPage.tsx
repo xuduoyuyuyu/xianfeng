@@ -4,7 +4,7 @@ import { adminApi, User } from "../../services/api";
 import TopAlert from "../../components/TopAlert";
 import { RootState } from "../../store";
 
-type EditableUser = Pick<User, "_id" | "username" | "role" | "city" | "region" | "childGrade" | "grade" | "createdAt">;
+type EditableUser = Pick<User, "_id" | "username" | "mobile" | "role" | "city" | "region" | "childGrade" | "grade" | "createdAt">;
 type UserModalMode = "create" | "edit" | null;
 
 type UserFormState = {
@@ -49,6 +49,7 @@ function toEditableUser(row: User): EditableUser {
   return {
     _id: row._id,
     username: row.username,
+    mobile: row.mobile || "",
     role: row.role,
     city: row.city,
     region: row.region,
@@ -61,6 +62,13 @@ function toEditableUser(row: User): EditableUser {
 const inputClass =
   "rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-900 caret-[#5e17eb] placeholder:text-stone-400 focus:border-[#5e17eb] focus:ring-4 focus:ring-[#5e17eb]/5";
 const PAGE_SIZE = 20;
+
+function resolveMobile(row: Pick<EditableUser, "mobile" | "username">): string {
+  const explicitMobile = (row.mobile || "").trim();
+  if (/^1\d{10}$/.test(explicitMobile)) return explicitMobile;
+  const m = String(row.username || "").trim().match(/^u?(1\d{10})$/);
+  return m ? m[1] : "";
+}
 
 const AdminUsersPage: React.FC = () => {
   const { user } = useSelector((state: RootState) => state.user);
@@ -99,7 +107,7 @@ const AdminUsersPage: React.FC = () => {
   const filteredItems = useMemo(() => {
     const key = keyword.trim().toLowerCase();
     if (!key) return items;
-    return items.filter((row) => `${row.username} ${row.role} ${row.city || ""} ${row.region || ""} ${row.childGrade || ""} ${row.grade || ""}`.toLowerCase().includes(key));
+    return items.filter((row) => `${row.username} ${resolveMobile(row)} ${row.role} ${row.city || ""} ${row.region || ""} ${row.childGrade || ""} ${row.grade || ""}`.toLowerCase().includes(key));
   }, [items, keyword]);
 
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE));
@@ -317,7 +325,7 @@ const AdminUsersPage: React.FC = () => {
           <div className="relative">
             <input
               className="w-80 max-w-full rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-stone-900 caret-[#5e17eb] placeholder:text-stone-400 transition-all focus:border-[#5e17eb] focus:ring-4 focus:ring-[#5e17eb]/5"
-              placeholder="搜索用户名 / 角色 / 城市 / 区域 / 年级"
+              placeholder="搜索用户名 / 手机号 / 角色 / 城市 / 区域 / 年级"
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
             />
@@ -334,10 +342,11 @@ const AdminUsersPage: React.FC = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1260px] text-left">
+            <table className="w-full min-w-[1380px] text-left">
               <thead className="bg-white text-stone-500 uppercase text-[10px] font-black tracking-[0.2em]">
                 <tr>
                   <th className="px-6 py-4">用户名</th>
+                  <th className="px-6 py-4">手机号</th>
                   <th className="px-6 py-4">角色</th>
                   <th className="px-6 py-4">城市</th>
                   <th className="px-6 py-4">区域</th>
@@ -356,6 +365,9 @@ const AdminUsersPage: React.FC = () => {
                       <td className="px-6 py-4">
                         <div className="font-bold text-stone-900">{row.username}</div>
                         <div className="text-xs text-stone-400">{row._id.slice(-8).toUpperCase()}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-semibold text-stone-700">{resolveMobile(row) || "未绑定"}</div>
                       </td>
                       <td className="px-6 py-4">
                         <span className={`px-3 py-1 rounded-full text-[10px] font-black ${row.role === "admin" ? "bg-emerald-50 text-emerald-700" : "bg-stone-100 text-stone-600"}`}>

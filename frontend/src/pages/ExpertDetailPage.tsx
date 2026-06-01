@@ -301,20 +301,32 @@ const ExpertDetailPage: React.FC = () => {
             {/* 顶部信息卡：头像右侧 + 名字 + 返场心愿 + 简介 + 统计 */}
             <div className="rounded-[2rem] border border-[#e2dcf0] bg-white p-8 shadow-[0_24px_80px_rgba(80,62,125,0.08)]">
               <div className="flex flex-col md:flex-row gap-6">
+                {/* 右侧头像（移动端置顶） */}
+                <div className="order-1 shrink-0 self-center md:order-2 md:self-start md:mt-9">
+                  <div className="w-28 h-28 md:w-32 md:h-32 rounded-2xl overflow-hidden ring-4 ring-[#5e17eb]/10">
+                    <img
+                      src={guest.avatar || FALLBACK_AVATAR}
+                      alt={guest.name || "嘉宾头像"}
+                      className="w-full h-full object-cover"
+                      style={{ objectPosition: "calc(50% + 3px) center" }}
+                      onError={(event) => { event.currentTarget.src = FALLBACK_AVATAR; }}
+                    />
+                  </div>
+                </div>
                 {/* 左侧文字区 */}
-                <div className="flex-1 min-w-0">
+                <div className="order-2 flex-1 min-w-0 text-center md:order-1 md:text-left">
                   <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.24em] text-[#5b3fa1]">
                     Guest Profile
                   </div>
-                  <div className="mt-5 flex items-center gap-3">
+                  <div className="mt-5 flex items-center justify-center gap-3 md:justify-start">
                     <h1 className="text-4xl font-black tracking-tight text-[#241a3a]">{guest.name || "未命名嘉宾"}</h1>
                     <GuestWishButton guestId={guest._id || ""} />
                   </div>
                   <p className="mt-3 text-sm font-black uppercase tracking-[0.22em] text-[#5e17eb]">{guest.title || "节目嘉宾"}</p>
-                  <p className="mt-5 max-w-3xl text-[15px] leading-8 text-[#6f66ad]">
+                  <p className="mt-5 max-w-3xl text-[15px] leading-8 text-[#6f66ad] md:max-w-none">
                     {guest.bio || "暂无简介，后续可在后台补充嘉宾背景、研究方向与代表经验。"}
                   </p>
-                  <div className="mt-5 flex flex-wrap gap-2">
+                  <div className="mt-5 flex flex-wrap justify-center gap-2 md:justify-start">
                     <span className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[11px] font-bold text-[#7d6ca7]">
                       节目 {guest.programCount || 0}
                     </span>
@@ -325,7 +337,7 @@ const ExpertDetailPage: React.FC = () => {
                       公开成果 {publications.length || profileReferences.length}
                     </span>
                   </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
+                  <div className="mt-4 flex flex-wrap justify-center gap-2 md:justify-start">
                     {guest.profileUrl ? (
                       <a href={guest.profileUrl} target="_blank" rel="noreferrer"
                         className="inline-flex items-center rounded-full bg-[#5e17eb] px-5 py-2.5 text-xs font-black text-white transition hover:bg-[#4a11d0]">
@@ -333,17 +345,6 @@ const ExpertDetailPage: React.FC = () => {
                       </a>
                     ) : null}
                   
-                  </div>
-                </div>
-                {/* 右侧头像 */}
-                <div className="shrink-0 self-center md:self-start mt-9">
-                  <div className="w-28 h-28 md:w-32 md:h-32 rounded-2xl overflow-hidden ring-4 ring-[#5e17eb]/10">
-                    <img
-                      src={guest.avatar || FALLBACK_AVATAR}
-                      alt={guest.name || "嘉宾头像"}
-                      className="w-full h-full object-cover object-center"
-                      onError={(event) => { event.currentTarget.src = FALLBACK_AVATAR; }}
-                    />
                   </div>
                 </div>
               </div>

@@ -107,6 +107,13 @@ const ExpertsPage: React.FC = () => {
           40% { transform: translate3d(2%,-1.5%,0) scale(.9); opacity: .75; }
           85% { transform: translate3d(-1.5%,2.5%,0) scale(1.18); opacity: .82; }
         }
+        @media (max-width: 768px) {
+          .experts-mobile-main { padding-top: 70px !important; padding-bottom: calc(120px + env(safe-area-inset-bottom)) !important; }
+          .experts-mobile-hero { padding: 16px !important; border-radius: 20px !important; }
+          .experts-mobile-title { font-size: 30px !important; line-height: 1.15 !important; }
+          .experts-mobile-grid { gap: 12px !important; }
+          .experts-mobile-card { padding: 12px !important; border-radius: 16px !important; }
+        }
       `}</style>
       <div className="pointer-events-none absolute inset-0 opacity-50">
         <div className="absolute inset-0 bg-[linear-gradient(rgba(118,83,205,0.06)_2px,transparent_2px),linear-gradient(90deg,rgba(118,83,205,0.04)_2px,transparent_2px)] bg-[size:50px_50px]" />
@@ -123,9 +130,9 @@ const ExpertsPage: React.FC = () => {
         searchValue={search}
         onSearchChange={(v) => { setSearch(v); setPage(1); }}
       />
-      <main className="mx-auto max-w-7xl px-4 pb-16 pt-[76px] sm:px-6 lg:px-8">
+      <main className="experts-mobile-main mx-auto max-w-7xl px-4 pb-16 pt-[76px] sm:px-6 lg:px-8">
         {showHero ? (
-          <section className="group relative overflow-hidden rounded-[2rem] border border-[#d8d0ef] bg-[radial-gradient(circle_at_top_left,_rgba(143,100,255,0.12),_transparent_32%),linear-gradient(135deg,_#f4f1fd_0%,_#fff_52%,_#f0ebff_100%)] p-8 shadow-[0_24px_80px_rgba(80,62,125,0.08)] sm:p-10">
+          <section className="experts-mobile-hero group relative overflow-hidden rounded-[2rem] border border-[#d8d0ef] bg-[radial-gradient(circle_at_top_left,_rgba(143,100,255,0.12),_transparent_32%),linear-gradient(135deg,_#f4f1fd_0%,_#fff_52%,_#f0ebff_100%)] p-8 shadow-[0_24px_80px_rgba(80,62,125,0.08)] sm:p-10">
             <button
               type="button"
               onClick={dismissHero}
@@ -138,7 +145,7 @@ const ExpertsPage: React.FC = () => {
               <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.28em] text-[#5b3fa1]">
                 Experts
               </div>
-              <h1 className="mt-5 text-4xl font-black leading-[1.14] tracking-tight text-[#241a3a] sm:text-5xl">
+              <h1 className="experts-mobile-title mt-5 text-4xl font-black leading-[1.14] tracking-tight text-[#241a3a] sm:text-5xl">
                 跟随分享者的视角，往更深、更广的维度延展思索
               </h1>
               <p className="mt-4 max-w-2xl text-sm leading-7 text-[#6f66ad] sm:text-base">
@@ -152,7 +159,7 @@ const ExpertsPage: React.FC = () => {
           <div className="mt-6 rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm text-red-500">{error}</div>
         ) : null}
 
-        <section className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <section className="experts-mobile-grid mt-8 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
           {loading ? (
             Array.from({ length: 6 }).map((_, idx) => (
               <div key={idx} className="animate-pulse rounded-[1.7rem] border border-[#e2dcf0] bg-white p-5">
@@ -171,7 +178,7 @@ const ExpertsPage: React.FC = () => {
               <Link
                 key={guest._id}
                 to={`/experts/${encodeURIComponent(guest._id)}`}
-                className="group overflow-hidden rounded-[1.7rem] border border-[#e2dcf0] bg-white p-5 shadow-[0_20px_60px_rgba(63,38,112,0.06)] transition hover:-translate-y-1 hover:border-[#b79bff] hover:shadow-[0_28px_80px_rgba(63,38,112,0.12)]"
+                className="experts-mobile-card group overflow-hidden rounded-[1.7rem] border border-[#e2dcf0] bg-white p-5 shadow-[0_20px_60px_rgba(63,38,112,0.06)] transition hover:-translate-y-1 hover:border-[#b79bff] hover:shadow-[0_28px_80px_rgba(63,38,112,0.12)]"
               >
                 <div className="relative overflow-hidden rounded-[1.4rem] bg-[linear-gradient(135deg,_#1f143a,_#4b1db2_44%,_#b79bff)]">
                   <img

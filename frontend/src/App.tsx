@@ -32,6 +32,7 @@ import BooksPage from "./pages/BooksPage";
 import PlanningPage from "./pages/PlanningPage";
 import TopicHubPage from "./pages/TopicHubPage";
 import TopicDetailPage from "./pages/TopicDetailPage";
+import { XianfengSharePosterExample } from "./components/XianfengSharePoster";
 import WorthBuyPage from "./pages/WorthBuyPage";
 import WorthBuyDetailPage from "./pages/WorthBuyDetailPage";
 import WithLoginGate from "./components/WithLoginGate";
@@ -52,7 +53,7 @@ const PublicScreenRouter: React.FC = () => {
     const src = `/wel/index.html?page=61&hideWidget=1&v=${screenRev}&cb=${cacheBust}`;
     return (
       <>
-        <GlobalPublicNav />
+        <GlobalPublicNav compactMobile />
         <ScreenPage src={src} title="播客列表（框架内）" />
       </>
     );
@@ -67,7 +68,7 @@ const PublicScreenRouter: React.FC = () => {
     const src = `/screens/podcast-detail.html?programId=${encodeURIComponent(programId)}`;
     return (
       <>
-        <GlobalPublicNav />
+        <GlobalPublicNav compactMobile />
         <WithLoginGate backTo="/programs/list" title="登录后查看完整内容" description="登录后即可查看节目逐字稿、AI分析、嘉宾详情等完整内容。">
           <iframe src={src} style={{ width: "100%", height: "calc(100vh - 64px)", border: "none", marginTop: 64 }} title="节目详情" />
         </WithLoginGate>
@@ -91,7 +92,11 @@ const PublicScreenRouter: React.FC = () => {
     return <MaterialsPage />;
   }
 
-  if (normalizedPathname === "/books" || normalizedPathname === "/reading") {
+  if (normalizedPathname === "/books") {
+    return <Navigate to={`/reading${search}`} replace />;
+  }
+
+  if (normalizedPathname === "/reading") {
     return <BooksPage />;
   }
 
@@ -101,6 +106,10 @@ const PublicScreenRouter: React.FC = () => {
 
   if (normalizedPathname === "/topics") {
     return <TopicHubPage />;
+  }
+
+  if (normalizedPathname === "/topics/share-preview") {
+    return <XianfengSharePosterExample />;
   }
 
   if (/^\/topics\/[^/]+$/.test(normalizedPathname)) {

@@ -463,7 +463,7 @@ const TopicHubPage: React.FC = () => {
   if (error) {
     return (
       <div style={{ minHeight: "100vh", background: "#f8f6ff" }}>
-        <GlobalPublicNav showPlanningEntry={true} />
+        <GlobalPublicNav compactMobile showPlanningEntry={true} />
         <div style={{ textAlign: "center", padding: 100 }}>
           <p style={{ color: "#EF4444", marginBottom: 8 }}>加载失败: {error}</p>
           <button
@@ -491,9 +491,26 @@ const TopicHubPage: React.FC = () => {
       .topic-card-wrapper:hover .topic-delete-btn {
         opacity: 1 !important;
       }
+      .topics-hero-search {
+        border: 1px solid rgba(124, 77, 255, 0.22);
+        background: rgba(255, 255, 255, 0.94);
+        box-shadow: 0 4px 14px rgba(124, 77, 255, 0.09);
+        transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+      }
+      .topics-hero-search:focus-within {
+        border-color: rgba(124, 77, 255, 0.46);
+        box-shadow: 0 8px 20px rgba(124, 77, 255, 0.16);
+        transform: translateY(-1px);
+      }
+      .topics-hero-control {
+        height: 56px;
+        min-height: 56px;
+        max-height: 56px;
+        border-radius: 16px;
+      }
     `}</style>
     <div style={{ minHeight: "100vh", background: "#f8f6ff" }}>
-      <GlobalPublicNav showPlanningEntry={true} />
+      <GlobalPublicNav compactMobile showPlanningEntry={true} />
 
       {/* ===== Hero 区域 ===== */}
       <main className="mx-auto max-w-7xl px-4 pt-[76px] pb-2 sm:px-6 lg:px-8">
@@ -531,7 +548,7 @@ const TopicHubPage: React.FC = () => {
 
           {/* 输入区 */}
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-            <label className="flex h-12 flex-1 items-center gap-2 rounded-2xl border border-[#d8d0ef] bg-white px-4 shadow-sm">
+            <label className="topics-hero-search topics-hero-control inline-flex flex-1 items-center gap-2 border border-[#d8d0ef] bg-white px-4 shadow-sm">
               <span className="material-symbols-outlined text-[#8f7bd6]">search</span>
               <input
                 type="text"
@@ -549,7 +566,7 @@ const TopicHubPage: React.FC = () => {
             <button
               onClick={() => handleSubmit()}
               disabled={submitLoading || validating || !searchText.trim()}
-              className="inline-flex h-12 items-center justify-center rounded-2xl px-6 text-sm font-bold !text-white transition disabled:opacity-50"
+              className="topics-hero-control inline-flex items-center justify-center px-6 text-sm font-bold !text-white transition disabled:opacity-50"
               style={{
                 background: submitLoading || validating || !searchText.trim()
                   ? "#D1D5DB"

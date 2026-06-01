@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { RootState } from "../store";
 import GlobalPublicNav from "../components/GlobalPublicNav";
@@ -45,14 +46,9 @@ const ProgramListPage: React.FC = () => {
   const [error, setError] = useState("");
   const [showHero, setShowHero] = useState(false);
   const pageSize = 20;
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const keyword = useMemo(() => {
-    try {
-      return String(new URLSearchParams(window.location.search).get("q") || "").trim().toLowerCase();
-    } catch (_e) {
-      return "";
-    }
-  }, []);
+  const keyword = useMemo(() => String(searchParams.get("q") || "").trim(), [searchParams]);
 
   useEffect(() => {
     try {
@@ -66,7 +62,12 @@ const ProgramListPage: React.FC = () => {
     let alive = true;
     setLoading(true);
     setError("");
-    fetch(`/api/programs?page=${currentPage}&pageSize=${pageSize}`)
+    const query = new URLSearchParams({
+      page: String(currentPage),
+      pageSize: String(pageSize),
+    });
+    if (keyword) query.set("q", keyword);
+    fetch(`/api/programs?${query.toString()}`)
       .then((res) => {
         if (!res.ok) throw new Error("load failed");
         return res.json();
@@ -92,15 +93,7 @@ const ProgramListPage: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, [currentPage]);
-
-  const visiblePrograms = useMemo(() => {
-    if (!keyword) return programs;
-    return programs.filter((item) => {
-      const haystack = [item.title || "", item.description || "", item.programCode || "", item._id || ""].join(" ").toLowerCase();
-      return haystack.includes(keyword);
-    });
-  }, [keyword, programs]);
+  }, [currentPage, keyword]);
 
   const dismissHero = () => {
     setShowHero(false);
@@ -163,6 +156,16 @@ const ProgramListPage: React.FC = () => {
         showProgramList
         showExpertsEntry
         searchPlaceholder="搜索节目标题/简介"
+        searchValue={keyword}
+        onSearchChange={(value) => {
+          const next = new URLSearchParams(searchParams);
+          const trimmed = String(value || "").trim();
+          if (trimmed) next.set("q", trimmed);
+          else next.delete("q");
+          next.delete("page");
+          setCurrentPage(1);
+          setSearchParams(next);
+        }}
       />
 
       <main className="relative z-10 mx-auto max-w-7xl px-4 pb-16 pt-[76px] sm:px-6 lg:px-8">
@@ -201,13 +204,13 @@ const ProgramListPage: React.FC = () => {
                 <div className="mt-6 h-24 rounded bg-[#ece3f7]" />
               </div>
             ))
-          ) : visiblePrograms.length === 0 ? (
+          ) : programs.length === 0 ? (
             <div className="rounded-[1.7rem] border border-dashed border-[#d2c5ee] bg-white px-6 py-12 text-center text-sm text-[#8e81b3]">
               暂无已发布节目。
             </div>
           ) : (
             <>
-              {visiblePrograms.map((program, idx) => {
+              {programs.map((program, idx) => {
                 const routeId = program.programCode || program._id;
 
                 const tags = Array.isArray(program.summary?.tags)

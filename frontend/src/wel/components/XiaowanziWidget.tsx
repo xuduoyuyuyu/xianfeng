@@ -11,8 +11,26 @@ import {
 } from "./XiaowanziWidget.logic";
 
 type Msg = { role: "user" | "assistant"; content: string; ts?: string };
-type HistorySessionCard = { id: string; title: string; sub: string; targetIndex: number };
+type HistorySessionCard = { id: string; title: string; sub: string; targetIndex: number; childTag?: string };
 type ShortcutItem = { label: string; prompt: string };
+type ChildProfileLite = {
+  id: string;
+  relation: string;
+  displayName: string;
+  gender: "男" | "女";
+  birthDate: string;
+  grade: string;
+  concernTags: string[];
+  avatar: string;
+  createdAt: string;
+  draft?: boolean;
+};
+type ChatSessionContext = {
+  sessionId: string;
+  childProfileId: string;
+  isChildBound: boolean;
+  lastSwitchedAt: string;
+};
 type PageContextPayload = {
   summary: string;
   readReceipt: string;
@@ -57,6 +75,24 @@ function isReadReceiptMessage(content: string): boolean {
   );
 }
 
+function extractUserQuestion(content: string): string {
+  const text = String(content || "").trim();
+  if (!text) return "";
+  const marker = "[用户问题]";
+  const markerIndex = text.lastIndexOf(marker);
+  if (markerIndex < 0) return text;
+  const question = text.slice(markerIndex + marker.length).trim();
+  return question || text;
+}
+
+function sanitizeDisplayMessage(msg: Msg): Msg {
+  if (msg.role !== "user") return msg;
+  return {
+    ...msg,
+    content: extractUserQuestion(msg.content),
+  };
+}
+
 function getAuthHeaders(): Record<string, string> {
   const token = getSessionToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -75,6 +111,9 @@ const LEGACY_AVATAR_CLICK_COUNT_KEY = "wel_avatar_click_count";
 const GLOBAL_HISTORY_CACHE_KEY = "xiaowanzi_global_history_v1";
 const GLOBAL_DOCKED_PREF_KEY = "xiaowanzi_global_docked_v1";
 const GLOBAL_DOCKED_THEME_KEY = "xiaowanzi_global_docked_theme_v1";
+const CHILD_PROFILES_KEY = "xiaowanzi_child_profiles_v1";
+const CHAT_CONTEXT_KEY = "xiaowanzi_chat_context_v1";
+const LAST_CHILD_ID_KEY = "xiaowanzi_last_child_id_v1";
 const PANEL_WIDTH = 360;
 const DOCKED_WIDTH = 430;
 const DOCKED_TOP_OFFSET = 0;
@@ -89,6 +128,106 @@ const AI_RESPONSE_RULES = [
   "优先给出确定内容、已确认事实、可执行下一步。",
   "语气要软萌、亲切、简洁,像朋友聊天一样自然。",
 ].join("\n");
+const CHILD_RELATIONS = ["儿子", "女儿", "本人", "其他"] as const;
+const CHILD_TAGS = ["睡眠", "情绪", "专注力", "社交", "学习习惯", "身体不适", "亲子沟通"] as const;
+
+function loadChildProfiles(): ChildProfileLite[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(CHILD_PROFILES_KEY) || "[]";
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item: any): ChildProfileLite => ({
+        id: String(item?.id || "").trim(),
+        relation: String(item?.relation || "").trim(),
+        displayName: String(item?.displayName || "").trim(),
+        gender: item?.gender === "男" ? "男" : "女",
+        birthDate: String(item?.birthDate || "").trim(),
+        grade: String(item?.grade || "").trim(),
+        concernTags: Array.isArray(item?.concernTags) ? item.concernTags.map((v: any) => String(v || "").trim()).filter(Boolean) : [],
+        avatar: String(item?.avatar || "/assets/wel-avatar/no-hat.png").trim(),
+        createdAt: String(item?.createdAt || new Date().toISOString()),
+        draft: Boolean(item?.draft),
+      }))
+      .filter((item) => Boolean(item.id));
+  } catch (_error) {
+    return [];
+  }
+}
+
+function saveChildProfiles(items: ChildProfileLite[]) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(CHILD_PROFILES_KEY, JSON.stringify(items));
+  } catch (_error) {}
+}
+
+function loadChatContext(): ChatSessionContext | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(CHAT_CONTEXT_KEY);
+    if (!raw) return null;
+    const item = JSON.parse(raw);
+    if (!item || typeof item !== "object") return null;
+    return {
+      sessionId: String(item.sessionId || ""),
+      childProfileId: String(item.childProfileId || ""),
+      isChildBound: Boolean(item.isChildBound),
+      lastSwitchedAt: String(item.lastSwitchedAt || ""),
+    };
+  } catch (_error) {
+    return null;
+  }
+}
+
+function saveChatContext(context: ChatSessionContext | null) {
+  if (typeof window === "undefined") return;
+  try {
+    if (!context) {
+      localStorage.removeItem(CHAT_CONTEXT_KEY);
+      return;
+    }
+    localStorage.setItem(CHAT_CONTEXT_KEY, JSON.stringify(context));
+  } catch (_error) {}
+}
+
+function isProfileComplete(profile: ChildProfileLite): boolean {
+  return Boolean(
+    profile.relation &&
+      profile.displayName &&
+      profile.gender &&
+      profile.birthDate &&
+      profile.grade &&
+      Array.isArray(profile.concernTags) &&
+      profile.concernTags.length > 0,
+  );
+}
+
+function calcAgeYears(birthDate: string): number {
+  const date = new Date(birthDate);
+  if (Number.isNaN(date.getTime())) return 0;
+  const now = new Date();
+  let age = now.getFullYear() - date.getFullYear();
+  const md = now.getMonth() - date.getMonth();
+  if (md < 0 || (md === 0 && now.getDate() < date.getDate())) age -= 1;
+  return Math.max(0, age);
+}
+
+function buildChildShortcuts(profile: ChildProfileLite | null): ShortcutItem[] {
+  if (!profile) return DEFAULT_SHORTCUTS;
+  const age = calcAgeYears(profile.birthDate);
+  const ageText = age > 0 ? `${age}岁` : "孩子";
+  const gradeText = profile.grade || "当前阶段";
+  const tags = profile.concernTags.slice(0, 3);
+  const tagText = tags.join("、") || "近期状态";
+  return [
+    { label: "🧒 当前状态", prompt: `${profile.displayName}${ageText}${gradeText}阶段，最近关注${tagText}，我应该先做什么？` },
+    { label: "📘 本期怎么用", prompt: `结合${profile.displayName}（${gradeText}）的情况，这期节目里最该先做的3件事是什么？` },
+    { label: "🧭 追问建议", prompt: `如果${profile.displayName}在${tagText}上没有改善，我下一轮该怎么提问？` },
+    { label: "👪 亲子沟通", prompt: `请给我一段适合和${profile.displayName}沟通的具体话术，围绕${tagText}。` },
+  ];
+}
 
 function loadCachedGlobalHistory(): Msg[] {
   if (typeof window === "undefined") return [];
@@ -102,7 +241,8 @@ function loadCachedGlobalHistory(): Msg[] {
         content: String(item?.content || "").trim(),
         ts: item?.ts ? String(item.ts) : undefined,
       }))
-      .filter((item) => item.content);
+      .filter((item) => item.content)
+      .map(sanitizeDisplayMessage);
   } catch (_error) {
     return [];
   }
@@ -111,7 +251,10 @@ function loadCachedGlobalHistory(): Msg[] {
 function saveCachedGlobalHistory(items: Msg[]) {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(GLOBAL_HISTORY_CACHE_KEY, JSON.stringify((items || []).slice(-120)));
+    localStorage.setItem(
+      GLOBAL_HISTORY_CACHE_KEY,
+      JSON.stringify((items || []).map(sanitizeDisplayMessage).slice(-120))
+    );
   } catch (_error) {}
 }
 
@@ -207,6 +350,32 @@ function buildExpertDetailContext(guest: PublicGuestDetail): PageContextPayload 
   };
 }
 
+function buildWorthbuyContext(pathname: string): PageContextPayload {
+  const isDetail = /^\/worthbuy\/[^/]+$/.test(pathname);
+  if (isDetail) {
+    return {
+      summary: `当前页面是知物详情页。路径:${pathname}。请优先基于当前可见的品牌分析内容回答。`,
+      readReceipt: "已读取当前知物详情页。你可以继续问我：结论可靠吗、最该先看哪三段、下一步怎么决策。",
+      shortcuts: [
+        { label: "🧾 结论摘要", prompt: "请用 3 句话总结这个品牌结论" },
+        { label: "🎯 风险点", prompt: "请指出最关键的 3 个风险点" },
+        { label: "✅ 购买建议", prompt: "请给出可执行的购买建议和避坑清单" },
+        { label: "🔍 证据定位", prompt: "请标出支撑结论的证据段落" },
+      ],
+    };
+  }
+  return {
+    summary: `当前页面是知物列表页。路径:${pathname}。请优先基于当前列表与筛选结果回答。`,
+    readReceipt: "已读取当前知物列表页。你可以继续问我：先看哪个品牌、怎么快速筛选、下一步怎么比较。",
+    shortcuts: [
+      { label: "👀 先看哪个", prompt: "先看哪个品牌最有价值" },
+      { label: "🧭 如何筛选", prompt: "请给我一个品牌筛选顺序" },
+      { label: "📌 关键维度", prompt: "比较品牌时最关键的维度是什么" },
+      { label: "⚡ 快速决策", prompt: "请给我一个 1 分钟决策清单" },
+    ],
+  };
+}
+
 function getDockedShareLabel(summary: string): string {
   const text = String(summary || "").trim();
   if (!text) return "当前页面";
@@ -260,6 +429,7 @@ const XiaowanziWidget: React.FC = () => {
   const [messages, setMessages] = useState<Msg[]>([DEFAULT_MESSAGE]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [canUseBot, setCanUseBot] = useState(true);
   const [statusText, setStatusText] = useState("● 随时可用");
   const [shareVisible, setShareVisible] = useState(true);
   const [hasHistoryMessages, setHasHistoryMessages] = useState(false);
@@ -271,6 +441,22 @@ const XiaowanziWidget: React.FC = () => {
   const [displayAvatar, setDisplayAvatar] = useState<string>(() => getAvatarSrc(loadPersistedAvatarState().avatarIndex));
   const [avatarFxClassName, setAvatarFxClassName] = useState("");
   const [avatarParticles, setAvatarParticles] = useState<AvatarParticle[]>([]);
+  const [childProfiles, setChildProfiles] = useState<ChildProfileLite[]>(() => loadChildProfiles());
+  const [chatContext, setChatContext] = useState<ChatSessionContext | null>(() => loadChatContext());
+  const [hiddenEntryOpen, setHiddenEntryOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [draftProfile, setDraftProfile] = useState<ChildProfileLite>(() => ({
+    id: "",
+    relation: "女儿",
+    displayName: "",
+    gender: "女",
+    birthDate: "",
+    grade: "",
+    concernTags: [],
+    avatar: "/assets/wel-avatar/no-hat.png",
+    createdAt: new Date().toISOString(),
+  }));
   const [pageContext, setPageContext] = useState<PageContextPayload>({
     summary: "",
     readReceipt: DEFAULT_MESSAGE.content,
@@ -279,9 +465,17 @@ const XiaowanziWidget: React.FC = () => {
   const msgContainerRef = useRef<HTMLDivElement | null>(null);
   const latestMsgRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const plusPressTimerRef = useRef<number | null>(null);
+  const fabLongPressRef = useRef<number | null>(null);
   const dragRef = useRef({ active: false, moved: false, offsetX: 0, offsetY: 0, pointerId: -1 });
   const avatarTimersRef = useRef<number[]>([]);
   const shortcutItems = (pageContext.shortcuts.length ? pageContext.shortcuts : DEFAULT_SHORTCUTS).map((item) => ({
+    ...item,
+    prompt: normalizeShortcutPrompt(item.prompt),
+  }));
+  const activeChild = childProfiles.find((item) => item.id === chatContext?.childProfileId) || null;
+  const isChildBound = Boolean(chatContext?.isChildBound && activeChild);
+  const childShortcutItems = buildChildShortcuts(activeChild).map((item) => ({
     ...item,
     prompt: normalizeShortcutPrompt(item.prompt),
   }));
@@ -315,6 +509,47 @@ const XiaowanziWidget: React.FC = () => {
   function clearAvatarTimers() {
     avatarTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     avatarTimersRef.current = [];
+  }
+
+  function resetDraftProfile() {
+    setDraftProfile({
+      id: "",
+      relation: "女儿",
+      displayName: "",
+      gender: "女",
+      birthDate: "",
+      grade: "",
+      concernTags: [],
+      avatar: "/assets/wel-avatar/no-hat.png",
+      createdAt: new Date().toISOString(),
+    });
+  }
+
+  function openHiddenEntry() {
+    setOpen(true);
+    setHiddenEntryOpen(true);
+    setPickerOpen(false);
+    setCreateOpen(false);
+  }
+
+  function bindChildProfile(profile: ChildProfileLite) {
+    const nextContext: ChatSessionContext = {
+      sessionId: `session-${Date.now()}`,
+      childProfileId: profile.id,
+      isChildBound: true,
+      lastSwitchedAt: new Date().toISOString(),
+    };
+    setChatContext(nextContext);
+    saveChatContext(nextContext);
+    try {
+      localStorage.setItem(LAST_CHILD_ID_KEY, profile.id);
+    } catch (_error) {}
+    setMessages([DEFAULT_MESSAGE]);
+    setHasHistoryMessages(false);
+    setHiddenEntryOpen(false);
+    setPickerOpen(false);
+    setCreateOpen(false);
+    setStatusText(`● 正在为 ${profile.displayName} 提供建议`);
   }
 
   function buildAvatarParticles(): AvatarParticle[] {
@@ -385,6 +620,11 @@ const XiaowanziWidget: React.FC = () => {
           return;
         }
 
+        if (pathname === "/worthbuy" || /^\/worthbuy\/[^/]+$/.test(pathname)) {
+          setPageContext(buildWorthbuyContext(pathname));
+          return;
+        }
+
         setPageContext({
           summary: `当前页面路径:${pathname}`,
           readReceipt: "已读取当前页面。你可以继续告诉我你想解决的具体问题。",
@@ -447,6 +687,8 @@ const XiaowanziWidget: React.FC = () => {
   useEffect(() => {
     return () => {
       clearAvatarTimers();
+      if (plusPressTimerRef.current) window.clearTimeout(plusPressTimerRef.current);
+      if (fabLongPressRef.current) window.clearTimeout(fabLongPressRef.current);
     };
   }, []);
 
@@ -458,6 +700,7 @@ const XiaowanziWidget: React.FC = () => {
   async function ensureBotReady() {
     const token = getSessionToken();
     if (!token) {
+      setCanUseBot(false);
       setStatusText("● 请先登录账号");
       return false;
     }
@@ -475,15 +718,19 @@ const XiaowanziWidget: React.FC = () => {
 
     if (!createRes.ok) {
       if (createRes.status === 401) {
+        setCanUseBot(false);
         setStatusText("● 登录已失效,请重新登录");
       } else if (createRes.status === 403) {
+        setCanUseBot(false);
         setStatusText("● 当前账号暂无小玩子权限");
       } else {
+        setCanUseBot(false);
         setStatusText("● AI 服务暂不可用");
       }
       return false;
     }
 
+    setCanUseBot(true);
     setStatusText("● AI在线中");
     return true;
   }
@@ -495,7 +742,7 @@ const XiaowanziWidget: React.FC = () => {
     if (!res.ok) return;
     const data = await res.json();
     if (Array.isArray(data) && data.length) {
-      const filtered = (data as Msg[]).filter((m) => !isReadReceiptMessage(m.content));
+      const filtered = (data as Msg[]).filter((m) => !isReadReceiptMessage(m.content)).map(sanitizeDisplayMessage);
       setHasHistoryMessages(filtered.length > 0);
       setMessages(filtered.length ? filtered : [DEFAULT_MESSAGE]);
       if (filtered.length) saveCachedGlobalHistory(filtered);
@@ -521,7 +768,12 @@ const XiaowanziWidget: React.FC = () => {
   async function onHistoryClick() {
     const token = getSessionToken();
     if (!token) {
+      setCanUseBot(false);
       setStatusText("● 请先登录账号");
+      return;
+    }
+    if (!canUseBot) {
+      setStatusText("● 当前账号暂无小玩子权限");
       return;
     }
     await reloadHistory();
@@ -546,6 +798,7 @@ const XiaowanziWidget: React.FC = () => {
         title,
         sub: time,
         targetIndex: i,
+        childTag: activeChild?.displayName || "",
       });
     }
     return cards.slice(-20).reverse();
@@ -582,6 +835,24 @@ const XiaowanziWidget: React.FC = () => {
   }, [open]);
 
   useEffect(() => {
+    const onOpenFromTab = (event: Event) => {
+      const customEvent = event as CustomEvent<{ avatarState?: { avatarIndex: number; clickCount: number } }>;
+      const incomingAvatarState = customEvent?.detail?.avatarState;
+      if (incomingAvatarState && Number.isFinite(incomingAvatarState.avatarIndex) && Number.isFinite(incomingAvatarState.clickCount)) {
+        setAvatarState({
+          avatarIndex: Math.max(0, Math.floor(incomingAvatarState.avatarIndex)),
+          clickCount: Math.max(0, Math.floor(incomingAvatarState.clickCount)),
+        });
+      }
+      setPinned(false);
+      setMaximized(false);
+      setOpen(true);
+    };
+    document.addEventListener("xf-open-xiaowanzi", onOpenFromTab as EventListener);
+    return () => document.removeEventListener("xf-open-xiaowanzi", onOpenFromTab as EventListener);
+  }, []);
+
+  useEffect(() => {
     setShareVisible(true);
   }, [pathname]);
 
@@ -591,6 +862,30 @@ const XiaowanziWidget: React.FC = () => {
       localStorage.setItem(GLOBAL_DOCKED_PREF_KEY, pinned ? "1" : "0");
     } catch (_error) {}
   }, [pinned]);
+
+  useEffect(() => {
+    saveChildProfiles(childProfiles);
+  }, [childProfiles]);
+
+  useEffect(() => {
+    saveChatContext(chatContext);
+  }, [chatContext]);
+
+  useEffect(() => {
+    if (chatContext || childProfiles.length === 0) return;
+    try {
+      const lastId = localStorage.getItem(LAST_CHILD_ID_KEY) || "";
+      const picked = childProfiles.find((item) => item.id === lastId) || childProfiles[0];
+      if (!picked || !isProfileComplete(picked)) return;
+      const nextContext: ChatSessionContext = {
+        sessionId: `session-${Date.now()}`,
+        childProfileId: picked.id,
+        isChildBound: true,
+        lastSwitchedAt: new Date().toISOString(),
+      };
+      setChatContext(nextContext);
+    } catch (_error) {}
+  }, [chatContext, childProfiles]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -612,17 +907,35 @@ const XiaowanziWidget: React.FC = () => {
   async function sendMessage(text?: string) {
     const content = (text ?? input).trim();
     if (!content || sending) return;
+    if (!isChildBound || !activeChild) {
+      setStatusText("● 请先选择孩子档案后提问");
+      setHiddenEntryOpen(true);
+      return;
+    }
     const token = getSessionToken();
     if (!token) {
       setStatusText("● 请先登录账号");
       return;
     }
 
-    const contextualContent = pageContext.summary
-      ? `[回答规则]\n${AI_RESPONSE_RULES}\n\n[当前页面上下文]\n${pageContext.summary}\n\n[用户问题]\n${content}`
-      : `[回答规则]\n${AI_RESPONSE_RULES}\n\n[用户问题]\n${content}`;
+    const profileSummary = [
+      `咨询人:${activeChild.displayName}`,
+      `关系:${activeChild.relation}`,
+      `性别:${activeChild.gender}`,
+      `出生日期:${activeChild.birthDate}`,
+      `年级:${activeChild.grade}`,
+      `关注标签:${activeChild.concernTags.join("、") || "无"}`,
+    ].join("。");
 
-    const userMessage: Msg = { role: "user", content, ts: new Date().toISOString() };
+    const contextualContent = pageContext.summary
+      ? `[回答规则]\n${AI_RESPONSE_RULES}\n\n[孩子档案]\n${profileSummary}\n\n[当前页面上下文]\n${pageContext.summary}\n\n[用户问题]\n${content}`
+      : `[回答规则]\n${AI_RESPONSE_RULES}\n\n[孩子档案]\n${profileSummary}\n\n[用户问题]\n${content}`;
+
+    const userMessage: Msg = {
+      role: "user",
+      content,
+      ts: new Date().toISOString(),
+    };
     const pendingAssistantMessage: Msg = {
       role: "assistant",
       content: `收到,你想让我处理的是:${content}\n\n我先按当前页面已确认信息帮你整理,马上给你结果。`,
@@ -640,6 +953,10 @@ const XiaowanziWidget: React.FC = () => {
         body: JSON.stringify({ content: contextualContent }),
       });
       if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          setCanUseBot(false);
+          setStatusText(res.status === 403 ? "● 当前账号暂无小玩子权限" : "● 登录已失效,请重新登录");
+        }
         const err = await res.json().catch(() => ({}));
         const msg = String(err?.content || err?.detail || "请求失败");
         setMessages((prev) => [
@@ -661,6 +978,11 @@ const XiaowanziWidget: React.FC = () => {
   function onInputKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
+      if (!isChildBound) {
+        setHiddenEntryOpen(true);
+        setStatusText("● 请先选择孩子档案后提问");
+        return;
+      }
       void sendMessage();
     }
   }
@@ -679,6 +1001,10 @@ const XiaowanziWidget: React.FC = () => {
     dragRef.current.offsetX = event.clientX - fabPosition.left;
     dragRef.current.offsetY = event.clientY - fabPosition.top;
     event.currentTarget.setPointerCapture(event.pointerId);
+    fabLongPressRef.current = window.setTimeout(() => {
+      dragRef.current.moved = true;
+      openHiddenEntry();
+    }, 560);
   }
 
   function onFabPointerMove(event: React.PointerEvent<HTMLButtonElement>) {
@@ -693,6 +1019,10 @@ const XiaowanziWidget: React.FC = () => {
     );
     if (Math.abs(next.left - fabPosition.left) > 2 || Math.abs(next.top - fabPosition.top) > 2) {
       dragRef.current.moved = true;
+      if (fabLongPressRef.current) {
+        window.clearTimeout(fabLongPressRef.current);
+        fabLongPressRef.current = null;
+      }
     }
     setFabPosition(next);
   }
@@ -703,6 +1033,10 @@ const XiaowanziWidget: React.FC = () => {
       event.currentTarget.releasePointerCapture(dragRef.current.pointerId);
     } catch (_error) {}
     dragRef.current.active = false;
+    if (fabLongPressRef.current) {
+      window.clearTimeout(fabLongPressRef.current);
+      fabLongPressRef.current = null;
+    }
   }
 
   function onFabClick() {
@@ -718,6 +1052,20 @@ const XiaowanziWidget: React.FC = () => {
     }
     setAvatarState((value) => advanceAvatarState(value));
     setOpen((value) => !value);
+  }
+
+  function onPlusPointerDown() {
+    if (plusPressTimerRef.current) window.clearTimeout(plusPressTimerRef.current);
+    plusPressTimerRef.current = window.setTimeout(() => {
+      openHiddenEntry();
+    }, 560);
+  }
+
+  function onPlusPointerUp() {
+    if (plusPressTimerRef.current) {
+      window.clearTimeout(plusPressTimerRef.current);
+      plusPressTimerRef.current = null;
+    }
   }
 
   function onAvatarError(event: React.SyntheticEvent<HTMLImageElement>) {
@@ -767,6 +1115,19 @@ const XiaowanziWidget: React.FC = () => {
         #ai-panel.docked{top:0 !important;right:10px !important;bottom:10px !important;left:auto !important;width:calc(var(--xiaowanzi-docked-width,430px) - 20px) !important;height:calc(100vh - 10px) !important;max-height:calc(100vh - 10px) !important;border-radius:0 0 24px 24px !important;animation:none !important;border-left:1px solid rgba(108,39,214,.16) !important;border-right:1px solid rgba(108,39,214,.12) !important;border-top:1px solid rgba(108,39,214,.12) !important;box-shadow:none !important}
         #ai-panel.max{top:50% !important;left:50% !important;right:auto !important;bottom:auto !important;transform:translate(-50%,-50%) !important;width:min(680px,calc(100vw - 24px)) !important;max-width:min(680px,calc(100vw - 24px)) !important;height:min(78vh,760px) !important;max-height:min(78vh,760px) !important}
         @media (max-width:560px){#ai-panel.max{width:calc(100vw - 16px) !important;max-width:calc(100vw - 16px) !important;height:calc(100vh - 16px) !important;max-height:calc(100vh - 16px) !important;border-radius:16px !important}}
+        @media (max-width: 768px){
+          #ai-fab{display:none !important}
+          #ai-panel{
+            left:8px !important;
+            right:8px !important;
+            bottom:calc(84px + env(safe-area-inset-bottom)) !important;
+            top:auto !important;
+            width:auto !important;
+            max-width:none !important;
+            max-height:68vh !important;
+            border-radius:16px !important;
+          }
+        }
         body.xiaowanzi-docked #app-shell{padding-right:var(--xiaowanzi-docked-width,430px);transition:padding-right .2s ease;border-radius:0 24px 24px 0;overflow:hidden}
         body.xiaowanzi-docked #app-shell nav.fixed.top-0.z-50.w-full{width:calc(100% - var(--xiaowanzi-docked-width,430px));border-top-right-radius:24px}
         @media (max-width: 980px){
@@ -780,6 +1141,10 @@ const XiaowanziWidget: React.FC = () => {
         .aip-gem #ai-panel-avatar-img{width:40px !important;height:40px !important;object-fit:contain !important;padding:4px !important;border-radius:10px !important;display:block !important}
         .aip-title{font-size:13.5px;font-weight:700;flex:1}
         .aip-status{font-size:10px;color:#059669;font-weight:600}
+        .aip-child-row{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px dashed rgba(108,39,214,.14);background:#f7f5ff}
+        .aip-child-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:#fff;border:1px solid rgba(108,39,214,.2);font-size:12px;font-weight:600;color:#4338ca}
+        .aip-child-switch{margin-left:auto;border:none;background:transparent;color:#6c27d6;font-size:12px;font-weight:700;cursor:pointer}
+        .aip-child-exit{border:none;background:transparent;color:#9ca3af;font-size:12px;cursor:pointer}
         .aip-icon-btn{position:absolute;top:50%;transform:translateY(-50%);width:34px !important;height:34px !important;border:none;border-radius:50% !important;background:rgba(108,39,214,.045);color:#6b7280;font-family:'Material Symbols Rounded';font-size:16px;cursor:pointer;transition:all .12s;display:flex;align-items:center;justify-content:center}
         .aip-pin{right:92px}
         .aip-theme{right:132px}
@@ -815,6 +1180,7 @@ const XiaowanziWidget: React.FC = () => {
         .aip-history-card:hover{background:#f1efff;border-color:rgba(108,39,214,.22)}
         .aip-history-card-title{font-size:11px;font-weight:600;color:#374151;line-height:1.35}
         .aip-history-card-sub{margin-top:3px;font-size:10px;color:#94a3b8}
+        .aip-history-card-tag{margin-top:3px;font-size:10px;color:#4f46e5}
         .aip-sc{padding:4px 10px;border:1px solid rgba(108,39,214,.12);border-radius:20px;font-size:11px;background:#faf7ff;color:#6b7280;cursor:pointer;transition:all .1s;white-space:nowrap}
         .aip-sc:hover{border-color:#6c27d6;color:#6c27d6;background:rgba(108,39,214,.08)}
         .aip-input-row{display:flex;align-items:center;gap:8px;padding:10px 12px 12px;border-top:1px solid rgba(108,39,214,.1);flex-shrink:0;background:#fff}
@@ -824,6 +1190,7 @@ const XiaowanziWidget: React.FC = () => {
         .aip-input:focus{border-color:#6c27d6;background:#fff;box-shadow:0 0 0 3px rgba(108,39,214,.12)}
         .aip-input::placeholder{color:#9ca3af}
         .aip-send{position:absolute;right:8px;bottom:8px;width:36px;height:36px;border:none;border-radius:11px;background:linear-gradient(135deg,#6c27d6 0%,#7f37ea 100%);color:#fff;cursor:pointer;flex-shrink:0;align-self:center;font-family:'Material Symbols Rounded';font-size:16px;transition:all .15s;box-shadow:0 8px 16px rgba(108,39,214,.24)}
+        .aip-plus{position:absolute;right:48px;bottom:8px;width:36px;height:36px;border:1px solid rgba(108,39,214,.2);border-radius:11px;background:#fff;color:#6c27d6;cursor:pointer;font-family:'Material Symbols Rounded';font-size:17px}
         .aip-send:hover{background:linear-gradient(135deg,#7a35e4 0%,#8d47f5 100%);transform:translateY(-1px)}
         .aip-send:disabled{opacity:.4;cursor:not-allowed;transform:none}
         #ai-panel.docked .aip-shortcuts{padding:10px 10px 8px;background:transparent;border-top:none}
@@ -861,6 +1228,25 @@ const XiaowanziWidget: React.FC = () => {
         #ai-panel.docked.docked-dark .aip-input::placeholder{color:#7b8798}
         #ai-panel.docked.docked-dark .aip-share{background:#161c24;border-color:#2f3745;color:#cbd5e1}
         #ai-panel.docked.docked-dark .aip-share-close{color:#94a3b8}
+        .aip-hidden-mask{position:fixed;inset:0;background:rgba(15,23,42,.36);z-index:8400}
+        .aip-hidden-sheet{position:fixed;left:0;right:0;bottom:0;z-index:8401;background:#f7f4ff;border-radius:18px 18px 0 0;padding:14px 14px calc(14px + env(safe-area-inset-bottom));max-height:78vh;overflow:auto;box-shadow:0 -18px 30px rgba(15,23,42,.2)}
+        .aip-sheet-title{font-size:18px;font-weight:800;color:#1f2937;margin-bottom:10px}
+        .aip-sheet-actions{display:flex;gap:10px;margin-top:8px}
+        .aip-sheet-btn{flex:1;height:44px;border:none;border-radius:12px;background:linear-gradient(135deg,#6c27d6 0%,#7f37ea 100%);color:#fff;font-size:15px;font-weight:700;box-shadow:0 10px 20px rgba(108,39,214,.22)}
+        .aip-sheet-btn.light{background:#f3edff;color:#6c27d6;border:1px solid rgba(108,39,214,.22);box-shadow:none}
+        .aip-child-card{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #e5e7f2;border-radius:12px;padding:10px;margin-bottom:9px}
+        .aip-child-card-avatar{width:40px;height:40px;border-radius:999px;background:#e4e7ff;display:flex;align-items:center;justify-content:center;color:#4338ca;font-weight:700}
+        .aip-child-card-main{flex:1;min-width:0}
+        .aip-child-card-name{font-size:15px;font-weight:700;color:#1f2937}
+        .aip-child-card-tag{font-size:11px;color:#6b7280}
+        .aip-child-card-btn{border:none;border-radius:999px;background:linear-gradient(135deg,#6c27d6 0%,#7f37ea 100%);color:#fff;padding:7px 14px;font-size:12px;font-weight:700;box-shadow:0 8px 16px rgba(108,39,214,.2)}
+        .aip-child-card-btn:disabled{opacity:.55;box-shadow:none}
+        .aip-form-row{margin-bottom:9px}
+        .aip-form-label{font-size:12px;color:#6b7280;margin-bottom:5px}
+        .aip-form-input{width:100%;height:40px;border:1px solid #d7dcf2;border-radius:10px;padding:0 10px;background:#fff;color:#1f2937}
+        .aip-tag-grid{display:flex;flex-wrap:wrap;gap:8px}
+        .aip-tag-btn{border:1px solid #d7dcf2;background:#fff;color:#475569;border-radius:999px;padding:6px 10px;font-size:12px}
+        .aip-tag-btn.on{border-color:#5f53ff;color:#4338ca;background:#ecebff}
       `}</style>
       <div className={`ai-panel-backdrop${open && maximized ? " show" : ""}`} onClick={() => setMaximized(false)} />
       {open ? (
@@ -937,6 +1323,24 @@ const XiaowanziWidget: React.FC = () => {
               close
             </button>
           </div>
+          <div className="aip-child-row">
+            <span className="aip-child-chip">{isChildBound && activeChild ? `为 ${activeChild.displayName} 咨询` : "未绑定孩子档案"}</span>
+            <button className="aip-child-switch" type="button" onClick={() => { setHiddenEntryOpen(true); setPickerOpen(true); }}>
+              {isChildBound ? "切换" : "去绑定"}
+            </button>
+            {isChildBound ? (
+              <button
+                className="aip-child-exit"
+                type="button"
+                onClick={() => {
+                  setChatContext(null);
+                  setStatusText("● 未绑定孩子，建议准确性会降低");
+                }}
+              >
+                退出
+              </button>
+            ) : null}
+          </div>
           <div className="aip-msgs" ref={msgContainerRef}>
             {visibleMessages.map((message, idx) => (
               <div
@@ -946,6 +1350,11 @@ const XiaowanziWidget: React.FC = () => {
                 data-msg-index={idx}
               >
                 {message.content}
+                {message.role === "assistant" && isChildBound && activeChild ? (
+                  <div style={{ marginTop: 8, fontSize: 11, color: "#94a3b8" }}>
+                    本条建议基于档案：{activeChild.displayName} · {activeChild.grade} · {activeChild.concernTags.join("、") || "未设置标签"}
+                  </div>
+                ) : null}
               </div>
             ))}
             {isDockedEmpty ? (
@@ -953,7 +1362,7 @@ const XiaowanziWidget: React.FC = () => {
                 <div className="aip-empty-title">{currentUserName ? `${currentUserName},你好` : "你好"}</div>
                 <div className="aip-empty-sub">今天需要我做些什么?</div>
                 <div className="aip-empty-suggests">
-                  {shortcutItems.slice(0, 3).map((item) => (
+                  {(isChildBound ? childShortcutItems : shortcutItems).slice(0, 3).map((item) => (
                     <button key={`empty-${item.label}`} className="aip-empty-btn" type="button" onClick={() => void sendMessage(item.prompt)}>
                       {item.prompt}
                     </button>
@@ -965,7 +1374,7 @@ const XiaowanziWidget: React.FC = () => {
           {!isDockedEmpty ? (
             <div className="aip-shortcuts">
               <div className="aip-shortcuts-list">
-                {shortcutItems.map((item) => (
+                {(isChildBound ? childShortcutItems : shortcutItems).map((item) => (
                   <button key={item.label} className="aip-sc" type="button" onClick={() => void sendMessage(item.prompt)}>
                     {item.label}
                   </button>
@@ -988,6 +1397,7 @@ const XiaowanziWidget: React.FC = () => {
                     <button key={card.id} className="aip-history-card" type="button" onClick={() => jumpToMessage(card.targetIndex)}>
                       <div className="aip-history-card-title">{card.title}</div>
                       <div className="aip-history-card-sub">{card.sub}</div>
+                      {card.childTag ? <div className="aip-history-card-tag">{card.childTag}</div> : null}
                     </button>
                   ))
                 ) : (
@@ -1009,18 +1419,153 @@ const XiaowanziWidget: React.FC = () => {
                   ref={inputRef}
                   className="aip-input"
                   rows={1}
-                  placeholder="问我任何学习问题..."
+                  placeholder={isChildBound ? "请描述孩子当前情况，我会基于档案给建议..." : "请先选择孩子档案后提问"}
                   value={input}
                   onChange={onInputChange}
                   onKeyDown={onInputKeyDown}
                 />
-                <button className="aip-send" type="button" onClick={() => void sendMessage()} disabled={sending}>
+                <button
+                  className="aip-plus"
+                  type="button"
+                  aria-label="隐藏功能入口"
+                  onPointerDown={onPlusPointerDown}
+                  onPointerUp={onPlusPointerUp}
+                  onPointerCancel={onPlusPointerUp}
+                  onClick={() => {
+                    setStatusText("● 长按 + 可进入孩子咨询模式");
+                  }}
+                >
+                  add
+                </button>
+                <button className="aip-send" type="button" onClick={() => void sendMessage()} disabled={sending || !isChildBound}>
                   {sending ? "more_horiz" : "send"}
                 </button>
               </div>
             </div>
           </div>
         </div>
+      ) : null}
+      {hiddenEntryOpen ? (
+        <>
+          <div className="aip-hidden-mask" onClick={() => { setHiddenEntryOpen(false); setPickerOpen(false); setCreateOpen(false); }} />
+          <div className="aip-hidden-sheet">
+            {!pickerOpen && !createOpen ? (
+              <>
+                <div className="aip-sheet-title">孩子咨询模式</div>
+                <div className="aip-sheet-actions">
+                  <button className="aip-sheet-btn" type="button" onClick={() => setPickerOpen(true)}>选择孩子</button>
+                  <button className="aip-sheet-btn light" type="button" onClick={() => { resetDraftProfile(); setCreateOpen(true); }}>新增孩子</button>
+                </div>
+              </>
+            ) : null}
+            {pickerOpen ? (
+              <>
+                <div className="aip-sheet-title">选择咨询人</div>
+                {childProfiles.length === 0 ? (
+                  <div style={{ color: "#6b7280", fontSize: 13, marginBottom: 10 }}>暂无孩子档案，请先新增。</div>
+                ) : (
+                  childProfiles
+                    .slice()
+                    .sort((a, b) => (a.id === chatContext?.childProfileId ? -1 : b.id === chatContext?.childProfileId ? 1 : 0))
+                    .map((item) => (
+                      <div key={item.id} className="aip-child-card">
+                        <div className="aip-child-card-avatar">{item.displayName.slice(0, 1) || "孩"}</div>
+                        <div className="aip-child-card-main">
+                          <div className="aip-child-card-name">{item.displayName}</div>
+                          <div className="aip-child-card-tag">{item.relation} · {item.grade || "未填年级"}</div>
+                        </div>
+                        <button
+                          className="aip-child-card-btn"
+                          type="button"
+                          disabled={!isProfileComplete(item)}
+                          onClick={() => bindChildProfile(item)}
+                        >
+                          {item.id === chatContext?.childProfileId ? "已选择" : "选择"}
+                        </button>
+                      </div>
+                    ))
+                )}
+                <div className="aip-sheet-actions">
+                  <button className="aip-sheet-btn light" type="button" onClick={() => { setPickerOpen(false); setCreateOpen(false); }}>返回</button>
+                  <button className="aip-sheet-btn" type="button" onClick={() => { resetDraftProfile(); setCreateOpen(true); setPickerOpen(false); }}>新增孩子</button>
+                </div>
+              </>
+            ) : null}
+            {createOpen ? (
+              <>
+                <div className="aip-sheet-title">新增孩子档案</div>
+                <div className="aip-form-row">
+                  <div className="aip-form-label">关系</div>
+                  <div className="aip-tag-grid">
+                    {CHILD_RELATIONS.map((item) => (
+                      <button key={item} type="button" className={`aip-tag-btn${draftProfile.relation === item ? " on" : ""}`} onClick={() => setDraftProfile((prev) => ({ ...prev, relation: item }))}>
+                        {item}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="aip-form-row"><div className="aip-form-label">姓名/称呼</div><input className="aip-form-input" value={draftProfile.displayName} onChange={(e) => setDraftProfile((prev) => ({ ...prev, displayName: e.target.value }))} /></div>
+                <div className="aip-form-row"><div className="aip-form-label">性别</div><select className="aip-form-input" value={draftProfile.gender} onChange={(e) => setDraftProfile((prev) => ({ ...prev, gender: e.target.value === "男" ? "男" : "女" }))}><option value="女">女</option><option value="男">男</option></select></div>
+                <div className="aip-form-row"><div className="aip-form-label">出生日期</div><input className="aip-form-input" type="date" value={draftProfile.birthDate} onChange={(e) => setDraftProfile((prev) => ({ ...prev, birthDate: e.target.value }))} /></div>
+                <div className="aip-form-row"><div className="aip-form-label">年级</div><input className="aip-form-input" value={draftProfile.grade} onChange={(e) => setDraftProfile((prev) => ({ ...prev, grade: e.target.value }))} /></div>
+                <div className="aip-form-row">
+                  <div className="aip-form-label">关注问题标签（多选）</div>
+                  <div className="aip-tag-grid">
+                    {CHILD_TAGS.map((tag) => {
+                      const selected = draftProfile.concernTags.includes(tag);
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          className={`aip-tag-btn${selected ? " on" : ""}`}
+                          onClick={() =>
+                            setDraftProfile((prev) => ({
+                              ...prev,
+                              concernTags: selected ? prev.concernTags.filter((item) => item !== tag) : [...prev.concernTags, tag],
+                            }))
+                          }
+                        >
+                          {tag}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="aip-sheet-actions">
+                  <button
+                    className="aip-sheet-btn light"
+                    type="button"
+                    onClick={() => {
+                      const draftId = `child-${Date.now()}`;
+                      const draft: ChildProfileLite = { ...draftProfile, id: draftId, displayName: draftProfile.displayName || "未命名", createdAt: new Date().toISOString(), draft: true };
+                      setChildProfiles((prev) => [draft, ...prev.filter((item) => item.id !== draftId)]);
+                      setStatusText("● 草稿已保存，补全后可咨询");
+                      setCreateOpen(false);
+                      setPickerOpen(true);
+                    }}
+                  >
+                    保存草稿
+                  </button>
+                  <button
+                    className="aip-sheet-btn"
+                    type="button"
+                    onClick={() => {
+                      const profile: ChildProfileLite = { ...draftProfile, id: `child-${Date.now()}`, createdAt: new Date().toISOString() };
+                      if (!isProfileComplete(profile)) {
+                        setStatusText("● 档案未完成，暂不可进入咨询");
+                        return;
+                      }
+                      setChildProfiles((prev) => [profile, ...prev]);
+                      bindChildProfile(profile);
+                    }}
+                  >
+                    保存并使用
+                  </button>
+                </div>
+              </>
+            ) : null}
+          </div>
+        </>
       ) : null}
       <button
         id="ai-fab"

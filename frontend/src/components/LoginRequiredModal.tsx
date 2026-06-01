@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "../store";
-import { login } from "../store/userSlice";
+import { loginByMobile } from "../store/userSlice";
 import { userApi } from "../services/api";
 
 const PHONE_REGEX = /^1\d{10}$/;
@@ -23,8 +23,8 @@ const LoginRequiredModal: React.FC<Props> = ({
   // ---- 登录表单 state ----
   const [phone, setPhone] = useState("");
   const [verifyCode, setVerifyCode] = useState("");
-  const [sentCode, setSentCode] = useState("");
   const [countdown, setCountdown] = useState(0);
+  const [isSendingCode, setIsSendingCode] = useState(false);
   const [localError, setLocalError] = useState("");
   const [hint, setHint] = useState("");
 
@@ -57,18 +57,25 @@ const LoginRequiredModal: React.FC<Props> = ({
     return () => window.clearInterval(timer);
   }, [countdown]);
 
-  const canGetCode = useMemo(() => PHONE_REGEX.test(phone) && countdown === 0, [phone, countdown]);
+  const canGetCode = useMemo(() => PHONE_REGEX.test(phone) && countdown === 0 && !isSendingCode, [phone, countdown, isSendingCode]);
 
-  const handleGetCode = () => {
+  const handleGetCode = async () => {
     if (!PHONE_REGEX.test(phone)) {
       setLocalError("请输入正确的 11 位手机号");
       return;
     }
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    setSentCode(code);
-    setCountdown(60);
-    setLocalError("");
-    setHint(`验证码已发送（演示）：${code}`);
+    try {
+      setIsSendingCode(true);
+      await userApi.sendMobileCode(phone);
+      setCountdown(60);
+      setLocalError("");
+      setHint("验证码已发送，请注意查收短信。");
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || err?.response?.data?.message || err?.message || "发送验证码失败";
+      setLocalError(msg);
+    } finally {
+      setIsSendingCode(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -80,32 +87,16 @@ const LoginRequiredModal: React.FC<Props> = ({
       setLocalError("请输入正确的 11 位手机号");
       return;
     }
-    if (!sentCode) {
-      setLocalError("请先获取验证码");
-      return;
-    }
-    if (verifyCode !== sentCode) {
-      setLocalError("验证码不正确");
+    if (!/^\d{6}$/.test(verifyCode)) {
+      setLocalError("请输入 6 位验证码");
       return;
     }
 
-    const password = `sms_${phone}`;
     try {
-      await dispatch(login({ username: phone, password }) as any).unwrap();
-      return;
-    } catch (_err) {
-      // user not exists, try register
-    }
-
-    try {
-      await userApi.register(phone, password, "user");
-      await dispatch(login({ username: phone, password }) as any).unwrap();
+      await dispatch(loginByMobile({ mobile: phone, code: verifyCode }) as any).unwrap();
     } catch (registerErr: any) {
-      const message = registerErr?.response?.data?.message || registerErr?.message || "注册失败，请稍后重试";
+      const message = registerErr?.response?.data?.error || registerErr?.response?.data?.message || registerErr?.message || "登录失败，请稍后重试";
       setLocalError(message);
-      if (String(message).includes("不允许公开注册")) {
-        setHint("当前环境关闭了公开注册，请联系管理员开通或先由管理员创建账号。");
-      }
     }
   };
 
@@ -131,7 +122,7 @@ const LoginRequiredModal: React.FC<Props> = ({
         .xf-modal {
           width: 86%;
           max-width: 860px;
-          height: 500px;
+          height: min(455px, calc(100vh - 28px));
           border-radius: 28px;
           background: #ffffff;
           border: 1px solid rgba(209, 196, 241, 0.7);
@@ -172,9 +163,9 @@ const LoginRequiredModal: React.FC<Props> = ({
           display: flex;
           flex-direction: column;
           justify-content: flex-start;
-          gap: 4px;
-          padding-top: 32px;
-          overflow-y: auto;
+          gap: 2px;
+          padding-top: 20px;
+          overflow: hidden;
         }
         .xf-badge {
           display: inline-flex;
@@ -191,14 +182,14 @@ const LoginRequiredModal: React.FC<Props> = ({
         .xf-content h1 {
           margin: 0;
           color: #24164b;
-          font-size: 32px;
+          font-size: 30px;
           line-height: 1.1;
           letter-spacing: -0.02em;
           font-weight: 900;
         }
 
         .xf-desc {
-          margin: 2px 0 0;
+          margin: 0;
           color: #6f6688;
           font-size: 13px;
           line-height: 1.45;
@@ -208,7 +199,7 @@ const LoginRequiredModal: React.FC<Props> = ({
           display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 6px;
-          margin-top: 27px;
+          margin-top: 14px;
           margin-bottom: 0;
         }
 
@@ -217,14 +208,15 @@ const LoginRequiredModal: React.FC<Props> = ({
           border: 1px solid #ece5fb;
           background: linear-gradient(180deg, #fff, #fdfbff);
           box-shadow: 0 3px 8px rgba(77, 56, 136, 0.05);
-          padding: 12px 6px 11px;
+          padding: 14px 6px 12px;
+          min-height: 78px;
           text-align: center;
         }
 
         .xf-card-icon {
-          margin-bottom: 4px;
-          width: 28px;
-          height: 28px;
+          margin-bottom: 3px;
+          width: 32px;
+          height: 32px;
           margin-left: auto;
           margin-right: auto;
           border-radius: 999px;
@@ -237,25 +229,25 @@ const LoginRequiredModal: React.FC<Props> = ({
             0 4px 10px rgba(94, 70, 172, 0.18);
         }
         .xf-card-icon-svg {
-          width: 17px;
-          height: 17px;
+          width: 20px;
+          height: 20px;
           display: inline-block;
           filter: drop-shadow(0 2px 4px rgba(94, 70, 172, 0.18));
         }
         .xf-icon-book .xf-card-icon-svg { transform: scale(0.95); }
         .xf-icon-chat .xf-card-icon-svg { transform: scale(0.95); }
         .xf-icon-star .xf-card-icon-svg { transform: scale(1.05); }
-        .xf-card-title { font-size: 11px; font-weight: 800; color: #2a1d4f; margin-bottom: 1px; }
+        .xf-card-title { font-size: 10px; font-weight: 800; color: #2a1d4f; margin-bottom: 1px; }
         .xf-card-desc { font-size: 9px; color: #847a9d; line-height: 1.2; }
 
         /* ===== 登录表单区域 ===== */
         .xf-login-form-section {
-          margin-top: 49px;
+          margin-top: 18px;
           display: flex;
           flex-direction: column;
           gap: 6px;
           position: relative;
-          top: -10px;
+          top: 0;
         }
         .xf-login-form-section label {
           display: block;
@@ -291,7 +283,7 @@ const LoginRequiredModal: React.FC<Props> = ({
           font-size: 14px;
           font-weight: 700;
           color: #111827;
-          padding: 8px 10px;
+          padding: 7px 10px;
           outline: none;
         }
         .xf-login-form-section .xf-input::placeholder {
@@ -340,7 +332,7 @@ const LoginRequiredModal: React.FC<Props> = ({
           border: 1px solid #fecaca;
           background: #fef2f2;
           border-radius: 10px;
-          padding: 6px 10px;
+          padding: 5px 10px;
           color: #dc2626;
           font-size: 12px;
           font-weight: 700;
@@ -424,15 +416,26 @@ const LoginRequiredModal: React.FC<Props> = ({
             max-width: 380px;
             width: 92%;
             height: auto;
-            max-height: 85vh;
+            max-height: 88vh;
             grid-template-columns: 1fr;
+            grid-template-rows: 188px auto;
             border-radius: 20px;
             box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
           }
-          .xf-content { order: 1; padding: 20px 18px 16px; gap: 8px; }
+          .xf-content { order: 2; padding: 16px 18px 16px; gap: 8px; }
           .xf-hero {
-            display: none;
+            order: 1;
+            display: flex;
+            min-height: 188px;
+            border-left: none;
+            border-bottom: 1px solid rgba(222, 212, 244, 0.7);
           }
+          .xf-bg-circle { width: 160px; height: 160px; transform: translate(-50%, -44%); }
+          .xf-figure { object-position: center 42%; }
+          .star1 { left: 18px; top: 18px; }
+          .star2 { right: 20px; top: 22px; }
+          .star3 { right: 20px; bottom: 20px; }
+          .star4 { left: 18px; bottom: 16px; }
           .xf-head { margin-bottom: 2px; }
           .xf-badge { display: none; }
           .xf-content h1 { font-size: 20px; margin-bottom: 2px; }
@@ -545,7 +548,7 @@ const LoginRequiredModal: React.FC<Props> = ({
                 onClick={handleGetCode}
                 disabled={!canGetCode}
               >
-                {countdown > 0 ? `${countdown}s` : "获取验证码"}
+                {isSendingCode ? "发送中..." : countdown > 0 ? `${countdown}s` : "获取验证码"}
               </button>
             </div>
 
@@ -553,7 +556,7 @@ const LoginRequiredModal: React.FC<Props> = ({
             {!localError && (hint || error) ? <div className="xf-hint-msg">{hint || error}</div> : null}
 
             <button className="xf-submit-btn" type="submit" disabled={isLoading}>
-              {isLoading ? "处理中..." : "登录/注册"}
+              {isLoading ? "登录中" : "登录/注册"}
             </button>
 
             <div className="xf-policy">

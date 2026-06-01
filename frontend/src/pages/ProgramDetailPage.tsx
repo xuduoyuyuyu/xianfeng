@@ -124,6 +124,9 @@ const ProgramDetailPage: React.FC = () => {
     program?.deepDive?.curatedReading && program.deepDive.curatedReading.length > 0
       ? program.deepDive.curatedReading
       : [{ title: "《家庭教育中的低摩擦沟通》", subtitle: "围绕节目主题延展出的实用阅读线索" }];
+  const curatedReadingUnique = curatedReading.filter(
+    (item, idx, arr) => arr.findIndex((x) => x.title === item.title && (x.subtitle || "") === (item.subtitle || "")) === idx
+  );
   const quickView = (program?.contentPack?.quickView || []).filter((item) => item?.summary).slice(0, 12);
   const minutesText = program?.contentPack?.minutes?.text || summaryBody;
   const showNotesText = program?.contentPack?.showNotes?.renderedText || [
@@ -480,12 +483,19 @@ const ProgramDetailPage: React.FC = () => {
           opacity: 0.7;
         }
         .capsule-player {
-          background: rgba(255, 255, 255, 0.15);
+          background: rgba(255, 255, 255, 0.88);
           border: 1px solid rgba(255, 255, 255, 0.2);
           box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1), inset 0 0 20px rgba(255, 255, 255, 0.05);
           backdrop-filter: blur(64px) saturate(200%);
           -webkit-backdrop-filter: blur(64px) saturate(200%);
         }
+        .curated-reading-list {
+          max-height: 300px;
+          overflow-y: auto;
+          padding-right: 4px;
+        }
+        .curated-reading-list::-webkit-scrollbar { width: 6px; }
+        .curated-reading-list::-webkit-scrollbar-thumb { background: rgba(94, 23, 235, 0.25); border-radius: 999px; }
         .sidebar-episode-num {
           font-family: "JetBrains Mono", monospace;
           font-weight: 800;
@@ -595,7 +605,7 @@ const ProgramDetailPage: React.FC = () => {
         </section>
       </div>
 
-      <main className="mx-auto grid max-w-7xl grid-cols-1 items-start gap-8 px-6 py-16 lg:grid-cols-12">
+      <main className="mx-auto grid max-w-7xl grid-cols-1 items-start gap-8 px-6 pt-16 pb-56 lg:grid-cols-12">
         <div className="space-y-16 lg:col-span-8">
           <section id="content-section" className="rounded-xl border border-gray-100 bg-white p-8 shadow-[0_4px_24px_rgba(0,0,0,0.03)] md:p-12">
             <div className="mb-6 flex items-center gap-3">
@@ -683,8 +693,8 @@ const ProgramDetailPage: React.FC = () => {
               </div>
               <div className="mb-10">
                 <p className="mb-4 text-[10px] font-black uppercase tracking-widest text-gray-400">推荐阅读 Curated Reading</p>
-                <div className="space-y-4">
-                  {curatedReading.map((item) => (
+                <div className="curated-reading-list space-y-4">
+                  {curatedReadingUnique.map((item) => (
                     <div
                       key={`${item.title}-${item.subtitle || ""}`}
                       className={`group ${item.url ? "cursor-pointer" : ""}`}
