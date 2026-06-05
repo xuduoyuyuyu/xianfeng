@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import { RootState } from "../store";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import Pagination from "../components/Pagination";
 import { publicApi, LearningMaterial } from "../services/api";
+import { useXiaowanziEmbeddedLayer } from "../utils/xiaowanziLayer";
 
 type MaterialMeta = {
   stage: string;
@@ -14,7 +15,6 @@ type MaterialMeta = {
 };
 
 const PAGE_SIZE = 24;
-const MATERIALS_HERO_DISMISSED_KEY = "materials_hero_dismissed_v1";
 const FIXED_STAGE_OPTIONS = ["通用", "学前", "小学", "初中", "高中"] as const;
 const STAGE_GRADE_RULES: Record<string, string[]> = {
   通用: ["通用"],
@@ -264,32 +264,18 @@ function gradeRank(value: string): number {
 }
 
 const MaterialsPage: React.FC = () => {
+  const superModePage = useXiaowanziEmbeddedLayer();
   const token = useSelector((state: RootState) => state.user.token);
   const [materials, setMaterials] = useState<LearningMaterial[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [showHero, setShowHero] = useState(false);
   const [keyword, setKeyword] = useState("");
   const [page, setPage] = useState(1);
   const [selectedStages, setSelectedStages] = useState<string[]>([]);
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
-
-
-  useEffect(() => {
-    try {
-      setShowHero(window.localStorage.getItem(MATERIALS_HERO_DISMISSED_KEY) !== "1");
-    } catch (_err) {
-      setShowHero(true);
-    }
-  }, []);
-
-  const dismissHero = () => {
-    setShowHero(false);
-    try {
-      window.localStorage.setItem(MATERIALS_HERO_DISMISSED_KEY, "1");
-    } catch (_err) {}
-  };
+  const [copyToastVisible, setCopyToastVisible] = useState(false);
+  const copyToastTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -391,11 +377,26 @@ const MaterialsPage: React.FC = () => {
     setSelectedGrades((prev) => prev.filter((item) => gradeOptions.includes(item)));
   }, [gradeOptions]);
 
+  useEffect(() => {
+    return () => {
+      if (copyToastTimerRef.current) window.clearTimeout(copyToastTimerRef.current);
+    };
+  }, []);
+
   const clearFilters = () => {
     setKeyword("");
     setSelectedStages([]);
     setSelectedGrades([]);
     setSelectedSubjects([]);
+  };
+
+  const showCopyToast = () => {
+    if (copyToastTimerRef.current) window.clearTimeout(copyToastTimerRef.current);
+    setCopyToastVisible(true);
+    copyToastTimerRef.current = window.setTimeout(() => {
+      setCopyToastVisible(false);
+      copyToastTimerRef.current = null;
+    }, 1800);
   };
 
   const toggle = (value: string, selected: string[], setSelected: (next: string[]) => void) => {
@@ -491,7 +492,10 @@ const MaterialsPage: React.FC = () => {
           0%,100% { transform: translate3d(0,0,0) scale(.92); opacity: .5; }
           55% { transform: translate3d(1.5%,-2.5%,0) scale(1.18); opacity: .78; }
         }
-        @keyframes materialsToastIn{from{opacity:0;transform:translate(-50%,-12px)}to{opacity:1;transform:translate(-50%,0)}}
+        @keyframes materialsCopyToastIn {
+          from { opacity: 0; transform: translate(-50%, -10px); }
+          to { opacity: 1; transform: translate(-50%, 0); }
+        }
         .materials-hero-search {
           border: 1px solid rgba(124, 77, 255, 0.22);
           background: rgba(255, 255, 255, 0.94);
@@ -523,12 +527,21 @@ const MaterialsPage: React.FC = () => {
         }
         @media (max-width: 768px) {
           .materials-mobile-main { padding-top: 70px !important; padding-bottom: calc(120px + env(safe-area-inset-bottom)) !important; }
+          .materials-mobile-main.xw-layer-main { padding-top: 24px !important; }
           .materials-mobile-hero { padding: 16px !important; border-radius: 20px !important; }
           .materials-mobile-filter { padding: 12px !important; border-radius: 16px !important; }
           .materials-mobile-label { width: 56px !important; font-size: 12px !important; }
           .materials-mobile-grid { gap: 12px !important; }
         }
       `}</style>
+      {copyToastVisible ? (
+        <div
+          className="fixed left-1/2 top-[calc(76px+env(safe-area-inset-top))] z-[9999] rounded-full bg-[#2b1a3a] px-7 py-3 text-base font-black text-white shadow-[0_16px_36px_rgba(43,26,58,0.28)]"
+          style={{ animation: "materialsCopyToastIn .22s ease-out both" }}
+        >
+          已复制链接
+        </div>
+      ) : null}
       <div className="pointer-events-none absolute inset-0 opacity-40">
         <div className="absolute inset-0 bg-[linear-gradient(rgba(118,83,205,0.05)_1.5px,transparent_1.5px),linear-gradient(90deg,rgba(118,83,205,0.05)_1.5px,transparent_1.5px)] bg-[size:28px_28px]" />
       </div>
@@ -541,22 +554,13 @@ const MaterialsPage: React.FC = () => {
         compactMobile
         showExpertsEntry
         showProgramEntry
-        showSearch={!showHero}
+        showSearch
         searchPlaceholder="搜索资料名称、学科、关键词"
         searchValue={keyword}
         onSearchChange={setKeyword}
       />
-      <main className="materials-mobile-main mx-auto max-w-7xl px-4 pb-16 pt-[76px] sm:px-6 lg:px-8">
-        {showHero ? (
-          <section className="materials-mobile-hero group relative overflow-hidden rounded-[2rem] border border-[#d8d0ef] bg-[radial-gradient(circle_at_85%_15%,_rgba(143,100,255,0.1),_transparent_38%),linear-gradient(135deg,_#f4f1fd_0%,_#faf8ff_48%,_#f0ebff_100%)] p-7 shadow-[0_24px_80px_rgba(80,62,125,0.1)] sm:p-9">
-            <button
-              type="button"
-              onClick={dismissHero}
-              aria-label="关闭引导卡片"
-              className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#cfc2ee] bg-white/75 text-[#5b3fa1] opacity-0 transition hover:bg-white hover:text-[#4e36a0] group-hover:opacity-100 focus-visible:opacity-100 sm:opacity-0 max-sm:opacity-100"
-            >
-              <span className="material-symbols-outlined text-[18px]">close</span>
-            </button>
+      <main className={`materials-mobile-main mx-auto max-w-7xl px-4 pb-16 pt-[76px] sm:px-6 lg:px-8 ${superModePage ? "xw-layer-main" : ""}`}>
+        <section className="materials-mobile-hero group relative overflow-hidden rounded-[2rem] border border-[#d8d0ef] bg-[radial-gradient(circle_at_85%_15%,_rgba(143,100,255,0.1),_transparent_38%),linear-gradient(135deg,_#f4f1fd_0%,_#faf8ff_48%,_#f0ebff_100%)] p-7 shadow-[0_24px_80px_rgba(80,62,125,0.1)] sm:p-9">
             <div className="max-w-3xl">
               <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.26em] text-[#5b3fa1]">
                 Resource Hub
@@ -586,8 +590,7 @@ const MaterialsPage: React.FC = () => {
               清空筛选
             </button>
             </div>
-          </section>
-        ) : null}
+        </section>
 
         <section className="materials-mobile-filter mt-6 rounded-[1.8rem] border border-[#e0d9f2] bg-white p-5 shadow-[0_16px_50px_rgba(80,62,125,0.06)] sm:p-6">
           <div className="space-y-5">
@@ -677,19 +680,8 @@ const MaterialsPage: React.FC = () => {
                   onClick={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
-                    const now = Date.now();
-                    if ((window as any).__materialsToastAt && now - (window as any).__materialsToastAt < 2500) return;
-                    (window as any).__materialsToastAt = now;
                     navigator.clipboard.writeText(item.fileUrl || "").catch(() => {});
-                    let el = document.getElementById("materials-toast");
-                    if (el) el.remove();
-                    el = document.createElement("div");
-                    el.id = "materials-toast";
-                    el.className = "fixed left-1/2 top-5 z-[9999] -translate-x-1/2 rounded-full bg-[#2b1a3a] px-6 py-2.5 text-sm font-bold text-white shadow-lg";
-                    el.style.cssText = "animation:materialsToastIn .3s ease-out";
-                    el.textContent = "已复制链接";
-                    document.body.appendChild(el);
-                    setTimeout(() => { el.remove(); (window as any).__materialsToastAt = 0; }, 2000);
+                    showCopyToast();
                   }}
                 >
                   <h2 className="line-clamp-2 text-lg font-black leading-snug text-[#2b1a3a]">{item.title}</h2>

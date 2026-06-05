@@ -1,9 +1,11 @@
 import express from "express";
 import { ensureStore, resolveAgentModelConfig } from "../services/agentModelRegistry";
+import { authenticate } from "../middlewares/auth";
+import { requirePro } from "../middlewares/requirePro";
 
 const router = express.Router();
 
-router.post("/chat", async (req, res) => {
+router.post("/chat", authenticate, requirePro("ai_chat"), async (req, res) => {
   try {
     const body = req.body || {};
     const prompt = String(body.prompt || "").trim();

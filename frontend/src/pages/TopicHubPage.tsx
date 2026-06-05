@@ -6,6 +6,8 @@ import GlobalPublicNav from "../components/GlobalPublicNav";
 import Pagination from "../components/Pagination";
 import type { RootState } from "../store";
 import { getTopicUserId } from "../utils/topicUserId";
+import { getAdminOrUserToken, hasAdminOrUserSession, isProRequiredPayload, showProUpgradeFromPayload } from "../utils/proGate";
+import { useXiaowanziEmbeddedLayer } from "../utils/xiaowanziLayer";
 
 // ===== 本地暂存话题保护机制 =====
 // 解决：创建话题后刷新页面，话题丢失的问题
@@ -78,7 +80,8 @@ function safeTags(raw: string[] | string | undefined): string[] {
 
 const TopicHubPage: React.FC = () => {
   // 获取登录用户的孩子年级
-  const currentUser = useSelector((state: RootState) => state.user.user);
+  const { user: currentUser, token } = useSelector((state: RootState) => state.user);
+  const superModePage = useXiaowanziEmbeddedLayer();
   const userGrade = currentUser?.childGrade || currentUser?.grade || "";
 
   const [topics, setTopics] = useState<TopicItem[]>([]);
@@ -104,21 +107,23 @@ const TopicHubPage: React.FC = () => {
   const [validating, setValidating] = useState(false);
   // 获取 userId：优先用登录用户手机号 > _id > 匿名随机 ID
   const getUserId = (): string => getTopicUserId(currentUser);
+  const authHeaders = () => {
+    const authToken = getAdminOrUserToken() || token || "";
+    return { "Content-Type": "application/json", ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) };
+  };
+  const handleProRequired = (payload: any) => {
+    showProUpgradeFromPayload(payload);
+    setValidating(false);
+    setSubmitLoading(false);
+  };
 
-  // userId 初始值立即用 getUserId()，避免首帧空字符串导致提交/查询 id 不一致
-  const [currentUserId, setCurrentUserId] = useState<string>(() => getUserId());
   const [progressPolling, setProgressPolling] = useState<ReturnType<typeof setInterval> | null>(null);
-
-  // userId 跟随登录状态变化
-  useEffect(() => {
-    setCurrentUserId(getUserId());
-  }, [currentUser]);
 
   // 拉取话题列表（支持搜索/分页参数）
   // mergeNewSlugs: 合并时保留这些 slug 的话题在列表头部（即使服务端尚未返回）
   const fetchTopics = useCallback(async (opts?: { search?: string; page?: number; mergeNewSlugs?: string[] }) => {
     try {
-      const uid = currentUserId || getUserId();
+      const uid = getUserId();
       const search = opts?.search;
       const pageNum = opts?.page || 1;
       // mergeNewSlugs: 传入的临时保护 + localStorage 持久化保护
@@ -136,8 +141,21 @@ const TopicHubPage: React.FC = () => {
       if (userGrade) url += `&grade=${encodeURIComponent(userGrade)}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      const rawTopics: TopicItem[] = Array.isArray(data.topics) ? data.topics : [];
+      let data = await res.json();
+      let rawTopics: TopicItem[] = Array.isArray(data.topics) ? data.topics : [];
+      if (uid && rawTopics.length === 0) {
+        let fallbackUrl = `/api/topic-hub?limit=${limit}&page=${pageNum}`;
+        if (search) fallbackUrl += `&search=${encodeURIComponent(search.trim())}`;
+        const fallbackRes = await fetch(fallbackUrl);
+        if (fallbackRes.ok) {
+          const fallbackData = await fallbackRes.json();
+          const fallbackTopics = Array.isArray(fallbackData.topics) ? fallbackData.topics : [];
+          if (fallbackTopics.length > 0) {
+            data = fallbackData;
+            rawTopics = fallbackTopics;
+          }
+        }
+      }
       const cleaned = rawTopics.map((t) => ({
         ...t,
         tags: safeTags(t.tags),
@@ -185,11 +203,11 @@ const TopicHubPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentUserId, userGrade]);
+  }, [currentUser, userGrade]);
 
   useEffect(() => {
     // 组件挂载时清理过期的 sticky slugs
-    const uid = currentUserId || getUserId();
+    const uid = getUserId();
     cleanupStickyTopics(uid);
     fetchTopics({});
   }, [fetchTopics]);
@@ -215,7 +233,7 @@ const TopicHubPage: React.FC = () => {
     }, 300);
   };
 
-  // ===== 提交前：AI 提炼 → 二次确认 → 校验 → 创建 =====
+  // ===== 提交前：先公开搜索；只有继续提交新内容时才进入 Pro 门禁链路 =====
   const handleSubmit = async (skipSearch = false) => {
     if (!currentUser) {
       document.dispatchEvent(new CustomEvent('xf-show-login-modal', { detail: { title: '登录后提交', description: '登录后即可搜索话题、提交问题，获得AI生成的知识树。' } }));
@@ -225,33 +243,7 @@ const TopicHubPage: React.FC = () => {
     if (!q) return;
     setSubmitMsg(null);
     setRelatedTopics([]);
-
-    // 0. 先 AI 提炼核心问题，给用户二次确认
-    setValidating(true);
-    try {
-      const refineRes = await fetch("/api/topic-hub/refine", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ keyword: q }),
-      });
-      const refineData = await refineRes.json();
-      setValidating(false);
-
-      if (refineData.needConfirm && refineData.refined) {
-        setRefinedKeyword(refineData.refined);
-        setSubmitMsg({
-          text: `💡 AI 提炼出您的核心问题，确认后即可提交`,
-          type: "confirmRefine",
-        });
-        return;
-      }
-      // needConfirm=false：直接可用
-      return doSearchAndSubmit(refineData.refined || q, skipSearch);
-    } catch {
-      setValidating(false);
-      // 提炼失败降级：直接用原文
-      return doSearchAndSubmit(q, skipSearch);
-    }
+    return doSearchAndSubmit(q, skipSearch);
   };
 
   // 确认提炼结果后提交
@@ -260,7 +252,7 @@ const TopicHubPage: React.FC = () => {
     if (!kw) return;
     setSubmitMsg(null);
     setRefinedKeyword("");
-    doSearchAndSubmit(kw, false);
+    doSearchAndSubmit(kw, false, true);
   };
 
   // 用户修改提炼结果
@@ -271,7 +263,7 @@ const TopicHubPage: React.FC = () => {
   };
 
   // 先搜索已有话题，再校验并提交
-  const doSearchAndSubmit = async (q: string, skipSearch: boolean) => {
+  const doSearchAndSubmit = async (q: string, skipSearch: boolean, skipRefine = false) => {
     setSubmitMsg(null);
     setRelatedTopics([]);
 
@@ -290,24 +282,65 @@ const TopicHubPage: React.FC = () => {
       } catch { /* 搜索失败继续创建流程 */ }
     }
 
-    await doSubmit(q);
+    await doSubmit(q, { skipRefine });
   };
 
   // 最终提交
-  const doSubmit = async (q: string) => {
-    const trimmed = q.trim();
+  const doSubmit = async (q: string, options?: { skipRefine?: boolean }) => {
+    let trimmed = q.trim();
     if (!trimmed) return;
 
-    // 1. AI 校验有效性
+    // 1. AI 提炼核心问题，给用户二次确认；这是新内容提交链路，需 Pro
+    if (!options?.skipRefine) {
+      setValidating(true);
+      try {
+        const refineRes = await fetch("/api/topic-hub/refine", {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({ keyword: trimmed }),
+        });
+        const refineData = await refineRes.json();
+        setValidating(false);
+        if (!refineRes.ok) {
+          if (refineRes.status === 402 || isProRequiredPayload(refineData)) {
+            handleProRequired(refineData);
+            return;
+          }
+          throw new Error(refineData?.error || `提交失败 (${refineRes.status})`);
+        }
+        if (refineData.needConfirm && refineData.refined) {
+          setRefinedKeyword(refineData.refined);
+          setSubmitMsg({
+            text: `💡 AI 提炼出您的核心问题，确认后即可提交`,
+            type: "confirmRefine",
+          });
+          return;
+        }
+        trimmed = (refineData.refined || trimmed).trim();
+      } catch (e: any) {
+        setValidating(false);
+        if (e?.message) setSubmitMsg({ text: e.message, type: "error" });
+        return;
+      }
+    }
+
+    // 2. AI 校验有效性
     setValidating(true);
     try {
       const vRes = await fetch("/api/topic-hub/validate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders(),
         body: JSON.stringify({ keyword: trimmed }),
       });
       const vData = await vRes.json();
       setValidating(false);
+      if (!vRes.ok) {
+        if (vRes.status === 402 || isProRequiredPayload(vData)) {
+          handleProRequired(vData);
+          return;
+        }
+        throw new Error(vData?.reason || vData?.error || `校验失败 (${vRes.status})`);
+      }
 
       if (!vData.valid) {
         setSubmitMsg({ text: vData.reason || "请输入有效的话题内容", type: "error" });
@@ -317,16 +350,20 @@ const TopicHubPage: React.FC = () => {
       setValidating(false);
     }
 
-    // 2. 创建话题
+    // 3. 创建话题
     setSubmitLoading(true);
-    const uid = currentUserId || getUserId();
+    const uid = getUserId();
     try {
       const res = await fetch("/api/topic-hub/search-generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders(),
         body: JSON.stringify({ keyword: trimmed, userId: uid }),
       });
       const data = await res.json();
+      if (!res.ok && (res.status === 402 || isProRequiredPayload(data))) {
+        handleProRequired(data);
+        return;
+      }
       if (res.ok) {
         const newTopic: TopicItem = {
           ...data.topic,
@@ -405,7 +442,7 @@ const TopicHubPage: React.FC = () => {
     e.stopPropagation();
     if (!window.confirm(`确定删除「${topic.title}」？`)) return;
     try {
-      const uid = currentUserId || getUserId();
+      const uid = getUserId();
       const res = await fetch(`/api/topic-hub/${topic.slug}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
@@ -422,7 +459,7 @@ const TopicHubPage: React.FC = () => {
 
   // 点击话题卡片
   const handleTopicClick = (e: React.MouseEvent, topic: TopicItem) => {
-    const isLoggedIn = !!currentUser || !!localStorage.getItem("token");
+    const isLoggedIn = !!currentUser || hasAdminOrUserSession();
     if (!isLoggedIn) {
       e.preventDefault();
       document.dispatchEvent(new CustomEvent("xf-show-login-modal", { detail: { title: "登录后即可查看", description: "登录后可查看完整知识树、深入话题内容，获得个性化学习推荐。" } }));
@@ -463,7 +500,7 @@ const TopicHubPage: React.FC = () => {
   if (error) {
     return (
       <div style={{ minHeight: "100vh", background: "#f8f6ff" }}>
-        <GlobalPublicNav compactMobile showPlanningEntry={true} />
+        <GlobalPublicNav compactMobile showPlanningEntry={true} searchValue={searchText} onSearchChange={handleSearchInput} />
         <div style={{ textAlign: "center", padding: 100 }}>
           <p style={{ color: "#EF4444", marginBottom: 8 }}>加载失败: {error}</p>
           <button
@@ -510,10 +547,10 @@ const TopicHubPage: React.FC = () => {
       }
     `}</style>
     <div style={{ minHeight: "100vh", background: "#f8f6ff" }}>
-      <GlobalPublicNav compactMobile showPlanningEntry={true} />
+      <GlobalPublicNav compactMobile showPlanningEntry={true} searchValue={searchText} onSearchChange={handleSearchInput} />
 
       {/* ===== Hero 区域 ===== */}
-      <main className="mx-auto max-w-7xl px-4 pt-[76px] pb-2 sm:px-6 lg:px-8">
+      <main className={`mx-auto max-w-7xl px-4 pb-2 sm:px-6 lg:px-8 ${superModePage ? "pt-6" : "pt-[76px]"}`}>
         <section
           className="overflow-hidden rounded-[2rem] border border-[#d8d0ef] p-7 shadow-[0_24px_80px_rgba(80,62,125,0.1)] sm:p-9"
           style={{
@@ -657,7 +694,7 @@ const TopicHubPage: React.FC = () => {
                   onClick={() => {
                     setSubmitMsg(null);
                     setRefinedKeyword("");
-                    doSubmit(searchText.trim());
+                    doSubmit(searchText.trim(), { skipRefine: true });
                   }}
                   style={{
                     padding: "4px 12px",
@@ -800,7 +837,7 @@ const TopicHubPage: React.FC = () => {
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
               {visibleTags.map((tag) => {
                 const handleTagClick = () => {
-                  const isLoggedIn = !!currentUser || !!localStorage.getItem("token");
+                  const isLoggedIn = !!currentUser || hasAdminOrUserSession();
                   if (!isLoggedIn) {
                     document.dispatchEvent(new CustomEvent("xf-show-login-modal", { detail: { title: "登录后即可筛选", description: "登录后可搜索话题、提交问题，获得AI生成的知识树。" } }));
                     return;

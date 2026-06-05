@@ -164,9 +164,6 @@ function normalizeVolcenginePublicSourceUrl(sourceUrl, publicBaseUrl) {
     const normalizeHostForAsr = (urlText) => {
         try {
             const u = new URL(urlText);
-            if (u.hostname === "xianfeng.xinzhi.ai") {
-                u.hostname = "xianfeng.xinzhi.info";
-            }
             if (!isLocalSourceUrl(u.toString()) && u.protocol === "http:") {
                 u.protocol = "https:";
             }

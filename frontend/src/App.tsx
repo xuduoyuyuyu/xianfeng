@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import GlobalPublicNav from "./components/GlobalPublicNav";
 import { LoginModalProvider } from "./components/LoginModalProvider";
 import ScreenPage from "./pages/ScreenPage";
@@ -23,24 +23,26 @@ import AdminAgentsChatPage from "./pages/admin/AdminAgentsChatPage";
 import AdminInboxPage from "./pages/admin/AdminInboxPage";
 import AdminWorthBuyPage from "./pages/admin/AdminWorthBuyPage";
 import ProgramListPage from "./pages/ProgramListPage";
-import ProgramDetailPage from "./pages/ProgramDetailPage";
 import ExpertsPage from "./pages/ExpertsPage";
 import ExpertDetailPage from "./pages/ExpertDetailPage";
 import LandingPage from "./pages/LandingPage";
 import MaterialsPage from "./pages/MaterialsPage";
 import BooksPage from "./pages/BooksPage";
+import PublicContentPage from "./pages/PublicContentPage";
 import PlanningPage from "./pages/PlanningPage";
 import TopicHubPage from "./pages/TopicHubPage";
 import TopicDetailPage from "./pages/TopicDetailPage";
 import { XianfengSharePosterExample } from "./components/XianfengSharePoster";
 import WorthBuyPage from "./pages/WorthBuyPage";
 import WorthBuyDetailPage from "./pages/WorthBuyDetailPage";
+import ProPage from "./pages/ProPage";
 import WithLoginGate from "./components/WithLoginGate";
 import PageViewTracker from "./components/PageViewTracker";
 import XiaowanziWidget from "./wel/components/XiaowanziWidget";
 
 const PublicScreenRouter: React.FC = () => {
   const { pathname, search } = useLocation();
+  const navigate = useNavigate();
   const normalizedPathname = pathname.startsWith("/v2/") ? pathname.slice(3) : pathname === "/v2" ? "/" : pathname;
   const screenRev = "20260502-podcast-home-force-refresh-1";
   const cacheBust = String(Date.now());
@@ -64,8 +66,31 @@ const PublicScreenRouter: React.FC = () => {
   }
 
   if (/^\/programs\/[^/]+$/.test(normalizedPathname)) {
+    const xiaowanziLayer = new URLSearchParams(search).get("xw_layer") === "1";
     const programId = normalizedPathname.split("/")[2] || "";
-    const src = `/screens/podcast-detail.html?programId=${encodeURIComponent(programId)}`;
+    const src = `/screens/podcast-detail.html?programId=${encodeURIComponent(programId)}${xiaowanziLayer ? "&xw_layer=1" : ""}`;
+    if (xiaowanziLayer) {
+      return (
+        <div className="relative min-h-screen bg-[#f3f2f8]">
+          <button
+            type="button"
+            aria-label="返回小玩子"
+            onClick={() => {
+              if (window.history.length > 1) {
+                navigate(-1);
+                return;
+              }
+              navigate("/programs/list?xw_restore=xiaowanzi");
+            }}
+            className="fixed left-4 top-[calc(14px+env(safe-area-inset-top))] z-[120] inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-[#11143b] shadow-[0_10px_24px_rgba(70,73,132,0.14)]"
+          >
+            <span className="material-symbols-outlined text-[28px]">arrow_back</span>
+          </button>
+          <iframe src={src} style={{ width: "100%", height: "100vh", border: "none" }} title="节目详情" />
+        </div>
+      );
+    }
+
     return (
       <>
         <GlobalPublicNav compactMobile />
@@ -100,6 +125,10 @@ const PublicScreenRouter: React.FC = () => {
     return <BooksPage />;
   }
 
+  if (normalizedPathname === "/public-content") {
+    return <PublicContentPage />;
+  }
+
   if (normalizedPathname === "/planning") {
     return <PlanningPage />;
   }
@@ -123,6 +152,10 @@ const PublicScreenRouter: React.FC = () => {
 
   if (normalizedPathname === "/worthbuy") {
     return <WorthBuyPage />;
+  }
+
+  if (normalizedPathname === "/pro" || normalizedPathname === "/pro/success") {
+    return <ProPage />;
   }
 
   if (/^\/worthbuy\/[^/]+$/.test(normalizedPathname)) {

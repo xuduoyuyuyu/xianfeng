@@ -53,6 +53,15 @@ type Props = {
   };
 };
 
+export const getSharePosterHeight = (data: Pick<XianfengSharePosterData, "title" | "items">) => {
+  const itemCount = Math.min(MAX_CORE_MODULES, Math.max(0, data.items?.length || 0));
+  const coreRows = Math.max(1, Math.ceil(itemCount / 2));
+  const extraCoreRows = Math.max(0, coreRows - BASE_CORE_ROWS);
+  const titleLen = (data.title || "").replace(/\s+/g, "").length;
+  const headerGrow = titleLen >= 16 ? 92 : titleLen >= 13 ? 52 : 0;
+  return SHARE_POSTER_HEIGHT + headerGrow + extraCoreRows * CORE_SECTION_ROW_GROWTH;
+};
+
 const CARD_ICON_SIZE = 69;
 const cardIconTheme: Record<PosterIconKey, { bg: string; stroke: string }> = {
   target: { bg: "#f1eaff", stroke: "#6f3df1" },
@@ -407,7 +416,7 @@ export const XianfengSharePoster: React.FC<Props> = ({ data, className, debugAdj
     return 0;
   }, [data.title]);
   const flowOffset = headerGrow;
-  const posterHeight = SHARE_POSTER_HEIGHT + flowOffset + coreSectionGrow;
+  const posterHeight = getSharePosterHeight(data);
   const textScale = (finalTuning.textScale ?? 1) * (debugAdjust?.textScale ?? 1);
   const layoutDy = {
     summary: (finalTuning.layoutDy.summary ?? 0) + (debugAdjust?.layoutDy?.summary ?? 0),

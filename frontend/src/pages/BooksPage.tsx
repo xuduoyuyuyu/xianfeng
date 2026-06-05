@@ -5,11 +5,10 @@ import { RootState } from "../store";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import Pagination from "../components/Pagination";
 import { Book, publicApi } from "../services/api";
+import { useXiaowanziEmbeddedLayer } from "../utils/xiaowanziLayer";
 
 const PAGE_SIZE = 24;
 const UNKNOWN_GUEST = "未标注推荐人";
-
-const BOOKS_HERO_DISMISSED_KEY = "books_hero_dismissed_v1";
 
 type EnrichedBook = Book & {
   normalizedGuest: string;
@@ -95,6 +94,7 @@ const BookCard: React.FC<BookCardProps> = ({ item }) => {
 };
 
 const BooksPage: React.FC = () => {
+  const superModePage = useXiaowanziEmbeddedLayer();
   const token = useSelector((state: RootState) => state.user.token);
   const isLoggedIn = !!token || !!localStorage.getItem("token");
 
@@ -107,34 +107,19 @@ const BooksPage: React.FC = () => {
   const initialGuestId = normalizeText(searchParams.get("sourceGuestId"));
   const initialGuestName = normalizeText(searchParams.get("guest"));
   const initialKeyword = normalizeText(searchParams.get("q"));
+  const xwReturnParam = searchParams.get("xw_return") || "";
   const initialGrades = uniq(
     normalizeText(searchParams.get("grade"))
       .split(",")
       .map((item) => normalizeText(item))
   );
 
-  const [showHero, setShowHero] = useState(false);
   const [boundGuestId, setBoundGuestId] = useState(initialGuestId);
   const [boundGuestName, setBoundGuestName] = useState(initialGuestName);
   const [keyword, setKeyword] = useState(initialKeyword);
   const [selectedGrades, setSelectedGrades] = useState<string[]>(initialGrades);
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const fromGuestLink = Boolean(initialGuestId || initialGuestName);
-
-  useEffect(() => {
-    try {
-      setShowHero(window.localStorage.getItem(BOOKS_HERO_DISMISSED_KEY) !== "1");
-    } catch (_err) {
-      setShowHero(true);
-    }
-  }, []);
-
-  const dismissHero = () => {
-    setShowHero(false);
-    try {
-      window.localStorage.setItem(BOOKS_HERO_DISMISSED_KEY, "1");
-    } catch (_err) {}
-  };
 
   useEffect(() => {
     let alive = true;
@@ -162,12 +147,14 @@ const BooksPage: React.FC = () => {
 
   useEffect(() => {
     const next = new URLSearchParams();
+    if (superModePage) next.set("xw_layer", "1");
+    if (xwReturnParam) next.set("xw_return", xwReturnParam);
     if (boundGuestId) next.set("sourceGuestId", boundGuestId);
     if (boundGuestName) next.set("guest", boundGuestName);
     if (selectedGrades.length > 0) next.set("grade", selectedGrades.join(","));
     if (keyword) next.set("q", keyword);
     setSearchParams(next, { replace: true });
-  }, [boundGuestId, boundGuestName, selectedGrades, keyword, setSearchParams]);
+  }, [boundGuestId, boundGuestName, selectedGrades, keyword, setSearchParams, superModePage, xwReturnParam]);
 
   const enriched = useMemo<EnrichedBook[]>(() => {
     return books.map((item) => {
@@ -347,6 +334,7 @@ const BooksPage: React.FC = () => {
         }
         @media (max-width: 768px) {
           .books-mobile-main { padding-top: 70px !important; padding-bottom: calc(120px + env(safe-area-inset-bottom)) !important; }
+          .books-mobile-main.xw-layer-main { padding-top: 24px !important; }
           .books-mobile-hero { padding: 16px !important; border-radius: 20px !important; }
           .books-mobile-filter { padding: 12px !important; border-radius: 16px !important; }
           .books-mobile-label { width: 56px !important; font-size: 12px !important; }
@@ -365,22 +353,13 @@ const BooksPage: React.FC = () => {
         compactMobile
         showExpertsEntry
         showProgramEntry
-        showSearch={!showHero}
+        showSearch
         searchPlaceholder="搜索书名、作者、出版社、推荐人"
         searchValue={keyword}
         onSearchChange={setKeyword}
       />
-      <main className="books-mobile-main mx-auto max-w-7xl px-4 pb-16 pt-[76px] sm:px-6 lg:px-8">
-        {showHero ? (
-          <section className="books-mobile-hero group relative overflow-hidden rounded-[2rem] border border-[#d8d0ef] bg-[radial-gradient(circle_at_10%_0%,_rgba(143,100,255,0.1),_transparent_40%),linear-gradient(135deg,_#f4f1fd_0%,_#faf8ff_48%,_#f0ebff_100%)] p-7 shadow-[0_24px_80px_rgba(80,62,125,0.1)] sm:p-9">
-            <button
-              type="button"
-              onClick={dismissHero}
-              aria-label="关闭引导卡片"
-              className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#cfc2ee] bg-white/75 text-[#5b3fa1] opacity-0 transition hover:bg-white hover:text-[#4e36a0] group-hover:opacity-100 focus-visible:opacity-100 sm:opacity-0 max-sm:opacity-100"
-            >
-              <span className="material-symbols-outlined text-[18px]">close</span>
-            </button>
+      <main className={`books-mobile-main mx-auto max-w-7xl px-4 pb-16 pt-[76px] sm:px-6 lg:px-8 ${superModePage ? "xw-layer-main" : ""}`}>
+        <section className="books-mobile-hero group relative overflow-hidden rounded-[2rem] border border-[#d8d0ef] bg-[radial-gradient(circle_at_10%_0%,_rgba(143,100,255,0.1),_transparent_40%),linear-gradient(135deg,_#f4f1fd_0%,_#faf8ff_48%,_#f0ebff_100%)] p-7 shadow-[0_24px_80px_rgba(80,62,125,0.1)] sm:p-9">
             <div className="max-w-3xl">
               <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.26em] text-[#5b3fa1]">
                 Reading Shelf
@@ -418,8 +397,7 @@ const BooksPage: React.FC = () => {
                 清空筛选
               </button>
             </div>
-          </section>
-        ) : null}
+        </section>
 
         <section className="books-mobile-filter mt-6 rounded-[1.8rem] border border-[#e0d9f2] bg-white p-5 shadow-[0_16px_50px_rgba(80,62,125,0.06)] sm:p-6">
           {boundGuestId || boundGuestName ? (

@@ -1,24 +1,42 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { apiUrl } from "../../lib/api";
 import { Program, publicApi, PublicGuestDetail, PublicGuest } from "../../services/api";
+import { useXiaowanziEmbeddedLayer } from "../../utils/xiaowanziLayer";
+import { getAdminOrUserToken, hasAdminBypass, isProBillingEnabled, isProRequiredPayload, showProUpgradeFromPayload } from "../../utils/proGate";
 import {
   advanceAvatarState,
+  buildXiaowanziPromptPayload,
+  canEnterXiaowanziSuperMode,
   clampFabPosition,
   FAB_SIZE,
   getAvatarSrc,
   getDefaultFabPosition,
+  shouldPersistChildMemory,
 } from "./XiaowanziWidget.logic";
 
 type Msg = { role: "user" | "assistant"; content: string; ts?: string };
-type HistorySessionCard = { id: string; title: string; sub: string; targetIndex: number; childTag?: string };
+type HistorySessionCard = { id: string; title: string; sub: string; targetIndex?: number; sessionId?: string; childTag?: string };
 type ShortcutItem = { label: string; prompt: string };
+type TopicPromptItem = { label: string; prompt: string };
+type ConversationSession = {
+  id: string;
+  title: string;
+  childId?: string | null;
+  childName?: string;
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
+  lastMessage?: string;
+};
 type ChildProfileLite = {
   id: string;
   relation: string;
   displayName: string;
   gender: "男" | "女";
   birthDate: string;
+  city?: string;
+  region?: string;
   grade: string;
   concernTags: string[];
   avatar: string;
@@ -36,6 +54,31 @@ type PageContextPayload = {
   readReceipt: string;
   shortcuts: ShortcutItem[];
 };
+type ChildMemoryPayload = {
+  enabled?: boolean;
+  summary?: string;
+  skipped?: boolean;
+};
+type UploadedImage = {
+  name: string;
+  dataUrl: string;
+  kind?: "image" | "file";
+};
+type HomeBrowseTarget = {
+  path: string;
+  label: string;
+};
+type XiaowanziWidgetProps = {
+  standalone?: boolean;
+};
+const STANDALONE_MENU_ITEMS: HomeBrowseTarget[] = [
+  { label: "播客节目", path: "/programs/list" },
+  { label: "先疯智库", path: "/experts" },
+  { label: "及阅", path: "/reading" },
+  { label: "学习资料", path: "/materials" },
+  { label: "请教一下", path: "/topics" },
+  { label: "知物", path: "/worthbuy" },
+];
 
 function normalizeShortcutPrompt(prompt: string): string {
   return String(prompt || "")
@@ -52,6 +95,12 @@ const DEFAULT_SHORTCUTS: ShortcutItem[] = [
   { label: "🧭 下一步建议", prompt: "我下一步应该做什么" },
   { label: "🔎 信息定位", prompt: "最值得先看的信息在哪里" },
 ];
+const HOME_FALLBACK_PROMPTS: TopicPromptItem[] = [
+  { label: "孩子一写作业就拖延，我该先处理哪一步？", prompt: "孩子一写作业就拖延，我该先处理哪一步？" },
+  { label: "孩子被批评后情绪崩了，怎么接住他？", prompt: "孩子被批评后情绪崩了，怎么接住他？" },
+  { label: "每天睡前总吵起来，怎么把沟通拉回正轨？", prompt: "每天睡前总吵起来，怎么把沟通拉回正轨？" },
+];
+const HOME_PROMPT_BLOCKED_TERMS = ["节目", "这期", "本期", "先听", "哪一段", "收听"];
 function isReadReceiptMessage(content: string): boolean {
   const text = String(content || "").trim();
   if (!text) return false;
@@ -59,6 +108,7 @@ function isReadReceiptMessage(content: string): boolean {
     text.includes("我已读取") ||
     text.includes("已读取当前") ||
     text.includes("已进入当前页面") ||
+    text.includes("已在超能模式中打开") ||
     /^已读取《[^》]+》/.test(text);
   if (!hasReadPrefix) return false;
   return (
@@ -93,43 +143,199 @@ function sanitizeDisplayMessage(msg: Msg): Msg {
   };
 }
 
+function renderInlineMarkdown(content: string) {
+  const parts = String(content || "").split(/(\*\*[\s\S]+?\*\*)/g);
+  return parts.map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={index}>{part.slice(2, -2).trim()}</strong>;
+    }
+    return <span key={index}>{part}</span>;
+  });
+}
+
+function renderDisplayMessage(message: Msg) {
+  return message.role === "assistant" ? renderInlineMarkdown(message.content) : message.content;
+}
+
 function getAuthHeaders(): Record<string, string> {
   const token = getSessionToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 function getSessionToken(): string {
-  return (localStorage.getItem("token") || localStorage.getItem("wel_tok") || "").trim();
+  return (getAdminOrUserToken() || localStorage.getItem("wel_tok") || "").trim();
+}
+
+function showXiaowanziSuperModeLoginModal() {
+  document.dispatchEvent(new CustomEvent("xf-show-login-modal", {
+    detail: {
+      title: "登录后使用小玩子",
+      description: "登录后可使用小玩子提问、同步孩子档案、页面浏览上下文和个性化建议。",
+    },
+  }));
+}
+
+function canEnterXiaowanziSuperModeFromStorage(): boolean {
+  try {
+    if (hasAdminBypass()) return true;
+    return canEnterXiaowanziSuperMode({ token: localStorage.getItem("token"), welToken: localStorage.getItem("wel_tok") });
+  } catch (_error) {
+    return false;
+  }
+}
+
+function shouldBlockXiaowanziSuperModeForAuth(): boolean {
+  if (canEnterXiaowanziSuperModeFromStorage()) return false;
+  clearXiaowanziHomeActive();
+  showXiaowanziSuperModeLoginModal();
+  return true;
+}
+
+function shouldBlockXiaowanziForAuth(): boolean {
+  if (canEnterXiaowanziSuperModeFromStorage()) return false;
+  showXiaowanziSuperModeLoginModal();
+  return true;
+}
+
+function getCurrentParentRole(): string {
+  try {
+    const raw = localStorage.getItem("user");
+    const parsed = raw ? JSON.parse(raw) : null;
+    return String(parsed?.parentRole || "").trim();
+  } catch (_error) {
+    return "";
+  }
+}
+
+async function loadChildMemory(childId: string): Promise<ChildMemoryPayload> {
+  if (!childId) return {};
+  if (!getSessionToken()) return {};
+  try {
+    const res = await fetch(apiUrl(`/api/users/me/child-memories/${encodeURIComponent(childId)}`), {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) return {};
+    return await res.json().catch(() => ({}));
+  } catch (_error) {
+    return {};
+  }
+}
+
+async function mergeChildMemory(input: {
+  childId: string;
+  childProfile: string;
+  userMessage: string;
+  assistantReply: string;
+}): Promise<ChildMemoryPayload | null> {
+  if (!input.childId || !getSessionToken()) return null;
+  try {
+    const res = await fetch(apiUrl(`/api/users/me/child-memories/${encodeURIComponent(input.childId)}/merge`), {
+      method: "POST",
+      headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        childProfile: input.childProfile,
+        userMessage: input.userMessage,
+        assistantReply: input.assistantReply,
+      }),
+    });
+    if (!res.ok) return null;
+    return await res.json().catch(() => null);
+  } catch (_error) {
+    return null;
+  }
 }
 
 const DEFAULT_MESSAGE = { role: "assistant" as const, content: "你好,我是小玩子 ✨", ts: new Date().toISOString() };
 const AVATAR_FADE_DURATION_MS = 300;
 const AVATAR_EFFECT_DURATION_MS = 500;
-const AVATAR_FALLBACK_SRC = "/assets/logo.png";
+const AVATAR_FALLBACK_SRC = "/assets/wel-avatar/optimized/no-hat.webp";
 const LEGACY_AVATAR_INDEX_KEY = "wel_avatar_index";
 const LEGACY_AVATAR_CLICK_COUNT_KEY = "wel_avatar_click_count";
 const GLOBAL_HISTORY_CACHE_KEY = "xiaowanzi_global_history_v1";
+const CHILD_HISTORY_CACHE_PREFIX = "xiaowanzi_child_history_v1:";
+const XIAOWANZI_SESSION_INDEX_KEY = "xiaowanzi_session_index_v1";
+const XIAOWANZI_SESSION_MESSAGES_PREFIX = "xiaowanzi_session_messages_v1:";
+const XIAOWANZI_TOPIC_PROMPT_CACHE_KEY = "xiaowanzi_topic_prompt_cache_v1";
 const GLOBAL_DOCKED_PREF_KEY = "xiaowanzi_global_docked_v1";
 const GLOBAL_DOCKED_THEME_KEY = "xiaowanzi_global_docked_theme_v1";
 const CHILD_PROFILES_KEY = "xiaowanzi_child_profiles_v1";
 const CHAT_CONTEXT_KEY = "xiaowanzi_chat_context_v1";
 const LAST_CHILD_ID_KEY = "xiaowanzi_last_child_id_v1";
+const BROWSING_MEMORY_KEY = "xiaowanzi_browsing_memory_v1";
+const RETURN_TO_HOME_KEY = "xiaowanzi_return_home_v1";
+const HOME_ACTIVE_KEY = "xiaowanzi_home_active_v1";
+const APP_MODE_KEY = "xiaowanzi_app_mode_v1";
+const HOME_DESKTOP_BREAKPOINT = 769;
 const PANEL_WIDTH = 360;
 const DOCKED_WIDTH = 430;
 const DOCKED_TOP_OFFSET = 0;
 const PANEL_MAX_HEIGHT = 520;
 const PANEL_GAP = 14;
-const AI_RESPONSE_RULES = [
-  "你是小玩子,一个可爱活泼的助手,风格软萌、热情、会撒娇。你的性格关键词:好奇心旺盛、话多但不啰嗦、偶尔打岔但很可爱、喜欢用 emoji 和网络用语。",
-  "回答开头可以用'好嘞~''来咯!''哎呀这个我熟!'等拟声词。结尾偶尔用'嘿嘿''懂的都懂~'。",
-  "只基于当前页面已经明确展示或已确认读取到的信息回答。",
-  "如果信息不足，直接明确说明「当前页面未显示这部分信息」，不要使用「可能、也许、大概、推测、估计」这类词。",
-  "不要根据标题、常见风格或经验补全未展示的事实。",
-  "优先给出确定内容、已确认事实、可执行下一步。",
-  "语气要软萌、亲切、简洁,像朋友聊天一样自然。",
-].join("\n");
-const CHILD_RELATIONS = ["儿子", "女儿", "本人", "其他"] as const;
-const CHILD_TAGS = ["睡眠", "情绪", "专注力", "社交", "学习习惯", "身体不适", "亲子沟通"] as const;
+function shouldRestoreXiaowanziHome(): boolean {
+  if (typeof window === "undefined") return false;
+  if (!canEnterXiaowanziSuperModeFromStorage()) {
+    clearXiaowanziHomeActive();
+    return false;
+  }
+  try {
+    if (shouldSkipXiaowanziHomeIntro()) return true;
+    return localStorage.getItem(HOME_ACTIVE_KEY) === "1";
+  } catch (_error) {
+    try {
+      return localStorage.getItem(HOME_ACTIVE_KEY) === "1";
+    } catch (_innerError) {
+      return false;
+    }
+  }
+}
+
+function shouldSkipXiaowanziHomeIntro(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return new URLSearchParams(window.location.search).get("xw_restore") === "xiaowanzi";
+  } catch (_error) {
+    return false;
+  }
+}
+
+function clearXiaowanziRestoreMarker() {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(RETURN_TO_HOME_KEY);
+  } catch (_error) {}
+  try {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("xw_restore") !== "xiaowanzi") return;
+    url.searchParams.delete("xw_restore");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  } catch (_error) {}
+}
+
+function persistXiaowanziHomeActive() {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(HOME_ACTIVE_KEY, "1");
+  } catch (_error) {}
+}
+
+function clearXiaowanziHomeActive() {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(HOME_ACTIVE_KEY);
+  } catch (_error) {}
+  try {
+    sessionStorage.removeItem(RETURN_TO_HOME_KEY);
+  } catch (_error) {}
+}
+
+function shouldUseXiaowanziAppMode(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return sessionStorage.getItem(APP_MODE_KEY) === "1";
+  } catch (_error) {
+    return false;
+  }
+}
 
 function loadChildProfiles(): ChildProfileLite[] {
   if (typeof window === "undefined") return [];
@@ -144,9 +350,11 @@ function loadChildProfiles(): ChildProfileLite[] {
         displayName: String(item?.displayName || "").trim(),
         gender: item?.gender === "男" ? "男" : "女",
         birthDate: String(item?.birthDate || "").trim(),
+        city: String(item?.city || "").trim(),
+        region: String(item?.region || "").trim(),
         grade: String(item?.grade || "").trim(),
         concernTags: Array.isArray(item?.concernTags) ? item.concernTags.map((v: any) => String(v || "").trim()).filter(Boolean) : [],
-        avatar: String(item?.avatar || "/assets/wel-avatar/no-hat.png").trim(),
+        avatar: String(item?.avatar || AVATAR_FALLBACK_SRC).trim(),
         createdAt: String(item?.createdAt || new Date().toISOString()),
         draft: Boolean(item?.draft),
       }))
@@ -192,18 +400,6 @@ function saveChatContext(context: ChatSessionContext | null) {
   } catch (_error) {}
 }
 
-function isProfileComplete(profile: ChildProfileLite): boolean {
-  return Boolean(
-    profile.relation &&
-      profile.displayName &&
-      profile.gender &&
-      profile.birthDate &&
-      profile.grade &&
-      Array.isArray(profile.concernTags) &&
-      profile.concernTags.length > 0,
-  );
-}
-
 function calcAgeYears(birthDate: string): number {
   const date = new Date(birthDate);
   if (Number.isNaN(date.getTime())) return 0;
@@ -229,10 +425,14 @@ function buildChildShortcuts(profile: ChildProfileLite | null): ShortcutItem[] {
   ];
 }
 
-function loadCachedGlobalHistory(): Msg[] {
+function historyCacheKey(childId?: string | null): string {
+  return childId ? `${CHILD_HISTORY_CACHE_PREFIX}${childId}` : GLOBAL_HISTORY_CACHE_KEY;
+}
+
+function loadCachedHistory(childId?: string | null): Msg[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(GLOBAL_HISTORY_CACHE_KEY) || "[]";
+    const raw = localStorage.getItem(historyCacheKey(childId)) || "[]";
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
     return parsed
@@ -241,21 +441,124 @@ function loadCachedGlobalHistory(): Msg[] {
         content: String(item?.content || "").trim(),
         ts: item?.ts ? String(item.ts) : undefined,
       }))
-      .filter((item) => item.content)
+      .filter((item) => item.content && item.content !== DEFAULT_MESSAGE.content && !isReadReceiptMessage(item.content))
       .map(sanitizeDisplayMessage);
   } catch (_error) {
     return [];
   }
 }
 
-function saveCachedGlobalHistory(items: Msg[]) {
+function loadCachedGlobalHistory(): Msg[] {
+  return loadCachedHistory(null);
+}
+
+function saveCachedHistory(items: Msg[], childId?: string | null) {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(
-      GLOBAL_HISTORY_CACHE_KEY,
-      JSON.stringify((items || []).map(sanitizeDisplayMessage).slice(-120))
+      historyCacheKey(childId),
+      JSON.stringify((items || []).filter((item) => item.content !== DEFAULT_MESSAGE.content && !isReadReceiptMessage(item.content)).map(sanitizeDisplayMessage).slice(-120))
     );
   } catch (_error) {}
+}
+
+function saveCachedGlobalHistory(items: Msg[]) {
+  saveCachedHistory(items, null);
+}
+
+function createConversationSessionId(): string {
+  return `xw-session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function conversationSessionMessagesKey(sessionId: string): string {
+  return `${XIAOWANZI_SESSION_MESSAGES_PREFIX}${sessionId}`;
+}
+
+function formatHistoryTime(value?: string): string {
+  const ts = value ? new Date(value) : null;
+  return ts && !Number.isNaN(ts.getTime())
+    ? `${ts.getMonth() + 1}/${ts.getDate()} ${String(ts.getHours()).padStart(2, "0")}:${String(ts.getMinutes()).padStart(2, "0")}`
+    : "历史会话";
+}
+
+function getConversationTitle(items: Msg[], fallback = "新的小玩子对话"): string {
+  const picked = items.find((item) => item.role === "user" && item.content.trim() && !isReadReceiptMessage(item.content));
+  const text = String(picked?.content || fallback).trim();
+  return text.length > 30 ? `${text.slice(0, 30)}...` : text;
+}
+
+function loadConversationSessions(): ConversationSession[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(XIAOWANZI_SESSION_INDEX_KEY) || "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item): ConversationSession => ({
+        id: String(item?.id || ""),
+        title: String(item?.title || "历史会话").trim() || "历史会话",
+        childId: item?.childId ? String(item.childId) : null,
+        childName: String(item?.childName || ""),
+        createdAt: String(item?.createdAt || item?.updatedAt || new Date().toISOString()),
+        updatedAt: String(item?.updatedAt || item?.createdAt || new Date().toISOString()),
+        messageCount: Number.isFinite(Number(item?.messageCount)) ? Number(item.messageCount) : 0,
+        lastMessage: item?.lastMessage ? String(item.lastMessage) : "",
+      }))
+      .filter((item) => item.id)
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  } catch (_error) {
+    return [];
+  }
+}
+
+function saveConversationSessions(items: ConversationSession[]) {
+  if (typeof window === "undefined") return;
+  try {
+    const deduped = new Map<string, ConversationSession>();
+    items.forEach((item) => {
+      if (item.id) deduped.set(item.id, item);
+    });
+    const next = Array.from(deduped.values())
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, 40);
+    localStorage.setItem(XIAOWANZI_SESSION_INDEX_KEY, JSON.stringify(next));
+  } catch (_error) {}
+}
+
+function upsertConversationSession(session: ConversationSession) {
+  const existing = loadConversationSessions().filter((item) => item.id !== session.id);
+  saveConversationSessions([session, ...existing]);
+}
+
+function loadConversationSessionMessages(sessionId?: string | null): Msg[] {
+  if (!sessionId || typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(conversationSessionMessagesKey(sessionId)) || "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item): Msg => ({
+        role: item?.role === "user" ? "user" : "assistant",
+        content: String(item?.content || "").trim(),
+        ts: item?.ts ? String(item.ts) : undefined,
+      }))
+      .filter((item) => item.content && item.content !== DEFAULT_MESSAGE.content && !isReadReceiptMessage(item.content))
+      .map(sanitizeDisplayMessage);
+  } catch (_error) {
+    return [];
+  }
+}
+
+function saveConversationSessionMessages(sessionId: string, items: Msg[]) {
+  if (!sessionId || typeof window === "undefined") return;
+  try {
+    localStorage.setItem(
+      conversationSessionMessagesKey(sessionId),
+      JSON.stringify((items || []).filter((item) => item.content !== DEFAULT_MESSAGE.content && !isReadReceiptMessage(item.content)).map(sanitizeDisplayMessage).slice(-120))
+    );
+  } catch (_error) {}
+}
+
+function isMeaningfulHistory(items: Msg[]): boolean {
+  return items.some((item) => item.content && item.content !== DEFAULT_MESSAGE.content && !isReadReceiptMessage(item.content));
 }
 
 type AvatarParticle = {
@@ -389,6 +692,106 @@ function getDockedShareLabel(summary: string): string {
   return "当前页面";
 }
 
+function appendBrowsingMemory(entry: { pathname: string; label: string; summary: string }) {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = JSON.parse(localStorage.getItem(BROWSING_MEMORY_KEY) || "[]");
+    const items = Array.isArray(raw) ? raw : [];
+    const normalized = {
+      pathname: entry.pathname,
+      label: entry.label,
+      summary: entry.summary,
+      visitedAt: new Date().toISOString(),
+    };
+    const next = [
+      normalized,
+      ...items.filter((item: any) => String(item?.pathname || "") !== entry.pathname),
+    ].slice(0, 20);
+    localStorage.setItem(BROWSING_MEMORY_KEY, JSON.stringify(next));
+  } catch (_error) {}
+}
+
+function normalizeHomePromptItem(rawPrompt: string): TopicPromptItem | null {
+  const raw = String(rawPrompt || "")
+    .replace(/^#+\s*/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!raw) return null;
+  if (HOME_PROMPT_BLOCKED_TERMS.some((term) => raw.includes(term))) return null;
+  const prompt = /[?？]$/.test(raw) ? raw : `围绕「${raw}」，给我一个适合家长马上执行的建议`;
+  if (HOME_PROMPT_BLOCKED_TERMS.some((term) => prompt.includes(term))) return null;
+  return {
+    label: prompt.length > 34 ? `${prompt.slice(0, 34)}...` : prompt,
+    prompt,
+  };
+}
+
+function topicPromptFromItem(item: any): TopicPromptItem | null {
+  const title = String(item?.title || item?.question || item?.name || "").trim();
+  const subtitle = String(item?.subtitle || item?.shortSummary || item?.summary || "").trim();
+  return normalizeHomePromptItem(title || subtitle);
+}
+
+function shuffleItems<T>(items: T[]): T[] {
+  return items
+    .map((item) => ({ item, sort: Math.random() }))
+    .sort((a, b) => a.sort - b.sort)
+    .map(({ item }) => item);
+}
+
+function loadCachedTopicPromptItems(): TopicPromptItem[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(XIAOWANZI_TOPIC_PROMPT_CACHE_KEY) || "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item) => normalizeHomePromptItem(String(item?.prompt || item?.label || "").trim()))
+      .filter((item): item is TopicPromptItem => Boolean(item));
+  } catch (_error) {
+    return [];
+  }
+}
+
+function saveCachedTopicPromptItems(items: TopicPromptItem[]) {
+  if (typeof window === "undefined" || !items.length) return;
+  try {
+    const sanitized = items
+      .map((item) => normalizeHomePromptItem(item.prompt || item.label))
+      .filter((item): item is TopicPromptItem => Boolean(item));
+    if (!sanitized.length) return;
+    localStorage.setItem(XIAOWANZI_TOPIC_PROMPT_CACHE_KEY, JSON.stringify(sanitized.slice(0, 40)));
+  } catch (_error) {}
+}
+
+function pickHomePromptItems(items: TopicPromptItem[]): TopicPromptItem[] {
+  const picked = shuffleItems(items).slice(0, 3);
+  if (picked.length >= 3) return picked;
+  const existing = new Set(picked.map((item) => item.prompt));
+  const fallback = HOME_FALLBACK_PROMPTS.filter((item) => !existing.has(item.prompt)).slice(0, 3 - picked.length);
+  return [...picked, ...fallback];
+}
+
+async function loadTopicPromptItems(grade?: string): Promise<TopicPromptItem[]> {
+  const params = new URLSearchParams({ limit: "24", page: "1" });
+  if (grade) params.set("grade", grade);
+  try {
+    const res = await fetch(`/api/topic-hub?${params.toString()}`);
+    if (!res.ok) return pickHomePromptItems(loadCachedTopicPromptItems());
+    const data = await res.json().catch(() => ({}));
+    const topics: any[] = Array.isArray(data?.topics) ? data.topics : [];
+    const prompts: TopicPromptItem[] = topics
+      .map(topicPromptFromItem)
+      .filter((item): item is TopicPromptItem => Boolean(item));
+    if (!prompts.length) return pickHomePromptItems(loadCachedTopicPromptItems());
+    if (prompts.length) {
+      saveCachedTopicPromptItems(prompts);
+    }
+    return pickHomePromptItems(prompts);
+  } catch (_error) {
+    return pickHomePromptItems(loadCachedTopicPromptItems());
+  }
+}
+
 function readFrontDisplayName(): string {
   if (typeof window === "undefined") return "";
   const nameEl =
@@ -399,16 +802,30 @@ function readFrontDisplayName(): string {
   return text;
 }
 
-const XiaowanziWidget: React.FC = () => {
+function buildHomeBrowseSrc(path: string): string {
+  const raw = String(path || "/").trim() || "/";
+  const hashIndex = raw.indexOf("#");
+  const withoutHash = hashIndex >= 0 ? raw.slice(0, hashIndex) : raw;
+  const hash = hashIndex >= 0 ? raw.slice(hashIndex) : "";
+  if (new RegExp(`(?:^|[?&])xw_layer=`).test(withoutHash)) return `${withoutHash}${hash}`;
+  const separator = withoutHash.includes("?") ? "&" : "?";
+  return `${withoutHash}${separator}xw_layer=1${hash}`;
+}
+
+const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false }) => {
   const { pathname } = useLocation();
-  const [open, setOpen] = useState(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return localStorage.getItem(GLOBAL_DOCKED_PREF_KEY) === "1";
-    } catch (_error) {
-      return false;
-    }
-  });
+  const [shouldOpenHomeOnMount] = useState(() => standalone ? true : shouldRestoreXiaowanziHome());
+  const [skipHomeIntroOnMount] = useState(() => standalone ? true : shouldSkipXiaowanziHomeIntro());
+  const [open, setOpen] = useState(() => shouldOpenHomeOnMount);
+  const [homeActive, setHomeActive] = useState(() => standalone ? true : shouldOpenHomeOnMount);
+  const [homePortalKey, setHomePortalKey] = useState(0);
+  const [currentSessionId, setCurrentSessionId] = useState(() => createConversationSessionId());
+  const [conversationSessions, setConversationSessions] = useState<ConversationSession[]>(() => loadConversationSessions());
+  const [homePromptItems, setHomePromptItems] = useState<TopicPromptItem[]>([]);
+  const [homeBrowsingOpen, setHomeBrowsingOpen] = useState(false);
+  const [homeBrowseTarget, setHomeBrowseTarget] = useState<HomeBrowseTarget | null>(null);
+  const [homeHistoryDrawerOpen, setHomeHistoryDrawerOpen] = useState(false);
+  const [homeViewingHistory, setHomeViewingHistory] = useState(false);
   const [maximized, setMaximized] = useState(false);
   const [pinned, setPinned] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -429,6 +846,10 @@ const XiaowanziWidget: React.FC = () => {
   const [messages, setMessages] = useState<Msg[]>([DEFAULT_MESSAGE]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [voiceListening, setVoiceListening] = useState(false);
+  const [voiceHolding, setVoiceHolding] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState<UploadedImage | null>(null);
+  const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const [canUseBot, setCanUseBot] = useState(true);
   const [statusText, setStatusText] = useState("● 随时可用");
   const [shareVisible, setShareVisible] = useState(true);
@@ -444,19 +865,6 @@ const XiaowanziWidget: React.FC = () => {
   const [childProfiles, setChildProfiles] = useState<ChildProfileLite[]>(() => loadChildProfiles());
   const [chatContext, setChatContext] = useState<ChatSessionContext | null>(() => loadChatContext());
   const [hiddenEntryOpen, setHiddenEntryOpen] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [draftProfile, setDraftProfile] = useState<ChildProfileLite>(() => ({
-    id: "",
-    relation: "女儿",
-    displayName: "",
-    gender: "女",
-    birthDate: "",
-    grade: "",
-    concernTags: [],
-    avatar: "/assets/wel-avatar/no-hat.png",
-    createdAt: new Date().toISOString(),
-  }));
   const [pageContext, setPageContext] = useState<PageContextPayload>({
     summary: "",
     readReceipt: DEFAULT_MESSAGE.content,
@@ -465,16 +873,28 @@ const XiaowanziWidget: React.FC = () => {
   const msgContainerRef = useRef<HTMLDivElement | null>(null);
   const latestMsgRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
-  const plusPressTimerRef = useRef<number | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const homeInputbarRef = useRef<HTMLDivElement | null>(null);
+  const homeAttachMenuRef = useRef<HTMLDivElement | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const voicePressTimerRef = useRef<number | null>(null);
   const fabLongPressRef = useRef<number | null>(null);
   const dragRef = useRef({ active: false, moved: false, offsetX: 0, offsetY: 0, pointerId: -1 });
   const avatarTimersRef = useRef<number[]>([]);
+  const lastPathnameRef = useRef(pathname);
+  const lastBrowsingMemoryRef = useRef("");
   const shortcutItems = (pageContext.shortcuts.length ? pageContext.shortcuts : DEFAULT_SHORTCUTS).map((item) => ({
     ...item,
     prompt: normalizeShortcutPrompt(item.prompt),
   }));
-  const activeChild = childProfiles.find((item) => item.id === chatContext?.childProfileId) || null;
-  const isChildBound = Boolean(chatContext?.isChildBound && activeChild);
+  const explicitActiveChild = childProfiles.find((item) => item.id === chatContext?.childProfileId) || null;
+  const singleChild = childProfiles.length === 1 ? childProfiles[0] : null;
+  const activeChild = explicitActiveChild || singleChild;
+  const isChildBound = Boolean(activeChild && (chatContext?.isChildBound || childProfiles.length === 1));
+  const canSwitchChild = childProfiles.length !== 1;
+  const currentHistoryChildId = isChildBound ? activeChild?.id || null : null;
   const childShortcutItems = buildChildShortcuts(activeChild).map((item) => ({
     ...item,
     prompt: normalizeShortcutPrompt(item.prompt),
@@ -483,6 +903,7 @@ const XiaowanziWidget: React.FC = () => {
   const isDocked = pinned && !maximized;
   const isDockedEmpty = isDocked && !hasHistoryMessages && messages.length <= 1;
   const visibleMessages = isDocked ? messages.filter((message) => !isReadReceiptMessage(message.content)) : messages;
+  const effectiveHomePrompts = homePromptItems.length ? homePromptItems : HOME_FALLBACK_PROMPTS;
   const currentUserName = (() => {
     try {
       const raw = localStorage.getItem("user");
@@ -506,33 +927,100 @@ const XiaowanziWidget: React.FC = () => {
     }
   })();
 
+  function refreshConversationSessions() {
+    setConversationSessions(loadConversationSessions());
+  }
+
+  function persistConversation(items: Msg[], sessionId = currentSessionId) {
+    if (!sessionId || !isMeaningfulHistory(items)) return;
+    const sanitized = items
+      .filter((item) => item.content !== DEFAULT_MESSAGE.content && !isReadReceiptMessage(item.content))
+      .map(sanitizeDisplayMessage);
+    if (!sanitized.length) return;
+    saveConversationSessionMessages(sessionId, sanitized);
+    const now = new Date().toISOString();
+    const existing = loadConversationSessions().find((item) => item.id === sessionId);
+    upsertConversationSession({
+      id: sessionId,
+      title: getConversationTitle(sanitized, existing?.title || "新的小玩子对话"),
+      childId: currentHistoryChildId,
+      childName: activeChild?.displayName || existing?.childName || "",
+      createdAt: existing?.createdAt || sanitized[0]?.ts || now,
+      updatedAt: sanitized[sanitized.length - 1]?.ts || now,
+      messageCount: sanitized.length,
+      lastMessage: sanitized[sanitized.length - 1]?.content || "",
+    });
+    refreshConversationSessions();
+  }
+
+  function startNewConversationSession() {
+    const nextSessionId = createConversationSessionId();
+    setCurrentSessionId(nextSessionId);
+    setMessages([DEFAULT_MESSAGE]);
+    setHasHistoryMessages(false);
+    setHistoryPanelOpen(false);
+    setHomeHistoryDrawerOpen(false);
+    setHomeViewingHistory(false);
+    refreshConversationSessions();
+    return nextSessionId;
+  }
+
+  function openManualNewConversation() {
+    persistConversation(messages);
+    startNewConversationSession();
+    setHomeHistoryDrawerOpen(false);
+    setStatusText("● 已开启新对话");
+    void loadTopicPromptItems().then((items) => {
+      if (items.length) setHomePromptItems(items);
+    });
+  }
+
+  function restoreConversationSession(sessionId: string) {
+    const cached = loadConversationSessionMessages(sessionId);
+    if (!cached.length) return;
+    setCurrentSessionId(sessionId);
+    setMessages(cached);
+    setHasHistoryMessages(true);
+    setHistoryPanelOpen(false);
+    setHomeHistoryDrawerOpen(false);
+    setHomeViewingHistory(true);
+    saveCachedHistory(cached, currentHistoryChildId);
+  }
+
   function clearAvatarTimers() {
     avatarTimersRef.current.forEach((timer) => window.clearTimeout(timer));
     avatarTimersRef.current = [];
   }
 
-  function resetDraftProfile() {
-    setDraftProfile({
-      id: "",
-      relation: "女儿",
-      displayName: "",
-      gender: "女",
-      birthDate: "",
-      grade: "",
-      concernTags: [],
-      avatar: "/assets/wel-avatar/no-hat.png",
-      createdAt: new Date().toISOString(),
-    });
+  function closePanel() {
+    clearXiaowanziHomeActive();
+    setOpen(false);
+    setHomeActive(false);
+    setHomeBrowsingOpen(false);
+    setHomeBrowseTarget(null);
+    setHomeHistoryDrawerOpen(false);
+    setMaximized(false);
+    setPinned(false);
+    setHiddenEntryOpen(false);
+    document.dispatchEvent(new CustomEvent("xf-close-public-menu"));
   }
 
   function openHiddenEntry() {
+    if (shouldBlockXiaowanziForAuth()) return;
     setOpen(true);
     setHiddenEntryOpen(true);
-    setPickerOpen(false);
-    setCreateOpen(false);
+  }
+
+  function openSidebarChildCreate() {
+    if (shouldBlockXiaowanziForAuth()) return;
+    setHiddenEntryOpen(false);
+    document.dispatchEvent(new CustomEvent("xf-open-child-profile-create"));
   }
 
   function bindChildProfile(profile: ChildProfileLite) {
+    if (shouldBlockXiaowanziForAuth()) return;
+    if (isMeaningfulHistory(messages)) saveCachedHistory(messages, currentHistoryChildId);
+    persistConversation(messages);
     const nextContext: ChatSessionContext = {
       sessionId: `session-${Date.now()}`,
       childProfileId: profile.id,
@@ -544,11 +1032,10 @@ const XiaowanziWidget: React.FC = () => {
     try {
       localStorage.setItem(LAST_CHILD_ID_KEY, profile.id);
     } catch (_error) {}
-    setMessages([DEFAULT_MESSAGE]);
-    setHasHistoryMessages(false);
+    const cached = loadCachedHistory(profile.id);
+    setMessages(cached.length ? cached : [DEFAULT_MESSAGE]);
+    setHasHistoryMessages(cached.length > 0);
     setHiddenEntryOpen(false);
-    setPickerOpen(false);
-    setCreateOpen(false);
     setStatusText(`● 正在为 ${profile.displayName} 提供建议`);
   }
 
@@ -587,7 +1074,7 @@ const XiaowanziWidget: React.FC = () => {
 
     async function loadContext() {
       try {
-        if (pathname === "/programs") {
+        if (pathname === "/programs" || pathname === "/programs/list") {
           const response = await publicApi.getPrograms();
           if (!alive) return;
           const programs = Array.isArray(response.data) ? response.data : [];
@@ -655,6 +1142,18 @@ const XiaowanziWidget: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (!open || !homeActive) return;
+    const exitHomeOnDesktop = () => {
+      if (window.innerWidth >= HOME_DESKTOP_BREAKPOINT) {
+        closePanel();
+      }
+    };
+    exitHomeOnDesktop();
+    window.addEventListener("resize", exitHomeOnDesktop);
+    return () => window.removeEventListener("resize", exitHomeOnDesktop);
+  }, [open, homeActive]);
+
+  useEffect(() => {
     try {
       localStorage.setItem(LEGACY_AVATAR_INDEX_KEY, String(avatarState.avatarIndex));
       localStorage.setItem(LEGACY_AVATAR_CLICK_COUNT_KEY, String(avatarState.clickCount));
@@ -687,8 +1186,9 @@ const XiaowanziWidget: React.FC = () => {
   useEffect(() => {
     return () => {
       clearAvatarTimers();
-      if (plusPressTimerRef.current) window.clearTimeout(plusPressTimerRef.current);
       if (fabLongPressRef.current) window.clearTimeout(fabLongPressRef.current);
+      if (voicePressTimerRef.current) window.clearTimeout(voicePressTimerRef.current);
+      recognitionRef.current?.stop?.();
     };
   }, []);
 
@@ -701,7 +1201,7 @@ const XiaowanziWidget: React.FC = () => {
     const token = getSessionToken();
     if (!token) {
       setCanUseBot(false);
-      setStatusText("● 请先登录账号");
+      shouldBlockXiaowanziForAuth();
       return false;
     }
 
@@ -719,7 +1219,7 @@ const XiaowanziWidget: React.FC = () => {
     if (!createRes.ok) {
       if (createRes.status === 401) {
         setCanUseBot(false);
-        setStatusText("● 登录已失效,请重新登录");
+        shouldBlockXiaowanziForAuth();
       } else if (createRes.status === 403) {
         setCanUseBot(false);
         setStatusText("● 当前账号暂无小玩子权限");
@@ -745,43 +1245,65 @@ const XiaowanziWidget: React.FC = () => {
       const filtered = (data as Msg[]).filter((m) => !isReadReceiptMessage(m.content)).map(sanitizeDisplayMessage);
       setHasHistoryMessages(filtered.length > 0);
       setMessages(filtered.length ? filtered : [DEFAULT_MESSAGE]);
-      if (filtered.length) saveCachedGlobalHistory(filtered);
+      if (filtered.length) saveCachedHistory(filtered, currentHistoryChildId);
       return;
     }
-    setHasHistoryMessages(false);
-    setMessages([DEFAULT_MESSAGE]);
+    const cached = loadCachedHistory(currentHistoryChildId);
+    setHasHistoryMessages(cached.length > 0);
+    setMessages(cached.length ? cached : [DEFAULT_MESSAGE]);
   }
 
   useEffect(() => {
-    if (!open) return;
-    const cached = loadCachedGlobalHistory();
+    if (!open || homeActive) return;
+    const cached = loadCachedHistory(currentHistoryChildId);
     if (cached.length) {
       setHasHistoryMessages(true);
       setMessages(cached);
     }
     void (async () => {
       const ok = await ensureBotReady();
-      if (ok) await reloadHistory();
+      if (ok && !cached.length) await reloadHistory();
     })();
-  }, [open]);
+  }, [open, homeActive, currentHistoryChildId]);
 
   async function onHistoryClick() {
     const token = getSessionToken();
     if (!token) {
       setCanUseBot(false);
-      setStatusText("● 请先登录账号");
+      shouldBlockXiaowanziForAuth();
       return;
     }
     if (!canUseBot) {
       setStatusText("● 当前账号暂无小玩子权限");
       return;
     }
-    await reloadHistory();
+    const sessions = loadConversationSessions();
+    setConversationSessions(sessions);
+    if (!sessions.length) await reloadHistory();
     setHistoryPanelOpen((v) => !v);
     setStatusText("● 已加载历史会话");
   }
 
+  async function openHomeHistoryMenu() {
+    const sessions = loadConversationSessions();
+    setConversationSessions(sessions);
+    if (!sessions.length) await reloadHistory();
+    document.dispatchEvent(new CustomEvent("xf-close-public-menu"));
+    setHomeHistoryDrawerOpen(true);
+    setStatusText("● 已加载历史会话");
+  }
+
   function buildHistoryCards(items: Msg[]): HistorySessionCard[] {
+    const sessionCards = conversationSessions
+      .filter((session) => loadConversationSessionMessages(session.id).length > 0)
+      .map((session) => ({
+        id: session.id,
+        sessionId: session.id,
+        title: session.title || "历史会话",
+        sub: formatHistoryTime(session.updatedAt),
+        childTag: session.childName || "",
+      }));
+    if (sessionCards.length) return sessionCards;
     const cards: HistorySessionCard[] = [];
     for (let i = 0; i < items.length; i += 1) {
       const msg = items[i];
@@ -813,8 +1335,18 @@ const XiaowanziWidget: React.FC = () => {
     setHistoryPanelOpen(false);
   }
 
+  function openHistoryCard(card: HistorySessionCard) {
+    if (card.sessionId) {
+      restoreConversationSession(card.sessionId);
+      return;
+    }
+    if (typeof card.targetIndex === "number") {
+      jumpToMessage(card.targetIndex);
+    }
+  }
+
   useEffect(() => {
-    if (!open) return;
+    if (!open || homeActive) return;
     const container = msgContainerRef.current;
     if (!container) return;
     requestAnimationFrame(() => {
@@ -826,7 +1358,27 @@ const XiaowanziWidget: React.FC = () => {
         inputRef.current?.focus();
       }
     });
-  }, [open, messages, hasHistoryMessages]);
+  }, [open, homeActive, messages, hasHistoryMessages]);
+
+  useEffect(() => {
+    if (!open || !homeActive) return;
+    requestAnimationFrame(() => {
+      msgContainerRef.current?.scrollTo({ top: 0 });
+      inputRef.current?.focus();
+    });
+  }, [open, homeActive]);
+
+  useEffect(() => {
+    if (!attachmentMenuOpen) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (target && homeInputbarRef.current?.contains(target)) return;
+      if (target && homeAttachMenuRef.current?.contains(target)) return;
+      setAttachmentMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer, true);
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePointer, true);
+  }, [attachmentMenuOpen]);
 
   useEffect(() => {
     if (!open) {
@@ -835,26 +1387,170 @@ const XiaowanziWidget: React.FC = () => {
   }, [open]);
 
   useEffect(() => {
+    if (open && homeActive) {
+      persistXiaowanziHomeActive();
+    }
+  }, [open, homeActive]);
+
+  useEffect(() => {
     const onOpenFromTab = (event: Event) => {
-      const customEvent = event as CustomEvent<{ avatarState?: { avatarIndex: number; clickCount: number } }>;
+      const customEvent = event as CustomEvent<{ avatarState?: { avatarIndex: number; clickCount: number }; childProfileId?: string; childId?: string; mode?: "chat" | "home" }>;
+      if (shouldBlockXiaowanziForAuth()) return;
+      if (customEvent?.detail?.mode === "home" && shouldBlockXiaowanziSuperModeForAuth()) return;
       const incomingAvatarState = customEvent?.detail?.avatarState;
       if (incomingAvatarState && Number.isFinite(incomingAvatarState.avatarIndex) && Number.isFinite(incomingAvatarState.clickCount)) {
         setAvatarState({
           avatarIndex: Math.max(0, Math.floor(incomingAvatarState.avatarIndex)),
           clickCount: Math.max(0, Math.floor(incomingAvatarState.clickCount)),
         });
+      } else {
+        setAvatarState((value) => advanceAvatarState(value));
       }
+      const latestProfiles = loadChildProfiles();
+      setChildProfiles(latestProfiles);
+      const incomingChildId = String(customEvent?.detail?.childProfileId || customEvent?.detail?.childId || "").trim();
+      const picked = latestProfiles.find((item) => item.id === incomingChildId) || null;
+      if (picked) {
+        const nextContext: ChatSessionContext = {
+          sessionId: `session-${Date.now()}`,
+          childProfileId: picked.id,
+          isChildBound: true,
+          lastSwitchedAt: new Date().toISOString(),
+        };
+        setChatContext(nextContext);
+        saveChatContext(nextContext);
+        try {
+          localStorage.setItem(LAST_CHILD_ID_KEY, picked.id);
+        } catch (_error) {}
+        setHiddenEntryOpen(false);
+      }
+      const nextIsHomeMode = customEvent?.detail?.mode === "home";
       setPinned(false);
       setMaximized(false);
+      setHomeActive(nextIsHomeMode);
+      setHomeBrowsingOpen(false);
+      setHomeBrowseTarget(null);
       setOpen(true);
+      if (nextIsHomeMode) {
+        startNewConversationSession();
+        setHomePortalKey((value) => value + 1);
+        void loadTopicPromptItems().then((items) => {
+          if (items.length) setHomePromptItems(items);
+        });
+      }
     };
     document.addEventListener("xf-open-xiaowanzi", onOpenFromTab as EventListener);
     return () => document.removeEventListener("xf-open-xiaowanzi", onOpenFromTab as EventListener);
   }, []);
 
+  useLayoutEffect(() => {
+    if (!shouldRestoreXiaowanziHome()) return;
+    clearXiaowanziRestoreMarker();
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    setPinned(false);
+    setMaximized(false);
+    setHomeActive(true);
+    setHomeBrowsingOpen(false);
+    setHomeBrowseTarget(null);
+    setOpen(true);
+    void loadTopicPromptItems().then((items) => {
+      if (items.length) setHomePromptItems(items);
+    });
+  }, []);
+
+  useEffect(() => {
+    const onProfilesUpdated = () => {
+      const latestProfiles = loadChildProfiles();
+      setChildProfiles(latestProfiles);
+      setChatContext((prev) => {
+        if (!prev) return prev;
+        const stillExists = latestProfiles.some((profile) => profile.id === prev.childProfileId);
+        if (stillExists) return prev;
+        try {
+          localStorage.removeItem(LAST_CHILD_ID_KEY);
+        } catch (_error) {}
+        return null;
+      });
+    };
+    document.addEventListener("xf-child-profiles-updated", onProfilesUpdated as EventListener);
+    return () => document.removeEventListener("xf-child-profiles-updated", onProfilesUpdated as EventListener);
+  }, []);
+
   useEffect(() => {
     setShareVisible(true);
   }, [pathname]);
+
+  useEffect(() => {
+    document.dispatchEvent(new CustomEvent("xf-xiaowanzi-home-state", { detail: { active: open && homeActive } }));
+  }, [open, homeActive]);
+
+  useEffect(() => {
+    const onBrowseLayer = (event: Event) => {
+      const detail = (event as CustomEvent<{ active?: boolean; path?: string; label?: string }>).detail || {};
+      const active = Boolean(detail.active);
+      if (active) {
+        if (shouldBlockXiaowanziSuperModeForAuth()) {
+          setHomeBrowsingOpen(false);
+          setHomeBrowseTarget(null);
+          return;
+        }
+        const label = String(detail.label || "页面").trim() || "页面";
+        const path = String(detail.path || pathname || "/").trim() || "/";
+        setOpen(true);
+        setHomeActive(true);
+        setHomeBrowseTarget({ path, label });
+        setPageContext({
+          summary: `当前正在小玩子超能模式内浏览「${label}」页面。路径:${path}。请结合该页面浏览上下文回答。`,
+          readReceipt: `已在超能模式中打开「${label}」。你可以继续问我这页重点、先看哪里、怎么结合孩子情况使用。`,
+          shortcuts: DEFAULT_SHORTCUTS,
+        });
+      } else {
+        setHomeBrowseTarget(null);
+      }
+      setHomeBrowsingOpen(active);
+    };
+    document.addEventListener("xf-xiaowanzi-browse-layer", onBrowseLayer);
+    return () => document.removeEventListener("xf-xiaowanzi-browse-layer", onBrowseLayer);
+  }, []);
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if ((event.data as any)?.type !== "xf-close-xiaowanzi-browse-layer") return;
+      setHomeBrowsingOpen(false);
+      setHomeBrowseTarget(null);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
+  useEffect(() => {
+    if (!open || !homeActive || !pageContext.summary) return;
+    const label = getDockedShareLabel(pageContext.summary);
+    const memoryKey = `${pathname}::${pageContext.summary}`;
+    if (lastBrowsingMemoryRef.current === memoryKey) return;
+    lastBrowsingMemoryRef.current = memoryKey;
+    appendBrowsingMemory({ pathname, label, summary: pageContext.summary });
+  }, [open, homeActive, pathname, pageContext.summary]);
+
+  useEffect(() => {
+    if (lastPathnameRef.current === pathname) return;
+    lastPathnameRef.current = pathname;
+    if (homeActive) return;
+    closePanel();
+  }, [pathname, homeActive]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    if (homeActive) return undefined;
+    const handleOutsidePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest("#ai-panel, #ai-fab, .aip-hidden-sheet, .xw-home")) return;
+      closePanel();
+    };
+    document.addEventListener("pointerdown", handleOutsidePointerDown, true);
+    return () => document.removeEventListener("pointerdown", handleOutsidePointerDown, true);
+  }, [open, homeActive]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -864,19 +1560,21 @@ const XiaowanziWidget: React.FC = () => {
   }, [pinned]);
 
   useEffect(() => {
-    saveChildProfiles(childProfiles);
-  }, [childProfiles]);
-
-  useEffect(() => {
     saveChatContext(chatContext);
   }, [chatContext]);
+
+  useEffect(() => {
+    if (!isMeaningfulHistory(messages)) return;
+    saveCachedHistory(messages, currentHistoryChildId);
+    persistConversation(messages);
+  }, [messages, currentHistoryChildId, currentSessionId]);
 
   useEffect(() => {
     if (chatContext || childProfiles.length === 0) return;
     try {
       const lastId = localStorage.getItem(LAST_CHILD_ID_KEY) || "";
       const picked = childProfiles.find((item) => item.id === lastId) || childProfiles[0];
-      if (!picked || !isProfileComplete(picked)) return;
+      if (!picked) return;
       const nextContext: ChatSessionContext = {
         sessionId: `session-${Date.now()}`,
         childProfileId: picked.id,
@@ -905,71 +1603,154 @@ const XiaowanziWidget: React.FC = () => {
   }, [open, pinned, maximized]);
 
   async function sendMessage(text?: string) {
-    const content = (text ?? input).trim();
-    if (!content || sending) return;
-    if (!isChildBound || !activeChild) {
+    const plainContent = (text ?? input).trim();
+    const imageAttachment = uploadedImage;
+    if ((!plainContent && !imageAttachment) || sending) return;
+    const token = getSessionToken();
+    if (!token) {
+      shouldBlockXiaowanziForAuth();
+      return;
+    }
+    const content = imageAttachment
+      ? `${plainContent || (imageAttachment.kind === "file" ? "请帮我看一下这个文件" : "请帮我看一下这张图片")}\n\n[用户上传${imageAttachment.kind === "file" ? "文件" : "图片"}] ${imageAttachment.name}`
+      : plainContent;
+    if ((!isChildBound || !activeChild) && !homeActive) {
       setStatusText("● 请先选择孩子档案后提问");
       setHiddenEntryOpen(true);
       return;
     }
-    const token = getSessionToken();
-    if (!token) {
-      setStatusText("● 请先登录账号");
-      return;
-    }
 
-    const profileSummary = [
-      `咨询人:${activeChild.displayName}`,
-      `关系:${activeChild.relation}`,
-      `性别:${activeChild.gender}`,
-      `出生日期:${activeChild.birthDate}`,
-      `年级:${activeChild.grade}`,
-      `关注标签:${activeChild.concernTags.join("、") || "无"}`,
-    ].join("。");
-
-    const contextualContent = pageContext.summary
-      ? `[回答规则]\n${AI_RESPONSE_RULES}\n\n[孩子档案]\n${profileSummary}\n\n[当前页面上下文]\n${pageContext.summary}\n\n[用户问题]\n${content}`
-      : `[回答规则]\n${AI_RESPONSE_RULES}\n\n[孩子档案]\n${profileSummary}\n\n[用户问题]\n${content}`;
+    const parentRole = getCurrentParentRole();
+    const profileSummary = activeChild
+      ? [
+          `咨询人:${activeChild.displayName}`,
+          `关系:${activeChild.relation}`,
+          `出生日期:${activeChild.birthDate}`,
+          `年级:${activeChild.grade}`,
+          `关注标签:${activeChild.concernTags.join("、") || "无"}`,
+          parentRole ? `提问者身份:${parentRole}` : "",
+        ].filter(Boolean).join("。")
+      : [
+          "当前为通用咨询模式",
+          "用户未选择孩子档案",
+          parentRole ? `提问者身份:${parentRole}` : "",
+        ].filter(Boolean).join("。");
+    const memory = activeChild ? await loadChildMemory(activeChild.id) : {};
+    const memoryEnabled = memory.enabled !== false;
+    const contextualContent = buildXiaowanziPromptPayload({
+      profileSummary,
+      memorySummary: memoryEnabled ? String(memory.summary || "").trim() : "",
+      pageSummary: pageContext.summary,
+      userContent: content,
+    });
 
     const userMessage: Msg = {
       role: "user",
       content,
       ts: new Date().toISOString(),
     };
-    const pendingAssistantMessage: Msg = {
-      role: "assistant",
-      content: `收到,你想让我处理的是:${content}\n\n我先按当前页面已确认信息帮你整理,马上给你结果。`,
-      ts: new Date(Date.now() + 1).toISOString(),
-    };
+    const assistantTs = new Date(Date.now() + 1).toISOString();
 
     setSending(true);
     setInput("");
+    setAttachmentMenuOpen(false);
+    if (inputRef.current?.classList.contains("xw-home-input")) {
+      inputRef.current.style.height = "58px";
+      inputRef.current.style.lineHeight = "58px";
+    }
+    setUploadedImage(null);
     setHasHistoryMessages(true);
-    setMessages((prev) => [...prev, userMessage, pendingAssistantMessage]);
+    setMessages((prev) => [...prev, userMessage]);
     try {
       const res = await fetch(apiUrl(`/api/v1/tutorbot/${BOT_ID}/messages`), {
         method: "POST",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({ content: contextualContent }),
+        body: JSON.stringify({ content: contextualContent, stream: true }),
       });
       if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        if (res.status === 402 || isProRequiredPayload(err)) {
+          setCanUseBot(false);
+          showProUpgradeFromPayload(err);
+          setMessages((prev) => prev.filter((item) => item.ts !== userMessage.ts));
+          return;
+        }
         if (res.status === 401 || res.status === 403) {
           setCanUseBot(false);
-          setStatusText(res.status === 403 ? "● 当前账号暂无小玩子权限" : "● 登录已失效,请重新登录");
+          if (res.status === 401) {
+            setMessages((prev) => prev.filter((item) => item.ts !== userMessage.ts));
+            shouldBlockXiaowanziForAuth();
+            return;
+          }
+          setStatusText("● 当前账号暂无小玩子权限");
         }
-        const err = await res.json().catch(() => ({}));
         const msg = String(err?.content || err?.detail || "请求失败");
-        setMessages((prev) => [
-          ...prev.filter((item) => item.ts !== pendingAssistantMessage.ts),
-          { role: "assistant", content: msg, ts: new Date().toISOString() },
-        ]);
+        setMessages((prev) => [...prev, { role: "assistant", content: msg, ts: assistantTs }]);
         return;
       }
-      await reloadHistory();
-      saveCachedGlobalHistory([
+      if (!res.body) {
+        throw new Error("当前浏览器不支持流式回复");
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let reply = "";
+      const appendAssistantContent = (delta: string) => {
+        if (!delta) return;
+        reply += delta;
+        setMessages((prev) => {
+          const existing = prev.find((item) => item.ts === assistantTs);
+          if (existing) {
+            return prev.map((item) => item.ts === assistantTs ? { ...item, content: item.content + delta } : item);
+          }
+          return [...prev, { role: "assistant", content: delta, ts: assistantTs }];
+        });
+      };
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() || "";
+        for (const part of parts) {
+          const eventName = part.split("\n").find((line) => line.startsWith("event:"))?.replace(/^event:\s*/, "").trim();
+          const dataLine = part.split("\n").find((line) => line.startsWith("data:"));
+          if (!dataLine) continue;
+          const payload = JSON.parse(dataLine.replace(/^data:\s*/, ""));
+          if (eventName === "delta") {
+            appendAssistantContent(String(payload?.content || ""));
+          } else if (eventName === "error") {
+            appendAssistantContent(String(payload?.content || "请求失败"));
+          }
+        }
+      }
+      const finalReply = reply.trim() || "（小玩子暂时没有返回内容）";
+      if (!reply.trim()) {
+        setMessages((prev) => [...prev, { role: "assistant", content: finalReply, ts: assistantTs }]);
+      }
+      const nextMessages = [
         ...messages.filter((m) => !isReadReceiptMessage(m.content)),
         userMessage,
-      ]);
+        { role: "assistant" as const, content: finalReply, ts: assistantTs },
+      ];
+      setMessages(nextMessages);
+      saveCachedHistory(nextMessages, currentHistoryChildId);
+      if (activeChild && shouldPersistChildMemory({ childId: activeChild.id, enabled: memoryEnabled })) {
+        await mergeChildMemory({
+          childId: activeChild.id,
+          childProfile: profileSummary,
+          userMessage: content,
+          assistantReply: finalReply,
+        });
+      }
+      document.dispatchEvent(new CustomEvent("xf-billing-balance-changed", { detail: { featureKey: "xiaowanzi" } }));
+    } catch (error: any) {
+      const msg = `请求失败:${String(error?.message || "unknown")}`;
+      setMessages((prev) => {
+        const existing = prev.find((item) => item.ts === assistantTs);
+        if (existing) return prev.map((item) => item.ts === assistantTs ? { ...item, content: item.content || msg } : item);
+        return [...prev, { role: "assistant", content: msg, ts: assistantTs }];
+      });
     } finally {
       setSending(false);
     }
@@ -978,7 +1759,8 @@ const XiaowanziWidget: React.FC = () => {
   function onInputKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      if (!isChildBound) {
+      if (shouldBlockXiaowanziForAuth()) return;
+      if (!isChildBound && !homeActive) {
         setHiddenEntryOpen(true);
         setStatusText("● 请先选择孩子档案后提问");
         return;
@@ -989,8 +1771,122 @@ const XiaowanziWidget: React.FC = () => {
 
   function onInputChange(event: React.ChangeEvent<HTMLTextAreaElement>) {
     setInput(event.target.value);
+    if (event.currentTarget.classList.contains("xw-home-input")) {
+      event.currentTarget.style.height = "58px";
+      event.currentTarget.style.lineHeight = "58px";
+      if (event.currentTarget.scrollHeight > 58) {
+        event.currentTarget.style.lineHeight = "1.38";
+        event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 104)}px`;
+      }
+      return;
+    }
     event.currentTarget.style.height = "auto";
     event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 160)}px`;
+  }
+
+  function startVoiceInput() {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setStatusText("● 当前浏览器不支持语音输入");
+      return;
+    }
+    if (voiceListening) return;
+    const recognition = new SpeechRecognition();
+    recognition.lang = "zh-CN";
+    recognition.interimResults = true;
+    recognition.continuous = true;
+    recognition.onstart = () => {
+      setVoiceListening(true);
+      setStatusText("● 正在听你说话");
+    };
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results || [])
+        .map((result: any) => String(result?.[0]?.transcript || ""))
+        .join("")
+        .trim();
+      if (transcript) setInput(transcript);
+    };
+    recognition.onerror = () => {
+      setVoiceListening(false);
+      setVoiceHolding(false);
+      setStatusText("● 语音输入失败，请重试");
+    };
+    recognition.onend = () => {
+      setVoiceListening(false);
+      setVoiceHolding(false);
+      setStatusText("● 语音输入已结束");
+    };
+    recognitionRef.current = recognition;
+    recognition.start();
+  }
+
+  function stopVoiceInput() {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+    setVoiceListening(false);
+    setVoiceHolding(false);
+  }
+
+  function toggleVoiceInput() {
+    if (shouldBlockXiaowanziForAuth()) return;
+    if (voiceListening) {
+      stopVoiceInput();
+      return;
+    }
+    startVoiceInput();
+  }
+
+  function startInputVoicePress() {
+    if (shouldBlockXiaowanziForAuth()) return;
+    if (voicePressTimerRef.current) return;
+    setVoiceHolding(true);
+    voicePressTimerRef.current = window.setTimeout(() => {
+      voicePressTimerRef.current = null;
+      setVoiceHolding(false);
+      startVoiceInput();
+    }, 450);
+  }
+
+  function endInputVoicePress() {
+    if (voicePressTimerRef.current) {
+      window.clearTimeout(voicePressTimerRef.current);
+      voicePressTimerRef.current = null;
+    }
+    setVoiceHolding(false);
+    if (voiceListening) stopVoiceInput();
+  }
+
+  function onImagePicked(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (shouldBlockXiaowanziForAuth()) return;
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setStatusText("● 请选择图片文件");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setUploadedImage({ name: file.name || "拍照上传图片", dataUrl: String(reader.result || "") });
+      setAttachmentMenuOpen(false);
+      setStatusText("● 图片已添加，可继续输入问题");
+      inputRef.current?.focus();
+    };
+    reader.onerror = () => setStatusText("● 图片读取失败，请重试");
+    reader.readAsDataURL(file);
+  }
+
+  function onFilePicked(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (shouldBlockXiaowanziForAuth()) return;
+    if (!file) return;
+    setUploadedImage({ name: file.name || "上传文件", dataUrl: "", kind: "file" });
+    setAttachmentMenuOpen(false);
+    setStatusText("● 文件已添加，可继续输入问题");
+    inputRef.current?.focus();
   }
 
   function onFabPointerDown(event: React.PointerEvent<HTMLButtonElement>) {
@@ -1040,6 +1936,7 @@ const XiaowanziWidget: React.FC = () => {
   }
 
   function onFabClick() {
+    if (shouldBlockXiaowanziForAuth()) return;
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
@@ -1052,20 +1949,6 @@ const XiaowanziWidget: React.FC = () => {
     }
     setAvatarState((value) => advanceAvatarState(value));
     setOpen((value) => !value);
-  }
-
-  function onPlusPointerDown() {
-    if (plusPressTimerRef.current) window.clearTimeout(plusPressTimerRef.current);
-    plusPressTimerRef.current = window.setTimeout(() => {
-      openHiddenEntry();
-    }, 560);
-  }
-
-  function onPlusPointerUp() {
-    if (plusPressTimerRef.current) {
-      window.clearTimeout(plusPressTimerRef.current);
-      plusPressTimerRef.current = null;
-    }
   }
 
   function onAvatarError(event: React.SyntheticEvent<HTMLImageElement>) {
@@ -1092,6 +1975,9 @@ const XiaowanziWidget: React.FC = () => {
       bottom: "auto",
     };
   }
+
+  const embeddedLayer = useXiaowanziEmbeddedLayer();
+  if (embeddedLayer) return null;
 
   return (
     <>
@@ -1141,10 +2027,11 @@ const XiaowanziWidget: React.FC = () => {
         .aip-gem #ai-panel-avatar-img{width:40px !important;height:40px !important;object-fit:contain !important;padding:4px !important;border-radius:10px !important;display:block !important}
         .aip-title{font-size:13.5px;font-weight:700;flex:1}
         .aip-status{font-size:10px;color:#059669;font-weight:600}
-        .aip-child-row{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px dashed rgba(108,39,214,.14);background:#f7f5ff}
-        .aip-child-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:#fff;border:1px solid rgba(108,39,214,.2);font-size:12px;font-weight:600;color:#4338ca}
-        .aip-child-switch{margin-left:auto;border:none;background:transparent;color:#6c27d6;font-size:12px;font-weight:700;cursor:pointer}
-        .aip-child-exit{border:none;background:transparent;color:#9ca3af;font-size:12px;cursor:pointer}
+        .aip-child-row{display:flex;align-items:center;gap:8px;padding:7px 14px;border-bottom:1px solid rgba(108,39,214,.08);background:rgba(250,248,255,.72)}
+        .aip-child-chip{display:inline-flex;align-items:center;gap:6px;padding:0;border:0;background:transparent;font-size:11px;font-weight:600;color:#8b93a7}
+        .aip-child-chip::before{content:"";width:6px;height:6px;border-radius:999px;background:#22c55e;box-shadow:0 0 0 2px rgba(34,197,94,.12)}
+        .aip-child-state{margin-left:auto;color:#a5adbd;font-size:11px;font-weight:600}
+        .aip-child-switch{margin-left:auto;border:none;background:transparent;color:#7c3aed;font-size:11px;font-weight:700;cursor:pointer;padding:2px 0}
         .aip-icon-btn{position:absolute;top:50%;transform:translateY(-50%);width:34px !important;height:34px !important;border:none;border-radius:50% !important;background:rgba(108,39,214,.045);color:#6b7280;font-family:'Material Symbols Rounded';font-size:16px;cursor:pointer;transition:all .12s;display:flex;align-items:center;justify-content:center}
         .aip-pin{right:92px}
         .aip-theme{right:132px}
@@ -1159,12 +2046,12 @@ const XiaowanziWidget: React.FC = () => {
         .aip-msg{max-width:88%;font-size:13px;line-height:1.6;padding:10px 13px;border-radius:12px;word-break:break-word;white-space:pre-wrap}
         .aip-msg.ai{background:#fff;color:#1f2937;border:1px solid rgba(108,39,214,.1);border-radius:8px 14px 14px 14px;align-self:flex-start;box-shadow:0 3px 10px rgba(15,23,42,.06)}
         .aip-msg.user{background:linear-gradient(135deg,#6c27d6 0%,#7f37ea 100%);color:#fff;border-radius:14px 8px 14px 14px;align-self:flex-end;box-shadow:0 8px 16px rgba(108,39,214,.2)}
-        .aip-empty{margin-top:auto;padding:8px 8px 16px}
-        .aip-empty-title{font-size:28px;line-height:1.18;font-weight:800;color:#1f2937;letter-spacing:-.02em}
-        .aip-empty-sub{font-size:16px;line-height:1.28;font-weight:700;color:#4b5563;margin-top:2px}
-        .aip-empty-suggests{display:flex;flex-direction:column;align-items:flex-start;gap:10px;margin-top:18px}
-        .aip-empty-btn{display:inline-flex;align-items:center;width:auto;max-width:100%;height:40px;padding:0 14px;border:none;border-radius:999px;text-align:left;background:#eef0f6;color:#2f3848;font-size:15px;font-weight:600}
-        .aip-empty-btn:hover{background:#e2e6f2}
+        .aip-empty{margin-top:clamp(12px,8vh,96px);padding:8px 8px 18px}
+        .aip-empty-title{font-size:clamp(1.35rem,6vw,1.75rem);line-height:1.18;font-weight:800;color:#1f2937;letter-spacing:-.02em}
+        .aip-empty-sub{font-size:clamp(.95rem,3.8vw,1.05rem);line-height:1.35;font-weight:700;color:#4b5563;margin-top:2px}
+        .aip-empty-suggests{display:flex;flex-direction:column;align-items:flex-start;gap:9px;margin-top:16px;width:100%}
+        .aip-empty-btn{display:inline-flex;align-items:center;width:auto;max-width:100%;min-height:38px;padding:8px 14px;border:1px solid rgba(108,39,214,.08);border-radius:999px;text-align:left;background:linear-gradient(180deg,#f3f0ff 0%,#eceff8 100%);color:#253046;font-size:clamp(.86rem,3.4vw,.95rem);line-height:1.28;font-weight:700;box-shadow:0 8px 18px rgba(31,41,55,.06)}
+        .aip-empty-btn:hover{background:linear-gradient(180deg,#ede7ff 0%,#e5e8f4 100%);border-color:rgba(108,39,214,.16)}
         .aip-shortcuts{display:flex;align-items:flex-end;gap:8px;padding:8px 12px;border-top:1px solid rgba(108,39,214,.1);flex-shrink:0;background:#fff}
         .aip-shortcuts-list{display:flex;flex-wrap:wrap;gap:5px;flex:1;min-width:0}
         .aip-shortcuts-actions{margin-left:auto;display:none;align-items:center;gap:6px;flex-shrink:0}
@@ -1181,6 +2068,12 @@ const XiaowanziWidget: React.FC = () => {
         .aip-history-card-title{font-size:11px;font-weight:600;color:#374151;line-height:1.35}
         .aip-history-card-sub{margin-top:3px;font-size:10px;color:#94a3b8}
         .aip-history-card-tag{margin-top:3px;font-size:10px;color:#4f46e5}
+        .aip-history-panel.home{position:fixed;right:24px;top:92px;bottom:auto;width:min(330px,calc(100vw - 48px));max-height:62vh;border-radius:22px;box-shadow:0 22px 54px rgba(51,45,118,.2)}
+        .aip-history-panel.home .aip-history-head{padding:14px 16px;font-size:16px}
+        .aip-history-panel.home .aip-history-list{max-height:calc(62vh - 54px);padding:12px}
+        .aip-history-panel.home .aip-history-card{border-radius:16px;padding:13px 14px;margin-bottom:10px}
+        .aip-history-panel.home .aip-history-card-title{font-size:14px;font-weight:900;color:#1f254b}
+        .aip-history-panel.home .aip-history-card-sub,.aip-history-panel.home .aip-history-card-tag{font-size:12px}
         .aip-sc{padding:4px 10px;border:1px solid rgba(108,39,214,.12);border-radius:20px;font-size:11px;background:#faf7ff;color:#6b7280;cursor:pointer;transition:all .1s;white-space:nowrap}
         .aip-sc:hover{border-color:#6c27d6;color:#6c27d6;background:rgba(108,39,214,.08)}
         .aip-input-row{display:flex;align-items:center;gap:8px;padding:10px 12px 12px;border-top:1px solid rgba(108,39,214,.1);flex-shrink:0;background:#fff}
@@ -1241,15 +2134,322 @@ const XiaowanziWidget: React.FC = () => {
         .aip-child-card-tag{font-size:11px;color:#6b7280}
         .aip-child-card-btn{border:none;border-radius:999px;background:linear-gradient(135deg,#6c27d6 0%,#7f37ea 100%);color:#fff;padding:7px 14px;font-size:12px;font-weight:700;box-shadow:0 8px 16px rgba(108,39,214,.2)}
         .aip-child-card-btn:disabled{opacity:.55;box-shadow:none}
-        .aip-form-row{margin-bottom:9px}
-        .aip-form-label{font-size:12px;color:#6b7280;margin-bottom:5px}
-        .aip-form-input{width:100%;height:40px;border:1px solid #d7dcf2;border-radius:10px;padding:0 10px;background:#fff;color:#1f2937}
-        .aip-tag-grid{display:flex;flex-wrap:wrap;gap:8px}
-        .aip-tag-btn{border:1px solid #d7dcf2;background:#fff;color:#475569;border-radius:999px;padding:6px 10px;font-size:12px}
-        .aip-tag-btn.on{border-color:#5f53ff;color:#4338ca;background:#ecebff}
+        .aip-form-row{margin-bottom:10px}
+        .aip-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+        .aip-form-label{font-size:12px;color:#445066;font-weight:800;margin-bottom:6px}
+        .aip-form-input{width:100%;height:42px;border:1px solid rgba(17,20,59,.1);border-radius:14px;padding:0 12px;background:#f8fafc;color:#11143b;font-size:13px;font-weight:700;outline:none}
+        .aip-form-input:focus{border-color:rgba(111,92,246,.55);background:#fff}
+        .aip-tag-grid{display:flex;flex-wrap:wrap;gap:7px}
+        .aip-tag-btn{min-height:32px;border:1px solid rgba(17,20,59,.08);background:#f4f6fb;color:#697189;border-radius:999px;padding:0 12px;font-size:12px;font-weight:800}
+        .aip-tag-btn.on{border-color:#7c4dff;color:#6c27d6;background:#efe8ff}
+        .aip-profile-select{position:relative;width:100%}
+        .aip-profile-select-trigger{width:100%;height:42px;display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid rgba(17,20,59,.1);border-radius:14px;background:#f8fafc;padding:0 11px 0 12px;color:#11143b;font-size:13px;font-weight:800;text-align:left;outline:none}
+        .aip-profile-select-trigger.placeholder{color:#8b93a7}
+        .aip-profile-select-trigger .ms{font-family:'Material Symbols Rounded';font-size:20px;font-weight:400;color:#64748b;transition:transform .16s ease}
+        .aip-profile-select.open .aip-profile-select-trigger{border-color:rgba(124,77,255,.62);background:#fff;box-shadow:0 0 0 3px rgba(124,77,255,.08)}
+        .aip-profile-select.open .aip-profile-select-trigger .ms{transform:rotate(180deg);color:#6c27d6}
+        .aip-profile-select-menu{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:2;max-height:218px;overflow:auto;border:1px solid rgba(124,77,255,.16);border-radius:16px;background:rgba(255,255,255,.98);box-shadow:0 18px 34px rgba(31,20,71,.14);padding:6px;scrollbar-width:none}
+        .aip-profile-select-menu::-webkit-scrollbar{display:none}
+        .aip-profile-select-option{width:100%;min-height:38px;display:flex;align-items:center;justify-content:space-between;gap:8px;border:0;border-radius:12px;background:transparent;padding:0 10px;color:#11143b;font-size:13px;font-weight:800;text-align:left}
+        .aip-profile-select-option.on{background:#efe8ff;color:#6c27d6}
+        .aip-profile-select-option .ms{font-family:'Material Symbols Rounded';font-size:18px;font-weight:400}
+        .xw-home{--xw-home-x:0px;position:fixed;inset:0;z-index:8050;background:radial-gradient(circle at 74% 2%,rgba(255,228,236,.9) 0,rgba(255,228,236,0) 34%),radial-gradient(circle at 16% 10%,rgba(211,218,255,.92) 0,rgba(211,218,255,0) 40%),linear-gradient(180deg,#f2f1ff 0%,#e9edff 100%);color:#11143b;display:flex;flex-direction:column;overflow:hidden;transform-origin:50% 100%;animation:xwRealmEnter .86s cubic-bezier(.18,.92,.2,1) both;will-change:transform,opacity,filter}
+        .xw-home::before{content:"";position:absolute;left:50%;bottom:-110px;width:260px;height:260px;border-radius:999px;background:conic-gradient(from 20deg,rgba(124,92,255,0),rgba(124,92,255,.92),rgba(89,201,255,.8),rgba(255,156,220,.76),rgba(124,92,255,0));transform:translateX(-50%) scale(.18);filter:blur(3px);opacity:0;mix-blend-mode:screen;pointer-events:none;animation:xwPortalBurst .9s ease-out both}
+        .xw-home::after{content:"";position:absolute;inset:-12% -36%;background:linear-gradient(105deg,transparent 12%,rgba(255,255,255,0) 34%,rgba(255,255,255,.86) 48%,rgba(190,203,255,.42) 54%,rgba(255,255,255,0) 66%,transparent 100%);transform:translateX(-68%) skewX(-14deg);opacity:0;pointer-events:none;animation:xwPageSweep .72s .08s ease-out both}
+        .xw-home-top,.xw-home-scroll,.xw-home-inputbar{animation:xwRealmContent .46s .34s ease-out both}
+        .xw-home-scroll{animation-delay:.42s}
+        .xw-home-inputbar{animation-delay:.5s}
+        .xw-home.no-intro,.xw-home.no-intro::before,.xw-home.no-intro::after,.xw-home.no-intro .xw-home-top,.xw-home.no-intro .xw-home-scroll,.xw-home.no-intro .xw-home-inputbar,.xw-home.no-intro .xw-home-brand-avatar,.xw-home.no-intro .xw-home-hello,.xw-home.no-intro .xw-home-hello-star,.xw-home.no-intro .xw-home-greet strong{animation:none!important;opacity:1!important;filter:none!important;clip-path:none!important}
+        .xw-home.no-intro{transform:translateX(var(--xw-home-x))!important}
+        .xw-home.no-intro::before,.xw-home.no-intro::after{display:none!important}
+        .xw-home.no-intro .xw-home-top,.xw-home.no-intro .xw-home-scroll,.xw-home.no-intro .xw-home-inputbar{transform:none!important}
+        @keyframes xwRealmEnter{0%{opacity:0;transform:translateX(var(--xw-home-x)) perspective(900px) translateY(74px) rotateX(68deg) rotateY(-7deg) scale(.58);filter:blur(18px) saturate(1.45) brightness(1.18)}28%{opacity:1;transform:translateX(var(--xw-home-x)) perspective(900px) translateY(-18px) rotateX(-10deg) rotateY(3deg) scale(1.045);filter:blur(4px) saturate(1.2) brightness(1.08)}62%{transform:translateX(var(--xw-home-x)) perspective(900px) translateY(5px) rotateX(3deg) rotateY(0) scale(.995);filter:blur(0) saturate(1.05)}100%{opacity:1;transform:translateX(var(--xw-home-x)) perspective(900px) translateY(0) rotateX(0) rotateY(0) scale(1);filter:none}}
+        @keyframes xwPortalBurst{0%{opacity:0;transform:translateX(-50%) scale(.12) rotate(0deg)}18%{opacity:.95}72%{opacity:.58;transform:translateX(-50%) scale(2.2) rotate(168deg)}100%{opacity:0;transform:translateX(-50%) scale(3.05) rotate(240deg)}}
+        @keyframes xwPageSweep{0%{opacity:0;transform:translateX(-70%) skewX(-16deg)}22%{opacity:1}100%{opacity:0;transform:translateX(74%) skewX(-16deg)}}
+        @keyframes xwRealmContent{from{opacity:0;transform:translateY(18px) scale(.985);filter:blur(8px)}to{opacity:1;transform:none;filter:none}}
+        @keyframes xwBrandAvatarSwap{0%{opacity:0;transform:translate(-7px,1px) scale(.72) rotate(-10deg);filter:blur(5px) drop-shadow(0 5px 10px rgba(92,75,190,.14))}58%{opacity:1;transform:translate(1px,1px) scale(1.12) rotate(4deg);filter:blur(0) drop-shadow(0 7px 14px rgba(92,75,190,.2))}100%{opacity:1;transform:translate(-4px,1px) scale(1) rotate(0);filter:drop-shadow(0 5px 10px rgba(92,75,190,.14))}}
+        @keyframes xwHomeHelloIn{0%{opacity:0;transform:translateY(10px) scale(.94);filter:blur(7px)}70%{opacity:1;transform:translateY(-2px) scale(1.03);filter:blur(0)}100%{opacity:1;transform:none;filter:none}}
+        @keyframes xwHomeTitleReveal{from{clip-path:inset(0 100% 0 0);filter:blur(3px)}to{clip-path:inset(0 0 0 0);filter:none}}
+        @keyframes xwHomeStarPop{0%{opacity:0;transform:scale(.45) rotate(-24deg);filter:blur(4px) drop-shadow(0 7px 12px rgba(92,75,190,.16))}58%{opacity:1;transform:scale(1.18) rotate(8deg);filter:blur(0) drop-shadow(0 9px 15px rgba(92,75,190,.2))}100%{opacity:1;transform:scale(1) rotate(0);filter:drop-shadow(0 7px 12px rgba(92,75,190,.16))}}
+        @keyframes xwHomeStarTwinkle{0%,100%{transform:scale(1);box-shadow:0 0 0 rgba(124,77,255,0)}50%{transform:scale(1.08);box-shadow:0 0 18px rgba(124,77,255,.22)}}
+        .xw-home-top{position:relative;z-index:30;height:56px;padding:env(safe-area-inset-top) 24px 0;display:flex;align-items:center;gap:7px;flex-shrink:0;background:transparent!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+        .xw-home-icon{border:0;background:transparent;color:rgba(17,20,59,.78);box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+        .xw-home-menu{width:38px;height:32px;border:0;background:transparent;box-shadow:none;color:rgba(17,20,59,.82);font-family:'Material Symbols Rounded';font-size:24px;font-weight:300;display:flex;align-items:center;justify-content:center;padding:0;opacity:.9}
+        .xw-home-brand-avatar{width:32px;height:32px;object-fit:contain;display:block;filter:drop-shadow(0 5px 10px rgba(92,75,190,.14));transform:translate(-4px,1px);animation:xwBrandAvatarSwap .38s cubic-bezier(.2,.9,.22,1) both}
+        .xw-home-spacer{flex:1}
+        .xw-home-icon{width:38px;height:32px;border-radius:999px;font-family:'Material Symbols Rounded';font-size:24px;font-weight:300;display:flex;align-items:center;justify-content:center}
+        .xw-home-agent-entry{height:38px;border:0;border-radius:999px;background:rgba(91,72,255,.06);box-shadow:none;border:1px solid rgba(124,77,255,.22);color:#4f5878;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 12px 0 9px;font-size:14px;font-weight:750;white-space:nowrap}
+        .xw-home-agent-entry-icon{width:29px;height:29px;border-radius:999px;display:block;object-fit:contain;filter:drop-shadow(0 5px 10px rgba(92,75,190,.24));transform:translateY(-1px)}
+        .xw-home-more-wrap{position:relative;z-index:40}
+        .xw-home-history-mask{position:fixed;inset:0;z-index:8072;background:rgba(15,23,42,.46);display:flex;justify-content:flex-start;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);animation:xwHistoryMaskIn .2s cubic-bezier(.2,.9,.22,1) both}
+        .xw-home-history-drawer{position:relative;display:flex;flex-direction:column;width:min(360px,84vw);height:100dvh;box-sizing:border-box;background:#f7f7fb;box-shadow:18px 0 45px rgba(15,23,42,.2);padding:calc(20px + env(safe-area-inset-top)) 18px max(24px,calc(18px + env(safe-area-inset-bottom)));overflow:hidden;animation:xwHistoryDrawerIn .2s cubic-bezier(.2,.9,.22,1) both}
+        .xw-home-history-drawer-head{height:46px;display:flex;align-items:center;justify-content:center;margin-bottom:18px}
+        .xw-home-history-exit{width:46px;height:46px;border:0;border-radius:0;background:transparent;color:#5b48ff;font-family:'Material Symbols Rounded';font-size:25px;display:flex;align-items:center;justify-content:center;padding:0;box-shadow:none}
+        .xw-home-history-exit-dock{position:absolute;right:18px;bottom:calc(22px + env(safe-area-inset-bottom));z-index:2}
+        .xw-home-history-new{height:42px;width:min(280px,100%);min-width:0;border:0;border-radius:999px;background:#ededf0;color:#303445;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 14px;font-size:15px;font-weight:900;white-space:nowrap}
+        .xw-home-history-new .ms{font-family:'Material Symbols Rounded';font-size:22px;font-weight:300;color:#11143b}
+        .xw-home-history-drawer-title{display:block;margin:0 0 16px 6px;font-size:22px;font-weight:1000;color:#11143b}
+        .xw-home-history-list{display:flex;flex:1;min-height:0;flex-direction:column;gap:10px;overflow:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:62px}
+        .xw-home-history-list::-webkit-scrollbar{display:none}
+        .xw-home-history-list .aip-history-card{margin-bottom:0;background:#fff;border-color:rgba(124,77,255,.12);border-radius:16px;padding:13px 14px}
+        .xw-home-history-list .aip-history-card-title{font-size:14px;font-weight:900;color:#1f254b}
+        .xw-home-history-list .aip-history-card-sub,.xw-home-history-list .aip-history-card-tag{font-size:12px}
+        .xw-home-history-list .aip-history-empty{padding:24px 8px;text-align:center}
+        @keyframes xwHistoryMaskIn{from{opacity:0}to{opacity:1}}
+        @keyframes xwHistoryDrawerIn{from{opacity:.72;transform:translateX(-100%)}to{opacity:1;transform:none}}
+        @keyframes xwMoreIn{from{opacity:0;transform:translateY(-6px) scale(.96)}to{opacity:1;transform:none}}
+        .xw-home-scroll{position:relative;z-index:1;flex:1;min-height:0;overflow:auto;padding:6px 30px 142px;-webkit-overflow-scrolling:touch}
+        .xw-home-hero{position:relative;min-height:168px;display:grid;grid-template-columns:132px 1fr;align-items:center;gap:20px;margin:2px 0 8px}
+        .xw-home-avatar-wrap{position:relative;width:132px;height:132px;filter:drop-shadow(0 16px 24px rgba(92,75,190,.2))}
+        .xw-home-avatar{width:132px;height:132px;object-fit:contain;display:block}
+        .xw-home-greet{font-size:24px;font-weight:1000;line-height:1.2;color:#1a1b49;letter-spacing:0}
+        .xw-home-hello{display:flex;align-items:center;gap:8px;width:max-content;max-width:100%;margin-bottom:8px;color:#151842;font-size:24px;font-weight:1000;letter-spacing:0;animation:xwHomeHelloIn .38s .58s cubic-bezier(.2,.9,.22,1) both}
+        .xw-home-hello-star{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:999px;background:rgba(255,255,255,.78);color:#7c4dff;font-size:19px;filter:drop-shadow(0 7px 12px rgba(92,75,190,.16));animation:xwHomeStarPop .48s .74s cubic-bezier(.18,.92,.2,1) both,xwHomeStarTwinkle 1.8s 1.35s ease-in-out infinite}
+        .xw-home-greet strong{display:block;color:#4f46e5;font-size:27px;margin-top:0;white-space:normal;max-width:100%;clip-path:inset(0 100% 0 0);animation:xwHomeTitleReveal .9s .86s steps(13,end) both}
+        .xw-home-card{border:1px solid rgba(255,255,255,.86);background:rgba(255,255,255,.54);box-shadow:0 18px 38px rgba(70,73,132,.08);border-radius:30px;padding:22px 20px;margin:0 0 18px;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+        .xw-home-card-title{display:flex;align-items:center;gap:10px;font-size:21px;font-weight:1000;margin-bottom:16px}
+        .xw-home-card-title::before{content:"";width:7px;height:28px;border-radius:999px;background:linear-gradient(180deg,#7c5cff,#6f8cff)}
+        .xw-home-card-title-text{flex:1}
+        .xw-home-list{display:flex;flex-direction:column;gap:14px}
+        .xw-home-question{width:100%;min-height:68px;border:0;border-radius:22px;background:rgba(255,255,255,.94);display:grid;grid-template-columns:38px 1fr 26px;align-items:center;gap:12px;padding:0 15px;text-align:left;color:#11143b;box-shadow:0 8px 18px rgba(72,75,132,.06);font-size:16px;font-weight:900}
+        .xw-home-question b{width:38px;height:38px;background:transparent;color:#6c27d6;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:none}
+        .xw-home-question .ms{font-family:'Material Symbols Rounded';font-size:22px;color:#b8bfd9}
+        .xw-home-answer-list{display:flex;flex-direction:column;gap:12px;margin-top:16px}
+        .xw-home-msg{max-width:92%;border-radius:20px;padding:14px 16px;font-size:15px;font-weight:750;line-height:1.65;white-space:pre-wrap;word-break:break-word}
+        .xw-home-msg.ai{align-self:flex-start;background:rgba(255,255,255,.9);border:1px solid rgba(122,103,238,.1);box-shadow:0 8px 18px rgba(72,75,132,.06)}
+        .xw-home-msg.user{align-self:flex-end;background:linear-gradient(135deg,#6257f6,#7b4cff);color:#fff;box-shadow:0 12px 24px rgba(98,87,246,.22)}
+        .xw-home-history-chat{display:flex;flex-direction:column;gap:12px;padding-top:14px}
+        .xw-home-history-chat .xw-home-msg{max-width:86%}
+        .xw-home-optional{display:flex;align-items:center;justify-content:center;gap:8px;color:#7d86a5;font-size:13px;font-weight:850;margin:0 0 18px;padding:0 2px;text-align:center}
+        .xw-home-optional button{min-height:32px;border:0;border-radius:0;background:transparent;box-shadow:none;color:#5b48ff;font-weight:950;padding:0 2px}
+        .xw-home-inputbar{position:fixed;left:30px;right:30px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:8063;display:flex;align-items:center;gap:10px;transition:bottom .2s cubic-bezier(.2,.9,.22,1)}
+        .xw-home-inputbar.menu-open{bottom:calc(150px + env(safe-area-inset-bottom))}
+        .xw-home-inputbar.menu-open::before{content:"";position:absolute;left:-24px;right:-24px;top:32px;height:106px;z-index:-1;border-radius:999px;background:radial-gradient(ellipse at center,rgba(91,72,255,.36) 0%,rgba(148,163,255,.28) 44%,rgba(232,236,255,0) 80%);filter:blur(24px);pointer-events:none}
+        .xw-home-inputbar.menu-open::after{content:"";position:fixed;left:0;right:0;bottom:0;height:calc(168px + env(safe-area-inset-bottom));z-index:-2;background:linear-gradient(180deg,rgba(232,236,255,0) 0%,rgba(232,236,255,.88) 34%,rgba(232,236,255,.98) 64%,#e8ecff 100%);pointer-events:none}
+        .xw-home-browser-backdrop{position:fixed;inset:0;z-index:8066;background:rgba(18,22,52,.26);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);animation:xwBrowserIn .18s ease-out both}
+        .xw-home-browser{position:fixed;left:10px;right:10px;top:calc(10px + env(safe-area-inset-top));bottom:calc(10px + env(safe-area-inset-bottom));z-index:8067;border-radius:28px;background:#fff;box-shadow:0 28px 70px rgba(26,28,82,.28);overflow:hidden;display:flex;flex-direction:column;animation:xwBrowserIn .2s cubic-bezier(.2,.9,.22,1) both}
+        .xw-home-browser-head{height:52px;flex:0 0 52px;display:grid;grid-template-columns:56px 1fr 56px;align-items:center;border-bottom:1px solid rgba(15,23,42,.08);background:rgba(255,255,255,.96);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+        .xw-home-browser-close{width:40px;height:40px;margin-left:8px;border:0;border-radius:999px;background:#f3f4fb;color:#11143b;font-family:'Material Symbols Rounded';font-size:22px;display:flex;align-items:center;justify-content:center}
+        .xw-home-browser-title{text-align:center;color:#11143b;font-size:15px;font-weight:950;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .xw-home-browser-mark{width:28px;height:28px;margin-right:14px;justify-self:end;object-fit:contain}
+        .xw-home-browser iframe{width:100%;height:100%;border:0;display:block;background:#fff;flex:1}
+        @keyframes xwBrowserIn{from{opacity:0;transform:translateY(18px) scale(.985)}to{opacity:1;transform:none}}
+        .xw-home-plus{width:52px;height:52px;flex:0 0 52px;border:0;border-radius:999px;background:rgba(255,255,255,.94);color:#11143b;font-family:'Material Symbols Rounded';font-size:29px;line-height:1;box-shadow:0 10px 26px rgba(70,73,132,.1);display:flex;align-items:center;justify-content:center;padding:0}
+        .xw-home-plus.on{background:#fff;color:#5b48ff;box-shadow:0 14px 30px rgba(91,72,255,.18)}
+        .xw-home-input-shell{position:relative;flex:1;min-width:0;display:flex;align-items:center}
+        .xw-home-input-shell.voice-active .xw-home-input{box-shadow:0 0 0 3px rgba(91,72,255,.14),0 12px 30px rgba(91,72,255,.18);transform:scale(1.012)}
+        .xw-home-input{width:100%;height:58px;min-height:58px;max-height:104px;resize:none;border:0;border-radius:999px;background:rgba(255,255,255,.96);box-shadow:0 10px 26px rgba(70,73,132,.12);padding:0 56px 0 60px;color:#11143b;font-size:15px;font-weight:760;line-height:58px;outline:0;overflow:hidden;transition:box-shadow .18s ease,transform .18s ease}
+        .xw-home-inputbar.menu-open .xw-home-input{box-shadow:0 18px 38px rgba(70,73,132,.2),0 28px 58px rgba(91,72,255,.18)}
+        .xw-home-inputbar.menu-open .xw-home-plus.on{box-shadow:0 20px 42px rgba(91,72,255,.24),0 28px 58px rgba(70,73,132,.16)}
+        .xw-home-input::placeholder{color:#a6aec4}
+        .xw-home-voice-cue{position:absolute;left:7px;top:50%;transform:translateY(-50%);width:44px;height:44px;border:0;border-radius:999px;background:#fff;color:#11143b;font-family:'Material Symbols Rounded';font-size:25px;line-height:1;box-shadow:0 5px 14px rgba(70,73,132,.08);display:flex;align-items:center;justify-content:center;padding:0;z-index:2}
+        .xw-home-voice-cue.listening{color:#fff;background:linear-gradient(135deg,#5b48ff,#7a45f4);animation:xwVoicePulse .8s ease-in-out infinite}
+        .xw-home-voice-cue.arming{color:#5b48ff;background:#f2efff}
+        @keyframes xwVoicePulse{0%,100%{transform:translateY(-50%) scale(1)}50%{transform:translateY(-50%) scale(1.08)}}
+        .xw-home-send{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:46px;height:46px;border:0;border-radius:999px;background:linear-gradient(135deg,#5b48ff,#7a45f4);color:#fff;font-family:'Material Symbols Rounded';font-size:22px;line-height:1;box-shadow:0 8px 18px rgba(91,72,255,.25);display:flex;align-items:center;justify-content:center;padding:0}
+        .xw-home-send:disabled{opacity:.42}
+        .xw-home-attachment{position:absolute;left:8px;right:8px;bottom:66px;display:flex;align-items:center;gap:8px;min-height:42px;border-radius:18px;background:rgba(255,255,255,.96);box-shadow:0 10px 24px rgba(70,73,132,.12);padding:6px 10px;color:#6b7280;font-size:12px;font-weight:800}
+        .xw-home-attachment img{width:30px;height:30px;border-radius:10px;object-fit:cover}
+        .xw-home-attachment-file{width:30px;height:30px;border-radius:10px;background:#f1efff;color:#1b1464;font-family:'Material Symbols Rounded';font-size:19px;display:flex;align-items:center;justify-content:center}
+        .xw-home-attachment button{margin-left:auto;border:0;background:transparent;color:#94a3b8;font-family:'Material Symbols Rounded';font-size:18px}
+        .xw-home-attach-menu{position:fixed;left:30px;right:30px;bottom:calc(24px + env(safe-area-inset-bottom));z-index:8064;display:grid;grid-template-columns:repeat(3,1fr);gap:18px;animation:xwAttachIn .18s cubic-bezier(.2,.9,.22,1) both}
+        .xw-home-attach-action{border:0;background:transparent;color:#11143b;font-size:13px;font-weight:850;display:flex;flex-direction:column;align-items:center;gap:8px;padding:0;white-space:nowrap}
+        .xw-home-attach-action .ms{width:62px;height:62px;border-radius:22px;background:rgba(255,255,255,.92);box-shadow:0 10px 24px rgba(70,73,132,.1);font-family:'Material Symbols Rounded';font-size:30px;color:#10085f;display:flex;align-items:center;justify-content:center}
+        @keyframes xwAttachIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+        @media (min-width:769px){.xw-home{--xw-home-x:-50%;left:50%;right:auto;width:min(430px,100vw)}.xw-home-inputbar{left:calc(50% - min(430px,100vw)/2 + 24px);right:calc(50% - min(430px,100vw)/2 + 24px)}.xw-home-attach-menu{left:calc(50% - min(430px,100vw)/2 + 24px);right:calc(50% - min(430px,100vw)/2 + 24px)}}
+        @media (max-width:380px){.xw-home-scroll{padding-left:22px;padding-right:22px}.xw-home-hero{grid-template-columns:112px 1fr}.xw-home-avatar-wrap,.xw-home-avatar{width:112px;height:112px}.xw-home-greet{font-size:24px}.xw-home-hello{font-size:24px;margin-bottom:7px}.xw-home-hello-star{width:25px;height:25px;font-size:17px}.xw-home-greet strong{font-size:27px}.xw-home-inputbar{left:22px;right:22px}.xw-home-attach-menu{left:22px;right:22px;gap:12px}.xw-home-attach-action .ms{width:58px;height:58px}}
+        @media (prefers-reduced-motion:reduce){.xw-home,.xw-home::before,.xw-home::after,.xw-home-top,.xw-home-scroll,.xw-home-inputbar,.xw-home-hello,.xw-home-hello-star,.xw-home-greet strong{animation:none!important;opacity:1!important;filter:none!important;clip-path:none!important}.xw-home{transform:translateX(var(--xw-home-x))!important}.xw-home-top,.xw-home-scroll,.xw-home-inputbar{transform:none!important}}
       `}</style>
       <div className={`ai-panel-backdrop${open && maximized ? " show" : ""}`} onClick={() => setMaximized(false)} />
-      {open ? (
+      {open && homeActive ? (
+        <div key={`xw-home-${homePortalKey}`} className={`xw-home${skipHomeIntroOnMount ? " no-intro" : ""}`}>
+          <div className="xw-home-top">
+            <button
+              className="xw-home-menu"
+              type="button"
+              aria-label="历史记录"
+              onClick={() => void openHomeHistoryMenu()}
+            >
+              menu
+            </button>
+            <img key={displayAvatar} className="xw-home-brand-avatar" src={displayAvatar} alt="小玩子" draggable={false} loading="eager" decoding="async" fetchPriority="high" onError={onAvatarError} />
+            <div className="xw-home-spacer" />
+            <button
+              className="xw-home-agent-entry"
+              type="button"
+              onClick={() => {
+                if (shouldBlockXiaowanziForAuth()) return;
+                setHomeBrowsingOpen(false);
+                setHomeBrowseTarget(null);
+                try {
+                  sessionStorage.setItem(RETURN_TO_HOME_KEY, "1");
+                } catch (_error) {}
+                window.location.href = "/experts?xw_layer=1&xw_return=xiaowanzi";
+              }}
+            >
+              <img className="xw-home-agent-entry-icon" src="/assets/xianfeng-round-logo.webp" alt="" aria-hidden="true" draggable={false} loading="eager" decoding="async" />
+              <span>先疯智库</span>
+            </button>
+            {!standalone ? <div className="xw-home-more-wrap">
+              <button
+                className="xw-home-icon"
+                type="button"
+                aria-label="更多"
+                onClick={() => {
+                  setHomeHistoryDrawerOpen(false);
+                  document.dispatchEvent(new CustomEvent("xf-open-public-menu"));
+                }}
+              >
+                more_vert
+              </button>
+            </div> : null}
+          </div>
+          {homeHistoryDrawerOpen ? (
+            <div className="xw-home-history-mask" onClick={() => setHomeHistoryDrawerOpen(false)}>
+                <div className="xw-home-history-drawer" onClick={(event) => event.stopPropagation()}>
+                <div className="xw-home-history-drawer-head">
+                  <button className="xw-home-history-new" type="button" onClick={openManualNewConversation}>
+                    <span className="ms">add</span>
+                    <span>新对话</span>
+                  </button>
+                </div>
+                <span className="xw-home-history-drawer-title">历史会话</span>
+                <div className="xw-home-history-list">
+                  {buildHistoryCards(messages).length ? (
+                    buildHistoryCards(messages).map((card) => (
+                      <button key={card.id} className="aip-history-card" type="button" onClick={() => openHistoryCard(card)}>
+                        <div className="aip-history-card-title">{card.title}</div>
+                        <div className="aip-history-card-sub">{card.sub}</div>
+                        {card.childTag ? <div className="aip-history-card-tag">{card.childTag}</div> : null}
+                      </button>
+                    ))
+                  ) : (
+                    <div className="aip-history-empty">暂无历史存档</div>
+                  )}
+                </div>
+                <button
+                  className="xw-home-history-exit xw-home-history-exit-dock"
+                  type="button"
+                  aria-label="退出小玩子超能模式"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    closePanel();
+                  }}
+                >
+                  logout
+                </button>
+              </div>
+            </div>
+          ) : null}
+          <div className="xw-home-scroll" ref={msgContainerRef}>
+            {homeViewingHistory ? (
+              <div className="xw-home-history-chat">
+                {visibleMessages.filter((message) => !isReadReceiptMessage(message.content)).map((message, idx) => (
+                  <div key={`history-${idx}-${message.ts || ""}`} className={`xw-home-msg ${message.role === "assistant" ? "ai" : "user"}`}>
+                    {renderDisplayMessage(message)}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <>
+                <div className="xw-home-hero">
+                  <div className="xw-home-avatar-wrap" aria-hidden="true">
+                    <img className="xw-home-avatar" src="/assets/wel-avatar/optimized/no-hat.webp" alt="" draggable={false} loading="eager" decoding="async" fetchPriority="high" />
+                  </div>
+                  <div className="xw-home-greet">
+                    <div className="xw-home-hello">哈喽 <span className="xw-home-hello-star" aria-hidden="true">✦</span></div>
+                    <strong>想聊什么，直接问小玩子</strong>
+                  </div>
+                </div>
+                <div className="xw-home-card">
+                  <div className="xw-home-card-title">
+                    <span className="xw-home-card-title-text">可以这样问</span>
+                  </div>
+                  <div className="xw-home-list">
+                    {effectiveHomePrompts.map((item) => (
+                      <button key={item.prompt} className="xw-home-question" type="button" onClick={() => void sendMessage(item.prompt)}>
+                        <b>#</b>
+                        <span>{item.label}</span>
+                        <span className="ms">arrow_forward</span>
+                      </button>
+                    ))}
+                  </div>
+                  {visibleMessages.length ? (
+                    <div className="xw-home-answer-list">
+                      {visibleMessages.filter((message) => !isReadReceiptMessage(message.content)).slice(-6).map((message, idx) => (
+                        <div key={`home-${idx}-${message.ts || ""}`} className={`xw-home-msg ${message.role === "assistant" ? "ai" : "user"}`}>
+                          {renderDisplayMessage(message)}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="xw-home-optional">
+                  <span>{isChildBound && activeChild ? `已关联 ${activeChild.displayName} 档案，可获得更贴合的建议` : "可选：关联孩子档案后，回答会更个性化"}</span>
+                  <button type="button" onClick={() => { if (shouldBlockXiaowanziForAuth()) return; setHiddenEntryOpen(true); }}>{isChildBound ? "切换" : "关联"}</button>
+                </div>
+              </>
+            )}
+          </div>
+          <div className={`xw-home-inputbar${attachmentMenuOpen ? " menu-open" : ""}`} ref={homeInputbarRef}>
+            <div className={`xw-home-input-shell${voiceListening || voiceHolding ? " voice-active" : ""}`}>
+              {uploadedImage ? (
+                <div className="xw-home-attachment">
+                  {uploadedImage.kind === "file" ? <span className="xw-home-attachment-file">description</span> : <img src={uploadedImage.dataUrl} alt="已上传图片" />}
+                  <span>{uploadedImage.name}</span>
+                  <button type="button" aria-label="移除图片" onClick={() => setUploadedImage(null)}>close</button>
+                </div>
+              ) : null}
+              <button
+                className={`xw-home-voice-cue${voiceListening ? " listening" : voiceHolding ? " arming" : ""}`}
+                type="button"
+                aria-label="长按输入框语音输入"
+                onClick={toggleVoiceInput}
+              >
+                {voiceListening ? "graphic_eq" : "record_voice_over"}
+              </button>
+              <textarea
+                ref={inputRef}
+                className="xw-home-input"
+                rows={1}
+                placeholder={voiceListening ? "正在听你说..." : "对话内容已开启隐私保护"}
+                value={input}
+                onChange={onInputChange}
+                onKeyDown={onInputKeyDown}
+                onPointerDown={startInputVoicePress}
+                onPointerUp={endInputVoicePress}
+                onPointerCancel={endInputVoicePress}
+                onPointerLeave={endInputVoicePress}
+                  />
+                  <button className="xw-home-send" type="button" onClick={() => void sendMessage()} disabled={sending || (!input.trim() && !uploadedImage)}>
+                    {sending ? "more_horiz" : "send"}
+                  </button>
+            </div>
+            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={onImagePicked} />
+            <input ref={imageInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onImagePicked} />
+            <input ref={fileInputRef} type="file" style={{ display: "none" }} onChange={onFilePicked} />
+            <button className={`xw-home-plus${attachmentMenuOpen ? " on" : ""}`} type="button" aria-label="添加附件" onClick={() => { if (shouldBlockXiaowanziForAuth()) return; setAttachmentMenuOpen((value) => !value); }}>
+              {attachmentMenuOpen ? "close" : "add"}
+            </button>
+          </div>
+          {attachmentMenuOpen ? (
+            <div className="xw-home-attach-menu" ref={homeAttachMenuRef}>
+              <button className="xw-home-attach-action" type="button" onClick={() => { if (shouldBlockXiaowanziForAuth()) return; cameraInputRef.current?.click(); }}>
+                <span className="ms">photo_camera</span>
+                <span>拍照</span>
+              </button>
+              <button className="xw-home-attach-action" type="button" onClick={() => { if (shouldBlockXiaowanziForAuth()) return; imageInputRef.current?.click(); }}>
+                <span className="ms">image</span>
+                <span>上传图片</span>
+              </button>
+              <button className="xw-home-attach-action" type="button" onClick={() => { if (shouldBlockXiaowanziForAuth()) return; fileInputRef.current?.click(); }}>
+                <span className="ms">upload_file</span>
+                <span>上传文件</span>
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : open ? (
         <div
           id="ai-panel"
           className={`${maximized ? "max" : ""}${!maximized && pinned ? " docked" : ""}${isDocked && dockedDark ? " docked-dark" : ""}`.trim()}
@@ -1258,7 +2458,7 @@ const XiaowanziWidget: React.FC = () => {
           <div className="aip-head">
             <div className="aip-gem">
               <div className={`ai-avatar-wrapper ${avatarFxClassName}`.trim()}>
-                <img id="ai-panel-avatar-img" src={displayAvatar} alt="" draggable={false} onError={onAvatarError} />
+                <img id="ai-panel-avatar-img" src={displayAvatar} alt="" draggable={false} loading="eager" decoding="async" fetchPriority="high" onError={onAvatarError} />
                 <div className="ai-avatar-particles" aria-hidden="true">
                   {avatarParticles.map((particle) => (
                     <span
@@ -1325,21 +2525,13 @@ const XiaowanziWidget: React.FC = () => {
           </div>
           <div className="aip-child-row">
             <span className="aip-child-chip">{isChildBound && activeChild ? `为 ${activeChild.displayName} 咨询` : "未绑定孩子档案"}</span>
-            <button className="aip-child-switch" type="button" onClick={() => { setHiddenEntryOpen(true); setPickerOpen(true); }}>
-              {isChildBound ? "切换" : "去绑定"}
-            </button>
-            {isChildBound ? (
-              <button
-                className="aip-child-exit"
-                type="button"
-                onClick={() => {
-                  setChatContext(null);
-                  setStatusText("● 未绑定孩子，建议准确性会降低");
-                }}
-              >
-                退出
+            {canSwitchChild ? (
+              <button className="aip-child-switch" type="button" onClick={() => { if (shouldBlockXiaowanziForAuth()) return; setHiddenEntryOpen(true); }}>
+                {isChildBound ? "切换" : "去绑定"}
               </button>
-            ) : null}
+            ) : (
+              <span className="aip-child-state">已绑定</span>
+            )}
           </div>
           <div className="aip-msgs" ref={msgContainerRef}>
             {visibleMessages.map((message, idx) => (
@@ -1349,10 +2541,10 @@ const XiaowanziWidget: React.FC = () => {
                 ref={idx === visibleMessages.length - 1 ? latestMsgRef : null}
                 data-msg-index={idx}
               >
-                {message.content}
+                {renderDisplayMessage(message)}
                 {message.role === "assistant" && isChildBound && activeChild ? (
                   <div style={{ marginTop: 8, fontSize: 11, color: "#94a3b8" }}>
-                    本条建议基于档案：{activeChild.displayName} · {activeChild.grade} · {activeChild.concernTags.join("、") || "未设置标签"}
+                    根据{activeChild.displayName}档案进行个性化回复
                   </div>
                 ) : null}
               </div>
@@ -1394,7 +2586,7 @@ const XiaowanziWidget: React.FC = () => {
               <div className="aip-history-list">
                 {buildHistoryCards(messages).length ? (
                   buildHistoryCards(messages).map((card) => (
-                    <button key={card.id} className="aip-history-card" type="button" onClick={() => jumpToMessage(card.targetIndex)}>
+                    <button key={card.id} className="aip-history-card" type="button" onClick={() => openHistoryCard(card)}>
                       <div className="aip-history-card-title">{card.title}</div>
                       <div className="aip-history-card-sub">{card.sub}</div>
                       {card.childTag ? <div className="aip-history-card-tag">{card.childTag}</div> : null}
@@ -1427,180 +2619,117 @@ const XiaowanziWidget: React.FC = () => {
                 <button
                   className="aip-plus"
                   type="button"
-                  aria-label="隐藏功能入口"
-                  onPointerDown={onPlusPointerDown}
-                  onPointerUp={onPlusPointerUp}
-                  onPointerCancel={onPlusPointerUp}
-                  onClick={() => {
-                    setStatusText("● 长按 + 可进入孩子咨询模式");
-                  }}
-                >
+	                  aria-label="添加"
+	                  onClick={() => {
+	                    if (shouldBlockXiaowanziForAuth()) return;
+	                    if (childProfiles.length === 0) {
+	                      setStatusText("● 请先去绑定孩子档案");
+	                      setHiddenEntryOpen(true);
+	                      return;
+	                    }
+	                    setStatusText(
+	                      childProfiles.length === 1 && activeChild
+	                        ? `● 当前问题会围绕 ${activeChild.displayName} 回答`
+	                        : "● 请使用上方“切换”选择咨询人",
+	                    );
+	                  }}
+	                >
                   add
-                </button>
-                <button className="aip-send" type="button" onClick={() => void sendMessage()} disabled={sending || !isChildBound}>
-                  {sending ? "more_horiz" : "send"}
-                </button>
+                    </button>
+                    <button className="aip-send" type="button" onClick={() => void sendMessage()} disabled={sending || !isChildBound}>
+                      {sending ? "more_horiz" : "send"}
+                    </button>
               </div>
             </div>
           </div>
         </div>
       ) : null}
-      {hiddenEntryOpen ? (
+      {open && homeActive && homeBrowsingOpen && homeBrowseTarget ? (
         <>
-          <div className="aip-hidden-mask" onClick={() => { setHiddenEntryOpen(false); setPickerOpen(false); setCreateOpen(false); }} />
-          <div className="aip-hidden-sheet">
-            {!pickerOpen && !createOpen ? (
-              <>
-                <div className="aip-sheet-title">孩子咨询模式</div>
-                <div className="aip-sheet-actions">
-                  <button className="aip-sheet-btn" type="button" onClick={() => setPickerOpen(true)}>选择孩子</button>
-                  <button className="aip-sheet-btn light" type="button" onClick={() => { resetDraftProfile(); setCreateOpen(true); }}>新增孩子</button>
-                </div>
-              </>
-            ) : null}
-            {pickerOpen ? (
-              <>
-                <div className="aip-sheet-title">选择咨询人</div>
-                {childProfiles.length === 0 ? (
-                  <div style={{ color: "#6b7280", fontSize: 13, marginBottom: 10 }}>暂无孩子档案，请先新增。</div>
-                ) : (
-                  childProfiles
-                    .slice()
-                    .sort((a, b) => (a.id === chatContext?.childProfileId ? -1 : b.id === chatContext?.childProfileId ? 1 : 0))
-                    .map((item) => (
-                      <div key={item.id} className="aip-child-card">
-                        <div className="aip-child-card-avatar">{item.displayName.slice(0, 1) || "孩"}</div>
-                        <div className="aip-child-card-main">
-                          <div className="aip-child-card-name">{item.displayName}</div>
-                          <div className="aip-child-card-tag">{item.relation} · {item.grade || "未填年级"}</div>
-                        </div>
-                        <button
-                          className="aip-child-card-btn"
-                          type="button"
-                          disabled={!isProfileComplete(item)}
-                          onClick={() => bindChildProfile(item)}
-                        >
-                          {item.id === chatContext?.childProfileId ? "已选择" : "选择"}
-                        </button>
-                      </div>
-                    ))
-                )}
-                <div className="aip-sheet-actions">
-                  <button className="aip-sheet-btn light" type="button" onClick={() => { setPickerOpen(false); setCreateOpen(false); }}>返回</button>
-                  <button className="aip-sheet-btn" type="button" onClick={() => { resetDraftProfile(); setCreateOpen(true); setPickerOpen(false); }}>新增孩子</button>
-                </div>
-              </>
-            ) : null}
-            {createOpen ? (
-              <>
-                <div className="aip-sheet-title">新增孩子档案</div>
-                <div className="aip-form-row">
-                  <div className="aip-form-label">关系</div>
-                  <div className="aip-tag-grid">
-                    {CHILD_RELATIONS.map((item) => (
-                      <button key={item} type="button" className={`aip-tag-btn${draftProfile.relation === item ? " on" : ""}`} onClick={() => setDraftProfile((prev) => ({ ...prev, relation: item }))}>
-                        {item}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="aip-form-row"><div className="aip-form-label">姓名/称呼</div><input className="aip-form-input" value={draftProfile.displayName} onChange={(e) => setDraftProfile((prev) => ({ ...prev, displayName: e.target.value }))} /></div>
-                <div className="aip-form-row"><div className="aip-form-label">性别</div><select className="aip-form-input" value={draftProfile.gender} onChange={(e) => setDraftProfile((prev) => ({ ...prev, gender: e.target.value === "男" ? "男" : "女" }))}><option value="女">女</option><option value="男">男</option></select></div>
-                <div className="aip-form-row"><div className="aip-form-label">出生日期</div><input className="aip-form-input" type="date" value={draftProfile.birthDate} onChange={(e) => setDraftProfile((prev) => ({ ...prev, birthDate: e.target.value }))} /></div>
-                <div className="aip-form-row"><div className="aip-form-label">年级</div><input className="aip-form-input" value={draftProfile.grade} onChange={(e) => setDraftProfile((prev) => ({ ...prev, grade: e.target.value }))} /></div>
-                <div className="aip-form-row">
-                  <div className="aip-form-label">关注问题标签（多选）</div>
-                  <div className="aip-tag-grid">
-                    {CHILD_TAGS.map((tag) => {
-                      const selected = draftProfile.concernTags.includes(tag);
-                      return (
-                        <button
-                          key={tag}
-                          type="button"
-                          className={`aip-tag-btn${selected ? " on" : ""}`}
-                          onClick={() =>
-                            setDraftProfile((prev) => ({
-                              ...prev,
-                              concernTags: selected ? prev.concernTags.filter((item) => item !== tag) : [...prev.concernTags, tag],
-                            }))
-                          }
-                        >
-                          {tag}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className="aip-sheet-actions">
-                  <button
-                    className="aip-sheet-btn light"
-                    type="button"
-                    onClick={() => {
-                      const draftId = `child-${Date.now()}`;
-                      const draft: ChildProfileLite = { ...draftProfile, id: draftId, displayName: draftProfile.displayName || "未命名", createdAt: new Date().toISOString(), draft: true };
-                      setChildProfiles((prev) => [draft, ...prev.filter((item) => item.id !== draftId)]);
-                      setStatusText("● 草稿已保存，补全后可咨询");
-                      setCreateOpen(false);
-                      setPickerOpen(true);
-                    }}
-                  >
-                    保存草稿
-                  </button>
-                  <button
-                    className="aip-sheet-btn"
-                    type="button"
-                    onClick={() => {
-                      const profile: ChildProfileLite = { ...draftProfile, id: `child-${Date.now()}`, createdAt: new Date().toISOString() };
-                      if (!isProfileComplete(profile)) {
-                        setStatusText("● 档案未完成，暂不可进入咨询");
-                        return;
-                      }
-                      setChildProfiles((prev) => [profile, ...prev]);
-                      bindChildProfile(profile);
-                    }}
-                  >
-                    保存并使用
-                  </button>
-                </div>
-              </>
-            ) : null}
+          <div className="xw-home-browser-backdrop" />
+          <div className="xw-home-browser" role="dialog" aria-label={`${homeBrowseTarget.label}浏览页`}>
+            <div className="xw-home-browser-head">
+              <button className="xw-home-browser-close" type="button" aria-label="关闭浏览页" onClick={() => setHomeBrowsingOpen(false)}>
+                close
+              </button>
+              <div className="xw-home-browser-title">{homeBrowseTarget.label}</div>
+              <img className="xw-home-browser-mark" src={displayAvatar} alt="" draggable={false} loading="eager" decoding="async" onError={onAvatarError} />
+            </div>
+            <iframe title={homeBrowseTarget.label} src={buildHomeBrowseSrc(homeBrowseTarget.path)} />
           </div>
         </>
       ) : null}
-      <button
-        id="ai-fab"
-        title="小玩子"
-        onClick={onFabClick}
-        onPointerDown={onFabPointerDown}
-        onPointerMove={onFabPointerMove}
-        onPointerUp={onFabPointerUp}
-        onPointerCancel={onFabPointerUp}
-        style={{ left: fabPosition.left, top: fabPosition.top, right: "auto", bottom: "auto" }}
-        type="button"
-      >
-        <div id="ai-avatar-wrapper" className={`ai-avatar-wrapper ${avatarFxClassName}`.trim()}>
-          <img id="ai-avatar-img" src={displayAvatar} alt="" draggable={false} onError={onAvatarError} />
-          <div id="ai-avatar-particles" className="ai-avatar-particles" aria-hidden="true">
-            {avatarParticles.map((particle) => (
-              <span
-                key={particle.id}
-                className="ai-avatar-particle"
-                style={
-                  {
-                    left: `${particle.x}%`,
-                    top: `${particle.y}%`,
-                    width: `${particle.size}px`,
-                    height: `${particle.size}px`,
-                    animationDelay: `${particle.delay}ms`,
-                    "--dx": `${particle.dx}px`,
-                    "--dy": `${particle.dy}px`,
-                  } as React.CSSProperties
-                }
-              />
-            ))}
+      {hiddenEntryOpen ? (
+        <>
+          <div className="aip-hidden-mask" onClick={() => setHiddenEntryOpen(false)} />
+          <div className="aip-hidden-sheet">
+            <div className="aip-sheet-title">选择咨询人</div>
+            {childProfiles.length === 0 ? (
+              <div style={{ color: "#6b7280", fontSize: 13, marginBottom: 10 }}>暂无孩子档案，请先从侧边栏新增。</div>
+            ) : (
+              childProfiles
+                .slice()
+                .sort((a, b) => (a.id === chatContext?.childProfileId ? -1 : b.id === chatContext?.childProfileId ? 1 : 0))
+                .map((item) => (
+                  <div key={item.id} className="aip-child-card">
+                    <div className="aip-child-card-avatar">{item.displayName.slice(0, 1) || "孩"}</div>
+                    <div className="aip-child-card-main">
+                      <div className="aip-child-card-name">{item.displayName}</div>
+                      <div className="aip-child-card-tag">{item.relation} · {item.grade || "未填年级"}</div>
+                    </div>
+                    <button
+                      className="aip-child-card-btn"
+                      type="button"
+                      onClick={() => bindChildProfile(item)}
+                    >
+                      {item.id === chatContext?.childProfileId ? "已选择" : "选择"}
+                    </button>
+                  </div>
+                ))
+            )}
+            <div className="aip-sheet-actions">
+              <button className="aip-sheet-btn light" type="button" onClick={() => setHiddenEntryOpen(false)}>取消</button>
+              <button className="aip-sheet-btn" type="button" onClick={openSidebarChildCreate}>新增孩子</button>
+            </div>
           </div>
-        </div>
-      </button>
+        </>
+      ) : null}
+      {!standalone ? (
+        <button
+          id="ai-fab"
+          title="小玩子"
+          onClick={onFabClick}
+          onPointerDown={onFabPointerDown}
+          onPointerMove={onFabPointerMove}
+          onPointerUp={onFabPointerUp}
+          onPointerCancel={onFabPointerUp}
+          style={{ left: fabPosition.left, top: fabPosition.top, right: "auto", bottom: "auto" }}
+          type="button"
+        >
+          <div id="ai-avatar-wrapper" className={`ai-avatar-wrapper ${avatarFxClassName}`.trim()}>
+            <img id="ai-avatar-img" src={displayAvatar} alt="" draggable={false} loading="eager" decoding="async" fetchPriority="high" onError={onAvatarError} />
+            <div id="ai-avatar-particles" className="ai-avatar-particles" aria-hidden="true">
+              {avatarParticles.map((particle) => (
+                <span
+                  key={particle.id}
+                  className="ai-avatar-particle"
+                  style={
+                    {
+                      left: `${particle.x}%`,
+                      top: `${particle.y}%`,
+                      width: `${particle.size}px`,
+                      height: `${particle.size}px`,
+                      animationDelay: `${particle.delay}ms`,
+                      "--dx": `${particle.dx}px`,
+                      "--dy": `${particle.dy}px`,
+                    } as React.CSSProperties
+                  }
+                />
+              ))}
+            </div>
+          </div>
+        </button>
+      ) : null}
     </>
   );
 };

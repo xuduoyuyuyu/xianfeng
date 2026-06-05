@@ -312,7 +312,7 @@ const LandingPage: React.FC = () => {
         .sort((a, b) => b.score + b.updatedTs / 1e10 - (a.score + a.updatedTs / 1e10))
         .slice(0, CASE_MAX_PROGRAMS);
 
-      setItems(sortedPrograms);
+      setItems(sortedPrograms.length ? sortedPrograms : fallbackCases);
       setStats({
         programCount: programs.length,
         bookCount: books.length,
@@ -324,7 +324,7 @@ const LandingPage: React.FC = () => {
 
     loadCases().catch(() => {
       if (disposed) return;
-      setItems([]);
+      setItems(fallbackCases);
       setStats({
         programCount: 0,
         bookCount: 0,
@@ -468,7 +468,7 @@ const LandingPage: React.FC = () => {
           box-shadow: var(--lp-shadow);
           backdrop-filter: blur(10px);
         }
-        .panel {
+        .landing-panel {
           background: var(--lp-panel-solid);
           border: 1px solid var(--lp-panel-border);
           box-shadow: 0 8px 24px rgba(25, 46, 80, 0.06);
@@ -554,7 +554,7 @@ const LandingPage: React.FC = () => {
                 </div>
               </div>
 
-              <aside className="panel fade-up rounded-[24px] p-5 sm:p-7" style={{ animationDelay: "160ms" }}>
+              <aside className="landing-panel fade-up rounded-[24px] p-5 sm:p-7" style={{ animationDelay: "160ms" }}>
                 <p className="text-sm font-black text-[#22314a]">内容规模与信任背书</p>
                 <div className="mt-4 grid grid-cols-2 gap-3">
                   <div className="rounded-2xl border border-[#d9e1ee] bg-[#f8fbff] p-4">
@@ -589,7 +589,7 @@ const LandingPage: React.FC = () => {
           </div>
           <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
             {capabilityCards.map((card, index) => (
-              <article key={card.title} className="panel fade-up rounded-2xl p-4" style={{ animationDelay: `${120 + index * 50}ms` }}>
+              <article key={card.title} className="landing-panel fade-up rounded-2xl p-4" style={{ animationDelay: `${120 + index * 50}ms` }}>
                 <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#eaf1ff]">
                   <span className="material-symbols-outlined text-[#1f43af]">{card.icon}</span>
                 </div>
@@ -611,7 +611,7 @@ const LandingPage: React.FC = () => {
             </a>
           </div>
 
-          <div className="panel rounded-3xl p-4 sm:p-6">
+          <div className="landing-panel rounded-3xl p-4 sm:p-6">
             <div className="flex gap-2 overflow-x-auto pb-2">
               <button type="button" className={`chip-btn ${activeTag === "all" ? "on" : ""}`} onClick={() => setActiveTag("all")}>
                 全部标签
@@ -628,7 +628,7 @@ const LandingPage: React.FC = () => {
                 <a
                   key={`${item.type}-${item.id}`}
                   href={item.href}
-                  className="fade-up group panel flex min-h-[310px] flex-col overflow-hidden rounded-2xl transition hover:-translate-y-1 hover:border-[#b9c8e4]"
+                  className="fade-up group landing-panel flex min-h-[310px] flex-col overflow-hidden rounded-2xl transition hover:-translate-y-1 hover:border-[#b9c8e4]"
                   style={{ animationDelay: `${160 + index * 40}ms` }}
                 >
                   {item.cover ? (
@@ -682,7 +682,7 @@ const LandingPage: React.FC = () => {
               <a
                 key={card.title}
                 href={card.href}
-                className="panel fade-up block rounded-3xl p-6 transition hover:-translate-y-1 hover:border-[#b4c6e4]"
+                className="landing-panel fade-up block rounded-3xl p-6 transition hover:-translate-y-1 hover:border-[#b4c6e4]"
                 style={{ animationDelay: `${120 + index * 55}ms` }}
               >
                 <div className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#eaf1ff]">
@@ -705,7 +705,7 @@ const LandingPage: React.FC = () => {
               "为什么不同阶段内容分布不均？节目选题受嘉宾档期与议题时效影响，会动态调整。",
               "如何开始使用？建议先从案例矩阵按标签筛选，再进入节目详情做针对性复盘。",
             ].map((text, index) => (
-              <article key={text} className="panel fade-up rounded-2xl p-5" style={{ animationDelay: `${120 + index * 55}ms` }}>
+              <article key={text} className="landing-panel fade-up rounded-2xl p-5" style={{ animationDelay: `${120 + index * 55}ms` }}>
                 <p className="text-sm leading-7 text-[#566783]">{text}</p>
               </article>
             ))}
@@ -714,7 +714,7 @@ const LandingPage: React.FC = () => {
 
         <section className="landing-block">
           <h2 className="mb-4 text-2xl font-black sm:text-3xl">关于我们</h2>
-          <div className="panel rounded-3xl p-6 sm:p-9">
+          <div className="landing-panel rounded-3xl p-6 sm:p-9">
             <p className="text-sm leading-7 text-[#5f6f89] sm:text-base">
               《家长先疯》由“家和万事”团队出品，秉持“服务家庭，智慧决策”的宗旨。我们希望通过优质内容和专业判断，
               为家长在关键选择上提供真实、可靠、可落地的参考。

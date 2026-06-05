@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
 import LoginRequiredModal from "./LoginRequiredModal";
+import ProUpgradeModal from "./ProUpgradeModal";
 
 interface LoginModalContextType {
   showLoginModal: (title?: string, description?: string) => void;
@@ -15,8 +16,10 @@ export const useLoginModal = () => useContext(LoginModalContext);
 
 export const LoginModalProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [open, setOpen] = useState(false);
+  const [proOpen, setProOpen] = useState(false);
   const [title, setTitle] = useState<string>();
   const [description, setDescription] = useState<string>();
+  const [proMessage, setProMessage] = useState<string>();
 
   const showLoginModal = useCallback((t?: string, d?: string) => {
     setTitle(t);
@@ -38,6 +41,16 @@ export const LoginModalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return () => document.removeEventListener("xf-show-login-modal", handler);
   }, [showLoginModal]);
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      setProMessage(detail.message);
+      setProOpen(true);
+    };
+    document.addEventListener("xf-show-pro-modal", handler);
+    return () => document.removeEventListener("xf-show-pro-modal", handler);
+  }, []);
+
   return (
     <LoginModalContext.Provider value={{ showLoginModal, hideLoginModal }}>
       {children}
@@ -47,6 +60,7 @@ export const LoginModalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         title={title}
         description={description}
       />
+      <ProUpgradeModal open={proOpen} message={proMessage} onClose={() => setProOpen(false)} />
     </LoginModalContext.Provider>
   );
 };

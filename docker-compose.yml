@@ -23,11 +23,93 @@ services:
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost}
       - ALLOW_PUBLIC_REGISTER=${ALLOW_PUBLIC_REGISTER:-false}
+      - WEKNORA_ENABLED=${WEKNORA_ENABLED:-false}
+      - WEKNORA_BASE_URL=${WEKNORA_BASE_URL:-http://weknora-app:8080/api/v1}
+      - WEKNORA_API_KEY=${WEKNORA_API_KEY:-}
+      - WEKNORA_GUEST_KB_PREFIX=${WEKNORA_GUEST_KB_PREFIX:-xianfeng-guest}
+      - WEKNORA_TIMEOUT_MS=${WEKNORA_TIMEOUT_MS:-8000}
     depends_on:
       - mongo
     volumes:
       - ./backend/data:/app/data
       - ./backend/uploads:/app/uploads
+
+  weknora-app:
+    image: wechatopenai/weknora-app:${WEKNORA_VERSION:-latest}
+    container_name: xianfeng_weknora_app
+    restart: unless-stopped
+    profiles:
+      - weknora
+    ports:
+      - "127.0.0.1:${WEKNORA_APP_PORT:-18080}:8080"
+    environment:
+      - GIN_MODE=${WEKNORA_GIN_MODE:-release}
+      - DB_DRIVER=postgres
+      - DB_HOST=weknora-postgres
+      - DB_PORT=5432
+      - DB_USER=${WEKNORA_DB_USER:-weknora}
+      - DB_PASSWORD=${WEKNORA_DB_PASSWORD:-weknora}
+      - DB_NAME=${WEKNORA_DB_NAME:-weknora}
+      - REDIS_ADDR=weknora-redis:6379
+      - REDIS_PASSWORD=${WEKNORA_REDIS_PASSWORD:-weknora}
+      - DOCREADER_ADDR=weknora-docreader:50051
+      - DOCREADER_TRANSPORT=grpc
+      - WEKNORA_LANGUAGE=${WEKNORA_LANGUAGE:-zh-CN}
+      - TZ=${TZ:-Asia/Shanghai}
+      - STORAGE_TYPE=${WEKNORA_STORAGE_TYPE:-local}
+      - LOCAL_STORAGE_BASE_DIR=/data/files
+    depends_on:
+      weknora-postgres:
+        condition: service_healthy
+      weknora-redis:
+        condition: service_started
+      weknora-docreader:
+        condition: service_started
+    volumes:
+      - weknora_data_files:/data/files
+
+  weknora-docreader:
+    image: wechatopenai/weknora-docreader:${WEKNORA_VERSION:-latest}
+    container_name: xianfeng_weknora_docreader
+    restart: unless-stopped
+    profiles:
+      - weknora
+    expose:
+      - "50051"
+    environment:
+      - DOCREADER_IMAGE_OUTPUT_DIR=/tmp/docreader
+      - MAX_FILE_SIZE_MB=${WEKNORA_MAX_FILE_SIZE_MB:-50}
+    volumes:
+      - weknora_docreader_tmp:/tmp/docreader
+
+  weknora-postgres:
+    image: paradedb/paradedb:v0.22.2-pg17
+    container_name: xianfeng_weknora_postgres
+    restart: unless-stopped
+    profiles:
+      - weknora
+    environment:
+      - POSTGRES_USER=${WEKNORA_DB_USER:-weknora}
+      - POSTGRES_PASSWORD=${WEKNORA_DB_PASSWORD:-weknora}
+      - POSTGRES_DB=${WEKNORA_DB_NAME:-weknora}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${WEKNORA_DB_USER:-weknora}"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    volumes:
+      - weknora_postgres_data:/var/lib/postgresql/data
+
+  weknora-redis:
+    image: redis:7.0-alpine
+    container_name: xianfeng_weknora_redis
+    restart: unless-stopped
+    profiles:
+      - weknora
+    command: redis-server --appendonly yes --requirepass ${WEKNORA_REDIS_PASSWORD:-weknora}
+    volumes:
+      - weknora_redis_data:/data
 
   frontend:
     build:
@@ -35,6 +117,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-}
+        VITE_PRO_BILLING_ENABLED: ${VITE_PRO_BILLING_ENABLED:-true}
     container_name: xianfeng_frontend
     restart: unless-stopped
     depends_on:
@@ -56,3 +139,7 @@ services:
 
 volumes:
   mongo_data:
+  weknora_data_files:
+  weknora_docreader_tmp:
+  weknora_postgres_data:
+  weknora_redis_data:

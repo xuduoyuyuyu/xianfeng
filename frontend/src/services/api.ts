@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
+import { showProUpgradeFromPayload } from '../utils/proGate';
 
 // In production the Nginx gateway proxies `/api` on the same origin.
 // Falling back to a relative path keeps deployed domains working even when
@@ -17,9 +18,12 @@ const api: AxiosInstance = axios.create({
 // 请求拦截器 - 添加 token
 api.interceptors.request.use(
   (config) => {
-    // 优先用 admin_token（后台管理页面），否则用 user token
+    // 后台接口才优先使用 admin_token；普通页面必须使用当前用户 token。
+    const requestPath = String(config.url || "");
+    const isAdminRequest = requestPath.startsWith("/admin") || window.location.pathname.startsWith("/admin");
     const adminToken = localStorage.getItem('admin_token');
-    const token = adminToken || localStorage.getItem('token');
+    const userToken = localStorage.getItem('token');
+    const token = isAdminRequest ? (adminToken || userToken) : (userToken || adminToken);
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -50,6 +54,9 @@ api.interceptors.response.use(
           },
         }));
       }
+    }
+    if (error.response?.status === 402) {
+      showProUpgradeFromPayload(error.response.data);
     }
     return Promise.reject(error);
   }
@@ -98,6 +105,7 @@ export interface Guest {
   socialProfiles?: GuestSocialProfile[];
   publications?: GuestPublication[];
   listenerBenefits?: ListenerBenefit[];
+  agentEnabled?: boolean;
   profileAvatarCandidates?: Array<{ url: string; label?: string; sourceUrl?: string }>;
   profileGeneratedAt?: string | null;
   status: "active" | "inactive";
@@ -148,8 +156,14 @@ export interface PublicGuest {
   socialProfiles?: GuestSocialProfile[];
   publications?: GuestPublication[];
   listenerBenefits?: ListenerBenefit[];
+  agentEnabled?: boolean;
   programCount?: number;
+  contentTags?: string[];
   referenceCount?: number;
+  agentStats?: {
+    chunkCount: number;
+    sourceCounts: Record<string, number>;
+  };
 }
 
 export interface PublicGuestDetail extends PublicGuest {
@@ -162,6 +176,61 @@ export interface PublicGuestDetail extends PublicGuest {
     publishedAt?: string | null;
     summary?: string;
   }>;
+}
+
+export interface GuestAgentCitation {
+  chunkId: string;
+  sourceType: "guest_profile" | "program_summary" | "program_transcript" | "program_quickview" | "program_shownotes" | "program_deepdive" | "public_material";
+  sourceId: string;
+  sourceTitle: string;
+  locator: string;
+  text: string;
+  url?: string;
+}
+
+export interface GuestAgentProfile {
+  agent: {
+    guestId: string;
+    name: string;
+    title: string;
+    avatar: string;
+    bio: string;
+    chunkCount: number;
+    programCount: number;
+    sourceCounts: Record<string, number>;
+    suggestedQuestions: string[];
+    privacyNote: string;
+    syncStatus?: string;
+  };
+  recentConversation?: {
+    _id: string;
+    updatedAt?: string;
+    messageCount: number;
+  } | null;
+}
+
+export interface GuestAgentMessage {
+  role: "user" | "assistant";
+  content: string;
+  citations?: GuestAgentCitation[];
+  model?: string;
+  provider?: string;
+  createdAt?: string;
+}
+
+export interface GuestAgentHistory {
+  conversationId: string;
+  messages: GuestAgentMessage[];
+  updatedAt?: string | null;
+}
+
+export interface GuestAgentChatResponse {
+  conversationId: string;
+  answer: string;
+  citations: GuestAgentCitation[];
+  suggestedQuestions: string[];
+  retrievalProvider?: "weknora" | "local";
+  syncStatus?: string;
 }
 
 export interface GuestBoundProgram {
@@ -384,20 +453,133 @@ export interface LearningMaterial {
   updatedAt: string;
 }
 
+export interface KnowledgeSource {
+  _id: string;
+  guestId?: string;
+  ownerType: "guest" | "program" | "material";
+  ownerId: string;
+  sourceKind: "manual_note" | "uploaded_file" | "learning_material" | "external_url" | "guest_profile" | "program_content";
+  title: string;
+  summary?: string;
+  rawText?: string;
+  fileUrl?: string;
+  originalFileName?: string;
+  mimeType?: string;
+  status: "active" | "draft" | "archived";
+  parseStatus: "pending" | "ready" | "failed";
+  syncStatus: "pending" | "synced" | "failed";
+  syncError?: string;
+  weknoraKnowledgeId?: string;
+  lastSyncedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface KnowledgeSourceListResponse {
+  sources: KnowledgeSource[];
+  counts: Record<string, number>;
+}
+
+export interface GuestKnowledgeSyncResponse {
+  ok: boolean;
+  guestId: string;
+  chunkCount: number;
+  sourceCounts: Record<string, number>;
+  weknoraSync?: {
+    enabled?: boolean;
+    status?: string;
+    message?: string;
+    uploaded?: number;
+    skipped?: number;
+    failed?: number;
+  };
+}
+
 export interface User {
   _id: string;
   username: string;
   mobile?: string;
   role: 'admin' | 'user';
+  proStatus?: 'none' | 'active' | 'expired' | 'refunded';
+  proPlan?: 'monthly' | 'yearly' | '';
+  proExpiresAt?: string | null;
+  proPurchasedAt?: string | null;
+  proRefundEligibleUntil?: string | null;
+  proLatestOrderId?: string;
+  proPointBalance?: number;
   city?: string;
   region?: string;
   childGrade?: string;
   avatar_image?: string;
   avatar_initial?: string;
+  gender?: string;
+  parentRole?: string;
   grade?: string;
   name?: string;
+  changeHistory?: Array<{
+    changedAt?: string;
+    changedBy?: string;
+    field: string;
+    oldValue?: string;
+    newValue?: string;
+  }>;
+  childMemories?: Array<{
+    childId: string;
+    enabled: boolean;
+    itemCount: number;
+    summary: string;
+    preview: string;
+    updatedAt?: string;
+  }>;
+  memoryItemCount?: number;
+  memoryPreview?: string;
+  latestMemoryAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface BillingPlan {
+  id: 'free' | 'monthly' | 'yearly';
+  name: string;
+  amountCents: number;
+  amountYuan: string;
+  durationMonths: number;
+  description: string;
+  pointsPerCycle: number;
+}
+
+export interface BillingMembership {
+  proStatus: 'none' | 'active' | 'expired' | 'refunded';
+  proPlan: 'monthly' | 'yearly' | '';
+  proPointBalance: number;
+  proExpiresAt: string | null;
+  proPurchasedAt: string | null;
+  proRefundEligibleUntil: string | null;
+  proLatestOrderId: string;
+  isProActive: boolean;
+  canRefundLatestOrder: boolean;
+}
+
+export interface PointUsagePolicyItem {
+  featureKey: string;
+  name: string;
+  cost: number;
+  description: string;
+}
+
+export interface BillingOrder {
+  id: string;
+  plan: 'monthly' | 'yearly';
+  provider: 'alipay' | 'wechat';
+  amountCents: number;
+  currency: 'CNY';
+  subject: string;
+  outTradeNo: string;
+  providerTradeNo?: string;
+  status: 'pending' | 'paid' | 'closed' | 'refunded' | 'failed';
+  paidAt?: string | null;
+  refundedAt?: string | null;
+  createdAt?: string | null;
 }
 
 export interface UserPageStat {
@@ -588,6 +770,22 @@ export interface MobileCodeSendResponse {
   expireSeconds?: number;
 }
 
+export const billingApi = {
+  getPlans: () => api.get<{
+    plans: Record<'free' | 'monthly' | 'yearly', BillingPlan>;
+    refundPolicy: { fullRefundDays: number; description: string };
+    providers: Record<string, { enabled: boolean; note?: string }>;
+    usagePolicy: PointUsagePolicyItem[];
+  }>('/billing/plans'),
+  getMe: () => api.get<{ membership: BillingMembership; latestOrder: BillingOrder | null }>('/billing/me'),
+  createOrder: (plan: 'monthly' | 'yearly', provider: 'alipay' | 'wechat' = 'wechat') =>
+    api.post<{ order: BillingOrder; checkout: { provider: 'alipay' | 'wechat'; mode?: 'alipay_page' | 'wechat_native' | 'mock'; paymentUrl?: string; paymentForm?: string; codeUrl?: string; mockPayUrl?: string; message?: string } }>('/billing/orders', { plan, provider }),
+  getOrder: (id: string) => api.get<{ order: BillingOrder }>(`/billing/orders/${id}`),
+  completeMockPayment: (id: string) => api.post<{ order: BillingOrder; membership: BillingMembership }>(`/billing/orders/${id}/mock-pay`),
+  requestRefund: (orderId?: string, reason = '3天不满意全额退款') =>
+    api.post<{ refund: { id: string; status: string; amountCents: number; refundedAt?: string | null }; membership: BillingMembership }>('/billing/refunds', { orderId, reason }),
+};
+
 // 公开 API
 export const publicApi = {
   // 节目
@@ -595,8 +793,11 @@ export const publicApi = {
   getProgram: (id: string) => api.get<Program>(`/programs/${id}`),
 
   // 嘉宾智库
-  getGuests: (params?: { search?: string; page?: number; pageSize?: number }) => api.get<{ guests: PublicGuest[]; total: number; page: number; pageSize: number; totalPages: number }>('/guests', { params }),
+  getGuests: (params?: { search?: string; tag?: string; page?: number; pageSize?: number }) => api.get<{ guests: PublicGuest[]; filterTags?: string[]; total: number; page: number; pageSize: number; totalPages: number }>('/guests', { params }),
   getGuest: (id: string) => api.get<PublicGuestDetail>(`/guests/${id}`),
+  getGuestAgent: (id: string) => api.get<GuestAgentProfile>(`/guests/${id}/agent`),
+  getGuestAgentHistory: (id: string) => api.get<GuestAgentHistory>(`/guests/${id}/agent/history`),
+  chatWithGuestAgent: (id: string, question: string) => api.post<GuestAgentChatResponse>(`/guests/${id}/agent/chat`, { question }),
   
   // 书单
   getBooks: () => api.get<Book[]>('/books'),
@@ -715,6 +916,36 @@ export const adminApi = {
   updateGuestStatus: (id: string, status: "active" | "inactive") =>
     api.patch<Guest>(`/admin/guests/${id}/status`, { status }),
   deleteGuest: (id: string) => api.delete(`/admin/guests/${id}`),
+  getKnowledgeSources: (params?: { guestId?: string }) =>
+    api.get<KnowledgeSourceListResponse>("/admin/knowledge-sources", { params }),
+  createKnowledgeSource: (data: {
+    guestId: string;
+    title: string;
+    summary?: string;
+    rawText?: string;
+    sourceKind?: KnowledgeSource["sourceKind"];
+    status?: KnowledgeSource["status"];
+  }) => api.post<KnowledgeSource>("/admin/knowledge-sources", data),
+  uploadKnowledgeSource: (data: {
+    guestId: string;
+    file: File;
+    title?: string;
+    summary?: string;
+    rawText?: string;
+  }) => {
+    const formData = new FormData();
+    formData.append("file", data.file);
+    formData.append("guestId", data.guestId);
+    if (data.title) formData.append("title", data.title);
+    if (data.summary) formData.append("summary", data.summary);
+    if (data.rawText) formData.append("rawText", data.rawText);
+    return api.post<KnowledgeSource>("/admin/knowledge-sources/upload", formData, {
+      timeout: 120000,
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+  },
+  syncGuestKnowledgeSources: (guestId: string) =>
+    api.post<GuestKnowledgeSyncResponse>(`/admin/knowledge-sources/guests/${guestId}/sync`),
   
   // 书单管理
   getBooks: (status?: string) => api.get<Book[]>('/admin/books', { params: { status } }),
@@ -774,6 +1005,7 @@ export const userApi = {
   mobileAuth: (mobile: string, code: string) =>
     api.post<LoginResponse>("/users/auth/mobile", { mobile, code }),
   getMe: () => api.get<User>('/users/me'),
+  deleteMe: (confirmation: string) => api.delete<{ message: string; restoreDeadline?: string }>("/users/me", { data: { confirmation } }),
   trackPageView: (data: { pagePath: string; pageTitle: string; sessionId: string; deviceType: string }) =>
     api.post<{ ok: boolean; deduped?: boolean }>("/users/page-view", data),
   register: (username: string, password: string, role?: string) => 

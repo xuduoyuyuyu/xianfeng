@@ -3,6 +3,8 @@ import { useSelector } from "react-redux";
 import { RootState } from "../store";
 import { Link, useNavigate } from "react-router-dom";
 import GlobalPublicNav from "../components/GlobalPublicNav";
+import { useXiaowanziEmbeddedLayer } from "../utils/xiaowanziLayer";
+import { getAdminOrUserToken, hasAdminOrUserSession, isProRequiredPayload, showProUpgradeFromPayload } from "../utils/proGate";
 
 
 /* ===== 类型 ===== */
@@ -498,6 +500,7 @@ function scoreColor(s: number): string {
 const WorthBuyPage: React.FC = () => {
   const token = useSelector((state: RootState) => state.user.token);
   const navigate = useNavigate();
+  const superModePage = useXiaowanziEmbeddedLayer();
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
@@ -602,7 +605,7 @@ const WorthBuyPage: React.FC = () => {
 
   /* 调用 API — 3 步流程 */
   const analyze = useCallback(async () => {
-    const isLoggedIn = !!token || !!localStorage.getItem("token");
+    const isLoggedIn = !!token || hasAdminOrUserSession();
     if (!isLoggedIn) {
       document.dispatchEvent(new CustomEvent("xf-show-login-modal", { detail: { title: "登录后即可分析", description: "登录后可使用品牌分析功能，获取个性化消费建议。" } }));
       return;
@@ -658,14 +661,20 @@ const WorthBuyPage: React.FC = () => {
 
       // 步骤 A: POST /api/worthbuy/submit
       const submitBody = { ...body, submittedBy: userId };
+      const authToken = getAdminOrUserToken() || token || "";
       const submitResp = await fetch("/api/worthbuy/submit", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
         body: JSON.stringify(submitBody),
       });
       const submitData = await parseJsonSafe(submitResp);
 
       if (!submitResp.ok) {
+        if (submitResp.status === 402 || isProRequiredPayload(submitData)) {
+          showProUpgradeFromPayload(submitData);
+          setLoading(false);
+          return;
+        }
         throw new Error(submitData?.error || `提交失败 (${submitResp.status})`);
       }
 
@@ -732,7 +741,7 @@ const WorthBuyPage: React.FC = () => {
       setResult(null);
       setLoading(false);
     }
-  }, [input, saveToHistory, saveToBackend, history, openDetail, fetchMySubmissions]);
+  }, [input, saveToHistory, saveToBackend, history, openDetail, fetchMySubmissions, token]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !loading) analyze();
@@ -750,7 +759,7 @@ const WorthBuyPage: React.FC = () => {
 
   /* 示例点击 */
   const demoAnalyze = useCallback((query: string) => {
-    const isLoggedIn = !!token || !!localStorage.getItem("token");
+    const isLoggedIn = !!token || hasAdminOrUserSession();
     if (!isLoggedIn) {
       document.dispatchEvent(new CustomEvent("xf-show-login-modal", { detail: { title: "登录后即可分析", description: "登录后可使用品牌分析功能，获取个性化消费建议。" } }));
       return;
@@ -765,10 +774,16 @@ const WorthBuyPage: React.FC = () => {
 
   return (
     <div className="worthbuy-page" style={{ minHeight: "100vh", background: "#f8f6ff" }}>
-      <GlobalPublicNav compactMobile showPlanningEntry={true} />
+      <GlobalPublicNav
+        compactMobile
+        showPlanningEntry={true}
+        searchPlaceholder="粘贴商品链接或输入品牌名称…"
+        searchValue={input}
+        onSearchChange={setInput}
+      />
 
       {/* ===== Hero 区域 ===== */}
-      <main className="worthbuy-hero mx-auto max-w-7xl px-4 pt-[76px] pb-2 sm:px-6 lg:px-8">
+      <main className={`worthbuy-hero mx-auto max-w-7xl px-4 pb-2 sm:px-6 lg:px-8 ${superModePage ? "pt-6" : "pt-[76px]"}`}>
         <section className="overflow-hidden rounded-[2rem] border border-[#d8d0ef] p-7 shadow-[0_24px_80px_rgba(80,62,125,0.1)] sm:p-9" style={{ background: "radial-gradient(circle at 85% 15%, rgba(143,100,255,0.1), transparent 38%), linear-gradient(135deg, #f4f1fd 0%, #faf8ff 48%, #f0ebff 100%)" }}>
           <div className="max-w-3xl mx-auto text-center">
             <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.26em] text-[#5b3fa1]">
@@ -820,6 +835,9 @@ const WorthBuyPage: React.FC = () => {
               )}
             </button>
           </div>
+          <p style={{ fontSize: 12, color: "#9CA3AF", margin: "10px 0 0", textAlign: "center" }}>
+            支持淘宝、京东、拼多多等平台链接，或直接输入品牌名
+          </p>
         </section>
       </main>
 
@@ -954,15 +972,12 @@ const WorthBuyPage: React.FC = () => {
         <div
           style={{
             display: "flex",
-            justifyContent: "space-between",
+            justifyContent: "flex-end",
             alignItems: "center",
             marginTop: 14,
             padding: "0 4px",
           }}
         >
-          <p style={{ fontSize: 12, color: "#9CA3AF", margin: 0 }}>
-            支持淘宝、京东、拼多多等平台链接，或直接输入品牌名
-          </p>
           {history.length > 0 && (
             <button
               onClick={() => setShowHistory(!showHistory)}

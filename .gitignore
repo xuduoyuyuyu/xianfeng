@@ -38,3 +38,6 @@ dist/
 # Current nested repo should be backed up before migrating to a root repo
 frontend/.git/
 releases/
+.superpowers/
+backend/secrets/
+frontend/public/assets/wel-avatar/optimized/

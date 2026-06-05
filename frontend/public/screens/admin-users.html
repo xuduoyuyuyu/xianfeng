@@ -277,7 +277,7 @@
           } catch (_e) {}
         }
 
-        const token = localStorage.getItem("token");
+        const token = localStorage.getItem("admin_token") || localStorage.getItem("token");
         if (!token) {
           if (isEmbedded()) {
             requestNavigate("/admin/login");
@@ -318,7 +318,7 @@
           });
         }
 
-        const userRaw = localStorage.getItem("user");
+        const userRaw = localStorage.getItem("admin_user") || localStorage.getItem("user");
         const sessionUser = userRaw ? JSON.parse(userRaw) : null;
         const username = (sessionUser && (sessionUser.username || sessionUser.name)) || "管理员";
         const avatarEl = document.getElementById("admin-avatar");
@@ -353,6 +353,8 @@
           logoutBtn.addEventListener("click", function () {
             localStorage.removeItem("token");
             localStorage.removeItem("user");
+            localStorage.removeItem("admin_token");
+            localStorage.removeItem("admin_user");
             if (isEmbedded()) {
               requestNavigate("/admin/login");
               return;

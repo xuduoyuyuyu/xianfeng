@@ -396,7 +396,7 @@
                 padding-top: 24px !important;
                 padding-left: 12px !important;
                 padding-right: 12px !important;
-                padding-bottom: 156px !important;
+                padding-bottom: 24px !important;
             }
             .max-w-7xl.mx-auto.px-6 {
                 padding-left: 12px !important;
@@ -605,6 +605,7 @@
         #guest-roster-pills button { transition: all 0.2s; }
         #guest-roster-pills button.is-guest-active { box-shadow: 0 0 0 2px rgba(94,23,235,0.15); }
         #guest-avatar { transition: opacity 0.25s; object-position: calc(50% + 3px) center; }
+        #guest-avatar.is-fallback-avatar { object-fit: contain; padding: 10px; background: #fff; }
         
         /* line-clamp 兼容（iframe 无 Tailwind CDN） */
         .line-clamp-2 {
@@ -774,7 +775,7 @@
 <div id="guest-roster-pills" class="mb-3 flex flex-wrap items-center justify-center gap-2"></div>
 <div class="mb-2 flex justify-center">
 <div class="relative w-32">
-<img id="guest-avatar" alt="专家头像" class="block w-32 h-32 rounded-2xl object-cover object-center ring-8 ring-primary/5 bg-gray-100 mx-auto" src="http://xianfeng.xinzhi.info/uploads/images/1779668991727-vzxkyx0x.png" onerror="this.style.opacity='0.3'"/>
+<img id="guest-avatar" alt="专家头像" class="block w-32 h-32 rounded-2xl object-cover object-center ring-8 ring-primary/5 bg-gray-100 mx-auto" src="/assets/wel-avatar/optimized/no-hat.webp" onerror="window.handleGuestAvatarError && window.handleGuestAvatarError()"/>
 <div class="absolute -bottom-2 -right-2 bg-rose-500 text-white p-1.5 rounded-2xl shadow-lg cursor-pointer transition-all hover:scale-110 hover:bg-rose-600 group" id="return-wish-btn" title="返场心愿">
 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
 <span class="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">返场心愿</span>
@@ -818,7 +819,7 @@
 </div>
 </div>
 </div>
-<div class="bg-gray-50 p-6 mt-4">
+<div class="bg-transparent px-6 pt-4 pb-2 mt-2">
 <button id="view-all-programs-btn" type="button" class="w-full text-[10px] font-bold text-primary hover:underline flex items-center justify-center gap-1 uppercase tracking-widest">
                         查看全部节目库
                         <span class="material-symbols-outlined text-xs">arrow_forward</span>
@@ -907,9 +908,54 @@
 <script>
 (function () {
   const FALLBACK_COVER = "http://xianfeng.xinzhi.info/uploads/images/1779669071894-42qbgvdv.png";
-  const FALLBACK_AVATAR = "http://xianfeng.xinzhi.info/uploads/images/1779668991727-vzxkyx0x.png";
+  const FALLBACK_AVATAR = "/assets/wel-avatar/optimized/no-hat.webp";
+  const FALLBACK_AVATAR_MARKERS = [
+    "/assets/wel-avatar/no-hat.png",
+    "/assets/wel-avatar/optimized/no-hat.webp",
+    "1779668991727-vzxkyx0x.png",
+    "1780579648191-wkisaaid.png",
+  ];
+  const XIANFENG_UPLOAD_HOST_RE = /^https?:\/\/xianfeng\.xinzhi\.info\/uploads\/images\/([^?#]+)([?#].*)?$/i;
+  const LOCAL_DEV_HOST_RE = /^(localhost|127\.0\.0\.1|\[::1\])$/i;
   const audio = new Audio();
   audio.preload = "metadata";
+
+  function normalizeGuestAvatar(url) {
+    var clean = String(url || "").trim();
+    var uploadMatch = clean.match(XIANFENG_UPLOAD_HOST_RE);
+    if (uploadMatch && LOCAL_DEV_HOST_RE.test(window.location.hostname)) {
+      return "/uploads/images/" + (uploadMatch[1] || "") + (uploadMatch[2] || "");
+    }
+    return clean.replace(/^https:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::(\d+))?\//i, function (_match, host, port) {
+      return "http://" + host + (port ? ":" + port : "") + "/";
+    });
+  }
+
+  function resolveGuestAvatar(url) {
+    var normalized = normalizeGuestAvatar(url);
+    var isFallback = !normalized || FALLBACK_AVATAR_MARKERS.some(function (marker) {
+      return normalized.indexOf(marker) !== -1;
+    });
+    return isFallback ? FALLBACK_AVATAR : normalized;
+  }
+
+  function setGuestAvatarSrc(avatarEl, url) {
+    if (!avatarEl) return;
+    var src = resolveGuestAvatar(url);
+    avatarEl.style.opacity = "1";
+    avatarEl.classList.toggle("is-fallback-avatar", src === FALLBACK_AVATAR);
+    avatarEl.src = src;
+  }
+
+  function handleGuestAvatarError() {
+    var avatarEl = document.getElementById("guest-avatar");
+    if (!avatarEl) return;
+    if (avatarEl.getAttribute("src") === FALLBACK_AVATAR) return;
+    avatarEl.style.opacity = "1";
+    avatarEl.classList.add("is-fallback-avatar");
+    avatarEl.src = FALLBACK_AVATAR;
+  }
+  window.handleGuestAvatarError = handleGuestAvatarError;
 
   const playerState = {
     isPlaying: false,
@@ -1598,8 +1644,7 @@
       document.getElementById("guest-title").textContent = g.title || "";
       document.getElementById("guest-bio").textContent = g.bio || guest.bio || "";
       var avatarEl = document.getElementById("guest-avatar");
-      avatarEl.style.opacity = "1";
-      avatarEl.src = g.avatar || guest.avatar || FALLBACK_AVATAR;
+      setGuestAvatarSrc(avatarEl, g.avatar || guest.avatar);
 
       // 切换嘉宾后更新返场心愿按钮状态
       var wishBtn = document.getElementById("return-wish-btn");
@@ -1623,7 +1668,7 @@
           ? "is-guest-active bg-primary/10 text-primary border border-primary/30"
           : "bg-white text-on-surface border border-gray-200 hover:border-primary/40";
         var avatarHtml = g.avatar
-          ? "<img src=\"" + escapeHtml(g.avatar) + "\" class=\"w-6 h-6 rounded-full object-cover object-center flex-shrink-0 bg-gray-100\" onerror=\"this.style.display='none'\"/>"
+          ? "<img src=\"" + escapeHtml(resolveGuestAvatar(g.avatar)) + "\" class=\"w-6 h-6 rounded-full object-cover object-center flex-shrink-0 bg-gray-100\" onerror=\"this.style.display='none'\"/>"
           : "<span class=\"w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 text-[10px] text-primary font-bold\">" + (g.name ? g.name[0] : "?") + "</span>";
         return "<button type=\"button\" onclick=\"window._selectGuest(" + idx + ")\" data-guest-idx=\"" + idx + "\" class=\"inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-bold transition-all cursor-pointer " + cls + "\">" + avatarHtml + "<span class=\"truncate max-w-[80px]\">" + escapeHtml(g.name || "") + "</span></button>";
       }).join("");
@@ -1633,7 +1678,7 @@
     document.getElementById("guest-name").textContent = guests[0] && guests[0].name || guest.name || "节目特邀嘉宾";
     document.getElementById("guest-title").textContent = (guests.length > 1 ? ("本期嘉宾 " + guests.length + " 位") : "") + " " + (guests[0] && guests[0].title || guest.title || "教育与成长观察者");
     document.getElementById("guest-bio").textContent = guests[0] && guests[0].bio || guest.bio || "围绕家庭关系、成长节奏与学习环境，提炼节目中的关键视角。";
-    document.getElementById("guest-avatar").src = guests[0] && guests[0].avatar || guest.avatar || FALLBACK_AVATAR;
+    setGuestAvatarSrc(document.getElementById("guest-avatar"), guests[0] && guests[0].avatar || guest.avatar);
     renderGuestPills();
     // 隐藏旧的 roster（纯文字版）
     var oldRosterEl = document.getElementById("guest-roster");

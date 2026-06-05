@@ -47,6 +47,7 @@ export interface Guest extends mongoose.Document {
   socialProfiles?: GuestSocialProfile[];
   publications?: GuestPublication[];
   listenerBenefits?: ListenerBenefit[];
+  agentEnabled?: boolean;
   avatarCandidates?: Array<{ url: string; label?: string; sourceUrl?: string }>;
   mainAreas?: string[];
   keywords?: string[];
@@ -138,6 +139,7 @@ const guestSchema = new mongoose.Schema(
         },
       },
     ],
+    agentEnabled: { type: Boolean, default: false },
     mainAreas: [{ type: String, trim: true }],
     keywords: [{ type: String, trim: true }],
     profileGeneratedAt: { type: Date, default: null },

@@ -1,10 +1,13 @@
 import { Router } from "express";
 import { AdminGuestController } from "../controllers/adminGuest";
+import { authenticate } from "../middlewares/auth";
+import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router = Router();
 const controller = new AdminGuestController();
 
 router.get("/", (req, res) => controller.getAll(req, res));
+router.post("/:id/agent/reindex", authenticate, requireAdmin, (req, res) => controller.reindexAgent(req, res));
 router.get("/:id", (req, res) => controller.getById(req, res));
 router.get("/:id/program-bindings", (req, res) => controller.getProgramBindings(req, res));
 router.post("/", (req, res) => controller.create(req, res));

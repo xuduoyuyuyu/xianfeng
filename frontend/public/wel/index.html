@@ -121,6 +121,14 @@ button{cursor:pointer;font:inherit}
 #app{position:relative;min-height:100vh;display:none;flex-direction:column}
 #app.on{display:flex}
 #tb{height:var(--tb);flex-shrink:0;background:rgba(255,255,255,.92);backdrop-filter:blur(16px);border-bottom:1px solid var(--brd);display:flex;align-items:center;z-index:100;padding:0 10px;gap:8px;overflow:visible}
+html.xw-layer #tb,
+html.xw-layer #sb,
+html.xw-layer .ctx,
+html.xw-layer .lstrip,
+html.xw-layer #ai-fab,
+html.xw-layer #ai-panel{display:none!important}
+html.xw-layer .appbody,
+html.xw-layer .coc{height:100vh!important}
 .tb-logo{flex-shrink:0;display:flex;align-items:center;gap:8px;padding:0 14px;cursor:pointer;transition:all .15s;height:calc(100% - 12px);border:1px solid transparent;border-radius:11px}
 .tb-logo:hover{background:rgba(108,39,214,.05);border-color:rgba(108,39,214,.16)}
 .tb-gem{width:22px;height:22px;flex-shrink:0}.tb-gem svg{width:100%;height:100%}
@@ -1163,6 +1171,8 @@ const PAGES = {
 const WEL_SEARCH_PARAMS = new URLSearchParams(window.location.search || '');
 const WIDGET_ONLY_MODE = WEL_SEARCH_PARAMS.get('widgetOnly') === '1';
 const HIDE_WIDGET_MODE = WEL_SEARCH_PARAMS.get('hideWidget') === '1';
+const XW_LAYER_MODE = WEL_SEARCH_PARAMS.get('xw_layer') === '1';
+if (XW_LAYER_MODE) document.documentElement.classList.add('xw-layer');
 
 const SB = {
   '主控台': [{ id: 61, l: 'Podcast 节目列表', ic: 'podcasts' }, { id: 63, l: '先疯智库', ic: 'person' }],

@@ -8,11 +8,20 @@ interface UserState {
   error: string | null;
 }
 
+const storedToken = localStorage.getItem('token');
+
 const initialState: UserState = {
-  user: JSON.parse(localStorage.getItem('user') || 'null'),
-  token: localStorage.getItem('token'),
+  user: storedToken ? JSON.parse(localStorage.getItem('user') || 'null') : null,
+  token: storedToken,
   isLoading: false,
   error: null,
+};
+
+const clearStoredAuth = () => {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  localStorage.removeItem('wel_tok');
+  sessionStorage.removeItem('xf_show_profile');
 };
 
 // 异步 thunk
@@ -56,8 +65,7 @@ const userSlice = createSlice({
     logout: (state) => {
       state.user = null;
       state.token = null;
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      clearStoredAuth();
     },
     clearError: (state) => {
       state.error = null;

@@ -21,11 +21,14 @@ import adminSystemRoutes from "./routes/adminSystem";
 import adminMultiAgentsRoutes from "./routes/adminMultiAgents";
 import adminDictionaryRoutes from "./routes/adminDictionary";
 import adminGuestRoutes from "./routes/adminGuest";
+import adminKnowledgeSourceRoutes from "./routes/adminKnowledgeSource";
 import adminAgentTaskRoutes from "./routes/adminAgentTasks";
 import adminInboxRoutes from "./routes/adminInbox";
 import adminWorthbuyRoutes from "./routes/adminWorthbuy";
+import worthbuyRoutes from "./routes/worthbuy";
 import tutorbotRoutes from "./routes/tutorbot";
 import aiCompatRoutes from "./routes/aiCompat";
+import billingRoutes from "./routes/billing";
 import { publicRouter as topicPublicRoutes, adminRouter as topicAdminRoutes } from "./routes/topic";
 import { UserController } from "./controllers/user";
 import { authenticate } from "./middlewares/auth";
@@ -65,7 +68,13 @@ function isLocalDevOrigin(origin: string): boolean {
 
 const finalAllowedOrigins = Array.from(new Set([...allowedOrigins]));
 
-app.use(express.json({ limit: "20mb" }));
+app.use(express.json({
+  limit: "20mb",
+  verify: (req: any, _res, buf) => {
+    req.rawBody = buf.toString("utf8");
+  },
+}));
+app.use(express.urlencoded({ extended: false }));
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -102,6 +111,7 @@ app.get("/api/books/:id/wx-product-url", async (req, res) => {
 });
 app.use("/api/learning-materials", learningMaterialRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/billing", billingRoutes);
 app.post("/api/sms/send-code", (req, res) => userController.sendMobileCode(req, res));
 app.post("/api/auth/mobile", (req, res) => userController.mobileAuth(req, res));
 app.get("/api/me", authenticate, (req, res) => userController.meCompat(req as any, res));
@@ -140,12 +150,14 @@ app.use("/api/admin/books", adminBookRoutes);
 app.use("/api/admin/learning-materials", adminLearningMaterialRoutes);
 app.use("/api/admin/dictionary", adminDictionaryRoutes);
 app.use("/api/admin/guests", adminGuestRoutes);
+app.use("/api/admin/knowledge-sources", adminKnowledgeSourceRoutes);
 app.use("/api/admin/topic-hub", authenticate, requireAdmin, topicAdminRoutes);
 app.use("/api/admin", adminSystemRoutes);
 app.use("/api/admin", adminMultiAgentsRoutes);
 app.use("/api/admin", adminAgentTaskRoutes);
 app.use("/api/admin", adminInboxRoutes);
 app.use("/api/admin/worthbuy", adminWorthbuyRoutes);
+app.use("/api/worthbuy", worthbuyRoutes);
 app.use("/api/v1/tutorbot", tutorbotRoutes);
 app.use("/api/ai", aiCompatRoutes);
 app.use("/api/topic-hub", topicPublicRoutes);

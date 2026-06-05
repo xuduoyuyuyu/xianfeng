@@ -6,6 +6,9 @@ import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import { AuthenticatedRequest } from "../middlewares/auth";
 import { sendMobileCodeByVolcengine } from "../services/smsVolcengine";
+import UserChildMemory from "../models/UserChildMemory";
+import { splitChildMemoryItems } from "../services/childMemory";
+import { grantFreeLoginPointsForUser } from "../services/billing";
 
 dotenv.config();
 const smsCodeStore = new Map<string, { code: string; expiresAt: number }>();
@@ -13,6 +16,85 @@ const smsSendLock = new Map<string, number>();
 
 const WEL_ADMIN_KEY = process.env.WEL_ADMIN_KEY || "weladmin2024";
 const WEL_SYNC_URL = process.env.WEL_SYNC_URL || "http://172.19.0.1:18888/api/auth/sync";
+const ACCOUNT_DELETE_CONFIRMATION = "确认注销";
+const ACCOUNT_RESTORE_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
+
+type AdminChildMemoryDoc = {
+  userId?: unknown;
+  childId?: unknown;
+  enabled?: boolean;
+  summary?: unknown;
+  updatedAt?: unknown;
+};
+
+export function summarizeAdminChildMemories(docs: AdminChildMemoryDoc[]) {
+  const grouped = new Map<
+    string,
+    {
+      memoryItemCount: number;
+      memoryPreview: string;
+      latestMemoryAt: Date | null;
+      childMemories: Array<{
+        childId: string;
+        enabled: boolean;
+        itemCount: number;
+        summary: string;
+        preview: string;
+        updatedAt: unknown;
+      }>;
+    }
+  >();
+
+  docs.forEach((doc) => {
+    const userId = String(doc.userId || "");
+    const childId = String(doc.childId || "default");
+    if (!userId) return;
+
+    const summary = String(doc.summary || "");
+    const items = splitChildMemoryItems(summary);
+    const preview = items
+      .map((item) => item.text)
+      .filter(Boolean)
+      .slice(0, 3)
+      .join(" / ");
+    const updatedAt = doc.updatedAt ? new Date(String(doc.updatedAt)) : null;
+    const current =
+      grouped.get(userId) ||
+      {
+        memoryItemCount: 0,
+        memoryPreview: "",
+        latestMemoryAt: null,
+        childMemories: [],
+      };
+
+    current.memoryItemCount += items.length;
+    if (!current.memoryPreview && preview) current.memoryPreview = preview;
+    if (updatedAt && !Number.isNaN(updatedAt.getTime())) {
+      if (!current.latestMemoryAt || updatedAt.getTime() > current.latestMemoryAt.getTime()) {
+        current.latestMemoryAt = updatedAt;
+      }
+    }
+    current.childMemories.push({
+      childId,
+      enabled: doc.enabled !== false,
+      itemCount: items.length,
+      summary,
+      preview,
+      updatedAt: doc.updatedAt,
+    });
+    grouped.set(userId, current);
+  });
+
+  grouped.forEach((value) => {
+    value.childMemories.sort((a, b) => {
+      const left = a.updatedAt ? new Date(String(a.updatedAt)).getTime() : 0;
+      const right = b.updatedAt ? new Date(String(b.updatedAt)).getTime() : 0;
+      return right - left;
+    });
+  });
+
+  return grouped;
+}
 
 async function syncUserToWel(mobile: string, name: string, grade: string, city: string): Promise<string | null> {
   try {
@@ -50,7 +132,33 @@ function buildWelProfile(user: any) {
     streak: Number(user.streak || 0),
     avatar_initial: String(user.avatar_initial || safeName[0] || "探"),
     avatar_image: user.avatar_image || "",
+    gender: user.gender || "",
+    parentRole: user.parentRole || "",
+    proPointBalance: Number(user.proPointBalance || 0),
   };
+}
+
+function stringifyAuditValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  return String(value);
+}
+
+function isSoftDeleted(user: any): boolean {
+  return !!user?.deletionRequestedAt;
+}
+
+function canRestoreSoftDeletedUser(user: any): boolean {
+  const deadline = user?.deletionRestoreDeadline ? new Date(user.deletionRestoreDeadline).getTime() : 0;
+  return isSoftDeleted(user) && deadline >= Date.now();
+}
+
+async function restoreSoftDeletedUser(user: any): Promise<boolean> {
+  if (!canRestoreSoftDeletedUser(user)) return false;
+  user.deletionRequestedAt = null;
+  user.deletionRestoreDeadline = null;
+  user.deletionRestoredAt = new Date();
+  await user.save();
+  return true;
 }
 
 function canPublicRegister(): boolean {
@@ -286,9 +394,10 @@ export class UserController {
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const sendResult = await sendMobileCodeByVolcengine({ mobile, code });
     if (!sendResult.ok) {
-      const errMsg = sendResult.code
-        ? `${sendResult.error || "短信发送失败"} (${sendResult.code})`
-        : (sendResult.error || "短信发送失败");
+      const failedResult = sendResult as { ok: false; error?: string; code?: string };
+      const errMsg = failedResult.code
+        ? `${failedResult.error || "短信发送失败"} (${failedResult.code})`
+        : (failedResult.error || "短信发送失败");
       res.status(500).json({ error: errMsg });
       return;
     }
@@ -341,7 +450,14 @@ export class UserController {
           avatar_image: "",
         });
         await user.save();
+      } else if (isSoftDeleted(user)) {
+        const restored = await restoreSoftDeletedUser(user);
+        if (!restored) {
+          res.status(410).json({ error: "账号已注销，恢复窗口已过期" });
+          return;
+        }
       }
+      await grantFreeLoginPointsForUser(user);
 
       const expiresIn = (process.env.JWT_EXPIRES_IN || "7d") as jwt.SignOptions["expiresIn"];
       const token = jwt.sign(
@@ -380,6 +496,11 @@ export class UserController {
         res.status(404).json({ error: "用户不存在" });
         return;
       }
+      if (isSoftDeleted(user)) {
+        res.status(410).json({ error: "账号已注销，请在3天内重新登录恢复" });
+        return;
+      }
+      await grantFreeLoginPointsForUser(user);
       res.status(200).json(buildWelProfile(user));
     } catch (error) {
       res.status(500).json({ error: "获取用户信息失败", message: String((error as Error)?.message || error) });
@@ -397,6 +518,10 @@ export class UserController {
         res.status(404).json({ error: "用户不存在" });
         return;
       }
+      if (isSoftDeleted(user)) {
+        res.status(410).json({ error: "账号已注销，请在3天内重新登录恢复" });
+        return;
+      }
       const body = req.body || {};
       if (typeof body.name === "string") user.name = body.name.trim();
       if (typeof body.city === "string") user.city = body.city.trim();
@@ -404,6 +529,8 @@ export class UserController {
       if (typeof body.grade === "string") user.grade = body.grade.trim();
       if (typeof body.avatar_initial === "string") user.avatar_initial = body.avatar_initial.trim().slice(0, 2) || "探";
       if (typeof body.avatar_image === "string") user.avatar_image = body.avatar_image.trim();
+      if (typeof body.gender === "string") user.gender = body.gender.trim().slice(0, 4);
+      if (typeof body.parentRole === "string") user.parentRole = body.parentRole.trim().slice(0, 12);
       await user.save();
       res.status(200).json(buildWelProfile(user));
     } catch (error) {
@@ -426,6 +553,10 @@ export class UserController {
       const url = `${host}/uploads/avatars/${file.filename}`;
       // 同时写入用户表
       const user = await User.findById(req.user.id);
+      if (user && isSoftDeleted(user)) {
+        res.status(410).json({ error: "账号已注销，请在3天内重新登录恢复" });
+        return;
+      }
       if (user) {
         user.avatar_image = url;
         await user.save();
@@ -449,6 +580,14 @@ export class UserController {
         res.status(401).json({ message: "用户名或密码错误" });
         return;
       }
+      if (isSoftDeleted(user)) {
+        const restored = await restoreSoftDeletedUser(user);
+        if (!restored) {
+          res.status(410).json({ message: "账号已注销，恢复窗口已过期" });
+          return;
+        }
+      }
+      await grantFreeLoginPointsForUser(user);
       const expiresIn = (process.env.JWT_EXPIRES_IN || "7d") as jwt.SignOptions["expiresIn"];
       const token = jwt.sign(
         { id: user._id, role: user.role },
@@ -505,6 +644,7 @@ export class UserController {
         childGrade: typeof childGrade === "string" ? childGrade : "",
       });
       await user.save();
+      await grantFreeLoginPointsForUser(user);
       res.status(201).json({
         message: "用户注册成功",
         user: {
@@ -512,6 +652,7 @@ export class UserController {
           id: user._id,
           username: user.username,
           role: user.role,
+          proPointBalance: Number(user.proPointBalance || 0),
           city: user.city,
           region: user.region,
           childGrade: user.childGrade,
@@ -533,16 +674,67 @@ export class UserController {
         res.status(404).json({ message: "用户不存在" });
         return;
       }
+      if (isSoftDeleted(user)) {
+        res.status(410).json({ message: "账号已注销，请在3天内重新登录恢复" });
+        return;
+      }
       res.status(200).json(user);
     } catch (error) {
       res.status(500).json({ message: "获取用户信息失败", error });
     }
   }
 
+  async deleteMe(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ message: "未登录或登录已过期" });
+        return;
+      }
+      const confirmation = String(req.body?.confirmation || "").trim();
+      if (confirmation !== ACCOUNT_DELETE_CONFIRMATION) {
+        res.status(400).json({ message: `请输入“${ACCOUNT_DELETE_CONFIRMATION}”后再注销账号` });
+        return;
+      }
+      const user = await User.findById(req.user.id);
+      if (!user) {
+        res.status(404).json({ message: "用户不存在" });
+        return;
+      }
+      const now = new Date();
+      user.deletionRequestedAt = now;
+      user.deletionRestoreDeadline = new Date(now.getTime() + ACCOUNT_RESTORE_WINDOW_MS);
+      user.deletionRestoredAt = null;
+      await user.save();
+      res.status(200).json({
+        message: "账号已申请注销，3天内重新登录可恢复",
+        restoreDeadline: user.deletionRestoreDeadline,
+      });
+    } catch (error) {
+      res.status(400).json({ message: "注销账号失败", error });
+    }
+  }
+
   async getAll(_req: Request, res: Response): Promise<void> {
     try {
-      const users = await User.find().select("-password");
-      res.status(200).json(users);
+      const users = await User.find().select("-password").lean();
+      const userIds = users.map((user: any) => user._id);
+      const memories = userIds.length
+        ? await UserChildMemory.find({ userId: { $in: userIds } })
+            .select("userId childId enabled summary updatedAt")
+            .lean()
+        : [];
+      const memoryMap = summarizeAdminChildMemories(memories as AdminChildMemoryDoc[]);
+      const rows = users.map((user: any) => {
+        const memorySummary = memoryMap.get(String(user._id));
+        return {
+          ...user,
+          childMemories: memorySummary?.childMemories || [],
+          memoryItemCount: memorySummary?.memoryItemCount || 0,
+          memoryPreview: memorySummary?.memoryPreview || "",
+          latestMemoryAt: memorySummary?.latestMemoryAt || null,
+        };
+      });
+      res.status(200).json(rows);
     } catch (error) {
       res.status(500).json({ message: "获取用户列表失败", error });
     }
@@ -563,28 +755,56 @@ export class UserController {
         return;
       }
 
+      const changes: Array<{ field: string; oldValue: string; newValue: string }> = [];
+      const setTrackedString = (field: "city" | "region" | "childGrade" | "grade" | "name", value: unknown) => {
+        if (typeof value !== "string") return;
+        const oldValue = stringifyAuditValue((user as any)[field]);
+        const newValue = value.trim();
+        if (oldValue !== newValue) {
+          changes.push({ field, oldValue, newValue });
+        }
+        (user as any)[field] = newValue;
+      };
+
       if (typeof username === "string" && username.trim()) {
-        const existing = await User.findOne({ username: username.trim(), _id: { $ne: id } });
+        const nextUsername = username.trim();
+        const existing = await User.findOne({ username: nextUsername, _id: { $ne: id } });
         if (existing) {
           res.status(400).json({ message: "用户名已存在" });
           return;
         }
-        user.username = username.trim();
+        if (user.username !== nextUsername) {
+          changes.push({ field: "username", oldValue: stringifyAuditValue(user.username), newValue: nextUsername });
+        }
+        user.username = nextUsername;
       }
       if (typeof role === "string" && (role === "admin" || role === "user")) {
         if (String(req.user.id) === String(id) && role !== "admin") {
           res.status(400).json({ message: "不能取消当前登录账号的管理员权限" });
           return;
         }
+        if (user.role !== role) {
+          changes.push({ field: "role", oldValue: stringifyAuditValue(user.role), newValue: role });
+        }
         user.role = role;
       }
-      if (typeof city === "string") user.city = city;
-      if (typeof region === "string") user.region = region;
-      if (typeof childGrade === "string") user.childGrade = childGrade;
-      if (typeof grade === "string") user.grade = grade;
-      if (typeof name === "string") user.name = name;
+      setTrackedString("city", city);
+      setTrackedString("region", region);
+      setTrackedString("childGrade", childGrade);
+      setTrackedString("grade", grade);
+      setTrackedString("name", name);
       if (typeof password === "string" && password.trim()) {
+        changes.push({ field: "password", oldValue: "", newValue: "已重置" });
         user.password = await bcryptjs.hash(password, 10);
+      }
+      if (changes.length) {
+        const entries = changes.map((change) => ({
+          ...change,
+          changedAt: new Date(),
+          changedBy: String(req.user.id || ""),
+        }));
+        const history = Array.isArray((user as any).changeHistory) ? (user as any).changeHistory : [];
+        (user as any).changeHistory = [...history, ...entries].slice(-80);
       }
 
       await user.save();

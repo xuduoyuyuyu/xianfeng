@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { RootState } from "../store";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import Pagination from "../components/Pagination";
+import { useXiaowanziEmbeddedLayer } from "../utils/xiaowanziLayer";
 
 const FALLBACK_COVER = "http://xianfeng.xinzhi.info/uploads/images/1779669071894-42qbgvdv.png";
 
@@ -33,9 +34,8 @@ function fmtDate(value?: string) {
   return d.toLocaleDateString("zh-CN");
 }
 
-const PROGRAM_LIST_HERO_DISMISSED_KEY = "program_list_hero_dismissed_v1";
-
 const ProgramListPage: React.FC = () => {
+  const navigate = useNavigate();
   const { user: currentUser, token } = useSelector((state: RootState) => state.user);
   const isLoggedIn = !!currentUser && !!token;
   const [programs, setPrograms] = useState<Program[]>([]);
@@ -44,19 +44,27 @@ const ProgramListPage: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState("");
-  const [showHero, setShowHero] = useState(false);
   const pageSize = 20;
   const [searchParams, setSearchParams] = useSearchParams();
+  const superModePage = useXiaowanziEmbeddedLayer();
 
   const keyword = useMemo(() => String(searchParams.get("q") || "").trim(), [searchParams]);
-
-  useEffect(() => {
-    try {
-      setShowHero(window.localStorage.getItem(PROGRAM_LIST_HERO_DISMISSED_KEY) !== "1");
-    } catch (_err) {
-      setShowHero(true);
-    }
-  }, []);
+  const xiaowanziBackButton = superModePage ? (
+    <button
+      type="button"
+      aria-label="返回小玩子"
+      onClick={() => {
+        if (window.history.length > 1) {
+          navigate(-1);
+          return;
+        }
+        navigate("/programs/list?xw_restore=xiaowanzi");
+      }}
+      className="fixed left-4 top-[calc(14px+env(safe-area-inset-top))] z-[120] inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-[#11143b] shadow-[0_10px_24px_rgba(70,73,132,0.14)]"
+    >
+      <span className="material-symbols-outlined text-[28px]">arrow_back</span>
+    </button>
+  ) : null;
 
   useEffect(() => {
     let alive = true;
@@ -94,13 +102,6 @@ const ProgramListPage: React.FC = () => {
       alive = false;
     };
   }, [currentPage, keyword]);
-
-  const dismissHero = () => {
-    setShowHero(false);
-    try {
-      window.localStorage.setItem(PROGRAM_LIST_HERO_DISMISSED_KEY, "1");
-    } catch (_err) {}
-  };
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#f3f2f8] text-[#1f1d1a]">
@@ -148,37 +149,32 @@ const ProgramListPage: React.FC = () => {
         />
       </div>
 
-      <GlobalPublicNav
-        compactMobile
-        showSearch
-        showAiOnline
-        showLogout
-        showProgramList
-        showExpertsEntry
-        searchPlaceholder="搜索节目标题/简介"
-        searchValue={keyword}
-        onSearchChange={(value) => {
-          const next = new URLSearchParams(searchParams);
-          const trimmed = String(value || "").trim();
-          if (trimmed) next.set("q", trimmed);
-          else next.delete("q");
-          next.delete("page");
-          setCurrentPage(1);
-          setSearchParams(next);
-        }}
-      />
+      {xiaowanziBackButton}
 
-      <main className="relative z-10 mx-auto max-w-7xl px-4 pb-16 pt-[76px] sm:px-6 lg:px-8">
-        {showHero ? (
-          <section className="group relative overflow-hidden rounded-[2rem] border border-[#d8d0ef] bg-[radial-gradient(circle_at_18%_0%,_rgba(143,100,255,0.14),_transparent_36%),radial-gradient(circle_at_76%_22%,_rgba(124,58,237,0.08),_transparent_32%),linear-gradient(135deg,_#f4f1fd_0%,_#f9f7ff_45%,_#f0ebff_100%)] p-8 shadow-[0_24px_80px_rgba(80,62,125,0.12)] sm:p-10">
-            <button
-              type="button"
-              onClick={dismissHero}
-              aria-label="关闭引导卡片"
-              className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#cfc2ee] bg-white/75 text-[#6d57a3] opacity-0 transition hover:bg-white hover:text-[#4e36a0] group-hover:opacity-100 focus-visible:opacity-100 sm:opacity-0 max-sm:opacity-100"
-            >
-              <span className="material-symbols-outlined text-[18px]">close</span>
-            </button>
+      {!superModePage ? (
+        <GlobalPublicNav
+          compactMobile
+          showSearch
+          showAiOnline
+          showLogout
+          showProgramList
+          showExpertsEntry
+          searchPlaceholder="搜索节目标题/简介"
+          searchValue={keyword}
+          onSearchChange={(value) => {
+            const next = new URLSearchParams(searchParams);
+            const trimmed = String(value || "").trim();
+            if (trimmed) next.set("q", trimmed);
+            else next.delete("q");
+            next.delete("page");
+            setCurrentPage(1);
+            setSearchParams(next);
+          }}
+        />
+      ) : null}
+
+      <main className={`relative z-10 mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8 ${superModePage ? "pt-6" : "pt-[76px]"}`}>
+        <section className="group relative overflow-hidden rounded-[2rem] border border-[#d8d0ef] bg-[radial-gradient(circle_at_18%_0%,_rgba(143,100,255,0.14),_transparent_36%),radial-gradient(circle_at_76%_22%,_rgba(124,58,237,0.08),_transparent_32%),linear-gradient(135deg,_#f4f1fd_0%,_#f9f7ff_45%,_#f0ebff_100%)] p-8 shadow-[0_24px_80px_rgba(80,62,125,0.12)] sm:p-10">
             <div className="max-w-3xl">
               <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.28em] text-[#5b3fa1]">
                 Programs
@@ -190,12 +186,11 @@ const ProgramListPage: React.FC = () => {
                 这里汇总已发布节目，按时间倒序呈现。你可以直接搜索标题与简介，并通过标签和内容类型快速判断每一期是否值得立即深听。
               </p>
             </div>
-          </section>
-        ) : null}
+        </section>
 
         {error ? <div className="mt-6 rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm text-red-500">{error}</div> : null}
 
-        <section className={`${showHero ? "mt-8" : "mt-2"} space-y-5`}>
+        <section className="mt-8 space-y-5">
           {loading ? (
             Array.from({ length: 5 }).map((_, idx) => (
               <div key={idx} className="animate-pulse rounded-[1.7rem] border border-[#e2dcf0] bg-white p-5 sm:p-6">
@@ -220,7 +215,7 @@ const ProgramListPage: React.FC = () => {
                 return (
                   <a
                     key={program._id}
-                    href={`/programs/${encodeURIComponent(routeId)}`}
+                    href={`/programs/${encodeURIComponent(routeId)}${superModePage ? "?xw_layer=1" : ""}`}
                     className="group block overflow-hidden rounded-[1.7rem] border border-[#e1daf0] bg-white p-5 shadow-[0_20px_60px_rgba(63,38,112,0.06)] transition hover:-translate-y-1 hover:border-[#b79bff] hover:shadow-[0_28px_80px_rgba(63,38,112,0.14)] sm:p-6"
                   >
                     <div className="flex flex-col gap-5 lg:flex-row">

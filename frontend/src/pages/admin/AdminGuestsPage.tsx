@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { adminApi, AgentTask, Guest, GuestBoundProgram, GuestPublication, GuestSocialProfile, ListenerBenefit, Program } from "../../services/api";
+import { adminApi, AgentTask, Guest, GuestBoundProgram, GuestPublication, GuestSocialProfile, KnowledgeSource, ListenerBenefit, Program } from "../../services/api";
 import TopAlert from "../../components/TopAlert";
 
 type GuestForm = {
@@ -13,6 +13,7 @@ type GuestForm = {
   socialProfiles: GuestSocialProfile[];
   publications: GuestPublication[];
   listenerBenefits: ListenerBenefit[];
+  agentEnabled: boolean;
   status: "active" | "inactive";
 };
 
@@ -27,6 +28,7 @@ const EMPTY_FORM: GuestForm = {
   socialProfiles: [],
   publications: [],
   listenerBenefits: [],
+  agentEnabled: false,
   status: "active",
 };
 const PAGE_SIZE = 20;
@@ -96,6 +98,21 @@ function normalizeMaybeUrl(value: string): string {
   return `https://${raw}`;
 }
 
+function knowledgeStatusLabel(source: KnowledgeSource): string {
+  const parse = source.parseStatus === "ready" ? "可检索" : source.parseStatus === "failed" ? "解析失败" : "待补正文";
+  const sync = source.syncStatus === "synced" ? "已同步" : source.syncStatus === "failed" ? "同步失败" : "待同步";
+  return `${parse} · ${sync}`;
+}
+
+function knowledgeSourceKindLabel(kind: KnowledgeSource["sourceKind"]): string {
+  if (kind === "uploaded_file") return "上传文件";
+  if (kind === "learning_material") return "学习资料";
+  if (kind === "external_url") return "外部链接";
+  if (kind === "program_content") return "节目内容";
+  if (kind === "guest_profile") return "嘉宾档案";
+  return "手动资料";
+}
+
 const AdminGuestsPage: React.FC = () => {
   const [items, setItems] = useState<Guest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -108,6 +125,7 @@ const AdminGuestsPage: React.FC = () => {
   const [editing, setEditing] = useState<Guest | null>(null);
   const [form, setForm] = useState<GuestForm>(EMPTY_FORM);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const knowledgeFileInputRef = useRef<HTMLInputElement | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [programSearch, setProgramSearch] = useState("");
   const [programCandidates, setProgramCandidates] = useState<Program[]>([]);
@@ -115,6 +133,12 @@ const AdminGuestsPage: React.FC = () => {
   const [bindingLoading, setBindingLoading] = useState(false);
   const [guestTask, setGuestTask] = useState<AgentTask | null>(null);
   const [guestTaskLoading, setGuestTaskLoading] = useState(false);
+  const [knowledgeSources, setKnowledgeSources] = useState<KnowledgeSource[]>([]);
+  const [knowledgeLoading, setKnowledgeLoading] = useState(false);
+  const [knowledgeUploading, setKnowledgeUploading] = useState(false);
+  const [knowledgeSyncing, setKnowledgeSyncing] = useState(false);
+  const [knowledgeDraft, setKnowledgeDraft] = useState({ title: "", summary: "", rawText: "" });
+  const [knowledgeSyncSummary, setKnowledgeSyncSummary] = useState("");
 
   const loadGuests = async () => {
     setLoading(true);
@@ -171,6 +195,86 @@ const AdminGuestsPage: React.FC = () => {
     }
   };
 
+  const loadKnowledgeSources = async (guestId: string) => {
+    setKnowledgeLoading(true);
+    try {
+      const res = await adminApi.getKnowledgeSources({ guestId });
+      setKnowledgeSources(res.data?.sources || []);
+    } catch (err: any) {
+      setError(err?.response?.data?.message || err?.message || "加载知识库资料失败");
+    } finally {
+      setKnowledgeLoading(false);
+    }
+  };
+
+  const createManualKnowledgeSource = async () => {
+    if (!editing?._id) return;
+    const title = knowledgeDraft.title.trim();
+    const summary = knowledgeDraft.summary.trim();
+    const rawText = knowledgeDraft.rawText.trim();
+    if (!title || (!summary && !rawText)) {
+      setError("请填写资料标题，并至少填写摘要或正文");
+      return;
+    }
+    setKnowledgeUploading(true);
+    setError(null);
+    try {
+      await adminApi.createKnowledgeSource({
+        guestId: editing._id,
+        title,
+        summary,
+        rawText,
+        sourceKind: "manual_note",
+      });
+      setKnowledgeDraft({ title: "", summary: "", rawText: "" });
+      await loadKnowledgeSources(editing._id);
+    } catch (err: any) {
+      setError(err?.response?.data?.message || err?.message || "新增知识库资料失败");
+    } finally {
+      setKnowledgeUploading(false);
+    }
+  };
+
+  const uploadKnowledgeFile = async (file: File) => {
+    if (!editing?._id) return;
+    setKnowledgeUploading(true);
+    setError(null);
+    try {
+      await adminApi.uploadKnowledgeSource({
+        guestId: editing._id,
+        file,
+        title: knowledgeDraft.title.trim() || file.name,
+        summary: knowledgeDraft.summary.trim(),
+        rawText: knowledgeDraft.rawText.trim(),
+      });
+      setKnowledgeDraft({ title: "", summary: "", rawText: "" });
+      await loadKnowledgeSources(editing._id);
+    } catch (err: any) {
+      setError(err?.response?.data?.message || err?.message || "上传知识库资料失败");
+    } finally {
+      setKnowledgeUploading(false);
+    }
+  };
+
+  const syncGuestKnowledgeSources = async () => {
+    if (!editing?._id) return;
+    setKnowledgeSyncing(true);
+    setKnowledgeSyncSummary("");
+    setError(null);
+    try {
+      const res = await adminApi.syncGuestKnowledgeSources(editing._id);
+      const sync = res.data?.weknoraSync;
+      setKnowledgeSyncSummary(
+        `已同步 ${res.data?.chunkCount || 0} 个资料片段${sync?.status ? ` · WeKnora: ${sync.status}` : ""}`
+      );
+      await loadKnowledgeSources(editing._id);
+    } catch (err: any) {
+      setError(err?.response?.data?.message || err?.message || "同步嘉宾知识库失败");
+    } finally {
+      setKnowledgeSyncing(false);
+    }
+  };
+
   const addProgramBinding = (program: Program) => {
     if (!program?._id) return;
     setBoundPrograms((prev) => {
@@ -199,6 +303,9 @@ const AdminGuestsPage: React.FC = () => {
     setProgramSearch("");
     setProgramCandidates([]);
     setBoundPrograms([]);
+    setKnowledgeSources([]);
+    setKnowledgeDraft({ title: "", summary: "", rawText: "" });
+    setKnowledgeSyncSummary("");
     setIsModalOpen(true);
     void loadProgramCandidates("");
   };
@@ -222,29 +329,37 @@ const AdminGuestsPage: React.FC = () => {
       socialProfiles: normalizeSocialProfilesForForm(guest.socialProfiles),
       publications: normalizePublicationsForForm(guest.publications),
       listenerBenefits: normalizeListenerBenefitsForForm(guest.listenerBenefits),
+      agentEnabled: guest.agentEnabled === true,
       status: guest.status || "active",
     });
     setAvatarUploadHint("");
     setProgramSearch("");
     setProgramCandidates([]);
     setBoundPrograms([]);
+    setKnowledgeSources([]);
+    setKnowledgeDraft({ title: "", summary: "", rawText: "" });
+    setKnowledgeSyncSummary("");
     setIsModalOpen(true);
     setBindingLoading(true);
     setGuestTaskLoading(true);
+    setKnowledgeLoading(true);
     try {
-      const [boundRes, candidatesRes, taskRes] = await Promise.all([
+      const [boundRes, candidatesRes, taskRes, knowledgeRes] = await Promise.all([
         adminApi.getGuestProgramBindings(guest._id),
         adminApi.getProgramsPaged({ page: 1, pageSize: PROGRAM_PAGE_SIZE }),
         adminApi.listAgentTasks({ targetType: "guest", targetId: guest._id, limit: 1 }),
+        adminApi.getKnowledgeSources({ guestId: guest._id }),
       ]);
       setBoundPrograms(boundRes.data?.items || []);
       setProgramCandidates(candidatesRes.data?.items || []);
       setGuestTask((taskRes.data?.items || [])[0] || null);
+      setKnowledgeSources(knowledgeRes.data?.sources || []);
     } catch (err: any) {
       setError(err?.response?.data?.message || err?.message || "加载节目绑定数据失败");
     } finally {
       setBindingLoading(false);
       setGuestTaskLoading(false);
+      setKnowledgeLoading(false);
     }
   };
 
@@ -260,6 +375,12 @@ const AdminGuestsPage: React.FC = () => {
     setBindingLoading(false);
     setGuestTask(null);
     setGuestTaskLoading(false);
+    setKnowledgeSources([]);
+    setKnowledgeLoading(false);
+    setKnowledgeUploading(false);
+    setKnowledgeSyncing(false);
+    setKnowledgeDraft({ title: "", summary: "", rawText: "" });
+    setKnowledgeSyncSummary("");
   };
 
   const refreshGuestTask = async (guestId: string) => {
@@ -645,53 +766,70 @@ const AdminGuestsPage: React.FC = () => {
       <TopAlert message={error} onClose={() => setError(null)} />
 
       <section className="overflow-hidden rounded-3xl border border-stone-200 bg-white">
-        <table className="w-full text-left">
-          <thead className="bg-stone-50 text-xs text-stone-500">
-            <tr>
-              <th className="px-6 py-3">嘉宾</th>
-              <th className="px-6 py-3">头衔</th>
-              <th className="px-6 py-3 text-center">关联节目</th>
-              <th className="px-6 py-3 text-center">操作</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-stone-100">
-            {loading ? (
-              <tr><td className="px-6 py-6 text-sm text-stone-500" colSpan={4}>正在加载...</td></tr>
-            ) : items.length === 0 ? (
-              <tr><td className="px-6 py-6 text-sm text-stone-500" colSpan={4}>暂无嘉宾</td></tr>
-            ) : (
-              pagedItems.map((item) => (
-                <tr key={item._id}>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={item.avatar || "http://xianfeng.xinzhi.info/uploads/images/1779264157086-hgcd24g4.png"}
-                        className="h-10 w-10 rounded-full object-cover"
-                        onError={(event) => {
-                          const target = event.currentTarget;
-                          if (target.src.endsWith("1779264157086-hgcd24g4.png")) return;
-                          target.src = "http://xianfeng.xinzhi.info/uploads/images/1779264157086-hgcd24g4.png";
-                        }}
-                      />
-                      <div>
-                        <div className="text-sm font-bold text-stone-900">{item.name}</div>
-                        <div className="text-xs text-stone-500 line-clamp-1">{item.bio || "-"}</div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1180px] table-fixed text-left">
+            <colgroup>
+              <col />
+              <col className="w-[160px]" />
+              <col className="w-[112px]" />
+              <col className="w-[128px]" />
+              <col className="w-[176px]" />
+            </colgroup>
+            <thead className="bg-stone-50 text-xs text-stone-500">
+              <tr>
+                <th className="px-6 py-3 whitespace-nowrap">嘉宾</th>
+                <th className="px-4 py-3 whitespace-nowrap">头衔</th>
+                <th className="px-4 py-3 text-center whitespace-nowrap">关联节目</th>
+                <th className="px-4 py-3 text-center whitespace-nowrap">AI分身</th>
+                <th className="px-4 py-3 text-right whitespace-nowrap">操作</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-stone-100">
+              {loading ? (
+                <tr><td className="px-6 py-6 text-sm text-stone-500" colSpan={5}>正在加载...</td></tr>
+              ) : items.length === 0 ? (
+                <tr><td className="px-6 py-6 text-sm text-stone-500" colSpan={5}>暂无嘉宾</td></tr>
+              ) : (
+                pagedItems.map((item) => (
+                  <tr key={item._id}>
+                    <td className="px-6 py-4">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <img
+                          src={item.avatar || "http://xianfeng.xinzhi.info/uploads/images/1779264157086-hgcd24g4.png"}
+                          className="h-10 w-10 shrink-0 rounded-full object-cover"
+                          onError={(event) => {
+                            const target = event.currentTarget;
+                            if (target.src.endsWith("1779264157086-hgcd24g4.png")) return;
+                            target.src = "http://xianfeng.xinzhi.info/uploads/images/1779264157086-hgcd24g4.png";
+                          }}
+                        />
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-bold text-stone-900">{item.name}</div>
+                          <div className="text-xs text-stone-500 line-clamp-1">{item.bio || "-"}</div>
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-stone-700">{item.title || "-"}</td>
-                  <td className="px-6 py-4 text-center text-sm text-stone-600">{item.programCount || 0}</td>
-                  <td className="px-6 py-4 text-center">
-                    <div className="flex justify-center gap-2">
-                      <button className="rounded-full border border-stone-200 px-3 py-1 text-xs font-bold text-stone-700" onClick={() => { void openEdit(item); }} type="button">编辑</button>
-                      <button className="rounded-full border border-red-100 px-3 py-1 text-xs font-bold text-red-500" onClick={() => remove(item)} type="button">删除</button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+                    </td>
+                    <td className="px-4 py-4 text-sm text-stone-700">
+                      <span className="block truncate">{item.title || "-"}</span>
+                    </td>
+                    <td className="px-4 py-4 text-center text-sm text-stone-600 whitespace-nowrap">{item.programCount || 0}</td>
+                    <td className="px-4 py-4 text-center whitespace-nowrap">
+                      <span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-bold ${item.agentEnabled ? "bg-emerald-50 text-emerald-700" : "bg-stone-100 text-stone-500"}`}>
+                        {item.agentEnabled ? "已开启" : "未开启"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-right whitespace-nowrap">
+                      <div className="flex justify-end gap-2 whitespace-nowrap">
+                        <button className="rounded-full border border-stone-200 px-3 py-1 text-xs font-bold text-stone-700" onClick={() => { void openEdit(item); }} type="button">编辑</button>
+                        <button className="rounded-full border border-red-100 px-3 py-1 text-xs font-bold text-red-500" onClick={() => remove(item)} type="button">删除</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
         {!loading && items.length > 0 ? (
           <div className="flex items-center justify-between border-t border-stone-100 px-6 py-4 text-sm text-stone-500">
             <div>第 {currentPage}/{totalPages} 页，每页 {PAGE_SIZE} 条，共 {items.length} 条</div>
@@ -761,6 +899,126 @@ const AdminGuestsPage: React.FC = () => {
               </div>
               <input className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm md:col-span-2 admin-form-input" placeholder="档案链接" value={form.profileUrl} onChange={(event) => setForm((prev) => ({ ...prev, profileUrl: event.target.value }))} />
               <textarea className="min-h-[90px] rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm md:col-span-2 admin-form-textarea" placeholder="简介" value={form.bio} onChange={(event) => setForm((prev) => ({ ...prev, bio: event.target.value }))} />
+              <div className="rounded-2xl border border-stone-200 bg-white p-4 md:col-span-2">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-widest text-[#7A746E]">嘉宾 AI 分身</p>
+                    <p className="mt-1 text-xs text-stone-500">手动开启后，前台嘉宾详情页才展示 AI 分身；未开启时保持普通嘉宾页面。</p>
+                  </div>
+                  <button
+                    type="button"
+                    aria-pressed={form.agentEnabled}
+                    onClick={() => setForm((prev) => ({ ...prev, agentEnabled: !prev.agentEnabled }))}
+                    className={`rounded-full px-4 py-2 text-xs font-bold transition ${form.agentEnabled ? "bg-[#5e17eb] text-white" : "bg-stone-100 text-stone-500"}`}
+                  >
+                    {form.agentEnabled ? "已开启" : "未开启"}
+                  </button>
+                </div>
+              </div>
+              {editing ? (
+                <div className="rounded-2xl border border-stone-200 bg-white p-4 md:col-span-2">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-widest text-[#7A746E]">AI 分身知识库</p>
+                      <p className="mt-1 text-xs text-stone-500">上传嘉宾专属资料，或手动补充摘要/正文；同步后进入本地检索和 WeKnora 知识库。</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={syncGuestKnowledgeSources}
+                      disabled={knowledgeSyncing}
+                      className="rounded-full bg-[#5e17eb] px-4 py-1.5 text-xs font-bold text-white transition hover:bg-[#5112d1] disabled:opacity-60"
+                    >
+                      {knowledgeSyncing ? "同步中..." : "同步知识库"}
+                    </button>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+                    <input
+                      className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs admin-form-input"
+                      placeholder="资料标题"
+                      value={knowledgeDraft.title}
+                      onChange={(event) => setKnowledgeDraft((prev) => ({ ...prev, title: event.target.value }))}
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => knowledgeFileInputRef.current?.click()}
+                        disabled={knowledgeUploading}
+                        className="flex-1 rounded-xl border border-[#5e17eb]/20 px-3 py-2 text-xs font-bold text-[#5e17eb] disabled:opacity-60"
+                      >
+                        {knowledgeUploading ? "处理中..." : "上传 PDF/DOCX/TXT"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={createManualKnowledgeSource}
+                        disabled={knowledgeUploading}
+                        className="rounded-xl bg-stone-900 px-3 py-2 text-xs font-bold text-white disabled:opacity-60"
+                      >
+                        保存手动资料
+                      </button>
+                      <input
+                        ref={knowledgeFileInputRef}
+                        type="file"
+                        accept=".pdf,.doc,.docx,.txt,.md,.markdown,.csv,.json,text/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        className="hidden"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          event.target.value = "";
+                          if (file) void uploadKnowledgeFile(file);
+                        }}
+                      />
+                    </div>
+                    <textarea
+                      className="min-h-[64px] rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs admin-form-textarea md:col-span-2"
+                      placeholder="资料摘要（PDF/DOCX 暂未本地抽文本时，可先填摘要进入知识库）"
+                      value={knowledgeDraft.summary}
+                      onChange={(event) => setKnowledgeDraft((prev) => ({ ...prev, summary: event.target.value }))}
+                    />
+                    <textarea
+                      className="min-h-[84px] rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs admin-form-textarea md:col-span-2"
+                      placeholder="正文 / 关键摘录（TXT/MD 会自动抽取；这里可补充可检索内容）"
+                      value={knowledgeDraft.rawText}
+                      onChange={(event) => setKnowledgeDraft((prev) => ({ ...prev, rawText: event.target.value }))}
+                    />
+                  </div>
+
+                  <div className="mt-3 rounded-xl border border-stone-100 bg-stone-50 px-3 py-2 text-xs text-stone-600">
+                    {knowledgeSyncSummary || `当前资料 ${knowledgeSources.length} 条；待同步 ${knowledgeSources.filter((item) => item.syncStatus !== "synced").length} 条`}
+                  </div>
+
+                  <div className="mt-3 max-h-56 space-y-2 overflow-y-auto">
+                    {knowledgeLoading ? (
+                      <div className="rounded-xl border border-stone-100 bg-stone-50 px-3 py-3 text-xs text-stone-400">正在加载知识库资料...</div>
+                    ) : knowledgeSources.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-stone-200 bg-stone-50 px-3 py-3 text-xs text-stone-400">
+                        暂无额外知识库资料。嘉宾档案、公开成果和关联节目仍会在重建索引时自动汇总。
+                      </div>
+                    ) : (
+                      knowledgeSources.map((source) => (
+                        <div key={source._id} className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-bold text-stone-800">{source.title}</div>
+                              <div className="mt-1 text-[11px] text-stone-500">
+                                {knowledgeSourceKindLabel(source.sourceKind)} · {knowledgeStatusLabel(source)}
+                              </div>
+                            </div>
+                            {source.fileUrl ? (
+                              <a className="rounded-full border border-stone-200 px-3 py-1 text-[11px] font-bold text-stone-600" href={source.fileUrl} target="_blank" rel="noreferrer">
+                                打开文件
+                              </a>
+                            ) : null}
+                          </div>
+                          {source.summary || source.rawText ? (
+                            <div className="mt-2 line-clamp-2 text-xs text-stone-600">{source.summary || source.rawText}</div>
+                          ) : null}
+                          {source.syncError ? <div className="mt-1 text-[11px] text-red-500">{source.syncError}</div> : null}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              ) : null}
               <div className="rounded-2xl border border-stone-200 bg-white p-4 md:col-span-2">
                 {editing ? (
                   <>

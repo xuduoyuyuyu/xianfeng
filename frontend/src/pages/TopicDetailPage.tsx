@@ -6,6 +6,8 @@ import type { RootState } from "../store";
 import { getTopicUserId } from "../utils/topicUserId";
 import { toPng } from "html-to-image";
 import XianfengSharePoster, {
+  getSharePosterHeight,
+  SHARE_POSTER_HEIGHT,
   SHARE_POSTER_WIDTH,
   type XianfengSharePosterData,
 } from "../components/XianfengSharePoster";
@@ -695,6 +697,15 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
 
   const isMobile = typeof window !== "undefined" && window.innerWidth < 1024;
   const isPhone = typeof window !== "undefined" && window.innerWidth < 768;
+  const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 1024;
+  const shareModalPadding = isPhone ? 12 : 20;
+  const sharePreviewWidth = Math.min(
+    SHARE_POSTER_WIDTH,
+    Math.max(280, viewportWidth - shareModalPadding * 2 - (isPhone ? 44 : 56))
+  );
+  const sharePosterHeight = sharePosterData ? getSharePosterHeight(sharePosterData) : SHARE_POSTER_HEIGHT;
+  const sharePreviewScale = sharePreviewWidth / SHARE_POSTER_WIDTH;
+  const sharePreviewHeight = Math.round(sharePosterHeight * sharePreviewScale);
 
   return (
     <>
@@ -1212,25 +1223,26 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
             background: "rgba(0,0,0,0.5)",
             zIndex: 9999,
             display: "flex",
-            alignItems: "center",
+            alignItems: isPhone ? "flex-start" : "center",
             justifyContent: "center",
-            padding: 20,
+            padding: isPhone ? "68px 12px calc(18px + env(safe-area-inset-bottom))" : 20,
           }}
         >
           <div
             style={{
               background: "#fff",
-              borderRadius: 24,
-              padding: 28,
-              width: "fit-content",
-              maxWidth: "96vw",
-              maxHeight: "90vh",
+              borderRadius: isPhone ? 22 : 24,
+              padding: isPhone ? 16 : 28,
+              width: isPhone ? "100%" : "fit-content",
+              maxWidth: isPhone ? "calc(100vw - 24px)" : "96vw",
+              maxHeight: isPhone ? "calc(100vh - 86px - env(safe-area-inset-bottom))" : "90vh",
               overflow: "auto",
               textAlign: "center",
+              boxSizing: "border-box",
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <span style={{ fontSize: 18, fontWeight: 700, color: "#1E1B4B" }}>📤 分享话题</span>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: isPhone ? 12 : 16 }}>
+              <span style={{ fontSize: isPhone ? 17 : 18, fontWeight: 700, color: "#1E1B4B" }}>📤 分享话题</span>
               <button
                 onClick={() => { setShareModalOpen(false); setShareImageUrl(null); }}
                 style={{
@@ -1250,40 +1262,67 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
               <>
                 <div
                   style={{
-                    marginBottom: 18,
-                    width: `min(${SHARE_POSTER_WIDTH}px, calc(96vw - 56px))`,
-                    maxHeight: "68vh",
+                    marginBottom: isPhone ? 14 : 18,
+                    width: sharePreviewWidth,
+                    height: sharePreviewHeight,
+                    maxWidth: "100%",
+                    maxHeight: isPhone ? "58vh" : "68vh",
                     overflow: "auto",
-                    borderRadius: 16,
+                    borderRadius: isPhone ? 14 : 16,
                     border: "1px solid #EBE3FF",
                     background: "#F4EFFF",
+                    WebkitOverflowScrolling: "touch",
                   }}
                 >
                   <div
-                    ref={sharePosterRef}
                     style={{
-                      width: SHARE_POSTER_WIDTH,
+                      position: "relative",
+                      width: sharePreviewWidth,
+                      height: sharePreviewHeight,
                       textAlign: "left",
-                      transformOrigin: "top left",
-                      transform: "scale(1)",
                     }}
                   >
-                    <XianfengSharePoster data={sharePosterData} />
+                    <div
+                      style={{
+                        position: "absolute",
+                        left: 0,
+                        top: 0,
+                        width: SHARE_POSTER_WIDTH,
+                        height: sharePosterHeight,
+                        textAlign: "left",
+                        transformOrigin: "top left",
+                        transform: `scale(${sharePreviewScale})`,
+                      }}
+                    >
+                      <div
+                        ref={sharePosterRef}
+                        style={{
+                          width: SHARE_POSTER_WIDTH,
+                          height: sharePosterHeight,
+                          textAlign: "left",
+                        }}
+                      >
+                        <XianfengSharePoster data={sharePosterData} />
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: isPhone ? 8 : 10, justifyContent: "center", flexWrap: "wrap" }}>
                   <a
                     href={shareImageUrl || undefined}
                     download={`${topic?.title || "话题"}_分享图.png`}
                     style={{
-                      padding: "10px 24px",
+                      flex: isPhone ? "1 1 0" : "0 0 auto",
+                      minWidth: isPhone ? 0 : undefined,
+                      padding: isPhone ? "10px 12px" : "10px 24px",
                       borderRadius: 14,
                       background: "linear-gradient(135deg, #7C4DFF, #9F7BFF)",
                       color: shareImageUrl ? "#fff" : "rgba(255,255,255,0.7)",
-                      fontSize: 16,
+                      fontSize: isPhone ? 15 : 16,
                       fontWeight: 700,
                       textDecoration: "none",
                       pointerEvents: shareImageUrl ? "auto" : "none",
+                      whiteSpace: "nowrap",
                     }}
                   >
                     {shareImageUrl ? "💾 保存图片" : "正在生成…"}
@@ -1302,14 +1341,17 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
                       }
                     }}
                     style={{
-                      padding: "10px 24px",
+                      flex: isPhone ? "1 1 0" : "0 0 auto",
+                      minWidth: isPhone ? 0 : undefined,
+                      padding: isPhone ? "10px 12px" : "10px 24px",
                       borderRadius: 14,
                       border: "1px solid #E9E3F8",
                       background: "#fff",
                       color: shareImageUrl ? "#7C4DFF" : "#B9A8E8",
-                      fontSize: 16,
+                      fontSize: isPhone ? 15 : 16,
                       fontWeight: 700,
                       cursor: shareImageUrl ? "pointer" : "not-allowed",
+                      whiteSpace: "nowrap",
                     }}
                     disabled={!shareImageUrl}
                   >

@@ -1,7 +1,19 @@
 import { Router, Request, Response } from "express";
 import WorthBuyAnalysis from "../models/WorthBuyAnalysis";
+import { authenticate } from "../middlewares/auth";
+import { requirePro } from "../middlewares/requirePro";
 
 const router = Router();
+
+function requireProForNewAnalysis(req: Request, res: Response, next: any) {
+  if (req.body?.result) {
+    next();
+    return;
+  }
+  authenticate(req as any, res, () => {
+    requirePro("worthbuy_analysis")(req as any, res, next);
+  });
+}
 
 // GET 用户查看自己的提交列表（通过 submittedBy 或查询参数）
 router.get("/my", async (req: Request, res: Response) => {
@@ -60,7 +72,7 @@ router.get("/:brand", async (req: Request, res: Response) => {
 });
 
 // POST 提交新分析
-router.post("/submit", async (req: Request, res: Response) => {
+router.post("/submit", requireProForNewAnalysis, async (req: Request, res: Response) => {
   try {
     const { brand: incomingBrand, url, query, result, submittedBy, extractedTitle } = req.body || {};
 

@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import GuestModel from "../models/Guest";
 import Program from "../models/Program";
+import { rebuildGuestAgentIndex } from "../services/guestAgentService";
 
 function asText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -223,6 +224,7 @@ function serializeGuest(guest: any, programCount = 0) {
     socialProfiles,
     publications,
     listenerBenefits: normalizeListenerBenefits(Array.isArray(guest.listenerBenefits) ? guest.listenerBenefits : []),
+    agentEnabled: guest.agentEnabled === true,
     profileAvatarCandidates: Array.isArray(guest.profileAvatarCandidates) ? guest.profileAvatarCandidates : [],
     profileGeneratedAt: guest.profileGeneratedAt || null,
     status: guest.status === "inactive" ? "inactive" : "active",
@@ -233,6 +235,30 @@ function serializeGuest(guest: any, programCount = 0) {
 }
 
 export class AdminGuestController {
+  async reindexAgent(req: Request, res: Response): Promise<void> {
+    try {
+      const id = asText(req.params.id);
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        res.status(400).json({ message: "无效的嘉宾 ID" });
+        return;
+      }
+      const result = await rebuildGuestAgentIndex(id);
+      if (!result) {
+        res.status(404).json({ message: "嘉宾不存在" });
+        return;
+      }
+      res.status(200).json({
+        ok: true,
+        guestId: id,
+        chunkCount: result.chunkCount,
+        sourceCounts: result.sourceCounts,
+        weknoraSync: result.weknoraSync,
+      });
+    } catch (error) {
+      res.status(500).json({ message: "重建嘉宾智能体索引失败", error });
+    }
+  }
+
   async getAll(req: Request, res: Response): Promise<void> {
     try {
       const search = asText(req.query.search);
@@ -330,6 +356,7 @@ export class AdminGuestController {
             socialProfiles: nextSocialProfiles,
             publications: nextPublications,
             listenerBenefits: nextListenerBenefits,
+            agentEnabled: req.body?.agentEnabled === true,
             profileAvatarCandidates: nextProfileAvatarCandidates,
             profileGeneratedAt: nextProfileGeneratedAt,
             status: req.body?.status === "inactive" ? "inactive" : "active",
@@ -362,6 +389,7 @@ export class AdminGuestController {
         socialProfiles: normalizeSocialProfiles(req.body?.socialProfiles),
         publications: normalizePublications(req.body?.publications),
         listenerBenefits: normalizeListenerBenefits(req.body?.listenerBenefits),
+        agentEnabled: req.body?.agentEnabled === true,
         profileAvatarCandidates: Array.isArray(req.body?.profileAvatarCandidates) ? req.body.profileAvatarCandidates : [],
         profileGeneratedAt: req.body?.profileGeneratedAt || null,
         status: req.body?.status === "inactive" ? "inactive" : "active",
@@ -404,6 +432,9 @@ export class AdminGuestController {
       }
       if (Array.isArray(req.body?.listenerBenefits)) {
         payload.listenerBenefits = normalizeListenerBenefits(req.body.listenerBenefits);
+      }
+      if (typeof req.body?.agentEnabled === "boolean") {
+        payload.agentEnabled = req.body.agentEnabled;
       }
       if (Array.isArray(req.body?.profileAvatarCandidates)) {
         payload.profileAvatarCandidates = req.body.profileAvatarCandidates;

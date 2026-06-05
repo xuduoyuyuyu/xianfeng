@@ -8,6 +8,7 @@ export default defineConfig({
     modulePreload: false,
   },
   server: {
+    host: "127.0.0.1",
     port: 5173,
     proxy: {
       "/api/education-plan": {
@@ -26,16 +27,16 @@ export default defineConfig({
         secure: false,
       },
       "/api/topic-hub": {
-        target: "http://localhost:3001",
+        target: "http://127.0.0.1:3001",
         changeOrigin: true,
         secure: false,
       },
       "/api": {
-        target: "http://localhost:3001",
+        target: "http://127.0.0.1:3001",
         changeOrigin: true,
       },
       "/uploads": {
-        target: "http://localhost:3001",
+        target: "http://127.0.0.1:3001",
         changeOrigin: true,
       },
     },

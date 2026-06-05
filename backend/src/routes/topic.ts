@@ -1,6 +1,8 @@
 import { Router, Request, Response } from "express";
 import Topic from "../models/Topic";
 import User from "../models/User";
+import { authenticate } from "../middlewares/auth";
+import { requirePro } from "../middlewares/requirePro";
 import { generateTopicLayers, validateTopicKeyword } from "../services/topicAiGenerator";
 
 // 中文搜索关键词切词：按停用词和标点拆分，提取有意义的短词
@@ -58,6 +60,12 @@ function countLayerNodes(layers: any): number {
 // ============================================================
 export const publicRouter = Router();
 
+function requireProForTopicSubmission(req: Request, res: Response, next: any) {
+  authenticate(req as any, res, () => {
+    requirePro("topic_submit")(req as any, res, next);
+  });
+}
+
 // GET /api/topic-hub — 返回 published 话题列表，支持筛选分页
 publicRouter.get("/", async (req: Request, res: Response) => {
   try {
@@ -86,16 +94,10 @@ publicRouter.get("/", async (req: Request, res: Response) => {
       $or: [{ status: "published" }],
     };
 
-    // 如果提供了 userId，也返回该用户的 pending 话题
-    // 注意：userId 可能是空字符串（前端异常时），需要同时检查非空
+    // 如果提供了 userId，也返回该用户未隐藏的 pending 话题。
+    // 公开话题不受 hiddenForUsers 影响，避免登录后把公共列表筛空。
     if (userId && userId.trim()) {
-      filter.$or.push({ status: "pending", createdBy: userId });
-      // 排除该用户已隐藏的话题
-      filter.hiddenForUsers = { $ne: userId };
-    } else {
-      // 匿名用户排除 ip 已隐藏的
-      const clientIp = req.ip || "anonymous";
-      filter.hiddenForUsers = { $ne: clientIp };
+      filter.$or.push({ status: "pending", createdBy: userId, hiddenForUsers: { $ne: userId } });
     }
 
     if (tag) {
@@ -154,6 +156,7 @@ publicRouter.get("/", async (req: Request, res: Response) => {
     // 如果是第一页且有有效的 userId，把用户自己提交的所有话题排在前面
     if (userId && userId.trim() && pageNum === 1) {
       const userTopics = await Topic.find({
+        status: "pending",
         createdBy: userId,
         hiddenForUsers: { $ne: userId },
       })
@@ -256,7 +259,7 @@ publicRouter.get("/:slug", async (req: Request, res: Response) => {
 // POST /api/topic-hub/validate — AI 校验话题有效性
 // POST /api/topic-hub/validate — AI 校验话题有效性
 // POST /api/topic-hub/refine — AI 从长文本中提炼核心话题关键词（二次确认用）
-publicRouter.post("/refine", async (req: Request, res: Response) => {
+publicRouter.post("/refine", requireProForTopicSubmission, async (req: Request, res: Response) => {
   try {
     const { keyword } = req.body || {};
     if (!keyword || !keyword.trim()) {
@@ -289,7 +292,7 @@ publicRouter.post("/refine", async (req: Request, res: Response) => {
   }
 });
 
-publicRouter.post("/validate", async (req: Request, res: Response) => {
+publicRouter.post("/validate", requireProForTopicSubmission, async (req: Request, res: Response) => {
   try {
     const { keyword } = req.body || {};
     if (!keyword || !keyword.trim()) {
@@ -303,7 +306,7 @@ publicRouter.post("/validate", async (req: Request, res: Response) => {
 });
 
 // POST /api/topic-hub/search-generate — 搜索无结果时，AI 自动生成话题
-publicRouter.post("/search-generate", async (req: Request, res: Response) => {
+publicRouter.post("/search-generate", requireProForTopicSubmission, async (req: Request, res: Response) => {
   try {
     const { keyword, userId } = req.body || {};
     if (!keyword || !keyword.trim()) {

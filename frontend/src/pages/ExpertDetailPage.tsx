@@ -1,10 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import GuestWishButton from "../components/GuestWishButton";
+import GuestAgentChatPanel from "../components/GuestAgentChatPanel";
+import { toXiaowanziPublicContentUrl, useXiaowanziEmbeddedLayer } from "../utils/xiaowanziLayer";
+import {
+  GUEST_FALLBACK_AVATAR_DETAIL_IMG_CLASS,
+  GUEST_FALLBACK_AVATAR_FRAME_CLASS,
+  GUEST_REAL_AVATAR_DETAIL_IMG_CLASS,
+  GUEST_REAL_AVATAR_FRAME_CLASS,
+  resolveGuestAvatar,
+} from "../utils/guestAvatar";
 import { GuestPublication, GuestSocialProfile, ListenerBenefit, publicApi, PublicGuest, PublicGuestDetail } from "../services/api";
 
-const FALLBACK_AVATAR = "http://xianfeng.xinzhi.info/uploads/images/1779668991727-vzxkyx0x.png";
 const PUBLICATION_LABELS: Record<GuestPublication["type"], string> = {
   paper: "论文",
   book: "著作",
@@ -89,6 +97,7 @@ function mergeGuestSummary(detail: Partial<PublicGuestDetail> | null | undefined
       : Array.isArray(summary?.listenerBenefits)
       ? summary!.listenerBenefits
       : [],
+    agentEnabled: detail?.agentEnabled === true || summary?.agentEnabled === true,
     programCount: Number(detail?.programCount || summary?.programCount || 0),
     referenceCount: Number(detail?.referenceCount || summary?.referenceCount || 0),
     relatedPrograms: Array.isArray(detail?.relatedPrograms) ? detail!.relatedPrograms : [],
@@ -98,6 +107,7 @@ function mergeGuestSummary(detail: Partial<PublicGuestDetail> | null | undefined
 const ExpertDetailPage: React.FC = () => {
   const { id: routeId = "" } = useParams();
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const id = useMemo(() => {
     const fromRoute = String(routeId || "").trim();
     if (fromRoute) return decodeURIComponent(fromRoute);
@@ -110,6 +120,14 @@ const ExpertDetailPage: React.FC = () => {
   const [authoredBooks, setAuthoredBooks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [mobileInfoTab, setMobileInfoTab] = useState<"programs" | "publications">("programs");
+  const [avatarFallbackActive, setAvatarFallbackActive] = useState(false);
+  const isGuestAgentLayer = useXiaowanziEmbeddedLayer();
+  const showGuestAgent = guest?.agentEnabled === true && isGuestAgentLayer;
+
+  useEffect(() => {
+    setAvatarFallbackActive(false);
+  }, [guest?.avatar]);
 
   useEffect(() => {
     let alive = true;
@@ -219,10 +237,110 @@ const ExpertDetailPage: React.FC = () => {
     [guest]
   );
   const publicationGroups = useMemo(() => groupPublications(publications), [publications]);
+  const { src: guestAvatar, isFallback: isGuestFallbackAvatar } = resolveGuestAvatar(guest?.avatar, avatarFallbackActive);
   const hasSocialSection = socialProfiles.length > 0;
   const hasPublicationSection = publications.length > 0 || profileReferences.length > 0;
   const hasRelatedProgramsSection = relatedPrograms.length > 0;
   const hasListenerBenefitsSection = listenerBenefits.length > 0;
+  const mobilePublicationItems = useMemo(
+    () => [
+      ...publications.map((item) => ({
+        key: item.url,
+        title: item.title || "公开内容",
+        subtitle: item.source || item.publishedAt || item.type || "公开参考链接",
+        url: item.url,
+      })),
+      ...profileReferences.map((item: any) => ({
+        key: item.url,
+        title: item.label || item.source || item.title || "公开参考链接",
+        subtitle: item.source || item.type || "公开资料",
+        url: item.url,
+      })),
+      ...socialProfiles.map((item: GuestSocialProfile, index: number) => ({
+        key: item.url || `${item.platform || "social"}-${item.label || index}`,
+        title: item.label || item.url || "社交媒体",
+        subtitle: item.platform || "社交媒体",
+        url: item.url,
+      })),
+    ].filter((item) => String(item.url || "").trim()),
+    [profileReferences, publications, socialProfiles]
+  );
+  const activeMobileInfoTab =
+    mobileInfoTab === "programs" && !hasRelatedProgramsSection && hasPublicationSection
+      ? "publications"
+      : mobileInfoTab === "publications" && !hasPublicationSection && hasRelatedProgramsSection
+      ? "programs"
+      : mobileInfoTab;
+  const mobileProfileExtra = showGuestAgent && (hasRelatedProgramsSection || hasPublicationSection || hasSocialSection) ? (
+    <div className="mx-auto max-w-[22.5rem] border-t border-[#eee8f8] pt-3">
+      <div className="grid grid-cols-2">
+        <button
+          type="button"
+          onClick={() => setMobileInfoTab("programs")}
+          className={`relative pb-2 !text-[12px] font-black transition ${activeMobileInfoTab === "programs" ? "text-[#241a3a]" : "text-[#8b7db6]"}`}
+          style={{ fontSize: "12px", lineHeight: "16px" }}
+        >
+          参与节目
+          {activeMobileInfoTab === "programs" ? <span className="absolute bottom-0 left-1/2 h-1 w-8 -translate-x-1/2 rounded-full bg-[#635bff]" /> : null}
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileInfoTab("publications")}
+          className={`relative pb-2 !text-[12px] font-black transition ${activeMobileInfoTab === "publications" ? "text-[#241a3a]" : "text-[#8b7db6]"}`}
+          style={{ fontSize: "12px", lineHeight: "16px" }}
+        >
+          公开内容
+          {activeMobileInfoTab === "publications" ? <span className="absolute bottom-0 left-1/2 h-1 w-8 -translate-x-1/2 rounded-full bg-[#635bff]" /> : null}
+        </button>
+      </div>
+      <div className="mt-2 space-y-0.5">
+        {activeMobileInfoTab === "programs" ? (
+          relatedPrograms.length ? (
+            relatedPrograms.slice(0, 2).map((program, index) => {
+              const routeId = program.programCode || program._id;
+              return (
+                <Link
+                  key={program._id}
+                  to={`/programs/${encodeURIComponent(routeId)}?xw_layer=1`}
+                  className="flex items-center gap-1.5 rounded-xl px-2 py-1 text-left transition hover:bg-[#faf8ff]"
+                >
+                  <span className="w-6 shrink-0 text-left text-[14px] font-black text-[#5e3fb4]">
+                    # {index + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[14px] font-black leading-[18px] text-[#241a3a]">{program.title || "未命名节目"}</div>
+                  </div>
+                  <span className="material-symbols-outlined shrink-0 !text-[16px] !leading-none text-[#7a4df3]" style={{ fontSize: "16px", lineHeight: "16px" }}>arrow_outward</span>
+                </Link>
+              );
+            })
+          ) : (
+            <div className="rounded-2xl bg-white px-4 py-5 text-center text-sm font-bold text-[#8e81b3]">暂无参与节目</div>
+          )
+        ) : mobilePublicationItems.length ? (
+          mobilePublicationItems.slice(0, 2).map((item, index) => (
+            <a
+              key={item.key}
+              href={toXiaowanziPublicContentUrl(item.url, item.title, isGuestAgentLayer)}
+              target={isGuestAgentLayer ? undefined : "_blank"}
+              rel={isGuestAgentLayer ? undefined : "noreferrer"}
+              className="flex items-center gap-1.5 rounded-xl px-2 py-1 text-left transition hover:bg-[#faf8ff]"
+            >
+              <span className="w-6 shrink-0 text-left text-[14px] font-black text-[#5e3fb4]">
+                # {index + 1}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[14px] font-black leading-[18px] text-[#241a3a]">{item.title}</div>
+              </div>
+              <span className="material-symbols-outlined shrink-0 !text-[16px] !leading-none text-[#7a4df3]" style={{ fontSize: "16px", lineHeight: "16px" }}>arrow_outward</span>
+            </a>
+          ))
+        ) : (
+          <div className="rounded-2xl bg-white px-4 py-5 text-center text-sm font-bold text-[#8e81b3]">暂无公开内容</div>
+        )}
+      </div>
+    </div>
+  ) : null;
 
   // 按 sourceName 聚合去重书单
   const bookGroups = useMemo(() => {
@@ -270,14 +388,32 @@ const ExpertDetailPage: React.FC = () => {
         <div className="absolute bottom-[10%] right-[8%] h-[380px] w-[380px] rounded-full bg-[radial-gradient(circle,rgba(109,52,226,0.1),transparent_58%)]" style={{ animation: "edOrb2 18s ease-in-out infinite 5s" }} />
       </div>
       <GlobalPublicNav compactMobile showSearch={false} />
-      <main className="mx-auto max-w-7xl px-4 pb-16 pt-[76px] sm:px-6 lg:px-8">
-        <div className="mb-5 flex items-center gap-2 text-sm text-[#8b7db6]">
-          <Link to="/experts" className="font-bold text-[#5e17eb] hover:text-[#4a11d0]">
-            先疯智库
-          </Link>
-          <span>/</span>
-          <span>{guest?.name || "嘉宾详情"}</span>
-        </div>
+      {isGuestAgentLayer ? (
+        <button
+          type="button"
+          aria-label="返回小玩子"
+          onClick={() => {
+            if (window.history.length > 1) {
+              navigate(-1);
+              return;
+            }
+            navigate("/experts?xw_layer=1");
+          }}
+          className="fixed left-4 top-[calc(12px+env(safe-area-inset-top))] z-[70] inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-[#11143b] shadow-[0_10px_24px_rgba(70,73,132,0.14)]"
+        >
+          <span className="material-symbols-outlined text-[26px]">arrow_back</span>
+        </button>
+      ) : null}
+      <main className={`mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8 ${isGuestAgentLayer ? "pt-[52px]" : "pt-[76px]"}`}>
+        {!isGuestAgentLayer ? (
+          <div className="mb-5 flex items-center gap-2 text-sm text-[#8b7db6]">
+            <Link to="/experts" className="font-bold text-[#5e17eb] hover:text-[#4a11d0]">
+              先疯智库
+            </Link>
+            <span>/</span>
+            <span>{guest?.name || "嘉宾详情"}</span>
+          </div>
+        ) : null}
 
         {loading ? (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[420px,1fr]">
@@ -298,32 +434,32 @@ const ExpertDetailPage: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* 顶部信息卡：头像右侧 + 名字 + 返场心愿 + 简介 + 统计 */}
+            {/* 顶部信息卡：与 AI 分身头部保持一致 */}
+            {!showGuestAgent ? (
             <div className="rounded-[2rem] border border-[#e2dcf0] bg-white p-8 shadow-[0_24px_80px_rgba(80,62,125,0.08)]">
-              <div className="flex flex-col md:flex-row gap-6">
-                {/* 右侧头像（移动端置顶） */}
-                <div className="order-1 shrink-0 self-center md:order-2 md:self-start md:mt-9">
-                  <div className="w-28 h-28 md:w-32 md:h-32 rounded-2xl overflow-hidden ring-4 ring-[#5e17eb]/10">
+              <div className="flex flex-col items-center gap-8 text-center md:flex-row-reverse md:justify-between md:text-left">
+                <div className="relative h-[7.8rem] w-[7.8rem] shrink-0 md:h-[9.1rem] md:w-[9.1rem]">
+                  <div className={`flex h-[7.8rem] w-[7.8rem] items-center justify-center overflow-hidden rounded-3xl p-[2px] ring-4 ring-[#5e17eb]/10 md:h-[9.1rem] md:w-[9.1rem] ${isGuestFallbackAvatar ? GUEST_FALLBACK_AVATAR_FRAME_CLASS : GUEST_REAL_AVATAR_FRAME_CLASS}`}>
                     <img
-                      src={guest.avatar || FALLBACK_AVATAR}
+                      src={guestAvatar}
                       alt={guest.name || "嘉宾头像"}
-                      className="w-full h-full object-cover"
-                      style={{ objectPosition: "calc(50% + 3px) center" }}
-                      onError={(event) => { event.currentTarget.src = FALLBACK_AVATAR; }}
+                      className={isGuestFallbackAvatar ? GUEST_FALLBACK_AVATAR_DETAIL_IMG_CLASS : GUEST_REAL_AVATAR_DETAIL_IMG_CLASS}
+                      onError={() => { setAvatarFallbackActive(true); }}
                     />
                   </div>
+                  <div className="absolute -bottom-3 right-[-19px] z-10">
+                    <GuestWishButton guestId={guest._id || ""} />
+                  </div>
                 </div>
-                {/* 左侧文字区 */}
-                <div className="order-2 flex-1 min-w-0 text-center md:order-1 md:text-left">
-                  <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.24em] text-[#5b3fa1]">
+                <div className="mt-6 min-w-0 md:mt-0 md:flex-1">
+                  <div className="hidden rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.24em] text-[#5b3fa1] md:inline-flex">
                     Guest Profile
                   </div>
                   <div className="mt-5 flex items-center justify-center gap-3 md:justify-start">
                     <h1 className="text-4xl font-black tracking-tight text-[#241a3a]">{guest.name || "未命名嘉宾"}</h1>
-                    <GuestWishButton guestId={guest._id || ""} />
+                    <p className="text-sm font-black text-[#5e17eb]">{guest.title || "节目嘉宾"}</p>
                   </div>
-                  <p className="mt-3 text-sm font-black uppercase tracking-[0.22em] text-[#5e17eb]">{guest.title || "节目嘉宾"}</p>
-                  <p className="mt-5 max-w-3xl text-[15px] leading-8 text-[#6f66ad] md:max-w-none">
+                  <p className="mx-auto mt-5 max-w-[22rem] text-[15px] leading-8 text-[#6f66ad] md:mx-0 md:max-w-none">
                     {guest.bio || "暂无简介，后续可在后台补充嘉宾背景、研究方向与代表经验。"}
                   </p>
                   <div className="mt-5 flex flex-wrap justify-center gap-2 md:justify-start">
@@ -334,7 +470,7 @@ const ExpertDetailPage: React.FC = () => {
                       社交媒体 {socialProfiles.length}
                     </span>
                     <span className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[11px] font-bold text-[#7d6ca7]">
-                      公开成果 {publications.length || profileReferences.length}
+                      公开内容 {publications.length || profileReferences.length}
                     </span>
                   </div>
                   <div className="mt-4 flex flex-wrap justify-center gap-2 md:justify-start">
@@ -349,6 +485,22 @@ const ExpertDetailPage: React.FC = () => {
                 </div>
               </div>
             </div>
+            ) : null}
+
+            {showGuestAgent ? (
+              <GuestAgentChatPanel
+                guestId={guest._id || id}
+                fallbackName={guest.name}
+                fallbackTitle={guest.title}
+                fallbackAvatar={guestAvatar}
+                fallbackBio={guest.bio}
+                programCount={guest.programCount || 0}
+                socialCount={socialProfiles.length}
+                publicationCount={publications.length || profileReferences.length}
+                mergeProfileHeader
+                mobileProfileExtra={mobileProfileExtra}
+              />
+            ) : null}
 
             {/* 嘉宾著作板块 - 紧接姓名板块 */}
             {sortedAuthoredBooks.length > 0 ? (
@@ -444,7 +596,7 @@ const ExpertDetailPage: React.FC = () => {
               </div>
             ) : null}
 
-              {hasSocialSection ? (
+              {hasSocialSection && !showGuestAgent ? (
                 <div className="rounded-[2rem] border border-[#e2dcf0] bg-white p-8 shadow-[0_24px_80px_rgba(80,62,125,0.08)]">
                 <div className="flex items-center justify-between gap-4">
                   <div>
@@ -491,10 +643,10 @@ const ExpertDetailPage: React.FC = () => {
               ) : null}
 
               {hasPublicationSection ? (
-                <div className="rounded-[2rem] border border-[#e2dcf0] bg-white p-8 shadow-[0_24px_80px_rgba(80,62,125,0.08)]">
+                <div className={`${showGuestAgent ? "hidden md:block " : ""}rounded-[2rem] border border-[#e2dcf0] bg-white p-8 shadow-[0_24px_80px_rgba(80,62,125,0.08)]`}>
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <h2 className="text-2xl font-black tracking-tight text-[#241a3a]">公开成果与资料</h2>
+                    <h2 className="text-2xl font-black tracking-tight text-[#241a3a]">公开内容与资料</h2>
                     <p className="mt-2 text-sm text-[#7b70a4]">按论文、著作、采访、文章与拓展分组整理，便于快速判断这位嘉宾的研究与表达路径。</p>
                   </div>
                 </div>
@@ -509,9 +661,9 @@ const ExpertDetailPage: React.FC = () => {
                             {group.map((item, index) => (
                               <a
                                 key={`${item.url}-${index}`}
-                                href={item.url}
-                                target="_blank"
-                                rel="noreferrer"
+                                href={toXiaowanziPublicContentUrl(item.url, item.title, isGuestAgentLayer)}
+                                target={isGuestAgentLayer ? undefined : "_blank"}
+                                rel={isGuestAgentLayer ? undefined : "noreferrer"}
                                 className="block rounded-[1.25rem] border border-[#e8e0f2] bg-[#fcfaff] px-5 py-4 transition hover:border-[#b79bff] hover:bg-white"
                               >
                                 <div className="flex items-start justify-between gap-4">
@@ -563,7 +715,7 @@ const ExpertDetailPage: React.FC = () => {
               ) : null}
 
               {hasRelatedProgramsSection ? (
-                <div className="rounded-[2rem] border border-[#e2dcf0] bg-white p-8 shadow-[0_24px_80px_rgba(80,62,125,0.08)]">
+                <div className={`${showGuestAgent ? "hidden md:block " : ""}rounded-[2rem] border border-[#e2dcf0] bg-white p-8 shadow-[0_24px_80px_rgba(80,62,125,0.08)]`}>
                 <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.24em] text-[#5b3fa1]">
                   Related Content
                 </div>
@@ -575,7 +727,7 @@ const ExpertDetailPage: React.FC = () => {
                       return (
                         <Link
                           key={program._id}
-                          to={`/programs/${encodeURIComponent(routeId)}`}
+                          to={`/programs/${encodeURIComponent(routeId)}${isGuestAgentLayer ? "?xw_layer=1" : ""}`}
                           className="flex items-center justify-between rounded-[1.1rem] border border-[#e8e0f2] bg-[#fcfaff] px-4 py-3 transition hover:border-[#b79bff] hover:bg-white"
                         >
                           <div className="min-w-0">

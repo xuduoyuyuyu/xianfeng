@@ -2,13 +2,20 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import GuestModel from "../models/Guest";
 import Program from "../models/Program";
+import { AuthenticatedRequest } from "../middlewares/auth";
+import { askGuestAgent, getGuestAgentHistory, getGuestAgentProfile } from "../services/guestAgentService";
+import GuestAgentChunkModel from "../models/GuestAgentChunk";
 
 function asText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
 function fixAvatarUrl(url: string): string {
-  return url.replace(/^http:\/\//i, "https://");
+  const clean = asText(url);
+  if (/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?\//i.test(clean)) {
+    return clean;
+  }
+  return clean.replace(/^http:\/\//i, "https://");
 }
 
 function escapeRegex(value: string) {
@@ -101,6 +108,90 @@ function serializeProgramCard(program: any) {
   };
 }
 
+function normalizeTag(value: unknown): string {
+  return asText(value).replace(/\s+/g, " ");
+}
+
+function readGuestId(value: unknown): string {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  return String(value);
+}
+
+function readProgramTags(program: any): string[] {
+  const seen = new Set<string>();
+  const tags = Array.isArray(program?.summary?.tags) ? program.summary.tags : [];
+  return tags
+    .map(normalizeTag)
+    .filter((tag) => {
+      if (!tag || seen.has(tag)) return false;
+      seen.add(tag);
+      return true;
+    });
+}
+
+export function buildGuestContentTagMap(programs: any[]): Map<string, string[]> {
+  const tagScores = new Map<string, Map<string, { count: number; firstIndex: number }>>();
+  let nextIndex = 0;
+
+  for (const program of Array.isArray(programs) ? programs : []) {
+    const tags = readProgramTags(program);
+    if (!tags.length || !Array.isArray(program?.guestBindings)) continue;
+
+    for (const binding of program.guestBindings) {
+      const guestId = readGuestId(binding?.guestId);
+      if (!guestId) continue;
+      const guestScores = tagScores.get(guestId) || new Map<string, { count: number; firstIndex: number }>();
+      tagScores.set(guestId, guestScores);
+
+      for (const tag of tags) {
+        const current = guestScores.get(tag);
+        if (current) {
+          current.count += 1;
+        } else {
+          guestScores.set(tag, { count: 1, firstIndex: nextIndex++ });
+        }
+      }
+    }
+  }
+
+  const result = new Map<string, string[]>();
+  tagScores.forEach((scores, guestId) => {
+    result.set(
+      guestId,
+      Array.from(scores.entries())
+        .sort((a, b) => b[1].count - a[1].count || a[1].firstIndex - b[1].firstIndex)
+        .map(([tag]) => tag)
+    );
+  });
+  return result;
+}
+
+export function collectGuestFilterTags(guests: Array<{ contentTags?: string[] }>): string[] {
+  const tagScores = new Map<string, { count: number; firstIndex: number }>();
+  let nextIndex = 0;
+
+  for (const guest of Array.isArray(guests) ? guests : []) {
+    const seenInGuest = new Set<string>();
+    const tags = Array.isArray(guest?.contentTags) ? guest.contentTags : [];
+    for (const rawTag of tags) {
+      const tag = normalizeTag(rawTag);
+      if (!tag || seenInGuest.has(tag)) continue;
+      seenInGuest.add(tag);
+      const current = tagScores.get(tag);
+      if (current) {
+        current.count += 1;
+      } else {
+        tagScores.set(tag, { count: 1, firstIndex: nextIndex++ });
+      }
+    }
+  }
+
+  return Array.from(tagScores.entries())
+    .sort((a, b) => b[1].count - a[1].count || a[1].firstIndex - b[1].firstIndex)
+    .map(([tag]) => tag);
+}
+
 function normalizeListenerBenefits(input: unknown) {
   if (!Array.isArray(input)) return [];
   return input
@@ -118,7 +209,7 @@ function normalizeListenerBenefits(input: unknown) {
     .map((item, index) => ({ ...item, order: index + 1 }));
 }
 
-function serializeGuestListItem(guest: any, programCount = 0) {
+function serializeGuestListItem(guest: any, programCount = 0, agentStats?: { chunkCount?: number; sourceCounts?: Record<string, number> }, contentTags: string[] = []) {
   const profileReferences = Array.isArray(guest?.profileReferences) ? guest.profileReferences : [];
   const socialProfiles = normalizeSocialProfiles(Array.isArray(guest?.socialProfiles) ? guest.socialProfiles : []).filter((item) => item.status === "active");
   const publications = (
@@ -144,8 +235,14 @@ function serializeGuestListItem(guest: any, programCount = 0) {
     socialProfiles,
     publications,
     listenerBenefits,
+    agentEnabled: guest?.agentEnabled === true,
     programCount,
+    contentTags,
     referenceCount: publications.length || profileReferences.filter((item: any) => asText(item?.url)).length,
+    agentStats: {
+      chunkCount: Number(agentStats?.chunkCount || 0),
+      sourceCounts: agentStats?.sourceCounts || {},
+    },
   };
 }
 
@@ -167,7 +264,92 @@ async function buildGuestProgramCountMap(guestIds: string[]): Promise<Map<string
   return map;
 }
 
+async function buildGuestAgentStatsMap(guestIds: string[]): Promise<Map<string, { chunkCount: number; sourceCounts: Record<string, number> }>> {
+  const map = new Map<string, { chunkCount: number; sourceCounts: Record<string, number> }>();
+  const objectIds = guestIds
+    .filter((id) => mongoose.Types.ObjectId.isValid(id))
+    .map((id) => new mongoose.Types.ObjectId(id));
+  if (!objectIds.length) return map;
+  const rows = await GuestAgentChunkModel.aggregate([
+    { $match: { guestId: { $in: objectIds } } },
+    { $group: { _id: { guestId: "$guestId", sourceType: "$sourceType" }, count: { $sum: 1 } } },
+  ]);
+  rows.forEach((row: any) => {
+    const guestId = String(row?._id?.guestId || "");
+    const sourceType = String(row?._id?.sourceType || "unknown");
+    const current = map.get(guestId) || { chunkCount: 0, sourceCounts: {} };
+    current.chunkCount += Number(row.count) || 0;
+    current.sourceCounts[sourceType] = Number(row.count) || 0;
+    map.set(guestId, current);
+  });
+  return map;
+}
+
 export class GuestController {
+  async getAgentProfile(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const id = asText(req.params.id);
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        res.status(400).json({ message: "无效的嘉宾 ID" });
+        return;
+      }
+      const profile = await getGuestAgentProfile(id, req.user?.id);
+      if (!profile) {
+        res.status(404).json({ message: "嘉宾不存在或未启用" });
+        return;
+      }
+      res.status(200).json(profile);
+    } catch (error) {
+      res.status(500).json({ message: "获取嘉宾智能体失败", error });
+    }
+  }
+
+  async chatWithAgent(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const id = asText(req.params.id);
+      const userId = asText(req.user?.id);
+      const question = asText(req.body?.question || req.body?.message);
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        res.status(400).json({ message: "无效的嘉宾 ID" });
+        return;
+      }
+      if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+        res.status(401).json({ message: "未登录或登录已过期" });
+        return;
+      }
+      if (!question || question.length < 2) {
+        res.status(400).json({ message: "请输入要提问的问题" });
+        return;
+      }
+      const result = await askGuestAgent({ guestId: id, userId, question });
+      if (!result) {
+        res.status(404).json({ message: "嘉宾不存在或未启用" });
+        return;
+      }
+      res.status(200).json(result);
+    } catch (error: any) {
+      res.status(502).json({ message: error?.message || "嘉宾智能体回答失败", error });
+    }
+  }
+
+  async getAgentHistory(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const id = asText(req.params.id);
+      const userId = asText(req.user?.id);
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        res.status(400).json({ message: "无效的嘉宾 ID" });
+        return;
+      }
+      if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+        res.status(401).json({ message: "未登录或登录已过期" });
+        return;
+      }
+      res.status(200).json(await getGuestAgentHistory({ guestId: id, userId }));
+    } catch (error) {
+      res.status(500).json({ message: "获取嘉宾智能体历史失败", error });
+    }
+  }
+
   async getAllPublic(req: Request, res: Response): Promise<void> {
     try {
       const pageRaw = Number(req.query.page);
@@ -175,29 +357,75 @@ export class GuestController {
       const page = Number.isFinite(pageRaw) && pageRaw > 0 ? Math.floor(pageRaw) : 1;
       const pageSize = Number.isFinite(pageSizeRaw) && pageSizeRaw > 0 ? Math.min(100, Math.floor(pageSizeRaw)) : 15;
       const search = asText(req.query.search);
-      const filter: Record<string, any> = {
+      const tag = normalizeTag(req.query.tag);
+      const baseFilter: Record<string, any> = {
         $or: [{ status: "active" }, { status: { $exists: false } }, { status: null }],
       };
       if (search) {
         const pattern = new RegExp(escapeRegex(search), "i");
-        filter.$and = [
+        baseFilter.$and = [
           {
             $or: [{ name: pattern }, { title: pattern }, { bio: pattern }],
           },
         ];
       }
 
+      const filter: Record<string, any> = { ...baseFilter };
+      if (tag) {
+        const matchedPrograms = await Program.find({ status: "published", "summary.tags": tag }, { guestBindings: 1 }).lean();
+        const matchedGuestIds = Array.from(
+          new Set(
+            matchedPrograms.flatMap((program: any) =>
+              Array.isArray(program?.guestBindings)
+                ? program.guestBindings.map((binding: any) => readGuestId(binding?.guestId)).filter(Boolean)
+                : []
+            )
+          )
+        )
+          .filter((id) => mongoose.Types.ObjectId.isValid(id))
+          .map((id) => new mongoose.Types.ObjectId(id));
+        filter._id = { $in: matchedGuestIds };
+      }
+
       const total = await GuestModel.countDocuments(filter);
       const skip = (page - 1) * pageSize;
       const guests = await GuestModel.find(filter)
-        .select({ name: 1, title: 1, bio: 1, avatar: 1, profileUrl: 1, profileReferences: 1, socialProfiles: 1, publications: 1, listenerBenefits: 1, status: 1, updatedAt: 1, createdAt: 1 })
+        .select({ name: 1, title: 1, bio: 1, avatar: 1, profileUrl: 1, profileReferences: 1, socialProfiles: 1, publications: 1, listenerBenefits: 1, agentEnabled: 1, status: 1, updatedAt: 1, createdAt: 1 })
         .sort({ updatedAt: -1, createdAt: -1 })
         .skip(skip)
         .limit(pageSize)
         .lean();
-      const countMap = await buildGuestProgramCountMap(guests.map((item: any) => String(item._id)));
+      const guestIds = guests.map((item: any) => String(item._id));
+      const allFilterGuests = await GuestModel.find(baseFilter).select({ _id: 1 }).lean();
+      const allFilterGuestObjectIds = allFilterGuests
+        .map((item: any) => String(item._id))
+        .filter((id) => mongoose.Types.ObjectId.isValid(id))
+        .map((id) => new mongoose.Types.ObjectId(id));
+      const pageGuestObjectIds = guestIds
+        .filter((id) => mongoose.Types.ObjectId.isValid(id))
+        .map((id) => new mongoose.Types.ObjectId(id));
+      const [countMap, agentStatsMap, pageTagPrograms, filterTagPrograms] = await Promise.all([
+        buildGuestProgramCountMap(guestIds),
+        buildGuestAgentStatsMap(guestIds),
+        pageGuestObjectIds.length
+          ? Program.find({ status: "published", "guestBindings.guestId": { $in: pageGuestObjectIds } }, { guestBindings: 1, summary: 1 }).lean()
+          : Promise.resolve([]),
+        allFilterGuestObjectIds.length
+          ? Program.find({ status: "published", "guestBindings.guestId": { $in: allFilterGuestObjectIds } }, { guestBindings: 1, summary: 1 }).lean()
+          : Promise.resolve([]),
+      ]);
+      const pageTagMap = buildGuestContentTagMap(pageTagPrograms);
+      const filterTagMap = buildGuestContentTagMap(filterTagPrograms);
+      const filterTags = collectGuestFilterTags(
+        allFilterGuests.map((item: any) => ({
+          contentTags: filterTagMap.get(String(item._id)) || [],
+        }))
+      );
       res.status(200).json({
-        guests: guests.map((item: any) => serializeGuestListItem(item, countMap.get(String(item._id)) || 0)),
+        guests: guests.map((item: any) =>
+          serializeGuestListItem(item, countMap.get(String(item._id)) || 0, agentStatsMap.get(String(item._id)), pageTagMap.get(String(item._id)) || [])
+        ),
+        filterTags,
         total,
         page,
         pageSize,

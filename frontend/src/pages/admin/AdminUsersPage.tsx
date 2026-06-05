@@ -4,11 +4,12 @@ import { adminApi, User } from "../../services/api";
 import TopAlert from "../../components/TopAlert";
 import { RootState } from "../../store";
 
-type EditableUser = Pick<User, "_id" | "username" | "mobile" | "role" | "city" | "region" | "childGrade" | "grade" | "createdAt">;
+type EditableUser = Pick<User, "_id" | "username" | "mobile" | "role" | "city" | "region" | "childGrade" | "grade" | "name" | "changeHistory" | "childMemories" | "memoryItemCount" | "memoryPreview" | "latestMemoryAt" | "createdAt">;
 type UserModalMode = "create" | "edit" | null;
 
 type UserFormState = {
   username: string;
+  name: string;
   role: "admin" | "user";
   city: string;
   region: string;
@@ -19,6 +20,7 @@ type UserFormState = {
 
 const EMPTY_USER_FORM: UserFormState = {
   username: "",
+  name: "",
   role: "user",
   city: "",
   region: "",
@@ -49,12 +51,18 @@ function toEditableUser(row: User): EditableUser {
   return {
     _id: row._id,
     username: row.username,
+    name: row.name || "",
     mobile: row.mobile || "",
     role: row.role,
     city: row.city,
     region: row.region,
     childGrade: row.childGrade,
     grade: row.grade,
+    changeHistory: row.changeHistory || [],
+    childMemories: row.childMemories || [],
+    memoryItemCount: row.memoryItemCount || 0,
+    memoryPreview: row.memoryPreview || "",
+    latestMemoryAt: row.latestMemoryAt || null,
     createdAt: row.createdAt,
   };
 }
@@ -71,8 +79,8 @@ function resolveMobile(row: Pick<EditableUser, "mobile" | "username">): string {
 }
 
 const AdminUsersPage: React.FC = () => {
-  const { user } = useSelector((state: RootState) => state.user);
-  const myId = (user as any)?._id || (user as any)?.id || "";
+  const { admin } = useSelector((state: RootState) => state.admin);
+  const myId = (admin as any)?._id || (admin as any)?.id || "";
 
   const [items, setItems] = useState<EditableUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,6 +93,7 @@ const AdminUsersPage: React.FC = () => {
   const [form, setForm] = useState<UserFormState>(EMPTY_USER_FORM);
   const [resetTarget, setResetTarget] = useState<EditableUser | null>(null);
   const [resetPassword, setResetPassword] = useState("");
+  const [memoryTarget, setMemoryTarget] = useState<EditableUser | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
   const loadUsers = async () => {
@@ -107,7 +116,7 @@ const AdminUsersPage: React.FC = () => {
   const filteredItems = useMemo(() => {
     const key = keyword.trim().toLowerCase();
     if (!key) return items;
-    return items.filter((row) => `${row.username} ${resolveMobile(row)} ${row.role} ${row.city || ""} ${row.region || ""} ${row.childGrade || ""} ${row.grade || ""}`.toLowerCase().includes(key));
+    return items.filter((row) => `${row.username} ${row.name || ""} ${resolveMobile(row)} ${row.role} ${row.city || ""} ${row.region || ""} ${row.childGrade || ""} ${row.grade || ""} ${row.memoryPreview || ""}`.toLowerCase().includes(key));
   }, [items, keyword]);
 
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE));
@@ -153,6 +162,7 @@ const AdminUsersPage: React.FC = () => {
     setEditingUser(row);
     setForm({
       username: row.username,
+      name: row.name || "",
       role: row.role,
       city: row.city || "",
       region: row.region || "",
@@ -172,6 +182,7 @@ const AdminUsersPage: React.FC = () => {
         region: normalizeString(row.region),
         childGrade: normalizeString(row.childGrade),
         grade: normalizeString(row.grade),
+        name: normalizeString(row.name),
       };
       const response = await adminApi.updateUser(row._id, payload);
       updateLocal(row._id, toEditableUser(response.data));
@@ -205,6 +216,7 @@ const AdminUsersPage: React.FC = () => {
       if (modalMode === "create") {
         await adminApi.createUser({
           username,
+          name: form.name.trim(),
           password,
           role: form.role,
           city: form.city.trim(),
@@ -216,6 +228,7 @@ const AdminUsersPage: React.FC = () => {
       } else if (modalMode === "edit" && editingUser) {
         const response = await adminApi.updateUser(editingUser._id, {
           username,
+          name: form.name.trim(),
           role: form.role,
           city: form.city.trim(),
           region: form.region.trim(),
@@ -325,7 +338,7 @@ const AdminUsersPage: React.FC = () => {
           <div className="relative">
             <input
               className="w-80 max-w-full rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-stone-900 caret-[#5e17eb] placeholder:text-stone-400 transition-all focus:border-[#5e17eb] focus:ring-4 focus:ring-[#5e17eb]/5"
-              placeholder="搜索用户名 / 手机号 / 角色 / 城市 / 区域 / 年级"
+              placeholder="搜索用户名 / 昵称 / 手机号 / 角色 / 城市 / 区域 / 年级"
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
             />
@@ -342,15 +355,17 @@ const AdminUsersPage: React.FC = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1380px] text-left">
+                <table className="w-full min-w-[1640px] text-left">
               <thead className="bg-white text-stone-500 uppercase text-[10px] font-black tracking-[0.2em]">
                 <tr>
                   <th className="px-6 py-4">用户名</th>
+                  <th className="px-6 py-4">昵称</th>
                   <th className="px-6 py-4">手机号</th>
                   <th className="px-6 py-4">角色</th>
                   <th className="px-6 py-4">城市</th>
                   <th className="px-6 py-4">区域</th>
                   <th className="px-6 py-4">年级</th>
+                  <th className="px-6 py-4">记忆</th>
                   <th className="px-6 py-4">注册时间</th>
                   <th className="px-6 py-4 text-right">操作</th>
                 </tr>
@@ -365,6 +380,14 @@ const AdminUsersPage: React.FC = () => {
                       <td className="px-6 py-4">
                         <div className="font-bold text-stone-900">{row.username}</div>
                         <div className="text-xs text-stone-400">{row._id.slice(-8).toUpperCase()}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <input
+                          className={`w-36 ${inputClass}`}
+                          value={row.name || ""}
+                          placeholder="填写昵称"
+                          onChange={(event) => updateLocal(row._id, { name: event.target.value })}
+                        />
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm font-semibold text-stone-700">{resolveMobile(row) || "未绑定"}</div>
@@ -397,6 +420,23 @@ const AdminUsersPage: React.FC = () => {
                           placeholder="填写年级"
                           onChange={(event) => updateLocal(row._id, { grade: event.target.value })}
                         />
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="max-w-[220px]">
+                          <button
+                            className={`rounded-xl px-3 py-2 text-xs font-bold transition-colors ${row.memoryItemCount ? "border border-[#5e17eb]/20 bg-[#f7f3ff] text-[#5e17eb] hover:bg-[#efe7ff]" : "border border-stone-200 text-stone-400"}`}
+                            disabled={!row.childMemories?.length}
+                            onClick={() => setMemoryTarget(row)}
+                            type="button"
+                          >
+                            {row.memoryItemCount ? `查看记忆 ${row.memoryItemCount} 条` : "暂无记忆"}
+                          </button>
+                          {row.memoryPreview ? (
+                            <div className="mt-2 truncate text-xs font-medium text-stone-400" title={row.memoryPreview}>
+                              {row.memoryPreview}
+                            </div>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm font-bold text-stone-900">{formatDateTime(row.createdAt)}</div>
@@ -500,6 +540,12 @@ const AdminUsersPage: React.FC = () => {
                 value={form.username}
                 onChange={(event) => setForm((prev) => ({ ...prev, username: event.target.value }))}
               />
+              <input
+                className={`${inputClass} md:col-span-2`}
+                placeholder="昵称"
+                value={form.name}
+                onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
+              />
               <select
                 className={`${inputClass} md:col-span-2`}
                 value={form.role}
@@ -532,6 +578,65 @@ const AdminUsersPage: React.FC = () => {
                 </button>
               </div>
             </form>
+            {editingUser?.changeHistory?.length ? (
+              <div className="mt-6 rounded-2xl border border-stone-100 bg-stone-50 p-4">
+                <div className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-stone-500">最近修改记录</div>
+                <div className="space-y-2">
+                  {editingUser.changeHistory.slice(-6).reverse().map((item, index) => (
+                    <div key={`${item.changedAt || index}-${item.field}`} className="rounded-xl bg-white px-3 py-2 text-xs text-stone-600">
+                      <span className="font-bold text-stone-900">{item.field}</span>
+                      <span>：{item.oldValue || "空"} → {item.newValue || "空"}</span>
+                      <span className="ml-2 text-stone-400">{formatDateTime(item.changedAt)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {memoryTarget ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/35 p-6 backdrop-blur-sm">
+          <div className="max-h-[86vh] w-full max-w-3xl overflow-hidden rounded-3xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-stone-100 p-7">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-[#5e17eb]">User Memory</p>
+                <h2 className="mt-2 text-2xl font-black text-stone-900">前台记忆</h2>
+                <p className="mt-1 text-sm text-stone-500">
+                  账号：{memoryTarget.username} · 共 {memoryTarget.memoryItemCount || 0} 条
+                </p>
+              </div>
+              <button className="rounded-full p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700" onClick={() => setMemoryTarget(null)} type="button">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div className="max-h-[62vh] space-y-4 overflow-y-auto p-7">
+              {memoryTarget.childMemories?.length ? (
+                memoryTarget.childMemories.map((memory) => (
+                  <div key={memory.childId} className="rounded-2xl border border-stone-100 bg-stone-50 p-4">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-black text-stone-900">孩子档案：{memory.childId}</div>
+                        <div className="mt-1 text-xs font-medium text-stone-400">更新：{formatDateTime(memory.updatedAt)} · {memory.itemCount} 条</div>
+                      </div>
+                      <span className={`rounded-full px-3 py-1 text-[10px] font-black ${memory.enabled ? "bg-emerald-50 text-emerald-700" : "bg-stone-200 text-stone-500"}`}>
+                        {memory.enabled ? "记忆开启" : "记忆关闭"}
+                      </span>
+                    </div>
+                    {memory.summary ? (
+                      <div className="whitespace-pre-wrap rounded-xl bg-white p-4 text-sm font-medium leading-7 text-stone-700">
+                        {memory.summary}
+                      </div>
+                    ) : (
+                      <div className="rounded-xl bg-white p-4 text-sm font-medium text-stone-400">该孩子档案暂无记忆内容。</div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-2xl bg-stone-50 p-10 text-center text-sm font-bold text-stone-400">暂无前台记忆。</div>
+              )}
+            </div>
           </div>
         </div>
       ) : null}

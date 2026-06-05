@@ -1,13 +1,19 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import MindMapView from "../components/MindMapView";
 import { CuratedReadingItem, Program, ProgramGuest, TranscriptSegment, publicApi } from "../services/api";
+import {
+  GUEST_FALLBACK_AVATAR_DETAIL_IMG_CLASS,
+  GUEST_FALLBACK_AVATAR_FRAME_CLASS,
+  GUEST_REAL_AVATAR_DETAIL_IMG_CLASS,
+  GUEST_REAL_AVATAR_FRAME_CLASS,
+  resolveGuestAvatar,
+} from "../utils/guestAvatar";
+import { useXiaowanziEmbeddedLayer, withXiaowanziLayerParam } from "../utils/xiaowanziLayer";
 
 const COVER_FALLBACK =
   "http://xianfeng.xinzhi.info/uploads/images/1779669071894-42qbgvdv.png";
-const EXPERT_AVATAR =
-  "http://xianfeng.xinzhi.info/uploads/images/1779668991727-vzxkyx0x.png";
 const FAVORITES_KEY = "favorite-programs";
 
 
@@ -88,6 +94,8 @@ function downloadTranscript(program: Program, segments: TranscriptSegment[]) {
 }
 
 const ProgramDetailPage: React.FC = () => {
+  const navigate = useNavigate();
+  const superModePage = useXiaowanziEmbeddedLayer();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const progressRef = useRef<HTMLDivElement | null>(null);
 
@@ -103,6 +111,7 @@ const ProgramDetailPage: React.FC = () => {
   const [playbackRate, setPlaybackRate] = useState(1.5);
   const [mindMapGenerating, setMindMapGenerating] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [avatarFallbackActive, setAvatarFallbackActive] = useState(false);
 
   const transcriptSegments = inferTranscript(program);
   const currentEpisode = program?.episodes?.[0];
@@ -118,7 +127,7 @@ const ProgramDetailPage: React.FC = () => {
   const guestTitle = guest?.title || "教育与成长观察者";
   const guestBio =
     guest?.bio || "围绕家庭关系、成长节奏与学习环境，提炼节目中的关键视角，帮助家长把内容真正带回到日常生活里。";
-  const guestAvatar = guest?.avatar || EXPERT_AVATAR;
+  const { src: guestAvatar, isFallback: isGuestFallbackAvatar } = resolveGuestAvatar(guest?.avatar, avatarFallbackActive);
   const deepDiveTitle = program?.deepDive?.sectionTitle || "深度挖掘 Deep Dive";
   const curatedReading: CuratedReadingItem[] =
     program?.deepDive?.curatedReading && program.deepDive.curatedReading.length > 0
@@ -194,6 +203,10 @@ const ProgramDetailPage: React.FC = () => {
     const adminToken = localStorage.getItem("admin_token");
     setIsAdmin(!!adminToken);
   }, []);
+
+  useEffect(() => {
+    setAvatarFallbackActive(false);
+  }, [guest?.avatar]);
 
   useEffect(() => {
     if (!program) return;
@@ -413,10 +426,28 @@ const ProgramDetailPage: React.FC = () => {
   const heroImage = rawHeroImage.replace(/\.png$/i, '.webp');
   const episodeDuration = currentEpisode?.duration || "45 分钟";
   const displayDate = formatDate(program?.publishedAt || program?.createdAt);
+  const programListPath = withXiaowanziLayerParam("/programs/list", superModePage);
+  const xiaowanziBackButton = superModePage ? (
+    <button
+      type="button"
+      aria-label="返回小玩子"
+      onClick={() => {
+        if (window.history.length > 1) {
+          navigate(-1);
+          return;
+        }
+        navigate("/programs/list?xw_restore=xiaowanzi");
+      }}
+      className="fixed left-4 top-[calc(14px+env(safe-area-inset-top))] z-[120] inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-[#11143b] shadow-[0_10px_24px_rgba(70,73,132,0.14)]"
+    >
+      <span className="material-symbols-outlined text-[28px]">arrow_back</span>
+    </button>
+  ) : null;
 
   if (loading) {
     return (
       <div className="min-h-screen bg-[#fdfbf9]">
+        {xiaowanziBackButton}
         {/* Hero skeleton */}
         <div className="relative overflow-hidden bg-[#5e17eb]/5 px-6 pb-16 pt-24">
           <div className="mx-auto max-w-3xl">
@@ -445,9 +476,10 @@ const ProgramDetailPage: React.FC = () => {
   if (error || !program) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#fdfbf9] p-6">
+        {xiaowanziBackButton}
         <div className="rounded-3xl border border-stone-200 bg-white p-8 text-center shadow-sm">
           <p className="mb-4 text-base font-bold text-stone-800">{error || "节目不存在"}</p>
-          <Link className="inline-flex rounded-full bg-[#5e17eb] px-6 py-3 text-sm font-bold text-white" to="/programs">
+          <Link className="inline-flex rounded-full bg-[#5e17eb] px-6 py-3 text-sm font-bold text-white" to={programListPath}>
             返回节目列表
           </Link>
         </div>
@@ -502,9 +534,47 @@ const ProgramDetailPage: React.FC = () => {
           letter-spacing: -0.02em;
           color: #5e17eb;
         }
+        @media (max-width: 768px) {
+          .program-detail-main {
+            padding-bottom: calc(112px + env(safe-area-inset-bottom)) !important;
+          }
+          .program-detail-player {
+            right: 24px !important;
+            bottom: calc(88px + env(safe-area-inset-bottom)) !important;
+            left: auto !important;
+            width: auto !important;
+            max-width: none !important;
+            transform: none !important;
+            z-index: 70 !important;
+          }
+          .program-detail-player .capsule-player {
+            border: 0;
+            background: transparent;
+            box-shadow: none;
+            padding: 0 !important;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+          }
+          .program-detail-player .capsule-player > div:first-child,
+          .program-detail-player .capsule-player > div:last-child {
+            display: none;
+          }
+          .program-detail-player .capsule-player > div:nth-child(2) {
+            gap: 0;
+            padding: 0 !important;
+          }
+          .program-detail-player .capsule-player > div:nth-child(2) button:not(:nth-child(2)) {
+            display: none;
+          }
+          .program-detail-player .capsule-player > div:nth-child(2) button:nth-child(2) {
+            height: 64px;
+            width: 64px;
+          }
+        }
       `}</style>
 
-      <GlobalPublicNav />
+      {xiaowanziBackButton}
+      {!superModePage ? <GlobalPublicNav /> : null}
       <audio ref={audioRef} preload="metadata" />
 
       <section className="duotone-hero flex w-full items-center pt-16">
@@ -605,7 +675,7 @@ const ProgramDetailPage: React.FC = () => {
         </section>
       </div>
 
-      <main className="mx-auto grid max-w-7xl grid-cols-1 items-start gap-8 px-6 pt-16 pb-56 lg:grid-cols-12">
+      <main className="program-detail-main mx-auto grid max-w-7xl grid-cols-1 items-start gap-8 px-6 pt-16 pb-56 lg:grid-cols-12">
         <div className="space-y-16 lg:col-span-8">
           <section id="content-section" className="rounded-xl border border-gray-100 bg-white p-8 shadow-[0_4px_24px_rgba(0,0,0,0.03)] md:p-12">
             <div className="mb-6 flex items-center gap-3">
@@ -664,9 +734,22 @@ const ProgramDetailPage: React.FC = () => {
         <aside className="space-y-10 lg:col-span-4">
           <section className="rounded-xl border border-gray-100 bg-white p-8 text-center shadow-sm">
             <div className="relative mb-6 flex justify-center">
-              <img alt="专家头像" className="h-32 w-32 rounded-2xl object-cover ring-8 ring-[#5e17eb]/5" src={guestAvatar} />
-              <div className="absolute -right-2 -bottom-2 rounded-lg bg-[#5e17eb] p-1.5 text-white shadow-lg">
-                <span className="material-symbols-outlined text-sm">verified</span>
+              <div className="relative h-32 w-32">
+                <div
+                  className={`flex h-32 w-32 items-center justify-center overflow-hidden rounded-2xl p-[2px] ring-8 ring-[#5e17eb]/5 ${
+                    isGuestFallbackAvatar ? GUEST_FALLBACK_AVATAR_FRAME_CLASS : GUEST_REAL_AVATAR_FRAME_CLASS
+                  }`}
+                >
+                  <img
+                    alt="专家头像"
+                    className={isGuestFallbackAvatar ? GUEST_FALLBACK_AVATAR_DETAIL_IMG_CLASS : GUEST_REAL_AVATAR_DETAIL_IMG_CLASS}
+                    onError={() => setAvatarFallbackActive(true)}
+                    src={guestAvatar}
+                  />
+                </div>
+                <div className="absolute -right-2 -bottom-2 rounded-lg bg-[#5e17eb] p-1.5 text-white shadow-lg">
+                  <span className="material-symbols-outlined text-sm">verified</span>
+                </div>
               </div>
             </div>
             <h3 className="mb-1 text-2xl font-black text-[#211a18]">{guestName}</h3>
@@ -715,7 +798,7 @@ const ProgramDetailPage: React.FC = () => {
                 <p className="mb-4 text-[10px] font-black uppercase tracking-widest text-gray-400">相关内容推荐 Related Content</p>
                 <div className="space-y-6">
                   {(relatedPrograms.length > 0 ? relatedPrograms : programs.slice(0, 4)).map((item, index) => (
-                    <Link key={item._id} className="group block cursor-pointer border-b border-gray-50 pb-6 last:border-0" to={`/programs/${item._id}`}>
+                    <Link key={item._id} className="group block cursor-pointer border-b border-gray-50 pb-6 last:border-0" to={withXiaowanziLayerParam(`/programs/${item._id}`, superModePage)}>
                       <h4 className="mb-2 text-[13px] font-bold leading-tight text-[#211a18] transition-colors group-hover:text-[#5e17eb]">{item.title}</h4>
                       <p className="line-clamp-2 text-[11px] leading-relaxed text-[#53433f]/70">{item.description}</p>
                     </Link>
@@ -724,7 +807,7 @@ const ProgramDetailPage: React.FC = () => {
               </div>
             </div>
             <div className="mt-4 bg-gray-50 p-6">
-              <Link className="flex w-full items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-widest text-[#5e17eb] hover:underline" to="/programs">
+              <Link className="flex w-full items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-widest text-[#5e17eb] hover:underline" to={withXiaowanziLayerParam("/programs/list", superModePage)}>
                 查看全部节目库
                 <span className="material-symbols-outlined text-xs">arrow_forward</span>
               </Link>
@@ -733,7 +816,7 @@ const ProgramDetailPage: React.FC = () => {
         </aside>
       </main>
 
-      <div className="fixed bottom-6 left-1/2 z-[100] w-[calc(100%-48px)] max-w-5xl -translate-x-1/2">
+      <div className="program-detail-player fixed bottom-6 left-1/2 z-[100] w-[calc(100%-48px)] max-w-5xl -translate-x-1/2">
         <div className="capsule-player flex items-center justify-between rounded-full px-8 py-3.5">
           <div className="flex min-w-0 flex-1 items-center gap-4">
             <div className="h-11 w-11 flex-shrink-0 overflow-hidden rounded-full border border-white/40 shadow-xl">
