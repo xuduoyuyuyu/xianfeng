@@ -27,6 +27,10 @@ export function requirePro(featureKey: string, options: RequireProOptions = {}) 
         points: getPointCostForFeature(featureKey, options.cost),
       });
       if (!spend.ok) {
+        if (spend.message === "用户不存在") {
+          res.status(401).json({ message: "登录态已过期，请重新登录" });
+          return;
+        }
         res.status(402).json({
           code: "PRO_REQUIRED",
           featureKey,

@@ -6,6 +6,7 @@ import { useXiaowanziEmbeddedLayer } from "../../utils/xiaowanziLayer";
 import { getAdminOrUserToken, hasAdminBypass, isProBillingEnabled, isProRequiredPayload, showProUpgradeFromPayload } from "../../utils/proGate";
 import {
   advanceAvatarState,
+  buildChildProfileSummary,
   buildXiaowanziPromptPayload,
   canEnterXiaowanziSuperMode,
   clampFabPosition,
@@ -173,6 +174,15 @@ function showXiaowanziSuperModeLoginModal() {
       description: "登录后可使用小玩子提问、同步孩子档案、页面浏览上下文和个性化建议。",
     },
   }));
+}
+
+function handleExpiredXiaowanziSession() {
+  try {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("wel_tok");
+  } catch (_error) {}
+  showXiaowanziSuperModeLoginModal();
 }
 
 function canEnterXiaowanziSuperModeFromStorage(): boolean {
@@ -1623,11 +1633,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
     const parentRole = getCurrentParentRole();
     const profileSummary = activeChild
       ? [
-          `咨询人:${activeChild.displayName}`,
-          `关系:${activeChild.relation}`,
-          `出生日期:${activeChild.birthDate}`,
-          `年级:${activeChild.grade}`,
-          `关注标签:${activeChild.concernTags.join("、") || "无"}`,
+          buildChildProfileSummary(activeChild),
           parentRole ? `提问者身份:${parentRole}` : "",
         ].filter(Boolean).join("。")
       : [
@@ -1679,7 +1685,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
           setCanUseBot(false);
           if (res.status === 401) {
             setMessages((prev) => prev.filter((item) => item.ts !== userMessage.ts));
-            shouldBlockXiaowanziForAuth();
+            handleExpiredXiaowanziSession();
             return;
           }
           setStatusText("● 当前账号暂无小玩子权限");
@@ -2172,7 +2178,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         @keyframes xwHomeTitleReveal{from{clip-path:inset(0 100% 0 0);filter:blur(3px)}to{clip-path:inset(0 0 0 0);filter:none}}
         @keyframes xwHomeStarPop{0%{opacity:0;transform:scale(.45) rotate(-24deg);filter:blur(4px) drop-shadow(0 7px 12px rgba(92,75,190,.16))}58%{opacity:1;transform:scale(1.18) rotate(8deg);filter:blur(0) drop-shadow(0 9px 15px rgba(92,75,190,.2))}100%{opacity:1;transform:scale(1) rotate(0);filter:drop-shadow(0 7px 12px rgba(92,75,190,.16))}}
         @keyframes xwHomeStarTwinkle{0%,100%{transform:scale(1);box-shadow:0 0 0 rgba(124,77,255,0)}50%{transform:scale(1.08);box-shadow:0 0 18px rgba(124,77,255,.22)}}
-        .xw-home-top{position:relative;z-index:30;height:56px;padding:env(safe-area-inset-top) 24px 0;display:flex;align-items:center;gap:7px;flex-shrink:0;background:transparent!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+        .xw-home-top{position:relative;z-index:30;height:56px;padding:env(safe-area-inset-top) 12px 0;display:flex;align-items:center;gap:7px;flex-shrink:0;background:transparent!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
         .xw-home-icon{border:0;background:transparent;color:rgba(17,20,59,.78);box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
         .xw-home-menu{width:38px;height:32px;border:0;background:transparent;box-shadow:none;color:rgba(17,20,59,.82);font-family:'Material Symbols Rounded';font-size:24px;font-weight:300;display:flex;align-items:center;justify-content:center;padding:0;opacity:.9}
         .xw-home-brand-avatar{width:32px;height:32px;object-fit:contain;display:block;filter:drop-shadow(0 5px 10px rgba(92,75,190,.14));transform:translate(-4px,1px);animation:xwBrandAvatarSwap .38s cubic-bezier(.2,.9,.22,1) both}

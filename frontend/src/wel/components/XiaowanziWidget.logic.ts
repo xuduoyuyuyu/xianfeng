@@ -36,6 +36,16 @@ export type XiaowanziPromptPayloadInput = {
   pageSummary?: string;
   userContent: string;
 };
+export type XiaowanziChildProfileSummaryInput = {
+  displayName?: string;
+  relation?: string;
+  birthDate?: string;
+  grade?: string;
+  concernTags?: string[];
+};
+export type XiaowanziChildProfileSummaryOptions = {
+  now?: Date;
+};
 export type XiaowanziSuperModeAuthInput = {
   token?: string | null;
   welToken?: string | null;
@@ -49,6 +59,7 @@ export const AI_RESPONSE_RULES = [
   "不要因为当前页面没有展示某段内容就拒绝回答；可以先给通用开口、步骤、话术或下一步搜索建议。",
   "涉及具体节目、嘉宾事实或资料出处时，优先引用已提供的站内内容；没有站内依据时不要编造具体来源。",
   "孩子档案里的「关系」只表示孩子称谓,不代表提问者是爸爸或妈妈。除非个人资料明确提供家长身份,否则统一称呼用户为「你」或「家长」,不要说妈妈、爸爸。",
+  "孩子档案如提供「准确年龄」,必须以该年龄为准,不要根据出生年份自行猜测或改写年龄。",
   "优先给出确定内容、已确认事实、可执行下一步。",
   "语气要软萌、亲切、简洁,像朋友聊天一样自然。",
 ].join("\n");
@@ -84,6 +95,57 @@ export function advanceAvatarState(state: AvatarState): AvatarState {
     avatarIndex: (state.avatarIndex + 1) % XIAOWANZI_AVATARS.length,
     clickCount: 0,
   };
+}
+
+function parseLocalDate(value?: string): Date | null {
+  const match = String(value || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+  return date;
+}
+
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function formatChildAgeFromBirthDate(birthDate?: string, options: XiaowanziChildProfileSummaryOptions = {}): string {
+  const date = parseLocalDate(birthDate);
+  if (!date) return "";
+  const now = options.now || new Date();
+  let years = now.getFullYear() - date.getFullYear();
+  let months = now.getMonth() - date.getMonth();
+  if (now.getDate() < date.getDate()) months -= 1;
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+  if (years < 0) return "";
+  if (years === 0) return months > 0 ? `${months}个月` : "未满1个月";
+  return months > 0 ? `${years}岁${months}个月` : `${years}岁`;
+}
+
+export function buildChildProfileSummary(
+  profile: XiaowanziChildProfileSummaryInput,
+  options: XiaowanziChildProfileSummaryOptions = {},
+): string {
+  const currentDate = formatLocalDate(options.now || new Date());
+  const exactAge = formatChildAgeFromBirthDate(profile.birthDate, options);
+  return [
+    `咨询人:${String(profile.displayName || "孩子").trim() || "孩子"}`,
+    profile.relation ? `关系:${String(profile.relation).trim()}` : "",
+    profile.birthDate ? `出生日期:${String(profile.birthDate).trim()}` : "",
+    `当前日期:${currentDate}`,
+    exactAge ? `准确年龄:${exactAge}（按出生日期和当前日期计算,请以该准确年龄为准）` : "",
+    profile.grade ? `年级:${String(profile.grade).trim()}` : "",
+    `关注标签:${Array.isArray(profile.concernTags) && profile.concernTags.length ? profile.concernTags.join("、") : "无"}`,
+  ].filter(Boolean).join("。");
 }
 
 export function buildXiaowanziPromptPayload(input: XiaowanziPromptPayloadInput): string {

@@ -86,6 +86,7 @@ const CSS = `
 .panel.settings{display:flex;flex-direction:column;padding-top:24px;padding-bottom:max(24px,calc(24px + env(safe-area-inset-bottom)))}
 .card{background:#fff;border-radius:18px;overflow:hidden;margin-bottom:14px}
 .panel.menu .card{border-radius:12px}
+.panel.menu>.card,.panel.menu>.account{flex:0 0 auto}
 .link,.account{width:100%;min-height:52px;border:0;background:#fff;padding:0 16px;display:flex;align-items:center;gap:10px;text-decoration:none;color:#334155;font-size:14px;font-weight:850;border-bottom:1px solid rgba(15,23,42,.06);cursor:pointer}
 .link:last-child,.account:last-child{border-bottom:0}
 .link.on{color:#6c27d6}

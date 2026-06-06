@@ -26,6 +26,14 @@ test("mobile hamburger menu stays a right-side partial drawer", () => {
   assert.doesNotMatch(source, /@media\(max-width:768px\)[\s\S]*\.panel\{width:100vw/, "mobile drawer must not become full screen");
 });
 
+test("mobile menu cards keep natural height and let the panel scroll", () => {
+  assert.match(
+    source,
+    /\.panel\.menu>\.card,\.panel\.menu>\.account\{flex:0 0 auto\}/,
+    "menu cards must not shrink and clip rows inside the mobile drawer"
+  );
+});
+
 test("right drawer uses shared sidebar entrance timing", () => {
   assert.match(
     source,

@@ -112,6 +112,27 @@ test("xiaowanzi successful replies notify subscription balance refresh", () => {
   );
 });
 
+test("xiaowanzi clears stale auth before showing login after unauthorized API responses", () => {
+  assert.match(
+    source,
+    /function handleExpiredXiaowanziSession\(\)[\s\S]*localStorage\.removeItem\("token"\)[\s\S]*localStorage\.removeItem\("user"\)[\s\S]*localStorage\.removeItem\("wel_tok"\)[\s\S]*showXiaowanziSuperModeLoginModal\(\)/,
+    "expired Xiaowanzi requests must clear stale tokens before prompting login"
+  );
+  assert.match(
+    source,
+    /if \(res\.status === 401\) \{[\s\S]*handleExpiredXiaowanziSession\(\)/,
+    "unauthorized Xiaowanzi sends should use the expired-session handler"
+  );
+});
+
+test("child profile prompt includes exact age instead of leaving birth year for model inference", () => {
+  assert.match(logicSource, /buildChildProfileSummary/, "child profile summary should be centralized in logic helpers");
+  assert.match(logicSource, /准确年龄/, "prompt summary should include a computed exact age");
+  assert.match(logicSource, /请以该准确年龄为准/, "prompt must tell Xiaowanzi not to guess the child's age");
+  assert.match(source, /buildChildProfileSummary\(activeChild/, "message sending should use the exact-age child profile summary");
+  assert.doesNotMatch(source, /`出生日期:\$\{activeChild\.birthDate\}`,[\s\S]*`年级:\$\{activeChild\.grade\}`/, "message sending must not leave age inference to the model");
+});
+
 test("home greeting has a progressive text reveal animation", () => {
   assert.match(source, /@keyframes xwHomeTitleReveal/, "home title reveal keyframes are required");
   assert.match(source, /\.xw-home-greet strong\{[^}]*xwHomeTitleReveal/s, "main greeting title should use the reveal animation");
@@ -129,6 +150,14 @@ test("home agent entry uses the fixed xianfeng round logo image", () => {
     source,
     /<span className="xw-home-agent-entry-icon"[^>]*>\s*先疯\s*<\/span>/,
     "agent entry must not fall back to a text badge"
+  );
+});
+
+test("home top chrome uses tighter symmetric side gutters", () => {
+  assert.match(
+    source,
+    /\.xw-home-top\{[^}]*padding:env\(safe-area-inset-top\) 12px 0/s,
+    "home top bar should move both left and right controls outward with equal side gutters"
   );
 });
 
