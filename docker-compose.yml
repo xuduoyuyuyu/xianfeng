@@ -33,6 +33,7 @@ services:
     volumes:
       - ./backend/data:/app/data
       - ./backend/uploads:/app/uploads
+      - ./backend/secrets:/app/secrets
 
   weknora-app:
     image: wechatopenai/weknora-app:${WEKNORA_VERSION:-latest}
