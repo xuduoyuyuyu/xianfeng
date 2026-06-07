@@ -114,7 +114,7 @@ async function buildSiteContext(content: string): Promise<string> {
     lines.push(`资料${index + 1}: ${compactText(item.title)} - ${compactText(item.description || item.category)}`);
   });
   if (!lines.length) return "";
-  return `[站内相关内容]\n${lines.slice(0, 12).join("\n")}`;
+  return `[站内近似关联内容]\n以下内容是用户问题关键词在站内的近似匹配结果（非精确命中），仅供参考。请在回答时注明"平台搜索发现以下相关内容，但不能确认是否为该期节目"，不要编造不存在的内容作为节目介绍。\n${lines.slice(0, 12).join("\n")}`;
 }
 
 function startBot(req: express.Request, res: express.Response): void {

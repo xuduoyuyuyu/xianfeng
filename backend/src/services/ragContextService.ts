@@ -31,7 +31,7 @@ export function formatRagPromptBlock(citations: WeknoraSearchHit[]): string {
   if (!usable.length) return "";
   const lines = [
     "[知识库参考资料]",
-    "以下资料来自家长先疯知识库。回答必须优先依据这些资料；资料没有明确提到时，请直接说明“资料中没有明确提到”。",
+    "以下资料来自家长先疯知识库的检索结果（基于语义相似度匹配，非精确命中）。如果资料提到了相关内容，回答时请说明；如果资料没有明确提到用户问题，请直接说明"资料中没有明确提到"，不要编造不存在的节目或内容。",
     ...usable.map((item, index) => {
       const title = asText(item.sourceTitle) || "知识库资料";
       const locator = asText(item.locator);
