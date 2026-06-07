@@ -155,6 +155,16 @@ function renderInlineMarkdown(content: string) {
 }
 
 function renderDisplayMessage(message: Msg) {
+  if (message.content === "__THINKING__") {
+    return (
+      <span key={message.ts} className="xw-thinking-dots">
+        <span className="dot" />
+        <span className="dot" />
+        <span className="dot" />
+        <span className="xw-thinking-label">小玩子思考中</span>
+      </span>
+    );
+  }
   return message.role === "assistant" ? renderInlineMarkdown(message.content) : message.content;
 }
 
@@ -1377,10 +1387,18 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
   useEffect(() => {
     if (!open || !homeActive) return;
     requestAnimationFrame(() => {
-      msgContainerRef.current?.scrollTo({ top: 0 });
+      const container = msgContainerRef.current;
+      if (!container) return;
+      // Home 模式下有消息时滚动到底部，否则保持顶部
+      if (hasHistoryMessages && latestMsgRef.current) {
+        const top = latestMsgRef.current.offsetTop - container.offsetTop;
+        container.scrollTo({ top: Math.max(0, top) });
+      } else {
+        container.scrollTo({ top: 0 });
+      }
       inputRef.current?.focus();
     });
-  }, [open, homeActive]);
+  }, [open, homeActive, messages, hasHistoryMessages]);
 
   useEffect(() => {
     if (!attachmentMenuOpen) return;
@@ -1619,6 +1637,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
   function stopXiaowanziResponse() {
     abortControllerRef.current?.abort();
     setStatusText("● 已停止输出");
+    setMessages((prev) => prev.filter((item) => item.content !== "__THINKING__"));
   }
 
   async function sendMessage(text?: string) {
@@ -1671,6 +1690,10 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
     const assistantTs = new Date(Date.now() + 1).toISOString();
 
     setSending(true);
+    setStatusText("● 正在思考中...");
+    // 插入一个 thinking 占位消息，收到第一个 delta 后移除
+    const thinkingTs = new Date(Date.now() + 2).toISOString();
+    setMessages((prev) => [...prev, userMessage, { role: "assistant" as const, content: "__THINKING__", ts: thinkingTs }]);
     setInput("");
     setAttachmentMenuOpen(false);
     if (inputRef.current?.classList.contains("xw-home-input")) {
@@ -1679,7 +1702,6 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
     }
     setUploadedImage(null);
     setHasHistoryMessages(true);
-    setMessages((prev) => [...prev, userMessage]);
     const controller = new AbortController();
     abortControllerRef.current = controller;
     try {
@@ -1717,10 +1739,17 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
       const decoder = new TextDecoder();
       let buffer = "";
       let reply = "";
+      let thinkingCleared = false;
       const appendAssistantContent = (delta: string) => {
         if (!delta) return;
         reply += delta;
         setMessages((prev) => {
+          // 移除 thinking 占位（仅第一次）
+          if (!thinkingCleared) {
+            thinkingCleared = true;
+            setStatusText("● 正在回复...");
+            prev = prev.filter((item) => item.content !== "__THINKING__");
+          }
           const existing = prev.find((item) => item.ts === assistantTs);
           if (existing) {
             return prev.map((item) => item.ts === assistantTs ? { ...item, content: item.content + delta } : item);
@@ -1748,10 +1777,11 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
       }
       const finalReply = reply.trim() || "（小玩子暂时没有返回内容）";
       if (!reply.trim()) {
-        setMessages((prev) => [...prev, { role: "assistant", content: finalReply, ts: assistantTs }]);
+        setMessages((prev) => [...prev.filter((item) => item.content !== "__THINKING__"), { role: "assistant", content: finalReply, ts: assistantTs }]);
       }
+      setStatusText("● 随时可用");
       const nextMessages = [
-        ...messages.filter((m) => !isReadReceiptMessage(m.content)),
+        ...messages.filter((m) => !isReadReceiptMessage(m.content) && m.content !== "__THINKING__"),
         userMessage,
         { role: "assistant" as const, content: finalReply, ts: assistantTs },
       ];
@@ -1769,10 +1799,13 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
     } catch (error: any) {
       if (error?.name === "AbortError") {
         setStatusText("● 已停止输出");
+        setMessages((prev) => prev.filter((item) => item.content !== "__THINKING__"));
         return;
       }
+      setStatusText("● 请求失败");
       const msg = `请求失败:${String(error?.message || "unknown")}`;
       setMessages((prev) => {
+        prev = prev.filter((item) => item.content !== "__THINKING__");
         const existing = prev.find((item) => item.ts === assistantTs);
         if (existing) return prev.map((item) => item.ts === assistantTs ? { ...item, content: item.content || msg } : item);
         return [...prev, { role: "assistant", content: msg, ts: assistantTs }];
@@ -2074,6 +2107,13 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         .aip-msgs::-webkit-scrollbar-thumb{background:rgba(108,39,214,.18);border-radius:3px}
         .aip-msg{max-width:88%;font-size:13px;line-height:1.6;padding:10px 13px;border-radius:12px;word-break:break-word;white-space:pre-wrap}
         .aip-msg.ai{background:#fff;color:#1f2937;border:1px solid rgba(108,39,214,.1);border-radius:8px 14px 14px 14px;align-self:flex-start;box-shadow:0 3px 10px rgba(15,23,42,.06)}
+        .aip-msg.thinking{background:#fff;color:#9ca3af;border:1px solid rgba(108,39,214,.08);border-radius:8px 14px 14px 14px;align-self:flex-start;padding:12px 16px;display:flex;align-items:center;gap:4px;min-height:40px}
+        .aip-msg.thinking .dot{width:7px;height:7px;border-radius:50%;background:#a78bfa;animation:thinkingDot 1.4s ease-in-out infinite}
+        .aip-msg.thinking .dot:nth-child(2){animation-delay:.2s}
+        .aip-msg.thinking .dot:nth-child(3){animation-delay:.4s}
+        @keyframes thinkingDot{0%,80%,100%{opacity:.2;transform:scale(.8)}40%{opacity:1;transform:scale(1.2)}}
+        .aip-thinking-label{font-size:11px;color:#a78bfa;font-weight:600;margin-left:6px;animation:thinkingLabelPulse 2s ease-in-out infinite}
+        @keyframes thinkingLabelPulse{0%,100%{opacity:.5}50%{opacity:1}}}
         .aip-msg.user{background:linear-gradient(135deg,#6c27d6 0%,#7f37ea 100%);color:#fff;border-radius:14px 8px 14px 14px;align-self:flex-end;box-shadow:0 8px 16px rgba(108,39,214,.2)}
         .aip-empty{margin-top:clamp(12px,8vh,96px);padding:8px 8px 18px}
         .aip-empty-title{font-size:clamp(1.35rem,6vw,1.75rem);line-height:1.18;font-weight:800;color:#1f2937;letter-spacing:-.02em}
@@ -2111,9 +2151,9 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         .aip-input{flex:1;resize:none;border:1px solid rgba(108,39,214,.18);border-radius:14px;padding:12px 56px 12px 11px;font:inherit;font-size:13px;color:#1f2937;background:#fbfbff;outline:none;min-height:72px;max-height:160px;transition:border-color .15s,box-shadow .15s,background .15s;line-height:1.45}
         .aip-input:focus{border-color:#6c27d6;background:#fff;box-shadow:0 0 0 3px rgba(108,39,214,.12)}
         .aip-input::placeholder{color:#9ca3af}
-        .aip-send{position:absolute;right:8px;bottom:8px;width:36px;height:36px;border:none;border-radius:11px;background:linear-gradient(135deg,#6c27d6 0%,#7f37ea 100%);color:#fff;cursor:pointer;flex-shrink:0;align-self:center;font-family:'Material Symbols Rounded';font-size:16px;transition:all .15s;box-shadow:0 8px 16px rgba(108,39,214,.24)}
+        .aip-send{position:absolute;right:8px;bottom:8px;width:36px;height:36px;border:none;border-radius:11px;background:#7C34E7;color:#fff;cursor:pointer;flex-shrink:0;align-self:center;font-family:'Material Symbols Rounded';font-size:16px;transition:all .15s;box-shadow:0 8px 16px rgba(124,52,231,.24)}
         .aip-plus{position:absolute;right:48px;bottom:8px;width:36px;height:36px;border:1px solid rgba(108,39,214,.2);border-radius:11px;background:#fff;color:#6c27d6;cursor:pointer;font-family:'Material Symbols Rounded';font-size:17px}
-        .aip-send:hover{background:linear-gradient(135deg,#7a35e4 0%,#8d47f5 100%);transform:translateY(-1px)}
+        .aip-send:hover{background:#8b4af5;transform:translateY(-1px)}
         .aip-send:disabled{opacity:.4;cursor:not-allowed;transform:none}
         #ai-panel.docked .aip-shortcuts{padding:10px 10px 8px;background:transparent;border-top:none}
         #ai-panel.docked .aip-shortcuts-list{gap:8px}
@@ -2213,7 +2253,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         .xw-home-history-mask{position:fixed;inset:0;z-index:8072;background:rgba(15,23,42,.46);display:flex;justify-content:flex-start;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);animation:xwHistoryMaskIn .2s cubic-bezier(.2,.9,.22,1) both}
         .xw-home-history-drawer{position:relative;display:flex;flex-direction:column;width:min(360px,84vw);height:100dvh;box-sizing:border-box;background:#f7f7fb;box-shadow:18px 0 45px rgba(15,23,42,.2);padding:calc(20px + env(safe-area-inset-top)) 18px max(24px,calc(18px + env(safe-area-inset-bottom)));overflow:hidden;animation:xwHistoryDrawerIn .2s cubic-bezier(.2,.9,.22,1) both}
         .xw-home-history-drawer-head{height:46px;display:flex;align-items:center;justify-content:center;margin-bottom:18px}
-        .xw-home-history-exit{width:46px;height:46px;border:0;border-radius:0;background:transparent;color:#5b48ff;font-family:'Material Symbols Rounded';font-size:25px;display:flex;align-items:center;justify-content:center;padding:0;box-shadow:none}
+        .xw-home-history-exit{width:44px;height:44px;border:0;border-radius:50%;background:#7C34E7;color:#fff;font-family:'Material Symbols Rounded';font-size:24px;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
         .xw-home-history-exit-dock{position:absolute;right:18px;bottom:calc(22px + env(safe-area-inset-bottom));z-index:2}
         .xw-home-history-new{height:42px;width:min(280px,100%);min-width:0;border:0;border-radius:999px;background:#ededf0;color:#303445;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 14px;font-size:15px;font-weight:900;white-space:nowrap}
         .xw-home-history-new .ms{font-family:'Material Symbols Rounded';font-size:22px;font-weight:300;color:#11143b}
@@ -2247,6 +2287,11 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         .xw-home-msg{max-width:92%;border-radius:20px;padding:14px 16px;font-size:15px;font-weight:750;line-height:1.65;white-space:pre-wrap;word-break:break-word}
         .xw-home-msg.ai{align-self:flex-start;background:rgba(255,255,255,.9);border:1px solid rgba(122,103,238,.1);box-shadow:0 8px 18px rgba(72,75,132,.06)}
         .xw-home-msg.user{align-self:flex-end;background:linear-gradient(135deg,#6257f6,#7b4cff);color:#fff;box-shadow:0 12px 24px rgba(98,87,246,.22)}
+        .xw-thinking-dots{display:flex;align-items:center;gap:4px;padding:18px 20px;border-radius:20px;background:rgba(255,255,255,.9);border:1px solid rgba(122,103,238,.1);box-shadow:0 8px 18px rgba(72,75,132,.06);width:fit-content;min-height:48px}
+        .xw-thinking-dots .dot{width:8px;height:8px;border-radius:50%;background:#a78bfa;animation:thinkingDot 1.4s ease-in-out infinite}
+        .xw-thinking-dots .dot:nth-child(2){animation-delay:.2s}
+        .xw-thinking-dots .dot:nth-child(3){animation-delay:.4s}
+        .xw-thinking-label{font-size:12px;color:#a78bfa;font-weight:600;margin-left:6px;animation:thinkingLabelPulse 2s ease-in-out infinite}
         .xw-home-history-chat{display:flex;flex-direction:column;gap:12px;padding-top:14px}
         .xw-home-history-chat .xw-home-msg{max-width:86%}
         .xw-home-optional{display:flex;align-items:center;justify-content:center;gap:8px;color:#7d86a5;font-size:13px;font-weight:850;margin:0 0 18px;padding:0 2px;text-align:center}
@@ -2568,21 +2613,38 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
             )}
           </div>
           <div className="aip-msgs" ref={msgContainerRef}>
-            {visibleMessages.map((message, idx) => (
-              <div
-                key={`${idx}-${message.ts || ""}`}
-                className={`aip-msg ${message.role === "assistant" ? "ai" : "user"}`}
-                ref={idx === visibleMessages.length - 1 ? latestMsgRef : null}
-                data-msg-index={idx}
-              >
-                {renderDisplayMessage(message)}
-                {message.role === "assistant" && isChildBound && activeChild ? (
-                  <div style={{ marginTop: 8, fontSize: 11, color: "#94a3b8" }}>
-                    根据{activeChild.displayName}档案进行个性化回复
+            {visibleMessages.map((message, idx) => {
+              if (message.content === "__THINKING__") {
+                return (
+                  <div
+                    key={`${idx}-${message.ts || ""}`}
+                    className="aip-msg thinking"
+                    ref={idx === visibleMessages.length - 1 ? latestMsgRef : null}
+                    data-msg-index={idx}
+                  >
+                    <span className="dot" />
+                    <span className="dot" />
+                    <span className="dot" />
+                    <span className="aip-thinking-label">小玩子思考中</span>
                   </div>
-                ) : null}
-              </div>
-            ))}
+                );
+              }
+              return (
+                <div
+                  key={`${idx}-${message.ts || ""}`}
+                  className={`aip-msg ${message.role === "assistant" ? "ai" : "user"}`}
+                  ref={idx === visibleMessages.length - 1 ? latestMsgRef : null}
+                  data-msg-index={idx}
+                >
+                  {renderDisplayMessage(message)}
+                  {message.role === "assistant" && isChildBound && activeChild ? (
+                    <div style={{ marginTop: 8, fontSize: 11, color: "#94a3b8" }}>
+                      根据{activeChild.displayName}档案进行个性化回复
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
             {isDockedEmpty ? (
               <div className="aip-empty">
                 <div className="aip-empty-title">{currentUserName ? `${currentUserName},你好` : "你好"}</div>
