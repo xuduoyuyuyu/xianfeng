@@ -61,7 +61,7 @@ const CSS = `
 .tb-right{display:flex;align-items:center;gap:4px;padding:0 8px;flex-shrink:0}
 .search-wrap{height:34px;width:230px;min-width:230px;border:1px solid rgba(17,10,8,.12);border-radius:999px;display:flex;align-items:center;gap:6px;padding:0 12px;background:#fff}
 .search-wrap .ms{font-size:16px;color:#9ca3af}
-.search-wrap input{border:0;outline:0;width:100%;background:transparent;font-size:12px;color:#111118}
+.search-wrap input{border:0;outline:0;width:100%;background:transparent;font-size:13px;font-weight:400;color:#111118}
 .search-wrap input::placeholder{color:#9ca3af}
 .uc{border:1px solid rgba(17,10,8,.08);border-radius:20px;background:transparent;display:flex;align-items:center;gap:6px;padding:3px 10px 3px 5px;cursor:pointer;transition:all .12s;text-decoration:none}
 .uc:hover{border-color:#6c27d6;background:rgba(108,39,214,.09)}
