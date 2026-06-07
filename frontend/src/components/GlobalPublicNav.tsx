@@ -191,8 +191,8 @@ const CSS = `
 .profile-avatar-preview img{width:100%;height:100%;object-fit:contain;display:block}
 .search-sheet{position:fixed;inset:56px 0 auto 0;background:#fff;padding:12px 16px;z-index:9200;border-bottom:1px solid rgba(15,23,42,.08)}
 .search-sheet>div{display:flex;gap:10px}
-.search-sheet input{flex:1;height:42px;border-radius:999px;border:1px solid #dde2eb;padding:0 14px;font-weight:800}
-.search-sheet button{height:42px;border:0;border-radius:999px;background:#5f20e9;color:#fff;font-weight:900;padding:0 18px}
+.search-sheet input{flex:1;height:42px;border-radius:999px;border:1px solid #dde2eb;padding:0 14px;font-size:13px;font-weight:400}
+.search-sheet button{height:42px;border:0;border-radius:999px;background:#5f20e9;color:#fff;font-size:12px;font-weight:400;padding:0 18px}
 .mobile-tab{display:none}
 @keyframes slide{from{transform:translateX(100%)}to{transform:translateX(0)}}
 @media(max-width:768px){
