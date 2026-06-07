@@ -250,45 +250,41 @@ const SearchPage: React.FC = () => {
     <div className="xf-search-page">
       <style>{`
         .xf-search-page{min-height:100vh;background:#f6f7fb;color:#14142b;font-family:'Noto Sans SC','Plus Jakarta Sans',sans-serif;padding-bottom:calc(104px + env(safe-area-inset-bottom))}
-        .xf-search-main{max-width:980px;margin:0 auto;padding:82px 18px 30px}
-        .xf-search-head{display:grid;gap:14px}
-        .xf-search-title{display:flex;align-items:center;justify-content:center;position:relative;min-height:36px;font-size:20px;font-weight:900;letter-spacing:.03em}
+        .xf-search-main{max-width:980px;margin:0 auto;padding:82px 18px 36px}
+        .xf-search-head{display:grid;gap:12px}
+        .xf-search-title{display:none}
         .xf-search-back{position:absolute;left:0;min-width:54px;height:36px;border:0;background:transparent;color:#7C3AED;font-family:'Noto Sans SC','Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:500;text-align:left}
         .xf-search-bar{display:flex;align-items:center;gap:10px}
-        .xf-search-input{height:48px;flex:1;border:0;border-radius:16px;background:#fff;padding:0 14px;font-size:14px;font-weight:700;color:#14142b;box-shadow:0 1px 0 rgba(15,23,42,.05)}
+        .xf-search-input{height:48px;flex:1;border:0;border-radius:16px;background:#fff;padding:0 16px;font-size:15px;font-weight:700;color:#14142b;box-shadow:0 1px 0 rgba(15,23,42,.05)}
         .xf-search-input::placeholder{color:#a0a4b6}
-        .xf-search-btn{height:48px;border:0;border-radius:16px;background:#5e17eb;color:#fff;padding:0 16px;font-size:14px;font-weight:900;box-shadow:0 12px 24px rgba(94,23,235,.18)}
-        .xf-search-tabs{display:flex;gap:18px;overflow-x:auto;border-bottom:1px solid rgba(15,23,42,.08);padding:2px 0 0;scrollbar-width:none}
+        .xf-search-btn{height:48px;border:0;border-radius:16px;background:#5e17eb;color:#fff;padding:0 18px;font-size:14px;font-weight:900;box-shadow:0 12px 24px rgba(94,23,235,.18)}
+        .xf-search-tabs{display:flex;gap:20px;overflow-x:auto;border-bottom:1px solid rgba(15,23,42,.08);padding:2px 0 0;scrollbar-width:none}
         .xf-search-tabs::-webkit-scrollbar{display:none}
-        .xf-search-tab{position:relative;min-height:42px;flex:0 0 auto;border:0;background:transparent;color:#969baa;font-size:13px;font-weight:900;white-space:nowrap}
+        .xf-search-tab{position:relative;min-height:42px;flex:0 0 auto;border:0;background:transparent;color:#969baa;font-size:14px;font-weight:900;white-space:nowrap}
         .xf-search-tab.on{color:#14142b}
         .xf-search-tab.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:3px;border-radius:999px;background:#5e17eb}
-        .xf-search-section{margin-top:16px;border-radius:22px;background:#fff;overflow:hidden;box-shadow:0 14px 38px rgba(28,20,54,.06)}
-        .xf-search-section-head{display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid rgba(15,23,42,.06)}
+        .xf-search-section{margin-top:14px;border-radius:22px;background:#fff;overflow:hidden;box-shadow:0 14px 38px rgba(28,20,54,.06)}
+        .xf-search-section-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid rgba(15,23,42,.06)}
         .xf-search-section-title{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:900}
-        .xf-search-section-title .ms{font-family:'Material Symbols Rounded';font-size:19px;color:#5e17eb}
-        .xf-search-section-count{font-size:11px;font-weight:800;color:#969baa}
-        .xf-search-result{display:flex;gap:12px;padding:15px 18px;border-bottom:1px solid rgba(15,23,42,.06);text-decoration:none;color:inherit}
+        .xf-search-section-title .ms{font-family:'Material Symbols Rounded';font-size:20px;color:#5e17eb}
+        .xf-search-section-count{font-size:12px;font-weight:800;color:#969baa}
+        .xf-search-result{display:flex;gap:14px;padding:15px 18px;border-bottom:1px solid rgba(15,23,42,.06);text-decoration:none;color:inherit}
         .xf-search-result:last-child{border-bottom:0}
         .xf-search-thumb{width:64px;height:64px;flex:0 0 64px;border-radius:16px;background:linear-gradient(135deg,#f2ecff,#fff);display:flex;align-items:center;justify-content:center;overflow:hidden;color:#5e17eb;font-family:'Material Symbols Rounded';font-size:28px}
         .xf-search-thumb img{width:100%;height:100%;object-fit:cover}
         .xf-search-result-body{min-width:0;flex:1;display:grid;gap:6px}
         .xf-search-result-top{display:flex;gap:8px;align-items:center}
-        .xf-search-result-title{font-size:14px;font-weight:900;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .xf-search-result-meta{font-size:11px;font-weight:800;color:#8f95aa;white-space:nowrap}
-        .xf-search-result-desc{font-size:12px;line-height:1.55;color:#656b7d;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+        .xf-search-result-title{font-size:15px;font-weight:900;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .xf-search-result-meta{font-size:12px;font-weight:800;color:#8f95aa;white-space:nowrap}
+        .xf-search-result-desc{font-size:13px;line-height:1.55;color:#656b7d;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
         .xf-search-tags{display:flex;flex-wrap:wrap;gap:6px}
-        .xf-search-tag{border-radius:999px;background:#f1ebff;color:#6c27d6;padding:3px 8px;font-size:10px;font-weight:800}
-        .xf-search-empty{margin-top:18px;border:1px dashed rgba(94,23,235,.24);border-radius:22px;background:#fff;padding:32px 20px;text-align:center;color:#7b8194;font-size:13px;font-weight:800}
-        @media (max-width:768px){.xf-search-main{padding-top:72px}.xf-search-page .tb-mobile-search-sheet{display:none!important}.xf-search-tabs{gap:18px}.xf-search-result{padding:14px 0;margin:0 18px}.xf-search-section{border-radius:20px}.xf-search-thumb{width:56px;height:56px;flex-basis:56px}.xf-search-result-title{font-size:14px}.xf-search-result-meta{display:none}}
+        .xf-search-tag{border-radius:999px;background:#f1ebff;color:#6c27d6;padding:3px 8px;font-size:11px;font-weight:800}
+        .xf-search-empty{margin-top:18px;border:1px dashed rgba(94,23,235,.24);border-radius:22px;background:#fff;padding:32px 20px;text-align:center;color:#7b8194;font-size:14px;font-weight:800}
+        @media (max-width:768px){.xf-search-main{padding-top:72px}.xf-search-page .tb-mobile-search-sheet{display:none!important}.xf-search-tabs{gap:18px}.xf-search-result{padding:14px 0;margin:0 18px}.xf-search-section{border-radius:20px}.xf-search-thumb{width:56px;height:56px;flex-basis:56px}.xf-search-result-title{font-size:15px}.xf-search-result-desc{font-size:13px}.xf-search-result-meta{display:none}}
       `}</style>
       <GlobalPublicNav compactMobile searchPlaceholder="搜索网站全部内容" searchValue={query} onSearchChange={setQuery} />
       <main className="xf-search-main">
         <div className="xf-search-head">
-          <div className="xf-search-title">
-            <button type="button" className="xf-search-back" onClick={() => navigate(exitTo, { replace: true })} aria-label="退出搜索">← 返回</button>
-            搜索
-          </div>
           <div className="xf-search-bar">
             <input
               className="xf-search-input"
