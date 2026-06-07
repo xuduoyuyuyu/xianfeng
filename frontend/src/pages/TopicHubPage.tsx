@@ -7,6 +7,7 @@ import Pagination from "../components/Pagination";
 import type { RootState } from "../store";
 import { getTopicUserId } from "../utils/topicUserId";
 import { getAdminOrUserToken, hasAdminOrUserSession, isProRequiredPayload, showProUpgradeFromPayload } from "../utils/proGate";
+import { useIsMobilePager } from "../hooks/useIsMobilePager";
 import { useXiaowanziEmbeddedLayer } from "../utils/xiaowanziLayer";
 
 // ===== 本地暂存话题保护机制 =====
@@ -78,10 +79,16 @@ function safeTags(raw: string[] | string | undefined): string[] {
   }
 }
 
+function mergeBySlug<T extends { slug: string }>(current: T[], next: T[]) {
+  const seen = new Set(current.map((item) => item.slug));
+  return [...current, ...next.filter((item) => !seen.has(item.slug))];
+}
+
 const TopicHubPage: React.FC = () => {
   // 获取登录用户的孩子年级
   const { user: currentUser, token } = useSelector((state: RootState) => state.user);
   const superModePage = useXiaowanziEmbeddedLayer();
+  const isMobilePager = useIsMobilePager();
   const userGrade = currentUser?.childGrade || currentUser?.grade || "";
 
   const [topics, setTopics] = useState<TopicItem[]>([]);
@@ -94,6 +101,8 @@ const TopicHubPage: React.FC = () => {
   const ITEMS_PER_PAGE = 30;
   const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(totalItems / ITEMS_PER_PAGE));
+  const showInitialLoading = loading && (!isMobilePager || currentPage <= 1);
 
   // ===== 搜索 =====
   const [searchText, setSearchText] = useState("");
@@ -174,7 +183,7 @@ const TopicHubPage: React.FC = () => {
       setTopics((prev) => {
         const existingSlugs = new Set(cleaned.map((t: TopicItem) => t.slug));
         const stickyTopics = prev.filter((t) => mergeSlugs.includes(t.slug) && !existingSlugs.has(t.slug));
-        return [...stickyTopics, ...cleaned];
+        return isMobilePager && pageNum > 1 ? mergeBySlug(prev, cleaned) : [...stickyTopics, ...cleaned];
       });
       setTotalItems(data.total || cleaned.length);
       setCurrentPage(pageNum);
@@ -203,7 +212,7 @@ const TopicHubPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentUser, userGrade]);
+  }, [currentUser, isMobilePager, userGrade]);
 
   useEffect(() => {
     // 组件挂载时清理过期的 sticky slugs
@@ -223,11 +232,14 @@ const TopicHubPage: React.FC = () => {
 
     if (!value.trim()) {
       // 清空搜索时恢复全部
+      setCurrentPage(1);
+      setLoading(true);
       fetchTopics({});
       return;
     }
 
     searchTimer.current = setTimeout(() => {
+      setCurrentPage(1);
       setLoading(true);
       fetchTopics({ search: value.trim() });
     }, 300);
@@ -891,7 +903,7 @@ const TopicHubPage: React.FC = () => {
           </div>
         )}
 
-        {loading ? (
+        {showInitialLoading ? (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 20 }}>
             {[1, 2, 3].map((i) => (
               <div key={i} style={{ background: "#fff", borderRadius: 16, padding: 24, height: 190 }}>
@@ -1064,8 +1076,16 @@ const TopicHubPage: React.FC = () => {
         {!loading && !searchText.trim() && activeTag === "全部" && totalItems > ITEMS_PER_PAGE && (
           <Pagination
             currentPage={currentPage}
-            totalPages={Math.ceil(totalItems / ITEMS_PER_PAGE)}
+            totalPages={totalPages}
+            mobileAutoLoad
+            mobileHasMore={currentPage < totalPages}
+            mobileLoading={loading && isMobilePager && currentPage > 1}
+            onMobileLoadMore={() => {
+              setLoading(true);
+              fetchTopics({ page: Math.min(totalPages, currentPage + 1) });
+            }}
             onPageChange={(page) => {
+              setLoading(true);
               fetchTopics({ page });
               window.scrollTo({ top: 0, behavior: "smooth" });
             }}

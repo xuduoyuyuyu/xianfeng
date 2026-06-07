@@ -4,6 +4,7 @@ import { useSelector } from "react-redux";
 import { RootState } from "../store";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import Pagination from "../components/Pagination";
+import { useIsMobilePager } from "../hooks/useIsMobilePager";
 import { useXiaowanziEmbeddedLayer } from "../utils/xiaowanziLayer";
 
 const FALLBACK_COVER = "http://xianfeng.xinzhi.info/uploads/images/1779669071894-42qbgvdv.png";
@@ -34,6 +35,11 @@ function fmtDate(value?: string) {
   return d.toLocaleDateString("zh-CN");
 }
 
+function mergeById<T extends { _id: string }>(current: T[], next: T[]) {
+  const seen = new Set(current.map((item) => item._id));
+  return [...current, ...next.filter((item) => !seen.has(item._id))];
+}
+
 const ProgramListPage: React.FC = () => {
   const navigate = useNavigate();
   const { user: currentUser, token } = useSelector((state: RootState) => state.user);
@@ -47,6 +53,8 @@ const ProgramListPage: React.FC = () => {
   const pageSize = 20;
   const [searchParams, setSearchParams] = useSearchParams();
   const superModePage = useXiaowanziEmbeddedLayer();
+  const isMobilePager = useIsMobilePager();
+  const showInitialLoading = loading && (!isMobilePager || currentPage <= 1);
 
   const keyword = useMemo(() => String(searchParams.get("q") || "").trim(), [searchParams]);
   const xiaowanziBackButton = superModePage ? (
@@ -83,10 +91,10 @@ const ProgramListPage: React.FC = () => {
       .then((raw: any) => {
         if (!alive) return;
         const data: Program[] = Array.isArray(raw?.programs) ? raw.programs : Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : [];
-        setPrograms(data);
+        setPrograms((prev) => (isMobilePager && currentPage > 1 ? mergeById(prev, data) : data));
         setTotalPages(raw?.totalPages || 1);
         setTotal(raw?.total || data.length);
-        window.scrollTo({ top: 0, behavior: "smooth" });
+        if (!isMobilePager) window.scrollTo({ top: 0, behavior: "smooth" });
       })
       .catch((err: any) => {
         if (!alive) return;
@@ -101,7 +109,7 @@ const ProgramListPage: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, [currentPage, keyword]);
+  }, [currentPage, isMobilePager, keyword]);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#f3f2f8] text-[#1f1d1a]">
@@ -191,7 +199,7 @@ const ProgramListPage: React.FC = () => {
         {error ? <div className="mt-6 rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm text-red-500">{error}</div> : null}
 
         <section className="mt-8 space-y-5">
-          {loading ? (
+          {showInitialLoading ? (
             Array.from({ length: 5 }).map((_, idx) => (
               <div key={idx} className="animate-pulse rounded-[1.7rem] border border-[#e2dcf0] bg-white p-5 sm:p-6">
                 <div className="h-6 w-1/3 rounded bg-[#ece3f7]" />
@@ -205,7 +213,7 @@ const ProgramListPage: React.FC = () => {
             </div>
           ) : (
             <>
-              {programs.map((program, idx) => {
+              {programs.map((program) => {
                 const routeId = program.programCode || program._id;
 
                 const tags = Array.isArray(program.summary?.tags)
@@ -273,6 +281,10 @@ const ProgramListPage: React.FC = () => {
                 <Pagination
                   currentPage={currentPage}
                   totalPages={totalPages}
+                  mobileAutoLoad
+                  mobileHasMore={currentPage < totalPages}
+                  mobileLoading={loading && isMobilePager && currentPage > 1}
+                  onMobileLoadMore={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
                   onPageChange={(page) => {
                     if (!isLoggedIn) {
                       document.dispatchEvent(new CustomEvent('xf-show-login-modal', { detail: { title: '登录后可翻页', description: '登录后即可浏览全部节目、翻页查看往期内容。' } }));

@@ -5,6 +5,7 @@ import { RootState } from "../store";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import Pagination from "../components/Pagination";
 import { Book, publicApi } from "../services/api";
+import { useIsMobilePager } from "../hooks/useIsMobilePager";
 import { useXiaowanziEmbeddedLayer } from "../utils/xiaowanziLayer";
 
 const PAGE_SIZE = 24;
@@ -95,6 +96,7 @@ const BookCard: React.FC<BookCardProps> = ({ item }) => {
 
 const BooksPage: React.FC = () => {
   const superModePage = useXiaowanziEmbeddedLayer();
+  const isMobilePager = useIsMobilePager();
   const token = useSelector((state: RootState) => state.user.token);
   const isLoggedIn = !!token || !!localStorage.getItem("token");
 
@@ -227,18 +229,19 @@ const BooksPage: React.FC = () => {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
+  const visibleBookLimit = safePage * PAGE_SIZE;
 
   useEffect(() => {
     setPage(1);
-  }, [boundGuestId, boundGuestName, keyword, selectedGrades]);
+  }, [boundGuestId, boundGuestName, keyword, selectedGrades, selectedTopics]);
 
   useEffect(() => {
     if (safePage !== page) setPage(safePage);
   }, [safePage, page]);
 
   const pagedGrouped = useMemo(() => {
-    const start = (safePage - 1) * PAGE_SIZE;
-    const end = start + PAGE_SIZE;
+    const start = isMobilePager ? 0 : (safePage - 1) * PAGE_SIZE;
+    const end = isMobilePager ? visibleBookLimit : start + PAGE_SIZE;
     const sliced = filtered.slice(start, end);
     const map = new Map<string, EnrichedBook[]>();
     for (const item of sliced) {
@@ -249,12 +252,13 @@ const BooksPage: React.FC = () => {
     return Array.from(map.entries())
       .map(([guest, items]) => ({ guest, items }))
       .sort((a, b) => a.guest.localeCompare(b.guest, "zh-CN"));
-  }, [filtered, safePage]);
+  }, [filtered, isMobilePager, safePage, visibleBookLimit]);
 
   const pagedFlat = useMemo(() => {
+    if (isMobilePager) return filtered.slice(0, visibleBookLimit);
     const start = (safePage - 1) * PAGE_SIZE;
     return filtered.slice(start, start + PAGE_SIZE);
-  }, [filtered, safePage]);
+  }, [filtered, isMobilePager, safePage, visibleBookLimit]);
 
   const clearFilters = () => {
     setBoundGuestId("");
@@ -536,6 +540,9 @@ const BooksPage: React.FC = () => {
         <Pagination
           currentPage={safePage}
           totalPages={totalPages}
+          mobileAutoLoad
+          mobileHasMore={safePage < totalPages}
+          onMobileLoadMore={() => setPage((value) => Math.min(totalPages, value + 1))}
           onPageChange={setPage}
         />
       </main>

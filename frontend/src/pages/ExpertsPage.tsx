@@ -6,6 +6,7 @@ import GlobalPublicNav from "../components/GlobalPublicNav";
 import Pagination from "../components/Pagination";
 import WishModal from "../components/WishModal";
 import { publicApi, PublicGuest } from "../services/api";
+import { useIsMobilePager } from "../hooks/useIsMobilePager";
 import { useXiaowanziEmbeddedLayer } from "../utils/xiaowanziLayer";
 import {
   GUEST_FALLBACK_AVATAR_ARCHIVE_IMG_CLASS,
@@ -19,6 +20,11 @@ import {
 } from "../utils/guestAvatar";
 
 const PAGE_SIZE = 15;
+
+function mergeById<T extends { _id: string }>(current: T[], next: T[]) {
+  const seen = new Set(current.map((item) => item._id));
+  return [...current, ...next.filter((item) => !seen.has(item._id))];
+}
 
 function buildGuestSuggestedQuestions(guest: PublicGuest): string[] {
   const name = String(guest.name || "").trim() || "这位嘉宾";
@@ -52,6 +58,7 @@ const ExpertsPage: React.FC = () => {
   const [topicTick, setTopicTick] = useState(0);
   const superSearchInputRef = useRef<HTMLInputElement | null>(null);
   const superModePage = useXiaowanziEmbeddedLayer();
+  const isMobilePager = useIsMobilePager();
   const xwReturnParam = searchParams.get("xw_return") || "";
   const showSuperQuickSearch = superModePage && superSearchDocked && !superSearchExpanded;
   const showSuperFloatingSearch = superModePage && superSearchDocked && superSearchExpanded;
@@ -59,6 +66,7 @@ const ExpertsPage: React.FC = () => {
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
+  const showInitialLoading = loading && (!isMobilePager || safePage <= 1);
 
   // 从 URL search params 读取搜索和分页
   useEffect(() => {
@@ -87,7 +95,7 @@ const ExpertsPage: React.FC = () => {
         if (!alive) return;
         const data = response.data;
         const list = Array.isArray(data) ? data : (data.guests || []);
-        setGuests(list);
+        setGuests((prev) => (isMobilePager && safePage > 1 ? mergeById(prev, list) : list));
         setFilterTags(Array.isArray(data.filterTags) ? data.filterTags : []);
         setTotal(data.total ?? list.length);
       })
@@ -102,7 +110,7 @@ const ExpertsPage: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, [safePage, search, selectedTag]);
+  }, [isMobilePager, safePage, search, selectedTag]);
 
   useEffect(() => {
     if (!superModePage) return;
@@ -371,7 +379,7 @@ const ExpertsPage: React.FC = () => {
         ) : null}
 
         <section className={`${superModePage ? "grid w-full grid-cols-1 gap-3" : "experts-mobile-grid mt-8 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3"}`}>
-          {loading ? (
+          {showInitialLoading ? (
             Array.from({ length: 6 }).map((_, idx) => (
               <div key={idx} className={`animate-pulse border border-[#e2dcf0] bg-white ${superModePage ? "w-full rounded-[24px] p-4" : "rounded-[1.7rem] p-5"}`}>
                 {superModePage ? (
@@ -510,6 +518,10 @@ const ExpertsPage: React.FC = () => {
         <Pagination
           currentPage={safePage}
           totalPages={totalPages}
+          mobileAutoLoad
+          mobileHasMore={safePage < totalPages}
+          mobileLoading={loading && isMobilePager && safePage > 1}
+          onMobileLoadMore={() => setPage((value) => Math.min(totalPages, value + 1))}
           onPageChange={setPage}
         />
 

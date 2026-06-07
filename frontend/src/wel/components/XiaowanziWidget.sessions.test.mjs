@@ -190,3 +190,23 @@ test("home expanded prompt typography stays compact on mobile", () => {
   assert.match(source, /\.xw-home-card-title\{[^}]*font-size:21px/s, "prompt card title should stay compact");
   assert.match(source, /\.xw-home-question\{[^}]*font-size:16px/s, "prompt question rows should stay compact");
 });
+
+test("xiaowanzi streaming replies can be interrupted directly", () => {
+  assert.match(source, /abortControllerRef = useRef<AbortController \| null>\(null\)/, "streaming request should keep an abort controller");
+  assert.match(source, /function stopXiaowanziResponse\(\)/, "composer needs an explicit stop action");
+  assert.match(source, /abortControllerRef\.current\?\.abort\(\)/, "stop action must abort the active stream");
+  assert.match(source, /signal: controller\.signal/, "message fetch should receive the abort signal");
+  assert.match(source, /error\?\.name === "AbortError"/, "aborted streams should not be shown as request failures");
+  assert.match(source, /className="xw-home-send"[\s\S]*onClick=\{\(\) => sending \? stopXiaowanziResponse\(\) : void sendMessage\(\)\}/, "home send button should become a stop button while streaming");
+  assert.match(source, /className="aip-send"[\s\S]*onClick=\{\(\) => sending \? stopXiaowanziResponse\(\) : void sendMessage\(\)\}/, "floating send button should become a stop button while streaming");
+  assert.doesNotMatch(source, /disabled=\{sending \|\| \(!input\.trim\(\) && !uploadedImage\)\}/, "home composer must not disable the stop action while streaming");
+});
+
+test("home composer switches to a stable multiline layout for long input", () => {
+  assert.match(source, /const homeComposerExpanded = Boolean\(input\.includes\("\\n"\) \|\| \(inputRef\.current\?\.scrollHeight \|\| 0\) > 66\)/, "home composer should detect multi-line input");
+  assert.match(source, /xw-home-input-shell\$\{homeComposerExpanded \? " multiline" : ""\}/, "home input shell should receive a multiline class");
+  assert.match(source, /\.xw-home-input-shell\.multiline\{[^}]*align-items:flex-end/s, "multiline shell should bottom-align controls");
+  assert.match(source, /\.xw-home-input-shell\.multiline \.xw-home-input\{[^}]*border-radius:28px[^}]*line-height:1\.42[^}]*overflow-y:auto/s, "multiline input should use readable text flow and scrolling");
+  assert.match(source, /\.xw-home-input-shell\.multiline \.xw-home-voice-cue/s, "multiline style should reposition the voice affordance");
+  assert.match(source, /\.xw-home-input-shell\.multiline \.xw-home-send/s, "multiline style should reposition the send or stop affordance");
+});

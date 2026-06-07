@@ -1,6 +1,6 @@
 {
-  "name": "小玩子调试",
-  "description": "前台小玩子调试实例",
+  "name": "小玩子",
+  "description": "前台小玩子实例",
   "persona": "",
   "channels": {},
   "model": "chat_manager_agent",

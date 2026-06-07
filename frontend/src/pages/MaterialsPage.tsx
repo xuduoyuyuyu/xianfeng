@@ -4,6 +4,7 @@ import { RootState } from "../store";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import Pagination from "../components/Pagination";
 import { publicApi, LearningMaterial } from "../services/api";
+import { useIsMobilePager } from "../hooks/useIsMobilePager";
 import { useXiaowanziEmbeddedLayer } from "../utils/xiaowanziLayer";
 
 type MaterialMeta = {
@@ -265,6 +266,7 @@ function gradeRank(value: string): number {
 
 const MaterialsPage: React.FC = () => {
   const superModePage = useXiaowanziEmbeddedLayer();
+  const isMobilePager = useIsMobilePager();
   const token = useSelector((state: RootState) => state.user.token);
   const [materials, setMaterials] = useState<LearningMaterial[]>([]);
   const [loading, setLoading] = useState(true);
@@ -362,8 +364,9 @@ const MaterialsPage: React.FC = () => {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
-  const start = (safePage - 1) * PAGE_SIZE;
-  const paged = filtered.slice(start, start + PAGE_SIZE);
+  const visibleMaterialLimit = safePage * PAGE_SIZE;
+  const start = isMobilePager ? 0 : (safePage - 1) * PAGE_SIZE;
+  const paged = filtered.slice(start, isMobilePager ? visibleMaterialLimit : start + PAGE_SIZE);
 
   useEffect(() => {
     setPage(1);
@@ -731,6 +734,9 @@ const MaterialsPage: React.FC = () => {
         <Pagination
           currentPage={safePage}
           totalPages={totalPages}
+          mobileAutoLoad
+          mobileHasMore={safePage < totalPages}
+          onMobileLoadMore={() => setPage((value) => Math.min(totalPages, value + 1))}
           onPageChange={setPage}
         />
       </main>

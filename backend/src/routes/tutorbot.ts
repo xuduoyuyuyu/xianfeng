@@ -9,6 +9,7 @@ import Guest from "../models/Guest";
 import Topic from "../models/Topic";
 import Book from "../models/Book";
 import LearningMaterial from "../models/LearningMaterial";
+import { buildRagContext } from "../services/ragContextService";
 
 const router = express.Router();
 const FRONTEND_BOT_ID = "xiaowanzi_debug_bot";
@@ -215,7 +216,10 @@ function sendBotMessage(req: express.Request, res: express.Response): void {
         .map((item: any) => ({ role: item.role, content: String(item.content || "") }))
         .filter((item: any) => item.content);
       const siteContext = isFrontendBot(botId) ? await buildSiteContext(content).catch(() => "") : "";
-      const effectiveContent = siteContext ? `${siteContext}\n\n${content}` : content;
+      const rag = isFrontendBot(botId)
+        ? await buildRagContext({ routeKey: "xiaowanzi", query: extractUserQuestion(content), localContext: siteContext })
+        : { promptBlock: "", status: "empty_query", provider: "none", citations: [] };
+      const effectiveContent = rag.promptBlock ? `${rag.promptBlock}\n\n${content}` : content;
       const messages = [
         ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
         ...recentHistory,

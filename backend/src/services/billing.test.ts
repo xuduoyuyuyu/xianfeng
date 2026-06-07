@@ -23,7 +23,7 @@ describe("billing rules", () => {
     assert.equal(BILLING_PLANS.yearly.amountCents, 9900);
     assert.equal(BILLING_PLANS.monthly.pointsPerCycle, 8800);
     assert.equal(BILLING_PLANS.yearly.pointsPerCycle, 105600);
-    assert.equal(FREE_BILLING_PLAN.pointsPerCycle, 2000);
+    assert.equal(FREE_BILLING_PLAN.pointsPerCycle, 200);
     assert.match(BILLING_PLANS.monthly.description, /点/);
     assert.match(BILLING_PLANS.yearly.description, /点/);
     assert.equal(normalizeBillingPlan("monthly"), "monthly");
@@ -91,7 +91,7 @@ describe("billing rules", () => {
     }
   });
 
-  it("grants free users 200 points once per day with a 2000 monthly cap", () => {
+  it("resets free users to 200 daily points without accumulating grants", () => {
     const first = calculateFreeLoginPointGrant({
       balance: 0,
       grantDate: "",
@@ -117,17 +117,28 @@ describe("billing rules", () => {
     assert.equal(sameDay.grantedPoints, 0);
     assert.equal(sameDay.pointBalance, 200);
 
-    const capped = calculateFreeLoginPointGrant({
-      balance: 1990,
+    const sameDayAfterSpend = calculateFreeLoginPointGrant({
+      balance: 123.5,
+      grantDate: first.grantDate,
+      grantMonth: first.grantMonth,
+      grantedThisMonth: first.grantedThisMonth,
+      now: new Date("2026-06-05T12:00:00.000Z"),
+    });
+
+    assert.equal(sameDayAfterSpend.grantedPoints, 0);
+    assert.equal(sameDayAfterSpend.pointBalance, 123.5);
+
+    const nextDay = calculateFreeLoginPointGrant({
+      balance: 591.5,
       grantDate: "2026-06-04",
       grantMonth: "2026-06",
-      grantedThisMonth: 1900,
+      grantedThisMonth: 200,
       now: new Date("2026-06-06T01:00:00.000Z"),
     });
 
-    assert.equal(capped.grantedPoints, 10);
-    assert.equal(capped.pointBalance, 2000);
-    assert.equal(capped.grantedThisMonth, 1910);
+    assert.equal(nextDay.grantedPoints, 200);
+    assert.equal(nextDay.pointBalance, 200);
+    assert.equal(nextDay.grantedThisMonth, 200);
   });
 
   it("exposes a point consumption policy for gated AI behavior", () => {

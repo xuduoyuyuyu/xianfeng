@@ -6,9 +6,12 @@ import type { GuestAgentSourceType } from "../models/GuestAgentChunk";
 export type WeknoraConfig = {
   enabled: boolean;
   baseUrl: string;
+  appId?: string;
   apiKey: string;
   guestKbPrefix: string;
   timeoutMs: number;
+  globalKbIds?: string[];
+  ragTopK?: number;
 };
 
 export type WeknoraClientOptions = {
@@ -89,17 +92,82 @@ function normalizeBaseUrl(value: string): string {
   return clean.endsWith("/api/v1") ? clean : `${clean}/api/v1`;
 }
 
+function parseCsv(value: unknown): string[] {
+  return asText(value)
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function positiveInt(value: unknown, fallback: number): number {
+  const parsed = Math.floor(Number(value));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function md5Hex(value: string): string {
+  return crypto.createHash("md5").update(value).digest("hex");
+}
+
+function rfc3986Encode(value: string): string {
+  return encodeURIComponent(value).replace(/[!'()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
+function randomNonce(length = 16): string {
+  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const bytes = crypto.randomBytes(length);
+  return Array.from(bytes, (byte) => chars[byte % chars.length]).join("");
+}
+
+export function signWeknoraCloudHeaders(params: {
+  appId: string;
+  apiKey: string;
+  requestId?: string;
+  timestamp?: string;
+  nonce?: string;
+  bodyJson?: string;
+}): Record<string, string> {
+  const requestId = asText(params.requestId) || crypto.randomUUID();
+  const timestamp = asText(params.timestamp) || String(Math.floor(Date.now() / 1000));
+  const nonce = asText(params.nonce) || randomNonce();
+  const bodyJson = params.bodyJson === undefined || params.bodyJson === "" ? "{}" : params.bodyJson;
+  const signatureParams: Record<string, string> = {
+    body: md5Hex(bodyJson),
+    "x-api-key": params.apiKey,
+    "x-appid": params.appId,
+    "x-nonce": nonce,
+    "x-request-id": requestId,
+    "x-timestamp": timestamp,
+  };
+  const signatureBase = Object.keys(signatureParams)
+    .sort()
+    .map((key) => `${rfc3986Encode(key)}=${rfc3986Encode(signatureParams[key])}`)
+    .join("&");
+
+  return {
+    "X-APPID": params.appId,
+    "X-API-Key": params.apiKey,
+    "X-Request-ID": requestId,
+    "X-Timestamp": timestamp,
+    "X-Nonce": nonce,
+    "X-Signature": md5Hex(signatureBase),
+  };
+}
+
 export function resolveWeknoraConfig(env: NodeJS.ProcessEnv = process.env): WeknoraConfig {
   const enabled = env.WEKNORA_ENABLED === "true" || env.WEKNORA_ENABLED === "1";
   const baseUrl = normalizeBaseUrl(env.WEKNORA_BASE_URL || "");
+  const appId = asText(env.WEKNORA_APP_ID);
   const apiKey = asText(env.WEKNORA_API_KEY);
-  const timeoutMs = Number.isFinite(Number(env.WEKNORA_TIMEOUT_MS)) ? Math.max(100, Number(env.WEKNORA_TIMEOUT_MS)) : 8000;
+  const timeoutMs = Math.max(100, positiveInt(env.WEKNORA_RAG_TIMEOUT_MS || env.WEKNORA_TIMEOUT_MS, 8000));
   return {
     enabled: enabled && Boolean(baseUrl && apiKey),
     baseUrl,
+    appId,
     apiKey,
     guestKbPrefix: asText(env.WEKNORA_GUEST_KB_PREFIX) || "xianfeng-guest",
     timeoutMs,
+    globalKbIds: parseCsv(env.WEKNORA_GLOBAL_KB_IDS),
+    ragTopK: positiveInt(env.WEKNORA_RAG_TOP_K, 8),
   };
 }
 
@@ -168,9 +236,10 @@ export async function requestWeknora(apiPath: string, options: WeknoraClientOpti
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.timeoutMs);
   const fetchImpl = getFetch(options);
-  const headers: Record<string, string> = {
-    "X-API-Key": config.apiKey,
-  };
+  const bodyJson = options.body === undefined ? "{}" : JSON.stringify(options.body);
+  const headers: Record<string, string> = config.appId
+    ? signWeknoraCloudHeaders({ appId: config.appId, apiKey: config.apiKey, bodyJson })
+    : { "X-API-Key": config.apiKey };
   const init: RequestInit = {
     method: options.method || "GET",
     headers,
@@ -178,7 +247,7 @@ export async function requestWeknora(apiPath: string, options: WeknoraClientOpti
   };
   if (options.body !== undefined) {
     headers["Content-Type"] = "application/json";
-    init.body = JSON.stringify(options.body);
+    init.body = bodyJson;
   }
   try {
     const response = await fetchImpl(`${config.baseUrl}${apiPath.startsWith("/") ? apiPath : `/${apiPath}`}`, init);
@@ -377,4 +446,24 @@ export async function searchGuestKnowledge(
   });
   return normalizeWeknoraSearchResults(payload, (knowledgeId) => byKnowledgeId.get(knowledgeId))
     .slice(0, Math.max(1, Math.floor(params.limit || 8)));
+}
+
+export async function searchGlobalKnowledge(
+  params: { query: string; limit?: number },
+  options: WeknoraClientOptions = {}
+): Promise<WeknoraSearchHit[]> {
+  const config = getConfig(options);
+  const kbIds = Array.isArray(config.globalKbIds) ? config.globalKbIds.filter(Boolean) : [];
+  const query = asText(params.query);
+  if (!config.enabled || !query || kbIds.length === 0) return [];
+  const limit = Math.max(1, Math.floor(params.limit || config.ragTopK || 8));
+  const payload = await requestWeknora("/knowledge-search", {
+    ...options,
+    method: "POST",
+    body: {
+      query,
+      knowledge_base_ids: kbIds,
+    },
+  });
+  return normalizeWeknoraSearchResults(payload, () => undefined).slice(0, limit);
 }

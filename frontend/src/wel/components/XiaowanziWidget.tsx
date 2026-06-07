@@ -889,6 +889,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
   const homeInputbarRef = useRef<HTMLDivElement | null>(null);
   const homeAttachMenuRef = useRef<HTMLDivElement | null>(null);
   const recognitionRef = useRef<any>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const voicePressTimerRef = useRef<number | null>(null);
   const fabLongPressRef = useRef<number | null>(null);
   const dragRef = useRef({ active: false, moved: false, offsetX: 0, offsetY: 0, pointerId: -1 });
@@ -914,6 +915,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
   const isDockedEmpty = isDocked && !hasHistoryMessages && messages.length <= 1;
   const visibleMessages = isDocked ? messages.filter((message) => !isReadReceiptMessage(message.content)) : messages;
   const effectiveHomePrompts = homePromptItems.length ? homePromptItems : HOME_FALLBACK_PROMPTS;
+  const homeComposerExpanded = Boolean(input.includes("\n") || (inputRef.current?.scrollHeight || 0) > 66);
   const currentUserName = (() => {
     try {
       const raw = localStorage.getItem("user");
@@ -1198,6 +1200,8 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
       clearAvatarTimers();
       if (fabLongPressRef.current) window.clearTimeout(fabLongPressRef.current);
       if (voicePressTimerRef.current) window.clearTimeout(voicePressTimerRef.current);
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = null;
       recognitionRef.current?.stop?.();
     };
   }, []);
@@ -1612,10 +1616,19 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
     };
   }, [open, pinned, maximized]);
 
+  function stopXiaowanziResponse() {
+    abortControllerRef.current?.abort();
+    setStatusText("● 已停止输出");
+  }
+
   async function sendMessage(text?: string) {
+    if (sending) {
+      stopXiaowanziResponse();
+      return;
+    }
     const plainContent = (text ?? input).trim();
     const imageAttachment = uploadedImage;
-    if ((!plainContent && !imageAttachment) || sending) return;
+    if ((!plainContent && !imageAttachment)) return;
     const token = getSessionToken();
     if (!token) {
       shouldBlockXiaowanziForAuth();
@@ -1667,11 +1680,14 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
     setUploadedImage(null);
     setHasHistoryMessages(true);
     setMessages((prev) => [...prev, userMessage]);
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     try {
       const res = await fetch(apiUrl(`/api/v1/tutorbot/${BOT_ID}/messages`), {
         method: "POST",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ content: contextualContent, stream: true }),
+        signal: controller.signal,
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -1751,6 +1767,10 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
       }
       document.dispatchEvent(new CustomEvent("xf-billing-balance-changed", { detail: { featureKey: "xiaowanzi" } }));
     } catch (error: any) {
+      if (error?.name === "AbortError") {
+        setStatusText("● 已停止输出");
+        return;
+      }
       const msg = `请求失败:${String(error?.message || "unknown")}`;
       setMessages((prev) => {
         const existing = prev.find((item) => item.ts === assistantTs);
@@ -1758,6 +1778,9 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         return [...prev, { role: "assistant", content: msg, ts: assistantTs }];
       });
     } finally {
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
       setSending(false);
     }
   }
@@ -1782,7 +1805,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
       event.currentTarget.style.lineHeight = "58px";
       if (event.currentTarget.scrollHeight > 58) {
         event.currentTarget.style.lineHeight = "1.38";
-        event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 104)}px`;
+        event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 132)}px`;
       }
       return;
     }
@@ -2243,16 +2266,21 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         .xw-home-plus{width:52px;height:52px;flex:0 0 52px;border:0;border-radius:999px;background:rgba(255,255,255,.94);color:#11143b;font-family:'Material Symbols Rounded';font-size:29px;line-height:1;box-shadow:0 10px 26px rgba(70,73,132,.1);display:flex;align-items:center;justify-content:center;padding:0}
         .xw-home-plus.on{background:#fff;color:#5b48ff;box-shadow:0 14px 30px rgba(91,72,255,.18)}
         .xw-home-input-shell{position:relative;flex:1;min-width:0;display:flex;align-items:center}
+        .xw-home-input-shell.multiline{align-items:flex-end}
         .xw-home-input-shell.voice-active .xw-home-input{box-shadow:0 0 0 3px rgba(91,72,255,.14),0 12px 30px rgba(91,72,255,.18);transform:scale(1.012)}
         .xw-home-input{width:100%;height:58px;min-height:58px;max-height:104px;resize:none;border:0;border-radius:999px;background:rgba(255,255,255,.96);box-shadow:0 10px 26px rgba(70,73,132,.12);padding:0 56px 0 60px;color:#11143b;font-size:15px;font-weight:760;line-height:58px;outline:0;overflow:hidden;transition:box-shadow .18s ease,transform .18s ease}
+        .xw-home-input-shell.multiline .xw-home-input{border-radius:28px;min-height:76px;max-height:132px;padding:15px 58px 15px 58px;line-height:1.42;overflow-y:auto;scrollbar-width:none}
+        .xw-home-input-shell.multiline .xw-home-input::-webkit-scrollbar{display:none}
         .xw-home-inputbar.menu-open .xw-home-input{box-shadow:0 18px 38px rgba(70,73,132,.2),0 28px 58px rgba(91,72,255,.18)}
         .xw-home-inputbar.menu-open .xw-home-plus.on{box-shadow:0 20px 42px rgba(91,72,255,.24),0 28px 58px rgba(70,73,132,.16)}
         .xw-home-input::placeholder{color:#a6aec4}
         .xw-home-voice-cue{position:absolute;left:7px;top:50%;transform:translateY(-50%);width:44px;height:44px;border:0;border-radius:999px;background:#fff;color:#11143b;font-family:'Material Symbols Rounded';font-size:25px;line-height:1;box-shadow:0 5px 14px rgba(70,73,132,.08);display:flex;align-items:center;justify-content:center;padding:0;z-index:2}
+        .xw-home-input-shell.multiline .xw-home-voice-cue{top:auto;bottom:7px;transform:none}
         .xw-home-voice-cue.listening{color:#fff;background:linear-gradient(135deg,#5b48ff,#7a45f4);animation:xwVoicePulse .8s ease-in-out infinite}
         .xw-home-voice-cue.arming{color:#5b48ff;background:#f2efff}
         @keyframes xwVoicePulse{0%,100%{transform:translateY(-50%) scale(1)}50%{transform:translateY(-50%) scale(1.08)}}
         .xw-home-send{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:46px;height:46px;border:0;border-radius:999px;background:linear-gradient(135deg,#5b48ff,#7a45f4);color:#fff;font-family:'Material Symbols Rounded';font-size:22px;line-height:1;box-shadow:0 8px 18px rgba(91,72,255,.25);display:flex;align-items:center;justify-content:center;padding:0}
+        .xw-home-input-shell.multiline .xw-home-send{top:auto;bottom:6px;transform:none}
         .xw-home-send:disabled{opacity:.42}
         .xw-home-attachment{position:absolute;left:8px;right:8px;bottom:66px;display:flex;align-items:center;gap:8px;min-height:42px;border-radius:18px;background:rgba(255,255,255,.96);box-shadow:0 10px 24px rgba(70,73,132,.12);padding:6px 10px;color:#6b7280;font-size:12px;font-weight:800}
         .xw-home-attachment img{width:30px;height:30px;border-radius:10px;object-fit:cover}
@@ -2398,7 +2426,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
             )}
           </div>
           <div className={`xw-home-inputbar${attachmentMenuOpen ? " menu-open" : ""}`} ref={homeInputbarRef}>
-            <div className={`xw-home-input-shell${voiceListening || voiceHolding ? " voice-active" : ""}`}>
+            <div className={`xw-home-input-shell${homeComposerExpanded ? " multiline" : ""}${voiceListening || voiceHolding ? " voice-active" : ""}`}>
               {uploadedImage ? (
                 <div className="xw-home-attachment">
                   {uploadedImage.kind === "file" ? <span className="xw-home-attachment-file">description</span> : <img src={uploadedImage.dataUrl} alt="已上传图片" />}
@@ -2427,8 +2455,8 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
                 onPointerCancel={endInputVoicePress}
                 onPointerLeave={endInputVoicePress}
                   />
-                  <button className="xw-home-send" type="button" onClick={() => void sendMessage()} disabled={sending || (!input.trim() && !uploadedImage)}>
-                    {sending ? "more_horiz" : "send"}
+                  <button className="xw-home-send" type="button" onClick={() => sending ? stopXiaowanziResponse() : void sendMessage()} disabled={!sending && !input.trim() && !uploadedImage}>
+                    {sending ? "stop" : "send"}
                   </button>
             </div>
             <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={onImagePicked} />
@@ -2642,8 +2670,8 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
 	                >
                   add
                     </button>
-                    <button className="aip-send" type="button" onClick={() => void sendMessage()} disabled={sending || !isChildBound}>
-                      {sending ? "more_horiz" : "send"}
+                    <button className="aip-send" type="button" onClick={() => sending ? stopXiaowanziResponse() : void sendMessage()} disabled={!sending && !isChildBound}>
+                      {sending ? "stop" : "send"}
                     </button>
               </div>
             </div>

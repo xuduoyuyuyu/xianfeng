@@ -35,6 +35,7 @@ import TopicDetailPage from "./pages/TopicDetailPage";
 import { XianfengSharePosterExample } from "./components/XianfengSharePoster";
 import WorthBuyPage from "./pages/WorthBuyPage";
 import WorthBuyDetailPage from "./pages/WorthBuyDetailPage";
+import SearchPage from "./pages/SearchPage";
 import ProPage from "./pages/ProPage";
 import WithLoginGate from "./components/WithLoginGate";
 import PageViewTracker from "./components/PageViewTracker";
@@ -152,6 +153,10 @@ const PublicScreenRouter: React.FC = () => {
 
   if (normalizedPathname === "/worthbuy") {
     return <WorthBuyPage />;
+  }
+
+  if (normalizedPathname === "/search") {
+    return <SearchPage />;
   }
 
   if (normalizedPathname === "/pro" || normalizedPathname === "/pro/success") {

@@ -8,7 +8,10 @@ import {
   ensureGuestKnowledgeBase,
   normalizeWeknoraSearchResults,
   requestWeknora,
+  resolveWeknoraConfig,
+  searchGlobalKnowledge,
   searchGuestKnowledge,
+  signWeknoraCloudHeaders,
   syncGuestKnowledgeDocuments,
 } from "./weknoraClient";
 
@@ -21,6 +24,93 @@ function tempStorePath() {
 }
 
 describe("weknoraClient", () => {
+  it("parses global RAG knowledge-base configuration", () => {
+    const config = resolveWeknoraConfig({
+      WEKNORA_ENABLED: "true",
+      WEKNORA_BASE_URL: "https://weknora.example.com/api/v1",
+      WEKNORA_APP_ID: "app-test",
+      WEKNORA_API_KEY: "sk-test",
+      WEKNORA_GLOBAL_KB_IDS: "kb-a, kb-b ,,kb-c",
+      WEKNORA_RAG_TOP_K: "6",
+      WEKNORA_RAG_TIMEOUT_MS: "1500",
+    } as any);
+
+    assert.equal(config.appId, "app-test");
+    assert.deepEqual(config.globalKbIds, ["kb-a", "kb-b", "kb-c"]);
+    assert.equal(config.ragTopK, 6);
+    assert.equal(config.timeoutMs, 1500);
+  });
+
+  it("signs WeKnora Cloud requests with the official AppID and body digest algorithm", () => {
+    const headers = signWeknoraCloudHeaders({
+      appId: "app-test",
+      apiKey: "sk-test",
+      requestId: "req-1",
+      timestamp: "1710000000",
+      nonce: "abc1234567890000",
+      bodyJson: "{}",
+    });
+
+    assert.equal(headers["X-APPID"], "app-test");
+    assert.equal(headers["X-API-Key"], "sk-test");
+    assert.equal(headers["X-Request-ID"], "req-1");
+    assert.equal(headers["X-Timestamp"], "1710000000");
+    assert.equal(headers["X-Nonce"], "abc1234567890000");
+    assert.equal(headers["X-Signature"], "54b6db57cc427ea56e6c90121e490d95");
+  });
+
+  it("searches configured global knowledge bases with signed AppID auth", async () => {
+    const calls: Array<{ url: string; init: any }> = [];
+    const fetchImpl = async (url: any, init: any = {}) => {
+      calls.push({ url: String(url), init });
+      return Response.json({
+        data: [
+          {
+            id: "global-chunk-1",
+            content: "择校前先明确孩子画像和家庭约束。",
+            knowledge_id: "knowledge-global-1",
+            knowledge_title: "升学规划方法论",
+            knowledge_filename: "planning.md",
+            score: 0.88,
+          },
+        ],
+      });
+    };
+
+    const hits = await searchGlobalKnowledge(
+      { query: "怎么做升学规划", limit: 3 },
+      {
+        config: {
+          enabled: true,
+          baseUrl: "http://weknora.local/api/v1",
+          appId: "app-test",
+          apiKey: "sk-test",
+          guestKbPrefix: "xf-guest",
+          timeoutMs: 200,
+          globalKbIds: ["kb-a", "kb-b"],
+          ragTopK: 3,
+        },
+        fetchImpl,
+      }
+    );
+
+    assert.equal(calls[0].url, "http://weknora.local/api/v1/knowledge-search");
+    assert.equal(calls[0].init.method, "POST");
+    assert.equal(calls[0].init.headers["X-API-Key"], "sk-test");
+    assert.equal(calls[0].init.headers["X-APPID"], "app-test");
+    assert.ok(calls[0].init.headers["X-Request-ID"]);
+    assert.ok(calls[0].init.headers["X-Timestamp"]);
+    assert.ok(calls[0].init.headers["X-Nonce"]);
+    assert.ok(calls[0].init.headers["X-Signature"]);
+    assert.deepEqual(JSON.parse(calls[0].init.body), {
+      query: "怎么做升学规划",
+      knowledge_base_ids: ["kb-a", "kb-b"],
+    });
+    assert.equal(hits[0].chunkId, "global-chunk-1");
+    assert.equal(hits[0].sourceTitle, "升学规划方法论");
+    assert.equal(hits[0].text, "择校前先明确孩子画像和家庭约束。");
+  });
+
   it("creates guest knowledge bases with API-key auth", async () => {
     const store = tempStorePath();
     const calls: Array<{ url: string; init: any }> = [];
