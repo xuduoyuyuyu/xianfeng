@@ -46,12 +46,10 @@ const BookCard: React.FC<BookCardProps> = ({ item }) => {
         <div className="flex items-center justify-center overflow-hidden rounded-lg bg-white">
           {item.coverImage ? (
             <img
-              src={item.coverImage.replace(/^http:\/\//, "https://")}
+              src={`/api/books/proxy-image?url=${encodeURIComponent(item.coverImage)}`}
               alt={item.title || "书籍封面"}
               className="w-full object-contain"
               loading="lazy"
-              referrerPolicy="no-referrer"
-              crossOrigin="anonymous"
               onError={(e) => {
                 const img = e.currentTarget;
                 if (img.dataset.fallback !== "1") {

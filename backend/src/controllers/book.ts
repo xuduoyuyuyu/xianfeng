@@ -71,6 +71,42 @@ function statusUpdatePayload(status: "draft" | "published") {
 }
 
 export class BookController {
+  async proxyImage(req: Request, res: Response): Promise<void> {
+    try {
+      const url = String(req.query.url || "").trim();
+      if (!url || !/^https?:\/\//.test(url)) {
+        res.status(400).json({ error: "缺少有效 url 参数" });
+        return;
+      }
+      const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+      const resp = await fetch(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; XianfengProxy/1.0)",
+        },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!resp.ok) {
+        res.status(502).json({ error: `上游返回 ${resp.status}` });
+        return;
+      }
+      const contentType = resp.headers.get("content-type") || "image/jpeg";
+      const buf = Buffer.from(await resp.arrayBuffer());
+      if (buf.length > MAX_SIZE) {
+        res.status(413).json({ error: "图片过大" });
+        return;
+      }
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      res.send(buf);
+    } catch (err: any) {
+      if (err?.name === "AbortError" || err?.name === "TimeoutError") {
+        res.status(504).json({ error: "图片加载超时" });
+        return;
+      }
+      res.status(500).json({ error: "代理失败" });
+    }
+  }
+
   async importBatch(req: Request, res: Response): Promise<void> {
     try {
       const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
