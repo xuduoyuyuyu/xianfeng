@@ -890,6 +890,15 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
     readReceipt: DEFAULT_MESSAGE.content,
     shortcuts: DEFAULT_SHORTCUTS,
   });
+  const [shareMenuOpenId, setShareMenuOpenId] = useState<string | null>(null);
+  const [shareMenuPos, setShareMenuPos] = useState<{ x: number; y: number } | null>(null);
+  const [shareCardUrl, setShareCardUrl] = useState<string | null>(null);
+  const [shareGenerating, setShareGenerating] = useState(false);
+  const [shareToastMsg, setShareToastMsg] = useState("");
+  const [isReplying, setIsReplying] = useState(false);
+  /* ─── 分享选择模式 ─── */
+  const [shareSelectionMode, setShareSelectionMode] = useState(false);
+  const [selectedMessagesForShare, setSelectedMessagesForShare] = useState<Set<string>>(new Set());
   const msgContainerRef = useRef<HTMLDivElement | null>(null);
   const latestMsgRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -904,6 +913,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
   const fabLongPressRef = useRef<number | null>(null);
   const dragRef = useRef({ active: false, moved: false, offsetX: 0, offsetY: 0, pointerId: -1 });
   const avatarTimersRef = useRef<number[]>([]);
+  const shareCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const lastPathnameRef = useRef(pathname);
   const lastBrowsingMemoryRef = useRef("");
   const shortcutItems = (pageContext.shortcuts.length ? pageContext.shortcuts : DEFAULT_SHORTCUTS).map((item) => ({
@@ -1374,13 +1384,8 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
     const container = msgContainerRef.current;
     if (!container) return;
     requestAnimationFrame(() => {
-      if (hasHistoryMessages && latestMsgRef.current) {
-        const top = latestMsgRef.current.offsetTop - container.offsetTop;
-        container.scrollTo({ top: Math.max(0, top) });
-      } else {
-        container.scrollTo({ top: container.scrollHeight });
-        inputRef.current?.focus();
-      }
+      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+      inputRef.current?.focus();
     });
   }, [open, homeActive, messages, hasHistoryMessages]);
 
@@ -1389,10 +1394,9 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
     requestAnimationFrame(() => {
       const container = msgContainerRef.current;
       if (!container) return;
-      // Home 模式下有消息时滚动到底部，否则保持顶部
-      if (hasHistoryMessages && latestMsgRef.current) {
-        const top = latestMsgRef.current.offsetTop - container.offsetTop;
-        container.scrollTo({ top: Math.max(0, top) });
+      // Home 模式下：有消息时滚动到底部，否则保持顶部
+      if (visibleMessages.length > 1) {
+        container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
       } else {
         container.scrollTo({ top: 0 });
       }
@@ -1704,6 +1708,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
     setHasHistoryMessages(true);
     const controller = new AbortController();
     abortControllerRef.current = controller;
+    setIsReplying(true);
     try {
       const res = await fetch(apiUrl(`/api/v1/tutorbot/${BOT_ID}/messages`), {
         method: "POST",
@@ -1755,6 +1760,11 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
             return prev.map((item) => item.ts === assistantTs ? { ...item, content: item.content + delta } : item);
           }
           return [...prev, { role: "assistant", content: delta, ts: assistantTs }];
+        });
+        // 滚动到底部
+        requestAnimationFrame(() => {
+          const el = msgContainerRef.current;
+          if (el) el.scrollTo({ top: el.scrollHeight, behavior: "instant" });
         });
       };
       while (true) {
@@ -1811,6 +1821,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         return [...prev, { role: "assistant", content: msg, ts: assistantTs }];
       });
     } finally {
+      setIsReplying(false);
       if (abortControllerRef.current === controller) {
         abortControllerRef.current = null;
       }
@@ -2041,26 +2052,249 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
   const embeddedLayer = useXiaowanziEmbeddedLayer();
   if (embeddedLayer) return null;
 
+  /* ─── 分享卡片 Canvas 渲染（对话截图风格） ─── */
+  const generateShareCard = async (baseMsg: Msg, msgs: Msg[]) => {
+    const canvas = shareCanvasRef.current;
+    if (!canvas) return;
+    setShareCardUrl(null);
+    setShareGenerating(true);
+
+    const W = 750;
+    const PAD = 32;
+    const FONT = 30;
+    const LH = 1.55;
+    const BUBBLE_PAD_X = 28;
+    const BUBBLE_PAD_Y = 22;
+    const SCALE = 2;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) { setShareGenerating(false); return; }
+
+    function loadImg(u: string): Promise<HTMLImageElement | null> {
+      return new Promise(r => { const i = new Image(); i.crossOrigin = "anonymous"; i.onload = () => r(i); i.onerror = () => r(null); i.src = u; });
+    }
+    function cln(t: string) { return t.replace(/\*\*(.+?)\*\*/g,"$1").replace(/\*(.+?)\*/g,"$1").replace(/`{1,3}[^`]*`{1,3}/g,"").replace(/#{1,6}\s?/g,""); }
+    function wrapParagraphs(c: CanvasRenderingContext2D, t: string, w: number): string[] {
+      // 保留换行分段
+      const paragraphs = t.split("\n");
+      const result: string[] = [];
+      for (const p of paragraphs) {
+        if (!p.trim()) { result.push(""); continue; }
+        const lines = wrap(c, p, w);
+        result.push(...lines);
+      }
+      return result;
+    }
+    function wrap(c: CanvasRenderingContext2D, t: string, w: number): string[] {
+      if (!t) return [""];
+      const o: string[] = []; let cur = "";
+      for (const ch of t) { if (c.measureText(cur + ch).width > w && cur) { o.push(cur); cur = ch; } else cur += ch; }
+      if (cur) o.push(cur);
+      return o.length ? o : [""];
+    }
+
+    try {
+      const logo = await loadImg(`/assets/xiaowanzi-share-logo.png?t=${Date.now()}`);
+      const FS = "-apple-system,'PingFang SC',sans-serif";
+
+      // ═══ 第一步：测量总高度 ═══
+      let totalH = PAD;
+
+      // Logo：放大到 88px 高，居中
+      const logoH = 120;
+      const rawLogoW = logo && logo.naturalWidth > 0 ? (logo.naturalWidth / logo.naturalHeight) * logoH : 120;
+      const logoW = Math.min(rawLogoW, W - PAD * 4); // 限制最大宽度
+      totalH += logoH + 20;
+      const headerBottom = totalH;
+      totalH += 20;
+
+      // 对话区域：模拟界面气泡样式
+      ctx.font = `${FONT}px ${FS}`;
+      const contentW = W - PAD * 2;
+      const BUBBLE_MAX_TEXT_W = contentW - BUBBLE_PAD_X * 2 - 16;
+      const lineHeight = FONT * LH;
+
+      const sections: { role: string; lines: string[]; bubbleH: number }[] = [];
+      for (const msg of msgs) {
+        if (msg.role !== "user" && msg.role !== "assistant") continue;
+        const text = cln(msg.content);
+        const lines = wrapParagraphs(ctx, text, BUBBLE_MAX_TEXT_W);
+        const bubbleH = lines.length * lineHeight + BUBBLE_PAD_Y * 2;
+        sections.push({ role: msg.role, lines, bubbleH });
+        totalH += bubbleH + 24;
+      }
+
+      // 底部二维码
+      totalH += 60;
+      const qrY = totalH;
+      totalH += 200;
+      totalH += PAD;
+
+      // ═══ 第二步：绘制 ═══
+      canvas.width = W * SCALE;
+      canvas.height = Math.ceil(totalH) * SCALE;
+
+      ctx.scale(SCALE, SCALE);
+
+      ctx.fillStyle = "#f8f7fc";
+      ctx.fillRect(0, 0, W, totalH);
+
+      // ── Logo 居中 ──
+      let curY = PAD;
+      if (logo && logo.naturalWidth > 0) {
+        ctx.drawImage(logo, W/2 - logoW/2, curY, logoW, logoH);
+      }
+      curY = headerBottom + 20;
+
+      // ── 对话气泡 ──
+      ctx.font = `${FONT}px ${FS}`;
+      ctx.textBaseline = "middle";
+      for (const sec of sections) {
+        const isUser = sec.role === "user";
+        // 计算气泡实际宽度（自适应文本）
+        let maxLW = Math.max(...sec.lines.map(l => ctx.measureText(l).width));
+        let bw = Math.min(maxLW + BUBBLE_PAD_X * 2, contentW);
+        bw = Math.max(bw, 80);
+
+        if (isUser) {
+          const ux = PAD + (contentW - bw) * 0.9;
+          ctx.fillStyle = "#7C34E8";
+          ctx.beginPath();
+          ctx.roundRect(ux, curY, bw, sec.bubbleH, 22);
+          ctx.fill();
+          ctx.fillStyle = "#ffffff";
+          const textCenterY = curY + sec.bubbleH / 2 - ((sec.lines.length - 1) * lineHeight) / 2;
+          sec.lines.forEach((l, i) => {
+            ctx.fillText(l, ux + BUBBLE_PAD_X, textCenterY + i * lineHeight);
+          });
+        } else {
+          ctx.fillStyle = "#f3f0ff";
+          ctx.beginPath();
+          ctx.roundRect(PAD, curY, bw, sec.bubbleH, 22);
+          ctx.fill();
+          ctx.fillStyle = "#1e293b";
+          const textCenterY2 = curY + sec.bubbleH / 2 - ((sec.lines.length - 1) * lineHeight) / 2;
+          sec.lines.forEach((l, i) => {
+            ctx.fillText(l, PAD + BUBBLE_PAD_X, textCenterY2 + i * lineHeight);
+          });
+        }
+        curY += sec.bubbleH + 24;
+      }
+
+      // ── 底部二维码 ──
+      curY = qrY;
+      try {
+        const { default: QR } = await import("qrcode");
+        const qr = await QR.toDataURL("https://xianfeng.xinzhi.info", {
+          width: 140, margin: 1, color: { dark: "#1e293b", light: "#f8f7fc" }
+        });
+        const qi = await loadImg(qr);
+        if (qi && qi.naturalWidth > 0) {
+          ctx.fillStyle = "#fff";
+          ctx.beginPath();
+          ctx.roundRect(W/2 - 80, curY - 10, 160, 160, 22);
+          ctx.fill();
+          ctx.drawImage(qi, W/2 - 70, curY, 140, 140);
+        }
+      } catch {}
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#475569";
+      ctx.font = `22px ${FS}`;
+      ctx.fillText("扫描二维码，和小玩子继续聊", W/2, curY + 180);
+
+      setShareCardUrl(canvas.toDataURL("image/png"));
+    } catch (err) {
+      console.error("generateShareCard error:", err);
+      setShareToastMsg("生成失败，请重试");
+      setTimeout(() => setShareToastMsg(""), 2000);
+    } finally {
+      setShareGenerating(false);
+    }
+  };
+
+  /* ─── 分享：点击直接进入选择模式 ─── */
+  const toggleShareMenu = (e: React.MouseEvent, msgTs: string) => {
+    e.stopPropagation();
+    setShareSelectionMode(true);
+    // 同时选中配对的 Q/A
+    const ids = new Set<string>([msgTs]);
+    const idx = visibleMessages.findIndex(m => m.ts === msgTs);
+    if (idx >= 0) {
+      const msg = visibleMessages[idx];
+      if (msg.role === "user") {
+        const nextMsg = visibleMessages[idx + 1];
+        if (nextMsg && nextMsg.role === "assistant") ids.add(nextMsg.ts || "");
+      } else if (msg.role === "assistant") {
+        const prevMsg = visibleMessages[idx - 1];
+        if (prevMsg && prevMsg.role === "user") ids.add(prevMsg.ts || "");
+      }
+    }
+    setSelectedMessagesForShare(ids);
+    setShareCardUrl(null);
+  };
+  const toggleSelectMsg = (msgTs: string) => {
+    setSelectedMessagesForShare((prev) => {
+      const next = new Set(prev);
+      if (next.has(msgTs)) {
+        // 取消选中：同时取消配对的 Q/A
+        next.delete(msgTs);
+        const idx = visibleMessages.findIndex(m => m.ts === msgTs);
+        if (idx >= 0) {
+          const msg = visibleMessages[idx];
+          if (msg.role === "user") {
+            // 取消用户消息，同时取消后面紧跟的 assistant
+            const nextMsg = visibleMessages[idx + 1];
+            if (nextMsg && nextMsg.role === "assistant") next.delete(nextMsg.ts || "");
+          } else if (msg.role === "assistant") {
+            // 取消 assistant，同时取消前面紧跟的 user
+            const prevMsg = visibleMessages[idx - 1];
+            if (prevMsg && prevMsg.role === "user") next.delete(prevMsg.ts || "");
+          }
+        }
+      } else {
+        // 选中：同时选中配对的 Q/A
+        next.add(msgTs);
+        const idx = visibleMessages.findIndex(m => m.ts === msgTs);
+        if (idx >= 0) {
+          const msg = visibleMessages[idx];
+          if (msg.role === "user") {
+            // 选中用户消息，同时选中后面紧跟的 assistant
+            const nextMsg = visibleMessages[idx + 1];
+            if (nextMsg && nextMsg.role === "assistant") next.add(nextMsg.ts || "");
+          } else if (msg.role === "assistant") {
+            // 选中 assistant，同时选中前面紧跟的 user
+            const prevMsg = visibleMessages[idx - 1];
+            if (prevMsg && prevMsg.role === "user") next.add(prevMsg.ts || "");
+          }
+        }
+      }
+      return next;
+    });
+  };
+  const exitShareSelectionMode = () => {
+    setShareSelectionMode(false);
+    setSelectedMessagesForShare(new Set());
+  };
+
   return (
     <>
       <style>{`
-        #ai-fab{position:fixed !important;z-index:8100 !important;width:48px !important;height:48px !important;border-radius:50% !important;background:transparent !important;border:none !important;box-shadow:0 4px 20px rgba(108,39,214,.24) !important;display:flex !important;align-items:center !important;justify-content:center !important;cursor:grab !important;overflow:hidden !important;transition:all .2s !important;caret-color:transparent !important}
-        #ai-fab:hover{transform:scale(1.1) !important;box-shadow:0 6px 28px rgba(108,39,214,.24) !important}
+        #ai-fab{position:fixed !important;z-index:8100 !important;width:48px !important;height:48px !important;border-radius:50% !important;background:transparent !important;border:none !important;box-shadow:0 4px 20px rgba(124,52,232,.24) !important;display:flex !important;align-items:center !important;justify-content:center !important;cursor:grab !important;overflow:hidden !important;transition:all .2s !important;caret-color:transparent !important}
+        #ai-fab:hover{transform:scale(1.1) !important;box-shadow:0 6px 28px rgba(124,52,232,.24) !important}
         body.xiaowanzi-docked #ai-fab{z-index:7000 !important}
         #ai-fab #ai-avatar-img{width:48px !important;height:48px !important;object-fit:contain !important;padding:6px !important;background:rgba(255,255,255,.92) !important;border-radius:50% !important;display:block !important}
         .ai-avatar-wrapper{position:relative;width:100%;height:100%;overflow:visible;caret-color:transparent !important}
         .ai-avatar-wrapper img{width:100%;height:100%;object-fit:contain;pointer-events:none;user-select:none;-webkit-user-drag:none;transition:all .3s ease}
         .ai-avatar-wrapper.avatar-fade-out img{opacity:0;transform:scale(.82) rotate(-8deg);filter:blur(4px)}
         .ai-avatar-wrapper.avatar-pop-in img{animation:avatarPopIn .4s cubic-bezier(.68,-0.55,.265,1.55) forwards}
-        .ai-avatar-wrapper.avatar-glow img{filter:drop-shadow(0 0 14px rgba(108,39,214,.45)) drop-shadow(0 0 22px rgba(129,89,255,.28))}
+        .ai-avatar-wrapper.avatar-glow img{filter:drop-shadow(0 0 14px rgba(124,52,232,.45)) drop-shadow(0 0 22px rgba(129,89,255,.28))}
         @keyframes avatarPopIn{0%{opacity:0;transform:scale(.82) rotate(-8deg)}65%{opacity:1;transform:scale(1.14) rotate(3deg)}100%{opacity:1;transform:scale(1) rotate(0deg)}}
         .ai-avatar-particles{position:absolute;inset:-8px;pointer-events:none;overflow:visible}
-        .ai-avatar-particle{position:absolute;border-radius:999px;background:linear-gradient(135deg,#8b5cf6 0%,#60a5fa 100%);opacity:0;animation:avatarParticle .52s ease-out forwards;box-shadow:0 0 8px rgba(108,39,214,.26)}
+        .ai-avatar-particle{position:absolute;border-radius:999px;background:linear-gradient(135deg,#8b5cf6 0%,#60a5fa 100%);opacity:0;animation:avatarParticle .52s ease-out forwards;box-shadow:0 0 8px rgba(124,52,232,.26)}
         @keyframes avatarParticle{0%{opacity:0;transform:translate(0,0) scale(.5)}20%{opacity:1}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(1.35)}}
         .ai-panel-backdrop{position:fixed;inset:0;z-index:7999;background:rgba(15,23,42,.35);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:none}
         .ai-panel-backdrop.show{display:block}
-        #ai-panel{position:fixed !important;bottom:86px !important;right:28px !important;z-index:8050 !important;width:360px !important;max-height:520px !important;background:linear-gradient(180deg,rgba(255,255,255,.98) 0%,rgba(250,251,255,.98) 100%) !important;border:1px solid rgba(108,39,214,.16) !important;border-radius:18px !important;box-shadow:0 18px 48px rgba(31,41,55,.16),0 4px 18px rgba(108,39,214,.12) !important;display:flex;flex-direction:column !important;overflow:hidden !important;animation:panelIn .2s ease !important;box-sizing:border-box !important}
-        #ai-panel.docked{top:0 !important;right:10px !important;bottom:10px !important;left:auto !important;width:calc(var(--xiaowanzi-docked-width,430px) - 20px) !important;height:calc(100vh - 10px) !important;max-height:calc(100vh - 10px) !important;border-radius:0 0 24px 24px !important;animation:none !important;border-left:1px solid rgba(108,39,214,.16) !important;border-right:1px solid rgba(108,39,214,.12) !important;border-top:1px solid rgba(108,39,214,.12) !important;box-shadow:none !important}
+        #ai-panel{position:fixed !important;bottom:86px !important;right:28px !important;z-index:8050 !important;width:360px !important;max-height:520px !important;background:linear-gradient(180deg,rgba(255,255,255,.98) 0%,rgba(250,251,255,.98) 100%) !important;border:1px solid rgba(124,52,232,.16) !important;border-radius:18px !important;box-shadow:0 18px 48px rgba(31,41,55,.16),0 4px 18px rgba(124,52,232,.12) !important;display:flex;flex-direction:column !important;overflow:hidden !important;animation:panelIn .2s ease !important;box-sizing:border-box !important}
+        #ai-panel.docked{top:0 !important;right:10px !important;bottom:10px !important;left:auto !important;width:calc(var(--xiaowanzi-docked-width,430px) - 20px) !important;height:calc(100vh - 10px) !important;max-height:calc(100vh - 10px) !important;border-radius:0 0 24px 24px !important;animation:none !important;border-left:1px solid rgba(124,52,232,.16) !important;border-right:1px solid rgba(124,52,232,.12) !important;border-top:1px solid rgba(124,52,232,.12) !important;box-shadow:none !important}
         #ai-panel.max{top:50% !important;left:50% !important;right:auto !important;bottom:auto !important;transform:translate(-50%,-50%) !important;width:min(680px,calc(100vw - 24px)) !important;max-width:min(680px,calc(100vw - 24px)) !important;height:min(78vh,760px) !important;max-height:min(78vh,760px) !important}
         @media (max-width:560px){#ai-panel.max{width:calc(100vw - 16px) !important;max-width:calc(100vw - 16px) !important;height:calc(100vh - 16px) !important;max-height:calc(100vh - 16px) !important;border-radius:16px !important}}
         @media (max-width: 768px){
@@ -2084,56 +2318,56 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
           #ai-panel.docked{width:min(94vw,420px) !important}
         }
         @keyframes panelIn{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:none}}
-        .aip-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid rgba(108,39,214,.12);flex-shrink:0;position:relative;background:linear-gradient(180deg,rgba(108,39,214,.04) 0%,rgba(108,39,214,0) 100%) !important}
+        .aip-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid rgba(124,52,232,.12);flex-shrink:0;position:relative;background:transparent !important}
         .aip-gem{width:40px !important;height:40px !important;display:flex !important;align-items:center !important;justify-content:center !important;flex-shrink:0 !important}
         .aip-gem #ai-panel-avatar-img{width:40px !important;height:40px !important;object-fit:contain !important;padding:4px !important;border-radius:10px !important;display:block !important}
         .aip-title{font-size:13.5px;font-weight:700;flex:1}
         .aip-status{font-size:10px;color:#059669;font-weight:600}
-        .aip-child-row{display:flex;align-items:center;gap:8px;padding:7px 14px;border-bottom:1px solid rgba(108,39,214,.08);background:rgba(250,248,255,.72)}
+        .aip-child-row{display:flex;align-items:center;gap:8px;padding:7px 14px;border-bottom:1px solid rgba(124,52,232,.08);background:rgba(250,248,255,.72)}
         .aip-child-chip{display:inline-flex;align-items:center;gap:6px;padding:0;border:0;background:transparent;font-size:11px;font-weight:600;color:#8b93a7}
         .aip-child-chip::before{content:"";width:6px;height:6px;border-radius:999px;background:#22c55e;box-shadow:0 0 0 2px rgba(34,197,94,.12)}
         .aip-child-state{margin-left:auto;color:#a5adbd;font-size:11px;font-weight:600}
         .aip-child-switch{margin-left:auto;border:none;background:transparent;color:#7c3aed;font-size:11px;font-weight:700;cursor:pointer;padding:2px 0}
-        .aip-icon-btn{position:absolute;top:50%;transform:translateY(-50%);width:34px !important;height:34px !important;border:none;border-radius:50% !important;background:rgba(108,39,214,.045);color:#6b7280;font-family:'Material Symbols Rounded';font-size:16px;cursor:pointer;transition:all .12s;display:flex;align-items:center;justify-content:center}
+        .aip-icon-btn{position:absolute;top:50%;transform:translateY(-50%);width:34px !important;height:34px !important;border:none;border-radius:50% !important;background:rgba(124,52,232,.045);color:#6b7280;font-family:'Material Symbols Rounded';font-size:16px;cursor:pointer;transition:all .12s;display:flex;align-items:center;justify-content:center}
         .aip-pin{right:92px}
         .aip-theme{right:132px}
         .aip-enlarge{right:52px}
         .aip-close{right:12px}
         .aip-pin{background:#f1eff8;color:#6b7280}
-        .aip-pin.on{background:#ece8f7;color:#4b5563;box-shadow:inset 0 0 0 1px rgba(108,39,214,.12)}
-        .aip-icon-btn:hover{background:rgba(108,39,214,.075);color:#1f2937;transform:translateY(-50%) scale(1.1)}
-        .aip-msgs{flex:1;overflow-y:auto;padding:12px 12px 10px;display:flex;flex-direction:column;gap:10px;min-height:0;background:linear-gradient(180deg,rgba(108,39,214,.02) 0%,rgba(108,39,214,0) 35%)}
+        .aip-pin.on{background:#ece8f7;color:#4b5563;box-shadow:inset 0 0 0 1px rgba(124,52,232,.12)}
+        .aip-icon-btn:hover{background:rgba(124,52,232,.075);color:#1f2937;transform:translateY(-50%) scale(1.1)}
+        .aip-msgs{flex:1;overflow-y:auto;padding:12px 12px 10px;display:flex;flex-direction:column;gap:10px;min-height:0;background:transparent}
         .aip-msgs::-webkit-scrollbar{width:3px}
-        .aip-msgs::-webkit-scrollbar-thumb{background:rgba(108,39,214,.18);border-radius:3px}
-        .aip-msg{max-width:88%;font-size:13px;line-height:1.6;padding:10px 13px;border-radius:12px;word-break:break-word;white-space:pre-wrap}
-        .aip-msg.ai{background:#fff;color:#1f2937;border:1px solid rgba(108,39,214,.1);border-radius:8px 14px 14px 14px;align-self:flex-start;box-shadow:0 3px 10px rgba(15,23,42,.06)}
-        .aip-msg.thinking{background:#fff;color:#9ca3af;border:1px solid rgba(108,39,214,.08);border-radius:8px 14px 14px 14px;align-self:flex-start;padding:12px 16px;display:flex;align-items:center;gap:4px;min-height:40px}
+        .aip-msgs::-webkit-scrollbar-thumb{background:rgba(124,52,232,.18);border-radius:3px}
+        .aip-msg{max-width:88%;font-size:13px;line-height:1.6;padding:10px 13px;border-radius:12px;word-break:break-word;white-space:pre-wrap;position:relative}
+        .aip-msg.ai{background:#fff;color:#1f2937;border:1px solid rgba(124,52,232,.1);border-radius:8px 14px 14px 14px;align-self:flex-start;box-shadow:0 3px 10px rgba(15,23,42,.06)}
+        .aip-msg.thinking{background:transparent !important;border:none !important;box-shadow:none !important;border-radius:0 !important;align-self:flex-start;padding:0 !important;display:flex;align-items:center;gap:4px;min-height:0;max-width:none}
         .aip-msg.thinking .dot{width:7px;height:7px;border-radius:50%;background:#a78bfa;animation:thinkingDot 1.4s ease-in-out infinite}
         .aip-msg.thinking .dot:nth-child(2){animation-delay:.2s}
         .aip-msg.thinking .dot:nth-child(3){animation-delay:.4s}
         @keyframes thinkingDot{0%,80%,100%{opacity:.2;transform:scale(.8)}40%{opacity:1;transform:scale(1.2)}}
         .aip-thinking-label{font-size:11px;color:#a78bfa;font-weight:600;margin-left:6px;animation:thinkingLabelPulse 2s ease-in-out infinite}
         @keyframes thinkingLabelPulse{0%,100%{opacity:.5}50%{opacity:1}}}
-        .aip-msg.user{background:linear-gradient(135deg,#6c27d6 0%,#7f37ea 100%);color:#fff;border-radius:14px 8px 14px 14px;align-self:flex-end;box-shadow:0 8px 16px rgba(108,39,214,.2)}
+        .aip-msg.user{background:#7C34E8;color:#fff;border-radius:14px 8px 14px 14px;align-self:flex-end;box-shadow:0 8px 16px rgba(124,52,232,.2)}
         .aip-empty{margin-top:clamp(12px,8vh,96px);padding:8px 8px 18px}
         .aip-empty-title{font-size:clamp(1.35rem,6vw,1.75rem);line-height:1.18;font-weight:800;color:#1f2937;letter-spacing:-.02em}
         .aip-empty-sub{font-size:clamp(.95rem,3.8vw,1.05rem);line-height:1.35;font-weight:700;color:#4b5563;margin-top:2px}
         .aip-empty-suggests{display:flex;flex-direction:column;align-items:flex-start;gap:9px;margin-top:16px;width:100%}
-        .aip-empty-btn{display:inline-flex;align-items:center;width:auto;max-width:100%;min-height:38px;padding:8px 14px;border:1px solid rgba(108,39,214,.08);border-radius:999px;text-align:left;background:linear-gradient(180deg,#f3f0ff 0%,#eceff8 100%);color:#253046;font-size:clamp(.86rem,3.4vw,.95rem);line-height:1.28;font-weight:700;box-shadow:0 8px 18px rgba(31,41,55,.06)}
-        .aip-empty-btn:hover{background:linear-gradient(180deg,#ede7ff 0%,#e5e8f4 100%);border-color:rgba(108,39,214,.16)}
-        .aip-shortcuts{display:flex;align-items:flex-end;gap:8px;padding:8px 12px;border-top:1px solid rgba(108,39,214,.1);flex-shrink:0;background:#fff}
+        .aip-empty-btn{display:inline-flex;align-items:center;width:auto;max-width:100%;min-height:38px;padding:8px 14px;border:1px solid rgba(124,52,232,.08);border-radius:999px;text-align:left;background:linear-gradient(180deg,#f3f0ff 0%,#eceff8 100%);color:#253046;font-size:clamp(.86rem,3.4vw,.95rem);line-height:1.28;font-weight:700;box-shadow:0 8px 18px rgba(31,41,55,.06)}
+        .aip-empty-btn:hover{background:linear-gradient(180deg,#ede7ff 0%,#e5e8f4 100%);border-color:rgba(124,52,232,.16)}
+        .aip-shortcuts{display:flex;align-items:flex-end;gap:8px;padding:8px 12px;border-top:1px solid rgba(124,52,232,.1);flex-shrink:0;background:#fff}
         .aip-shortcuts-list{display:flex;flex-wrap:wrap;gap:5px;flex:1;min-width:0}
         .aip-shortcuts-actions{margin-left:auto;display:none;align-items:center;gap:6px;flex-shrink:0}
         #ai-panel.max .aip-shortcuts-actions{display:flex}
-        .aip-temp-history-btn{height:28px;min-width:84px;padding:0 10px;border:1px solid rgba(108,39,214,.12);border-radius:16px;background:#fff;color:#6b7280;font-size:11px;font-weight:600}
-        .aip-history-panel{position:absolute;right:12px;bottom:116px;width:220px;max-height:280px;background:#fff;border:1px solid rgba(108,39,214,.16);border-radius:12px;box-shadow:0 14px 28px rgba(15,23,42,.16);overflow:hidden;z-index:8201}
-        .aip-history-head{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid rgba(108,39,214,.1);font-size:12px;font-weight:700;color:#374151}
+        .aip-temp-history-btn{height:28px;min-width:84px;padding:0 10px;border:1px solid rgba(124,52,232,.12);border-radius:16px;background:#fff;color:#6b7280;font-size:11px;font-weight:600}
+        .aip-history-panel{position:absolute;right:12px;bottom:116px;width:220px;max-height:280px;background:#fff;border:1px solid rgba(124,52,232,.16);border-radius:12px;box-shadow:0 14px 28px rgba(15,23,42,.16);overflow:hidden;z-index:8201}
+        .aip-history-head{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid rgba(124,52,232,.1);font-size:12px;font-weight:700;color:#374151}
         .aip-history-close{border:none;background:transparent;color:#6b7280;font-family:'Material Symbols Rounded';font-size:16px}
         .aip-history-list{max-height:238px;overflow:auto;padding:8px}
         .aip-history-empty{padding:14px 8px;font-size:11px;color:#94a3b8}
-        .aip-history-card{width:100%;text-align:left;border:1px solid rgba(108,39,214,.1);background:#f8f8ff;border-radius:10px;padding:8px 9px;margin-bottom:6px}
+        .aip-history-card{width:100%;text-align:left;border:1px solid rgba(124,52,232,.1);background:#f8f8ff;border-radius:10px;padding:8px 9px;margin-bottom:6px}
         .aip-history-card:last-child{margin-bottom:0}
-        .aip-history-card:hover{background:#f1efff;border-color:rgba(108,39,214,.22)}
+        .aip-history-card:hover{background:#f1efff;border-color:rgba(124,52,232,.22)}
         .aip-history-card-title{font-size:11px;font-weight:600;color:#374151;line-height:1.35}
         .aip-history-card-sub{margin-top:3px;font-size:10px;color:#94a3b8}
         .aip-history-card-tag{margin-top:3px;font-size:10px;color:#4f46e5}
@@ -2143,16 +2377,16 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         .aip-history-panel.home .aip-history-card{border-radius:16px;padding:13px 14px;margin-bottom:10px}
         .aip-history-panel.home .aip-history-card-title{font-size:14px;font-weight:900;color:#1f254b}
         .aip-history-panel.home .aip-history-card-sub,.aip-history-panel.home .aip-history-card-tag{font-size:12px}
-        .aip-sc{padding:4px 10px;border:1px solid rgba(108,39,214,.12);border-radius:20px;font-size:11px;background:#faf7ff;color:#6b7280;cursor:pointer;transition:all .1s;white-space:nowrap}
-        .aip-sc:hover{border-color:#6c27d6;color:#6c27d6;background:rgba(108,39,214,.08)}
-        .aip-input-row{display:flex;align-items:center;gap:8px;padding:10px 12px 12px;border-top:1px solid rgba(108,39,214,.1);flex-shrink:0;background:#fff}
+        .aip-sc{padding:4px 10px;border:1px solid rgba(124,52,232,.12);border-radius:20px;font-size:11px;background:#faf7ff;color:#6b7280;cursor:pointer;transition:all .1s;white-space:nowrap}
+        .aip-sc:hover{border-color:#7C34E8;color:#7C34E8;background:rgba(124,52,232,.08)}
+        .aip-input-row{display:flex;align-items:center;gap:8px;padding:10px 12px 12px;border-top:1px solid rgba(124,52,232,.1);flex-shrink:0;background:#fff}
         .aip-input-wrap{display:flex;flex-direction:column;gap:8px;flex:1;min-width:0;width:100%}
         .aip-input-shell{position:relative;display:flex;align-items:stretch;flex:1;min-width:0;width:100%}
-        .aip-input{flex:1;resize:none;border:1px solid rgba(108,39,214,.18);border-radius:14px;padding:12px 56px 12px 11px;font:inherit;font-size:13px;color:#1f2937;background:#fbfbff;outline:none;min-height:72px;max-height:160px;transition:border-color .15s,box-shadow .15s,background .15s;line-height:1.45}
-        .aip-input:focus{border-color:#6c27d6;background:#fff;box-shadow:0 0 0 3px rgba(108,39,214,.12)}
+        .aip-input{flex:1;resize:none;border:1px solid rgba(124,52,232,.18);border-radius:14px;padding:12px 56px 12px 11px;font:inherit;font-size:13px;color:#1f2937;background:#fbfbff;outline:none;min-height:72px;max-height:160px;transition:border-color .15s,box-shadow .15s,background .15s;line-height:1.45}
+        .aip-input:focus{border-color:#7C34E8;background:#fff;box-shadow:0 0 0 3px rgba(124,52,232,.12)}
         .aip-input::placeholder{color:#9ca3af}
         .aip-send{position:absolute;right:8px;bottom:8px;width:36px;height:36px;border:none;border-radius:11px;background:#7C34E7;color:#fff;cursor:pointer;flex-shrink:0;align-self:center;font-family:'Material Symbols Rounded';font-size:16px;transition:all .15s;box-shadow:0 8px 16px rgba(124,52,231,.24)}
-        .aip-plus{position:absolute;right:48px;bottom:8px;width:36px;height:36px;border:1px solid rgba(108,39,214,.2);border-radius:11px;background:#fff;color:#6c27d6;cursor:pointer;font-family:'Material Symbols Rounded';font-size:17px}
+        .aip-plus{position:absolute;right:48px;bottom:8px;width:36px;height:36px;border:1px solid rgba(124,52,232,.2);border-radius:11px;background:#fff;color:#7C34E8;cursor:pointer;font-family:'Material Symbols Rounded';font-size:17px}
         .aip-send:hover{background:#8b4af5;transform:translateY(-1px)}
         .aip-send:disabled{opacity:.4;cursor:not-allowed;transform:none}
         #ai-panel.docked .aip-shortcuts{padding:10px 10px 8px;background:transparent;border-top:none}
@@ -2162,7 +2396,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         #ai-panel.docked .aip-input-row{padding:8px 10px 10px;background:#f5f6fb;border-top:1px solid #e7e9f5}
         #ai-panel.docked .aip-input-shell{padding:0}
         #ai-panel.docked .aip-input{border:1px solid #cfd7ec;background:#fff;box-shadow:0 1px 0 rgba(255,255,255,.8);border-radius:18px}
-        #ai-panel.docked .aip-input:focus{border-color:#6c27d6;box-shadow:0 0 0 3px rgba(108,39,214,.12);background:#fff}
+        #ai-panel.docked .aip-input:focus{border-color:#7C34E8;box-shadow:0 0 0 3px rgba(124,52,232,.12);background:#fff}
         #ai-panel.docked .aip-share{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:9px 12px;border:1px solid #d9deef;border-radius:16px;background:#f1f3fa;color:#4b5563;font-size:12.5px;font-weight:600}
         #ai-panel.docked .aip-share span{white-space:normal;word-break:break-word;line-height:1.45;flex:1;min-width:0}
         #ai-panel.docked .aip-share-close{border:none;background:transparent;color:#6b7280;font-size:16px;line-height:1;font-family:'Material Symbols Rounded'}
@@ -2175,7 +2409,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         #ai-panel.docked.docked-dark .aip-status{color:#34d399}
         #ai-panel.docked.docked-dark .aip-icon-btn{background:#1b2129;color:#cbd5e1}
         #ai-panel.docked.docked-dark .aip-icon-btn:hover{background:#232b35;color:#fff}
-        #ai-panel.docked.docked-dark .aip-msgs{background:linear-gradient(180deg,rgba(255,255,255,.02) 0%,rgba(255,255,255,0) 35%)}
+        #ai-panel.docked.docked-dark .aip-msgs{background:transparent}
         #ai-panel.docked.docked-dark .aip-msg.ai{background:#161b22;border-color:#2c3340;color:#e5e7eb}
         #ai-panel.docked.docked-dark .aip-msg.user{background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);color:#fff}
         #ai-panel.docked.docked-dark .aip-empty-title{color:#dbeafe}
@@ -2194,14 +2428,14 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         .aip-hidden-sheet{position:fixed;left:0;right:0;bottom:0;z-index:8401;background:#f7f4ff;border-radius:18px 18px 0 0;padding:14px 14px calc(14px + env(safe-area-inset-bottom));max-height:78vh;overflow:auto;box-shadow:0 -18px 30px rgba(15,23,42,.2)}
         .aip-sheet-title{font-size:18px;font-weight:800;color:#1f2937;margin-bottom:10px}
         .aip-sheet-actions{display:flex;gap:10px;margin-top:8px}
-        .aip-sheet-btn{flex:1;height:44px;border:none;border-radius:12px;background:linear-gradient(135deg,#6c27d6 0%,#7f37ea 100%);color:#fff;font-size:15px;font-weight:700;box-shadow:0 10px 20px rgba(108,39,214,.22)}
-        .aip-sheet-btn.light{background:#f3edff;color:#6c27d6;border:1px solid rgba(108,39,214,.22);box-shadow:none}
+        .aip-sheet-btn{flex:1;height:44px;border:none;border-radius:12px;background:linear-gradient(135deg,#7C34E8 0%,#7f37ea 100%);color:#fff;font-size:15px;font-weight:700;box-shadow:0 10px 20px rgba(124,52,232,.22)}
+        .aip-sheet-btn.light{background:#f3edff;color:#7C34E8;border:1px solid rgba(124,52,232,.22);box-shadow:none}
         .aip-child-card{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #e5e7f2;border-radius:12px;padding:10px;margin-bottom:9px}
         .aip-child-card-avatar{width:40px;height:40px;border-radius:999px;background:#e4e7ff;display:flex;align-items:center;justify-content:center;color:#4338ca;font-weight:700}
         .aip-child-card-main{flex:1;min-width:0}
         .aip-child-card-name{font-size:15px;font-weight:700;color:#1f2937}
         .aip-child-card-tag{font-size:11px;color:#6b7280}
-        .aip-child-card-btn{border:none;border-radius:999px;background:linear-gradient(135deg,#6c27d6 0%,#7f37ea 100%);color:#fff;padding:7px 14px;font-size:12px;font-weight:700;box-shadow:0 8px 16px rgba(108,39,214,.2)}
+        .aip-child-card-btn{border:none;border-radius:999px;background:linear-gradient(135deg,#7C34E8 0%,#7f37ea 100%);color:#fff;padding:7px 14px;font-size:12px;font-weight:700;box-shadow:0 8px 16px rgba(124,52,232,.2)}
         .aip-child-card-btn:disabled{opacity:.55;box-shadow:none}
         .aip-form-row{margin-bottom:10px}
         .aip-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -2210,17 +2444,17 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         .aip-form-input:focus{border-color:rgba(111,92,246,.55);background:#fff}
         .aip-tag-grid{display:flex;flex-wrap:wrap;gap:7px}
         .aip-tag-btn{min-height:32px;border:1px solid rgba(17,20,59,.08);background:#f4f6fb;color:#697189;border-radius:999px;padding:0 12px;font-size:12px;font-weight:800}
-        .aip-tag-btn.on{border-color:#7c4dff;color:#6c27d6;background:#efe8ff}
+        .aip-tag-btn.on{border-color:#7c4dff;color:#7C34E8;background:#efe8ff}
         .aip-profile-select{position:relative;width:100%}
         .aip-profile-select-trigger{width:100%;height:42px;display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid rgba(17,20,59,.1);border-radius:14px;background:#f8fafc;padding:0 11px 0 12px;color:#11143b;font-size:13px;font-weight:800;text-align:left;outline:none}
         .aip-profile-select-trigger.placeholder{color:#8b93a7}
         .aip-profile-select-trigger .ms{font-family:'Material Symbols Rounded';font-size:20px;font-weight:400;color:#64748b;transition:transform .16s ease}
         .aip-profile-select.open .aip-profile-select-trigger{border-color:rgba(124,77,255,.62);background:#fff;box-shadow:0 0 0 3px rgba(124,77,255,.08)}
-        .aip-profile-select.open .aip-profile-select-trigger .ms{transform:rotate(180deg);color:#6c27d6}
+        .aip-profile-select.open .aip-profile-select-trigger .ms{transform:rotate(180deg);color:#7C34E8}
         .aip-profile-select-menu{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:2;max-height:218px;overflow:auto;border:1px solid rgba(124,77,255,.16);border-radius:16px;background:rgba(255,255,255,.98);box-shadow:0 18px 34px rgba(31,20,71,.14);padding:6px;scrollbar-width:none}
         .aip-profile-select-menu::-webkit-scrollbar{display:none}
         .aip-profile-select-option{width:100%;min-height:38px;display:flex;align-items:center;justify-content:space-between;gap:8px;border:0;border-radius:12px;background:transparent;padding:0 10px;color:#11143b;font-size:13px;font-weight:800;text-align:left}
-        .aip-profile-select-option.on{background:#efe8ff;color:#6c27d6}
+        .aip-profile-select-option.on{background:#efe8ff;color:#7C34E8}
         .aip-profile-select-option .ms{font-family:'Material Symbols Rounded';font-size:18px;font-weight:400}
         .xw-home{--xw-home-x:0px;position:fixed;inset:0;z-index:8050;background:radial-gradient(circle at 74% 2%,rgba(255,228,236,.9) 0,rgba(255,228,236,0) 34%),radial-gradient(circle at 16% 10%,rgba(211,218,255,.92) 0,rgba(211,218,255,0) 40%),linear-gradient(180deg,#f2f1ff 0%,#e9edff 100%);color:#11143b;display:flex;flex-direction:column;overflow:hidden;transform-origin:50% 100%;animation:xwRealmEnter .86s cubic-bezier(.18,.92,.2,1) both;will-change:transform,opacity,filter}
         .xw-home::before{content:"";position:absolute;left:50%;bottom:-110px;width:260px;height:260px;border-radius:999px;background:conic-gradient(from 20deg,rgba(124,92,255,0),rgba(124,92,255,.92),rgba(89,201,255,.8),rgba(255,156,220,.76),rgba(124,92,255,0));transform:translateX(-50%) scale(.18);filter:blur(3px);opacity:0;mix-blend-mode:screen;pointer-events:none;animation:xwPortalBurst .9s ease-out both}
@@ -2281,13 +2515,13 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         .xw-home-card-title-text{flex:1}
         .xw-home-list{display:flex;flex-direction:column;gap:14px}
         .xw-home-question{width:100%;min-height:68px;border:0;border-radius:22px;background:rgba(255,255,255,.94);display:grid;grid-template-columns:38px 1fr 26px;align-items:center;gap:12px;padding:0 15px;text-align:left;color:#11143b;box-shadow:0 8px 18px rgba(72,75,132,.06);font-size:16px;font-weight:900}
-        .xw-home-question b{width:38px;height:38px;background:transparent;color:#6c27d6;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:none}
+        .xw-home-question b{width:38px;height:38px;background:transparent;color:#7C34E8;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:none}
         .xw-home-question .ms{font-family:'Material Symbols Rounded';font-size:22px;color:#b8bfd9}
         .xw-home-answer-list{display:flex;flex-direction:column;gap:12px;margin-top:16px}
-        .xw-home-msg{max-width:92%;border-radius:20px;padding:14px 16px;font-size:15px;font-weight:750;line-height:1.65;white-space:pre-wrap;word-break:break-word}
+        .xw-home-msg{max-width:92%;border-radius:20px;padding:14px 16px;font-size:15px;font-weight:750;line-height:1.65;white-space:pre-wrap;word-break:break-word;position:relative}
         .xw-home-msg.ai{align-self:flex-start;background:rgba(255,255,255,.9);border:1px solid rgba(122,103,238,.1);box-shadow:0 8px 18px rgba(72,75,132,.06)}
         .xw-home-msg.user{align-self:flex-end;background:linear-gradient(135deg,#6257f6,#7b4cff);color:#fff;box-shadow:0 12px 24px rgba(98,87,246,.22)}
-        .xw-thinking-dots{display:flex;align-items:center;gap:4px;padding:18px 20px;border-radius:20px;background:rgba(255,255,255,.9);border:1px solid rgba(122,103,238,.1);box-shadow:0 8px 18px rgba(72,75,132,.06);width:fit-content;min-height:48px}
+        .xw-thinking-dots{display:flex;align-items:center;gap:4px;padding:8px 12px;border-radius:20px;background:transparent;width:fit-content;min-height:48px}
         .xw-thinking-dots .dot{width:8px;height:8px;border-radius:50%;background:#a78bfa;animation:thinkingDot 1.4s ease-in-out infinite}
         .xw-thinking-dots .dot:nth-child(2){animation-delay:.2s}
         .xw-thinking-dots .dot:nth-child(3){animation-delay:.4s}
@@ -2338,10 +2572,63 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         @media (min-width:769px){.xw-home{--xw-home-x:-50%;left:50%;right:auto;width:min(430px,100vw)}.xw-home-inputbar{left:calc(50% - min(430px,100vw)/2 + 24px);right:calc(50% - min(430px,100vw)/2 + 24px)}.xw-home-attach-menu{left:calc(50% - min(430px,100vw)/2 + 24px);right:calc(50% - min(430px,100vw)/2 + 24px)}}
         @media (max-width:380px){.xw-home-scroll{padding-left:22px;padding-right:22px}.xw-home-hero{grid-template-columns:112px 1fr}.xw-home-avatar-wrap,.xw-home-avatar{width:112px;height:112px}.xw-home-greet{font-size:24px}.xw-home-hello{font-size:24px;margin-bottom:7px}.xw-home-hello-star{width:25px;height:25px;font-size:17px}.xw-home-greet strong{font-size:27px}.xw-home-inputbar{left:22px;right:22px}.xw-home-attach-menu{left:22px;right:22px;gap:12px}.xw-home-attach-action .ms{width:58px;height:58px}}
         @media (prefers-reduced-motion:reduce){.xw-home,.xw-home::before,.xw-home::after,.xw-home-top,.xw-home-scroll,.xw-home-inputbar,.xw-home-hello,.xw-home-hello-star,.xw-home-greet strong{animation:none!important;opacity:1!important;filter:none!important;clip-path:none!important}.xw-home{transform:translateX(var(--xw-home-x))!important}.xw-home-top,.xw-home-scroll,.xw-home-inputbar{transform:none!important}}
+        /* ── 分享按钮 ── */
+        .xw-share-btn{display:flex;align-items:center;justify-content:center;margin-top:2px;width:32px;height:32px;min-width:32px;min-height:32px;padding:0;border-radius:50%;border:none;background:#f3f0ff;color:#7C34E8;font-size:14px;cursor:pointer;opacity:1;transition:background .15s,color .15s;box-shadow:0 1px 4px rgba(124,52,232,0.1);overflow:hidden;flex-shrink:0;line-height:1}
+        .xw-share-btn.xw-share-visible{opacity:1}
+        .xw-share-btn:hover{opacity:1;background:#7C34E8;color:#fff}
+        /* ── 分享浮动菜单（三按钮） ── */
+        .xw-share-menu-backdrop{position:fixed;top:0;left:0;right:0;bottom:0;z-index:9400}
+        .xw-share-menu{position:fixed;z-index:9500;display:flex;gap:10px;animation:xwShareIn .2s ease}
+        .xw-share-ch-btn{width:44px;height:44px;border-radius:50%;border:none;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.08);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:20px;font-family:'Material Symbols Rounded';color:#4b5563;transition:background .15s,color .15s}
+        .xw-share-ch-btn:hover:not(:disabled){background:#f3e8ff;color:#7C34E8}
+        .xw-share-ch-btn:disabled{opacity:0.4;cursor:not-allowed}
+        /* ── 分享选择模式 ── */
+        .xw-share-select-backdrop{position:fixed;top:0;left:0;right:0;bottom:0;z-index:9400;background:transparent;pointer-events:none}
+        .xw-share-select-bar{position:fixed;bottom:0;left:0;right:0;z-index:9500;background:#fff;border-radius:24px 24px 0 0;padding:16px 20px calc(16px + env(safe-area-inset-bottom));box-shadow:0 -4px 24px rgba(0,0,0,0.1);animation:xwSlideUp .25s ease;max-height:55vh;overflow-y:auto}
+        .xw-share-select-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+        .xw-share-cancel-btn{border:none;background:transparent;color:#7C34E8;font-size:15px;font-weight:600;cursor:pointer;padding:4px 12px}
+        .xw-share-select-header span{font-size:17px;font-weight:600;color:#1e293b}
+        .xw-share-select-channels{display:flex;flex-direction:column;gap:12px}
+        .xw-share-count{font-size:13px;color:#6b7280}
+        .xw-share-channel-btns{display:flex;gap:12px;overflow-x:auto;padding-bottom:4px}
+        .xw-share-channel{display:flex;flex-direction:column;align-items:center;gap:10px;min-width:90px;border:none;background:none;cursor:pointer;padding:16px 12px;border-radius:16px;transition:background .15s,transform .15s;flex-shrink:0}
+        .xw-share-channel:hover:not(:disabled){background:#f5f3ff;transform:translateY(-2px)}
+        .xw-share-channel:disabled{opacity:0.35}
+        .xw-share-ch-icon{width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background .15s,box-shadow .15s}
+        .xw-share-ch-icon svg{display:block}
+        .xw-share-channel:first-child .xw-share-ch-icon,.xw-share-channel:nth-child(2) .xw-share-ch-icon,.xw-share-channel:nth-child(3) .xw-share-ch-icon{background:#f3f0ff;color:#7C34E8;box-shadow:0 4px 12px rgba(124,52,232,0.12)}
+        .xw-share-channel:hover:not(:disabled) .xw-share-ch-icon{box-shadow:0 6px 16px rgba(0,0,0,0.12)}
+        .wechat-icon{background:#07C160}
+        .image-icon{background:#8B5CF6}
+        .link-icon{background:#3B82F6}
+        .xw-share-channel span:last-child{font-size:12px;color:#4b5563;white-space:nowrap;margin-top:2px}
+        .xw-share-privacy{text-align:center;font-size:11px;color:#9ca3af;margin-top:8px}
+        /* 勾选框 */
+        .share-selecting{position:relative}
+        .share-selecting.xw-home-msg,.share-selecting.aip-msg{border:2px solid transparent;border-radius:16px;transition:border-color .15s}
+        .share-selecting.xw-home-msg.msg-selected,.share-selecting.aip-msg.msg-selected{border-color:#7C34E8}
+        .xw-home-scroll.share-mode{max-height:45vh;overflow-y:auto}
+        .aip-msgs.share-mode{max-height:45vh;overflow-y:auto}
+        .share-selecting .xw-share-check-btn{position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;border:2px solid #d1d5db;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;font-family:'Material Symbols Rounded';color:#fff;z-index:10;transition:border-color .15s,background .15s}
+        .share-selecting .xw-share-check-btn.checked{border-color:#7C34E8;background:#7C34E8}
+        @keyframes xwSlideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+        /* ── 分享卡片预览 ── */
+        .xw-share-card-overlay{position:fixed;top:0;left:0;right:0;bottom:0;z-index:9600;background:rgba(0,0,0,0.5);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:24px;animation:xwShareIn .2s ease}
+        .xw-share-card-dialog{background:#fff;border-radius:20px;max-width:90vw;max-height:85vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2)}
+        .xw-share-card-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #f1f3fa;color:#1e293b;font-size:16px;font-weight:600}
+        .xw-share-card-close{border:none;background:transparent;color:#6b7280;font-size:22px;cursor:pointer;font-family:'Material Symbols Rounded'}
+        .xw-share-card-body{overflow-y:auto;max-height:85vh;padding:16px 20px;display:flex;justify-content:center}
+        .xw-share-card-img{max-width:100%;display:block;border-radius:12px}
+        .xw-share-card-actions{padding:16px 20px;display:flex;justify-content:center}
+        .xw-share-card-dl{display:inline-flex;align-items:center;justify-content:center;padding:12px 32px;border-radius:24px;background:#7C34E8;color:#fff;font-size:15px;font-weight:600;text-decoration:none;transition:background .15s}
+        .xw-share-card-dl:hover{background:#5b21b6}
+        /* ── Toast ── */
+        .xw-share-toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;padding:12px 28px;border-radius:12px;background:rgba(0,0,0,0.75);color:#fff;font-size:14px;font-weight:500;pointer-events:none;animation:xwToast 2s ease forwards}
+        @keyframes xwToast{0%{opacity:0;transform:translate(-50%,-50%) scale(0.9)}10%{opacity:1;transform:translate(-50%,-50%) scale(1)}80%{opacity:1}100%{opacity:0}}
       `}</style>
       <div className={`ai-panel-backdrop${open && maximized ? " show" : ""}`} onClick={() => setMaximized(false)} />
       {open && homeActive ? (
-        <div key={`xw-home-${homePortalKey}`} className={`xw-home${skipHomeIntroOnMount ? " no-intro" : ""}`}>
+        <div key={`xw-home-${homePortalKey}`} className={`xw-home${skipHomeIntroOnMount ? " no-intro" : ""}${isDocked ? " docked" : ""}`}>
           <div className="xw-home-top">
             <button
               className="xw-home-menu"
@@ -2420,13 +2707,25 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
               </div>
             </div>
           ) : null}
-          <div className="xw-home-scroll" ref={msgContainerRef}>
+          <div className={`xw-home-scroll${shareSelectionMode ? " share-mode" : ""}`} ref={msgContainerRef} onClick={(e) => shareSelectionMode && e.stopPropagation()}>
             {homeViewingHistory ? (
               <div className="xw-home-history-chat">
                 {visibleMessages.filter((message) => !isReadReceiptMessage(message.content)).map((message, idx) => (
-                  <div key={`history-${idx}-${message.ts || ""}`} className={`xw-home-msg ${message.role === "assistant" ? "ai" : "user"}`}>
+                  <React.Fragment key={`history-${idx}-${message.ts || ""}`}>
+                    <div className={`xw-home-msg ${message.role === "assistant" ? "ai" : "user"}${shareSelectionMode ? ` share-selecting${selectedMessagesForShare.has(message.ts || "") ? " msg-selected" : ""}` : ""}`}
+                    onClick={() => shareSelectionMode && toggleSelectMsg(message.ts || "")}>
+                    {shareSelectionMode && (
+                      <button className={`xw-share-check-btn ${selectedMessagesForShare.has(message.ts || "") ? "checked" : ""}`}
+                        type="button" onClick={(e) => { e.stopPropagation(); toggleSelectMsg(message.ts || ""); }}>
+                        {selectedMessagesForShare.has(message.ts || "") ? "check" : ""}
+                      </button>
+                    )}
                     {renderDisplayMessage(message)}
                   </div>
+                  {message.role === "assistant" && !isReplying ? (
+                    <button className="xw-share-btn" type="button" aria-label="分享回答" onClick={(e) => toggleShareMenu(e, message.ts || "")}><span className="ms">share</span></button>
+                  ) : null}
+                  </React.Fragment>
                 ))}
               </div>
             ) : (
@@ -2446,7 +2745,29 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
                   </div>
                   <div className="xw-home-list">
                     {effectiveHomePrompts.map((item) => (
-                      <button key={item.prompt} className="xw-home-question" type="button" onClick={() => void sendMessage(item.prompt)}>
+                      <button key={item.prompt} className="xw-home-question" type="button" onClick={() => {
+                        // 查找是否已有匹配的对话
+                        const msgIndex = visibleMessages.findIndex(
+                          (m) => m.role === "user" && m.content.trim() === item.prompt.trim()
+                        );
+                        if (msgIndex >= 0) {
+                          // 已存在 → 滚动到对应回答位置
+                          const target = msgContainerRef.current?.querySelector(`[data-msg-index="${msgIndex}"]`) as HTMLElement | null;
+                          if (target) {
+                            target.scrollIntoView({ behavior: "smooth", block: "center" });
+                            // 高亮一下
+                            target.style.transition = "box-shadow 0.6s";
+                            target.style.boxShadow = "0 0 0 3px rgba(124,52,232,0.3), 0 4px 16px rgba(124,52,232,0.2)";
+                            setTimeout(() => {
+                              target.style.boxShadow = "";
+                              target.style.transition = "";
+                            }, 1500);
+                          }
+                        } else {
+                          // 不存在 → 发送问题
+                          void sendMessage(item.prompt);
+                        }
+                      }}>
                         <b>#</b>
                         <span>{item.label}</span>
                         <span className="ms">arrow_forward</span>
@@ -2454,11 +2775,23 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
                     ))}
                   </div>
                   {visibleMessages.length ? (
-                    <div className="xw-home-answer-list">
+                    <div className="xw-home-answer-list" onClick={(e) => shareSelectionMode && e.stopPropagation()}>
                       {visibleMessages.filter((message) => !isReadReceiptMessage(message.content)).slice(-6).map((message, idx) => (
-                        <div key={`home-${idx}-${message.ts || ""}`} className={`xw-home-msg ${message.role === "assistant" ? "ai" : "user"}`}>
+                        <React.Fragment key={`home-${idx}-${message.ts || ""}`}>
+                          <div className={`xw-home-msg ${message.role === "assistant" ? "ai" : "user"}${shareSelectionMode ? ` share-selecting${selectedMessagesForShare.has(message.ts || "") ? " msg-selected" : ""}` : ""}`}
+                          onClick={() => shareSelectionMode && toggleSelectMsg(message.ts || "")}>
+                          {shareSelectionMode && (
+                            <button className={`xw-share-check-btn ${selectedMessagesForShare.has(message.ts || "") ? "checked" : ""}`}
+                              type="button" onClick={(e) => { e.stopPropagation(); toggleSelectMsg(message.ts || ""); }}>
+                              {selectedMessagesForShare.has(message.ts || "") ? "check" : ""}
+                            </button>
+                          )}
                           {renderDisplayMessage(message)}
                         </div>
+                        {message.role === "assistant" && !isReplying ? (
+                          <button className="xw-share-btn" type="button" aria-label="分享回答" onClick={(e) => toggleShareMenu(e, message.ts || "")}><span className="ms">share</span></button>
+                        ) : null}
+                        </React.Fragment>
                       ))}
                     </div>
                   ) : null}
@@ -2612,7 +2945,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
               <span className="aip-child-state">已绑定</span>
             )}
           </div>
-          <div className="aip-msgs" ref={msgContainerRef}>
+          <div className={`aip-msgs${shareSelectionMode ? " share-mode" : ""}`} ref={msgContainerRef} onClick={(e) => shareSelectionMode && e.stopPropagation()}>
             {visibleMessages.map((message, idx) => {
               if (message.content === "__THINKING__") {
                 return (
@@ -2630,12 +2963,19 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
                 );
               }
               return (
-                <div
-                  key={`${idx}-${message.ts || ""}`}
-                  className={`aip-msg ${message.role === "assistant" ? "ai" : "user"}`}
+                <React.Fragment key={`${idx}-${message.ts || ""}`}>
+                  <div
+                  className={`aip-msg ${message.role === "assistant" ? "ai" : "user"}${shareSelectionMode ? ` share-selecting${selectedMessagesForShare.has(message.ts || "") ? " msg-selected" : ""}` : ""}`}
+                  onClick={() => shareSelectionMode && toggleSelectMsg(message.ts || "")}
                   ref={idx === visibleMessages.length - 1 ? latestMsgRef : null}
                   data-msg-index={idx}
                 >
+                  {shareSelectionMode && (
+                    <button className={`xw-share-check-btn ${selectedMessagesForShare.has(message.ts || "") ? "checked" : ""}`}
+                      type="button" onClick={(e) => { e.stopPropagation(); toggleSelectMsg(message.ts || ""); }}>
+                      {selectedMessagesForShare.has(message.ts || "") ? "check" : ""}
+                    </button>
+                  )}
                   {renderDisplayMessage(message)}
                   {message.role === "assistant" && isChildBound && activeChild ? (
                     <div style={{ marginTop: 8, fontSize: 11, color: "#94a3b8" }}>
@@ -2643,6 +2983,10 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
                     </div>
                   ) : null}
                 </div>
+                {message.role === "assistant" && !isReplying ? (
+                  <button className="xw-share-btn" type="button" aria-label="分享回答" onClick={(e) => toggleShareMenu(e, message.ts || "")}><span className="ms">share</span></button>
+                ) : null}
+                </React.Fragment>
               );
             })}
             {isDockedEmpty ? (
@@ -2826,6 +3170,70 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
           </div>
         </button>
       ) : null}
+      {/* ── 分享选择模式底部栏 ── */}
+      {shareSelectionMode ? (
+        <>
+          <div className="xw-share-select-backdrop" onClick={exitShareSelectionMode} />
+          <div className="xw-share-select-bar">
+            <div className="xw-share-select-header">
+              <span>选择对话</span>
+              <button className="xw-share-cancel-btn" type="button" onClick={exitShareSelectionMode}>取消</button>
+            </div>
+            <div className="xw-share-select-channels">
+              <span className="xw-share-count">将{selectedMessagesForShare.size > 0 ? Math.ceil(selectedMessagesForShare.size / 2) : 0}轮对话分享至</span>
+              <div className="xw-share-channel-btns">
+                <button className="xw-share-channel" type="button" onClick={() => setShareToastMsg("即将上线")}>
+                  <span className="xw-share-ch-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7C34E8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></span>
+                  <span>微信好友</span>
+                </button>
+                <button className="xw-share-channel" type="button" disabled={shareGenerating || selectedMessagesForShare.size === 0} onClick={async () => {
+                  if (selectedMessagesForShare.size === 0) return;
+                  setShareCardUrl(null);
+                  setShareGenerating(true);
+                  try {
+                    const sorted = visibleMessages.filter((m) => selectedMessagesForShare.has(m.ts || ""));
+                    const firstUser = sorted.find((m) => m.role === "user");
+                    await generateShareCard(firstUser ?? sorted[0], sorted);
+                  } finally { setShareGenerating(false); }
+                }}>
+                  <span className="xw-share-ch-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7C34E8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
+                  <span>{shareGenerating ? "生成中..." : "生成图片"}</span>
+                </button>
+                <button className="xw-share-channel" type="button" disabled={selectedMessagesForShare.size === 0} onClick={() => {
+                  const sorted = visibleMessages.filter((m) => selectedMessagesForShare.has(m.ts || ""));
+                  const text = sorted.map((m) => `${m.role === "user" ? "👤" : "🤖"} ${m.content}`).join("\n\n");
+                  navigator.clipboard.writeText(text).then(() => { setShareToastMsg("已复制到剪贴板"); setTimeout(() => setShareToastMsg(""), 2000); });
+                }}>
+                  <span className="xw-share-ch-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7C34E8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></span>
+                  <span>复制内容</span>
+                </button>
+              </div>
+            </div>
+            <div className="xw-share-privacy">⚙️ 分享内容已开启隐私保护</div>
+          </div>
+        </>
+      ) : null}
+      {/* ── 分享卡片预览弹窗 ── */}
+      {shareCardUrl ? (
+        <div className="xw-share-card-overlay" onClick={() => setShareCardUrl(null)}>
+          <div className="xw-share-card-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="xw-share-card-head">
+              <span>分享卡片预览</span>
+              <button type="button" className="xw-share-card-close" onClick={() => setShareCardUrl(null)}>close</button>
+            </div>
+            <div className="xw-share-card-body">
+              <img src={shareCardUrl} alt="分享卡片" className="xw-share-card-img" />
+            </div>
+            <div className="xw-share-card-actions">
+              <a className="xw-share-card-dl" href={shareCardUrl} download="xiaowanzi-share.png">下载图片</a>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {/* ── Toast ── */}
+      {shareToastMsg ? <div className="xw-share-toast">{shareToastMsg}</div> : null}
+      {/* ── 隐藏 Canvas ── */}
+      <canvas ref={shareCanvasRef} style={{ display: "none" }} width={600} height={100} />
     </>
   );
 };

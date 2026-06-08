@@ -1,8 +1,14 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { getCollapsedPages } from "../lib/pagination";
 import { useIsMobilePager } from "../hooks/useIsMobilePager";
 
 const MOBILE_AUTO_LOAD_DELAY_MS = 650;
+// Generous rootMargin: 256px ahead + 80px below (catches Safari toolbar overlap + slow renders)
+const IO_ROOT_MARGIN = "256px 0px 80px 0px";
+// Scroll-fallback threshold: fraction of page height from bottom
+const SCROLL_FALLBACK_THRESHOLD = 0.28;
+// Throttle scroll handler (ms)
+const SCROLL_THROTTLE_MS = 180;
 
 interface PaginationProps {
   currentPage: number;
@@ -31,34 +37,105 @@ const Pagination: React.FC<PaginationProps> = ({
   const hasMore = mobileHasMore ?? currentPage < totalPages;
   const showMobileLoading = mobileLoading || mobilePending;
 
+  // Cleanup timers on unmount
   useEffect(() => {
     return () => {
       if (loadTimerRef.current !== null) window.clearTimeout(loadTimerRef.current);
     };
   }, []);
 
+  const triggerLoadMore = useCallback(() => {
+    if (!onMobileLoadMore) return;
+    if (loadTimerRef.current !== null) return;
+    if (lastTriggeredPageRef.current === currentPage) return;
+    lastTriggeredPageRef.current = currentPage;
+    setMobilePending(true);
+    loadTimerRef.current = window.setTimeout(() => {
+      loadTimerRef.current = null;
+      onMobileLoadMore();
+      setMobilePending(false);
+    }, MOBILE_AUTO_LOAD_DELAY_MS);
+  }, [currentPage, onMobileLoadMore]);
+
+  // ── Primary: IntersectionObserver ──
   useEffect(() => {
     if (!mobileAutoLoad || !isMobilePager || !hasMore || showMobileLoading || !onMobileLoadMore) return;
     if (lastTriggeredPageRef.current === currentPage) return;
     const target = sentinelRef.current;
-    if (!target || typeof IntersectionObserver === "undefined") return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (!entries.some((entry) => entry.isIntersecting)) return;
-        if (loadTimerRef.current !== null || lastTriggeredPageRef.current === currentPage) return;
-        lastTriggeredPageRef.current = currentPage;
-        setMobilePending(true);
-        loadTimerRef.current = window.setTimeout(() => {
-          loadTimerRef.current = null;
-          onMobileLoadMore();
-          setMobilePending(false);
-        }, MOBILE_AUTO_LOAD_DELAY_MS);
-      },
-      { rootMargin: "120px 0px" }
-    );
-    observer.observe(target);
-    return () => observer.disconnect();
-  }, [currentPage, hasMore, isMobilePager, mobileAutoLoad, onMobileLoadMore, showMobileLoading]);
+    if (!target) return;
+
+    // If IntersectionObserver is unavailable, skip (scroll fallback handles it)
+    if (typeof IntersectionObserver === "undefined") return;
+
+    let observer: IntersectionObserver | null = null;
+    try {
+      observer = new IntersectionObserver(
+        (entries) => {
+          if (!entries.some((entry) => entry.isIntersecting)) return;
+          triggerLoadMore();
+        },
+        { rootMargin: IO_ROOT_MARGIN }
+      );
+      observer.observe(target);
+    } catch (_err) {
+      // Some older browsers throw constructing IntersectionObserver
+      observer = null;
+    }
+    return () => {
+      if (observer) observer.disconnect();
+    };
+  }, [currentPage, hasMore, isMobilePager, mobileAutoLoad, onMobileLoadMore, showMobileLoading, triggerLoadMore]);
+
+  // ── Fallback: scroll-based detection (iOS Safari bottom-toolbar, WeChat, Samsung Browser etc.) ──
+  useEffect(() => {
+    if (!mobileAutoLoad || !isMobilePager || !hasMore || showMobileLoading || !onMobileLoadMore) return;
+    if (typeof window === "undefined") return;
+
+    let scrollTick = 0;
+    const handleScroll = () => {
+      if (scrollTick) return;
+      scrollTick = window.requestAnimationFrame(() => {
+        scrollTick = 0;
+        if (loadTimerRef.current !== null) return;
+        if (lastTriggeredPageRef.current === currentPage) return;
+        // Use visualViewport when available (accounts for mobile keyboard/toolbar)
+        const viewH = window.visualViewport
+          ? window.visualViewport.height
+          : window.innerHeight;
+        const scrollY = window.visualViewport
+          ? window.visualViewport.pageTop
+          : window.pageYOffset;
+        const docH = document.documentElement.scrollHeight;
+        const distanceFromBottom = docH - (scrollY + viewH);
+        if (distanceFromBottom <= viewH * SCROLL_FALLBACK_THRESHOLD) {
+          triggerLoadMore();
+        }
+      });
+    };
+
+    // Throttled scroll listener
+    let lastCall = 0;
+    const throttledScroll = () => {
+      const now = Date.now();
+      if (now - lastCall < SCROLL_THROTTLE_MS) return;
+      lastCall = now;
+      handleScroll();
+    };
+
+    window.addEventListener("scroll", throttledScroll, { passive: true });
+    // visualViewport fires when on-screen keyboard or Safari toolbar changes
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", throttledScroll);
+      window.visualViewport.addEventListener("scroll", throttledScroll);
+    }
+    return () => {
+      window.removeEventListener("scroll", throttledScroll);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener("resize", throttledScroll);
+        window.visualViewport.removeEventListener("scroll", throttledScroll);
+      }
+    };
+  }, [mobileAutoLoad, isMobilePager, hasMore, showMobileLoading, onMobileLoadMore, currentPage, triggerLoadMore]);
 
   if (totalPages <= 1) return null;
 
@@ -92,12 +169,15 @@ const Pagination: React.FC<PaginationProps> = ({
       }
       @keyframes xfMobilePagerSpin { to { transform: rotate(360deg); } }
     `}</style>
-    {mobileAutoLoad ? (
-      <div ref={sentinelRef} className="xf-mobile-auto-pager" aria-live="polite">
-        {showMobileLoading ? <span className="xf-mobile-auto-spinner" aria-hidden="true" /> : null}
-        {showMobileLoading ? "正在加载下一页..." : hasMore ? "继续下滑加载更多" : "已加载全部"}
-      </div>
-    ) : null}
+    <div
+      ref={sentinelRef}
+      className="xf-mobile-auto-pager"
+      aria-live="polite"
+      style={mobileAutoLoad ? undefined : { display: "none" }}
+    >
+      {showMobileLoading ? <span className="xf-mobile-auto-spinner" aria-hidden="true" /> : null}
+      {showMobileLoading ? "正在加载下一页..." : hasMore ? "继续下滑加载更多" : "已加载全部"}
+    </div>
     <div className="xf-desktop-pagination" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 20, marginBottom: 20 }}>
       {/* 上一页 */}
       <button

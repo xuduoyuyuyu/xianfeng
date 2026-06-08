@@ -81,7 +81,9 @@ export class BookController {
       const MAX_SIZE = 10 * 1024 * 1024; // 10MB
       const resp = await fetch(url, {
         headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; XianfengProxy/1.0)",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+          "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+          "Accept-Language": "zh-CN,zh;q=0.9",
         },
         signal: AbortSignal.timeout(8000),
       });
@@ -103,7 +105,7 @@ export class BookController {
         res.status(504).json({ error: "图片加载超时" });
         return;
       }
-      res.status(500).json({ error: "代理失败" });
+      res.status(502).json({ error: `代理失败: ${err?.message || err}` });
     }
   }
 

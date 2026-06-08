@@ -32,11 +32,11 @@ export default defineConfig({
         secure: false,
       },
       "/api": {
-        target: "http://127.0.0.1:3001",
+        target: "http://127.0.0.1:80",
         changeOrigin: true,
       },
       "/uploads": {
-        target: "http://127.0.0.1:3001",
+        target: "http://127.0.0.1:80",
         changeOrigin: true,
       },
     },
