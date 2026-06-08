@@ -51,11 +51,7 @@ const BookCard: React.FC<BookCardProps> = ({ item }) => {
               className="w-full object-contain"
               loading="lazy"
               onError={(e) => {
-                const img = e.currentTarget;
-                if (img.dataset.fallback !== "1") {
-                  img.dataset.fallback = "1";
-                  img.src = "/assets/book-default-cover.svg";
-                }
+                e.currentTarget.style.display = "none";
               }}
             />
           ) : (

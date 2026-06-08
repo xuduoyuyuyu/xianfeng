@@ -559,9 +559,10 @@ const AdminBooksPage: React.FC = () => {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-4">
                         <img
-                          src={book.coverImage || 'https://via.placeholder.com/48x48/630ed4/ffffff?text=B'}
+                          src={book.coverImage ? `/api/books/proxy-image?url=${encodeURIComponent(book.coverImage)}` : 'https://via.placeholder.com/48x48/630ed4/ffffff?text=B'}
                           alt={book.title}
                           className="w-12 h-12 rounded-xl object-cover"
+                          onError={(e) => { e.currentTarget.style.display = "none"; }}
                         />
                         <div>
                           <div className="font-bold text-stone-900">{book.title}</div>
