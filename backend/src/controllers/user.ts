@@ -466,19 +466,9 @@ export class UserController {
         { expiresIn }
       );
 
-      // Sync user to wel main database (fire-and-forget)
-      syncUserToWel(mobile, user.name || "", user.grade || "", user.city || "")
-        .then((welToken) => {
-          if (welToken) {
-            res.status(200).json({ token, welToken, user: buildWelProfile(user) });
-          } else {
-            res.status(200).json({ token, user: buildWelProfile(user) });
-          }
-        })
-        .catch(() => {
-          // wel sync failed, still return xianfeng token
-          res.status(200).json({ token, user: buildWelProfile(user) });
-        });
+      // Sync user to wel main database (fire-and-forget, don't block login response)
+      syncUserToWel(mobile, user.name || "", user.grade || "", user.city || "").catch(() => {});
+      res.status(200).json({ token, user: buildWelProfile(user) });
       return;
     } catch (error) {
       res.status(500).json({ error: "登录失败", message: String((error as Error)?.message || error) });
