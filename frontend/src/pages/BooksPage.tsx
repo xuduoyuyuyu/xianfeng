@@ -50,6 +50,15 @@ const BookCard: React.FC<BookCardProps> = ({ item }) => {
               alt={item.title || "书籍封面"}
               className="w-full object-contain"
               loading="lazy"
+              referrerPolicy="no-referrer"
+              crossOrigin="anonymous"
+              onError={(e) => {
+                const img = e.currentTarget;
+                if (img.dataset.fallback !== "1") {
+                  img.dataset.fallback = "1";
+                  img.src = "/assets/book-default-cover.svg";
+                }
+              }}
             />
           ) : (
             <div className="w-full aspect-[3/4] bg-stone-100 rounded-lg flex items-center justify-center">
