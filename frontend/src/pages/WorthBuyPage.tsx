@@ -5,6 +5,9 @@ import { Link, useNavigate } from "react-router-dom";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import { useXiaowanziEmbeddedLayer } from "../utils/xiaowanziLayer";
 import { getAdminOrUserToken, hasAdminOrUserSession, isProRequiredPayload, showProUpgradeFromPayload } from "../utils/proGate";
+import { parseWorthBuyInput } from "../utils/worthBuyInput";
+import { isInvalidWorthBuyResultForQuery, normalizeWorthBuyResult } from "../utils/worthBuyResult";
+import { buildWorthBuyCardItems } from "../utils/worthBuyCards";
 
 
 /* ===== 类型 ===== */
@@ -75,13 +78,43 @@ async function parseJsonSafe(resp: Response): Promise<any> {
 /* ===== 常量 ===== */
 const HISTORY_KEY = "xf_worthbuy_history";
 const MAX_HISTORY = 10;
+const FAILURE_GUIDANCE_TIPS = [
+  "提供完整商品标题，不要只提交失效短链或活动页链接。",
+  "复制电商分享文案，保留商品名、型号和链接。",
+  "链接打不开时，手动补充品牌、型号、品类和关键卖点。",
+];
+const FAILURE_GUIDANCE_EXAMPLES = [
+  "品牌 + 型号 + 品类：公牛 CA1507 护眼落地台灯",
+  "复制电商分享文案：【京东】公牛 CA1507 护眼落地台灯 https://3.cn/...",
+  "商品链接 + 商品名称：https://item.jd.com/... 公牛 Ai 智能小晴空大路灯",
+];
+
+const WORTH_BUY_DEMO_CARDS = [
+  { q: "贝亲宽口径奶瓶", icon: "🍼", tag: "母婴" },
+  { q: "宜家安迪洛高脚餐椅", icon: "🪑", tag: "性价比神" },
+  { q: "babygo儿童爬行垫", icon: "🧩", tag: "母婴" },
+  { q: "Babycare婴儿腰凳", icon: "👶", tag: "母婴" },
+  { q: "戴可思婴儿面霜", icon: "🧴", tag: "护肤" },
+  { q: "德国宝得适安全座椅", icon: "🚗", tag: "安全" },
+  { q: "戴森V15吸尘器", icon: "🧹", tag: "家电" },
+  { q: "小天才电话手表Z10", icon: "⌚", tag: "智商税" },
+  { q: "小猿学练机", icon: "📱", tag: "教育硬件" },
+  { q: "科大讯飞学习机", icon: "🖥️", tag: "教育硬件" },
+  { q: "步步高词典笔F6", icon: "🖊️", tag: "学习工具" },
+  { q: "倾听者K9复读机", icon: "🎧", tag: "英语启蒙" },
+  { q: "斑马AI课年卡", icon: "📚", tag: "智商税" },
+  { q: "iEnglish训练系统", icon: "💸", tag: "智商税" },
+  { q: "妙思乐润肤乳", icon: "✨", tag: "母婴" },
+];
 
 function loadHistory(): HistoryItem[] {
   try {
     const raw = localStorage.getItem(HISTORY_KEY);
     if (!raw) return [];
     const arr = JSON.parse(raw);
-    return Array.isArray(arr) ? arr.slice(0, MAX_HISTORY) : [];
+    return Array.isArray(arr)
+      ? arr.filter((item: HistoryItem) => !isInvalidWorthBuyResultForQuery(item.query, item.result)).slice(0, MAX_HISTORY)
+      : [];
   } catch {
     return [];
   }
@@ -509,12 +542,21 @@ const WorthBuyPage: React.FC = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [userSubmissions, setUserSubmissions] = useState<HistoryItem[]>([]);
   const [deletingBrand, setDeletingBrand] = useState<string | null>(null);
+  const worthBuyCards = useMemo(() => buildWorthBuyCardItems({
+    userItems: userSubmissions,
+    demoItems: WORTH_BUY_DEMO_CARDS,
+  }), [userSubmissions]);
 
   const resultRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const openDetail = useCallback((query: string, res: AnalysisResult) => {
+    if (isInvalidWorthBuyResultForQuery(query, res)) {
+      setError("暂时没有解析到有效商品信息，请粘贴包含商品名称的分享文案，或换一个可打开的商品链接。");
+      return;
+    }
+    const normalized = normalizeWorthBuyResult(res, query) as AnalysisResult;
     navigate(`/worthbuy/${encodeURIComponent(query)}`, {
-      state: { result: res, query },
+      state: { result: normalized, query },
     });
   }, [navigate]);
   const userId = useMemo(() => {
@@ -532,13 +574,17 @@ const WorthBuyPage: React.FC = () => {
       const resp = await fetch(`/api/worthbuy/my?userId=${encodeURIComponent(userId)}`);
       if (!resp.ok) return;
       const data = await parseJsonSafe(resp);
-      const items: HistoryItem[] = (data.items || []).map((item: any) => ({
-        query: item.brand || item.query || "",
-        url: item.result?.url || null,
-        brand: item.brand || null,
-        result: item.result || {} as AnalysisResult,
-        createdAt: item.createdAt || new Date().toISOString(),
-      }));
+      const items: HistoryItem[] = (data.items || []).map((item: any) => {
+        const query = item.query || item.brand || "";
+        const normalized = normalizeWorthBuyResult(item.result || {}, query) as AnalysisResult;
+        return {
+          query,
+          url: normalized.url || null,
+          brand: item.brand || normalized.brand || null,
+          result: normalized,
+          createdAt: item.createdAt || new Date().toISOString(),
+        };
+      }).filter((item: HistoryItem) => !isInvalidWorthBuyResultForQuery(item.query, item.result));
       setUserSubmissions(items);
     } catch {}
   }, [userId]);
@@ -552,7 +598,7 @@ const WorthBuyPage: React.FC = () => {
     if (!confirm("确定要删除这条分析记录吗？")) return;
     setDeletingBrand(brand);
     try {
-      const resp = await fetch(`/api/worthbuy/my/${encodeURIComponent(brand)}`, { method: "DELETE" });
+      const resp = await fetch(`/api/worthbuy/my/${encodeURIComponent(brand)}?userId=${encodeURIComponent(userId)}`, { method: "DELETE" });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       setUserSubmissions((prev) => prev.filter((s) => s.brand !== brand));
     } catch (err: any) {
@@ -571,11 +617,13 @@ const WorthBuyPage: React.FC = () => {
 
   /* 保存一条到历史 */
   const saveToHistory = useCallback((query: string, res: AnalysisResult) => {
+    if (isInvalidWorthBuyResultForQuery(query, res)) return;
+    const normalized = normalizeWorthBuyResult(res, query) as AnalysisResult;
     const item: HistoryItem = {
       query,
-      url: res.url || null,
-      brand: res.brand || null,
-      result: res,
+      url: normalized.url || null,
+      brand: normalized.brand || null,
+      result: normalized,
       createdAt: new Date().toISOString(),
     };
     setHistory((prev) => {
@@ -583,10 +631,15 @@ const WorthBuyPage: React.FC = () => {
       saveHistory(next);
       return next;
     });
+    setUserSubmissions((prev) => {
+      const next = [item, ...prev.filter((h) => h.query !== query && h.brand !== item.brand)];
+      return next;
+    });
   }, []);
 
   // 保存到后端（draft 状态，仅自己可见）
   const saveToBackend = useCallback(async (brand: string, query: string, result: AnalysisResult) => {
+    if (isInvalidWorthBuyResultForQuery(query, result)) return;
     try {
       const resp = await fetch("/api/worthbuy/submit", {
         method: "POST",
@@ -629,7 +682,7 @@ const WorthBuyPage: React.FC = () => {
     }
 
     // 2️⃣ 再查历史记录
-    const historyHit = history.find((h) => h.query === trimmed);
+    const historyHit = history.find((h) => h.query === trimmed && !isInvalidWorthBuyResultForQuery(h.query, h.result));
     if (historyHit) {
       setLoading(false);
       saveToBackend(trimmed, trimmed, historyHit.result).catch(() => {});
@@ -642,21 +695,14 @@ const WorthBuyPage: React.FC = () => {
     setLoading(true);
     setResult(null);
     try {
-      const isUrl = /^https?:\/\//i.test(trimmed);
+      const parsedInput = parseWorthBuyInput(trimmed);
       const body: Record<string, string> = {};
 
-      // 从淘宝分享文案中提取商品标题
-      const shareTitleMatch = trimmed.match(/【淘宝】[^【]*?「([^」]+)」/);
-      const extractedTitle = shareTitleMatch ? shareTitleMatch[1].trim() : "";
-
-      if (isUrl) {
-        body.url = trimmed;
-        // 如果有提取到的标题，一并传给后端
-        if (extractedTitle) {
-          (body as any).extractedTitle = extractedTitle;
-        }
+      if (parsedInput.url) {
+        body.url = parsedInput.url;
+        if (parsedInput.extractedTitle) body.extractedTitle = parsedInput.extractedTitle;
       } else {
-        body.brand = trimmed;
+        body.brand = parsedInput.brand;
       }
 
       // 步骤 A: POST /api/worthbuy/submit
@@ -680,10 +726,16 @@ const WorthBuyPage: React.FC = () => {
 
       // 步骤 B: 如果直接返回了结果（已有收录），直接展示
       if (submitData.score !== undefined && submitData.score !== null) {
+        if (isInvalidWorthBuyResultForQuery(trimmed, submitData)) {
+          setError("暂时没有解析到有效商品信息，请粘贴包含商品名称的分享文案，或换一个可打开的商品链接。");
+          setResult(null);
+          setLoading(false);
+          return;
+        }
         setError(null);
         setLoading(false);
         saveToHistory(trimmed, submitData);
-        saveToBackend(trimmed, trimmed, submitData).catch(() => {});
+        saveToBackend(parsedInput.extractedTitle || submitData.brand || trimmed, trimmed, submitData).catch(() => {});
         fetchMySubmissions();
         openDetail(trimmed, submitData);
         return;
@@ -708,10 +760,16 @@ const WorthBuyPage: React.FC = () => {
           if (checkData.status === "done" && checkData.result) {
             // 分析完成！
             if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+            if (isInvalidWorthBuyResultForQuery(trimmed, checkData.result)) {
+              setError("暂时没有解析到有效商品信息，请粘贴包含商品名称的分享文案，或换一个可打开的商品链接。");
+              setResult(null);
+              setLoading(false);
+              return;
+            }
             setError(null);
             setLoading(false);
             saveToHistory(trimmed, checkData.result);
-            saveToBackend(trimmed, trimmed, checkData.result).catch(() => {});
+            saveToBackend(parsedInput.extractedTitle || checkData.result?.brand || trimmed, trimmed, checkData.result).catch(() => {});
             openDetail(trimmed, checkData.result);
           } else if (checkData.status === "failed") {
             // 分析失败
@@ -754,6 +812,10 @@ const WorthBuyPage: React.FC = () => {
 
   /* 点击历史项回显 */
   const pickHistory = (item: HistoryItem) => {
+    if (isInvalidWorthBuyResultForQuery(item.query, item.result)) {
+      setError("这条历史记录没有解析到有效商品信息，请重新粘贴商品分享文案。");
+      return;
+    }
     navigate(`/worthbuy/${encodeURIComponent(item.query)}`, { state: { result: item.result, query: item.query } });
   };
 
@@ -842,127 +904,68 @@ const WorthBuyPage: React.FC = () => {
       </main>
 
       <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 20px" }}>
-        {/* 用户提交卡片 */}
-        {userSubmissions.length > 0 && (
-          <div style={{ marginTop: 20 }}>
-            <p style={{ fontSize: 12, color: "#9CA3AF", margin: "0 0 10px", textAlign: "center" }}>
-              📝 你的分析记录 <span style={{ fontSize: 10, color: "#C4B5FD" }}>（hover 可删除）</span>
-            </p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
-              {userSubmissions.map((item) => (
-                <button
-                  key={item.query}
-                  onClick={() => {
-                    navigate(`/worthbuy/${encodeURIComponent(item.query)}`, {
-                      state: { result: item.result, query: item.query },
+        <div style={{ marginTop: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 8 }}>
+            {worthBuyCards.map((card) => (
+              <button
+                key={card.key}
+                onClick={() => {
+                  if (card.source === "user" && card.result) {
+                    navigate(`/worthbuy/${encodeURIComponent(card.query)}`, {
+                      state: { result: card.result, query: card.query },
                     });
-                  }}
-                  className="group worthbuy-submission-card"
-                  style={{
-                    position: "relative",
-                    textAlign: "left",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "10px 12px",
-                    background: "linear-gradient(135deg, #FFFBEB, #FFF7ED)",
-                    border: "1.5px solid #FDE68A",
-                    borderRadius: 14,
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#F59E0B"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(245,158,11,0.15)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#FDE68A"; e.currentTarget.style.boxShadow = "none"; }}
-                >
-                  {/* 评分小圆 */}
-                  <div style={{
-                    width: 32, height: 32, borderRadius: "50%",
-                    background: `conic-gradient(${scoreColor(item.result.score)} ${item.result.score * 3.6}deg, #F3F0FF 0deg)`,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    flexShrink: 0, fontSize: 12, fontWeight: 800,
-                    color: scoreColor(item.result.score),
-                  }}>
-                    {item.result.score}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 12, fontWeight: 600, color: "#92400E", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {item.query}
-                    </p>
-                    <p style={{ fontSize: 10, color: "#B45309", margin: "1px 0 0" }}>
-                      {item.result.isIqTax ? "🚨 智商税" : "✅ 非智商税"} · {new Date(item.createdAt).toLocaleDateString("zh-CN")}
-                    </p>
-                  </div>
-                  {/* 删除按钮 */}
+                    return;
+                  }
+                  demoAnalyze(card.query);
+                }}
+                className="group worthbuy-card rounded-[1.4rem] border border-[#e2dcf0] bg-white p-5 shadow-[0_12px_40px_rgba(80,62,125,0.05)] transition hover:-translate-y-1 hover:border-[#d7b184] hover:shadow-[0_18px_55px_rgba(95,56,22,0.1)]"
+                style={{
+                  position: "relative",
+                  textAlign: "left",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  cursor: "pointer",
+                }}
+              >
+                <span style={{ fontSize: 24 }}>{card.icon}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: "#1E1B4B", margin: "0 0 2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{card.title}</p>
+                  <span style={{ fontSize: 10, color: "#7C3AED", background: "#F3EEFF", padding: "1px 6px", borderRadius: 4 }}>{card.tag}</span>
+                </div>
+                {card.source === "user" && (
                   <button
                     className="worthbuy-close-btn"
-                    onClick={(e) => deleteSubmission(item.brand || item.query, e)}
-                    disabled={deletingBrand === (item.brand || item.query)}
+                    onClick={(e) => deleteSubmission(card.brand || card.query, e)}
+                    disabled={deletingBrand === (card.brand || card.query)}
                     title="删除此分析"
                     style={{
                       position: "absolute", top: 4, right: 4,
                       width: 18, height: 18, borderRadius: "50%",
                       border: "none", background: "rgba(0,0,0,0.04)", color: "#9CA3AF",
                       fontSize: 10, fontWeight: 700, lineHeight: "18px", textAlign: "center",
-                      cursor: deletingBrand === (item.brand || item.query) ? "default" : "pointer",
-                      opacity: deletingBrand === (item.brand || item.query) ? 0.3 : 0,
+                      cursor: deletingBrand === (card.brand || card.query) ? "default" : "pointer",
+                      opacity: deletingBrand === (card.brand || card.query) ? 0.3 : 0,
                       transition: "opacity 0.15s, background 0.15s",
                       pointerEvents: "none",
                       padding: 0,
                     }}
                     onMouseEnter={(e) => {
-                      if (deletingBrand !== (item.brand || item.query)) {
+                      if (deletingBrand !== (card.brand || card.query)) {
                         e.currentTarget.style.background = "rgba(239,68,68,0.12)";
                         e.currentTarget.style.color = "#EF4444";
                       }
                     }}
                     onMouseLeave={(e) => {
-                      if (deletingBrand !== (item.brand || item.query)) {
+                      if (deletingBrand !== (card.brand || card.query)) {
                         e.currentTarget.style.background = "rgba(0,0,0,0.04)";
                         e.currentTarget.style.color = "#9CA3AF";
                       }
                     }}
                   >
-                    {deletingBrand === (item.brand || item.query) ? "⌛" : "✕"}
+                    {deletingBrand === (card.brand || card.query) ? "⌛" : "✕"}
                   </button>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* 示例卡片 */}
-        <div style={{ marginTop: 20 }}>
-          <p style={{ fontSize: 12, color: "#9CA3AF", margin: "0 0 10px", textAlign: "center" }}>
-            👇 点击示例快速体验
-          </p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8 }}>
-            {[{ q: "贝亲宽口径奶瓶", icon: "🍼", tag: "母婴" },
-              { q: "宜家安迪洛高脚餐椅", icon: "🪑", tag: "性价比神" },
-              { q: "babygo儿童爬行垫", icon: "🧩", tag: "母婴" },
-              { q: "Babycare婴儿腰凳", icon: "👶", tag: "母婴" },
-              { q: "戴可思婴儿面霜", icon: "🧴", tag: "护肤" },
-              { q: "德国宝得适安全座椅", icon: "🚗", tag: "安全" },
-              { q: "戴森V15吸尘器", icon: "🧹", tag: "家电" },
-              { q: "小天才电话手表Z10", icon: "⌚", tag: "智商税" },
-              { q: "小猿学练机", icon: "📱", tag: "教育硬件" },
-              { q: "科大讯飞学习机", icon: "🖥️", tag: "教育硬件" },
-              { q: "步步高词典笔F6", icon: "🖊️", tag: "学习工具" },
-              { q: "倾听者K9复读机", icon: "🎧", tag: "英语启蒙" },
-              { q: "斑马AI课年卡", icon: "📚", tag: "智商税" },
-              { q: "iEnglish训练系统", icon: "💸", tag: "智商税" },
-              { q: "妙思乐润肤乳", icon: "✨", tag: "母婴" },
-            ].map((demo) => (
-              <button
-                key={demo.q}
-                onClick={() => demoAnalyze(demo.q)}
-                className="group rounded-[1.4rem] border border-[#e2dcf0] bg-white p-5 shadow-[0_12px_40px_rgba(80,62,125,0.05)] transition hover:-translate-y-1 hover:border-[#d7b184] hover:shadow-[0_18px_55px_rgba(95,56,22,0.1)]"
-                style={{ textAlign: "left", display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
-              >
-                <span style={{ fontSize: 24 }}>{demo.icon}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: "#1E1B4B", margin: "0 0 2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{demo.q}</p>
-                  <span style={{ fontSize: 10, color: "#7C3AED", background: "#F3EEFF", padding: "1px 6px", borderRadius: 4 }}>{demo.tag}</span>
-                </div>
+                )}
               </button>
             ))}
           </div>
@@ -1000,19 +1003,52 @@ const WorthBuyPage: React.FC = () => {
           <div
             style={{
               marginTop: 16,
-              padding: "12px 16px",
-              background: "#FEF2F2",
-              border: "1px solid #FECACA",
-              borderRadius: 10,
-              color: "#DC2626",
+              padding: "18px 18px",
+              background: "#FFFBEB",
+              border: "1px solid #FDE68A",
+              borderRadius: 16,
+              color: "#92400E",
               fontSize: 13,
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
+              textAlign: "left",
             }}
           >
-            <span style={{ fontFamily: "'Material Symbols Rounded'", fontSize: 18 }}>error</span>
-            {error}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <span style={{ fontFamily: "'Material Symbols Rounded'", fontSize: 20 }}>info</span>
+              <strong style={{ fontSize: 15 }}>没有解析到有效商品信息</strong>
+            </div>
+            <p style={{ margin: "0 0 14px", lineHeight: 1.7, color: "#A16207" }}>{error}</p>
+            <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+              <div>
+                <div style={{ fontWeight: 800, color: "#1E1B4B", marginBottom: 8 }}>你可以这样提交</div>
+                <ul style={{ margin: 0, paddingLeft: 18, color: "#6B7280", lineHeight: 1.7 }}>
+                  {FAILURE_GUIDANCE_TIPS.map((tip) => <li key={tip}>{tip}</li>)}
+                </ul>
+              </div>
+              <div>
+                <div style={{ fontWeight: 800, color: "#1E1B4B", marginBottom: 8 }}>推荐格式</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {FAILURE_GUIDANCE_EXAMPLES.map((example) => (
+                    <code
+                      key={example}
+                      style={{
+                        display: "block",
+                        whiteSpace: "normal",
+                        wordBreak: "break-word",
+                        background: "#fff",
+                        border: "1px solid #FDE68A",
+                        borderRadius: 8,
+                        padding: "8px 10px",
+                        color: "#4B5563",
+                        fontSize: 12,
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {example}
+                    </code>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -1599,7 +1635,7 @@ const WorthBuyPage: React.FC = () => {
 
       {/* ===== 旋转动画 ===== */}
       <style>{`
-        .worthbuy-submission-card:hover .worthbuy-close-btn {
+        .worthbuy-card:hover .worthbuy-close-btn {
           opacity: 1 !important;
           pointer-events: auto !important;
         }

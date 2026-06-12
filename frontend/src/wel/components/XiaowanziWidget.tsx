@@ -1,11 +1,13 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { apiUrl } from "../../lib/api";
-import { Program, publicApi, PublicGuestDetail, PublicGuest } from "../../services/api";
+import { LearningMaterial, Program, publicApi, PublicGuestDetail, PublicGuest } from "../../services/api";
 import { useXiaowanziEmbeddedLayer } from "../../utils/xiaowanziLayer";
 import { getAdminOrUserToken, hasAdminBypass, isProBillingEnabled, isProRequiredPayload, showProUpgradeFromPayload } from "../../utils/proGate";
 import {
   advanceAvatarState,
+  buildXiaowanziInlineLinks,
+  buildXiaowanziMentionLinks,
   buildChildProfileSummary,
   buildXiaowanziPromptPayload,
   canEnterXiaowanziSuperMode,
@@ -13,7 +15,10 @@ import {
   FAB_SIZE,
   getAvatarSrc,
   getDefaultFabPosition,
+  isNumberedMessageLine,
+  normalizeAssistantLayoutText,
   shouldPersistChildMemory,
+  XiaowanziMentionLink,
 } from "./XiaowanziWidget.logic";
 
 type Msg = { role: "user" | "assistant"; content: string; ts?: string };
@@ -50,6 +55,19 @@ type ChatSessionContext = {
   isChildBound: boolean;
   lastSwitchedAt: string;
 };
+type BrowsingMemoryItem = {
+  pathname: string;
+  label: string;
+  summary: string;
+  visitedAt: string;
+};
+type XiaowanziSyncPayload = {
+  childProfiles?: ChildProfileLite[];
+  chatContext?: ChatSessionContext | null;
+  browsingMemory?: BrowsingMemoryItem[];
+  conversationSessions?: ConversationSession[];
+  conversationMessages?: Record<string, Msg[]>;
+};
 type PageContextPayload = {
   summary: string;
   readReceipt: string;
@@ -68,6 +86,12 @@ type UploadedImage = {
 type HomeBrowseTarget = {
   path: string;
   label: string;
+};
+type XiaowanziTopicLinkSource = {
+  _id?: string;
+  id?: string;
+  slug?: string;
+  title?: string;
 };
 type XiaowanziWidgetProps = {
   standalone?: boolean;
@@ -96,12 +120,32 @@ const DEFAULT_SHORTCUTS: ShortcutItem[] = [
   { label: "🧭 下一步建议", prompt: "我下一步应该做什么" },
   { label: "🔎 信息定位", prompt: "最值得先看的信息在哪里" },
 ];
-const HOME_FALLBACK_PROMPTS: TopicPromptItem[] = [
-  { label: "孩子一写作业就拖延，我该先处理哪一步？", prompt: "孩子一写作业就拖延，我该先处理哪一步？" },
-  { label: "孩子被批评后情绪崩了，怎么接住他？", prompt: "孩子被批评后情绪崩了，怎么接住他？" },
-  { label: "每天睡前总吵起来，怎么把沟通拉回正轨？", prompt: "每天睡前总吵起来，怎么把沟通拉回正轨？" },
+const HOME_FALLBACK_PROMPT_GROUPS: TopicPromptItem[][] = [
+  [
+    { label: "孩子写作业拖延怎么办？", prompt: "孩子写作业拖延怎么办？" },
+    { label: "孩子被批评后情绪崩了怎么接？", prompt: "孩子被批评后情绪崩了怎么接？" },
+    { label: "睡前总吵架怎么沟通？", prompt: "睡前总吵架怎么沟通？" },
+  ],
+  [
+    { label: "孩子不愿意开口聊学校怎么办？", prompt: "孩子不愿意开口聊学校怎么办？" },
+    { label: "一提醒学习就顶嘴怎么沟通？", prompt: "一提醒学习就顶嘴怎么沟通？" },
+    { label: "孩子总说自己不行怎么鼓励？", prompt: "孩子总说自己不行怎么鼓励？" },
+  ],
+  [
+    { label: "孩子做事三分钟热度怎么办？", prompt: "孩子做事三分钟热度怎么办？" },
+    { label: "考试前焦虑怎么帮他稳下来？", prompt: "考试前焦虑怎么帮他稳下来？" },
+    { label: "孩子沉迷短视频怎么谈规则？", prompt: "孩子沉迷短视频怎么谈规则？" },
+  ],
+  [
+    { label: "孩子总和同学闹矛盾怎么办？", prompt: "孩子总和同学闹矛盾怎么办？" },
+    { label: "写作业时注意力总飘怎么办？", prompt: "写作业时注意力总飘怎么办？" },
+    { label: "怎么帮孩子建立睡前节奏？", prompt: "怎么帮孩子建立睡前节奏？" },
+  ],
 ];
+const HOME_FALLBACK_PROMPTS: TopicPromptItem[] = HOME_FALLBACK_PROMPT_GROUPS.flat();
 const HOME_PROMPT_BLOCKED_TERMS = ["节目", "这期", "本期", "先听", "哪一段", "收听"];
+const HOME_FALLBACK_PROMPT_ROTATION_KEY = "xiaowanzi_home_fallback_prompt_group_v1";
+const MESSAGE_LAYOUT_VERSION = "md-paragraph-v3";
 function isReadReceiptMessage(content: string): boolean {
   const text = String(content || "").trim();
   if (!text) return false;
@@ -126,6 +170,35 @@ function isReadReceiptMessage(content: string): boolean {
   );
 }
 
+function isFailedAssistantMessage(content: string): boolean {
+  const text = String(content || "").trim();
+  if (!text) return false;
+  if (/^请求失败(?:[:：]|$)/.test(text)) return true;
+  const knownFailureMessages = [
+    "校验 Pro 权限失败",
+    "Pro 权限校验失败",
+    "校验权限失败",
+    "权限校验失败",
+    "登录态已过期",
+    "无效的登录凭证",
+  ];
+  if (knownFailureMessages.includes(text)) return true;
+  return (
+    /^(校验|验证|检查).{0,16}(失败|出错)$/.test(text) ||
+    /^.*(权限|登录凭证|登录态).{0,12}(失败|无效|过期)$/.test(text)
+  );
+}
+
+function isShareableAssistantMessage(message: Msg) {
+  if (message.role !== "assistant") return false;
+  if (message.content === "__THINKING__") return false;
+  const content = String(message.content || "").trim();
+  if (!content) return false;
+  if (isReadReceiptMessage(content)) return false;
+  if (isFailedAssistantMessage(message.content)) return false;
+  return true;
+}
+
 function extractUserQuestion(content: string): string {
   const text = String(content || "").trim();
   if (!text) return "";
@@ -144,17 +217,100 @@ function sanitizeDisplayMessage(msg: Msg): Msg {
   };
 }
 
-function renderInlineMarkdown(content: string) {
+type XiaowanziMentionLinkClick = (event: React.MouseEvent<HTMLAnchorElement>, link: XiaowanziMentionLink) => void;
+
+function renderTextWithMentionLinks(
+  content: string,
+  mentionLinks: XiaowanziMentionLink[],
+  keyPrefix: string,
+  onMentionLinkClick?: XiaowanziMentionLinkClick,
+) {
+  const text = String(content || "");
+  const links = buildXiaowanziInlineLinks(text, mentionLinks);
+  if (!text || !links.length) return [<span key={`${keyPrefix}-text`}>{text}</span>];
+
+  const nodes: React.ReactNode[] = [];
+  let cursor = 0;
+  let nodeIndex = 0;
+
+  while (cursor < text.length) {
+    const matched = links.find((link) => text.startsWith(link.title, cursor));
+    if (!matched) {
+      const nextMatchIndex = links.reduce((nearest, link) => {
+        const index = text.indexOf(link.title, cursor + 1);
+        return index >= 0 && index < nearest ? index : nearest;
+      }, text.length);
+      nodes.push(<span key={`${keyPrefix}-plain-${nodeIndex}`}>{text.slice(cursor, nextMatchIndex)}</span>);
+      cursor = nextMatchIndex;
+      nodeIndex += 1;
+      continue;
+    }
+
+    nodes.push(
+      <a
+        key={`${keyPrefix}-link-${nodeIndex}`}
+        className="xw-msg-link"
+        href={matched.href}
+        onClick={(event) => onMentionLinkClick?.(event, matched)}
+      >
+        {matched.title}
+      </a>,
+    );
+    cursor += matched.title.length;
+    nodeIndex += 1;
+  }
+
+  return nodes;
+}
+
+function renderInlineMarkdown(
+  content: string,
+  mentionLinks: XiaowanziMentionLink[] = [],
+  onMentionLinkClick?: XiaowanziMentionLinkClick,
+) {
   const parts = String(content || "").split(/(\*\*[\s\S]+?\*\*)/g);
   return parts.map((part, index) => {
     if (part.startsWith("**") && part.endsWith("**")) {
-      return <strong key={index}>{part.slice(2, -2).trim()}</strong>;
+      return (
+        <strong key={index}>
+          {renderTextWithMentionLinks(part.slice(2, -2).trim(), mentionLinks, `bold-${index}`, onMentionLinkClick)}
+        </strong>
+      );
     }
-    return <span key={index}>{part}</span>;
+    return renderTextWithMentionLinks(part, mentionLinks, `part-${index}`, onMentionLinkClick);
   });
 }
 
-function renderDisplayMessage(message: Msg) {
+function renderAssistantMessageContent(
+  content: string,
+  mentionLinks: XiaowanziMentionLink[] = [],
+  onMentionLinkClick?: XiaowanziMentionLinkClick,
+) {
+  const blocks = normalizeAssistantLayoutText(content)
+    .split(/\n{2,}/g)
+    .map((block) => block.trim())
+    .filter(Boolean);
+
+  return (
+    <span className="xw-msg-flow">
+      {blocks.map((block, blockIndex) => (
+        <span className="xw-msg-block" key={`block-${blockIndex}`}>
+          {block.split(/\n/g).map((line, lineIndex) => (
+            <span className={`xw-msg-line ${isNumberedMessageLine(line) ? "numbered" : ""}`.trim()} key={`line-${blockIndex}-${lineIndex}`}>
+              {renderInlineMarkdown(line.trim(), mentionLinks, onMentionLinkClick)}
+            </span>
+          ))}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function renderDisplayMessage(
+  message: Msg,
+  mentionLinks: XiaowanziMentionLink[] = [],
+  onMentionLinkClick?: XiaowanziMentionLinkClick,
+) {
   if (message.content === "__THINKING__") {
     return (
       <span key={message.ts} className="xw-thinking-dots">
@@ -165,7 +321,7 @@ function renderDisplayMessage(message: Msg) {
       </span>
     );
   }
-  return message.role === "assistant" ? renderInlineMarkdown(message.content) : message.content;
+  return message.role === "assistant" ? renderAssistantMessageContent(message.content, mentionLinks, onMentionLinkClick) : message.content;
 }
 
 function getAuthHeaders(): Record<string, string> {
@@ -175,6 +331,82 @@ function getAuthHeaders(): Record<string, string> {
 
 function getSessionToken(): string {
   return (getAdminOrUserToken() || localStorage.getItem("wel_tok") || "").trim();
+}
+
+const SHARE_CARD_SITE_URL = "https://xianfeng.xinzhi.info";
+const SHARE_CARD_LOGO_URL = "/assets/xiaowanzi-share-logo.png";
+const SHARE_CARD_WIDTH = 750;
+const SHARE_CARD_LOGO_HEIGHT = 156;
+const SHARE_CARD_MAX_PIXELS = 5_400_000;
+const SHARE_REVEAL_HIDE_DELAY_MS = 5000;
+let cachedShareLogoPromise: Promise<HTMLImageElement | null> | null = null;
+let cachedShareQrPromise: Promise<HTMLImageElement | null> | null = null;
+
+function loadShareImage(url: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = url;
+  });
+}
+
+function getCachedShareLogo(): Promise<HTMLImageElement | null> {
+  if (!cachedShareLogoPromise) cachedShareLogoPromise = loadShareImage(SHARE_CARD_LOGO_URL);
+  return cachedShareLogoPromise;
+}
+
+async function getCachedShareQr(): Promise<HTMLImageElement | null> {
+  if (!cachedShareQrPromise) {
+    cachedShareQrPromise = (async () => {
+      const { default: QR } = await import("qrcode");
+      const qr = await QR.toDataURL(SHARE_CARD_SITE_URL, {
+        width: 140,
+        margin: 1,
+        color: { dark: "#1e293b", light: "#f8f7fc" },
+      });
+      return loadShareImage(qr);
+    })();
+  }
+  return cachedShareQrPromise;
+}
+
+function getShareCardScale(totalHeight: number): number {
+  const scale = Math.sqrt(SHARE_CARD_MAX_PIXELS / (SHARE_CARD_WIDTH * Math.max(totalHeight, 1)));
+  return Math.max(1.15, Math.min(1.6, scale));
+}
+
+function canvasToShareObjectUrl(canvas: HTMLCanvasElement): Promise<string> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error("share card blob encoding failed"));
+        return;
+      }
+      resolve(URL.createObjectURL(blob));
+    }, "image/png");
+  });
+}
+
+function resetHomeInputHeight(textarea: HTMLTextAreaElement) {
+  textarea.closest(".xw-home-input-shell")?.classList.remove("multiline");
+  textarea.style.height = "58px";
+  textarea.style.lineHeight = "58px";
+}
+
+function syncHomeInputHeight(textarea: HTMLTextAreaElement, value: string): boolean {
+  const shell = textarea.closest(".xw-home-input-shell");
+  shell?.classList.remove("multiline");
+  textarea.style.height = "58px";
+  textarea.style.lineHeight = "58px";
+  const expanded = Boolean(value.length > 0 && (value.includes("\n") || textarea.scrollHeight > 66));
+  if (!expanded) return false;
+  shell?.classList.add("multiline");
+  textarea.style.lineHeight = "1.38";
+  textarea.style.height = "auto";
+  textarea.style.height = `${Math.min(textarea.scrollHeight, 132)}px`;
+  return true;
 }
 
 function showXiaowanziSuperModeLoginModal() {
@@ -274,6 +506,7 @@ const LEGACY_AVATAR_CLICK_COUNT_KEY = "wel_avatar_click_count";
 const GLOBAL_HISTORY_CACHE_KEY = "xiaowanzi_global_history_v1";
 const CHILD_HISTORY_CACHE_PREFIX = "xiaowanzi_child_history_v1:";
 const XIAOWANZI_SESSION_INDEX_KEY = "xiaowanzi_session_index_v1";
+const XIAOWANZI_ACTIVE_SESSION_KEY = "xiaowanzi_active_session_id_v1";
 const XIAOWANZI_SESSION_MESSAGES_PREFIX = "xiaowanzi_session_messages_v1:";
 const XIAOWANZI_TOPIC_PROMPT_CACHE_KEY = "xiaowanzi_topic_prompt_cache_v1";
 const GLOBAL_DOCKED_PREF_KEY = "xiaowanzi_global_docked_v1";
@@ -388,6 +621,7 @@ function saveChildProfiles(items: ChildProfileLite[]) {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(CHILD_PROFILES_KEY, JSON.stringify(items));
+    scheduleXiaowanziAccountSync();
   } catch (_error) {}
 }
 
@@ -414,9 +648,11 @@ function saveChatContext(context: ChatSessionContext | null) {
   try {
     if (!context) {
       localStorage.removeItem(CHAT_CONTEXT_KEY);
+      scheduleXiaowanziAccountSync();
       return;
     }
     localStorage.setItem(CHAT_CONTEXT_KEY, JSON.stringify(context));
+    scheduleXiaowanziAccountSync();
   } catch (_error) {}
 }
 
@@ -438,10 +674,10 @@ function buildChildShortcuts(profile: ChildProfileLite | null): ShortcutItem[] {
   const tags = profile.concernTags.slice(0, 3);
   const tagText = tags.join("、") || "近期状态";
   return [
-    { label: "🧒 当前状态", prompt: `${profile.displayName}${ageText}${gradeText}阶段，最近关注${tagText}，我应该先做什么？` },
-    { label: "📘 本期怎么用", prompt: `结合${profile.displayName}（${gradeText}）的情况，这期节目里最该先做的3件事是什么？` },
-    { label: "🧭 追问建议", prompt: `如果${profile.displayName}在${tagText}上没有改善，我下一轮该怎么提问？` },
-    { label: "👪 亲子沟通", prompt: `请给我一段适合和${profile.displayName}沟通的具体话术，围绕${tagText}。` },
+    { label: "🧒 当前状态", prompt: `${profile.displayName}${gradeText}阶段，关注${tagText}，我先做什么？` },
+    { label: "📘 本期怎么用", prompt: `结合${profile.displayName}的情况，本期最该做的3件事？` },
+    { label: "🧭 追问建议", prompt: `${profile.displayName}在${tagText}上没改善，下一轮怎么问？` },
+    { label: "👪 亲子沟通", prompt: `给我一段和${profile.displayName}沟通的话术，围绕${tagText}` },
   ];
 }
 
@@ -461,7 +697,7 @@ function loadCachedHistory(childId?: string | null): Msg[] {
         content: String(item?.content || "").trim(),
         ts: item?.ts ? String(item.ts) : undefined,
       }))
-      .filter((item) => item.content && item.content !== DEFAULT_MESSAGE.content && !isReadReceiptMessage(item.content))
+      .filter((item) => item.content && item.content !== DEFAULT_MESSAGE.content && !isReadReceiptMessage(item.content) && item.content !== "__THINKING__")
       .map(sanitizeDisplayMessage);
   } catch (_error) {
     return [];
@@ -477,8 +713,9 @@ function saveCachedHistory(items: Msg[], childId?: string | null) {
   try {
     localStorage.setItem(
       historyCacheKey(childId),
-      JSON.stringify((items || []).filter((item) => item.content !== DEFAULT_MESSAGE.content && !isReadReceiptMessage(item.content)).map(sanitizeDisplayMessage).slice(-120))
+      JSON.stringify((items || []).filter((item) => item.content !== DEFAULT_MESSAGE.content && !isReadReceiptMessage(item.content) && item.content !== "__THINKING__").map(sanitizeDisplayMessage).slice(-120))
     );
+    scheduleXiaowanziAccountSync();
   } catch (_error) {}
 }
 
@@ -488,6 +725,22 @@ function saveCachedGlobalHistory(items: Msg[]) {
 
 function createConversationSessionId(): string {
   return `xw-session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function readActiveConversationSessionId(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    return String(localStorage.getItem(XIAOWANZI_ACTIVE_SESSION_KEY) || "").trim();
+  } catch (_error) {
+    return "";
+  }
+}
+
+function saveActiveConversationSessionId(sessionId: string) {
+  if (!sessionId || typeof window === "undefined") return;
+  try {
+    localStorage.setItem(XIAOWANZI_ACTIVE_SESSION_KEY, sessionId);
+  } catch (_error) {}
 }
 
 function conversationSessionMessagesKey(sessionId: string): string {
@@ -541,6 +794,7 @@ function saveConversationSessions(items: ConversationSession[]) {
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
       .slice(0, 40);
     localStorage.setItem(XIAOWANZI_SESSION_INDEX_KEY, JSON.stringify(next));
+    scheduleXiaowanziAccountSync();
   } catch (_error) {}
 }
 
@@ -560,7 +814,7 @@ function loadConversationSessionMessages(sessionId?: string | null): Msg[] {
         content: String(item?.content || "").trim(),
         ts: item?.ts ? String(item.ts) : undefined,
       }))
-      .filter((item) => item.content && item.content !== DEFAULT_MESSAGE.content && !isReadReceiptMessage(item.content))
+      .filter((item) => item.content && item.content !== DEFAULT_MESSAGE.content && !isReadReceiptMessage(item.content) && item.content !== "__THINKING__")
       .map(sanitizeDisplayMessage);
   } catch (_error) {
     return [];
@@ -572,9 +826,177 @@ function saveConversationSessionMessages(sessionId: string, items: Msg[]) {
   try {
     localStorage.setItem(
       conversationSessionMessagesKey(sessionId),
-      JSON.stringify((items || []).filter((item) => item.content !== DEFAULT_MESSAGE.content && !isReadReceiptMessage(item.content)).map(sanitizeDisplayMessage).slice(-120))
+      JSON.stringify((items || []).filter((item) => item.content !== DEFAULT_MESSAGE.content && !isReadReceiptMessage(item.content) && item.content !== "__THINKING__").map(sanitizeDisplayMessage).slice(-120))
     );
+    scheduleXiaowanziAccountSync();
   } catch (_error) {}
+}
+
+function loadInitialConversationState(): { sessionId: string; messages: Msg[]; hasHistoryMessages: boolean } {
+  const activeSessionId = readActiveConversationSessionId();
+  if (activeSessionId) {
+    const activeMessages = loadConversationSessionMessages(activeSessionId);
+    if (activeMessages.length) {
+      return { sessionId: activeSessionId, messages: activeMessages, hasHistoryMessages: true };
+    }
+    return { sessionId: activeSessionId, messages: [DEFAULT_MESSAGE], hasHistoryMessages: false };
+  }
+  return { sessionId: createConversationSessionId(), messages: [DEFAULT_MESSAGE], hasHistoryMessages: false };
+}
+
+let xiaowanziSyncTimer: number | null = null;
+let xiaowanziSyncInFlight = false;
+let xiaowanziSyncApplyingRemote = false;
+
+function readBrowsingMemory(): BrowsingMemoryItem[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(BROWSING_MEMORY_KEY) || "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item): BrowsingMemoryItem => ({
+        pathname: String(item?.pathname || "").trim(),
+        label: String(item?.label || "").trim(),
+        summary: String(item?.summary || "").trim(),
+        visitedAt: String(item?.visitedAt || new Date(0).toISOString()),
+      }))
+      .filter((item) => item.pathname)
+      .slice(0, 40);
+  } catch (_error) {
+    return [];
+  }
+}
+
+function collectXiaowanziSyncPayload(): XiaowanziSyncPayload {
+  const conversationSessions = loadConversationSessions();
+  const conversationMessages: Record<string, Msg[]> = {};
+  conversationSessions.forEach((session) => {
+    const messages = loadConversationSessionMessages(session.id);
+    if (messages.length) conversationMessages[session.id] = messages;
+  });
+  return {
+    childProfiles: loadChildProfiles(),
+    chatContext: loadChatContext(),
+    browsingMemory: readBrowsingMemory(),
+    conversationSessions,
+    conversationMessages,
+  };
+}
+
+function latestTime(value?: string | null): number {
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? date.getTime() : 0;
+}
+
+function mergeByLatest<T>(items: T[], keyOf: (item: T) => string, timeOf: (item: T) => string | undefined, limit: number): T[] {
+  const map = new Map<string, T>();
+  items.forEach((item) => {
+    const key = keyOf(item);
+    if (!key) return;
+    const current = map.get(key);
+    if (!current || latestTime(timeOf(item)) >= latestTime(timeOf(current))) map.set(key, item);
+  });
+  return Array.from(map.values())
+    .sort((a, b) => latestTime(timeOf(b)) - latestTime(timeOf(a)))
+    .slice(0, limit);
+}
+
+function applyXiaowanziSyncPayload(remote: XiaowanziSyncPayload | null | undefined) {
+  if (typeof window === "undefined" || !remote) return;
+  xiaowanziSyncApplyingRemote = true;
+  try {
+    const childProfiles = mergeByLatest(
+      [...loadChildProfiles(), ...(Array.isArray(remote.childProfiles) ? remote.childProfiles : [])],
+      (item) => item.id,
+      (item) => item.createdAt,
+      12
+    );
+    localStorage.setItem(CHILD_PROFILES_KEY, JSON.stringify(childProfiles));
+
+    const localContext = loadChatContext();
+    const remoteContext = remote.chatContext || null;
+    const nextContext =
+      latestTime(remoteContext?.lastSwitchedAt) >= latestTime(localContext?.lastSwitchedAt)
+        ? remoteContext
+        : localContext;
+    if (nextContext) localStorage.setItem(CHAT_CONTEXT_KEY, JSON.stringify(nextContext));
+    else localStorage.removeItem(CHAT_CONTEXT_KEY);
+
+    const browsingMemory = mergeByLatest(
+      [...readBrowsingMemory(), ...(Array.isArray(remote.browsingMemory) ? remote.browsingMemory : [])],
+      (item) => item.pathname,
+      (item) => item.visitedAt,
+      40
+    );
+    localStorage.setItem(BROWSING_MEMORY_KEY, JSON.stringify(browsingMemory));
+
+    const conversationSessions = mergeByLatest(
+      [...loadConversationSessions(), ...(Array.isArray(remote.conversationSessions) ? remote.conversationSessions : [])],
+      (item) => item.id,
+      (item) => item.updatedAt,
+      40
+    );
+    localStorage.setItem(XIAOWANZI_SESSION_INDEX_KEY, JSON.stringify(conversationSessions));
+    const validSessionIds = new Set(conversationSessions.map((session) => session.id));
+    const remoteMessages = remote.conversationMessages || {};
+    validSessionIds.forEach((sessionId) => {
+      const localMessages = loadConversationSessionMessages(sessionId);
+      const nextMessages = Array.isArray(remoteMessages[sessionId]) && remoteMessages[sessionId].length
+        ? remoteMessages[sessionId]
+        : localMessages;
+      if (nextMessages.length) {
+        localStorage.setItem(conversationSessionMessagesKey(sessionId), JSON.stringify(nextMessages.slice(-120)));
+      }
+    });
+  } catch (_error) {
+  } finally {
+    xiaowanziSyncApplyingRemote = false;
+  }
+}
+
+async function pushXiaowanziAccountSync() {
+  if (typeof window === "undefined" || xiaowanziSyncApplyingRemote || xiaowanziSyncInFlight) return;
+  const token = getSessionToken();
+  if (!token) return;
+  xiaowanziSyncInFlight = true;
+  try {
+    await fetch(apiUrl("/api/users/me/xiaowanzi-sync"), {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(collectXiaowanziSyncPayload()),
+    });
+  } catch (_error) {
+  } finally {
+    xiaowanziSyncInFlight = false;
+  }
+}
+
+function scheduleXiaowanziAccountSync(delay = 1000) {
+  if (typeof window === "undefined" || xiaowanziSyncApplyingRemote) return;
+  if (!getSessionToken()) return;
+  if (xiaowanziSyncTimer) window.clearTimeout(xiaowanziSyncTimer);
+  xiaowanziSyncTimer = window.setTimeout(() => {
+    xiaowanziSyncTimer = null;
+    void pushXiaowanziAccountSync();
+  }, delay);
+}
+
+async function pullAndMergeXiaowanziAccountSync(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  const token = getSessionToken();
+  if (!token) return false;
+  try {
+    const res = await fetch(apiUrl("/api/users/me/xiaowanzi-sync"), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return false;
+    const remote = await res.json().catch(() => null);
+    applyXiaowanziSyncPayload(remote);
+    await pushXiaowanziAccountSync();
+    return true;
+  } catch (_error) {
+    return false;
+  }
 }
 
 function isMeaningfulHistory(items: Msg[]): boolean {
@@ -728,6 +1150,7 @@ function appendBrowsingMemory(entry: { pathname: string; label: string; summary:
       ...items.filter((item: any) => String(item?.pathname || "") !== entry.pathname),
     ].slice(0, 20);
     localStorage.setItem(BROWSING_MEMORY_KEY, JSON.stringify(next));
+    scheduleXiaowanziAccountSync();
   } catch (_error) {}
 }
 
@@ -738,7 +1161,9 @@ function normalizeHomePromptItem(rawPrompt: string): TopicPromptItem | null {
     .trim();
   if (!raw) return null;
   if (HOME_PROMPT_BLOCKED_TERMS.some((term) => raw.includes(term))) return null;
-  const prompt = /[?？]$/.test(raw) ? raw : `围绕「${raw}」，给我一个适合家长马上执行的建议`;
+  // 去掉后端可能已经加上的"围绕「"前缀，保持简洁直接
+  const clean = raw.replace(/^围绕「(.+?)」[,，]?/g, "$1").trim();
+  const prompt = /[?？]$/.test(clean) ? clean : clean + "？";
   if (HOME_PROMPT_BLOCKED_TERMS.some((term) => prompt.includes(term))) return null;
   return {
     label: prompt.length > 34 ? `${prompt.slice(0, 34)}...` : prompt,
@@ -757,6 +1182,29 @@ function shuffleItems<T>(items: T[]): T[] {
     .map((item) => ({ item, sort: Math.random() }))
     .sort((a, b) => a.sort - b.sort)
     .map(({ item }) => item);
+}
+
+function pickRandomHomeFallbackPrompts(): TopicPromptItem[] {
+  const fallbackGroups = HOME_FALLBACK_PROMPT_GROUPS.length ? HOME_FALLBACK_PROMPT_GROUPS : [HOME_FALLBACK_PROMPTS];
+  const lastIndex = (() => {
+    if (typeof window === "undefined" || fallbackGroups.length <= 1) return -1;
+    try {
+      const value = Number(localStorage.getItem(HOME_FALLBACK_PROMPT_ROTATION_KEY));
+      return Number.isInteger(value) ? value : -1;
+    } catch (_error) {
+      return -1;
+    }
+  })();
+  const candidateIndexes = fallbackGroups
+    .map((_, index) => index)
+    .filter((index) => fallbackGroups.length <= 1 || index !== lastIndex);
+  const index = candidateIndexes[Math.floor(Math.random() * candidateIndexes.length)] ?? 0;
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(HOME_FALLBACK_PROMPT_ROTATION_KEY, String(index));
+    } catch (_error) {}
+  }
+  return fallbackGroups[index].slice(0, 3);
 }
 
 function loadCachedTopicPromptItems(): TopicPromptItem[] {
@@ -787,7 +1235,7 @@ function pickHomePromptItems(items: TopicPromptItem[]): TopicPromptItem[] {
   const picked = shuffleItems(items).slice(0, 3);
   if (picked.length >= 3) return picked;
   const existing = new Set(picked.map((item) => item.prompt));
-  const fallback = HOME_FALLBACK_PROMPTS.filter((item) => !existing.has(item.prompt)).slice(0, 3 - picked.length);
+  const fallback = pickRandomHomeFallbackPrompts().filter((item) => !existing.has(item.prompt)).slice(0, 3 - picked.length);
   return [...picked, ...fallback];
 }
 
@@ -832,6 +1280,34 @@ function buildHomeBrowseSrc(path: string): string {
   return `${withoutHash}${separator}xw_layer=1${hash}`;
 }
 
+function extractProgramItems(data: unknown): Program[] {
+  if (Array.isArray(data)) return data as Program[];
+  const value = data as { programs?: Program[] } | null | undefined;
+  return Array.isArray(value?.programs) ? value.programs : [];
+}
+
+function extractMaterialItems(data: unknown): LearningMaterial[] {
+  return Array.isArray(data) ? data as LearningMaterial[] : [];
+}
+
+function extractTopicItems(data: unknown): XiaowanziTopicLinkSource[] {
+  const value = data as { topics?: XiaowanziTopicLinkSource[] } | XiaowanziTopicLinkSource[] | null | undefined;
+  if (Array.isArray(value)) return value;
+  return Array.isArray(value?.topics) ? value.topics : [];
+}
+
+async function loadXiaowanziMentionLinks(): Promise<XiaowanziMentionLink[]> {
+  const [programRes, topicRes, materialRes] = await Promise.allSettled([
+    publicApi.getPrograms({ page: 1, pageSize: 200 }),
+    fetch("/api/topic-hub?limit=200"),
+    publicApi.getMaterials(),
+  ]);
+  const programs = programRes.status === "fulfilled" ? extractProgramItems(programRes.value.data) : [];
+  const topics = topicRes.status === "fulfilled" && topicRes.value.ok ? extractTopicItems(await topicRes.value.json()) : [];
+  const materials = materialRes.status === "fulfilled" ? extractMaterialItems(materialRes.value.data) : [];
+  return buildXiaowanziMentionLinks({ programs, topics, materials });
+}
+
 const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false }) => {
   const { pathname } = useLocation();
   const [shouldOpenHomeOnMount] = useState(() => standalone ? true : shouldRestoreXiaowanziHome());
@@ -839,8 +1315,11 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
   const [open, setOpen] = useState(() => shouldOpenHomeOnMount);
   const [homeActive, setHomeActive] = useState(() => standalone ? true : shouldOpenHomeOnMount);
   const [homePortalKey, setHomePortalKey] = useState(0);
-  const [currentSessionId, setCurrentSessionId] = useState(() => createConversationSessionId());
+  const [initialConversationState] = useState(() => loadInitialConversationState());
+  const [currentSessionId, setCurrentSessionId] = useState(() => initialConversationState.sessionId);
   const [conversationSessions, setConversationSessions] = useState<ConversationSession[]>(() => loadConversationSessions());
+  const [homeSwipeStartX, setHomeSwipeStartX] = useState(0);
+  const [homeFallbackPrompts] = useState<TopicPromptItem[]>(() => pickRandomHomeFallbackPrompts());
   const [homePromptItems, setHomePromptItems] = useState<TopicPromptItem[]>([]);
   const [homeBrowsingOpen, setHomeBrowsingOpen] = useState(false);
   const [homeBrowseTarget, setHomeBrowseTarget] = useState<HomeBrowseTarget | null>(null);
@@ -863,7 +1342,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
       return false;
     }
   });
-  const [messages, setMessages] = useState<Msg[]>([DEFAULT_MESSAGE]);
+  const [messages, setMessages] = useState<Msg[]>(() => initialConversationState.messages);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [voiceListening, setVoiceListening] = useState(false);
@@ -873,7 +1352,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
   const [canUseBot, setCanUseBot] = useState(true);
   const [statusText, setStatusText] = useState("● 随时可用");
   const [shareVisible, setShareVisible] = useState(true);
-  const [hasHistoryMessages, setHasHistoryMessages] = useState(false);
+  const [hasHistoryMessages, setHasHistoryMessages] = useState(() => initialConversationState.hasHistoryMessages);
   const [historyPanelOpen, setHistoryPanelOpen] = useState(false);
   const [fabPosition, setFabPosition] = useState(() =>
     typeof window === "undefined" ? { left: 0, top: 0 } : getDefaultFabPosition(window.innerWidth, window.innerHeight),
@@ -890,12 +1369,15 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
     readReceipt: DEFAULT_MESSAGE.content,
     shortcuts: DEFAULT_SHORTCUTS,
   });
+  const [xiaowanziMentionLinks, setXiaowanziMentionLinks] = useState<XiaowanziMentionLink[]>([]);
   const [shareMenuOpenId, setShareMenuOpenId] = useState<string | null>(null);
   const [shareMenuPos, setShareMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [shareCardUrl, setShareCardUrl] = useState<string | null>(null);
   const [shareGenerating, setShareGenerating] = useState(false);
   const [shareToastMsg, setShareToastMsg] = useState("");
   const [isReplying, setIsReplying] = useState(false);
+  const [homeComposerExpanded, setHomeComposerExpanded] = useState(false);
+  const [shareRevealMessageId, setShareRevealMessageId] = useState<string | null>(null);
   /* ─── 分享选择模式 ─── */
   const [shareSelectionMode, setShareSelectionMode] = useState(false);
   const [selectedMessagesForShare, setSelectedMessagesForShare] = useState<Set<string>>(new Set());
@@ -914,6 +1396,9 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
   const dragRef = useRef({ active: false, moved: false, offsetX: 0, offsetY: 0, pointerId: -1 });
   const avatarTimersRef = useRef<number[]>([]);
   const shareCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const shareCardObjectUrlRef = useRef<string | null>(null);
+  const shareRevealHideTimerRef = useRef<number | null>(null);
+  const layoutRerenderedRef = useRef(false);
   const lastPathnameRef = useRef(pathname);
   const lastBrowsingMemoryRef = useRef("");
   const shortcutItems = (pageContext.shortcuts.length ? pageContext.shortcuts : DEFAULT_SHORTCUTS).map((item) => ({
@@ -934,8 +1419,9 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
   const isDocked = pinned && !maximized;
   const isDockedEmpty = isDocked && !hasHistoryMessages && messages.length <= 1;
   const visibleMessages = isDocked ? messages.filter((message) => !isReadReceiptMessage(message.content)) : messages;
-  const effectiveHomePrompts = homePromptItems.length ? homePromptItems : HOME_FALLBACK_PROMPTS;
-  const homeComposerExpanded = Boolean(input.includes("\n") || (inputRef.current?.scrollHeight || 0) > 66);
+  const effectiveHomePrompts = homePromptItems.length ? homePromptItems : homeFallbackPrompts;
+  const homeConversationMessages = visibleMessages.filter((message) => !isReadReceiptMessage(message.content));
+  const homeAnswerMessages = shareSelectionMode ? homeConversationMessages : homeConversationMessages.slice(-6);
   const currentUserName = (() => {
     try {
       const raw = localStorage.getItem("user");
@@ -959,16 +1445,53 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
     }
   })();
 
+  function revokeShareCardObjectUrl() {
+    if (!shareCardObjectUrlRef.current) return;
+    URL.revokeObjectURL(shareCardObjectUrlRef.current);
+    shareCardObjectUrlRef.current = null;
+  }
+
+  function clearShareCardUrl() {
+    revokeShareCardObjectUrl();
+    setShareCardUrl(null);
+  }
+
+  function clearShareRevealHideTimer() {
+    if (!shareRevealHideTimerRef.current) return;
+    window.clearTimeout(shareRevealHideTimerRef.current);
+    shareRevealHideTimerRef.current = null;
+  }
+
+  function scheduleShareRevealHide(messageId: string) {
+    clearShareRevealHideTimer();
+    shareRevealHideTimerRef.current = window.setTimeout(() => {
+      setShareRevealMessageId((current) => (current === messageId ? null : current));
+      shareRevealHideTimerRef.current = null;
+    }, SHARE_REVEAL_HIDE_DELAY_MS);
+  }
+
+  function showShareCardUrl(url: string) {
+    revokeShareCardObjectUrl();
+    shareCardObjectUrlRef.current = url;
+    setShareCardUrl(url);
+  }
+
   function refreshConversationSessions() {
     setConversationSessions(loadConversationSessions());
+  }
+
+  function rerenderMessagesForLayoutVersion() {
+    setMessages((items) => items.map((item) => ({ ...item })));
+    setHomePortalKey((value) => value + 1);
   }
 
   function persistConversation(items: Msg[], sessionId = currentSessionId) {
     if (!sessionId || !isMeaningfulHistory(items)) return;
     const sanitized = items
-      .filter((item) => item.content !== DEFAULT_MESSAGE.content && !isReadReceiptMessage(item.content))
+      .filter((item) => item.content !== DEFAULT_MESSAGE.content && !isReadReceiptMessage(item.content) && item.content !== "__THINKING__")
       .map(sanitizeDisplayMessage);
     if (!sanitized.length) return;
+    saveActiveConversationSessionId(sessionId);
     saveConversationSessionMessages(sessionId, sanitized);
     const now = new Date().toISOString();
     const existing = loadConversationSessions().find((item) => item.id === sessionId);
@@ -985,8 +1508,36 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
     refreshConversationSessions();
   }
 
+  function isCurrentSessionExpired(): boolean {
+    if (messages.length <= 1) return false;
+    // 找最近一条用户消息的时间戳
+    const lastUserTs = [...messages].reverse().find((m) => m.role === "user")?.ts;
+    if (!lastUserTs) return false;
+    const lastTime = new Date(lastUserTs).getTime();
+    if (Number.isNaN(lastTime)) return false;
+    const hoursSince = (Date.now() - lastTime) / (1000 * 60 * 60);
+    return hoursSince > 24;
+  }
+
+  function maybeStartNewConversationIfNeeded() {
+    if (isCurrentSessionExpired()) {
+      persistConversation(messages);
+      startNewConversationSession();
+      setHomePortalKey((value) => value + 1);
+      void loadTopicPromptItems().then((items) => {
+        if (items.length) setHomePromptItems(items);
+      });
+      return;
+    }
+    setHomePortalKey((value) => value + 1);
+    void loadTopicPromptItems().then((items) => {
+      if (items.length) setHomePromptItems(items);
+    });
+  }
+
   function startNewConversationSession() {
     const nextSessionId = createConversationSessionId();
+    saveActiveConversationSessionId(nextSessionId);
     setCurrentSessionId(nextSessionId);
     setMessages([DEFAULT_MESSAGE]);
     setHasHistoryMessages(false);
@@ -1010,13 +1561,28 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
   function restoreConversationSession(sessionId: string) {
     const cached = loadConversationSessionMessages(sessionId);
     if (!cached.length) return;
+    saveActiveConversationSessionId(sessionId);
     setCurrentSessionId(sessionId);
-    setMessages(cached);
+    setMessages(cached.map((item) => ({ ...item })));
     setHasHistoryMessages(true);
     setHistoryPanelOpen(false);
     setHomeHistoryDrawerOpen(false);
     setHomeViewingHistory(true);
     saveCachedHistory(cached, currentHistoryChildId);
+  }
+
+  function openXiaowanziMentionLink(event: React.MouseEvent<HTMLAnchorElement>, link: XiaowanziMentionLink) {
+    event.stopPropagation();
+    if (!homeActive) return;
+    event.preventDefault();
+    setHomeHistoryDrawerOpen(false);
+    setHomeBrowsingOpen(true);
+    setHomeBrowseTarget({ path: link.href, label: link.title });
+    setPageContext({
+      summary: `当前正在小玩子超能模式内浏览「${link.title}」页面。路径:${link.href}。请结合该页面浏览上下文回答。`,
+      readReceipt: `已在超能模式中打开「${link.title}」。你可以继续问我这页重点、先看哪里、怎么结合孩子情况使用。`,
+      shortcuts: DEFAULT_SHORTCUTS,
+    });
   }
 
   function clearAvatarTimers() {
@@ -1100,6 +1666,41 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
 
     avatarTimersRef.current = [swapTimer, cleanupTimer];
   }
+
+  useEffect(() => () => {
+    revokeShareCardObjectUrl();
+    clearShareRevealHideTimer();
+  }, []);
+
+  useEffect(() => {
+    if (layoutRerenderedRef.current) return;
+    layoutRerenderedRef.current = true;
+    rerenderMessagesForLayoutVersion();
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    if (!getSessionToken()) return () => { alive = false; };
+    void pullAndMergeXiaowanziAccountSync().then((changed) => {
+      if (!alive || !changed) return;
+      setChildProfiles(loadChildProfiles());
+      setChatContext(loadChatContext());
+      refreshConversationSessions();
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    void loadXiaowanziMentionLinks().then((links) => {
+      if (alive) setXiaowanziMentionLinks(links);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -1276,7 +1877,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
     if (!res.ok) return;
     const data = await res.json();
     if (Array.isArray(data) && data.length) {
-      const filtered = (data as Msg[]).filter((m) => !isReadReceiptMessage(m.content)).map(sanitizeDisplayMessage);
+      const filtered = (data as Msg[]).filter((m) => !isReadReceiptMessage(m.content) && m.content !== "__THINKING__").map(sanitizeDisplayMessage);
       setHasHistoryMessages(filtered.length > 0);
       setMessages(filtered.length ? filtered : [DEFAULT_MESSAGE]);
       if (filtered.length) saveCachedHistory(filtered, currentHistoryChildId);
@@ -1316,6 +1917,25 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
     if (!sessions.length) await reloadHistory();
     setHistoryPanelOpen((v) => !v);
     setStatusText("● 已加载历史会话");
+  }
+
+  function handleHomeSwipeStart(e: React.TouchEvent) {
+    setHomeSwipeStartX(e.touches[0].clientX);
+  }
+
+  function handleHomeSwipeEnd(e: React.TouchEvent) {
+    const endX = e.changedTouches[0].clientX;
+    const dx = endX - homeSwipeStartX;
+    const threshold = 60;
+    if (Math.abs(dx) < threshold) return;
+    // 左滑 → 三个点（公共菜单）
+    if (dx < 0) {
+      setHomeHistoryDrawerOpen(false);
+      document.dispatchEvent(new CustomEvent("xf-open-public-menu"));
+    } else {
+      // 右滑 → 历史会话
+      void openHomeHistoryMenu();
+    }
   }
 
   async function openHomeHistoryMenu() {
@@ -1468,11 +2088,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
       setHomeBrowseTarget(null);
       setOpen(true);
       if (nextIsHomeMode) {
-        startNewConversationSession();
-        setHomePortalKey((value) => value + 1);
-        void loadTopicPromptItems().then((items) => {
-          if (items.length) setHomePromptItems(items);
-        });
+        maybeStartNewConversationIfNeeded();
       }
     };
     document.addEventListener("xf-open-xiaowanzi", onOpenFromTab as EventListener);
@@ -1489,9 +2105,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
     setHomeBrowsingOpen(false);
     setHomeBrowseTarget(null);
     setOpen(true);
-    void loadTopicPromptItems().then((items) => {
-      if (items.length) setHomePromptItems(items);
-    });
+    maybeStartNewConversationIfNeeded();
   }, []);
 
   useEffect(() => {
@@ -1519,6 +2133,12 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
   useEffect(() => {
     document.dispatchEvent(new CustomEvent("xf-xiaowanzi-home-state", { detail: { active: open && homeActive } }));
   }, [open, homeActive]);
+
+  useLayoutEffect(() => {
+    const textarea = inputRef.current;
+    if (!textarea?.classList.contains("xw-home-input")) return;
+    setHomeComposerExpanded(syncHomeInputHeight(textarea, input));
+  }, [input, open, homeActive]);
 
   useEffect(() => {
     const onBrowseLayer = (event: Event) => {
@@ -1593,6 +2213,10 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
     try {
       localStorage.setItem(GLOBAL_DOCKED_PREF_KEY, pinned ? "1" : "0");
     } catch (_error) {}
+    // 进入超能模式时，如果不在小玩子独立页面，则跳转到小玩子路由
+    if (pinned && !standalone) {
+      window.location.href = "/index-xiaowanzi.html";
+    }
   }, [pinned]);
 
   useEffect(() => {
@@ -1701,8 +2325,8 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
     setInput("");
     setAttachmentMenuOpen(false);
     if (inputRef.current?.classList.contains("xw-home-input")) {
-      inputRef.current.style.height = "58px";
-      inputRef.current.style.lineHeight = "58px";
+      resetHomeInputHeight(inputRef.current);
+      setHomeComposerExpanded(false);
     }
     setUploadedImage(null);
     setHasHistoryMessages(true);
@@ -1721,20 +2345,20 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         if (res.status === 402 || isProRequiredPayload(err)) {
           setCanUseBot(false);
           showProUpgradeFromPayload(err);
-          setMessages((prev) => prev.filter((item) => item.ts !== userMessage.ts));
+          setMessages((prev) => prev.filter((item) => item.ts !== userMessage.ts && item.ts !== thinkingTs));
           return;
         }
         if (res.status === 401 || res.status === 403) {
           setCanUseBot(false);
           if (res.status === 401) {
-            setMessages((prev) => prev.filter((item) => item.ts !== userMessage.ts));
+            setMessages((prev) => prev.filter((item) => item.ts !== userMessage.ts && item.ts !== thinkingTs));
             handleExpiredXiaowanziSession();
             return;
           }
           setStatusText("● 当前账号暂无小玩子权限");
         }
-        const msg = String(err?.content || err?.detail || "请求失败");
-        setMessages((prev) => [...prev, { role: "assistant", content: msg, ts: assistantTs }]);
+        const msg = String(err?.content || err?.detail || err?.message || "请求失败");
+        setMessages((prev) => [...prev.filter((item) => item.ts !== thinkingTs), { role: "assistant", content: msg, ts: assistantTs }]);
         return;
       }
       if (!res.body) {
@@ -1845,12 +2469,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
   function onInputChange(event: React.ChangeEvent<HTMLTextAreaElement>) {
     setInput(event.target.value);
     if (event.currentTarget.classList.contains("xw-home-input")) {
-      event.currentTarget.style.height = "58px";
-      event.currentTarget.style.lineHeight = "58px";
-      if (event.currentTarget.scrollHeight > 58) {
-        event.currentTarget.style.lineHeight = "1.38";
-        event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 132)}px`;
-      }
+      setHomeComposerExpanded(syncHomeInputHeight(event.currentTarget, event.target.value));
       return;
     }
     event.currentTarget.style.height = "auto";
@@ -2056,22 +2675,18 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
   const generateShareCard = async (baseMsg: Msg, msgs: Msg[]) => {
     const canvas = shareCanvasRef.current;
     if (!canvas) return;
-    setShareCardUrl(null);
+    clearShareCardUrl();
     setShareGenerating(true);
 
-    const W = 750;
+    const W = SHARE_CARD_WIDTH;
     const PAD = 32;
     const FONT = 30;
     const LH = 1.55;
     const BUBBLE_PAD_X = 28;
     const BUBBLE_PAD_Y = 22;
-    const SCALE = 2;
     const ctx = canvas.getContext("2d");
     if (!ctx) { setShareGenerating(false); return; }
 
-    function loadImg(u: string): Promise<HTMLImageElement | null> {
-      return new Promise(r => { const i = new Image(); i.crossOrigin = "anonymous"; i.onload = () => r(i); i.onerror = () => r(null); i.src = u; });
-    }
     function cln(t: string) { return t.replace(/\*\*(.+?)\*\*/g,"$1").replace(/\*(.+?)\*/g,"$1").replace(/`{1,3}[^`]*`{1,3}/g,"").replace(/#{1,6}\s?/g,""); }
     function wrapParagraphs(c: CanvasRenderingContext2D, t: string, w: number): string[] {
       // 保留换行分段
@@ -2093,14 +2708,16 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
     }
 
     try {
-      const logo = await loadImg(`/assets/xiaowanzi-share-logo.png?t=${Date.now()}`);
+      const logoPromise = getCachedShareLogo();
+      const qrPromise = getCachedShareQr();
+      const logo = await logoPromise;
       const FS = "-apple-system,'PingFang SC',sans-serif";
 
       // ═══ 第一步：测量总高度 ═══
       let totalH = PAD;
 
       // Logo：放大到 88px 高，居中
-      const logoH = 120;
+      const logoH = SHARE_CARD_LOGO_HEIGHT;
       const rawLogoW = logo && logo.naturalWidth > 0 ? (logo.naturalWidth / logo.naturalHeight) * logoH : 120;
       const logoW = Math.min(rawLogoW, W - PAD * 4); // 限制最大宽度
       totalH += logoH + 20;
@@ -2116,7 +2733,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
       const sections: { role: string; lines: string[]; bubbleH: number }[] = [];
       for (const msg of msgs) {
         if (msg.role !== "user" && msg.role !== "assistant") continue;
-        const text = cln(msg.content);
+        const text = msg.role === "assistant" ? normalizeAssistantLayoutText(cln(msg.content)) : cln(msg.content);
         const lines = wrapParagraphs(ctx, text, BUBBLE_MAX_TEXT_W);
         const bubbleH = lines.length * lineHeight + BUBBLE_PAD_Y * 2;
         sections.push({ role: msg.role, lines, bubbleH });
@@ -2130,6 +2747,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
       totalH += PAD;
 
       // ═══ 第二步：绘制 ═══
+      const SCALE = getShareCardScale(totalH);
       canvas.width = W * SCALE;
       canvas.height = Math.ceil(totalH) * SCALE;
 
@@ -2183,11 +2801,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
       // ── 底部二维码 ──
       curY = qrY;
       try {
-        const { default: QR } = await import("qrcode");
-        const qr = await QR.toDataURL("https://xianfeng.xinzhi.info", {
-          width: 140, margin: 1, color: { dark: "#1e293b", light: "#f8f7fc" }
-        });
-        const qi = await loadImg(qr);
+        const qi = await qrPromise;
         if (qi && qi.naturalWidth > 0) {
           ctx.fillStyle = "#fff";
           ctx.beginPath();
@@ -2201,7 +2815,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
       ctx.font = `22px ${FS}`;
       ctx.fillText("扫描二维码，和小玩子继续聊", W/2, curY + 180);
 
-      setShareCardUrl(canvas.toDataURL("image/png"));
+      showShareCardUrl(await canvasToShareObjectUrl(canvas));
     } catch (err) {
       console.error("generateShareCard error:", err);
       setShareToastMsg("生成失败，请重试");
@@ -2214,6 +2828,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
   /* ─── 分享：点击直接进入选择模式 ─── */
   const toggleShareMenu = (e: React.MouseEvent, msgTs: string) => {
     e.stopPropagation();
+    clearShareRevealHideTimer();
     setShareSelectionMode(true);
     // 同时选中配对的 Q/A
     const ids = new Set<string>([msgTs]);
@@ -2229,7 +2844,13 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
       }
     }
     setSelectedMessagesForShare(ids);
-    setShareCardUrl(null);
+    clearShareCardUrl();
+  };
+  const revealShareButtonForMessage = (message: Msg) => {
+    if (!isShareableAssistantMessage(message)) return;
+    const messageId = message.ts || "";
+    setShareRevealMessageId(messageId);
+    scheduleShareRevealHide(messageId);
   };
   const toggleSelectMsg = (msgTs: string) => {
     setSelectedMessagesForShare((prev) => {
@@ -2274,6 +2895,11 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
     setShareSelectionMode(false);
     setSelectedMessagesForShare(new Set());
   };
+  function dismissShareSelectionBackdropEvent(event: React.MouseEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    exitShareSelectionMode();
+  }
 
   return (
     <>
@@ -2339,16 +2965,19 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         .aip-msgs{flex:1;overflow-y:auto;padding:12px 12px 10px;display:flex;flex-direction:column;gap:10px;min-height:0;background:transparent}
         .aip-msgs::-webkit-scrollbar{width:3px}
         .aip-msgs::-webkit-scrollbar-thumb{background:rgba(124,52,232,.18);border-radius:3px}
-        .aip-msg{max-width:88%;font-size:13px;line-height:1.6;padding:10px 13px;border-radius:12px;word-break:break-word;white-space:pre-wrap;position:relative}
+        .aip-msg{max-width:86%;font-size:13px;line-height:1.72;font-weight:500;padding:11px 13px;border-radius:12px;word-break:break-word;white-space:pre-wrap;position:relative}
         .aip-msg.ai{background:#fff;color:#1f2937;border:1px solid rgba(124,52,232,.1);border-radius:8px 14px 14px 14px;align-self:flex-start;box-shadow:0 3px 10px rgba(15,23,42,.06)}
-        .aip-msg.thinking{background:transparent !important;border:none !important;box-shadow:none !important;border-radius:0 !important;align-self:flex-start;padding:0 !important;display:flex;align-items:center;gap:4px;min-height:0;max-width:none}
-        .aip-msg.thinking .dot{width:7px;height:7px;border-radius:50%;background:#a78bfa;animation:thinkingDot 1.4s ease-in-out infinite}
-        .aip-msg.thinking .dot:nth-child(2){animation-delay:.2s}
-        .aip-msg.thinking .dot:nth-child(3){animation-delay:.4s}
+        .xw-thinking-row{display:flex;align-items:center;gap:5px;padding:4px 0}
+        .xw-tdot{width:7px;height:7px;border-radius:50%;background:#a78bfa;animation:xwTDot 1.4s ease-in-out infinite}
+        .xw-tdot:nth-child(2){animation-delay:.2s}
+        .xw-tdot:nth-child(3){animation-delay:.4s}
+        .xw-tlabel{font-size:12px;color:#a78bfa;font-weight:600;animation:xwTPulse 2s ease-in-out infinite}
+        @keyframes xwTDot{0%,80%,100%{opacity:.2;transform:scale(.8)}40%{opacity:1;transform:scale(1.2)}}
+        @keyframes xwTPulse{0%,100%{opacity:.5}50%{opacity:1}}
         @keyframes thinkingDot{0%,80%,100%{opacity:.2;transform:scale(.8)}40%{opacity:1;transform:scale(1.2)}}
         .aip-thinking-label{font-size:11px;color:#a78bfa;font-weight:600;margin-left:6px;animation:thinkingLabelPulse 2s ease-in-out infinite}
         @keyframes thinkingLabelPulse{0%,100%{opacity:.5}50%{opacity:1}}}
-        .aip-msg.user{background:#7C34E8;color:#fff;border-radius:14px 8px 14px 14px;align-self:flex-end;box-shadow:0 8px 16px rgba(124,52,232,.2)}
+        .aip-msg.user{background:#601BEC;color:#fff;border-radius:14px 8px 14px 14px;align-self:flex-end;box-shadow:0 8px 16px rgba(96,27,236,.2)}
         .aip-empty{margin-top:clamp(12px,8vh,96px);padding:8px 8px 18px}
         .aip-empty-title{font-size:clamp(1.35rem,6vw,1.75rem);line-height:1.18;font-weight:800;color:#1f2937;letter-spacing:-.02em}
         .aip-empty-sub{font-size:clamp(.95rem,3.8vw,1.05rem);line-height:1.35;font-weight:700;color:#4b5563;margin-top:2px}
@@ -2411,7 +3040,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         #ai-panel.docked.docked-dark .aip-icon-btn:hover{background:#232b35;color:#fff}
         #ai-panel.docked.docked-dark .aip-msgs{background:transparent}
         #ai-panel.docked.docked-dark .aip-msg.ai{background:#161b22;border-color:#2c3340;color:#e5e7eb}
-        #ai-panel.docked.docked-dark .aip-msg.user{background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);color:#fff}
+        #ai-panel.docked.docked-dark .aip-msg.user{background:#601BEC;color:#fff}
         #ai-panel.docked.docked-dark .aip-empty-title{color:#dbeafe}
         #ai-panel.docked.docked-dark .aip-empty-sub{color:#d1d5db}
         #ai-panel.docked.docked-dark .aip-empty-btn{background:#1d2430;color:#e2e8f0}
@@ -2456,7 +3085,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         .aip-profile-select-option{width:100%;min-height:38px;display:flex;align-items:center;justify-content:space-between;gap:8px;border:0;border-radius:12px;background:transparent;padding:0 10px;color:#11143b;font-size:13px;font-weight:800;text-align:left}
         .aip-profile-select-option.on{background:#efe8ff;color:#7C34E8}
         .aip-profile-select-option .ms{font-family:'Material Symbols Rounded';font-size:18px;font-weight:400}
-        .xw-home{--xw-home-x:0px;position:fixed;inset:0;z-index:8050;background:radial-gradient(circle at 74% 2%,rgba(255,228,236,.9) 0,rgba(255,228,236,0) 34%),radial-gradient(circle at 16% 10%,rgba(211,218,255,.92) 0,rgba(211,218,255,0) 40%),linear-gradient(180deg,#f2f1ff 0%,#e9edff 100%);color:#11143b;display:flex;flex-direction:column;overflow:hidden;transform-origin:50% 100%;animation:xwRealmEnter .86s cubic-bezier(.18,.92,.2,1) both;will-change:transform,opacity,filter}
+        .xw-home{--xw-home-x:0px;position:fixed;inset:0;z-index:8050;background:radial-gradient(circle at 74% 2%,rgba(255,228,236,.9) 0,rgba(255,228,236,0) 34%),radial-gradient(circle at 16% 10%,rgba(211,218,255,.92) 0,rgba(211,218,255,0) 40%),linear-gradient(180deg,#f2f1ff 0%,#e9edff 100%);color:#11143b;display:flex;flex-direction:column;overflow:hidden;transform-origin:50% 100%;animation:xwRealmEnter .86s cubic-bezier(.18,.92,.2,1) both;will-change:transform,opacity,filter;-webkit-transform:translateZ(0)}
         .xw-home::before{content:"";position:absolute;left:50%;bottom:-110px;width:260px;height:260px;border-radius:999px;background:conic-gradient(from 20deg,rgba(124,92,255,0),rgba(124,92,255,.92),rgba(89,201,255,.8),rgba(255,156,220,.76),rgba(124,92,255,0));transform:translateX(-50%) scale(.18);filter:blur(3px);opacity:0;mix-blend-mode:screen;pointer-events:none;animation:xwPortalBurst .9s ease-out both}
         .xw-home::after{content:"";position:absolute;inset:-12% -36%;background:linear-gradient(105deg,transparent 12%,rgba(255,255,255,0) 34%,rgba(255,255,255,.86) 48%,rgba(190,203,255,.42) 54%,rgba(255,255,255,0) 66%,transparent 100%);transform:translateX(-68%) skewX(-14deg);opacity:0;pointer-events:none;animation:xwPageSweep .72s .08s ease-out both}
         .xw-home-top,.xw-home-scroll,.xw-home-inputbar{animation:xwRealmContent .46s .34s ease-out both}
@@ -2487,8 +3116,8 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         .xw-home-history-mask{position:fixed;inset:0;z-index:8072;background:rgba(15,23,42,.46);display:flex;justify-content:flex-start;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);animation:xwHistoryMaskIn .2s cubic-bezier(.2,.9,.22,1) both}
         .xw-home-history-drawer{position:relative;display:flex;flex-direction:column;width:min(360px,84vw);height:100dvh;box-sizing:border-box;background:#f7f7fb;box-shadow:18px 0 45px rgba(15,23,42,.2);padding:calc(20px + env(safe-area-inset-top)) 18px max(24px,calc(18px + env(safe-area-inset-bottom)));overflow:hidden;animation:xwHistoryDrawerIn .2s cubic-bezier(.2,.9,.22,1) both}
         .xw-home-history-drawer-head{height:46px;display:flex;align-items:center;justify-content:center;margin-bottom:18px}
-        .xw-home-history-exit{width:44px;height:44px;border:0;border-radius:50%;background:#7C34E7;color:#fff;font-family:'Material Symbols Rounded';font-size:24px;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
-        .xw-home-history-exit-dock{position:absolute;right:18px;bottom:calc(22px + env(safe-area-inset-bottom));z-index:2}
+        .xw-home-history-exit{width:44px;height:44px;border:0;border-radius:50%;background:#601BEC;box-shadow:0 14px 30px rgba(96,27,236,.28);color:#fff;font-family:'Material Symbols Rounded';font-size:24px;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
+        .xw-home-history-exit-dock{position:absolute;right:18px;bottom:calc(22px + env(safe-area-inset-bottom));z-index:3}
         .xw-home-history-new{height:42px;width:min(280px,100%);min-width:0;border:0;border-radius:999px;background:#ededf0;color:#303445;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 14px;font-size:15px;font-weight:900;white-space:nowrap}
         .xw-home-history-new .ms{font-family:'Material Symbols Rounded';font-size:22px;font-weight:300;color:#11143b}
         .xw-home-history-drawer-title{display:block;margin:0 0 16px 6px;font-size:22px;font-weight:1000;color:#11143b}
@@ -2514,13 +3143,23 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         .xw-home-card-title::before{content:"";width:7px;height:28px;border-radius:999px;background:linear-gradient(180deg,#7c5cff,#6f8cff)}
         .xw-home-card-title-text{flex:1}
         .xw-home-list{display:flex;flex-direction:column;gap:14px}
-        .xw-home-question{width:100%;min-height:68px;border:0;border-radius:22px;background:rgba(255,255,255,.94);display:grid;grid-template-columns:38px 1fr 26px;align-items:center;gap:12px;padding:0 15px;text-align:left;color:#11143b;box-shadow:0 8px 18px rgba(72,75,132,.06);font-size:16px;font-weight:900}
+        .xw-home-question{width:100%;min-height:68px;border:0;border-radius:22px;background:rgba(255,255,255,.94);display:grid;grid-template-columns:38px 1fr 26px;align-items:center;gap:12px;padding:0 15px;text-align:left;color:#11143b;box-shadow:0 8px 18px rgba(72,75,132,.06);font-size:16px;font-weight:900;white-space:nowrap;overflow:hidden}
         .xw-home-question b{width:38px;height:38px;background:transparent;color:#7C34E8;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:none}
-        .xw-home-question .ms{font-family:'Material Symbols Rounded';font-size:22px;color:#b8bfd9}
+        .xw-home-question .ms{font-family:'Material Symbols Rounded';font-size:22px;color:#b8bfd9;flex-shrink:0}.xw-home-question span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .xw-home-answer-list{display:flex;flex-direction:column;gap:12px;margin-top:16px}
-        .xw-home-msg{max-width:92%;border-radius:20px;padding:14px 16px;font-size:15px;font-weight:750;line-height:1.65;white-space:pre-wrap;word-break:break-word;position:relative}
-        .xw-home-msg.ai{align-self:flex-start;background:rgba(255,255,255,.9);border:1px solid rgba(122,103,238,.1);box-shadow:0 8px 18px rgba(72,75,132,.06)}
-        .xw-home-msg.user{align-self:flex-end;background:linear-gradient(135deg,#6257f6,#7b4cff);color:#fff;box-shadow:0 12px 24px rgba(98,87,246,.22)}
+        .xw-home-msg{max-width:86%;border-radius:20px;padding:15px 17px;font-size:14.5px;font-weight:520;line-height:1.86;white-space:pre-wrap;word-break:break-word;position:relative}
+        .xw-home-msg.ai{align-self:flex-start;background:rgba(255,255,255,.9);border:1px solid rgba(122,103,238,.1);box-shadow:0 8px 18px rgba(72,75,132,.06);padding:18px 18px}
+        .xw-home-msg.user{align-self:flex-end;background:#601BEC;color:#fff;box-shadow:0 12px 24px rgba(96,27,236,.22)}
+        .xw-msg-link{color:#5e17eb;font-weight:950;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;cursor:pointer}
+        .xw-msg-link:hover{color:#7c34e8}
+        .xw-msg-flow{display:block;white-space:normal}
+        .xw-msg-block{display:block}
+        .xw-msg-block + .xw-msg-block{margin-top:14px}
+        .xw-msg-line{display:block;line-height:1.86}
+        .xw-msg-line.numbered{margin-top:0}
+        .xw-msg-block .xw-msg-line:first-child{margin-top:0}
+        .xw-home-thinking{align-self:flex-start;display:flex;align-items:center;max-width:92%;border-radius:20px;padding:14px 16px;background:rgba(255,255,255,.9);border:1px solid rgba(122,103,238,.1);box-shadow:0 8px 18px rgba(72,75,132,.06)}
+        .xw-home-thinking .xw-thinking-dots{padding:0;min-height:28px}
         .xw-thinking-dots{display:flex;align-items:center;gap:4px;padding:8px 12px;border-radius:20px;background:transparent;width:fit-content;min-height:48px}
         .xw-thinking-dots .dot{width:8px;height:8px;border-radius:50%;background:#a78bfa;animation:thinkingDot 1.4s ease-in-out infinite}
         .xw-thinking-dots .dot:nth-child(2){animation-delay:.2s}
@@ -2530,7 +3169,9 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         .xw-home-history-chat .xw-home-msg{max-width:86%}
         .xw-home-optional{display:flex;align-items:center;justify-content:center;gap:8px;color:#7d86a5;font-size:13px;font-weight:850;margin:0 0 18px;padding:0 2px;text-align:center}
         .xw-home-optional button{min-height:32px;border:0;border-radius:0;background:transparent;box-shadow:none;color:#5b48ff;font-weight:950;padding:0 2px}
-        .xw-home-inputbar{position:fixed;left:30px;right:30px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:8063;display:flex;align-items:center;gap:10px;transition:bottom .2s cubic-bezier(.2,.9,.22,1)}
+        .xw-home-inputbar{position:fixed;left:30px;right:30px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:8063;display:flex;align-items:center;gap:10px;transition:bottom .2s cubic-bezier(.2,.9,.22,1);isolation:isolate}
+        .xw-home-inputbar::after{content:"";position:fixed;left:0;right:0;bottom:0;height:calc(104px + env(safe-area-inset-bottom));z-index:-1;background:linear-gradient(180deg,rgba(232,236,255,0) 0%,rgba(232,236,255,.96) 34%,#e8ecff 100%);pointer-events:none}
+        .xw-home-inputbar:focus-within::after{height:calc(128px + env(safe-area-inset-bottom))}
         .xw-home-inputbar.menu-open{bottom:calc(150px + env(safe-area-inset-bottom))}
         .xw-home-inputbar.menu-open::before{content:"";position:absolute;left:-24px;right:-24px;top:32px;height:106px;z-index:-1;border-radius:999px;background:radial-gradient(ellipse at center,rgba(91,72,255,.36) 0%,rgba(148,163,255,.28) 44%,rgba(232,236,255,0) 80%);filter:blur(24px);pointer-events:none}
         .xw-home-inputbar.menu-open::after{content:"";position:fixed;left:0;right:0;bottom:0;height:calc(168px + env(safe-area-inset-bottom));z-index:-2;background:linear-gradient(180deg,rgba(232,236,255,0) 0%,rgba(232,236,255,.88) 34%,rgba(232,236,255,.98) 64%,#e8ecff 100%);pointer-events:none}
@@ -2573,9 +3214,9 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         @media (max-width:380px){.xw-home-scroll{padding-left:22px;padding-right:22px}.xw-home-hero{grid-template-columns:112px 1fr}.xw-home-avatar-wrap,.xw-home-avatar{width:112px;height:112px}.xw-home-greet{font-size:24px}.xw-home-hello{font-size:24px;margin-bottom:7px}.xw-home-hello-star{width:25px;height:25px;font-size:17px}.xw-home-greet strong{font-size:27px}.xw-home-inputbar{left:22px;right:22px}.xw-home-attach-menu{left:22px;right:22px;gap:12px}.xw-home-attach-action .ms{width:58px;height:58px}}
         @media (prefers-reduced-motion:reduce){.xw-home,.xw-home::before,.xw-home::after,.xw-home-top,.xw-home-scroll,.xw-home-inputbar,.xw-home-hello,.xw-home-hello-star,.xw-home-greet strong{animation:none!important;opacity:1!important;filter:none!important;clip-path:none!important}.xw-home{transform:translateX(var(--xw-home-x))!important}.xw-home-top,.xw-home-scroll,.xw-home-inputbar{transform:none!important}}
         /* ── 分享按钮 ── */
-        .xw-share-btn{display:flex;align-items:center;justify-content:center;margin-top:2px;width:32px;height:32px;min-width:32px;min-height:32px;padding:0;border-radius:50%;border:none;background:#f3f0ff;color:#7C34E8;font-size:14px;cursor:pointer;opacity:1;transition:background .15s,color .15s;box-shadow:0 1px 4px rgba(124,52,232,0.1);overflow:hidden;flex-shrink:0;line-height:1}
-        .xw-share-btn.xw-share-visible{opacity:1}
-        .xw-share-btn:hover{opacity:1;background:#7C34E8;color:#fff}
+        .xw-share-btn{display:flex;align-items:center;justify-content:center;margin-top:2px;width:32px;height:32px;min-width:32px;min-height:32px;padding:0;border-radius:50%;border:none;background:#f3f0ff;color:#7C34E8;font-size:14px;cursor:pointer;opacity:0;pointer-events:none;transform:scale(.88);transition:opacity .15s,transform .15s,background .15s,color .15s;box-shadow:0 1px 4px rgba(124,52,232,0.1);overflow:hidden;flex-shrink:0;line-height:1}
+        .xw-home-msg.ai:hover + .xw-share-btn,.xw-home-msg.ai:focus-within + .xw-share-btn,.aip-msg.ai:hover + .xw-share-btn,.aip-msg.ai:focus-within + .xw-share-btn,.xw-share-btn.xw-share-visible,.xw-share-btn:hover,.xw-share-btn:focus-visible{opacity:1;pointer-events:auto;transform:scale(1)}
+        .xw-share-btn:hover,.xw-share-btn:focus-visible{background:#7C34E8;color:#fff}
         /* ── 分享浮动菜单（三按钮） ── */
         .xw-share-menu-backdrop{position:fixed;top:0;left:0;right:0;bottom:0;z-index:9400}
         .xw-share-menu{position:fixed;z-index:9500;display:flex;gap:10px;animation:xwShareIn .2s ease}
@@ -2583,7 +3224,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         .xw-share-ch-btn:hover:not(:disabled){background:#f3e8ff;color:#7C34E8}
         .xw-share-ch-btn:disabled{opacity:0.4;cursor:not-allowed}
         /* ── 分享选择模式 ── */
-        .xw-share-select-backdrop{position:fixed;top:0;left:0;right:0;bottom:0;z-index:9400;background:transparent;pointer-events:none}
+        .xw-share-select-backdrop{position:fixed;top:0;left:0;right:0;bottom:0;z-index:8049;background:transparent;pointer-events:auto;touch-action:none}
         .xw-share-select-bar{position:fixed;bottom:0;left:0;right:0;z-index:9500;background:#fff;border-radius:24px 24px 0 0;padding:16px 20px calc(16px + env(safe-area-inset-bottom));box-shadow:0 -4px 24px rgba(0,0,0,0.1);animation:xwSlideUp .25s ease;max-height:55vh;overflow-y:auto}
         .xw-share-select-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
         .xw-share-cancel-btn{border:none;background:transparent;color:#7C34E8;font-size:15px;font-weight:600;cursor:pointer;padding:4px 12px}
@@ -2607,8 +3248,8 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         .share-selecting{position:relative}
         .share-selecting.xw-home-msg,.share-selecting.aip-msg{border:2px solid transparent;border-radius:16px;transition:border-color .15s}
         .share-selecting.xw-home-msg.msg-selected,.share-selecting.aip-msg.msg-selected{border-color:#7C34E8}
-        .xw-home-scroll.share-mode{max-height:45vh;overflow-y:auto}
-        .aip-msgs.share-mode{max-height:45vh;overflow-y:auto}
+        .xw-home-scroll.share-mode{padding-bottom:0;flex:none;height:auto;max-height:calc(100vh - 220px);overflow-y:auto}
+        .aip-msgs.share-mode{padding-bottom:0;flex:none;height:auto;max-height:calc(100vh - 220px);overflow-y:auto}
         .share-selecting .xw-share-check-btn{position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;border:2px solid #d1d5db;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;font-family:'Material Symbols Rounded';color:#fff;z-index:10;transition:border-color .15s,background .15s}
         .share-selecting .xw-share-check-btn.checked{border-color:#7C34E8;background:#7C34E8}
         @keyframes xwSlideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
@@ -2617,8 +3258,8 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         .xw-share-card-dialog{background:#fff;border-radius:20px;max-width:90vw;max-height:85vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2)}
         .xw-share-card-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #f1f3fa;color:#1e293b;font-size:16px;font-weight:600}
         .xw-share-card-close{border:none;background:transparent;color:#6b7280;font-size:22px;cursor:pointer;font-family:'Material Symbols Rounded'}
-        .xw-share-card-body{overflow-y:auto;max-height:85vh;padding:16px 20px;display:flex;justify-content:center}
-        .xw-share-card-img{max-width:100%;display:block;border-radius:12px}
+        .xw-share-card-body{overflow-y:auto;max-height:85vh;padding:16px 20px;display:block}
+        .xw-share-card-img{max-width:100%;width:100%;height:auto;display:block;border-radius:12px}
         .xw-share-card-actions{padding:16px 20px;display:flex;justify-content:center}
         .xw-share-card-dl{display:inline-flex;align-items:center;justify-content:center;padding:12px 32px;border-radius:24px;background:#7C34E8;color:#fff;font-size:15px;font-weight:600;text-decoration:none;transition:background .15s}
         .xw-share-card-dl:hover{background:#5b21b6}
@@ -2628,7 +3269,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
       `}</style>
       <div className={`ai-panel-backdrop${open && maximized ? " show" : ""}`} onClick={() => setMaximized(false)} />
       {open && homeActive ? (
-        <div key={`xw-home-${homePortalKey}`} className={`xw-home${skipHomeIntroOnMount ? " no-intro" : ""}${isDocked ? " docked" : ""}`}>
+        <div key={`xw-home-${homePortalKey}`} className={`xw-home${skipHomeIntroOnMount ? " no-intro" : ""}${isDocked ? " docked" : ""}`} onClick={shareSelectionMode ? dismissShareSelectionBackdropEvent : undefined} onTouchStart={handleHomeSwipeStart} onTouchEnd={handleHomeSwipeEnd}>
           <div className="xw-home-top">
             <button
               className="xw-home-menu"
@@ -2710,23 +3351,34 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
           <div className={`xw-home-scroll${shareSelectionMode ? " share-mode" : ""}`} ref={msgContainerRef} onClick={(e) => shareSelectionMode && e.stopPropagation()}>
             {homeViewingHistory ? (
               <div className="xw-home-history-chat">
-                {visibleMessages.filter((message) => !isReadReceiptMessage(message.content)).map((message, idx) => (
-                  <React.Fragment key={`history-${idx}-${message.ts || ""}`}>
+                {visibleMessages.filter((message) => !isReadReceiptMessage(message.content)).map((message, idx) => {
+                  if (message.content === "__THINKING__") {
+                    return (
+                      <div key={`history-${MESSAGE_LAYOUT_VERSION}-${idx}-${message.ts || ""}`} className="xw-home-thinking">
+                        {renderDisplayMessage(message, xiaowanziMentionLinks, openXiaowanziMentionLink)}
+                      </div>
+                    );
+                  }
+                  return (
+                    <React.Fragment key={`history-${MESSAGE_LAYOUT_VERSION}-${idx}-${message.ts || ""}`}>
                     <div className={`xw-home-msg ${message.role === "assistant" ? "ai" : "user"}${shareSelectionMode ? ` share-selecting${selectedMessagesForShare.has(message.ts || "") ? " msg-selected" : ""}` : ""}`}
-                    onClick={() => shareSelectionMode && toggleSelectMsg(message.ts || "")}>
+                    onMouseEnter={() => revealShareButtonForMessage(message)}
+                    onFocus={() => revealShareButtonForMessage(message)}
+                    onClick={() => shareSelectionMode ? toggleSelectMsg(message.ts || "") : revealShareButtonForMessage(message)}>
                     {shareSelectionMode && (
                       <button className={`xw-share-check-btn ${selectedMessagesForShare.has(message.ts || "") ? "checked" : ""}`}
                         type="button" onClick={(e) => { e.stopPropagation(); toggleSelectMsg(message.ts || ""); }}>
                         {selectedMessagesForShare.has(message.ts || "") ? "check" : ""}
                       </button>
                     )}
-                    {renderDisplayMessage(message)}
+                    {renderDisplayMessage(message, xiaowanziMentionLinks, openXiaowanziMentionLink)}
                   </div>
-                  {message.role === "assistant" && !isReplying ? (
-                    <button className="xw-share-btn" type="button" aria-label="分享回答" onClick={(e) => toggleShareMenu(e, message.ts || "")}><span className="ms">share</span></button>
+                  {isShareableAssistantMessage(message) && !isReplying ? (
+                    <button className={`xw-share-btn ${shareRevealMessageId === (message.ts || "") ? "xw-share-visible" : ""}`.trim()} type="button" aria-label="分享回答" onFocus={() => revealShareButtonForMessage(message)} onClick={(e) => toggleShareMenu(e, message.ts || "")}><span className="ms">share</span></button>
                   ) : null}
                   </React.Fragment>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <>
@@ -2774,25 +3426,36 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
                       </button>
                     ))}
                   </div>
-                  {visibleMessages.length ? (
+                  {homeAnswerMessages.length ? (
                     <div className="xw-home-answer-list" onClick={(e) => shareSelectionMode && e.stopPropagation()}>
-                      {visibleMessages.filter((message) => !isReadReceiptMessage(message.content)).slice(-6).map((message, idx) => (
-                        <React.Fragment key={`home-${idx}-${message.ts || ""}`}>
+                      {homeAnswerMessages.map((message, idx) => {
+                        if (message.content === "__THINKING__") {
+                          return (
+                            <div key={`home-${MESSAGE_LAYOUT_VERSION}-${idx}-${message.ts || ""}`} className="xw-home-thinking">
+                              {renderDisplayMessage(message, xiaowanziMentionLinks, openXiaowanziMentionLink)}
+                            </div>
+                          );
+                        }
+                        return (
+                          <React.Fragment key={`home-${MESSAGE_LAYOUT_VERSION}-${idx}-${message.ts || ""}`}>
                           <div className={`xw-home-msg ${message.role === "assistant" ? "ai" : "user"}${shareSelectionMode ? ` share-selecting${selectedMessagesForShare.has(message.ts || "") ? " msg-selected" : ""}` : ""}`}
-                          onClick={() => shareSelectionMode && toggleSelectMsg(message.ts || "")}>
+                          onMouseEnter={() => revealShareButtonForMessage(message)}
+                          onFocus={() => revealShareButtonForMessage(message)}
+                          onClick={() => shareSelectionMode ? toggleSelectMsg(message.ts || "") : revealShareButtonForMessage(message)}>
                           {shareSelectionMode && (
                             <button className={`xw-share-check-btn ${selectedMessagesForShare.has(message.ts || "") ? "checked" : ""}`}
                               type="button" onClick={(e) => { e.stopPropagation(); toggleSelectMsg(message.ts || ""); }}>
                               {selectedMessagesForShare.has(message.ts || "") ? "check" : ""}
                             </button>
                           )}
-                          {renderDisplayMessage(message)}
+                          {renderDisplayMessage(message, xiaowanziMentionLinks, openXiaowanziMentionLink)}
                         </div>
-                        {message.role === "assistant" && !isReplying ? (
-                          <button className="xw-share-btn" type="button" aria-label="分享回答" onClick={(e) => toggleShareMenu(e, message.ts || "")}><span className="ms">share</span></button>
+                        {isShareableAssistantMessage(message) && !isReplying ? (
+                          <button className={`xw-share-btn ${shareRevealMessageId === (message.ts || "") ? "xw-share-visible" : ""}`.trim()} type="button" aria-label="分享回答" onFocus={() => revealShareButtonForMessage(message)} onClick={(e) => toggleShareMenu(e, message.ts || "")}><span className="ms">share</span></button>
                         ) : null}
                         </React.Fragment>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : null}
                 </div>
@@ -2951,22 +3614,23 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
                 return (
                   <div
                     key={`${idx}-${message.ts || ""}`}
-                    className="aip-msg thinking"
+                    className="xw-thinking-row"
                     ref={idx === visibleMessages.length - 1 ? latestMsgRef : null}
-                    data-msg-index={idx}
                   >
-                    <span className="dot" />
-                    <span className="dot" />
-                    <span className="dot" />
-                    <span className="aip-thinking-label">小玩子思考中</span>
+                    <span className="xw-tdot" />
+                    <span className="xw-tdot" />
+                    <span className="xw-tdot" />
+                    <span className="xw-tlabel">小玩子思考中</span>
                   </div>
                 );
               }
               return (
-                <React.Fragment key={`${idx}-${message.ts || ""}`}>
+                <React.Fragment key={`${MESSAGE_LAYOUT_VERSION}-${idx}-${message.ts || ""}`}>
                   <div
                   className={`aip-msg ${message.role === "assistant" ? "ai" : "user"}${shareSelectionMode ? ` share-selecting${selectedMessagesForShare.has(message.ts || "") ? " msg-selected" : ""}` : ""}`}
-                  onClick={() => shareSelectionMode && toggleSelectMsg(message.ts || "")}
+                  onMouseEnter={() => revealShareButtonForMessage(message)}
+                  onFocus={() => revealShareButtonForMessage(message)}
+                  onClick={() => shareSelectionMode ? toggleSelectMsg(message.ts || "") : revealShareButtonForMessage(message)}
                   ref={idx === visibleMessages.length - 1 ? latestMsgRef : null}
                   data-msg-index={idx}
                 >
@@ -2976,15 +3640,15 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
                       {selectedMessagesForShare.has(message.ts || "") ? "check" : ""}
                     </button>
                   )}
-                  {renderDisplayMessage(message)}
+                  {renderDisplayMessage(message, xiaowanziMentionLinks, openXiaowanziMentionLink)}
                   {message.role === "assistant" && isChildBound && activeChild ? (
                     <div style={{ marginTop: 8, fontSize: 11, color: "#94a3b8" }}>
                       根据{activeChild.displayName}档案进行个性化回复
                     </div>
                   ) : null}
                 </div>
-                {message.role === "assistant" && !isReplying ? (
-                  <button className="xw-share-btn" type="button" aria-label="分享回答" onClick={(e) => toggleShareMenu(e, message.ts || "")}><span className="ms">share</span></button>
+                {isShareableAssistantMessage(message) && !isReplying ? (
+                  <button className={`xw-share-btn ${shareRevealMessageId === (message.ts || "") ? "xw-share-visible" : ""}`.trim()} type="button" aria-label="分享回答" onFocus={() => revealShareButtonForMessage(message)} onClick={(e) => toggleShareMenu(e, message.ts || "")}><span className="ms">share</span></button>
                 ) : null}
                 </React.Fragment>
               );
@@ -3173,7 +3837,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
       {/* ── 分享选择模式底部栏 ── */}
       {shareSelectionMode ? (
         <>
-          <div className="xw-share-select-backdrop" onClick={exitShareSelectionMode} />
+          <div className="xw-share-select-backdrop" onClick={dismissShareSelectionBackdropEvent} />
           <div className="xw-share-select-bar">
             <div className="xw-share-select-header">
               <span>选择对话</span>
@@ -3188,13 +3852,9 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
                 </button>
                 <button className="xw-share-channel" type="button" disabled={shareGenerating || selectedMessagesForShare.size === 0} onClick={async () => {
                   if (selectedMessagesForShare.size === 0) return;
-                  setShareCardUrl(null);
-                  setShareGenerating(true);
-                  try {
-                    const sorted = visibleMessages.filter((m) => selectedMessagesForShare.has(m.ts || ""));
-                    const firstUser = sorted.find((m) => m.role === "user");
-                    await generateShareCard(firstUser ?? sorted[0], sorted);
-                  } finally { setShareGenerating(false); }
+                  const sorted = visibleMessages.filter((m) => selectedMessagesForShare.has(m.ts || ""));
+                  const firstUser = sorted.find((m) => m.role === "user");
+                  await generateShareCard(firstUser ?? sorted[0], sorted);
                 }}>
                   <span className="xw-share-ch-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7C34E8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
                   <span>{shareGenerating ? "生成中..." : "生成图片"}</span>
@@ -3215,11 +3875,11 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
       ) : null}
       {/* ── 分享卡片预览弹窗 ── */}
       {shareCardUrl ? (
-        <div className="xw-share-card-overlay" onClick={() => setShareCardUrl(null)}>
+        <div className="xw-share-card-overlay" onClick={clearShareCardUrl}>
           <div className="xw-share-card-dialog" onClick={(e) => e.stopPropagation()}>
             <div className="xw-share-card-head">
               <span>分享卡片预览</span>
-              <button type="button" className="xw-share-card-close" onClick={() => setShareCardUrl(null)}>close</button>
+              <button type="button" className="xw-share-card-close" onClick={clearShareCardUrl}>close</button>
             </div>
             <div className="xw-share-card-body">
               <img src={shareCardUrl} alt="分享卡片" className="xw-share-card-img" />

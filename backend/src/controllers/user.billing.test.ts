@@ -61,14 +61,14 @@ describe("user billing points", () => {
       await controller.register(req, res);
 
       assert.equal(res.statusCode, 201);
-      assert.equal(res.body.user.proPointBalance, 200);
+      assert.equal(res.body.user.proPointBalance, 100);
 
       const saved = await User.findOne({ username: "fresh-points-user" }).lean();
       const { dateKey, monthKey } = currentChinaDateParts();
-      assert.equal(saved?.proPointBalance, 200);
+      assert.equal(saved?.proPointBalance, 100);
       assert.equal(saved?.proFreeGrantDate, dateKey);
       assert.equal(saved?.proFreeGrantMonth, monthKey);
-      assert.equal(saved?.proFreeGrantedThisMonth, 200);
+      assert.equal(saved?.proFreeGrantedThisMonth, 100);
     } finally {
       if (oldPublicRegister === undefined) delete process.env.ALLOW_PUBLIC_REGISTER;
       else process.env.ALLOW_PUBLIC_REGISTER = oldPublicRegister;
@@ -87,9 +87,81 @@ describe("user billing points", () => {
     await controller.meCompat(req, res);
 
     assert.equal(res.statusCode, 200);
-    assert.equal(res.body.proPointBalance, 200);
+    assert.equal(res.body.proPointBalance, 100);
 
     const saved = await User.findById(user._id).lean();
-    assert.equal(saved?.proPointBalance, 200);
+    assert.equal(saved?.proPointBalance, 100);
+  });
+
+  it("lets admins adjust a user's current point balance", async () => {
+    const admin = await User.create({
+      username: "point-admin",
+      password: "hashed",
+      role: "admin",
+    });
+    const user = await User.create({
+      username: "point-target",
+      password: "hashed",
+      proPointBalance: 25,
+    });
+    const req = {
+      user: { id: String(admin._id), role: "admin" },
+      params: { id: String(user._id) },
+      body: { proPointBalance: 360 },
+    } as any;
+    const res = createMockResponse();
+
+    await controller.update(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(Number(res.body.proPointBalance), 360);
+
+    const saved = await User.findById(user._id).lean();
+    assert.equal(saved?.proPointBalance, 360);
+    assert.equal(saved?.changeHistory?.at(-1)?.field, "proPointBalance");
+    assert.equal(saved?.changeHistory?.at(-1)?.oldValue, "25");
+    assert.equal(saved?.changeHistory?.at(-1)?.newValue, "360");
+  });
+
+  it("rejects invalid admin point balance updates", async () => {
+    const admin = await User.create({
+      username: "bad-point-admin",
+      password: "hashed",
+      role: "admin",
+    });
+    const user = await User.create({
+      username: "bad-point-target",
+      password: "hashed",
+      proPointBalance: 25,
+    });
+    const req = {
+      user: { id: String(admin._id), role: "admin" },
+      params: { id: String(user._id) },
+      body: { proPointBalance: -1 },
+    } as any;
+    const res = createMockResponse();
+
+    await controller.update(req, res);
+
+    assert.equal(res.statusCode, 400);
+    assert.match(res.body.message, /点数/);
+    const saved = await User.findById(user._id).lean();
+    assert.equal(saved?.proPointBalance, 25);
+  });
+
+  it("includes point balances in the admin user list", async () => {
+    await User.create({
+      username: "listed-point-user",
+      password: "hashed",
+      proPointBalance: 720,
+    });
+    const req = {} as any;
+    const res = createMockResponse();
+
+    await controller.getAll(req, res);
+
+    assert.equal(res.statusCode, 200);
+    const listed = res.body.find((row: any) => row.username === "listed-point-user");
+    assert.equal(Number(listed.proPointBalance), 720);
   });
 });

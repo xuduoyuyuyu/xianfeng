@@ -3,7 +3,10 @@ import Topic from "../models/Topic";
 import User from "../models/User";
 import { authenticate } from "../middlewares/auth";
 import { requirePro } from "../middlewares/requirePro";
+import GuestAgentChunkModel from "../models/GuestAgentChunk";
+import { retrieveGuestAgentChunks } from "../services/guestAgentService";
 import { generateTopicLayers, validateTopicKeyword } from "../services/topicAiGenerator";
+import type { TopicGuestShareSnippet } from "../services/topicAiGenerator";
 
 // 中文搜索关键词切词：按停用词和标点拆分，提取有意义的短词
 function extractSearchTerms(text: string): string[] {
@@ -53,6 +56,42 @@ function countLayerNodes(layers: any): number {
     count += (layers[key]?.length || 0);
   }
   return count || 20;
+}
+
+function toTopicGuestShareSnippet(chunk: any): TopicGuestShareSnippet {
+  return {
+    sourceTitle: String(chunk?.sourceTitle || "").trim(),
+    locator: String(chunk?.locator || "").trim(),
+    text: String(chunk?.text || "").trim(),
+    url: String(chunk?.url || "").trim(),
+  };
+}
+
+async function retrieveTopicGuestShares(query: string, limit = 8): Promise<TopicGuestShareSnippet[]> {
+  const text = String(query || "").trim();
+  if (!text) return [];
+
+  const terms = extractSearchTerms(text).slice(0, 10);
+  const orFilters = terms.flatMap((term) => [
+    { sourceTitle: { $regex: term, $options: "i" } },
+    { locator: { $regex: term, $options: "i" } },
+    { text: { $regex: term, $options: "i" } },
+    { keywords: { $regex: term, $options: "i" } },
+  ]);
+
+  let chunks: any[] = [];
+  try {
+    chunks = await GuestAgentChunkModel.find(orFilters.length ? { $or: orFilters } : {})
+      .sort({ weight: -1, updatedAt: -1 })
+      .limit(120)
+      .lean();
+  } catch (error) {
+    console.error("retrieveTopicGuestShares query failed:", (error as any)?.message);
+  }
+
+  return retrieveGuestAgentChunks(chunks as any, text, limit)
+    .map(toTopicGuestShareSnippet)
+    .filter((item) => item.text);
 }
 
 // ============================================================
@@ -423,10 +462,15 @@ publicRouter.post("/search-generate", requireProForTopicSubmission, async (req: 
       generatingProgress: { total: 15, done: 0, status: "pending" },
     });
 
+    const guestShareContext = await retrieveTopicGuestShares(
+      [kw, title, subtitle, shortSummary, ...(Array.isArray(tags) ? tags : [])].filter(Boolean).join(" "),
+      10
+    );
+
     // AI 生成五层知识树（快速骨架）
     try {
       const { generateTopicLayers } = await import("../services/topicAiGenerator.js");
-      const layers = await generateTopicLayers({ title, subtitle: topic.subtitle, tags });
+      const layers = await generateTopicLayers({ title, subtitle: topic.subtitle, tags, guestShareContext });
       topic.layers = layers;
       await topic.save();
     } catch (aiErr: any) {
@@ -446,7 +490,7 @@ publicRouter.post("/search-generate", requireProForTopicSubmission, async (req: 
       try {
         const { generateTopicWithDeepContent } = await import("../services/topicAiGenerator.js");
         const deepLayers = await generateTopicWithDeepContent(
-          { title, subtitle: topic.subtitle, tags },
+          { title, subtitle: topic.subtitle, tags, guestShareContext },
           async (done: number, total: number) => {
             // 实时更新进度到数据库
             try {
@@ -527,10 +571,15 @@ publicRouter.post("/:slug/expand", async (req: Request, res: Response) => {
     // 深度模式：基于已有内容继续扩展（每次都追加新内容）
     if (deep && passedContent) {
       const { generateDeepExpandContent } = await import("../services/topicAiGenerator.js");
+      const guestShareContext = await retrieveTopicGuestShares(
+        [topicTitle || topic.title, nodeTitle, passedContent].filter(Boolean).join(" "),
+        8
+      );
       let aiExpand = await generateDeepExpandContent({
         topicTitle: topicTitle || topic.title,
         nodeTitle: nodeTitle,
         existingContent: passedContent,
+        guestShareContext,
       });
       aiExpand = aiExpand.replace(/[（(]全文\d+字[）)]/g, "").trim();
 
@@ -556,10 +605,15 @@ publicRouter.post("/:slug/expand", async (req: Request, res: Response) => {
 
     // 调用 AI 生成
     const { generateExpandContent } = await import("../services/topicAiGenerator.js");
+    const guestShareContext = await retrieveTopicGuestShares(
+      [topicTitle || topic.title, nodeTitle, existingContent].filter(Boolean).join(" "),
+      8
+    );
     let aiResult = await generateExpandContent({
       topicTitle: topicTitle || topic.title,
       nodeTitle: nodeTitle,
       existingSummary: existingContent,
+      guestShareContext,
     });
 
     // 清理 AI 自动添加的字数标注：匹配中文/英文括号 + 全文 + 数字 + 字

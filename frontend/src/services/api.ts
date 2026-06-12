@@ -26,6 +26,7 @@ api.interceptors.request.use(
     const token = isAdminRequest ? (adminToken || userToken) : (userToken || adminToken);
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      (config as any).xfAuthSource = token === adminToken ? 'admin' : 'user';
     }
     return config;
   },
@@ -37,13 +38,18 @@ api.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
     if (error.response?.status === 401) {
-      // 清除所有 token
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      // admin 相关单独保留
-      if (window.location.pathname.startsWith('/admin')) {
+      const authSource = (error.config as any)?.xfAuthSource;
+      const isAdminRoute = window.location.pathname.startsWith('/admin');
+      if (authSource === 'admin') {
         localStorage.removeItem('admin_token');
         localStorage.removeItem('admin_user');
+      }
+      if (authSource === 'user') {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('wel_tok');
+      }
+      if (isAdminRoute) {
         window.location.href = '/admin/login';
       } else {
         // 非 admin 路径：弹窗引导登录，不跳页面

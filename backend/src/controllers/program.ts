@@ -17,6 +17,7 @@ import { createAgentTask } from "../services/agentTaskDispatcher";
 import { createInboxMessage } from "../services/adminInbox";
 
 const execFileAsync = promisify(execFile);
+const PUBLIC_PROGRAM_STATUSES = ["published", "group-only"] as const;
 
 function statusUpdatePayload(status: "draft" | "published" | "group-only") {
   if (status === "published" || status === "group-only") {
@@ -826,6 +827,8 @@ async function applyShowNotesRendering(payload: any, defaultTemplate?: string) {
   let rebuilQuickView = quickView;
   if (!quickView.length && keyMoments.length > 0) {
     rebuilQuickView = keyMoments.map((item: any) => ({
+      startTime: item.time || "",
+      endTime: item.time || "",
       timeRangeLabel: item.time || "",
       summary: item.point || "",
     }));
@@ -840,6 +843,8 @@ async function applyShowNotesRendering(payload: any, defaultTemplate?: string) {
         const seg = transcript[i];
         if (seg?.time && seg?.text) {
           rebuilQuickView.push({
+            startTime: seg.time,
+            endTime: seg.time,
             timeRangeLabel: seg.time,
             summary: truncateByChars(seg.text, 120),
           });
@@ -847,7 +852,7 @@ async function applyShowNotesRendering(payload: any, defaultTemplate?: string) {
       }
     } else if (minutesText) {
       // 连 transcript 都没有，用 summary body 作为一条速览
-      rebuilQuickView = [{ timeRangeLabel: "00:00", summary: truncateByChars(minutesText, 200) }];
+      rebuilQuickView = [{ startTime: "00:00", endTime: "00:00", timeRangeLabel: "00:00", summary: truncateByChars(minutesText, 200) }];
     }
   }
 
@@ -1267,8 +1272,8 @@ export class ProgramController {
     try {
       const id = asText(req.params.id);
       const query = mongoose.Types.ObjectId.isValid(id)
-        ? { _id: id, status: "published" as const }
-        : { programCode: normalizeProgramCode(id), status: "published" as const };
+        ? { _id: id, status: { $in: PUBLIC_PROGRAM_STATUSES } }
+        : { programCode: normalizeProgramCode(id), status: { $in: PUBLIC_PROGRAM_STATUSES } };
       const current = await Program.findOne(query).lean();
       if (!current) {
         res.status(404).json({ message: "节目不存在或未上架" });
@@ -1291,7 +1296,7 @@ export class ProgramController {
           .filter(Boolean)
       );
 
-      const baseFilter: Record<string, any> = { status: "published", _id: { $ne: (current as any)._id } };
+      const baseFilter: Record<string, any> = { status: { $in: PUBLIC_PROGRAM_STATUSES }, _id: { $ne: (current as any)._id } };
       const orFilters: Record<string, any>[] = [];
       if (currentGuestIds.size) {
         orFilters.push({
@@ -1373,7 +1378,7 @@ export class ProgramController {
       const page = Number.isFinite(pageRaw) && pageRaw > 0 ? Math.floor(pageRaw) : 1;
       const pageSize = Number.isFinite(pageSizeRaw) && pageSizeRaw > 0 ? Math.min(100, Math.floor(pageSizeRaw)) : 20;
       const q = asText(req.query.q).toLowerCase();
-      const baseFilter: any = { status: { $in: ["published", "group-only"] } };
+      const baseFilter: any = { status: { $in: PUBLIC_PROGRAM_STATUSES } };
       if (q) {
         const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         const pattern = new RegExp(escaped, "i");
@@ -1436,7 +1441,7 @@ export class ProgramController {
         res.status(404).json({ message: "节目不存在或未上架" });
         return;
       }
-      if (program.status !== "published") {
+      if (!PUBLIC_PROGRAM_STATUSES.includes(program.status as any)) {
         if (!isPreviewCandidate) {
           res.status(404).json({ message: "节目不存在或未上架" });
           return;
@@ -1484,7 +1489,7 @@ export class ProgramController {
       const page = Number.isFinite(pageRaw) && pageRaw > 0 ? Math.floor(pageRaw) : 1;
       const pageSize = Number.isFinite(pageSizeRaw) && pageSizeRaw > 0 ? Math.min(100, Math.floor(pageSizeRaw)) : 20;
       const filter =
-        status === "draft" || status === "published" ? { status } : {};
+        status === "draft" || status === "published" || status === "group-only" ? { status } : {};
 
       const keywordFilter = hasText(search)
         ? {

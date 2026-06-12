@@ -63,6 +63,8 @@ services:
       - TZ=${TZ:-Asia/Shanghai}
       - STORAGE_TYPE=${WEKNORA_STORAGE_TYPE:-local}
       - LOCAL_STORAGE_BASE_DIR=/data/files
+      - SYSTEM_AES_KEY=${WEKNORA_SYSTEM_AES_KEY:-weknora-system-aes-key-32bytes!!}
+      - TENANT_AES_KEY=${WEKNORA_TENANT_AES_KEY:-weknorarag-api-key-secret-secret}
     depends_on:
       weknora-postgres:
         condition: service_healthy
@@ -72,6 +74,21 @@ services:
         condition: service_started
     volumes:
       - weknora_data_files:/data/files
+
+  weknora-ui:
+    image: wechatopenai/weknora-ui:${WEKNORA_VERSION:-latest}
+    container_name: xianfeng_weknora_ui
+    restart: unless-stopped
+    profiles:
+      - weknora
+    ports:
+      - "127.0.0.1:${WEKNORA_UI_PORT:-18081}:80"
+    environment:
+      - APP_HOST=weknora-app
+      - APP_PORT=8080
+      - APP_SCHEME=http
+    depends_on:
+      - weknora-app
 
   weknora-docreader:
     image: wechatopenai/weknora-docreader:${WEKNORA_VERSION:-latest}

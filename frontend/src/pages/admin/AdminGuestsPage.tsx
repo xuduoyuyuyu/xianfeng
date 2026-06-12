@@ -795,12 +795,12 @@ const AdminGuestsPage: React.FC = () => {
                     <td className="px-6 py-4">
                       <div className="flex min-w-0 items-center gap-3">
                         <img
-                          src={item.avatar || "http://xianfeng.xinzhi.info/uploads/images/1779264157086-hgcd24g4.png"}
+                          src={item.avatar || "/assets/wel-avatar/optimized/no-hat.webp"}
                           className="h-10 w-10 shrink-0 rounded-full object-cover"
                           onError={(event) => {
                             const target = event.currentTarget;
                             if (target.src.endsWith("1779264157086-hgcd24g4.png")) return;
-                            target.src = "http://xianfeng.xinzhi.info/uploads/images/1779264157086-hgcd24g4.png";
+                            target.src = "/assets/wel-avatar/optimized/no-hat.webp";
                           }}
                         />
                         <div className="min-w-0">

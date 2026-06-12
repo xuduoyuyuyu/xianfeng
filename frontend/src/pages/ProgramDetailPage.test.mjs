@@ -26,3 +26,10 @@ test("program detail uses the shared guest avatar fallback instead of remote fal
   assert.doesNotMatch(source, /const EXPERT_AVATAR\s*=/, "program detail should not keep a remote expert avatar fallback constant");
   assert.doesNotMatch(source, /1779668991727-vzxkyx0x\.png/, "remote fallback avatar marker should only live in the shared helper");
 });
+
+test("program detail deep dive keeps curated reading and related content adjacent", () => {
+  assert.match(source, /<div className="p-8 pb-8">/, "deep dive content should use one padded body");
+  assert.match(source, /<div className="mb-5">\s*<p className="mb-3 text-\[10px\] font-black uppercase tracking-widest text-gray-400">推荐阅读 Curated Reading<\/p>/, "curated reading should use compact spacing");
+  assert.match(source, /<div className="mb-5 h-px w-full bg-gray-100"><\/div>\s*<div className="mb-6">\s*<p className="mb-3 text-\[10px\] font-black uppercase tracking-widest text-gray-400">相关内容推荐 Related Content<\/p>/, "related content should follow the divider without a large blank band");
+  assert.doesNotMatch(source, /<div className="mb-10">\s*<p className="mb-4 text-\[10px\] font-black uppercase tracking-widest text-gray-400">推荐阅读 Curated Reading<\/p>/, "curated reading should not keep the old tall bottom spacing");
+});

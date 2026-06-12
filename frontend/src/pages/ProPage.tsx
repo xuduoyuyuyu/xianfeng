@@ -206,7 +206,7 @@ const ProPage: React.FC = () => {
               <div className="mt-1 text-xs font-bold text-slate-500">
                 {membership?.isProActive
                   ? `当前为${planLabel((membership?.proPlan as PlanId) || "free")}，对应点数权益已生效。`
-                  : "免费账户每天登录可获取200点数，每日重置，每月上限2000点数"}
+                  : "免费账户每天登录可获取100点数，每日重置，每月上限1000点数"}
               </div>
             </div>
 

@@ -100,7 +100,7 @@
 <div class="fixed top-[-5%] left-[-5%] w-[600px] h-[600px] bg-primary/3 blur-[140px] rounded-full pointer-events-none"></div>
 <div class="fixed bottom-[-5%] right-[-5%] w-[600px] h-[600px] bg-electron-purple/3 blur-[140px] rounded-full pointer-events-none"></div>
 <div class="relative flex flex-col min-h-screen z-10">
-<main class="flex-1 flex flex-col items-center px-6 pt-[58px] pb-20">
+<main class="flex-1 flex flex-col items-center px-4 sm:px-6 pt-[58px] pb-20">
 <div class="text-center mb-12 space-y-4">
 
 <h2 class="text-slate-900 text-5xl font-black tracking-tight">智能教育路径规划</h2>
@@ -108,12 +108,12 @@
 </div>
 
 <div class="w-full max-w-4xl">
-  <div id="quick-filter-wrap" class="relative z-[2147483000] bg-white/60 backdrop-blur-md p-4 rounded-2xl border border-slate-200 mb-3 shadow-sm">
-    <div class="flex items-center justify-center gap-3">
-      <div id="quick-city-popover-wrap" class="relative z-[2147483600]">
-        <button id="quick-city-btn" class="h-11 px-4 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 flex items-center gap-2">
+  <div id="quick-filter-wrap" class="relative z-[2147483000] bg-white/60 backdrop-blur-md p-3 sm:p-4 rounded-2xl border border-slate-200 mb-3 shadow-sm">
+    <div class="flex flex-wrap md:flex-nowrap items-center justify-center gap-2 sm:gap-3">
+      <div id="quick-city-popover-wrap" class="relative z-[2147483600] shrink-0">
+        <button id="quick-city-btn" class="h-11 px-3 sm:px-4 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 flex shrink-0 whitespace-nowrap items-center gap-2">
           <span class="material-symbols-rounded text-base text-primary">location_city</span>
-          <span id="quick-city-label">上海</span>
+          <span id="quick-city-label" class="whitespace-nowrap">上海</span>
           <span class="material-symbols-rounded text-base text-slate-400">expand_more</span>
         </button>
         <div id="quick-city-panel" class="hidden absolute left-0 top-[calc(100%+8px)] z-[2147483647] w-[530px] min-h-[112px] bg-white border border-slate-200 rounded-2xl p-3 shadow-2xl">
@@ -123,12 +123,12 @@
       </div>
       </div>
 
-      <div class="h-6 w-[1px] bg-slate-200 mx-1"></div>
+      <div class="hidden md:block h-6 w-[1px] bg-slate-200 mx-1"></div>
 
-    <div id="quick-district-popover-wrap" class="relative z-[2147483600]">
-      <button id="quick-district-btn" class="h-11 px-4 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 flex items-center gap-2">
+    <div id="quick-district-popover-wrap" class="relative z-[2147483600] shrink-0">
+      <button id="quick-district-btn" class="h-11 px-3 sm:px-4 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 flex shrink-0 whitespace-nowrap items-center gap-2">
         <span class="material-symbols-rounded text-base text-primary">near_me</span>
-        <span id="quick-district-label">闵行区</span>
+        <span id="quick-district-label" class="whitespace-nowrap">闵行区</span>
         <span class="material-symbols-rounded text-base text-slate-400">expand_more</span>
       </button>
       <div id="quick-district-panel" class="hidden absolute left-0 top-[calc(100%+8px)] z-[2147483647] w-[570px] bg-white border border-slate-200 rounded-2xl p-3 shadow-xl">
@@ -136,12 +136,12 @@
       </div>
     </div>
 
-    <div class="h-6 w-[1px] bg-slate-200 mx-1"></div>
+    <div class="hidden md:block h-6 w-[1px] bg-slate-200 mx-1"></div>
 
-    <div id="quick-stage-popover-wrap" class="relative z-[2147483600]">
-      <button id="quick-stage-btn" class="h-11 px-4 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 flex items-center gap-2">
+    <div id="quick-stage-popover-wrap" class="relative z-[2147483600] shrink-0">
+      <button id="quick-stage-btn" class="h-11 px-3 sm:px-4 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 flex shrink-0 whitespace-nowrap items-center gap-2">
         <span class="material-symbols-rounded text-base text-primary">school</span>
-        <span id="quick-stage-label">小学 · 五年级</span>
+        <span id="quick-stage-label" class="whitespace-nowrap">小学 · 五年级</span>
         <span class="material-symbols-rounded text-base text-slate-400">expand_more</span>
       </button>
       <div id="quick-stage-panel" class="hidden absolute left-0 top-[calc(100%+8px)] z-[2147483647] w-[460px] min-h-[96px] bg-white border border-slate-200 rounded-2xl p-3 shadow-xl">
@@ -150,12 +150,12 @@
       </div>
     </div>
 
-    <div class="h-6 w-[1px] bg-slate-200 mx-1"></div>
+    <div class="hidden md:block h-6 w-[1px] bg-slate-200 mx-1"></div>
 
-    <div id="quick-birthdate-popover-wrap" class="relative z-[2147483600]">
-      <button id="quick-birthdate-btn" class="h-11 px-4 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 flex items-center gap-2">
+    <div id="quick-birthdate-popover-wrap" class="relative z-[2147483600] shrink-0">
+      <button id="quick-birthdate-btn" class="h-11 px-3 sm:px-4 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 flex shrink-0 whitespace-nowrap items-center gap-2">
         <span class="material-symbols-rounded text-base text-primary">cake</span>
-        <span id="quick-birthdate-label">出生日期</span>
+        <span id="quick-birthdate-label" class="whitespace-nowrap">出生日期</span>
         <span class="material-symbols-rounded text-base text-slate-400">expand_more</span>
       </button>
       <div id="quick-birthdate-panel" class="hidden absolute left-0 top-[calc(100%+8px)] z-[2147483647] w-[300px] bg-white border border-slate-200 rounded-2xl p-3 shadow-xl">
@@ -166,12 +166,12 @@
       </div>
     </div>
 
-    <div class="h-6 w-[1px] bg-slate-200 mx-1"></div>
+    <div class="hidden md:block h-6 w-[1px] bg-slate-200 mx-1"></div>
 
-    <div id="quick-gender-popover-wrap" class="relative z-[2147483600]">
-      <button id="quick-gender-btn" class="h-11 px-4 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 flex items-center gap-2">
+    <div id="quick-gender-popover-wrap" class="relative z-[2147483600] shrink-0">
+      <button id="quick-gender-btn" class="h-11 px-3 sm:px-4 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 flex shrink-0 whitespace-nowrap items-center gap-2">
         <span class="material-symbols-rounded text-base text-primary">person</span>
-        <span id="quick-gender-label">男孩</span>
+        <span id="quick-gender-label" class="whitespace-nowrap">男孩</span>
         <span class="material-symbols-rounded text-base text-slate-400">expand_more</span>
       </button>
       <div id="quick-gender-panel" class="hidden absolute left-0 top-[calc(100%+8px)] z-[2147483647] w-[200px] bg-white border border-slate-200 rounded-2xl p-3 shadow-xl">
@@ -181,10 +181,10 @@
     </div>
   </div>
 
-  <div class="w-full max-w-4xl mb-3 pl-5">
-    <div class="flex items-center justify-between">
-      <div class="text-xs text-slate-500 pr-1 whitespace-nowrap -mt-5" id="quick-filter-summary-original">已按 上海·闵行区·小学五年级·男孩 建立个性化规划框架</div>
-      <button id="transfer-toggle" class="text-primary text-xs font-normal cursor-pointer hover:underline h-[44px] flex items-center -mt-5 mr-5" onclick="toggleTransfer()">
+  <div class="w-full max-w-4xl mb-3 px-1 sm:pl-5">
+    <div class="flex items-center justify-between gap-3">
+      <div class="min-w-0 truncate text-xs text-slate-500 pr-1" id="quick-filter-summary-original">已按 上海·闵行区·小学五年级·男孩 建立个性化规划框架</div>
+      <button id="transfer-toggle" class="shrink-0 text-primary text-xs font-normal cursor-pointer hover:underline h-[32px] flex items-center mr-1 sm:mr-5" onclick="toggleTransfer()">
         有转学计划
       </button>
     </div>
@@ -1032,6 +1032,8 @@ function getWelUserData() {
     }
   });
   
+  const ACTIVE_POPOVER_Z_INDEX = '2147483647';
+
   function setupPopover(wrapId, triggerId, panelId, canClose){
     const wrap = $(wrapId);
     const trigger = $(triggerId);
@@ -1041,6 +1043,10 @@ function getWelUserData() {
     const canCloseNow = () => (typeof canClose === 'function' ? !!canClose() : true);
     const open = () => {
       clearTimeout(closeTimer);
+      document.querySelectorAll('[id$="-popover-wrap"]').forEach((node) => {
+        if (node !== wrap) node.style.zIndex = '';
+      });
+      wrap.style.zIndex = ACTIVE_POPOVER_Z_INDEX;
       panel.classList.remove('hidden');
       trigger.classList.add('ring-2', 'ring-primary/15');
     };
@@ -1051,6 +1057,7 @@ function getWelUserData() {
         if (!canCloseNow()) return;
         panel.classList.add('hidden');
         trigger.classList.remove('ring-2', 'ring-primary/15');
+        wrap.style.zIndex = '';
       }, delay);
     };
     wrap.addEventListener('mouseenter', open);

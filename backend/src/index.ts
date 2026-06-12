@@ -34,6 +34,7 @@ import { UserController } from "./controllers/user";
 import { authenticate } from "./middlewares/auth";
 import { requireAdmin } from "./middlewares/requireAdmin";
 import { startAgentTaskDispatcher } from "./services/agentTaskDispatcher";
+import { startMemoryScheduler } from "./services/memoryScheduler";
 
 dotenv.config();
 
@@ -190,5 +191,7 @@ app.listen(PORT, () => {
 startAgentTaskDispatcher().catch((error) => {
   console.error("Failed to start agent task dispatcher:", error);
 });
+
+startMemoryScheduler();
 
 export default app;

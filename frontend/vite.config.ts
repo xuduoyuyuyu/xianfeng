@@ -1,11 +1,18 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import { resolve } from "path";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   build: {
     modulePreload: false,
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, "index.html"),
+        xiaowanzi: resolve(__dirname, "index-xiaowanzi.html"),
+      },
+    },
   },
   server: {
     host: "127.0.0.1",
@@ -32,11 +39,11 @@ export default defineConfig({
         secure: false,
       },
       "/api": {
-        target: "http://127.0.0.1:80",
+        target: "http://127.0.0.1:3001",
         changeOrigin: true,
       },
       "/uploads": {
-        target: "http://127.0.0.1:80",
+        target: "http://127.0.0.1:3001",
         changeOrigin: true,
       },
     },

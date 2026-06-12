@@ -10,6 +10,7 @@ import Topic from "../models/Topic";
 import Book from "../models/Book";
 import LearningMaterial from "../models/LearningMaterial";
 import { buildRagContext } from "../services/ragContextService";
+import { buildXiaowanziContextPayload, type XiaowanziSiteCard } from "../services/xiaowanziContextService";
 
 const router = express.Router();
 const FRONTEND_BOT_ID = "xiaowanzi_debug_bot";
@@ -44,9 +45,52 @@ function compactText(value: any, limit = 140): string {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, limit);
 }
 
-async function buildSiteContext(content: string): Promise<string> {
+function getRecordId(item: any): string {
+  return String(item?._id || item?.id || "").trim();
+}
+
+function buildProgramHref(item: any): string {
+  const routeId = String(item?.programCode || getRecordId(item)).trim();
+  return routeId ? `/programs/${encodeURIComponent(routeId)}` : "/programs/list";
+}
+
+function buildGuestHref(item: any): string {
+  const id = getRecordId(item);
+  return id ? `/experts/${encodeURIComponent(id)}` : "/experts";
+}
+
+function buildTopicHref(item: any): string {
+  const slug = String(item?.slug || getRecordId(item)).trim();
+  return slug ? `/topics/${encodeURIComponent(slug)}` : "/topics";
+}
+
+function buildBookHref(_item: any): string {
+  return "/reading";
+}
+
+function buildMaterialHref(_item: any): string {
+  return "/materials";
+}
+
+function buildSiteReferencePolicy(hasSiteContext: boolean): string {
+  if (hasSiteContext) {
+    return [
+      "[站内引用边界]",
+      "本轮提供了已命中的站内节目、请教一下、资料、书单或嘉宾链接。只有这些明确列出的条目才可以作为站内推荐。",
+      "推荐时必须列出下方条目的标题和链接；不要引导用户去搜索关键词，不要使用不确定的站内推荐话术。",
+    ].join("\n");
+  }
+  return [
+    "[站内引用边界]",
+    "本轮没有提供任何已命中的站内节目、请教一下、资料、书单或嘉宾链接。",
+    "不要说“家长先疯节目里也有聊过”、不要说“站内有相关专题”、不要暗示平台已有对应内容，也不要引导用户去搜索关键词。",
+    "可以直接给通用建议；如果需要说明依据，只能说本轮未检索到可引用的站内内容。",
+  ].join("\n");
+}
+
+async function buildSiteCards(content: string): Promise<XiaowanziSiteCard[]> {
   const terms = extractSearchTerms(content);
-  if (!terms.length) return "";
+  if (!terms.length) return [];
   const regex = new RegExp(terms.map(escapeRegex).join("|"), "i");
   const [programs, guests, topics, books, materials] = await Promise.all([
     Program.find({
@@ -75,7 +119,7 @@ async function buildSiteContext(content: string): Promise<string> {
       status: "published",
       $or: [{ title: regex }, { subtitle: regex }, { description: regex }, { shortSummary: regex }, { tags: regex }],
     })
-      .select({ title: 1, subtitle: 1, shortSummary: 1, tags: 1, updatedAt: 1 })
+      .select({ title: 1, slug: 1, subtitle: 1, shortSummary: 1, tags: 1, updatedAt: 1 })
       .sort({ updatedAt: -1 })
       .limit(3)
       .lean(),
@@ -97,24 +141,53 @@ async function buildSiteContext(content: string): Promise<string> {
       .lean(),
   ]);
 
-  const lines: string[] = [];
-  programs.forEach((item: any, index) => {
-    lines.push(`节目${index + 1}: ${compactText(item.title)} - ${compactText(item.description || item.summary?.body)}`);
+  const cards: XiaowanziSiteCard[] = [];
+  programs.forEach((item: any) => {
+    cards.push({
+      type: "program",
+      typeLabel: "节目",
+      title: compactText(item.title, 80),
+      summary: compactText(item.description || item.summary?.body),
+      href: buildProgramHref(item),
+    });
   });
-  guests.forEach((item: any, index) => {
-    lines.push(`嘉宾${index + 1}: ${compactText([item.name, item.title].filter(Boolean).join(" "))} - ${compactText(item.bio || [...(item.mainAreas || []), ...(item.keywords || [])].join("、"))}`);
+  guests.forEach((item: any) => {
+    cards.push({
+      type: "guest",
+      typeLabel: "嘉宾",
+      title: compactText([item.name, item.title].filter(Boolean).join(" "), 80),
+      summary: compactText(item.bio || [...(item.mainAreas || []), ...(item.keywords || [])].join("、")),
+      href: buildGuestHref(item),
+    });
   });
-  topics.forEach((item: any, index) => {
-    lines.push(`话题${index + 1}: ${compactText(item.title)} - ${compactText(item.shortSummary || item.description || item.subtitle)}`);
+  topics.forEach((item: any) => {
+    cards.push({
+      type: "topic",
+      typeLabel: "请教一下",
+      title: compactText(item.title, 80),
+      summary: compactText(item.shortSummary || item.description || item.subtitle),
+      href: buildTopicHref(item),
+    });
   });
-  books.forEach((item: any, index) => {
-    lines.push(`书单${index + 1}: ${compactText(item.title)} - ${compactText([item.author, item.topic, item.grade, item.recommendedGuest].filter(Boolean).join(" / "))}`);
+  books.forEach((item: any) => {
+    cards.push({
+      type: "book",
+      typeLabel: "书单",
+      title: compactText(item.title, 80),
+      summary: compactText([item.author, item.topic, item.grade, item.recommendedGuest].filter(Boolean).join(" / ")),
+      href: buildBookHref(item),
+    });
   });
-  materials.forEach((item: any, index) => {
-    lines.push(`资料${index + 1}: ${compactText(item.title)} - ${compactText(item.description || item.category)}`);
+  materials.forEach((item: any) => {
+    cards.push({
+      type: "material",
+      typeLabel: "资料",
+      title: compactText(item.title, 80),
+      summary: compactText(item.description || item.category),
+      href: buildMaterialHref(item),
+    });
   });
-  if (!lines.length) return "";
-  return `[站内近似关联内容]\n以下内容是用户问题关键词在站内的近似匹配结果（非精确命中），仅供参考。请在回答时注明"平台搜索发现以下相关内容，但不能确认是否为该期节目"，不要编造不存在的内容作为节目介绍。\n${lines.slice(0, 12).join("\n")}`;
+  return cards;
 }
 
 function startBot(req: express.Request, res: express.Response): void {
@@ -215,11 +288,26 @@ function sendBotMessage(req: express.Request, res: express.Response): void {
         .filter((item: any) => item.role === "user" || item.role === "assistant")
         .map((item: any) => ({ role: item.role, content: String(item.content || "") }))
         .filter((item: any) => item.content);
-      const siteContext = isFrontendBot(botId) ? await buildSiteContext(content).catch(() => "") : "";
+      const query = extractUserQuestion(content);
+      const siteCards = isFrontendBot(botId) ? await buildSiteCards(content).catch(() => []) : [];
+      const siteContext = siteCards.length ? "has_site_cards" : "";
       const rag = isFrontendBot(botId)
-        ? await buildRagContext({ routeKey: "xiaowanzi", query: extractUserQuestion(content), localContext: siteContext })
+        ? await buildRagContext({ routeKey: "xiaowanzi", query, localContext: "" })
         : { promptBlock: "", status: "empty_query", provider: "none", citations: [] };
-      const effectiveContent = rag.promptBlock ? `${rag.promptBlock}\n\n${content}` : content;
+      const xiaowanziContext = isFrontendBot(botId)
+        ? buildXiaowanziContextPayload({
+            query,
+            siteCards,
+            rag: {
+              status: rag.status,
+              provider: rag.provider,
+              citationCount: rag.citations.length,
+            },
+            localPromptBlock: rag.promptBlock,
+          })
+        : { trace: [], cards: [], promptBlock: "" };
+      const siteReferencePolicy = isFrontendBot(botId) ? buildSiteReferencePolicy(Boolean(siteContext)) : "";
+      const effectiveContent = [siteReferencePolicy, xiaowanziContext.promptBlock, content].filter(Boolean).join("\n\n");
       const messages = [
         ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
         ...recentHistory,
@@ -246,6 +334,9 @@ function sendBotMessage(req: express.Request, res: express.Response): void {
         res.setHeader("Cache-Control", "no-cache, no-transform");
         res.setHeader("Connection", "keep-alive");
         res.flushHeaders?.();
+        if (isFrontendBot(botId)) {
+          writeSse(res, "context", xiaowanziContext);
+        }
         if (!upstream.ok || !upstream.body) {
           const data = await upstream.json().catch(() => ({}));
           throw new Error(`上游调用失败(${provider}/${modelName}): ${upstream.status} ${data?.error?.message || data?.message || "unknown"}`);

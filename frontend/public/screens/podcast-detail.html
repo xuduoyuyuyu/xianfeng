@@ -12,9 +12,14 @@
             --flat-border: rgba(17, 10, 8, 0.1);
             --flat-shadow: 0 8px 24px rgba(17, 10, 8, 0.06);
         }
+        html {
+            background-color: #fdfbf9;
+            overscroll-behavior-y: none;
+        }
         body {
             font-family: 'Noto Sans SC', 'Plus Jakarta Sans', sans-serif;
             background-color: #fdfbf9;
+            overscroll-behavior-y: none;
             position: relative;
         }
         body::before {
@@ -343,7 +348,8 @@
             }
             #mindmap-main-container svg {
                 width: 100% !important;
-                min-height: 420px;
+                height: 100% !important;
+                min-height: 0;
                 overflow: hidden !important;
             }
         }
@@ -667,8 +673,7 @@
 <p id="program-description" class="hidden text-lg text-white/80 max-w-3xl leading-relaxed mb-10">加载中…</p>
 <div id="hero-meta-row" class="mb-14 flex w-full max-w-4xl items-center justify-between gap-4 md:mb-16">
 <div class="flex min-w-0 items-center gap-3">
-<span id="program-episode-badge" class="bg-primary px-4 py-1 rounded-2xl text-[11px] font-black tracking-[0.2em] text-white">—</span>
-<span id="program-meta" class="truncate text-white/70 text-sm font-medium">—</span>
+<span id="program-meta" class="min-w-0 truncate text-white/70 text-sm font-medium">—</span>
 </div>
 <div id="hero-action-group" class="flex items-center gap-3">
 <button id="hero-favorite-btn" type="button" class="shrink-0 w-14 h-14 rounded-full border border-white/40 bg-white/[0.12] backdrop-blur-md text-white hover:bg-white/[0.22] hover:-translate-y-0.5 transition-all shadow-[0_8px_18px_rgba(17,10,8,0.18)] flex items-center justify-center" aria-label="收藏节目">
@@ -755,7 +760,7 @@
 </button>
 </div>
 </div>
-<div id="quickview-panel">
+<div id="quickview-panel" class="hidden">
 <div id="quickview-list" class="space-y-4">
 <div class="py-3 text-sm text-stone-500">解析完成后将显示分段速览。</div>
 </div>
@@ -763,8 +768,8 @@
 <div id="transcript-panel" class="hidden">
 <div id="transcript-list" class="space-y-4 w-full"></div>
 </div>
-<div id="mindmap-panel" class="hidden">
-<div id="mindmap-main-container" class="w-full" style="min-height:420px;width:100%;overflow:hidden;">
+<div id="mindmap-panel">
+<div id="mindmap-main-container" class="w-full" style="min-height:220px;width:100%;overflow:hidden;display:flex;align-items:center;justify-content:center;">
 <div class="flex items-center justify-center py-16 text-sm text-stone-400">加载脉络图...</div>
 </div>
 </div></section>
@@ -794,27 +799,27 @@
 <div id="deep-dive-sticky-trigger" class="h-0"></div>
 <div id="deep-dive-sticky-wrap" class="lg:sticky lg:top-24 lg:self-start">
 <section class="bg-white/95 rounded-3xl border border-gray-200 shadow-sm overflow-hidden lg:max-h-[calc(100vh-13rem)] lg:overflow-y-auto">
-<div class="p-8 pb-4">
+<div class="p-8 pb-8">
 <div class="flex items-center gap-3 mb-8">
 <span class="material-symbols-outlined text-primary text-xl">insights</span>
 <h3 id="deep-dive-title" class="text-sm font-black tracking-tight text-on-surface uppercase">—</h3>
 </div>
-<div class="mb-10">
-<p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">推荐阅读 Curated Reading</p>
-<div id="curated-reading-list" class="space-y-4">
+<div class="mb-5">
+<p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">推荐阅读 Curated Reading</p>
+<div id="curated-reading-list" class="space-y-3">
 <div class="group cursor-pointer">
 
 </div>
 </div>
 </div>
-</div>
-<div class="h-px bg-gray-100 w-full mb-8"></div>
-<div class="px-8 pb-8">
-<p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">相关内容推荐 Related Content</p>
-<div id="related-programs-list" class="space-y-6">
-<div class="group cursor-pointer pb-6 border-b border-gray-50 last:border-0">
-<span class="sidebar-episode-num text-xs mb-1.5 block">EP. 41</span>
+<div class="h-px bg-gray-100 w-full mb-5"></div>
+<div>
+<p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">相关内容推荐 Related Content</p>
+<div id="related-programs-list" class="space-y-0">
+<div class="group cursor-pointer py-3 border-b border-gray-50 last:border-0">
+<span class="sidebar-episode-num text-xs mb-0 leading-none block">EP.41</span>
 
+</div>
 </div>
 </div>
 </div>
@@ -907,7 +912,6 @@
 
 <script>
 (function () {
-  const FALLBACK_COVER = "http://xianfeng.xinzhi.info/uploads/images/1779669071894-42qbgvdv.png";
   const FALLBACK_AVATAR = "/assets/wel-avatar/optimized/no-hat.webp";
   const FALLBACK_AVATAR_MARKERS = [
     "/assets/wel-avatar/no-hat.png",
@@ -1444,20 +1448,53 @@
       .slice(0, 4);
   }
 
+  function formatRelatedEpisodeCode(value, fallbackIndex) {
+    const raw = String(value || "").trim();
+    const fallback = String((Number(fallbackIndex) || 0) + 1).padStart(2, "0");
+    const code = (raw || fallback).replace(/^EP[\.\s-]*/i, "");
+    return code.toUpperCase();
+  }
+
   function renderRelated(program, programs) {
     const list = document.getElementById("related-programs-list");
-    const others = buildDictionaryRelatedPrograms(program, programs);
+    const currentId = String(program && program._id || "");
+    const directRelated = Array.isArray(programs)
+      ? programs.filter(function (item) { return item && String(item._id || "") !== currentId; }).slice(0, 4)
+      : [];
+    const others = directRelated.length ? directRelated : buildDictionaryRelatedPrograms(program, programs);
     if (!others.length) {
       list.innerHTML = '<div class="rounded-2xl border border-dashed border-stone-200 bg-stone-50 px-4 py-5 text-sm leading-6 text-stone-500">当前词典尚未为这期节目聚合出相关节目，等更多节目共现后会自动出现。</div>';
       return;
     }
     list.innerHTML = others.map(function (item, index) {
       const routeId = item.programCode || item._id;
-      return '<a class="group block cursor-pointer pb-6 border-b border-gray-50 last:border-0" href="/programs/' + routeId + '">' +
-        '<span class="sidebar-episode-num text-xs mb-1.5 block">EP. ' + String(item.programCode || String(index + 1).padStart(2, "0")).toUpperCase() + "</span>" +
-        '<h4 class="text-[13px] font-bold text-on-surface group-hover:text-primary transition-colors leading-tight mb-2">' + (item.title || "") + "</h4>" +
-        '<p class="text-[11px] text-on-surface-variant/70 leading-relaxed">' + (item.description || "") + "</p></a>";
+      return '<a class="group block cursor-pointer py-3 border-b border-gray-50 last:border-0" href="#" data-program-route="' + escapeHtml(routeId) + '">' +
+        '<span class="sidebar-episode-num text-xs mb-0 leading-none block">EP.' + formatRelatedEpisodeCode(item.programCode, index) + "</span>" +
+        '<h4 class="mt-0 text-xs font-bold text-on-surface group-hover:text-primary transition-colors leading-tight break-words">' + escapeHtml(item.title || "") + "</h4></a>";
     }).join("");
+    Array.prototype.forEach.call(list.querySelectorAll("[data-program-route]"), function (link) {
+      link.addEventListener("click", function (event) {
+        event.preventDefault();
+        const routeId = link.getAttribute("data-program-route") || "";
+        navigateProgramDetail(routeId);
+      });
+    });
+  }
+
+  async function fetchRelatedPrograms(program) {
+    const relatedId = String((program && (program.programCode || program._id)) || getIdFromPath() || "");
+    if (!relatedId) return [];
+    try {
+      const response = await fetch("/api/programs/" + encodeURIComponent(relatedId) + "/related");
+      if (!response.ok) return [];
+      const raw = await response.json();
+      return Array.isArray(raw)
+        ? raw
+        : (Array.isArray(raw.recommendedPrograms) ? raw.recommendedPrograms : []);
+    } catch (error) {
+      console.warn("Related programs load failed", error);
+      return [];
+    }
   }
 
   function renderContentPack(program, transcript) {
@@ -1501,9 +1538,9 @@
 
   function applyProgram(program, programs) {
     playerState.currentProgram = program;
-    const cover = program.coverImage || FALLBACK_COVER;
+    const cover = program.coverImage || "";
     document.querySelector(".duotone-hero").style.setProperty("--hero-cover", 'url("' + cover + '")');
-    document.getElementById("program-cover-image").src = cover;
+    if (cover) { document.getElementById("program-cover-image").src = cover; } else { document.getElementById("program-cover-image").style.display = "none"; }
     document.getElementById("player-cover-image").src = cover;
     document.getElementById("program-title").innerHTML = (program.title || "").replace(/\n/g, "<br/>");
     document.getElementById("player-title").textContent = program.title || "";
@@ -1516,7 +1553,6 @@
     };
     const codeLabelRaw = String(program.programCode || "").toUpperCase();
     const codeLabel = codeLabelRaw.replace(/^EP[\.\s-]*/i, "");
-    document.getElementById("program-episode-badge").textContent = codeLabel ? ("EPISODE " + codeLabel) : (episode.title ? "EPISODE 01" : "EPISODE --");
     document.getElementById("program-meta").textContent = (episode.duration || "45 分钟") + " • " + formatDate(program.publishedAt || program.createdAt) + " 发布";
     document.getElementById("player-episode-label").textContent = codeLabel ? ("EP. " + codeLabel) : (episode.title ? "EP. 01" : "EP. --");
     document.getElementById("player-subtitle").textContent = episode.title || "暂无音频";
@@ -1843,6 +1879,20 @@
 
   function goToProgramList() {
     const target = "/programs/list";
+    try {
+      if (window.top && window.top !== window) {
+        window.top.location.href = target;
+        return;
+      }
+    } catch (_error) {}
+    window.location.href = target;
+  }
+
+  function navigateProgramDetail(routeId) {
+    const id = String(routeId || "").trim();
+    if (!id) return;
+    const suffix = new URLSearchParams(window.location.search).get("xw_layer") === "1" ? "?xw_layer=1" : "";
+    const target = "/programs/" + encodeURIComponent(id) + suffix;
     try {
       if (window.top && window.top !== window) {
         window.top.location.href = target;
@@ -2360,6 +2410,8 @@
       }
       if (!program) return;
       applyProgram(program, lookupPrograms);
+      const relatedPrograms = await fetchRelatedPrograms(program);
+      if (relatedPrograms.length) renderRelated(program, relatedPrograms);
     } catch (error) {
       console.warn("Program detail load failed", error);
     }
@@ -2388,6 +2440,134 @@
   }
 
   var mindMapDataCache = null;
+  function waitForMindMapAutoLoader() {
+    return new Promise(function(resolve, reject) {
+      var attempts = 0;
+      var timer = setInterval(function() {
+        var api = window.markmap || {};
+        if (api.autoLoader) {
+          clearInterval(timer);
+          resolve(api);
+          return;
+        }
+        attempts++;
+        if (attempts > 60) {
+          clearInterval(timer);
+          reject(new Error('markmap renderer unavailable'));
+        }
+      }, 100);
+    });
+  }
+
+  function ensureInteractiveMarkMapApi() {
+    return waitForMindMapAutoLoader()
+      .then(function(markmapApi) {
+        if (markmapApi.Transformer && markmapApi.Markmap) return markmapApi;
+        var dummy = document.createElement('div');
+        dummy.style.display = 'none';
+        document.body.appendChild(dummy);
+        return markmapApi.autoLoader.renderAllUnder(dummy).then(function() {
+          dummy.remove();
+          return new Promise(function(resolve, reject) {
+            var attempts = 0;
+            var timer = setInterval(function() {
+              var api = window.markmap || {};
+              if (api.Transformer && api.Markmap) {
+                clearInterval(timer);
+                resolve(api);
+                return;
+              }
+              attempts++;
+              if (attempts > 60) {
+                clearInterval(timer);
+                reject(new Error('markmap renderer unavailable'));
+              }
+            }, 100);
+          });
+        });
+      });
+  }
+
+  function sizeMindMapSvg(svg, height) {
+    if (!svg) return;
+    var canvasHeight = Math.max(220, Number(height) || 220);
+    svg.removeAttribute('width');
+    svg.removeAttribute('height');
+    svg.style.width = '100%';
+    svg.style.height = canvasHeight + 'px';
+    svg.style.minHeight = '0';
+    svg.style.display = 'block';
+    svg.style.overflow = 'hidden';
+  }
+
+  function syncMindMapHeight(container, wrapper, svg) {
+    if (!container || !wrapper || !svg) return;
+    var graph = svg.querySelector('g.markmap') || svg.querySelector('g.markmap-zoom') || svg.querySelector('g');
+    var rect = graph && graph.getBoundingClientRect ? graph.getBoundingClientRect() : null;
+    var renderedHeight = rect && Number.isFinite(rect.height) ? rect.height : 0;
+    if (renderedHeight <= 0) return;
+    var nextHeight = Math.max(220, Math.ceil(renderedHeight + 28));
+    if (container.dataset.mindmapHeight === String(nextHeight)) return;
+    container.dataset.mindmapHeight = String(nextHeight);
+    container.style.height = nextHeight + 'px';
+    container.style.minHeight = '0';
+    wrapper.style.height = nextHeight + 'px';
+    wrapper.style.minHeight = '0';
+    sizeMindMapSvg(svg, nextHeight);
+  }
+
+  function fitMindMapToFinalBounds(markmap, container, wrapper, svg) {
+    if (!markmap || !container || !wrapper || !svg) return;
+    markmap.fit();
+    requestAnimationFrame(function() {
+      try {
+        syncMindMapHeight(container, wrapper, svg);
+        requestAnimationFrame(function() {
+          markmap.fit();
+          syncMindMapHeight(container, wrapper, svg);
+        });
+      } catch (_) {}
+    });
+  }
+
+  function renderInteractiveMarkMap(container, markdown) {
+    return ensureInteractiveMarkMapApi().then(function(markmapApi) {
+      container.innerHTML = '';
+      var wrapper = document.createElement('div');
+      wrapper.className = 'markmap';
+      wrapper.style.width = '100%';
+      wrapper.style.height = '220px';
+      wrapper.style.minHeight = '0';
+      var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      wrapper.appendChild(svg);
+      container.appendChild(wrapper);
+
+      var transformer = new markmapApi.Transformer();
+      var result = transformer.transform(markdown);
+      var markmap = markmapApi.Markmap.create(svg, {
+        autoFit: true,
+        duration: 300,
+        maxWidth: 260,
+        initialExpandLevel: 3,
+      });
+      markmap.setData(result.root);
+      sizeMindMapSvg(svg, 220);
+      fitMindMapToFinalBounds(markmap, container, wrapper, svg);
+      var heightObserver = new MutationObserver(function() {
+        requestAnimationFrame(function() {
+          syncMindMapHeight(container, wrapper, svg);
+        });
+      });
+      heightObserver.observe(svg, { childList: true, subtree: true, attributes: true });
+      requestAnimationFrame(function() {
+        try {
+          fitMindMapToFinalBounds(markmap, container, wrapper, svg);
+        } catch (_) {}
+      });
+      return markmap;
+    });
+  }
+
   function renderMindMapPanel() {
     var container = document.getElementById('mindmap-main-container');
     if (!container) return;
@@ -2402,48 +2582,11 @@
 
     try {
       var markdown = buildMindMapMarkdown(mindMapDataCache.root);
-      var wrapper = document.createElement('div');
-      wrapper.className = 'markmap';
-      wrapper.innerHTML = '<pre class="markmap-code" style="display:none">' + markdown.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>';
-      container.appendChild(wrapper);
-
-      // 等待 markmap-autoloader 触发
-      setTimeout(function() {
-        if (window.markmap && window.markmap.autoLoader) {
-          window.markmap.autoLoader.renderAll();
-        }
-        // 轮询等待 SVG 渲染完成，然后强制 fit
-        var attempts = 0;
-        var fitInterval = setInterval(function() {
-          var svg = container.querySelector('svg');
-          if (svg) {
-            clearInterval(fitInterval);
-            svg.removeAttribute('width');
-            svg.removeAttribute('height');
-            svg.style.width = '100%';
-            svg.style.minHeight = '420px';
-            svg.style.display = 'block';
-            svg.style.overflow = 'hidden';
-            var g = svg.querySelector('g');
-            if (g) {
-              var cw = container.clientWidth || 800;
-              var svgG = svg.querySelector('g.markmap-zoom');
-              if (svgG) {
-                var bbox = svgG.getBBox();
-                if (bbox && bbox.width > 0) {
-                  var pad = 20;
-                  var vw = Math.max(bbox.width + pad * 2, cw);
-                  var vh = Math.max(bbox.height + pad * 2, 420);
-                  svg.setAttribute('viewBox', (-pad) + ' ' + (-pad) + ' ' + vw + ' ' + vh);
-                  g.setAttribute('transform', 'translate(' + pad + ',' + pad + ')');
-                }
-              }
-            }
-          }
-          attempts++;
-          if (attempts > 20) clearInterval(fitInterval);
-        }, 150);
-      }, 100);
+      renderInteractiveMarkMap(container, markdown)
+        .catch(function(error) {
+          console.warn('MindMap render failed', error);
+          container.innerHTML = '<div class="flex items-center justify-center py-16 text-sm text-stone-400">脉络图渲染失败</div>';
+        });
     } catch(e) {
       console.warn('MindMap render failed', e);
       container.innerHTML = '<div class="flex items-center justify-center py-16 text-sm text-stone-400">脉络图渲染失败</div>';
@@ -2453,9 +2596,7 @@
     var mindMap = deepDive && deepDive.mindMap;
     if (!mindMap || !mindMap.root || (!mindMap.root.title && (!mindMap.root.children || !mindMap.root.children.length))) return;
     mindMapDataCache = mindMap;
-    if (detailViewState.mode === "mindmap") {
-      renderMindMapPanel();
-    }
+    renderMindMapPanel();
   }
 
   load();

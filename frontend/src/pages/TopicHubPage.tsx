@@ -1,14 +1,16 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 
 import Pagination from "../components/Pagination";
 import type { RootState } from "../store";
+import { logout } from "../store/userSlice";
 import { getTopicUserId } from "../utils/topicUserId";
 import { getAdminOrUserToken, hasAdminOrUserSession, isProRequiredPayload, showProUpgradeFromPayload } from "../utils/proGate";
 import { useIsMobilePager } from "../hooks/useIsMobilePager";
 import { useXiaowanziEmbeddedLayer } from "../utils/xiaowanziLayer";
+import { extractTopicSubmitError } from "../utils/topicSubmitError";
 
 // ===== 本地暂存话题保护机制 =====
 // 解决：创建话题后刷新页面，话题丢失的问题
@@ -86,6 +88,7 @@ function mergeBySlug<T extends { slug: string }>(current: T[], next: T[]) {
 
 const TopicHubPage: React.FC = () => {
   // 获取登录用户的孩子年级
+  const dispatch = useDispatch();
   const { user: currentUser, token } = useSelector((state: RootState) => state.user);
   const superModePage = useXiaowanziEmbeddedLayer();
   const isMobilePager = useIsMobilePager();
@@ -124,6 +127,19 @@ const TopicHubPage: React.FC = () => {
     showProUpgradeFromPayload(payload);
     setValidating(false);
     setSubmitLoading(false);
+  };
+  const handleAuthExpired = (_payload?: any) => {
+    const message = "登录态已过期，请重新登录";
+    dispatch(logout());
+    setValidating(false);
+    setSubmitLoading(false);
+    setSubmitMsg({ text: message, type: "error" });
+    document.dispatchEvent(new CustomEvent("xf-show-login-modal", {
+      detail: {
+        title: "登录态已过期",
+        description: "请重新登录后继续提交问题。",
+      },
+    }));
   };
 
   const [progressPolling, setProgressPolling] = useState<ReturnType<typeof setInterval> | null>(null);
@@ -314,11 +330,15 @@ const TopicHubPage: React.FC = () => {
         const refineData = await refineRes.json();
         setValidating(false);
         if (!refineRes.ok) {
+          if (refineRes.status === 401) {
+            handleAuthExpired(refineData);
+            return;
+          }
           if (refineRes.status === 402 || isProRequiredPayload(refineData)) {
             handleProRequired(refineData);
             return;
           }
-          throw new Error(refineData?.error || `提交失败 (${refineRes.status})`);
+          throw new Error(extractTopicSubmitError(refineData, `提交失败 (${refineRes.status})`));
         }
         if (refineData.needConfirm && refineData.refined) {
           setRefinedKeyword(refineData.refined);
@@ -331,7 +351,7 @@ const TopicHubPage: React.FC = () => {
         trimmed = (refineData.refined || trimmed).trim();
       } catch (e: any) {
         setValidating(false);
-        if (e?.message) setSubmitMsg({ text: e.message, type: "error" });
+        setSubmitMsg({ text: extractTopicSubmitError(e, "网络错误"), type: "error" });
         return;
       }
     }
@@ -347,15 +367,19 @@ const TopicHubPage: React.FC = () => {
       const vData = await vRes.json();
       setValidating(false);
       if (!vRes.ok) {
+        if (vRes.status === 401) {
+          handleAuthExpired(vData);
+          return;
+        }
         if (vRes.status === 402 || isProRequiredPayload(vData)) {
           handleProRequired(vData);
           return;
         }
-        throw new Error(vData?.reason || vData?.error || `校验失败 (${vRes.status})`);
+        throw new Error(extractTopicSubmitError(vData, `校验失败 (${vRes.status})`));
       }
 
       if (!vData.valid) {
-        setSubmitMsg({ text: vData.reason || "请输入有效的话题内容", type: "error" });
+        setSubmitMsg({ text: extractTopicSubmitError(vData, "请输入有效的话题内容"), type: "error" });
         return;
       }
     } catch {
@@ -372,9 +396,15 @@ const TopicHubPage: React.FC = () => {
         body: JSON.stringify({ keyword: trimmed, userId: uid }),
       });
       const data = await res.json();
-      if (!res.ok && (res.status === 402 || isProRequiredPayload(data))) {
-        handleProRequired(data);
-        return;
+      if (!res.ok) {
+        if (res.status === 401) {
+          handleAuthExpired(data);
+          return;
+        }
+        if (res.status === 402 || isProRequiredPayload(data)) {
+          handleProRequired(data);
+          return;
+        }
       }
       if (res.ok) {
         const newTopic: TopicItem = {
@@ -418,10 +448,10 @@ const TopicHubPage: React.FC = () => {
           pollProgress(newTopic.slug);
         }
       } else {
-        setSubmitMsg({ text: data.error || "提交失败", type: "error" });
+        setSubmitMsg({ text: extractTopicSubmitError(data, "提交失败"), type: "error" });
       }
     } catch (e: any) {
-      setSubmitMsg({ text: e.message || "网络错误", type: "error" });
+      setSubmitMsg({ text: extractTopicSubmitError(e, "网络错误"), type: "error" });
     } finally {
       setSubmitLoading(false);
     }

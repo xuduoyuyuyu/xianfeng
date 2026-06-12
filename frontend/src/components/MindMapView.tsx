@@ -160,15 +160,41 @@ const MindMapView: React.FC<MindMapViewProps> = ({
   const svgRef = useRef<SVGSVGElement | null>(null);
   const toolbarRef = useRef<HTMLDivElement | null>(null);
   const mmRef = useRef<Markmap | null>(null);
+  const mutationObserverRef = useRef<MutationObserver | null>(null);
+  const pendingFitAfterHeightRef = useRef(false);
   const retryCountRef = useRef(0);
   const [loading, setLoading] = useState(true);
+  const [svgHeight, setSvgHeight] = useState(220);
 
   // 决定使用哪个数据源构建 Markdown
   const isAiMode = mode === "ai" && mindMapData?.root;
 
+  function updateSvgHeightFromContent() {
+    const svg = svgRef.current;
+    if (!svg) return;
+    try {
+      const graph =
+        svg.querySelector<SVGGElement>("g.markmap") ||
+        svg.querySelector<SVGGElement>("svg > g") ||
+        svg.querySelector<SVGGElement>("g");
+      const renderedHeight = graph?.getBoundingClientRect().height || 0;
+      if (!Number.isFinite(renderedHeight) || renderedHeight <= 0) return;
+      const nextHeight = Math.max(180, Math.ceil(renderedHeight + 20));
+      setSvgHeight((current) => {
+        if (Math.abs(current - nextHeight) <= 2) return current;
+        pendingFitAfterHeightRef.current = true;
+        return nextHeight;
+      });
+    } catch (_error) {
+      // SVG may not have rendered graphical content yet.
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
     retryCountRef.current = 0;
+    mutationObserverRef.current?.disconnect();
+    mutationObserverRef.current = null;
 
     if (mmRef.current) {
       mmRef.current.destroy();
@@ -222,6 +248,10 @@ const MindMapView: React.FC<MindMapViewProps> = ({
 
         mm.setData(root);
         mm.fit();
+        requestAnimationFrame(() => {
+          if (cancelled) return;
+          updateSvgHeightFromContent();
+        });
 
         // 点击节点 → 跳转逐字稿对应时间戳
         if (onNavigateToTime) {
@@ -276,6 +306,13 @@ const MindMapView: React.FC<MindMapViewProps> = ({
         }
 
         mmRef.current = mm;
+        mutationObserverRef.current?.disconnect();
+        mutationObserverRef.current = new MutationObserver(() => {
+          requestAnimationFrame(() => {
+            if (!cancelled) updateSvgHeightFromContent();
+          });
+        });
+        mutationObserverRef.current.observe(svg, { childList: true, subtree: true, attributes: true });
 
         // 渲染 toolbar
         const toolbarWrap = toolbarRef.current;
@@ -302,6 +339,8 @@ const MindMapView: React.FC<MindMapViewProps> = ({
         mmRef.current.destroy();
         mmRef.current = null;
       }
+      mutationObserverRef.current?.disconnect();
+      mutationObserverRef.current = null;
     };
   }, [quickView, title, mindMapData, isAiMode]);
 
@@ -310,11 +349,22 @@ const MindMapView: React.FC<MindMapViewProps> = ({
     const handleResize = () => {
       if (mmRef.current) {
         mmRef.current.fit();
+        requestAnimationFrame(updateSvgHeightFromContent);
       }
     };
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  useEffect(() => {
+    if (!pendingFitAfterHeightRef.current || !mmRef.current) return;
+    pendingFitAfterHeightRef.current = false;
+    requestAnimationFrame(() => {
+      if (!mmRef.current) return;
+      mmRef.current.fit();
+      requestAnimationFrame(updateSvgHeightFromContent);
+    });
+  }, [svgHeight]);
 
   // AI 模式且无数据
   if (mode === "ai" && !mindMapData?.root) {
@@ -394,7 +444,7 @@ const MindMapView: React.FC<MindMapViewProps> = ({
         </div>
       )}
       <div ref={toolbarRef} className="absolute right-4 top-4 z-10 rounded-lg bg-white/90 p-1 shadow-sm backdrop-blur" />
-      <svg ref={svgRef} className="h-[520px] w-full rounded-2xl" />
+      <svg ref={svgRef} className="w-full rounded-2xl" style={{ height: `${svgHeight}px` }} />
     </div>
   );
 };

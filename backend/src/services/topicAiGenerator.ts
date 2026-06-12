@@ -12,6 +12,14 @@ export interface GenerateTopicInput {
   title: string;
   subtitle?: string;
   tags?: string[];
+  guestShareContext?: TopicGuestShareSnippet[];
+}
+
+export interface TopicGuestShareSnippet {
+  sourceTitle?: string;
+  locator?: string;
+  text: string;
+  url?: string;
 }
 
 export interface TopicLayerNode {
@@ -28,6 +36,38 @@ export interface TopicLayersResult {
   layer3: TopicLayerNode[];
   layer4: TopicLayerNode[];
   layer5: TopicLayerNode[];
+}
+
+function safeText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function truncateText(value: string, max: number): string {
+  const text = safeText(value).replace(/\s+/g, " ");
+  return text.length > max ? `${text.slice(0, max)}...` : text;
+}
+
+export function buildTopicGuestSharePromptBlock(snippets: TopicGuestShareSnippet[] = [], maxItems = 6): string {
+  const items = snippets
+    .map((item) => ({
+      sourceTitle: safeText(item.sourceTitle) || "站内嘉宾分享",
+      locator: safeText(item.locator),
+      text: truncateText(item.text, 260),
+      url: safeText(item.url),
+    }))
+    .filter((item) => item.text)
+    .slice(0, Math.max(1, maxItems));
+
+  if (!items.length) return "";
+
+  const sourceLines = items
+    .map((item, index) => {
+      const source = [item.sourceTitle, item.locator].filter(Boolean).join(" / ");
+      return `[${index + 1}] ${source}\n${item.text}${item.url ? `\n链接：${item.url}` : ""}`;
+    })
+    .join("\n\n");
+
+  return `\n\n可优先引用的站内嘉宾分享/知识库资料（按相关度排序，优先级高于通用教育经验）：\n${sourceLines}\n\n使用要求：\n- 如果这些资料与当前节点相关，优先吸收其中的观点、案例、表达和可操作方法，篇幅占比可以高于通用理论。\n- 允许自然写成“某期节目/某位嘉宾分享中提到…”或“站内资料里有一个做法…”，但只能基于上方资料。\n- 禁止编造未提供的嘉宾、节目、课程、书名、数据或链接；资料没有覆盖的部分，才使用通用教育经验补充。`;
 }
 
 /* ===== AI 话题标题生成 ===== */
@@ -118,9 +158,11 @@ export async function generateTopicTitle(keyword: string): Promise<{ title: stri
 export async function generateTopicLayers(
   input: GenerateTopicInput
 ): Promise<TopicLayersResult> {
+  const guestShareBlock = buildTopicGuestSharePromptBlock(input.guestShareContext, 5);
   const prompt = `你是一位资深教育专家。请根据下面的话题，生成一个完整的五层知识树。
 
 话题：${input.title}${input.subtitle ? `（${input.subtitle}）` : ""}
+${guestShareBlock}
 
 请严格按照以下五层结构输出，每层3-5个节点（总节点数不少于15个，允许多于15个）：
 
@@ -330,17 +372,20 @@ export interface ExpandInput {
   topicTitle: string;
   nodeTitle: string;
   existingSummary?: string;
+  guestShareContext?: TopicGuestShareSnippet[];
 }
 
 export async function generateExpandContent(input: ExpandInput): Promise<string> {
   const { topicTitle, nodeTitle, existingSummary } = input;
   const baseContent = existingSummary || "";
+  const guestShareBlock = buildTopicGuestSharePromptBlock(input.guestShareContext, 6);
 
   const prompt = `你是一位资深教育专家。请针对以下话题节点，生成深度的"展开讲讲"内容。
 
 话题：${topicTitle}
 节点：${nodeTitle}
 ${baseContent ? `已有摘要：${baseContent.slice(0, 200)}` : ""}
+${guestShareBlock}
 
 请生成250-400字的深度内容，严格按以下结构输出：
 
@@ -354,12 +399,14 @@ ${baseContent ? `已有摘要：${baseContent.slice(0, 200)}` : ""}
 2. 语言温暖专业接地气，适合家长阅读
 3. 控制全文250-400字，精炼不啰嗦
 4. 每段核心观点用**加粗**标记
+5. 若上方提供了站内嘉宾分享/知识库资料，优先把其中观点和做法融入正文；资料足够时，实际建议至少一半来自这些资料
 
 ## 严禁
 - 禁止任何开场白/引导语/过渡词
 - 禁止"首先/其次/第一/第二/最后/总而言之/综上所述"等废话
 - 禁止重复节点标题作为开篇
 - 开篇即核心观点，不寒暄
+- 禁止在没有资料支持时声称“嘉宾分享过”“节目里聊过”或列出不存在的来源
 
 ## 示例（话题：孩子爱攀比，节点：攀比根源）
 **攀比心理的根源在于孩子的自我认同尚未建立。** 6-12岁的孩子处于社会比较敏感期，通过与他人对比确认自己的位置，这本质上是寻求认同感的表现。研究表明，过度攀比的孩子往往在家庭中长期缺乏具体的、有针对性的表扬。
@@ -446,10 +493,12 @@ export interface DeepExpandInput {
   topicTitle: string;
   nodeTitle: string;
   existingContent: string;
+  guestShareContext?: TopicGuestShareSnippet[];
 }
 
 export async function generateDeepExpandContent(input: DeepExpandInput): Promise<string> {
   const { topicTitle, nodeTitle, existingContent } = input;
+  const guestShareBlock = buildTopicGuestSharePromptBlock(input.guestShareContext, 6);
 
   const prompt = `你是一位资深教育专家。
 
@@ -458,6 +507,7 @@ export async function generateDeepExpandContent(input: DeepExpandInput): Promise
 
 已有的参考内容（不要重复）：
 ${existingContent.slice(0, 600)}
+${guestShareBlock}
 
 请基于已有内容，直接进入更深度的学术解读。严格遵循：
 
@@ -467,6 +517,7 @@ ${existingContent.slice(0, 600)}
 3. 对核心观点做更深入分析，补充不同角度的看法或常见争议
 4. 用家长能理解的语言解释学术概念
 5. 内容不少于200字，确保分析有深度
+6. 若上方提供了站内嘉宾分享/知识库资料，优先补入其中的案例、做法或观点；禁止虚构资料中没有出现的嘉宾分享
 
 ## 严禁
 - 禁止输出任何开场白、引导语、过渡句（如"以下是为您续写的…""接下来我将从…"等）
@@ -541,6 +592,7 @@ export async function generateTopicWithDeepContent(
             topicTitle: input.title,
             nodeTitle: item.node.title,
             existingSummary: item.node.summary || item.node.title,
+            guestShareContext: input.guestShareContext,
           });
           if (deep && deep.length > 80) {
             skeleton[item.layer][item.idx].content = deep;

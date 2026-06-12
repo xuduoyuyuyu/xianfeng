@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import GlobalPublicNav from "../components/GlobalPublicNav";
+import { isInvalidWorthBuyResultForQuery, normalizeWorthBuyResult, resolveWorthBuyDisplayTitle } from "../utils/worthBuyResult";
 
 /* ===== 类型 ===== */
 interface RatingDimensions {
@@ -69,7 +70,71 @@ const WorthBuyDetailPage: React.FC = () => {
   const { query } = useParams<{ query: string }>();
 
   const state = (window.history.state?.usr || {}) as { result?: AnalysisResult; query?: string };
-  const result: AnalysisResult | undefined = state.result;
+  const routeQuery = decodeURIComponent(query || "");
+  const rawDisplayTitle = state.query || routeQuery || "分析结果";
+  const userId = useMemo(() => {
+    let id = localStorage.getItem("xianfeng_user_id");
+    if (!id) {
+      id = "user_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+      localStorage.setItem("xianfeng_user_id", id);
+    }
+    return id;
+  }, []);
+  const [loadedQuery, setLoadedQuery] = useState(rawDisplayTitle);
+  const [loadedResult, setLoadedResult] = useState<AnalysisResult | undefined>(() => {
+    if (!state.result) return undefined;
+    if (isInvalidWorthBuyResultForQuery(rawDisplayTitle, state.result)) return undefined;
+    const title = resolveWorthBuyDisplayTitle(rawDisplayTitle, state.result);
+    return normalizeWorthBuyResult(state.result, title) as AnalysisResult;
+  });
+  const [remoteChecked, setRemoteChecked] = useState(Boolean(state.result && !isInvalidWorthBuyResultForQuery(rawDisplayTitle, state.result)));
+
+  useEffect(() => {
+    if (!routeQuery) {
+      setRemoteChecked(true);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await fetch(`/api/worthbuy/${encodeURIComponent(rawDisplayTitle)}?userId=${encodeURIComponent(userId)}`);
+        if (!resp.ok) return;
+        const data = await resp.json().catch(() => ({}));
+        const item = data.item;
+        if (!item || cancelled) return;
+        const fetchedQuery = item.query || item.brand || rawDisplayTitle;
+        if (isInvalidWorthBuyResultForQuery(fetchedQuery, item.result)) {
+          setLoadedQuery(fetchedQuery);
+          setLoadedResult(undefined);
+          return;
+        }
+        setLoadedQuery(fetchedQuery);
+        setLoadedResult(normalizeWorthBuyResult(item.result || {}, fetchedQuery) as AnalysisResult);
+      } finally {
+        if (!cancelled) setRemoteChecked(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [rawDisplayTitle, routeQuery, userId]);
+
+  const displayTitle = resolveWorthBuyDisplayTitle(loadedQuery, loadedResult);
+  const result = loadedResult;
+
+  if (!result && !remoteChecked) {
+    return (
+      <div className="worthbuy-detail-page" style={{ minHeight: "100vh", background: "#f8f6ff" }}>
+        <GlobalPublicNav compactMobile showPlanningEntry={true} />
+        <div style={{ maxWidth: 720, margin: "80px auto", textAlign: "center", padding: "0 20px" }}>
+          <div style={{ fontSize: 42, marginBottom: 16 }}>⏳</div>
+          <h2 style={{ color: "#1E1B4B", margin: "0 0 8px" }}>正在加载分析结果</h2>
+        </div>
+      </div>
+    );
+  }
 
   if (!result) {
     return (
@@ -96,8 +161,6 @@ const WorthBuyDetailPage: React.FC = () => {
       </div>
     );
   }
-
-  const displayTitle = state.query || decodeURIComponent(query || "分析结果");
 
   return (
     <div className="worthbuy-detail-page" style={{ minHeight: "100vh", background: "#f8f6ff" }}>

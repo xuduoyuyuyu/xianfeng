@@ -82,7 +82,7 @@ const UserLoginPage: React.FC = () => {
       await dispatch(loginByMobile({ mobile: phone, code: verifyCode }) as any).unwrap();
       return;
     } catch (registerErr: any) {
-      const message = registerErr?.response?.data?.error || registerErr?.response?.data?.message || registerErr?.message || "登录失败，请稍后重试";
+      const message = typeof registerErr === "string" ? registerErr : registerErr?.response?.data?.error || registerErr?.response?.data?.message || registerErr?.message || "登录失败，请稍后重试";
       setLocalError(message);
     }
   };

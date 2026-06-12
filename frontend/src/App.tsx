@@ -233,6 +233,7 @@ const App: React.FC = () => {
             <Route path="inbox" element={<AdminInboxPage />} />
             <Route path="*" element={<Navigate to="/admin" replace />} />
           </Route>
+
           <Route path="*" element={<PublicScreenRouter />} />
         </Routes>
       </div>

@@ -769,14 +769,14 @@ const ProgramDetailPage: React.FC = () => {
           </section>
 
           <section className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
-            <div className="p-8 pb-4">
+            <div className="p-8 pb-8">
               <div className="mb-8 flex items-center gap-3">
                 <span className="material-symbols-outlined text-xl text-[#5e17eb]">insights</span>
                 <h3 className="text-sm font-black uppercase tracking-tight text-[#211a18]">{deepDiveTitle}</h3>
               </div>
-              <div className="mb-10">
-                <p className="mb-4 text-[10px] font-black uppercase tracking-widest text-gray-400">推荐阅读 Curated Reading</p>
-                <div className="curated-reading-list space-y-4">
+              <div className="mb-5">
+                <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-gray-400">推荐阅读 Curated Reading</p>
+                <div className="curated-reading-list space-y-3">
                   {curatedReadingUnique.map((item) => (
                     <div
                       key={`${item.title}-${item.subtitle || ""}`}
@@ -793,9 +793,9 @@ const ProgramDetailPage: React.FC = () => {
                   ))}
                 </div>
               </div>
-              <div className="mb-8 h-px w-full bg-gray-100"></div>
-              <div className="mb-10">
-                <p className="mb-4 text-[10px] font-black uppercase tracking-widest text-gray-400">相关内容推荐 Related Content</p>
+              <div className="mb-5 h-px w-full bg-gray-100"></div>
+              <div className="mb-6">
+                <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-gray-400">相关内容推荐 Related Content</p>
                 <div className="space-y-6">
                   {(relatedPrograms.length > 0 ? relatedPrograms : programs.slice(0, 4)).map((item, index) => (
                     <Link key={item._id} className="group block cursor-pointer border-b border-gray-50 pb-6 last:border-0" to={withXiaowanziLayerParam(`/programs/${item._id}`, superModePage)}>

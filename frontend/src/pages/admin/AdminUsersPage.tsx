@@ -4,7 +4,7 @@ import { adminApi, User } from "../../services/api";
 import TopAlert from "../../components/TopAlert";
 import { RootState } from "../../store";
 
-type EditableUser = Pick<User, "_id" | "username" | "mobile" | "role" | "city" | "region" | "childGrade" | "grade" | "name" | "changeHistory" | "childMemories" | "memoryItemCount" | "memoryPreview" | "latestMemoryAt" | "createdAt">;
+type EditableUser = Pick<User, "_id" | "username" | "mobile" | "role" | "city" | "region" | "childGrade" | "grade" | "name" | "proPointBalance" | "changeHistory" | "childMemories" | "memoryItemCount" | "memoryPreview" | "latestMemoryAt" | "createdAt">;
 type UserModalMode = "create" | "edit" | null;
 
 type UserFormState = {
@@ -58,6 +58,7 @@ function toEditableUser(row: User): EditableUser {
     region: row.region,
     childGrade: row.childGrade,
     grade: row.grade,
+    proPointBalance: Number(row.proPointBalance || 0),
     changeHistory: row.changeHistory || [],
     childMemories: row.childMemories || [],
     memoryItemCount: row.memoryItemCount || 0,
@@ -183,6 +184,7 @@ const AdminUsersPage: React.FC = () => {
         childGrade: normalizeString(row.childGrade),
         grade: normalizeString(row.grade),
         name: normalizeString(row.name),
+        proPointBalance: Number(row.proPointBalance || 0),
       };
       const response = await adminApi.updateUser(row._id, payload);
       updateLocal(row._id, toEditableUser(response.data));
@@ -363,9 +365,10 @@ const AdminUsersPage: React.FC = () => {
                   <th className="px-6 py-4">手机号</th>
                   <th className="px-6 py-4">角色</th>
                   <th className="px-6 py-4">城市</th>
-                  <th className="px-6 py-4">区域</th>
-                  <th className="px-6 py-4">年级</th>
-                  <th className="px-6 py-4">记忆</th>
+                      <th className="px-6 py-4">区域</th>
+                      <th className="px-6 py-4">年级</th>
+                      <th className="px-6 py-4">当前点数</th>
+                      <th className="px-6 py-4">记忆</th>
                   <th className="px-6 py-4">注册时间</th>
                   <th className="px-6 py-4 text-right">操作</th>
                 </tr>
@@ -419,6 +422,16 @@ const AdminUsersPage: React.FC = () => {
                           value={row.grade || row.childGrade || ""}
                           placeholder="填写年级"
                           onChange={(event) => updateLocal(row._id, { grade: event.target.value })}
+                        />
+                      </td>
+                      <td className="px-6 py-4">
+                        <input
+                          className={`w-28 ${inputClass}`}
+                          min={0}
+                          step={1}
+                          type="number"
+                          value={Number(row.proPointBalance || 0)}
+                          onChange={(event) => updateLocal(row._id, { proPointBalance: Number(event.target.value || 0) })}
                         />
                       </td>
                       <td className="px-6 py-4">

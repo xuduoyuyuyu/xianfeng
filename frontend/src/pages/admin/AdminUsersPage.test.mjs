@@ -39,3 +39,18 @@ test("react admin users page disables role changes only for the active admin acc
     "React admin users page must not use public user state to decide whether the role selector is disabled"
   );
 });
+
+test("admin users pages let admins edit current point balances", () => {
+  assert.match(source, /proPointBalance/, "React admin users page should load and render user point balances");
+  assert.match(source, /当前点数/, "React admin users page should label the point balance control");
+  assert.match(source, /proPointBalance: Number\(row\.proPointBalance \|\| 0\)/, "React rows should normalize point balances");
+  assert.match(
+    source,
+    /proPointBalance: Number\(row\.proPointBalance \|\| 0\)/,
+    "React quick-save payload should send the edited point balance"
+  );
+
+  assert.match(staticSource, /field-points/, "static admin users page should expose a point balance input");
+  assert.match(staticSource, /proPointBalance/, "static admin users page should submit point balance updates");
+  assert.match(staticSource, /当前点数/, "static admin users page should label the point balance column");
+});

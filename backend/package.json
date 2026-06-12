@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "node --test --import tsx src/**/*.test.ts",
+    "billing:reset-free-grants": "tsx scripts/reset-free-account-point-grants.ts",
     "migrate:dictionary": "tsx scripts/migrate-education-dictionary.ts"
   },
   "keywords": [],
@@ -33,11 +34,15 @@
     "mongodb-memory-server": "^11.0.1",
     "mongoose": "^9.4.1",
     "multer": "^2.1.1",
+    "node-cron": "^4.2.1",
     "pinyin": "^4.0.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2"
   },
-  "packageManager": "pnpm@10.12.4+sha512.5ea8b0deed94ed68691c9bad4c955492705c5eeb8a87ef86bc62c74a26b037b08ff9570f108b2e4dbd1dd1a9186fea925e527f141c648e85af45631074680184"
+  "packageManager": "pnpm@10.12.4+sha512.5ea8b0deed94ed68691c9bad4c955492705c5eeb8a87ef86bc62c74a26b037b08ff9570f108b2e4dbd1dd1a9186fea925e527f141c648e85af45631074680184",
+  "devDependencies": {
+    "@types/node-cron": "^3.0.11"
+  }
 }

@@ -7,7 +7,6 @@ import Pagination from "../components/Pagination";
 import { useIsMobilePager } from "../hooks/useIsMobilePager";
 import { useXiaowanziEmbeddedLayer } from "../utils/xiaowanziLayer";
 
-const FALLBACK_COVER = "http://xianfeng.xinzhi.info/uploads/images/1779669071894-42qbgvdv.png";
 
 interface Program {
   _id: string;
@@ -228,14 +227,16 @@ const ProgramListPage: React.FC = () => {
                   >
                     <div className="flex flex-col gap-5 lg:flex-row">
                       <div className="w-full overflow-hidden rounded-[1.2rem] bg-[linear-gradient(135deg,_#1f143a,_#4b1db2_44%,_#b79bff)] lg:w-[280px] lg:shrink-0">
-                        <img
-                          src={program.coverImage || FALLBACK_COVER}
-                          alt={program.title || "节目封面"}
-                          className="h-52 w-full object-cover transition duration-700 group-hover:scale-105 lg:h-full"
-                          onError={(event) => {
-                            event.currentTarget.src = FALLBACK_COVER;
-                          }}
-                        />
+                        {program.coverImage ? (
+                          <img
+                            src={program.coverImage}
+                            alt={program.title || "节目封面"}
+                            className="h-52 w-full object-cover transition duration-700 group-hover:scale-105 lg:h-full"
+                            onError={(event) => {
+                              (event.currentTarget as HTMLImageElement).style.display = "none";
+                            }}
+                          />
+                        ) : null}
                       </div>
 
                       <div className="min-w-0 flex-1">

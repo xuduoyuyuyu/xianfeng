@@ -67,8 +67,9 @@ export function formatSiteCardsPromptBlock(cards: XiaowanziSiteCard[]): string {
   if (!normalized.length) return "";
   return [
     "[站内优先推荐]",
-    "以下内容来自家长先疯站内结构化内容，回答时优先参考，并在适合时推荐用户继续阅读这些卡片。",
-    ...normalized.map((card, index) => `[${index + 1}] ${card.typeLabel}: ${card.title}\n${card.summary}`),
+    "以下内容来自家长先疯站内结构化内容。只有下方明确列出的条目才可以作为站内节目或资源推荐；推荐时必须列出下方条目的标题和链接，不要让用户再去搜索关键词。",
+    "如果下方没有对应节目条目，不要说“家长先疯节目里也有聊过”或“平台里有相关专题”。",
+    ...normalized.map((card, index) => `[${index + 1}] ${card.typeLabel}: ${card.title}\n${card.summary}\n链接: ${card.href}`),
   ].join("\n");
 }
 

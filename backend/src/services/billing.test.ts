@@ -15,6 +15,7 @@ import {
   isProActive,
   isMockPaymentEnabled,
   normalizeBillingPlan,
+  resetFreeAccountPointGrants,
 } from "./billing";
 
 describe("billing rules", () => {
@@ -23,7 +24,8 @@ describe("billing rules", () => {
     assert.equal(BILLING_PLANS.yearly.amountCents, 9900);
     assert.equal(BILLING_PLANS.monthly.pointsPerCycle, 8800);
     assert.equal(BILLING_PLANS.yearly.pointsPerCycle, 105600);
-    assert.equal(FREE_BILLING_PLAN.pointsPerCycle, 200);
+    assert.equal(FREE_BILLING_PLAN.pointsPerCycle, 100);
+    assert.match(FREE_BILLING_PLAN.description, /每月上限1000点数/);
     assert.match(BILLING_PLANS.monthly.description, /点/);
     assert.match(BILLING_PLANS.yearly.description, /点/);
     assert.equal(normalizeBillingPlan("monthly"), "monthly");
@@ -91,7 +93,7 @@ describe("billing rules", () => {
     }
   });
 
-  it("resets free users to 200 daily points without accumulating grants", () => {
+  it("resets free users to 100 daily points without accumulating grants", () => {
     const first = calculateFreeLoginPointGrant({
       balance: 0,
       grantDate: "",
@@ -100,11 +102,11 @@ describe("billing rules", () => {
       now: new Date("2026-06-05T01:00:00.000Z"),
     });
 
-    assert.equal(first.grantedPoints, 200);
-    assert.equal(first.pointBalance, 200);
+    assert.equal(first.grantedPoints, 100);
+    assert.equal(first.pointBalance, 100);
     assert.equal(first.grantDate, "2026-06-05");
     assert.equal(first.grantMonth, "2026-06");
-    assert.equal(first.grantedThisMonth, 200);
+    assert.equal(first.grantedThisMonth, 100);
 
     const sameDay = calculateFreeLoginPointGrant({
       balance: first.pointBalance,
@@ -115,10 +117,10 @@ describe("billing rules", () => {
     });
 
     assert.equal(sameDay.grantedPoints, 0);
-    assert.equal(sameDay.pointBalance, 200);
+    assert.equal(sameDay.pointBalance, 100);
 
     const sameDayAfterSpend = calculateFreeLoginPointGrant({
-      balance: 123.5,
+      balance: 23.5,
       grantDate: first.grantDate,
       grantMonth: first.grantMonth,
       grantedThisMonth: first.grantedThisMonth,
@@ -126,19 +128,57 @@ describe("billing rules", () => {
     });
 
     assert.equal(sameDayAfterSpend.grantedPoints, 0);
-    assert.equal(sameDayAfterSpend.pointBalance, 123.5);
+    assert.equal(sameDayAfterSpend.pointBalance, 23.5);
 
     const nextDay = calculateFreeLoginPointGrant({
       balance: 591.5,
       grantDate: "2026-06-04",
       grantMonth: "2026-06",
-      grantedThisMonth: 200,
+      grantedThisMonth: 100,
       now: new Date("2026-06-06T01:00:00.000Z"),
     });
 
-    assert.equal(nextDay.grantedPoints, 200);
-    assert.equal(nextDay.pointBalance, 200);
+    assert.equal(nextDay.grantedPoints, 100);
+    assert.equal(nextDay.pointBalance, 100);
     assert.equal(nextDay.grantedThisMonth, 200);
+  });
+
+  it("stops free daily login grants at the 1000 point monthly cap", () => {
+    const partialCap = calculateFreeLoginPointGrant({
+      balance: 0,
+      grantDate: "2026-06-09",
+      grantMonth: "2026-06",
+      grantedThisMonth: 950,
+      now: new Date("2026-06-10T01:00:00.000Z"),
+    });
+
+    assert.equal(partialCap.grantedPoints, 50);
+    assert.equal(partialCap.pointBalance, 50);
+    assert.equal(partialCap.grantedThisMonth, 1000);
+
+    const exhausted = calculateFreeLoginPointGrant({
+      balance: 0,
+      grantDate: "2026-06-10",
+      grantMonth: "2026-06",
+      grantedThisMonth: 1000,
+      now: new Date("2026-06-11T01:00:00.000Z"),
+    });
+
+    assert.equal(exhausted.grantedPoints, 0);
+    assert.equal(exhausted.pointBalance, 0);
+    assert.equal(exhausted.grantedThisMonth, 1000);
+
+    const nextMonth = calculateFreeLoginPointGrant({
+      balance: 0,
+      grantDate: "2026-06-30",
+      grantMonth: "2026-06",
+      grantedThisMonth: 1000,
+      now: new Date("2026-07-01T01:00:00.000Z"),
+    });
+
+    assert.equal(nextMonth.grantedPoints, 100);
+    assert.equal(nextMonth.pointBalance, 100);
+    assert.equal(nextMonth.grantedThisMonth, 100);
   });
 
   it("exposes a point consumption policy for gated AI behavior", () => {
@@ -192,5 +232,65 @@ describe("billing point consumption", () => {
 
     assert.equal(insufficient.ok, false);
     assert.equal(insufficient.remainingPointBalance, 1);
+  });
+
+  it("resets issued free account grants without clearing active paid Pro balances", async () => {
+    await User.deleteMany({});
+
+    const now = new Date("2026-06-12T00:00:00.000Z");
+    const freeUser = await User.create({
+      username: "free-reset-user",
+      password: "hashed",
+      proStatus: "none",
+      proPointBalance: 100,
+      proFreeGrantDate: "2026-06-12",
+      proFreeGrantMonth: "2026-06",
+      proFreeGrantedThisMonth: 500,
+    });
+    const expiredUser = await User.create({
+      username: "expired-reset-user",
+      password: "hashed",
+      proStatus: "active",
+      proPlan: "monthly",
+      proExpiresAt: new Date("2026-06-01T00:00:00.000Z"),
+      proPointBalance: 80,
+      proFreeGrantDate: "2026-06-12",
+      proFreeGrantMonth: "2026-06",
+      proFreeGrantedThisMonth: 300,
+    });
+    const activeUser = await User.create({
+      username: "active-paid-user",
+      password: "hashed",
+      proStatus: "active",
+      proPlan: "monthly",
+      proExpiresAt: new Date("2026-07-12T00:00:00.000Z"),
+      proPointBalance: 8800,
+      proFreeGrantDate: "2026-06-12",
+      proFreeGrantMonth: "2026-06",
+      proFreeGrantedThisMonth: 100,
+    });
+
+    const result = await resetFreeAccountPointGrants(now);
+
+    assert.equal(result.matchedCount, 2);
+    assert.equal(result.modifiedCount, 2);
+
+    const savedFree = await User.findById(freeUser._id).lean();
+    assert.equal(savedFree?.proPointBalance, 0);
+    assert.equal(savedFree?.proFreeGrantDate, "");
+    assert.equal(savedFree?.proFreeGrantMonth, "");
+    assert.equal(savedFree?.proFreeGrantedThisMonth, 0);
+
+    const savedExpired = await User.findById(expiredUser._id).lean();
+    assert.equal(savedExpired?.proPointBalance, 0);
+    assert.equal(savedExpired?.proFreeGrantDate, "");
+    assert.equal(savedExpired?.proFreeGrantMonth, "");
+    assert.equal(savedExpired?.proFreeGrantedThisMonth, 0);
+
+    const savedActive = await User.findById(activeUser._id).lean();
+    assert.equal(savedActive?.proPointBalance, 8800);
+    assert.equal(savedActive?.proFreeGrantDate, "2026-06-12");
+    assert.equal(savedActive?.proFreeGrantMonth, "2026-06");
+    assert.equal(savedActive?.proFreeGrantedThisMonth, 100);
   });
 });

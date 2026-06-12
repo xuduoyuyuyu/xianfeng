@@ -737,7 +737,7 @@ export class UserController {
         return;
       }
       const { id } = req.params;
-      const { username, password, role, city, region, childGrade, grade, name } = req.body || {};
+      const { username, password, role, city, region, childGrade, grade, name, proPointBalance } = req.body || {};
 
       const user = await User.findById(id);
       if (!user) {
@@ -783,6 +783,20 @@ export class UserController {
       setTrackedString("childGrade", childGrade);
       setTrackedString("grade", grade);
       setTrackedString("name", name);
+      if (proPointBalance !== undefined) {
+        const nextBalance = Number(proPointBalance);
+        if (!Number.isFinite(nextBalance) || nextBalance < 0) {
+          res.status(400).json({ message: "当前点数必须是大于等于 0 的数字" });
+          return;
+        }
+        const normalizedBalance = Math.round(nextBalance * 100) / 100;
+        const oldValue = stringifyAuditValue((user as any).proPointBalance || 0);
+        const newValue = stringifyAuditValue(normalizedBalance);
+        if (oldValue !== newValue) {
+          changes.push({ field: "proPointBalance", oldValue, newValue });
+        }
+        (user as any).proPointBalance = normalizedBalance;
+      }
       if (typeof password === "string" && password.trim()) {
         changes.push({ field: "password", oldValue: "", newValue: "已重置" });
         user.password = await bcryptjs.hash(password, 10);

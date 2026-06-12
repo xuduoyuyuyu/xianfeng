@@ -27,6 +27,12 @@ export const FAB_SIZE = 48;
 export const FAB_MARGIN = 28;
 const FAB_BOUNDS_PADDING = 12;
 const AVATAR_SWITCH_CLICKS = 5;
+const KEYCAP_LIST_MARKER_PATTERN = "[0-9]\\uFE0F?\\u20E3";
+const ASSISTANT_LIST_MARKER_PATTERN = `(?:\\d{1,2}\\.|[一二三四五六七八九十][、.．]|第[一二三四五六七八九十\\d]{1,3}步[：:]|${KEYCAP_LIST_MARKER_PATTERN}|[-•])`;
+const ASSISTANT_MARKDOWN_LIST_MARKER_PATTERN = `(?:\\*\\*)?${ASSISTANT_LIST_MARKER_PATTERN}`;
+const ASSISTANT_INLINE_LIST_MARKER_RE = new RegExp(`([\\s\\S])(\\s+)(${ASSISTANT_MARKDOWN_LIST_MARKER_PATTERN}\\s*)`, "g");
+const ASSISTANT_PUNCT_LIST_MARKER_RE = new RegExp(`([。！？!?；;])(${ASSISTANT_MARKDOWN_LIST_MARKER_PATTERN}\\s*)`, "g");
+const ASSISTANT_NUMBERED_LINE_RE = new RegExp(`^${ASSISTANT_LIST_MARKER_PATTERN}\\s*`);
 
 export type FabPosition = { left: number; top: number };
 export type AvatarState = { avatarIndex: number; clickCount: number };
@@ -49,6 +55,17 @@ export type XiaowanziChildProfileSummaryOptions = {
 export type XiaowanziSuperModeAuthInput = {
   token?: string | null;
   welToken?: string | null;
+};
+export type XiaowanziMentionLink = {
+  title: string;
+  href: string;
+  type: "program" | "topic" | "material";
+};
+export type XiaowanziMentionLinkSource = {
+  _id?: string;
+  id?: string;
+  slug?: string;
+  title?: string;
 };
 
 export const AI_RESPONSE_RULES = [
@@ -84,6 +101,24 @@ export function clampFabPosition(position: FabPosition, viewportWidth: number, v
 
 export function getAvatarSrc(index: number) {
   return XIAOWANZI_AVATARS[index] || XIAOWANZI_AVATARS[0];
+}
+
+export function normalizeAssistantLayoutText(content: string): string {
+  return String(content || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(ASSISTANT_INLINE_LIST_MARKER_RE, (match, previous, _spaces, marker) => {
+      if (previous === "\n") return match;
+      return `${previous}\n\n${marker}`;
+    })
+    .replace(ASSISTANT_PUNCT_LIST_MARKER_RE, (_match, previous, marker) => `${previous}\n\n${marker}`)
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+export function isNumberedMessageLine(line: string): boolean {
+  return ASSISTANT_NUMBERED_LINE_RE.test(String(line || "").trim());
 }
 
 export function advanceAvatarState(state: AvatarState): AvatarState {
@@ -168,4 +203,72 @@ export function shouldPersistChildMemory(input: { childId?: string | null; enabl
 
 export function canEnterXiaowanziSuperMode(input: XiaowanziSuperModeAuthInput): boolean {
   return Boolean(String(input.token || "").trim() || String(input.welToken || "").trim());
+}
+
+function withXiaowanziReturnParams(href: string): string {
+  const cleanHref = String(href || "").trim();
+  if (!cleanHref || /^https?:\/\//i.test(cleanHref)) return cleanHref;
+  const [withoutHash, hash = ""] = cleanHref.split("#", 2);
+  const [path, query = ""] = withoutHash.split("?", 2);
+  const params = new URLSearchParams(query);
+  params.set("xw_layer", "1");
+  params.set("xw_return", "xiaowanzi");
+  const nextQuery = params.toString();
+  return `${path}${nextQuery ? `?${nextQuery}` : ""}${hash ? `#${hash}` : ""}`;
+}
+
+function normalizeMentionTitle(value?: string): string {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function pushMentionLink(
+  links: XiaowanziMentionLink[],
+  seen: Set<string>,
+  source: XiaowanziMentionLinkSource,
+  type: XiaowanziMentionLink["type"],
+  href: string,
+) {
+  const title = normalizeMentionTitle(source.title);
+  if (title.length < 4) return;
+  const key = `${type}:${title}`;
+  if (seen.has(key)) return;
+  seen.add(key);
+  links.push({ title, href: withXiaowanziReturnParams(href), type });
+}
+
+export function buildXiaowanziMentionLinks(input: {
+  programs?: XiaowanziMentionLinkSource[];
+  topics?: XiaowanziMentionLinkSource[];
+  materials?: XiaowanziMentionLinkSource[];
+}): XiaowanziMentionLink[] {
+  const links: XiaowanziMentionLink[] = [];
+  const seen = new Set<string>();
+
+  (input.programs || []).forEach((program) => {
+    const id = String(program._id || program.id || "").trim();
+    if (!id) return;
+    pushMentionLink(links, seen, program, "program", `/programs/${encodeURIComponent(id)}`);
+  });
+
+  (input.topics || []).forEach((topic) => {
+    const slug = String(topic.slug || topic.id || topic._id || "").trim();
+    if (!slug) return;
+    pushMentionLink(links, seen, topic, "topic", `/topics/${encodeURIComponent(slug)}`);
+  });
+
+  (input.materials || []).forEach((material) => {
+    pushMentionLink(links, seen, material, "material", "/materials");
+  });
+
+  return links;
+}
+
+export function buildXiaowanziInlineLinks(
+  content: string,
+  mentionLinks: XiaowanziMentionLink[],
+): XiaowanziMentionLink[] {
+  return mentionLinks
+    .filter((link) => String(content || "").includes(link.title))
+    .slice()
+    .sort((a, b) => b.title.length - a.title.length);
 }

@@ -10,19 +10,64 @@ const logicSource = readFileSync(resolve(__dirname, "XiaowanziWidget.logic.ts"),
 
 test("home mode creates recoverable sessions and uses dynamic topic prompts", () => {
   assert.match(source, /XIAOWANZI_SESSION_INDEX_KEY\s*=/, "session index key is required");
+  assert.match(source, /XIAOWANZI_ACTIVE_SESSION_KEY\s*=/, "home mode needs an active session key for refresh restore");
   assert.match(source, /loadTopicPromptItems/, "home prompts must load from topic content");
   assert.match(source, /normalizeHomePromptItem/, "home prompts should be normalized before display");
-  assert.match(source, /startNewConversationSession/, "opening home mode must start a new recoverable session");
+  assert.match(source, /loadInitialConversationState/, "opening home mode should restore the active session instead of always creating a blank one");
   assert.match(source, /restoreConversationSession/, "history cards must restore saved sessions");
   assert.match(source, /openManualNewConversation/, "home mode needs a manual new conversation action");
 });
 
+test("refresh restores the active home conversation instead of opening a new blank session", () => {
+  assert.match(
+    source,
+    /function loadInitialConversationState\(\)[\s\S]*readActiveConversationSessionId\(\)[\s\S]*loadConversationSessionMessages\(activeSessionId\)[\s\S]*messages: activeMessages[\s\S]*hasHistoryMessages: true/,
+    "refresh should hydrate messages from the active session id"
+  );
+  assert.match(
+    source,
+    /const \[initialConversationState\] = useState\(\(\) => loadInitialConversationState\(\)\);[\s\S]*useState\(\(\) => initialConversationState\.sessionId\)[\s\S]*useState<Msg\[\]>\(\(\) => initialConversationState\.messages\)[\s\S]*useState\(\(\) => initialConversationState\.hasHistoryMessages\)/,
+    "session id, messages, and history state should share the same restored initial state"
+  );
+  assert.match(
+    source,
+    /function persistConversation\(items: Msg\[\], sessionId = currentSessionId\)[\s\S]*saveActiveConversationSessionId\(sessionId\)[\s\S]*saveConversationSessionMessages\(sessionId, sanitized\)/,
+    "saving a conversation should remember it as the active session"
+  );
+  assert.match(
+    source,
+    /function startNewConversationSession\(\)[\s\S]*saveActiveConversationSessionId\(nextSessionId\)[\s\S]*setMessages\(\[DEFAULT_MESSAGE\]\)/,
+    "manual or expired new sessions should become the active session without restoring the previous one on refresh"
+  );
+});
+
 test("home prompt suggestions are specific and not program-limited", () => {
-  const fallbackMatch = source.match(/const HOME_FALLBACK_PROMPTS:[\s\S]*?\n\];/);
+  const fallbackMatch = source.match(/const HOME_FALLBACK_PROMPT_GROUPS:[\s\S]*?\n\];/);
   assert.ok(fallbackMatch, "fallback prompts block should exist");
   assert.doesNotMatch(fallbackMatch[0], /节目|这期|先听|哪一段/, "fallback prompts must not mention program-listening context");
   assert.match(source, /HOME_PROMPT_BLOCKED_TERMS/, "dynamic prompts need blocked terms");
   assert.match(source, /HOME_PROMPT_BLOCKED_TERMS\.some/, "dynamic prompts should filter blocked terms");
+});
+
+test("home fallback question suggestions rotate on each page refresh", () => {
+  assert.match(source, /const HOME_FALLBACK_PROMPT_GROUPS: TopicPromptItem\[\]\[\]/, "fallback prompts should be organized as multiple rotatable groups");
+  assert.match(source, /function pickRandomHomeFallbackPrompts\(\): TopicPromptItem\[\]/, "home needs a helper that chooses one fallback group per load");
+  assert.match(source, /HOME_FALLBACK_PROMPT_ROTATION_KEY/, "fallback rotation should remember the previous group");
+  assert.match(
+    source,
+    /\.filter\(\(index\) => fallbackGroups\.length <= 1 \|\| index !== lastIndex\)/,
+    "fallback rotation should avoid showing the same group on consecutive refreshes"
+  );
+  assert.match(
+    source,
+    /const \[homeFallbackPrompts\] = useState<TopicPromptItem\[\]>\(\(\) => pickRandomHomeFallbackPrompts\(\)\)/,
+    "the selected fallback group should be initialized on mount so browser refresh can change it"
+  );
+  assert.match(
+    source,
+    /const effectiveHomePrompts = homePromptItems\.length \? homePromptItems : homeFallbackPrompts;/,
+    "empty dynamic prompts should render the selected refresh-specific fallback group"
+  );
 });
 
 test("home history drawer owns the new conversation and exit actions", () => {
@@ -32,11 +77,12 @@ test("home history drawer owns the new conversation and exit actions", () => {
   assert.match(source, /aria-label="更多"[\s\S]*document\.dispatchEvent\(new CustomEvent\("xf-open-public-menu"\)\)/, "top-right more button should open the original public hamburger menu");
   assert.match(source, /className="xw-home-history-new"/, "history drawer should expose the new conversation action");
   assert.match(source, /\.xw-home-history-drawer-head\{[^}]*justify-content:center/s, "new conversation should be centered in the drawer header");
-  assert.match(source, /\.xw-home-history-exit\{[^}]*border:0[^}]*background:transparent[^}]*box-shadow:none/s, "drawer exit should render only the logout icon without an outer ring");
-  assert.doesNotMatch(source, /\.xw-home-history-exit\{[^}]*border:1\.5px solid/s, "drawer exit should not keep the previous outer ring");
+  assert.match(source, /\.xw-home-history-exit\{[^}]*width:44px[^}]*height:44px[^}]*border:0[^}]*border-radius:50%[^}]*background:#601BEC[^}]*box-shadow:0 14px 30px rgba\(96,27,236,\.28\)[^}]*color:#fff/s, "drawer exit should float as a purple circular button with a white icon");
   assert.match(source, /className="xw-home-history-exit xw-home-history-exit-dock"/, "super-mode exit should dock inside the history drawer");
   assert.match(source, /\.xw-home-history-exit-dock\{[^}]*position:absolute[^}]*right:18px[^}]*bottom:calc\(22px \+ env\(safe-area-inset-bottom\)\)/s, "super-mode exit should sit at the drawer bottom-right");
   assert.match(source, /\.xw-home-history-list\{[^}]*padding-bottom:62px/s, "history list should leave room for the drawer-bottom exit button");
+  assert.doesNotMatch(source, /\.xw-home-history-drawer::after/, "history drawer should not render a bottom color block behind the floating exit button");
+  assert.match(source, /\.xw-home-history-exit-dock\{[^}]*z-index:3/s, "super-mode exit should float above the drawer content");
   const drawerHeadMatch = source.match(/<div className="xw-home-history-drawer-head">[\s\S]*?<\/div>/);
   assert.ok(drawerHeadMatch, "history drawer header should exist");
   assert.doesNotMatch(drawerHeadMatch[0], /xw-home-history-exit/, "super-mode exit should not sit beside new conversation in the drawer header");
@@ -92,6 +138,57 @@ test("restoring a home history session shows only saved messages", () => {
   );
 });
 
+test("assistant history replies preserve readable paragraph and list formatting", () => {
+  assert.match(logicSource, /function normalizeAssistantLayoutText\(content: string\): string/, "assistant replies should normalize inline list markers before rendering");
+  assert.ok(
+    logicSource.includes("\\\\d{1,2}\\\\."),
+    "normalization should recognize numbered list markers even when the model returns them inline"
+  );
+  assert.ok(
+    logicSource.includes("第[一二三四五六七八九十\\\\d]{1,3}步"),
+    "normalization should also recognize old history replies that use Chinese step labels such as 第一步："
+  );
+  assert.match(
+    logicSource,
+    /KEYCAP_LIST_MARKER_PATTERN/,
+    "normalization should also recognize old history replies that use keycap list markers such as 1️⃣"
+  );
+  assert.match(
+    logicSource,
+    /ASSISTANT_PUNCT_LIST_MARKER_RE/,
+    "normalization should split list markers that directly follow punctuation, such as 。2. without a space"
+  );
+  assert.match(source, /function renderAssistantMessageContent\(/, "assistant replies should use a dedicated formatted renderer");
+  assert.match(source, /className="xw-msg-flow"/, "formatted assistant replies need a stable wrapper class");
+  assert.match(source, /className=\{`xw-msg-line \$\{isNumberedMessageLine\(line\) \? "numbered" : ""\}`\.trim\(\)\}/, "numbered lines should get a readable block style");
+  assert.match(source, /\.xw-msg-block \+ \.xw-msg-block\{[^}]*margin-top:14px/s, "assistant answer paragraphs should use markdown block spacing");
+  assert.match(source, /\.xw-home-msg\{[^}]*font-weight:520[^}]*line-height:1\.86/s, "home assistant replies should use lighter text and looser line height");
+  assert.match(source, /\.xw-msg-line\.numbered\{[^}]*margin-top:0/s, "numbered answer lines should rely on paragraph spacing, not extra per-line decoration");
+  assert.doesNotMatch(
+    source,
+    /\.xw-msg-line\.numbered\{[^}]*border-left/s,
+    "numbered answer steps should rely on text spacing, not extra vertical line decoration"
+  );
+  assert.match(
+    source,
+    /return message\.role === "assistant" \? renderAssistantMessageContent\(message\.content, mentionLinks, onMentionLinkClick\) : message\.content;/,
+    "all assistant messages, including restored history, should use the formatted renderer"
+  );
+  assert.match(source, /const MESSAGE_LAYOUT_VERSION = "md-paragraph-v\d+"/, "message rendering needs a layout version to remount saved history after typography changes");
+  assert.match(source, /key=\{`history-\$\{MESSAGE_LAYOUT_VERSION\}-\$\{idx\}-\$\{message\.ts \|\| ""\}`\}/, "restored history rows should remount when the markdown layout version changes");
+  assert.match(source, /key=\{`home-\$\{MESSAGE_LAYOUT_VERSION\}-\$\{idx\}-\$\{message\.ts \|\| ""\}`\}/, "generated home history rows should remount when the markdown layout version changes");
+  assert.match(
+    source,
+    /function rerenderMessagesForLayoutVersion\(\)[\s\S]*setMessages\(\(items\) => items\.map\(\(item\) => \(\{ \.\.\.item \}\)\)\)/,
+    "layout refresh should shallow-copy messages for rendering without changing message content"
+  );
+  assert.match(
+    source,
+    /restoreConversationSession[\s\S]*setMessages\(cached\.map\(\(item\) => \(\{ \.\.\.item \}\)\)\)/,
+    "restoring saved sessions should re-render cached messages without rewriting their content"
+  );
+});
+
 test("manual new conversation saves current session before opening a blank one", () => {
   assert.match(
     source,
@@ -112,6 +209,25 @@ test("xiaowanzi successful replies notify subscription balance refresh", () => {
   );
 });
 
+test("xiaowanzi assistant replies turn mentioned site programs and materials into layer links", () => {
+  assert.match(source, /buildXiaowanziMentionLinks/, "widget should build a site mention link index");
+  assert.match(source, /buildXiaowanziInlineLinks/, "widget should render direct links for known site content");
+  assert.match(source, /loadXiaowanziMentionLinks/, "widget should load public site titles for linking");
+  assert.match(source, /fetch\("\/api\/topic-hub\?limit=200"\)/, "widget should load topic titles so mentioned topics open directly");
+  assert.match(source, /xw-msg-link/, "assistant message links need a stable class for styling and inspection");
+  assert.match(
+    source,
+    /renderDisplayMessage\(message,\s*xiaowanziMentionLinks,\s*openXiaowanziMentionLink\)/,
+    "message rendering should receive the mention link index and layer opener"
+  );
+});
+
+test("xiaowanzi user question bubbles use the requested purple card color", () => {
+  assert.match(source, /\.xw-home-msg\.user\{[^}]*background:#601BEC/s, "home user question card should use #601BEC");
+  assert.match(source, /\.aip-msg\.user\{[^}]*background:#601BEC/s, "floating user question card should use #601BEC");
+  assert.match(source, /#ai-panel\.docked\.docked-dark \.aip-msg\.user\{background:#601BEC;color:#fff\}/, "docked dark user question card should stay the same requested color");
+});
+
 test("xiaowanzi clears stale auth before showing login after unauthorized API responses", () => {
   assert.match(
     source,
@@ -122,6 +238,24 @@ test("xiaowanzi clears stale auth before showing login after unauthorized API re
     source,
     /if \(res\.status === 401\) \{[\s\S]*handleExpiredXiaowanziSession\(\)/,
     "unauthorized Xiaowanzi sends should use the expired-session handler"
+  );
+});
+
+test("xiaowanzi non-ok send responses clear the thinking placeholder", () => {
+  assert.match(
+    source,
+    /if \(res\.status === 402 \|\| isProRequiredPayload\(err\)\) \{[\s\S]*item\.ts !== userMessage\.ts && item\.ts !== thinkingTs[\s\S]*return;/,
+    "Pro-required responses should remove the optimistic user message and thinking placeholder"
+  );
+  assert.match(
+    source,
+    /if \(res\.status === 401\) \{[\s\S]*item\.ts !== userMessage\.ts && item\.ts !== thinkingTs[\s\S]*handleExpiredXiaowanziSession\(\)/,
+    "expired-session responses should not leave the thinking placeholder behind"
+  );
+  assert.match(
+    source,
+    /const msg = String\(err\?\.content \|\| err\?\.detail \|\| err\?\.message \|\| "请求失败"\);[\s\S]*prev\.filter\(\(item\) => item\.ts !== thinkingTs\)[\s\S]*content: msg/,
+    "generic non-ok responses should replace thinking with the returned failure message"
   );
 });
 
@@ -203,10 +337,194 @@ test("xiaowanzi streaming replies can be interrupted directly", () => {
 });
 
 test("home composer switches to a stable multiline layout for long input", () => {
-  assert.match(source, /const homeComposerExpanded = Boolean\(input\.includes\("\\n"\) \|\| \(inputRef\.current\?\.scrollHeight \|\| 0\) > 66\)/, "home composer should detect multi-line input");
+  assert.match(source, /const \[homeComposerExpanded, setHomeComposerExpanded\] = useState\(false\)/, "home composer should track multi-line state explicitly");
+  assert.match(source, /const expanded = Boolean\(value\.length > 0 && \(value\.includes\("\\n"\) \|\| textarea\.scrollHeight > 66\)\)/, "home composer should detect multi-line input from non-empty fresh measurements");
   assert.match(source, /xw-home-input-shell\$\{homeComposerExpanded \? " multiline" : ""\}/, "home input shell should receive a multiline class");
   assert.match(source, /\.xw-home-input-shell\.multiline\{[^}]*align-items:flex-end/s, "multiline shell should bottom-align controls");
   assert.match(source, /\.xw-home-input-shell\.multiline \.xw-home-input\{[^}]*border-radius:28px[^}]*line-height:1\.42[^}]*overflow-y:auto/s, "multiline input should use readable text flow and scrolling");
   assert.match(source, /\.xw-home-input-shell\.multiline \.xw-home-voice-cue/s, "multiline style should reposition the voice affordance");
   assert.match(source, /\.xw-home-input-shell\.multiline \.xw-home-send/s, "multiline style should reposition the send or stop affordance");
+});
+
+test("home composer recalculates collapsed height after deleting long input", () => {
+  assert.match(source, /const \[homeComposerExpanded, setHomeComposerExpanded\] = useState\(false\)/, "home composer expanded state should not be derived from stale textarea height during render");
+  assert.match(source, /function syncHomeInputHeight\(textarea: HTMLTextAreaElement, value: string\): boolean[\s\S]*shell\?\.classList\.remove\("multiline"\)[\s\S]*textarea\.style\.height = "58px"[\s\S]*const expanded = Boolean\(value\.length > 0 && \(value\.includes\("\\n"\) \|\| textarea\.scrollHeight > 66\)\)[\s\S]*if \(!expanded\) return false/s, "home input should measure from the collapsed layout so deleting text can shrink it");
+  assert.match(source, /setHomeComposerExpanded\(syncHomeInputHeight\(event\.currentTarget, event\.target\.value\)\)/, "home input change should update expanded state from a fresh height measurement");
+  assert.doesNotMatch(source, /const homeComposerExpanded = Boolean\(input\.includes\("\\n"\) \|\| \(inputRef\.current\?\.scrollHeight \|\| 0\) > 66\)/, "home composer must not read sticky scrollHeight during render");
+});
+
+test("home composer covers the browser gap while the mobile keyboard is open", () => {
+  assert.match(
+    source,
+    /\.xw-home-inputbar::after\{[^}]*position:fixed[^}]*bottom:0[^}]*height:calc\(104px \+ env\(safe-area-inset-bottom\)\)[^}]*background:linear-gradient\(180deg,rgba\(232,236,255,0\) 0%,rgba\(232,236,255,\.96\) 34%,#e8ecff 100%\)/s,
+    "home input bar should paint a bottom shield so iOS keyboard gaps do not reveal the page behind"
+  );
+  assert.match(
+    source,
+    /\.xw-home-inputbar:focus-within::after\{[^}]*height:calc\(128px \+ env\(safe-area-inset-bottom\)\)/s,
+    "focused composer should extend the shield for the keyboard transition gap"
+  );
+});
+
+test("home thinking indicator restores the assistant bubble background", () => {
+  assert.match(
+    source,
+    /if \(message\.content === "__THINKING__"\) \{[\s\S]*className="xw-home-thinking"[\s\S]*\{renderDisplayMessage\(message,\s*xiaowanziMentionLinks,\s*openXiaowanziMentionLink\)\}/,
+    "home thinking placeholders should use their own home thinking container"
+  );
+  assert.match(
+    source,
+    /\.xw-home-thinking\{[^}]*background:rgba\(255,255,255,\.9\)[^}]*border:1px solid rgba\(122,103,238,\.1\)[^}]*box-shadow:0 8px 18px rgba\(72,75,132,\.06\)/s,
+    "home thinking indicator should restore the previous assistant white card background"
+  );
+  assert.match(
+    source,
+    /\.xw-home-thinking \.xw-thinking-dots\{[^}]*padding:0[^}]*min-height:28px/s,
+    "home thinking indicator should keep the dots compact inside the restored card"
+  );
+});
+
+test("share controls only appear for successful assistant messages on hover or click", () => {
+  assert.match(
+    source,
+    /function isShareableAssistantMessage\(message: Msg\)[\s\S]*message\.role !== "assistant"[\s\S]*message\.content === "__THINKING__"[\s\S]*isFailedAssistantMessage\(message\.content\)/,
+    "share eligibility should exclude thinking placeholders and failed assistant messages"
+  );
+  assert.match(
+    source,
+    /function isFailedAssistantMessage\(content: string\)[\s\S]*请求失败/,
+    "request failure text should be detected before rendering share controls"
+  );
+  assert.match(
+    source,
+    /function isFailedAssistantMessage\(content: string\)[\s\S]*校验 Pro 权限失败[\s\S]*登录态已过期[\s\S]*无效的登录凭证/,
+    "known unsuccessful status messages should be treated as failed assistant messages"
+  );
+  assert.match(
+    source,
+    /function isFailedAssistantMessage\(content: string\)[\s\S]*\(权限\|登录凭证\|登录态\)/,
+    "short permission and login failure bubbles should not trigger share controls"
+  );
+  assert.match(
+    source,
+    /className=\{`xw-share-btn \$\{shareRevealMessageId === \(message\.ts \|\| ""\) \? "xw-share-visible" : ""\}`\.trim\(\)\}/,
+    "clicked successful assistant messages should reveal their share button"
+  );
+  assert.match(
+    source,
+    /\.xw-home-msg\.ai:hover \+ \.xw-share-btn,[^}]*\.xw-home-msg\.ai:focus-within \+ \.xw-share-btn,[^}]*\.xw-share-btn\.xw-share-visible/s,
+    "successful assistant messages should reveal share controls on hover, focus, or click"
+  );
+  assert.doesNotMatch(
+    source,
+    /\{message\.role === "assistant" && !isReplying \? \(/,
+    "share buttons must not render for every assistant message, because failures are assistant messages too"
+  );
+});
+
+test("share hover reveal stays visible for five seconds before hiding", () => {
+  assert.match(
+    source,
+    /const SHARE_REVEAL_HIDE_DELAY_MS = 5000;/,
+    "share reveal should stay visible for five seconds after hover"
+  );
+  assert.match(
+    source,
+    /const shareRevealHideTimerRef = useRef<number \| null>\(null\);/,
+    "share reveal hide timer should be tracked so newer hovers can replace older timers"
+  );
+  assert.match(
+    source,
+    /function scheduleShareRevealHide\(messageId: string\)[\s\S]*window\.setTimeout\(\(\) => \{[\s\S]*setShareRevealMessageId\(\(current\) => \(current === messageId \? null : current\)\);[\s\S]*SHARE_REVEAL_HIDE_DELAY_MS/,
+    "hide timer should only clear the same message after the five-second delay"
+  );
+  assert.match(
+    source,
+    /onMouseEnter=\{\(\) => revealShareButtonForMessage\(message\)\}/,
+    "hovering the message bubble should promote CSS hover into a delayed visible state"
+  );
+  assert.match(
+    source,
+    /onFocus=\{\(\) => revealShareButtonForMessage\(message\)\}/,
+    "keyboard focus should use the same delayed reveal path"
+  );
+});
+
+test("share card generation uses cached assets and async blob output", () => {
+  assert.match(source, /let cachedShareLogoPromise: Promise<HTMLImageElement \| null> \| null = null/, "share logo should be cached across image generations");
+  assert.match(source, /let cachedShareQrPromise: Promise<HTMLImageElement \| null> \| null = null/, "share QR should be cached across image generations");
+  assert.match(source, /const SHARE_CARD_LOGO_HEIGHT = 156;/, "share card Xiaowanzi logo should be 30 percent larger than the previous 120px height");
+  assert.match(source, /const logoH = SHARE_CARD_LOGO_HEIGHT;/, "share card rendering should use the larger logo height constant");
+  assert.doesNotMatch(source, /xiaowanzi-share-logo\.png\?t=\$\{Date\.now\(\)\}/, "share logo generation must not bypass browser cache on each click");
+  assert.match(source, /function canvasToShareObjectUrl\(canvas: HTMLCanvasElement\): Promise<string>/, "share card should encode through an async blob helper");
+  assert.match(source, /canvas\.toBlob\(\(blob\) =>/, "share card export should avoid synchronous canvas.toDataURL for large answers");
+  assert.doesNotMatch(source, /setShareCardUrl\(canvas\.toDataURL\("image\/png"\)\)/, "large share cards should not use blocking base64 data URLs");
+});
+
+test("share card generation uses assistant layout normalization before canvas wrapping", () => {
+  assert.match(
+    source,
+    /const text = msg\.role === "assistant"\s+\?\s+normalizeAssistantLayoutText\(cln\(msg\.content\)\)\s+:\s+cln\(msg\.content\);/,
+    "share cards should keep the same paragraph and numbered-list layout as visible assistant bubbles"
+  );
+});
+
+test("share selection sheet closes when the page outside the sheet is tapped", () => {
+  assert.match(
+    source,
+    /\.xw-share-select-backdrop\{[^}]*pointer-events:auto/s,
+    "share selection backdrop must receive outside taps instead of letting them pass through"
+  );
+  assert.match(
+    source,
+    /function dismissShareSelectionBackdropEvent\(event: React\.MouseEvent<HTMLDivElement>\)[\s\S]*event\.preventDefault\(\)[\s\S]*event\.stopPropagation\(\)[\s\S]*exitShareSelectionMode\(\)/,
+    "share selection backdrop should dismiss the sheet while preventing a pass-through click"
+  );
+  assert.match(
+    source,
+    /className="xw-share-select-backdrop"[\s\S]*onClick=\{dismissShareSelectionBackdropEvent\}/,
+    "clicking outside the share selection sheet should close it"
+  );
+});
+
+test("share selection mode keeps the Xiaowanzi message list scrollable", () => {
+  const backdropRule = source.match(/\.xw-share-select-backdrop\{([^}]*)\}/);
+  assert.ok(backdropRule, "share selection backdrop rule should exist");
+  const zIndexMatch = backdropRule[1].match(/z-index:(\d+)/);
+  assert.ok(zIndexMatch, "share selection backdrop should declare a stable z-index");
+  assert.ok(
+    Number(zIndexMatch[1]) < 8050,
+    "share selection backdrop must sit below the Xiaowanzi message shell so the message list can keep receiving scroll and selection taps"
+  );
+  assert.match(
+    source,
+    /<div key=\{`xw-home-\$\{homePortalKey\}`\}[\s\S]*onClick=\{shareSelectionMode \? dismissShareSelectionBackdropEvent : undefined\}/,
+    "home super-mode should close selection mode from its empty shell without covering the scrollable message list"
+  );
+});
+
+test("share selection mode exposes all home conversation messages for multi-select", () => {
+  assert.match(
+    source,
+    /const homeConversationMessages = visibleMessages\.filter\(\(message\) => !isReadReceiptMessage\(message\.content\)\);/,
+    "home mode should keep one untruncated conversation list before rendering"
+  );
+  assert.match(
+    source,
+    /const homeAnswerMessages = shareSelectionMode \? homeConversationMessages : homeConversationMessages\.slice\(-6\);/,
+    "normal home mode can stay compact, but share selection mode must show the full conversation for multi-select"
+  );
+  assert.match(
+    source,
+    /homeAnswerMessages\.map\(\(message, idx\) =>/,
+    "home answer rendering should use the share-aware message list"
+  );
+});
+
+test("xiaowanzi account sync mirrors local profiles browsing memory and sessions", () => {
+  assert.match(source, /function collectXiaowanziSyncPayload\(\): XiaowanziSyncPayload[\s\S]*childProfiles: loadChildProfiles\(\)[\s\S]*browsingMemory: readBrowsingMemory\(\)[\s\S]*conversationSessions,[\s\S]*conversationMessages/s, "account sync payload should include local profiles, browsing memory, and conversation sessions");
+  assert.match(source, /async function pullAndMergeXiaowanziAccountSync\(\): Promise<boolean>[\s\S]*\/api\/users\/me\/xiaowanzi-sync[\s\S]*applyXiaowanziSyncPayload\(remote\)[\s\S]*pushXiaowanziAccountSync\(\)/s, "login sync should pull remote data, merge it locally, then push the merged state");
+  assert.match(source, /useEffect\(\(\) => \{[\s\S]*pullAndMergeXiaowanziAccountSync\(\)[\s\S]*setChildProfiles\(loadChildProfiles\(\)\)[\s\S]*setChatContext\(loadChatContext\(\)\)[\s\S]*refreshConversationSessions\(\)/s, "widget should automatically refresh state after account sync");
+  assert.match(source, /function appendBrowsingMemory[\s\S]*localStorage\.setItem\(BROWSING_MEMORY_KEY[\s\S]*scheduleXiaowanziAccountSync\(\)/s, "browsing memory writes should schedule account sync");
+  assert.match(source, /function saveConversationSessionMessages[\s\S]*localStorage\.setItem\([\s\S]*conversationSessionMessagesKey\(sessionId\)[\s\S]*scheduleXiaowanziAccountSync\(\)/s, "session message writes should schedule account sync");
 });

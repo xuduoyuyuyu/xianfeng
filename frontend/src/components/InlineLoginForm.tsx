@@ -95,7 +95,7 @@ const InlineLoginForm: React.FC<Props> = ({ onSuccess, onClose, compact }) => {
     try {
       await dispatch(loginByMobile({ mobile: phone, code: verifyCode }) as any).unwrap();
     } catch (registerErr: any) {
-      const message = registerErr?.response?.data?.error || registerErr?.response?.data?.message || registerErr?.message || "登录失败，请稍后重试";
+      const message = typeof registerErr === "string" ? registerErr : registerErr?.response?.data?.error || registerErr?.response?.data?.message || registerErr?.message || "登录失败，请稍后重试";
       setLocalError(message);
     }
   };

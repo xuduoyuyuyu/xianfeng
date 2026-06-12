@@ -6,12 +6,17 @@ import { UserController } from "../controllers/user";
 import { authenticate, AuthenticatedRequest, optionalAuthenticate } from "../middlewares/auth";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import UserChildMemory from "../models/UserChildMemory";
+import UserXiaowanziSync from "../models/UserXiaowanziSync";
 import {
   buildChildMemorySummary,
   cleanChildMemoryText,
+  enqueueChildMemory,
   joinChildMemoryItems,
+  normalizeChildMemorySummary,
   splitChildMemoryItems,
 } from "../services/childMemory";
+import { enqueueToMemoryQueue } from "../services/memoryScheduler";
+import { emptyXiaowanziSyncState, mergeXiaowanziSyncState, sanitizeXiaowanziSyncState } from "../services/xiaowanziSync";
 
 const router = express.Router();
 const userController = new UserController();
@@ -26,13 +31,20 @@ async function getOrCreateChildMemory(userId: string, childId: string) {
 }
 
 function serializeChildMemory(doc: any, childId: string) {
-  const summary = String(doc?.summary || "");
+  const summary = normalizeChildMemorySummary(String(doc?.summary || ""));
   return {
     childId,
     enabled: doc?.enabled !== false,
     summary,
     items: splitChildMemoryItems(summary),
     updatedAt: doc?.updatedAt,
+  };
+}
+
+function serializeXiaowanziSync(doc: any) {
+  return {
+    ...sanitizeXiaowanziSyncState(doc || emptyXiaowanziSyncState()),
+    updatedAt: doc?.updatedAt || null,
   };
 }
 
@@ -64,6 +76,36 @@ router.post("/page-view", optionalAuthenticate, userController.trackPageView);
 router.get("/me", authenticate, userController.meCompat);
 router.patch("/me", authenticate, userController.patchMeCompat);
 router.delete("/me", authenticate, userController.deleteMe);
+router.get("/me/xiaowanzi-sync", authenticate, async (req: AuthenticatedRequest, res) => {
+  try {
+    if (!req.user?.id) {
+      res.status(401).json({ detail: "未登录" });
+      return;
+    }
+    const doc = await UserXiaowanziSync.findOne({ userId: req.user.id }).lean();
+    res.json(serializeXiaowanziSync(doc));
+  } catch (error: any) {
+    res.status(500).json({ detail: error?.message || "读取小玩子同步数据失败" });
+  }
+});
+router.patch("/me/xiaowanzi-sync", authenticate, async (req: AuthenticatedRequest, res) => {
+  try {
+    if (!req.user?.id) {
+      res.status(401).json({ detail: "未登录" });
+      return;
+    }
+    const existing = await UserXiaowanziSync.findOne({ userId: req.user.id }).lean();
+    const merged = mergeXiaowanziSyncState(existing as any, req.body || {});
+    const doc = await UserXiaowanziSync.findOneAndUpdate(
+      { userId: req.user.id },
+      { $set: { ...merged, userId: req.user.id } },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    ).lean();
+    res.json(serializeXiaowanziSync(doc));
+  } catch (error: any) {
+    res.status(500).json({ detail: error?.message || "同步小玩子数据失败" });
+  }
+});
 router.get("/me/child-memories/:childId", authenticate, async (req: AuthenticatedRequest, res) => {
   try {
     const childId = cleanChildMemoryText(req.params.childId, 80);
@@ -104,13 +146,24 @@ router.post("/me/child-memories/:childId/merge", authenticate, async (req: Authe
       res.json({ ...serializeChildMemory(doc, childId), skipped: true });
       return;
     }
-    doc.summary = buildChildMemorySummary({
+    const result = await buildChildMemorySummary({
       previous: doc.summary || "",
       childProfile: req.body?.childProfile,
       userMessage: req.body?.userMessage,
       assistantReply: req.body?.assistantReply,
     });
+    doc.summary = result.summary;
     await doc.save();
+
+    // 将消息放入午夜处理队列
+    const queueItem = enqueueChildMemory({
+      userMessage: req.body?.userMessage,
+      assistantReply: req.body?.assistantReply,
+    });
+    if (queueItem) {
+      enqueueToMemoryQueue(req.user!.id, childId, queueItem);
+    }
+
     res.json(serializeChildMemory(doc, childId));
   } catch (error: any) {
     res.status(500).json({ detail: error?.message || "合并记忆失败" });

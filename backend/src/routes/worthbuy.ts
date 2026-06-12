@@ -5,6 +5,49 @@ import { requirePro } from "../middlewares/requirePro";
 
 const router = Router();
 
+export const WORTHBUY_FAILURE_GUIDANCE = {
+  message: "暂时没有解析到有效商品信息，请补充商品名称后再试。",
+  tips: [
+    "尽量提供完整商品标题，不要只粘贴失效短链或活动页链接。",
+    "如果是京东/淘宝/拼多多分享，请复制电商分享文案，而不是只复制浏览器地址。",
+    "如果链接打不开，请手动补充品牌、型号、品类和关键卖点。",
+  ],
+  examples: [
+    "品牌 + 型号 + 品类：公牛 CA1507 护眼落地台灯",
+    "复制电商分享文案：【京东】公牛 CA1507 护眼落地台灯 https://3.cn/...",
+    "商品链接 + 商品名称：https://item.jd.com/... 公牛 Ai 智能小晴空大路灯",
+  ],
+};
+
+export function buildWorthBuyResultForSave(input: { analyzeResult: any; brandName: string; url?: string | null }) {
+  return {
+    ...(input.analyzeResult || {}),
+    brand: input.brandName,
+    url: input.url || null,
+  };
+}
+
+export function resolveWorthBuyUserId(req: Pick<Request, "query"> & { userId?: unknown }) {
+  const authUserId = (req as any).userId;
+  if (authUserId) return String(authUserId);
+  const queryUserId = req.query?.userId;
+  if (Array.isArray(queryUserId)) return String(queryUserId[0] || "");
+  return String(queryUserId || "");
+}
+
+export function canReadWorthBuyItem(item: { status?: string; submittedBy?: string }, userId: string, isAdmin: boolean) {
+  return item.status === "published" || isAdmin || Boolean(userId && item.submittedBy === userId);
+}
+
+export function isUndeliverableWorthBuyAnalysis(searchTarget: string, result: any) {
+  const target = String(searchTarget || "");
+  const isUrl = /^https?:\/\//i.test(target);
+  const reason = String(result?.reason || result?.summary || result?.verdict || "");
+  const score = Number(result?.score);
+  const noProduct = /页面无有效商品信息|京东平台通用提示|无法进行分析|无法提取商品信息|无法获取商品信息|页面无法访问|活动火爆|加载失败/.test(reason);
+  return isUrl && noProduct && (!Number.isFinite(score) || score <= 0);
+}
+
 function requireProForNewAnalysis(req: Request, res: Response, next: any) {
   if (req.body?.result) {
     next();
@@ -18,7 +61,7 @@ function requireProForNewAnalysis(req: Request, res: Response, next: any) {
 // GET 用户查看自己的提交列表（通过 submittedBy 或查询参数）
 router.get("/my", async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).userId || req.query.userId || "";
+    const userId = resolveWorthBuyUserId(req);
     const items = await WorthBuyAnalysis.find({ submittedBy: userId }).sort({ createdAt: -1 }).lean();
     res.json({ items });
   } catch (e: any) {
@@ -29,7 +72,7 @@ router.get("/my", async (req: Request, res: Response) => {
 // DELETE 用户删除自己的提交
 router.delete("/my/:brand", async (req: Request, res: Response) => {
   try {
-    const userId = String((req as any).userId || "");
+    const userId = resolveWorthBuyUserId(req);
     const brand = decodeURIComponent(req.params.brand as string);
     const doc = await WorthBuyAnalysis.findOneAndDelete({ brand, submittedBy: userId });
     if (!doc) return res.status(404).json({ error: "未找到该分析或无权删除" });
@@ -53,16 +96,20 @@ router.get("/list", async (_req: Request, res: Response) => {
 router.get("/:brand", async (req: Request, res: Response) => {
   try {
     const brand = decodeURIComponent(String(req.params.brand));
-    const item = await WorthBuyAnalysis.findOne({ brand }).lean();
+    const item = await WorthBuyAnalysis.findOne({
+      $or: [
+        { brand },
+        { query: brand },
+        { "result.url": brand },
+      ],
+    }).lean();
     if (!item) return res.status(404).json({ error: "未找到该分析" });
 
     // 如果是 draft/hidden，只有提交者和管理员能看
-    if (item.status !== "published") {
-      const userId = (req as any).userId || "";
-      const isAdmin = (req as any).isAdmin === true;
-      if (!isAdmin && item.submittedBy !== userId) {
-        return res.status(403).json({ error: "该分析尚未公开" });
-      }
+    const userId = resolveWorthBuyUserId(req);
+    const isAdmin = (req as any).isAdmin === true;
+    if (!canReadWorthBuyItem(item, userId, isAdmin)) {
+      return res.status(403).json({ error: "该分析尚未公开" });
     }
 
     res.json({ item });
@@ -116,6 +163,12 @@ router.post("/submit", requireProForNewAnalysis, async (req: Request, res: Respo
 
     // 2. 调用 AI 深度分析
     const analyzeResult = await deepAnalyzeProduct(searchTarget, productInfo);
+    if (isUndeliverableWorthBuyAnalysis(searchTarget, analyzeResult)) {
+      return res.status(422).json({
+        error: WORTHBUY_FAILURE_GUIDANCE.message,
+        ...WORTHBUY_FAILURE_GUIDANCE,
+      });
+    }
 
     // 3. 保存到数据库（draft 状态，管理员审核后发布）
     // 优先从抓取信息/分享文案中提取商品标题作为品牌名
@@ -124,9 +177,10 @@ router.post("/submit", requireProForNewAnalysis, async (req: Request, res: Respo
     const fallbackBrand = sharedTitle || analyzeResult.brand || analyzeResult.title || extractBrandFromUrl(url || "") || "";
     const brandName = incomingBrand || extractedTitleFromInfo || fallbackBrand || searchTarget.substring(0, 50);
     const existing = await WorthBuyAnalysis.findOne({ brand: brandName });
+    const resultForSave = buildWorthBuyResultForSave({ analyzeResult, brandName, url });
     let savedItem: any;
     if (existing) {
-      existing.result = { ...analyzeResult, url: url || null };
+      existing.result = resultForSave;
       existing.query = searchTarget;
       existing.submittedBy = effectiveUserId || existing.submittedBy || "";
       await existing.save();
@@ -137,15 +191,13 @@ router.post("/submit", requireProForNewAnalysis, async (req: Request, res: Respo
         query: searchTarget,
         submittedBy: effectiveUserId,
         status: "draft",
-        result: { ...analyzeResult, url: url || null },
+        result: resultForSave,
       });
       savedItem = doc.toObject();
     }
 
     return res.json({
-      url: url || null,
-      brand: brandName,
-      ...analyzeResult,
+      ...resultForSave,
       _id: savedItem._id,
       status: savedItem.status,
       analyzedAt: new Date().toISOString(),
@@ -157,11 +209,12 @@ router.post("/submit", requireProForNewAnalysis, async (req: Request, res: Respo
 
 /** 抓取商品页面信息 */
 async function fetchProductInfo(url: string): Promise<string> {
-  const html = await fetchHtml(url);
+  const initialPage = await fetchHtml(url);
+  const html = initialPage.html;
   if (!html) return `来源: ${new URL(url).hostname}`;
 
   // 淘宝/天猫短链 → 解析真实商品 URL
-  let realUrl = url;
+  let realUrl = initialPage.finalUrl || url;
   const tbMatch = html.match(/url\s*=\s*['"](https:\/\/item\.(taobao|tmall)\.com[^'"]+)['"]/);
   if (tbMatch) {
     realUrl = tbMatch[1];
@@ -173,17 +226,17 @@ async function fetchProductInfo(url: string): Promise<string> {
     if (parts.length > 0) return parts.join("，");
 
     // 尝试抓取真实商品页面（通常需要 cookie）
-    const realHtml = await fetchHtml(realUrl);
-    if (realHtml) {
-      const info = extractProductInfo(realHtml, realUrl);
+    const realPage = await fetchHtml(realUrl);
+    if (realPage.html) {
+      const info = extractProductInfo(realPage.html, realPage.finalUrl || realUrl);
       if (info && info.length > 3) return info;
     }
   }
 
-  return extractProductInfo(html, url);
+  return extractProductInfo(html, realUrl);
 }
 
-async function fetchHtml(url: string): Promise<string> {
+async function fetchHtml(url: string): Promise<{ html: string; finalUrl: string }> {
   const resp = await fetch(url, {
     headers: {
       "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -192,12 +245,46 @@ async function fetchHtml(url: string): Promise<string> {
     },
     redirect: "follow",
   }).catch(() => null);
-  if (!resp || !resp.ok) return "";
-  return resp.text().catch(() => "");
+  if (!resp || !resp.ok) return { html: "", finalUrl: url };
+  return { html: await resp.text().catch(() => ""), finalUrl: resp.url || url };
 }
 
-function extractProductInfo(html: string, url: string): string {
+export function isJdLikeUrl(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname.replace(/^www\./, "").toLowerCase();
+    return hostname === "3.cn" || hostname === "jd.com" || hostname.endsWith(".jd.com");
+  } catch {
+    return false;
+  }
+}
+
+export function isGenericJdTitle(title: string): boolean {
+  const compact = title
+    .replace(/&nbsp;/gi, " ")
+    .replace(/\s+/g, "")
+    .replace(/[，,。；;:：｜|_\-—–]+/g, "");
+
+  if (!compact) return true;
+  return [
+    "多快好省购物上京东",
+    "购物上京东",
+    "京东",
+    "京东JD.COM",
+    "JDCOM",
+  ].includes(compact) || /^京东网上商城/.test(compact);
+}
+
+function cleanExtractedTitle(title: string): string {
+  return title
+    .replace(/&nbsp;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .substring(0, 200);
+}
+
+export function extractProductInfo(html: string, url: string): string {
   const parts: string[] = [];
+  const isJdPage = isJdLikeUrl(url);
 
   // 尝试多种方式提取商品标题
   const titlePatterns = [
@@ -210,7 +297,8 @@ function extractProductInfo(html: string, url: string): string {
   for (const pattern of titlePatterns) {
     const m = html.match(pattern);
     if (m && m[1] && m[1].trim() && !/^\s*$/.test(m[1]) && m[1].trim().length > 2) {
-      const title = m[1].trim().replace(/\s+/g, " ").substring(0, 200);
+      const title = cleanExtractedTitle(m[1]);
+      if (isJdPage && isGenericJdTitle(title)) continue;
       parts.push(`商品标题: ${title}`);
       break;
     }
@@ -224,19 +312,26 @@ function extractProductInfo(html: string, url: string): string {
   for (const pattern of descPatterns) {
     const m = html.match(pattern);
     if (m && m[1] && m[1].trim().length > 5) {
+      if (isJdPage && isGenericJdTitle(m[1])) continue;
       parts.push(`商品描述: ${m[1].trim().substring(0, 200)}`);
       break;
     }
   }
 
   // 京东特殊处理
-  if (url.includes("jd.com")) {
+  if (isJdPage) {
     const jdTitle = html.match(/<title[^>]*>([^<]+)<\/title>/i);
     if (jdTitle && jdTitle[1]) {
       // 京东标题通常是 "商品名【图片 价格 品牌】"
-      const clean = jdTitle[1].replace(/【[^】]*】/g, "").trim();
+      const clean = cleanExtractedTitle(jdTitle[1].replace(/【[^】]*】/g, ""));
       if (clean && !parts.some(p => p.includes("商品标题"))) {
-        parts.push(`商品标题: ${clean.substring(0, 200)}`);
+        if (isGenericJdTitle(clean)) {
+          try {
+            parts.push(`来源平台: ${new URL(url).hostname}`);
+          } catch {}
+        } else {
+          parts.push(`商品标题: ${clean.substring(0, 200)}`);
+        }
       }
     }
   }

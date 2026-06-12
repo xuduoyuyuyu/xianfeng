@@ -31,7 +31,8 @@ export type PointUsagePolicyItem = {
   description: string;
 };
 
-export const FREE_DAILY_LOGIN_GRANT_POINTS = 200;
+export const FREE_DAILY_LOGIN_GRANT_POINTS = 100;
+export const FREE_MONTHLY_LOGIN_GRANT_CAP_POINTS = 1000;
 
 export const POINT_USAGE_POLICY: Record<string, PointUsagePolicyItem> = {
   xiaowanzi: {
@@ -91,7 +92,7 @@ export const FREE_BILLING_PLAN: BillingPlan = {
   amountCents: 0,
   durationMonths: 0,
   pointsPerCycle: FREE_DAILY_LOGIN_GRANT_POINTS,
-  description: "免费账户每天登录可获取200点数，每日重置，每月上限2000点数",
+  description: "免费账户每天登录可获取100点数，每日重置，每月上限1000点数",
 };
 
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
@@ -152,6 +153,9 @@ export function calculateFreeLoginPointGrant(input: {
   now?: Date;
 }) {
   const { dateKey, monthKey } = chinaDateParts(input.now || new Date());
+  const grantedThisMonth = String(input.grantMonth || "") === monthKey
+    ? Math.min(FREE_MONTHLY_LOGIN_GRANT_CAP_POINTS, safePointBalance(input.grantedThisMonth, 0))
+    : 0;
   const currentBalance = Math.min(FREE_DAILY_LOGIN_GRANT_POINTS, safePointBalance(input.balance, 0));
 
   if (String(input.grantDate || "") === dateKey) {
@@ -160,16 +164,19 @@ export function calculateFreeLoginPointGrant(input: {
       pointBalance: currentBalance,
       grantDate: dateKey,
       grantMonth: monthKey,
-      grantedThisMonth: FREE_DAILY_LOGIN_GRANT_POINTS,
+      grantedThisMonth: grantedThisMonth || Math.min(FREE_DAILY_LOGIN_GRANT_POINTS, FREE_MONTHLY_LOGIN_GRANT_CAP_POINTS),
     };
   }
 
+  const remainingMonthlyGrant = Math.max(0, FREE_MONTHLY_LOGIN_GRANT_CAP_POINTS - grantedThisMonth);
+  const grantedPoints = Math.min(FREE_DAILY_LOGIN_GRANT_POINTS, remainingMonthlyGrant);
+
   return {
-    grantedPoints: FREE_DAILY_LOGIN_GRANT_POINTS,
-    pointBalance: FREE_DAILY_LOGIN_GRANT_POINTS,
+    grantedPoints,
+    pointBalance: grantedPoints,
     grantDate: dateKey,
     grantMonth: monthKey,
-    grantedThisMonth: FREE_DAILY_LOGIN_GRANT_POINTS,
+    grantedThisMonth: grantedThisMonth + grantedPoints,
   };
 }
 
@@ -288,6 +295,32 @@ export async function grantFreeLoginPointsForUser(user: any, now = new Date()) {
   user.proFreeGrantedThisMonth = next.grantedThisMonth;
   if (typeof user.save === "function") await user.save();
   return user;
+}
+
+export async function resetFreeAccountPointGrants(now = new Date()) {
+  const result = await User.updateMany(
+    {
+      $or: [
+        { proStatus: { $ne: "active" } },
+        { proExpiresAt: { $exists: false } },
+        { proExpiresAt: null },
+        { proExpiresAt: { $lte: now } },
+      ],
+    },
+    {
+      $set: {
+        proPointBalance: 0,
+        proFreeGrantDate: "",
+        proFreeGrantMonth: "",
+        proFreeGrantedThisMonth: 0,
+      },
+    }
+  );
+
+  return {
+    matchedCount: result.matchedCount,
+    modifiedCount: result.modifiedCount,
+  };
 }
 
 export async function createPaymentOrder(input: {

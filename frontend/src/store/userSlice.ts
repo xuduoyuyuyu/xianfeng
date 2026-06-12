@@ -24,32 +24,46 @@ const clearStoredAuth = () => {
   sessionStorage.removeItem('xf_show_profile');
 };
 
+function getAuthErrorMessage(error: any, fallback: string): string {
+  const data = error?.response?.data;
+  const message = data?.error || data?.message || error?.message || fallback;
+  return typeof message === "string" && message.trim() ? message.trim() : fallback;
+}
+
 // 异步 thunk
 export const login = createAsyncThunk(
   'user/login',
-  async ({ username, password }: { username: string; password: string }) => {
-    const response = await userApi.login(username, password);
-    const { token, user, welToken } = response.data;
-    localStorage.setItem('token', token);
-    if (welToken) {
-      localStorage.setItem('wel_tok', welToken);
+  async ({ username, password }: { username: string; password: string }, { rejectWithValue }) => {
+    try {
+      const response = await userApi.login(username, password);
+      const { token, user, welToken } = response.data;
+      localStorage.setItem('token', token);
+      if (welToken) {
+        localStorage.setItem('wel_tok', welToken);
+      }
+      localStorage.setItem('user', JSON.stringify(user));
+      return { token, user };
+    } catch (error) {
+      return rejectWithValue(getAuthErrorMessage(error, "登录失败"));
     }
-    localStorage.setItem('user', JSON.stringify(user));
-    return { token, user };
   }
 );
 
 export const loginByMobile = createAsyncThunk(
   "user/loginByMobile",
-  async ({ mobile, code }: { mobile: string; code: string }) => {
-    const response = await userApi.mobileAuth(mobile, code);
-    const { token, user, welToken } = response.data;
-    localStorage.setItem("token", token);
-    if (welToken) {
-      localStorage.setItem("wel_tok", welToken);
+  async ({ mobile, code }: { mobile: string; code: string }, { rejectWithValue }) => {
+    try {
+      const response = await userApi.mobileAuth(mobile, code);
+      const { token, user, welToken } = response.data;
+      localStorage.setItem("token", token);
+      if (welToken) {
+        localStorage.setItem("wel_tok", welToken);
+      }
+      localStorage.setItem("user", JSON.stringify(user));
+      return { token, user };
+    } catch (error) {
+      return rejectWithValue(getAuthErrorMessage(error, "短信登录失败"));
     }
-    localStorage.setItem("user", JSON.stringify(user));
-    return { token, user };
   }
 );
 
@@ -90,7 +104,7 @@ const userSlice = createSlice({
       })
       .addCase(login.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.error.message || '登录失败';
+        state.error = (action.payload as string) || action.error.message || '登录失败';
       })
       .addCase(loginByMobile.pending, (state) => {
         state.isLoading = true;
@@ -103,7 +117,7 @@ const userSlice = createSlice({
       })
       .addCase(loginByMobile.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.error.message || "短信登录失败";
+        state.error = (action.payload as string) || action.error.message || "短信登录失败";
       })
       .addCase(fetchMe.fulfilled, (state, action: PayloadAction<User>) => {
         state.user = action.payload;
