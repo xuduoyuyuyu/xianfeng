@@ -449,7 +449,9 @@ const ExpertsPage: React.FC = () => {
                       </div>
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         <span className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[11px] font-bold leading-none text-[#7d6ca7]">节目 {guest.programCount || 0}</span>
-                        <span className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[11px] font-bold leading-none text-[#7d6ca7]">公开内容 {guest.referenceCount || 0}</span>
+                        {Number(guest.referenceCount || 0) > 0 ? (
+                          <span className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[11px] font-bold leading-none text-[#7d6ca7]">公开内容 {guest.referenceCount}</span>
+                        ) : null}
                       </div>
                       <p className="mt-2 line-clamp-2 text-[14px] font-semibold leading-6 text-[#7d86a5]">{guest.bio || "基于嘉宾档案、节目内容和公开资料，整理可追溯的观点与方法。"}</p>
                       {activeQuestion ? (
@@ -503,9 +505,11 @@ const ExpertsPage: React.FC = () => {
                   <span className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[11px] font-bold text-[#7d6ca7]">
                     关联节目 {guest.programCount || 0}
                   </span>
-                  <span className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[11px] font-bold text-[#7d6ca7]">
-                    公开资料 {guest.referenceCount || 0}
-                  </span>
+                  {Number(guest.referenceCount || 0) > 0 ? (
+                    <span className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[11px] font-bold text-[#7d6ca7]">
+                      公开资料 {guest.referenceCount}
+                    </span>
+                  ) : null}
                 </div>
                   </>
                 )}

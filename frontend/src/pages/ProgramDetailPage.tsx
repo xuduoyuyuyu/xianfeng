@@ -93,6 +93,23 @@ function downloadTranscript(program: Program, segments: TranscriptSegment[]) {
   URL.revokeObjectURL(url);
 }
 
+function getPrimaryProgramGuest(program: Program): Pick<ProgramGuest, "name" | "title"> | null {
+  const bindingGuest = program.guestBindings?.find((binding) => binding?.guest && (binding.guest.name || binding.guest.title))?.guest;
+  if (bindingGuest) {
+    return { name: bindingGuest.name || "", title: bindingGuest.title || "" };
+  }
+  if (program.guest?.name || program.guest?.title) {
+    return { name: program.guest.name || "", title: program.guest.title || "" };
+  }
+  return null;
+}
+
+function formatRelatedGuestMeta(program: Program): string {
+  const guest = getPrimaryProgramGuest(program);
+  if (!guest) return "";
+  return [guest.name, guest.title].map((value) => value.trim()).filter(Boolean).join(" ");
+}
+
 const ProgramDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const superModePage = useXiaowanziEmbeddedLayer();
@@ -796,13 +813,18 @@ const ProgramDetailPage: React.FC = () => {
               <div className="mb-5 h-px w-full bg-gray-100"></div>
               <div className="mb-6">
                 <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-gray-400">相关内容推荐 Related Content</p>
-                <div className="space-y-6">
-                  {(relatedPrograms.length > 0 ? relatedPrograms : programs.slice(0, 4)).map((item, index) => (
-                    <Link key={item._id} className="group block cursor-pointer border-b border-gray-50 pb-6 last:border-0" to={withXiaowanziLayerParam(`/programs/${item._id}`, superModePage)}>
-                      <h4 className="mb-2 text-[13px] font-bold leading-tight text-[#211a18] transition-colors group-hover:text-[#5e17eb]">{item.title}</h4>
-                      <p className="line-clamp-2 text-[11px] leading-relaxed text-[#53433f]/70">{item.description}</p>
-                    </Link>
-                  ))}
+                <div className="space-y-0">
+                  {(relatedPrograms.length > 0 ? relatedPrograms : programs.slice(0, 4)).map((item) => {
+                    const guestMeta = formatRelatedGuestMeta(item);
+                    return (
+                      <Link key={item._id} className="group block cursor-pointer border-b border-gray-50 py-3 last:border-0" to={withXiaowanziLayerParam(`/programs/${item._id}`, superModePage)}>
+                        <h4 className="mt-0 text-xs font-bold leading-tight text-[#211a18] transition-colors break-words group-hover:text-[#5e17eb]">{item.title}</h4>
+                        {guestMeta && (
+                          <span className="mt-1 block text-[10px] font-bold leading-none text-gray-400">{guestMeta}</span>
+                        )}
+                      </Link>
+                    );
+                  })}
                 </div>
               </div>
             </div>

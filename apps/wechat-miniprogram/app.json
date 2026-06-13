@@ -1,0 +1,47 @@
+{
+  "pages": [
+    "pages/home/index",
+    "pages/programs/index",
+    "pages/xiaowanzi/index",
+    "pages/pro/index",
+    "pages/mine/index",
+    "pages/login/index",
+    "pages/webview/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "家长先疯",
+    "navigationBarBackgroundColor": "#0f172a",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f7f4ed",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "color": "#667085",
+    "selectedColor": "#0f172a",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/home/index",
+        "text": "首页"
+      },
+      {
+        "pagePath": "pages/programs/index",
+        "text": "节目"
+      },
+      {
+        "pagePath": "pages/xiaowanzi/index",
+        "text": "小玩子"
+      },
+      {
+        "pagePath": "pages/pro/index",
+        "text": "Pro"
+      },
+      {
+        "pagePath": "pages/mine/index",
+        "text": "我的"
+      }
+    ]
+  },
+  "sitemapLocation": "sitemap.json"
+}

@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>wel 全景标准测主界面 - 深度测评版</title>
+<script src="/wel/vendor/tailwindcdn.forms.container-queries.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#7f13ec",
+                        "pearl": "#fbfbfc",
+                        "electron-purple": "#8b2cf5",
+                        "soft-purple": "#f5f0ff",
+                        "hud-border": "rgba(127, 19, 236, 0.1)",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "Noto Sans SC", "sans-serif"]
+                    },
+                    backgroundImage: {
+                        'grid-pattern': "url(\"data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%237f13ec' fill-opacity='0.02' fill-rule='evenodd'%3E%3Cpath d='M0 40L40 0H20L0 20M40 40V20L20 40'/%3E%3C/g%3E%3C/svg%3E\")",
+                    }
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        @layer base {
+            body {
+                @apply font-display bg-pearl text-slate-900;
+            }
+        }
+        .pearl-panel {
+            background: #ffffff;
+            border: 1px solid theme('colors.hud-border');
+            box-shadow: 0 4px 20px -5px rgba(0, 0, 0, 0.02);
+            @apply rounded-2xl;
+        }
+        .btn-electron {
+            background: #8b2cf5;
+            box-shadow: 0 0 20px rgba(139, 44, 245, 0.3), inset 0 0 12px rgba(255, 255, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+        .energy-spatter {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.4) 0%, transparent 70%);
+            opacity: 0.2;
+        }
+        .question-nav-item {
+            @apply size-9 flex items-center justify-center rounded-lg text-sm font-medium transition-all duration-300 border border-slate-100;
+        }
+        .question-nav-completed {
+            @apply bg-primary/10 text-primary border-primary/30 shadow-[0_0_12px_rgba(127,19,236,0.2)];
+        }
+        .question-nav-current {
+            @apply bg-primary text-white border-primary shadow-lg shadow-primary/30;
+        }
+        .scratchpad-area {
+            background-image: radial-gradient(#7f13ec 0.5px, transparent 0.5px);
+            background-size: 20px 20px;
+        }
+        .hud-scanline {
+            background: linear-gradient(to bottom, transparent, rgba(127,19,236,0.03) 50%, transparent);
+            height: 2px;
+            width: 100%;
+            position: absolute;
+            top: 0;
+        }
+    </style>
+</head>
+<body class="antialiased min-h-screen relative overflow-hidden flex flex-col">
+<div class="fixed inset-0 bg-grid-pattern pointer-events-none"></div>
+<header class="hidden">
+<div class="flex items-center gap-3">
+<img src="/logo.png" alt="Logo" class="h-6" />
+<div class="h-4 w-[1px] bg-slate-200 mx-2"></div>
+<span class="text-slate-500 text-sm font-medium">全景标准测 · 深度测评版</span>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden relative z-20">
+<aside class="w-64 border-r border-slate-100 p-6 flex flex-col bg-white/40 backdrop-blur-sm">
+<div class="mb-6 flex items-center justify-between">
+<h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">考卷导航</h3>
+<span class="text-[10px] px-2 py-0.5 bg-slate-100 rounded text-slate-500">4 / 25</span>
+</div>
+<div class="flex-1 overflow-y-auto">
+<div class="space-y-6">
+<div>
+<p class="text-[11px] text-slate-400 mb-3 flex items-center gap-2">
+<span class="size-1.5 rounded-full bg-primary/40"></span>
+                            第一部分：基础认知
+                        </p>
+<div class="grid grid-cols-4 gap-2">
+<button class="question-nav-item question-nav-completed">1</button>
+<button class="question-nav-item question-nav-completed">2</button>
+<button class="question-nav-item question-nav-completed">3</button>
+<button class="question-nav-item question-nav-current">4</button>
+<button class="question-nav-item">5</button>
+<button class="question-nav-item">6</button>
+<button class="question-nav-item">7</button>
+<button class="question-nav-item">8</button>
+</div>
+</div>
+<div>
+<p class="text-[11px] text-slate-400 mb-3 flex items-center gap-2">
+<span class="size-1.5 rounded-full bg-slate-200"></span>
+                            第二部分：逻辑迁移
+                        </p>
+<div class="grid grid-cols-4 gap-2">
+<button class="question-nav-item">9</button>
+<button class="question-nav-item">10</button>
+<button class="question-nav-item">11</button>
+<button class="question-nav-item">12</button>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-4 p-3 rounded-xl bg-soft-purple/50 border border-primary/15">
+<div class="flex items-center justify-between">
+<span class="text-[11px] text-slate-500 font-semibold">倒计时</span>
+<div class="flex items-center gap-2 px-3 py-1 bg-white rounded-full border border-primary/15">
+<span class="material-symbols-outlined text-primary text-base">timer</span>
+<span class="text-primary font-bold tabular-nums text-sm">32:45</span>
+</div>
+</div>
+</div>
+<div class="mt-6 p-4 rounded-xl bg-slate-50 border border-slate-100">
+<div class="flex items-center justify-between text-[11px] mb-2">
+<span class="text-slate-500">测评进度</span>
+<span class="text-primary font-bold">16%</span>
+</div>
+<div class="w-full h-1 bg-slate-200 rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[16%]"></div>
+</div>
+</div>
+</aside>
+<main class="flex-1 flex flex-col p-8 overflow-y-auto bg-pearl/50">
+<div class="max-w-3xl mx-auto w-full space-y-8 pb-32">
+<div class="pearl-panel p-10 relative overflow-hidden">
+<div class="hud-scanline"></div>
+<div class="flex items-center gap-3 mb-8">
+<span id="assess-qnum" class="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded">第 4 题</span>
+<span class="text-slate-400 text-xs">|</span>
+<span class="text-slate-500 text-xs">单选题 · 分值：4分</span>
+</div>
+<div class="prose prose-slate max-w-none mb-12">
+<h2 id="assess-question-title" class="text-2xl font-bold text-slate-800 leading-relaxed">
+                            一个水池装有甲、乙两根进水管。单开甲管 8 小时可以将空池注满；单开乙管 12 小时可以将空池注满。现在先开甲管，2 小时后关闭，再开乙管，还需要几小时注满水池？
+                        </h2>
+</div>
+<div class="space-y-4">
+<button class="assess-option w-full flex items-center p-5 rounded-2xl border border-slate-100 bg-slate-50/50 hover:border-primary/30 hover:bg-white transition-all group" data-opt-index="0">
+<span data-opt-letter class="size-8 rounded-lg border border-slate-200 flex items-center justify-center text-sm font-bold mr-4 group-hover:border-primary group-hover:text-primary">A</span>
+<span data-opt-text class="text-slate-700 font-medium">6 小时</span>
+</button>
+<button class="assess-option w-full flex items-center p-5 rounded-2xl border-2 border-primary bg-white shadow-lg shadow-primary/5 group" data-opt-index="1">
+<span data-opt-letter class="size-8 rounded-lg bg-primary flex items-center justify-center text-sm font-bold mr-4 text-white">B</span>
+<span data-opt-text class="text-slate-900 font-bold">9 小 hour</span>
+<span class="material-symbols-outlined ml-auto text-primary">check_circle</span>
+</button>
+<button class="assess-option w-full flex items-center p-5 rounded-2xl border border-slate-100 bg-slate-50/50 hover:border-primary/30 hover:bg-white transition-all group" data-opt-index="2">
+<span data-opt-letter class="size-8 rounded-lg border border-slate-200 flex items-center justify-center text-sm font-bold mr-4 group-hover:border-primary group-hover:text-primary">C</span>
+<span data-opt-text class="text-slate-700 font-medium">10 小时</span>
+</button>
+<button class="assess-option w-full flex items-center p-5 rounded-2xl border border-slate-100 bg-slate-50/50 hover:border-primary/30 hover:bg-white transition-all group" data-opt-index="3">
+<span data-opt-letter class="size-8 rounded-lg border border-slate-200 flex items-center justify-center text-sm font-bold mr-4 group-hover:border-primary group-hover:text-primary">D</span>
+<span data-opt-text class="text-slate-700 font-medium">12 小时</span>
+</button>
+</div>
+</div>
+<div class="pearl-panel h-64 flex flex-col overflow-hidden group">
+<div class="px-6 py-4 border-b border-slate-50 flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-slate-400 text-lg">edit_note</span>
+<h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider">灵感草稿纸</h4>
+</div>
+<div class="flex gap-4">
+<button class="text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-xl">undo</span>
+</button>
+<button class="text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-xl">delete_sweep</span>
+</button>
+</div>
+</div>
+<div class="flex-1 scratchpad-area p-6 relative">
+<div class="text-slate-300 pointer-events-none select-none italic text-sm">
+                            在这里记录你的思考过程...
+                        </div>
+</div>
+</div>
+</div>
+</main>
+<aside class="w-80 border-l border-slate-100 p-6 flex flex-col bg-white/40 backdrop-blur-sm">
+<h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">知识溯源</h3>
+<div class="pearl-panel p-5 bg-white mb-6">
+<div class="flex items-center gap-3 mb-4">
+<div class="size-10 rounded-xl bg-soft-purple flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">hub</span>
+</div>
+<div>
+<p class="text-[10px] text-slate-400 font-bold uppercase">全景图谱位置</p>
+<p class="text-sm font-bold text-slate-800">工程应用题 / 工程问题</p>
+</div>
+</div>
+<div class="space-y-4">
+<div class="relative pl-6 border-l-2 border-primary/20 space-y-4">
+<div class="relative">
+<div class="absolute -left-[27px] top-1 size-3 rounded-full border-2 border-primary bg-white"></div>
+<p class="text-xs font-bold text-slate-700">分数乘除法</p>
+<p class="text-[10px] text-slate-400">前置知识点</p>
+</div>
+<div class="relative">
+<div class="absolute -left-[27px] top-1 size-3 rounded-full border-2 border-primary bg-primary shadow-[0_0_8px_rgba(127,19,236,0.4)]"></div>
+<p class="text-xs font-bold text-primary">工程总量与效率关系</p>
+<p class="text-[10px] text-primary/60 font-medium italic">当前考查中心</p>
+</div>
+<div class="relative opacity-40">
+<div class="absolute -left-[27px] top-1 size-3 rounded-full border-2 border-slate-300 bg-white"></div>
+<p class="text-xs font-bold text-slate-700">多因素联立方程</p>
+<p class="text-[10px] text-slate-400">进阶知识点</p>
+</div>
+</div>
+</div>
+</div>
+<div class="pearl-panel p-5 bg-gradient-to-br from-primary/5 to-transparent border-dashed">
+<div class="flex items-center gap-2 mb-3">
+<span class="material-symbols-outlined text-primary text-sm">insights</span>
+<span class="text-[11px] font-bold text-slate-600">AI 认知探针</span>
+</div>
+<p class="text-[11px] text-slate-500 leading-relaxed">
+                    本题主要考查对“单位1”的转化能力。系统监测到您在 2 分钟内未动笔，建议先从甲管每小时效率入手。
+                </p>
+</div>
+</aside>
+</div>
+<footer class="h-24 bg-white border-t border-slate-100 flex items-center justify-center px-10 relative z-40">
+<div class="max-w-7xl w-full flex items-center justify-between">
+<button class="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors font-semibold">
+<span class="material-symbols-outlined">arrow_back</span>
+                上一题
+            </button>
+<div class="flex items-center gap-4">
+<button class="px-8 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-all">
+                    标记疑惑
+                </button>
+<button class="btn-electron h-14 px-12 text-white rounded-xl font-black text-lg flex items-center justify-center gap-3 transition-transform active:scale-95 shadow-xl shadow-primary/30">
+<div class="energy-spatter"></div>
+<span class="relative z-10">提交并进行下一步</span>
+<span class="material-symbols-outlined relative z-10 text-2xl">arrow_forward_ios</span>
+</button>
+</div>
+<div class="w-24"></div> 
+</div>
+</footer>
+<div class="fixed inset-0 pointer-events-none overflow-hidden -z-10">
+<div class="absolute top-[20%] left-[20%] w-[500px] h-[500px] bg-primary/3 rounded-full blur-[120px]"></div>
+<div class="absolute bottom-[20%] right-[20%] w-[500px] h-[500px] bg-electron-purple/3 rounded-full blur-[120px]"></div>
+</div>
+
+</body></html>

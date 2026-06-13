@@ -33,3 +33,12 @@ test("program detail deep dive keeps curated reading and related content adjacen
   assert.match(source, /<div className="mb-5 h-px w-full bg-gray-100"><\/div>\s*<div className="mb-6">\s*<p className="mb-3 text-\[10px\] font-black uppercase tracking-widest text-gray-400">相关内容推荐 Related Content<\/p>/, "related content should follow the divider without a large blank band");
   assert.doesNotMatch(source, /<div className="mb-10">\s*<p className="mb-4 text-\[10px\] font-black uppercase tracking-widest text-gray-400">推荐阅读 Curated Reading<\/p>/, "curated reading should not keep the old tall bottom spacing");
 });
+
+test("program detail related content uses guest metadata instead of episode labels", () => {
+  assert.match(source, /function getPrimaryProgramGuest\(program: Program\)/, "related recommendations should resolve a primary guest");
+  assert.match(source, /function formatRelatedGuestMeta\(program: Program\)/, "related recommendations should format guest name and title");
+  assert.match(source, /const guestMeta = formatRelatedGuestMeta\(item\)/, "related item rendering should compute guest metadata");
+  assert.match(source, /\{guestMeta && \(/, "guest metadata should only render when present");
+  assert.doesNotMatch(source, /EP\./, "related recommendations should not render EP labels");
+  assert.doesNotMatch(source, /programCode.*index/, "related recommendations should not derive visible labels from program codes");
+});

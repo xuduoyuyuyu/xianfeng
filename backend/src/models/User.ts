@@ -13,6 +13,8 @@ interface User extends mongoose.Document {
   avatar_image?: string;
   gender?: string;
   parentRole?: string;
+  wechatMiniOpenid?: string;
+  wechatUnionid?: string;
   role: "admin" | "user";
   proStatus?: "none" | "active" | "expired" | "refunded";
   proPlan?: "monthly" | "yearly" | "";
@@ -55,6 +57,8 @@ const userSchema = new mongoose.Schema(
     avatar_image: { type: String, default: "" },
     gender: { type: String, default: "" },
     parentRole: { type: String, default: "" },
+    wechatMiniOpenid: { type: String, default: "", index: true },
+    wechatUnionid: { type: String, default: "", index: true },
     role: { type: String, enum: ["admin", "user"], default: "user" },
     proStatus: { type: String, enum: ["none", "active", "expired", "refunded"], default: "none", index: true },
     proPlan: { type: String, enum: ["monthly", "yearly", ""], default: "" },

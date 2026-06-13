@@ -646,8 +646,8 @@
   .right-\[-24px\] {
     right: -24px;
   }
-  .right-\[6px\] {
-    right: 6px;
+  .right-\[5px\] {
+    right: 5px;
   }
   .right-\[8\%\] {
     right: 8%;
@@ -847,8 +847,8 @@
   .left-\[5\%\] {
     left: 5%;
   }
-  .left-\[7px\] {
-    left: 7px;
+  .left-\[6px\] {
+    left: 6px;
   }
   .left-\[10\%\] {
     left: 10%;
@@ -1179,9 +1179,6 @@
   }
   .mr-auto {
     margin-right: auto;
-  }
-  .mb-0 {
-    margin-bottom: calc(var(--spacing) * 0);
   }
   .mb-0\.5 {
     margin-bottom: calc(var(--spacing) * 0.5);
@@ -1593,20 +1590,17 @@
   .h-\[40\%\] {
     height: 40%;
   }
+  .h-\[42px\] {
+    height: 42px;
+  }
   .h-\[45\%\] {
     height: 45%;
-  }
-  .h-\[46px\] {
-    height: 46px;
   }
   .h-\[52px\] {
     height: 52px;
   }
   .h-\[55\%\] {
     height: 55%;
-  }
-  .h-\[58px\] {
-    height: 58px;
   }
   .h-\[60\%\] {
     height: 60%;
@@ -1821,14 +1815,14 @@
   .min-h-\[50vh\] {
     min-height: 50vh;
   }
+  .min-h-\[52px\] {
+    min-height: 52px;
+  }
   .min-h-\[54px\] {
     min-height: 54px;
   }
   .min-h-\[56px\] {
     min-height: 56px;
-  }
-  .min-h-\[58px\] {
-    min-height: 58px;
   }
   .min-h-\[64px\] {
     min-height: 64px;
@@ -2067,11 +2061,11 @@
   .w-\[40\%\] {
     width: 40%;
   }
+  .w-\[42px\] {
+    width: 42px;
+  }
   .w-\[45\%\] {
     width: 45%;
-  }
-  .w-\[46px\] {
-    width: 46px;
   }
   .w-\[52px\] {
     width: 52px;
@@ -2654,9 +2648,6 @@
   }
   .\[scrollbar-width\:none\] {
     scrollbar-width: none;
-  }
-  .\[scrollbar-width\:thin\] {
-    scrollbar-width: thin;
   }
   .\[scrollbar-gutter\:stable\] {
     scrollbar-gutter: stable;
@@ -5372,8 +5363,8 @@
   .pt-28 {
     padding-top: calc(var(--spacing) * 28);
   }
-  .pt-\[17px\] {
-    padding-top: 17px;
+  .pt-\[14px\] {
+    padding-top: 14px;
   }
   .pt-\[52px\] {
     padding-top: 52px;
@@ -5411,8 +5402,8 @@
   .pr-9 {
     padding-right: calc(var(--spacing) * 9);
   }
-  .pr-\[56px\] {
-    padding-right: 56px;
+  .pr-\[52px\] {
+    padding-right: 52px;
   }
   .pb-0 {
     padding-bottom: calc(var(--spacing) * 0);
@@ -5501,8 +5492,8 @@
   .pl-12 {
     padding-left: calc(var(--spacing) * 12);
   }
-  .pl-\[60px\] {
-    padding-left: 60px;
+  .pl-\[54px\] {
+    padding-left: 54px;
   }
   .text-center {
     text-align: center;
@@ -5660,11 +5651,11 @@
   .text-\[22px\] {
     font-size: 22px;
   }
+  .text-\[23px\] {
+    font-size: 23px;
+  }
   .text-\[24px\] {
     font-size: 24px;
-  }
-  .text-\[25px\] {
-    font-size: 25px;
   }
   .text-\[26px\] {
     font-size: 26px;
@@ -5740,9 +5731,9 @@
     --tw-leading: 18px;
     line-height: 18px;
   }
-  .leading-\[24px\] {
-    --tw-leading: 24px;
-    line-height: 24px;
+  .leading-\[22px\] {
+    --tw-leading: 22px;
+    line-height: 22px;
   }
   .leading-loose {
     --tw-leading: var(--leading-loose);

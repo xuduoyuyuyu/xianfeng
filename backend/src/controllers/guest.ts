@@ -246,16 +246,22 @@ function serializeGuestListItem(guest: any, programCount = 0, agentStats?: { chu
   };
 }
 
-async function buildGuestProgramCountMap(guestIds: string[]): Promise<Map<string, number>> {
+async function buildGuestProgramCountMap(guestIds?: string[]): Promise<Map<string, number>> {
   const map = new Map<string, number>();
-  const objectIds = guestIds
+  const objectIds = (guestIds || [])
     .filter((id) => mongoose.Types.ObjectId.isValid(id))
     .map((id) => new mongoose.Types.ObjectId(id));
-  if (!objectIds.length) return map;
+  const hasGuestIdFilter = Array.isArray(guestIds) && guestIds.length > 0;
+  if (hasGuestIdFilter && !objectIds.length) return map;
   const rows = await Program.aggregate([
-    { $match: { "guestBindings.guestId": { $in: objectIds } } },
+    {
+      $match: {
+        status: "published",
+        ...(objectIds.length ? { "guestBindings.guestId": { $in: objectIds } } : { "guestBindings.0": { $exists: true } }),
+      },
+    },
     { $unwind: { path: "$guestBindings", preserveNullAndEmptyArrays: false } },
-    { $match: { "guestBindings.guestId": { $in: objectIds } } },
+    ...(objectIds.length ? [{ $match: { "guestBindings.guestId": { $in: objectIds } } }] : []),
     { $group: { _id: "$guestBindings.guestId", count: { $sum: 1 } } },
   ]);
   rows.forEach((row: any) => {
@@ -369,6 +375,11 @@ export class GuestController {
           },
         ];
       }
+      const publicProgramCountMap = await buildGuestProgramCountMap();
+      const publicGuestObjectIds = Array.from(publicProgramCountMap.keys())
+        .filter((id) => mongoose.Types.ObjectId.isValid(id))
+        .map((id) => new mongoose.Types.ObjectId(id));
+      baseFilter._id = { $in: publicGuestObjectIds };
 
       const filter: Record<string, any> = { ...baseFilter };
       if (tag) {

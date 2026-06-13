@@ -1006,10 +1006,12 @@ export const adminApi = {
 export const userApi = {
   login: (username: string, password: string) => 
     api.post<LoginResponse>('/users/login', { username, password }),
-  sendMobileCode: (mobile: string) =>
-    api.post<MobileCodeSendResponse>("/users/sms/send-code", { mobile }),
-  mobileAuth: (mobile: string, code: string) =>
-    api.post<LoginResponse>("/users/auth/mobile", { mobile, code }),
+  verifyInviteCode: (inviteCode: string) =>
+    api.post<{ ok: boolean }>("/users/invite/verify", { inviteCode }),
+  sendMobileCode: (mobile: string, inviteCode?: string) =>
+    api.post<MobileCodeSendResponse>("/users/sms/send-code", { mobile, inviteCode }),
+  mobileAuth: (mobile: string, code: string, inviteCode?: string) =>
+    api.post<LoginResponse>("/users/auth/mobile", { mobile, code, inviteCode }),
   getMe: () => api.get<User>('/users/me'),
   deleteMe: (confirmation: string) => api.delete<{ message: string; restoreDeadline?: string }>("/users/me", { data: { confirmation } }),
   trackPageView: (data: { pagePath: string; pageTitle: string; sessionId: string; deviceType: string }) =>

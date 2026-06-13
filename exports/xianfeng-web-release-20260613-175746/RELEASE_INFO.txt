@@ -1,0 +1,5 @@
+RELEASE_PACKAGE=xianfeng-web-release-20260613-175746
+SOURCE_REPO=/Volumes/家长先疯/xianfeng
+BASE_COMMIT=a24f2ee534a6e458f7cd0685be586a06fb6aaf9c
+EXPORTED_AT_UTC=2026-06-13T09:57:48Z
+SCOPE=web/backend release package; excludes app and WeChat mini-program changes

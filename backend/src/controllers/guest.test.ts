@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { buildGuestContentTagMap, collectGuestFilterTags } from "./guest";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const source = readFileSync(resolve(__dirname, "guest.ts"), "utf8");
 
 describe("guest public content tags", () => {
   it("derives guest tags from bound program summary tags", () => {
@@ -27,5 +33,25 @@ describe("guest public content tags", () => {
     ];
 
     assert.deepEqual(collectGuestFilterTags(rows), ["阅读", "亲子沟通", "学习动力"]);
+  });
+});
+
+describe("public guest list visibility", () => {
+  it("filters guests without published programs before counting and pagination", () => {
+    assert.match(
+      source,
+      /const publicProgramCountMap = await buildGuestProgramCountMap\(\);/,
+      "public guest list should first compute guests that have published programs"
+    );
+    assert.match(
+      source,
+      /baseFilter\._id = \{ \$in: publicGuestObjectIds \};/,
+      "public guest list should constrain the guest query to guests with published programs"
+    );
+    assert.match(
+      source,
+      /\$match: \{[\s\S]*status: "published"/,
+      "guest program counts should only include published programs"
+    );
   });
 });

@@ -29,6 +29,7 @@ import worthbuyRoutes from "./routes/worthbuy";
 import tutorbotRoutes from "./routes/tutorbot";
 import aiCompatRoutes from "./routes/aiCompat";
 import billingRoutes from "./routes/billing";
+import wechatMiniRoutes from "./routes/wechatMini";
 import { publicRouter as topicPublicRoutes, adminRouter as topicAdminRoutes } from "./routes/topic";
 import { UserController } from "./controllers/user";
 import { authenticate } from "./middlewares/auth";
@@ -113,6 +114,7 @@ app.get("/api/books/:id/wx-product-url", async (req, res) => {
 app.use("/api/learning-materials", learningMaterialRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/billing", billingRoutes);
+app.use("/api/wechat-mini", wechatMiniRoutes);
 app.post("/api/sms/send-code", (req, res) => userController.sendMobileCode(req, res));
 app.post("/api/auth/mobile", (req, res) => userController.mobileAuth(req, res));
 app.get("/api/me", authenticate, (req, res) => userController.meCompat(req as any, res));

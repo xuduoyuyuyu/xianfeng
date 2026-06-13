@@ -23,6 +23,9 @@ const LoginRequiredModal: React.FC<Props> = ({
   // ---- 登录表单 state ----
   const [phone, setPhone] = useState("");
   const [verifyCode, setVerifyCode] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
+  const [inviteVerified, setInviteVerified] = useState(false);
+  const [isVerifyingInvite, setIsVerifyingInvite] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [isSendingCode, setIsSendingCode] = useState(false);
   const [localError, setLocalError] = useState("");
@@ -57,16 +60,52 @@ const LoginRequiredModal: React.FC<Props> = ({
     return () => window.clearInterval(timer);
   }, [countdown]);
 
-  const canGetCode = useMemo(() => PHONE_REGEX.test(phone) && countdown === 0 && !isSendingCode, [phone, countdown, isSendingCode]);
+  const inviteReady = inviteVerified;
+  const canGetCode = useMemo(() => inviteReady && PHONE_REGEX.test(phone) && countdown === 0 && !isSendingCode, [inviteReady, phone, countdown, isSendingCode]);
+
+  const handleInviteChange = (value: string) => {
+    setInviteCode(value.trim());
+    setInviteVerified(false);
+    setPhone("");
+    setVerifyCode("");
+    setCountdown(0);
+    setLocalError("");
+    setHint("");
+  };
+
+  const handleVerifyInvite = async () => {
+    const code = inviteCode.trim();
+    if (!code) {
+      setLocalError("请输入邀请码");
+      return;
+    }
+    try {
+      setIsVerifyingInvite(true);
+      await userApi.verifyInviteCode(inviteCode.trim());
+      setInviteVerified(true);
+      setLocalError("");
+      setHint("邀请码已校准，请继续输入手机号。");
+    } catch (err: any) {
+      setInviteVerified(false);
+      const msg = err?.response?.data?.error || err?.response?.data?.message || err?.message || "邀请码校准失败";
+      setLocalError(msg);
+    } finally {
+      setIsVerifyingInvite(false);
+    }
+  };
 
   const handleGetCode = async () => {
+    if (!inviteReady) {
+      setLocalError("请先校准邀请码");
+      return;
+    }
     if (!PHONE_REGEX.test(phone)) {
       setLocalError("请输入正确的 11 位手机号");
       return;
     }
     try {
       setIsSendingCode(true);
-      await userApi.sendMobileCode(phone);
+      await userApi.sendMobileCode(phone, inviteCode.trim());
       setCountdown(60);
       setLocalError("");
       setHint("验证码已发送，请注意查收短信。");
@@ -83,6 +122,10 @@ const LoginRequiredModal: React.FC<Props> = ({
     setLocalError("");
     setHint("");
 
+    if (!inviteReady) {
+      setLocalError("请先校准邀请码");
+      return;
+    }
     if (!PHONE_REGEX.test(phone)) {
       setLocalError("请输入正确的 11 位手机号");
       return;
@@ -93,7 +136,7 @@ const LoginRequiredModal: React.FC<Props> = ({
     }
 
     try {
-      await dispatch(loginByMobile({ mobile: phone, code: verifyCode }) as any).unwrap();
+      await dispatch(loginByMobile({ mobile: phone, code: verifyCode, inviteCode: inviteCode.trim() }) as any).unwrap();
     } catch (registerErr: any) {
       const message = typeof registerErr === "string" ? registerErr : registerErr?.response?.data?.error || registerErr?.response?.data?.message || registerErr?.message || "登录失败，请稍后重试";
       setLocalError(message);
@@ -311,6 +354,12 @@ const LoginRequiredModal: React.FC<Props> = ({
           opacity: .6;
           cursor: not-allowed;
         }
+        .xf-login-form-section .xf-invite-ok {
+          margin: -3px 0 4px;
+          color: #4c1d95;
+          font-size: 11px;
+          font-weight: 800;
+        }
         .xf-login-form-section .xf-submit-btn {
           width: 100%;
           margin-top: 0;
@@ -521,41 +570,66 @@ const LoginRequiredModal: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* 登录表单：手机号 + 验证码 + 提交 */}
+          {/* 登录表单：邀请码校准 + 手机号 + 验证码 + 提交 */}
           <form className="xf-login-form-section" onSubmit={handleSubmit}>
-            <label>手机号</label>
-            <div className="xf-field-row">
-              <div className="xf-country-code">+86</div>
-              <input
-                className="xf-input"
-                placeholder="请输入手机号"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 11))}
-              />
-            </div>
-
-            <label>验证码</label>
+            <label>邀请码</label>
             <div className="xf-field-row">
               <input
                 className="xf-input"
-                placeholder="请输入验证码"
-                value={verifyCode}
-                onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="请输入邀请码"
+                value={inviteCode}
+                onChange={(e) => handleInviteChange(e.target.value)}
               />
               <button
                 type="button"
                 className="xf-code-btn"
-                onClick={handleGetCode}
-                disabled={!canGetCode}
+                onClick={handleVerifyInvite}
+                disabled={!inviteCode.trim() || isVerifyingInvite}
               >
-                {isSendingCode ? "发送中..." : countdown > 0 ? `${countdown}s` : "获取验证码"}
+                {isVerifyingInvite ? "校准中..." : "校准邀请码"}
               </button>
             </div>
+            {inviteReady ? <div className="xf-invite-ok">邀请码已校准</div> : null}
+
+            {inviteReady && (
+              <>
+                <label>手机号</label>
+                <div className="xf-field-row">
+                  <div className="xf-country-code">+86</div>
+                  <input
+                    className="xf-input"
+                    placeholder="请输入手机号"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 11))}
+                    disabled={!inviteReady}
+                  />
+                </div>
+
+                <label>验证码</label>
+                <div className="xf-field-row">
+                  <input
+                    className="xf-input"
+                    placeholder="请输入验证码"
+                    value={verifyCode}
+                    onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    disabled={!inviteReady}
+                  />
+                  <button
+                    type="button"
+                    className="xf-code-btn"
+                    onClick={handleGetCode}
+                    disabled={!inviteReady || !canGetCode}
+                  >
+                    {isSendingCode ? "发送中..." : countdown > 0 ? `${countdown}s` : "获取验证码"}
+                  </button>
+                </div>
+              </>
+            )}
 
             {localError ? <div className="xf-error-msg">{localError}</div> : null}
             {!localError && (hint || error) ? <div className="xf-hint-msg">{hint || error}</div> : null}
 
-            <button className="xf-submit-btn" type="submit" disabled={isLoading}>
+            <button className="xf-submit-btn" type="submit" disabled={isLoading || !inviteReady}>
               {isLoading ? "登录中" : "登录/注册"}
             </button>
 

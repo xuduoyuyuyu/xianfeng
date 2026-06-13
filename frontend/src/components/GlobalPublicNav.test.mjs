@@ -48,3 +48,35 @@ test("logged-out mobile menu still shows subscription and archive entries", () =
   assert.equal([...source.matchAll(/<span>档案管理<\/span>/g)].length, 3, "archive management should appear in desktop, logged-in mobile, and logged-out mobile menus");
   assert.match(source, /<button className="link" onClick=\{openLogin\}><span className="material-symbols-outlined ms">badge<\/span><span>档案管理<\/span>/, "logged-out archive entry should request login");
 });
+
+test("mobile tab bar is mounted outside the fixed top nav so it stays viewport-bottom while scrolling", () => {
+  assert.match(
+    source,
+    /<\/nav>\{compactMobile&&<MobileTab\/>\}\{panelOverlay\}/,
+    "mobile bottom tab bar should be a sibling of the top fixed nav, not a nested fixed child"
+  );
+  assert.doesNotMatch(
+    source,
+    /\{compactMobile&&<MobileTab\/>\}<\/nav>/,
+    "mobile bottom tab bar must not be rendered inside the fixed top nav"
+  );
+});
+
+test("mobile tab bar has an opaque Safari safe-area backdrop", () => {
+  assert.match(
+    source,
+    /\.mobile-tab\{[^}]*background:#fff[^}]*-webkit-backdrop-filter:none[^}]*backdrop-filter:none/s,
+    "mobile bottom tab must not blur translucent scrolling content on iOS Safari"
+  );
+  assert.match(
+    source,
+    /body\.xf-mobile-tab-enabled\{--xf-mobile-tab-height:calc\(64px \+ env\(safe-area-inset-bottom\)\);padding-bottom:var\(--xf-mobile-tab-height\)\}/,
+    "mobile pages should reserve only the actual tab height including iOS safe area"
+  );
+  assert.match(
+    source,
+    /body\.xf-mobile-tab-enabled::after\{[^}]*position:fixed[^}]*bottom:0[^}]*height:var\(--xf-mobile-tab-height\)[^}]*background:#fff[^}]*z-index:7999/s,
+    "body should paint an opaque backdrop that matches the mobile tab height"
+  );
+  assert.doesNotMatch(source, /calc\(96px \+ env\(safe-area-inset-bottom\)\)/, "mobile tab backdrop should not overpaint above the tab bar");
+});

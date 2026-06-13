@@ -169,6 +169,26 @@ function normalizeText(value: unknown): string {
   return String(value || "").trim();
 }
 
+export function canAuthenticateWithMobileInvite(input: {
+  existingUser: unknown;
+  configuredInviteCode: unknown;
+  submittedInviteCode: unknown;
+}): boolean {
+  if (input.existingUser) return true;
+  const configuredInviteCode = normalizeText(input.configuredInviteCode);
+  if (!configuredInviteCode) return true;
+  return normalizeText(input.submittedInviteCode) === configuredInviteCode;
+}
+
+export function canVerifyLoginInvite(input: {
+  configuredInviteCode: unknown;
+  submittedInviteCode: unknown;
+}): boolean {
+  const configuredInviteCode = normalizeText(input.configuredInviteCode);
+  if (!configuredInviteCode) return true;
+  return normalizeText(input.submittedInviteCode) === configuredInviteCode;
+}
+
 function classifyDeviceType(value: string): "desktop" | "mobile" | "tablet" | "bot" | "other" {
   const ua = normalizeText(value).toLowerCase();
   if (!ua) return "other";
@@ -381,6 +401,13 @@ export class UserController {
 
   async sendMobileCode(req: Request, res: Response): Promise<void> {
     const mobile = normalizeMobile(req.body?.mobile);
+    if (!canVerifyLoginInvite({
+      configuredInviteCode: process.env.LOGIN_INVITE_CODE,
+      submittedInviteCode: req.body?.inviteCode,
+    })) {
+      res.status(403).json({ error: "请输入正确的邀请码" });
+      return;
+    }
     if (!/^1\d{10}$/.test(mobile)) {
       res.status(400).json({ error: "请输入正确的11位手机号" });
       return;
@@ -406,6 +433,17 @@ export class UserController {
     res.status(200).json({ ok: true, expireSeconds: 600 });
   }
 
+  async verifyInviteCode(req: Request, res: Response): Promise<void> {
+    if (!canVerifyLoginInvite({
+      configuredInviteCode: process.env.LOGIN_INVITE_CODE,
+      submittedInviteCode: req.body?.inviteCode,
+    })) {
+      res.status(403).json({ error: "请输入正确的邀请码" });
+      return;
+    }
+    res.status(200).json({ ok: true });
+  }
+
   async mobileAuth(req: Request, res: Response): Promise<void> {
     try {
       const mobile = normalizeMobile(req.body?.mobile);
@@ -419,7 +457,6 @@ export class UserController {
         res.status(400).json({ error: "验证码错误或已过期" });
         return;
       }
-      smsCodeStore.delete(mobile);
 
       let user = await User.findOne({ mobile });
       // Backfill legacy accounts that were created before `mobile` was reliably persisted.
@@ -433,6 +470,16 @@ export class UserController {
           await user.save();
         }
       }
+      if (!canAuthenticateWithMobileInvite({
+        existingUser: user,
+        configuredInviteCode: process.env.LOGIN_INVITE_CODE,
+        submittedInviteCode: req.body?.inviteCode,
+      })) {
+        res.status(403).json({ error: "请输入正确的邀请码" });
+        return;
+      }
+      smsCodeStore.delete(mobile);
+
       if (!user) {
         const username = `u${mobile}`;
         const password = await bcryptjs.hash(`mob-${mobile}-${Date.now()}`, 10);

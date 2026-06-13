@@ -1,0 +1,201 @@
+<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<script src="/wel/vendor/tailwindcdn.forms.container-queries.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#7f13ec",
+                        "background-light": "#f7f6f8",
+                        "background-dark": "#191022",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(127, 19, 236, 0.1);
+        }
+        .scanning-line {
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #7f13ec, transparent);
+            box-shadow: 0 0 15px #7f13ec;
+            position: absolute;
+            width: 100%;
+            top: 40%;
+        }
+        .knowledge-particle {
+            box-shadow: 0 0 12px rgba(127, 19, 236, 0.2);
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen">
+<div class="relative flex h-auto min-h-screen w-full flex-col overflow-x-hidden">
+<div class="layout-container flex h-full grow flex-col">
+<!-- Top Navigation Bar -->
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-primary/10 px-6 py-4 lg:px-20 bg-white/50 backdrop-blur-md">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-3 text-primary">
+<img src="/logo.png" alt="Logo" class="h-6" />
+</div>
+<nav class="hidden md:flex items-center gap-8">
+<a class="text-slate-600 hover:text-primary text-sm font-medium transition-colors" href="#" style="">我的文档</a>
+<a class="text-slate-600 hover:text-primary text-sm font-medium transition-colors" href="#" style="">知识库</a>
+<a class="text-primary text-sm font-bold border-b-2 border-primary leading-normal" href="#" style="">AI 解析</a>
+<a class="text-slate-600 hover:text-primary text-sm font-medium transition-colors" href="#" style="">学习计划</a>
+</nav>
+</div>
+<div class="flex flex-1 justify-end gap-6 items-center">
+<label class="hidden sm:flex flex-col min-w-40 h-10 max-w-64" style="">
+<div class="flex w-full flex-1 items-stretch rounded-lg h-full bg-primary/5 border border-primary/10">
+<div class="text-primary flex items-center justify-center pl-3">
+<span class="material-symbols-outlined text-xl" style="">search</span>
+</div>
+<input class="form-input flex w-full min-w-0 flex-1 border-none bg-transparent focus:ring-0 text-slate-900 placeholder:text-slate-400 text-sm" placeholder="搜索知识点..." value="">
+</div>
+</label>
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-slate-600 cursor-pointer" style="">notifications</span>
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-9 border-2 border-primary/20" data-alt="User profile avatar icon" style="background-image: url(&quot;/assets/wel-avatar/no-hat.png&quot;);"></div>
+</div>
+</div>
+</header>
+<main class="flex-1 flex flex-col items-center justify-center px-4 py-12 max-w-[1200px] mx-auto w-full">
+<!-- Status & Progress Section -->
+<div class="w-full max-w-2xl mb-12">
+<div class="flex flex-col gap-4 text-center mb-8">
+<span class="text-primary font-bold tracking-widest text-xs uppercase bg-primary/10 px-3 py-1 rounded-full self-center" style="">Real-time Analysis Mode</span>
+<h1 class="text-slate-900 dark:text-slate-100 text-4xl font-bold tracking-tight" style="">知识拆解中</h1>
+<p class="text-slate-500 text-lg" style="">wel 正在深度透视您的资料，构建逻辑神经网络...</p>
+</div>
+<div class="glass-panel rounded-xl p-6 shadow-xl">
+<div class="flex justify-between items-center mb-3">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary animate-pulse" style="">sync</span>
+<p class="text-slate-700 font-medium" style="">正在解析核心概念</p>
+</div>
+<p class="text-primary font-bold text-lg" style="">85%</p>
+</div>
+<div class="w-full h-3 bg-primary/10 rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 85%;"></div>
+</div>
+<div class="mt-4 flex justify-between text-xs text-slate-400 font-medium">
+<span class="" style="">文本扫描</span>
+<span class="" style="">概念提取</span>
+<span class="text-primary" style="">语义关联</span>
+<span class="" style="">结构生成</span>
+</div>
+</div>
+</div>
+<!-- Main Visualization Area -->
+<div class="relative w-full aspect-[16/9] max-h-[500px] flex items-center justify-center overflow-visible">
+<!-- Floating Knowledge Particles (Decorative Labels) -->
+<div class="absolute top-10 left-[10%] knowledge-particle glass-panel px-4 py-2 rounded-full flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-sm" style="">auto_awesome</span>
+<span class="text-sm font-medium text-slate-700" style="">微积分基本定理</span>
+</div>
+<div class="absolute bottom-20 left-[5%] knowledge-particle glass-panel px-4 py-2 rounded-full flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-sm" style="">hub</span>
+<span class="text-sm font-medium text-slate-700" style="">拉格朗日中值</span>
+</div>
+<div class="absolute top-20 right-[8%] knowledge-particle glass-panel px-4 py-2 rounded-full flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-sm" style="">insights</span>
+<span class="text-sm font-medium text-slate-700" style="">链式法则</span>
+</div>
+<div class="absolute bottom-32 right-[12%] knowledge-particle glass-panel px-4 py-2 rounded-full flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-sm" style="">psychology</span>
+<span class="text-sm font-medium text-slate-700" style="">复合函数求导</span>
+</div>
+<div class="absolute top-1/2 left-[15%] knowledge-particle glass-panel px-3 py-1.5 rounded-full flex items-center gap-2 opacity-60 scale-90">
+<span class="text-xs font-medium text-slate-600" style="">极限定义</span>
+</div>
+<!-- Scanning Document UI -->
+<div class="relative w-64 h-80 bg-white rounded-lg shadow-2xl border border-slate-200 p-4 flex flex-col gap-3 transform rotate-3 overflow-hidden group">
+<div class="w-full h-4 bg-slate-100 rounded"></div>
+<div class="flex gap-2">
+<div class="w-1/3 h-20 bg-primary/5 rounded"></div>
+<div class="w-2/3 flex flex-col gap-2">
+<div class="w-full h-3 bg-slate-100 rounded"></div>
+<div class="w-full h-3 bg-slate-100 rounded"></div>
+<div class="w-4/5 h-3 bg-slate-100 rounded"></div>
+</div>
+</div>
+<div class="w-full h-3 bg-slate-100 rounded"></div>
+<div class="w-full h-3 bg-slate-100 rounded"></div>
+<div class="w-full h-3 bg-slate-100 rounded"></div>
+<div class="w-2/3 h-3 bg-slate-100 rounded"></div>
+<!-- Purple Laser Line -->
+<div class="scanning-line z-10"></div>
+<!-- Masking overlay to simulate scanning -->
+<div class="absolute inset-0 bg-primary/5 pointer-events-none"></div>
+</div>
+<!-- Connection Lines (SVG) -->
+<svg class="absolute inset-0 w-full h-full pointer-events-none opacity-20" xmlns="http://www.w3.org/2000/svg">
+<path d="M300,100 L450,200" fill="none" stroke="#7f13ec" stroke-dasharray="4" stroke-width="1"></path>
+<path d="M250,350 L450,300" fill="none" stroke="#7f13ec" stroke-dasharray="4" stroke-width="1"></path>
+<path d="M750,150 L550,250" fill="none" stroke="#7f13ec" stroke-dasharray="4" stroke-width="1"></path>
+<path d="M800,400 L550,350" fill="none" stroke="#7f13ec" stroke-dasharray="4" stroke-width="1"></path>
+</svg>
+</div>
+<!-- Bottom Features Grid -->
+<div class="w-full grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
+<div class="flex items-start gap-4 p-4 rounded-xl hover:bg-white transition-colors border border-transparent hover:border-primary/10">
+<div class="bg-primary/10 p-3 rounded-lg text-primary">
+<span class="material-symbols-outlined" style="">network_node</span>
+</div>
+<div>
+<h3 class="font-bold text-slate-800" style="">深度透视</h3>
+<p class="text-sm text-slate-500 mt-1" style="">AI 正在扫描文档中的每一个文字，构建核心概念间的关系图谱。</p>
+</div>
+</div>
+<div class="flex items-start gap-4 p-4 rounded-xl hover:bg-white transition-colors border border-transparent hover:border-primary/10">
+<div class="bg-primary/10 p-3 rounded-lg text-primary">
+<span class="material-symbols-outlined" style="">account_tree</span>
+</div>
+<div>
+<h3 class="font-bold text-slate-800" style="">逻辑提取</h3>
+<p class="text-sm text-slate-500 mt-1" style="">系统正在提取核心概念与逻辑结构，确保学习路径清晰合理。</p>
+</div>
+</div>
+<div class="flex items-start gap-4 p-4 rounded-xl hover:bg-white transition-colors border border-transparent hover:border-primary/10">
+<div class="bg-primary/10 p-3 rounded-lg text-primary">
+<span class="material-symbols-outlined" style="">model_training</span>
+</div>
+<div>
+<h3 class="font-bold text-slate-800" style="">智能切片</h3>
+<p class="text-sm text-slate-500 mt-1" style="">将大篇幅文档拆解为微小知识单元，方便碎片化学习与记忆。</p>
+</div>
+</div>
+</div>
+</main>
+<!-- Bottom Action Footer (Floating) -->
+<footer class="fixed bottom-8 left-1/2 -translate-x-1/2 w-full max-w-sm px-4">
+<div class="glass-panel rounded-full p-2 flex items-center justify-between shadow-2xl border border-primary/20">
+<div class="flex items-center gap-3 pl-4">
+<div class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+</div>
+<span class="text-sm font-medium text-slate-700" style="">正在整理笔记...</span>
+</div>
+<button class="bg-primary hover:bg-primary/90 text-white px-6 py-2 rounded-full text-sm font-bold transition-all shadow-lg shadow-primary/20" style="">
+                        查看实时预览
+                    </button>
+</div>
+</footer>
+</div>
+</div>
+</body></html>

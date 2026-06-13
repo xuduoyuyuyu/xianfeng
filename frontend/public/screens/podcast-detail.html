@@ -817,7 +817,7 @@
 <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">相关内容推荐 Related Content</p>
 <div id="related-programs-list" class="space-y-0">
 <div class="group cursor-pointer py-3 border-b border-gray-50 last:border-0">
-<span class="sidebar-episode-num text-xs mb-0 leading-none block">EP.41</span>
+<h4 class="mt-0 text-xs font-bold text-on-surface leading-tight break-words">—</h4>
 
 </div>
 </div>
@@ -1448,11 +1448,23 @@
       .slice(0, 4);
   }
 
-  function formatRelatedEpisodeCode(value, fallbackIndex) {
-    const raw = String(value || "").trim();
-    const fallback = String((Number(fallbackIndex) || 0) + 1).padStart(2, "0");
-    const code = (raw || fallback).replace(/^EP[\.\s-]*/i, "");
-    return code.toUpperCase();
+  function getPrimaryProgramGuest(program) {
+    const bindings = Array.isArray(program && program.guestBindings) ? program.guestBindings : [];
+    for (let i = 0; i < bindings.length; i += 1) {
+      const guest = bindings[i] && bindings[i].guest;
+      if (guest && (guest.name || guest.title)) return guest;
+    }
+    const guest = program && program.guest;
+    return guest && (guest.name || guest.title) ? guest : null;
+  }
+
+  function formatRelatedGuestMeta(program) {
+    const guest = getPrimaryProgramGuest(program);
+    if (!guest) return "";
+    const parts = [guest.name, guest.title]
+      .map(function (value) { return String(value || "").trim(); })
+      .filter(Boolean);
+    return parts.join(" ");
   }
 
   function renderRelated(program, programs) {
@@ -1466,11 +1478,13 @@
       list.innerHTML = '<div class="rounded-2xl border border-dashed border-stone-200 bg-stone-50 px-4 py-5 text-sm leading-6 text-stone-500">当前词典尚未为这期节目聚合出相关节目，等更多节目共现后会自动出现。</div>';
       return;
     }
-    list.innerHTML = others.map(function (item, index) {
+    list.innerHTML = others.map(function (item) {
       const routeId = item.programCode || item._id;
+      const guestMeta = formatRelatedGuestMeta(item);
       return '<a class="group block cursor-pointer py-3 border-b border-gray-50 last:border-0" href="#" data-program-route="' + escapeHtml(routeId) + '">' +
-        '<span class="sidebar-episode-num text-xs mb-0 leading-none block">EP.' + formatRelatedEpisodeCode(item.programCode, index) + "</span>" +
-        '<h4 class="mt-0 text-xs font-bold text-on-surface group-hover:text-primary transition-colors leading-tight break-words">' + escapeHtml(item.title || "") + "</h4></a>";
+        '<h4 class="mt-0 text-xs font-bold text-on-surface group-hover:text-primary transition-colors leading-tight break-words">' + escapeHtml(item.title || "") + "</h4>" +
+        (guestMeta ? '<span class="mt-1 block text-[10px] font-bold leading-none text-gray-400">' + escapeHtml(guestMeta) + "</span>" : "") +
+        "</a>";
     }).join("");
     Array.prototype.forEach.call(list.querySelectorAll("[data-program-route]"), function (link) {
       link.addEventListener("click", function (event) {

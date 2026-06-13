@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useSelector } from "react-redux";
+import { useSearchParams } from "react-router-dom";
 import { RootState } from "../store";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import Pagination from "../components/Pagination";
@@ -268,10 +269,12 @@ const MaterialsPage: React.FC = () => {
   const superModePage = useXiaowanziEmbeddedLayer();
   const isMobilePager = useIsMobilePager();
   const token = useSelector((state: RootState) => state.user.token);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialKeyword = String(searchParams.get("q") || "").trim();
   const [materials, setMaterials] = useState<LearningMaterial[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [keyword, setKeyword] = useState("");
+  const [keyword, setKeyword] = useState(() => initialKeyword);
   const [page, setPage] = useState(1);
   const [selectedStages, setSelectedStages] = useState<string[]>([]);
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
@@ -303,6 +306,23 @@ const MaterialsPage: React.FC = () => {
       alive = false;
     };
   }, []);
+
+  useEffect(() => {
+    const nextKeyword = String(searchParams.get("q") || "").trim();
+    setKeyword((prev) => (prev === nextKeyword ? prev : nextKeyword));
+  }, [searchParams]);
+
+  function updateKeyword(nextKeyword: string) {
+    setKeyword(nextKeyword);
+    const clean = String(nextKeyword || "").trim();
+    const next = new URLSearchParams(searchParams);
+    if (clean) {
+      next.set("q", clean);
+    } else {
+      next.delete("q");
+    }
+    setSearchParams(next, { replace: true });
+  }
 
   const enriched = useMemo(
     () =>
@@ -387,7 +407,7 @@ const MaterialsPage: React.FC = () => {
   }, []);
 
   const clearFilters = () => {
-    setKeyword("");
+    updateKeyword("");
     setSelectedStages([]);
     setSelectedGrades([]);
     setSelectedSubjects([]);
@@ -463,7 +483,7 @@ const MaterialsPage: React.FC = () => {
               key={`${title}-${option}`}
               type="button"
               onClick={() => onToggle(option)}
-              className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                className={`materials-filter-chip rounded-full border px-3 py-1.5 text-xs font-bold transition ${
                 active
                   ? "border-[#5e17eb] bg-[#5e17eb] text-white"
                   : "border-[#d8c8ef] bg-white text-[#6b5fa0] hover:border-[#5e17eb]"
@@ -534,6 +554,7 @@ const MaterialsPage: React.FC = () => {
           .materials-mobile-hero { padding: 16px !important; border-radius: 20px !important; }
           .materials-mobile-filter { padding: 12px !important; border-radius: 16px !important; }
           .materials-mobile-label { width: 56px !important; font-size: 12px !important; }
+          .materials-filter-chip { padding: 6.5px 13px !important; font-size: 14.3px !important; line-height: 1.2 !important; }
           .materials-mobile-grid { gap: 12px !important; }
         }
       `}</style>
@@ -560,7 +581,7 @@ const MaterialsPage: React.FC = () => {
         showSearch
         searchPlaceholder="搜索资料名称、学科、关键词"
         searchValue={keyword}
-        onSearchChange={setKeyword}
+        onSearchChange={updateKeyword}
       />
       <main className={`materials-mobile-main mx-auto max-w-7xl px-4 pb-16 pt-[76px] sm:px-6 lg:px-8 ${superModePage ? "xw-layer-main" : ""}`}>
         <section className="materials-mobile-hero group relative overflow-hidden rounded-[2rem] border border-[#d8d0ef] bg-[radial-gradient(circle_at_85%_15%,_rgba(143,100,255,0.1),_transparent_38%),linear-gradient(135deg,_#f4f1fd_0%,_#faf8ff_48%,_#f0ebff_100%)] p-7 shadow-[0_24px_80px_rgba(80,62,125,0.1)] sm:p-9">
@@ -580,7 +601,7 @@ const MaterialsPage: React.FC = () => {
                 <span className="material-symbols-outlined text-[#8f7bd6]" style={{ fontSize: 22, lineHeight: 1 }}>search</span>
                 <input
                   value={keyword}
-                  onChange={(event) => setKeyword(event.target.value)}
+                  onChange={(event) => updateKeyword(event.target.value)}
                   placeholder="搜索资料名称、学科、关键词"
                   className="materials-search-input w-full border-0 bg-transparent text-sm outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
                 />
@@ -606,8 +627,8 @@ const MaterialsPage: React.FC = () => {
             <div className="flex flex-col gap-3 md:flex-row md:items-start">
               <div className="materials-mobile-label w-[72px] pt-1 text-sm font-black tracking-[0.1em] text-[#6b5fa0]">年级</div>
               <div className="flex-1">
-                <div className="overflow-x-auto pb-1 [scrollbar-width:thin]">
-                  <div className="flex min-w-max flex-nowrap gap-2">
+                <div>
+                  <div className="flex flex-wrap gap-2">
                   {gradeOptions.map((option) => {
                     const active = selectedGrades.includes(option);
                     return (
@@ -615,7 +636,7 @@ const MaterialsPage: React.FC = () => {
                         key={`年级-${option}`}
                         type="button"
                         onClick={() => toggle(option, selectedGrades, setSelectedGrades)}
-                        className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                        className={`materials-filter-chip rounded-full border px-3 py-1.5 text-xs font-bold transition ${
                           active
                             ? "border-[#5e17eb] bg-[#5e17eb] text-white"
                             : "border-[#d8c8ef] bg-white text-[#6b5fa0] hover:border-[#5e17eb]"

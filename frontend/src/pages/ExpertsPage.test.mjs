@@ -45,3 +45,26 @@ test("visible expert avatars load eagerly and fallback uses optimized asset", ()
   assert.match(avatarSource, /XIANFENG_UPLOAD_HOST_RE/, "production upload URLs should be recognized");
   assert.match(avatarSource, /\/uploads\/images\/\$\{fileName\}\$\{suffix\}/, "local development should use the proxied upload path instead of remote production uploads");
 });
+
+test("expert cards hide zero public-content badges", () => {
+  assert.doesNotMatch(
+    source,
+    /公开内容 \{guest\.referenceCount \|\| 0\}/,
+    "super-mode cards should not render 公开内容 0"
+  );
+  assert.doesNotMatch(
+    source,
+    /公开资料 \{guest\.referenceCount \|\| 0\}/,
+    "archive cards should not render 公开资料 0"
+  );
+  assert.match(
+    source,
+    /\{Number\(guest\.referenceCount \|\| 0\) > 0 \? \([\s\S]*公开内容 \{guest\.referenceCount\}[\s\S]*\) : null\}/,
+    "super-mode cards should render public-content badge only when count is positive"
+  );
+  assert.match(
+    source,
+    /\{Number\(guest\.referenceCount \|\| 0\) > 0 \? \([\s\S]*公开资料 \{guest\.referenceCount\}[\s\S]*\) : null\}/,
+    "archive cards should render public-content badge only when count is positive"
+  );
+});

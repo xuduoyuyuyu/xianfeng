@@ -70,6 +70,7 @@ const avatarUpload = multer({
 });
 
 router.post("/login", userController.login);
+router.post("/invite/verify", userController.verifyInviteCode);
 router.post("/sms/send-code", userController.sendMobileCode);
 router.post("/auth/mobile", userController.mobileAuth);
 router.post("/page-view", optionalAuthenticate, userController.trackPageView);

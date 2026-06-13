@@ -345,6 +345,7 @@ const BooksPage: React.FC = () => {
           .books-mobile-hero { padding: 16px !important; border-radius: 20px !important; }
           .books-mobile-filter { padding: 12px !important; border-radius: 16px !important; }
           .books-mobile-label { width: 56px !important; font-size: 12px !important; }
+          .books-filter-chip { padding: 6.5px 13px !important; font-size: 14.3px !important; line-height: 1.2 !important; }
           .books-mobile-card h3 { font-size: 16px !important; }
         }
       `}</style>
@@ -429,7 +430,7 @@ const BooksPage: React.FC = () => {
                       key={grade}
                       type="button"
                       onClick={() => toggleGrade(grade)}
-                      className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                      className={`books-filter-chip rounded-full border px-3 py-1.5 text-xs font-bold transition ${
                         active
                           ? "border-[#5e17eb] bg-[#5e17eb] text-white"
                           : "border-[#d8c8ef] bg-white text-[#6b5fa0] hover:border-[#5e17eb] hover:bg-[#faf8ff]"
@@ -455,7 +456,7 @@ const BooksPage: React.FC = () => {
                       key={topic}
                       type="button"
                       onClick={() => toggleTopic(topic)}
-                      className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                      className={`books-filter-chip rounded-full border px-3 py-1.5 text-xs font-bold transition ${
                         active
                           ? "border-[#5e17eb] bg-[#5e17eb] text-white"
                           : "border-[#d8c8ef] bg-white text-[#6b5fa0] hover:border-[#5e17eb] hover:bg-[#faf8ff]"

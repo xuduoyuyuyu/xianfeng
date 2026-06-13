@@ -74,12 +74,12 @@ test("podcast detail related content stays compact without summaries", () => {
 
   assert.match(source, /id="related-programs-list" class="space-y-0"/, "related list should remove vertical gaps");
   assert.match(renderRelatedSource, /class="group block cursor-pointer py-3 border-b/, "related item should use compact vertical padding");
-  assert.match(renderRelatedSource, /sidebar-episode-num text-xs mb-0 leading-none block/, "episode label should sit close to the related title");
-  assert.match(renderRelatedSource, /EP\.'\s*\+\s*formatRelatedEpisodeCode\(item\.programCode, index\)/, "episode label should not include a wide space before the number");
-  assert.match(renderRelatedSource, /<h4 class="mt-0 text-xs font-bold text-on-surface/, "related title should start immediately under the episode label");
-  assert.doesNotMatch(renderRelatedSource, /sidebar-episode-num text-xs mb-1/, "episode label should not keep the old bottom gap");
+  assert.match(renderRelatedSource, /<h4 class="mt-0 text-xs font-bold text-on-surface/, "related title should be the primary visible line");
+  assert.match(renderRelatedSource, /formatRelatedGuestMeta\(item\)/, "related item should use guest name and title as optional metadata");
+  assert.doesNotMatch(renderRelatedSource, /sidebar-episode-num/, "related item should not render the old episode label");
+  assert.doesNotMatch(renderRelatedSource, /EP\./, "related item should not render an EP label");
   assert.doesNotMatch(renderRelatedSource, /const description =/, "related item should not compute a summary or reason line");
-  assert.doesNotMatch(renderRelatedSource, /<p class="text-\[11px\]/, "related item should render only episode code and title");
+  assert.doesNotMatch(renderRelatedSource, /<p class="text-\[11px\]/, "related item should not render long description paragraphs");
 });
 
 test("podcast detail related content matches curated reading item font size", () => {
@@ -99,14 +99,16 @@ test("podcast detail deep dive keeps curated reading and related content adjacen
   assert.doesNotMatch(source, /<div class="px-8 pb-8">\s*<p class="text-\[10px\] font-black text-gray-400 uppercase tracking-widest mb-4">相关内容推荐 Related Content<\/p>/, "related content should not live in a separate padded block that creates a vertical gap");
 });
 
-test("podcast detail related episode labels do not repeat EP prefixes", () => {
+test("podcast detail related content replaces episode labels with guest metadata", () => {
   const renderRelatedStart = source.indexOf("function renderRelated");
   const fetchRelatedStart = source.indexOf("async function fetchRelatedPrograms");
   const renderRelatedSource = source.slice(renderRelatedStart, fetchRelatedStart);
 
-  assert.match(source, /function formatRelatedEpisodeCode\(value, fallbackIndex\)/, "related episode labels should have a formatter");
-  assert.match(source, /replace\(\s*\/\^EP/, "formatter should strip an existing EP prefix before adding the label prefix");
-  assert.match(renderRelatedSource, /EP\.'\s*\+\s*formatRelatedEpisodeCode\(item\.programCode, index\)/, "related labels should render as EP.52 instead of EP. EP52");
-  assert.doesNotMatch(renderRelatedSource, /EP\. '\s*\+\s*formatRelatedEpisodeCode/, "related labels should not keep a full text space between EP. and the number");
-  assert.doesNotMatch(renderRelatedSource, /"EP\. " \+ String\(item\.programCode/, "related labels should not prefix raw programCode directly");
+  assert.match(source, /function formatRelatedGuestMeta\(program\)/, "related metadata should have a guest formatter");
+  assert.match(source, /getPrimaryProgramGuest\(program\)/, "related metadata should read the first bound guest");
+  assert.match(source, /return parts\.join\(" "\)/, "guest name and title should be joined into one line");
+  assert.match(renderRelatedSource, /const guestMeta = formatRelatedGuestMeta\(item\)/, "related rendering should compute guest metadata per item");
+  assert.match(renderRelatedSource, /guestMeta \?/, "related metadata should only render when guest data exists");
+  assert.doesNotMatch(source, /<span class="sidebar-episode-num[^"]*">EP\.41<\/span>/, "placeholder DOM should not show the old EP label");
+  assert.doesNotMatch(renderRelatedSource, /formatRelatedEpisodeCode/, "related rendering should not depend on episode code formatting");
 });

@@ -10,6 +10,9 @@ const PHONE_REGEX = /^1\d{10}$/;
 const UserLoginPage: React.FC = () => {
   const [phone, setPhone] = useState("");
   const [verifyCode, setVerifyCode] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
+  const [inviteVerified, setInviteVerified] = useState(false);
+  const [isVerifyingInvite, setIsVerifyingInvite] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [isSendingCode, setIsSendingCode] = useState(false);
   const [localError, setLocalError] = useState("");
@@ -44,16 +47,52 @@ const UserLoginPage: React.FC = () => {
     return () => window.clearInterval(timer);
   }, [countdown]);
 
-  const canGetCode = useMemo(() => PHONE_REGEX.test(phone) && countdown === 0 && !isSendingCode, [phone, countdown, isSendingCode]);
+  const inviteReady = inviteVerified;
+  const canGetCode = useMemo(() => inviteReady && PHONE_REGEX.test(phone) && countdown === 0 && !isSendingCode, [inviteReady, phone, countdown, isSendingCode]);
+
+  const handleInviteChange = (value: string) => {
+    setInviteCode(value.trim());
+    setInviteVerified(false);
+    setPhone("");
+    setVerifyCode("");
+    setCountdown(0);
+    setLocalError("");
+    setHint("");
+  };
+
+  const handleVerifyInvite = async () => {
+    const code = inviteCode.trim();
+    if (!code) {
+      setLocalError("请输入邀请码");
+      return;
+    }
+    try {
+      setIsVerifyingInvite(true);
+      await userApi.verifyInviteCode(inviteCode.trim());
+      setInviteVerified(true);
+      setLocalError("");
+      setHint("邀请码已校准，请继续输入手机号。");
+    } catch (err: any) {
+      setInviteVerified(false);
+      const msg = err?.response?.data?.error || err?.response?.data?.message || err?.message || "邀请码校准失败";
+      setLocalError(msg);
+    } finally {
+      setIsVerifyingInvite(false);
+    }
+  };
 
   const handleGetCode = async () => {
+    if (!inviteReady) {
+      setLocalError("请先校准邀请码");
+      return;
+    }
     if (!PHONE_REGEX.test(phone)) {
       setLocalError("请输入正确的 11 位手机号");
       return;
     }
     try {
       setIsSendingCode(true);
-      await userApi.sendMobileCode(phone);
+      await userApi.sendMobileCode(phone, inviteCode.trim());
       setCountdown(60);
       setLocalError("");
       setHint("验证码已发送，请注意查收短信。");
@@ -70,6 +109,10 @@ const UserLoginPage: React.FC = () => {
     setLocalError("");
     setHint("");
 
+    if (!inviteReady) {
+      setLocalError("请先校准邀请码");
+      return;
+    }
     if (!PHONE_REGEX.test(phone)) {
       setLocalError("请输入正确的 11 位手机号");
       return;
@@ -79,7 +122,7 @@ const UserLoginPage: React.FC = () => {
       return;
     }
     try {
-      await dispatch(loginByMobile({ mobile: phone, code: verifyCode }) as any).unwrap();
+      await dispatch(loginByMobile({ mobile: phone, code: verifyCode, inviteCode: inviteCode.trim() }) as any).unwrap();
       return;
     } catch (registerErr: any) {
       const message = typeof registerErr === "string" ? registerErr : registerErr?.response?.data?.error || registerErr?.response?.data?.message || registerErr?.message || "登录失败，请稍后重试";
@@ -253,6 +296,12 @@ const UserLoginPage: React.FC = () => {
         .code-btn:disabled {
           opacity: .6;
           cursor: not-allowed;
+        }
+        .invite-ok {
+          margin: -8px 0 12px;
+          color: #4c1d95;
+          font-size: 13px;
+          font-weight: 800;
         }
         .submit-btn {
           width: 100%;
@@ -446,39 +495,64 @@ const UserLoginPage: React.FC = () => {
             <img alt="家长先疯" src="/assets/logo.png" />
           </div>
           <form onSubmit={handleSubmit}>
-            <label className="field-label">手机号</label>
-            <div className="row">
-              <div className="country">+86</div>
-              <input
-                className="input"
-                placeholder="请输入手机号"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 11))}
-              />
-            </div>
-
-            <label className="field-label">验证码</label>
+            <label className="field-label">邀请码</label>
             <div className="row">
               <input
                 className="input"
-                placeholder="请输入验证码"
-                value={verifyCode}
-                onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="请输入邀请码"
+                value={inviteCode}
+                onChange={(e) => handleInviteChange(e.target.value)}
               />
               <button
                 type="button"
                 className="code-btn"
-                onClick={handleGetCode}
-                disabled={!canGetCode}
+                onClick={handleVerifyInvite}
+                disabled={!inviteCode.trim() || isVerifyingInvite}
               >
-                {isSendingCode ? "发送中..." : countdown > 0 ? `${countdown}s` : "获取验证码"}
+                {isVerifyingInvite ? "校准中..." : "校准邀请码"}
               </button>
             </div>
+            {inviteReady ? <div className="invite-ok">邀请码已校准</div> : null}
+
+            {inviteReady && (
+              <>
+                <label className="field-label">手机号</label>
+                <div className="row">
+                  <div className="country">+86</div>
+                  <input
+                    className="input"
+                    placeholder="请输入手机号"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 11))}
+                    disabled={!inviteReady}
+                  />
+                </div>
+
+                <label className="field-label">验证码</label>
+                <div className="row">
+                  <input
+                    className="input"
+                    placeholder="请输入验证码"
+                    value={verifyCode}
+                    onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    disabled={!inviteReady}
+                  />
+                  <button
+                    type="button"
+                    className="code-btn"
+                    onClick={handleGetCode}
+                    disabled={!inviteReady || !canGetCode}
+                  >
+                    {isSendingCode ? "发送中..." : countdown > 0 ? `${countdown}s` : "获取验证码"}
+                  </button>
+                </div>
+              </>
+            )}
 
             {localError ? <div className="error">{localError}</div> : null}
             {!localError && (hint || error) ? <div className="hint">{hint || error}</div> : null}
 
-            <button className="submit-btn" type="submit" disabled={isLoading}>
+            <button className="submit-btn" type="submit" disabled={isLoading || !inviteReady}>
               {isLoading ? "处理中..." : "登录/注册"}
             </button>
           </form>
