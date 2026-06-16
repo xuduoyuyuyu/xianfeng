@@ -39,7 +39,12 @@ function getSourceGuestId(value: Book["sourceGuestId"]): string {
 }
 
 function hasBookCover(item: Pick<Book, "coverImage">): boolean {
-  return normalizeText(item.coverImage).length > 0;
+  const url = normalizeText(item.coverImage);
+  if (!url) return false;
+  // 排除 placeholder 占位图
+  if (url.includes("via.placeholder.com")) return false;
+  if (url.includes("placeholder")) return false;
+  return true;
 }
 
 function uniq(values: string[]): string[] {
@@ -49,7 +54,7 @@ function uniq(values: string[]): string[] {
 const BookCard: React.FC<BookCardProps> = ({ item }) => {
   return (
     <article className="group mb-3 break-inside-avoid overflow-hidden rounded-[1rem] border border-[#e2dcf0] bg-white shadow-[0_8px_18px_rgba(60,40,80,0.06)]">
-      {item.coverImage ? (
+      {hasBookCover(item) ? (
         <div className="relative w-full p-2">
           <div className="flex items-center justify-center overflow-hidden rounded-lg bg-white">
             <img
@@ -65,7 +70,7 @@ const BookCard: React.FC<BookCardProps> = ({ item }) => {
           {/* 购买功能暂隐藏 */}
         </div>
       ) : null}
-      <div className={`px-3 pb-3 ${item.coverImage ? "pt-1" : "pt-3"}`}>
+      <div className={`px-3 pb-3 ${hasBookCover(item) ? "pt-1" : "pt-3"}`}>
         <h3 className="line-clamp-2 text-[22px] font-black leading-tight text-[#2b1a3a]">{item.title || "未命名书籍"}</h3>
         <p className="mt-2 text-sm text-[#6f62a4]">作者: {item.author || "未标注"}</p>
         {item.translator ? <p className="mt-1 text-sm text-[#6f62a4]">译者: {item.translator}</p> : null}
@@ -238,7 +243,11 @@ const BooksPage: React.FC = () => {
     return Array.from(map.entries())
       .map(([guest, items]) => ({
         guest,
-        items: items.sort((a, b) => normalizeText(a.title).localeCompare(normalizeText(b.title), "zh-CN")),
+        items: items.sort((a, b) => {
+          const coverDelta = Number(hasBookCover(b)) - Number(hasBookCover(a));
+          if (coverDelta !== 0) return coverDelta;
+          return normalizeText(a.title).localeCompare(normalizeText(b.title), "zh-CN");
+        }),
       }))
       .sort((a, b) => a.guest.localeCompare(b.guest, "zh-CN"));
   }, [coverFirstFiltered]);
