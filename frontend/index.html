@@ -10,24 +10,42 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@48,400,0,0" media="print" onload="this.media='all'" />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght@24,300" media="print" onload="this.media='all'" />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" media="print" onload="this.media='all'" />
-    <noscript>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@48,400,0,0" />
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght@24,300" />
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" />
-    </noscript>
     <meta name="theme-color" content="#f8fafc" />
     <style>
       html, body { background: #f8fafc; }
-      /* 防止 iOS Safari 键盘弹起时底部工具栏穿透 */
       html, body {
         position: relative;
         width: 100%;
         overflow-x: hidden;
       }
+      /* Preload critical fonts asynchronously */
+      @font-face {
+        font-family: 'DM Sans fallback';
+        src: local('PingFang SC'), local('Microsoft YaHei');
+        ascent-override: 90%;
+        descent-override: 25%;
+        line-gap-override: 0%;
+        size-adjust: 105%;
+        font-display: swap;
+      }
     </style>
+    <script>
+      // Async load Google Fonts - non-blocking
+      (function() {
+        var link1 = document.createElement('link');
+        link1.rel = 'stylesheet';
+        link1.href = 'https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@48,400,0,0&display=block';
+        var link2 = document.createElement('link');
+        link2.rel = 'stylesheet';
+        link2.href = 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght@24,300&display=block';
+        var link3 = document.createElement('link');
+        link3.rel = 'stylesheet';
+        link3.href = 'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap';
+        document.head.appendChild(link1);
+        document.head.appendChild(link2);
+        document.head.appendChild(link3);
+      })();
+    </script>
 </head>
 <body>
     <div id="root"></div>
