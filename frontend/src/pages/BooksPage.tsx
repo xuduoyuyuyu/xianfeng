@@ -44,6 +44,8 @@ function hasBookCover(item: Pick<Book, "coverImage">): boolean {
   // 排除 placeholder 占位图
   if (url.includes("via.placeholder.com")) return false;
   if (url.includes("placeholder")) return false;
+  // 排除本地 uploads 文件（服务器上不存在）
+  if (url.includes("/uploads/images/")) return false;
   return true;
 }
 
@@ -58,7 +60,7 @@ const BookCard: React.FC<BookCardProps> = ({ item }) => {
         <div className="relative w-full p-2">
           <div className="flex items-center justify-center overflow-hidden rounded-lg bg-white">
             <img
-              src={`/api/books/proxy-image?url=${encodeURIComponent(item.coverImage)}`}
+              src={`/api/books/proxy-image?url=${encodeURIComponent((item.coverImage || '').replace(/^http:\/\//i, 'https://'))}`}
               alt={item.title || "书籍封面"}
               className="w-full object-contain"
               loading="lazy"
