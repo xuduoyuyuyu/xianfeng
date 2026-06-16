@@ -1977,9 +1977,6 @@
   .w-24 {
     width: calc(var(--spacing) * 24);
   }
-  .w-28 {
-    width: calc(var(--spacing) * 28);
-  }
   .w-32 {
     width: calc(var(--spacing) * 32);
   }
@@ -2238,14 +2235,14 @@
   .max-w-\[86\%\] {
     max-width: 86%;
   }
+  .max-w-\[90px\] {
+    max-width: 90px;
+  }
   .max-w-\[92\%\] {
     max-width: 92%;
   }
   .max-w-\[110px\] {
     max-width: 110px;
-  }
-  .max-w-\[220px\] {
-    max-width: 220px;
   }
   .max-w-\[300px\] {
     max-width: 300px;
@@ -2361,6 +2358,9 @@
   .min-w-\[980px\] {
     min-width: 980px;
   }
+  .min-w-\[1060px\] {
+    min-width: 1060px;
+  }
   .min-w-\[1100px\] {
     min-width: 1100px;
   }
@@ -2369,9 +2369,6 @@
   }
   .min-w-\[1180px\] {
     min-width: 1180px;
-  }
-  .min-w-\[1640px\] {
-    min-width: 1640px;
   }
   .min-w-max {
     min-width: max-content;
@@ -8261,6 +8258,13 @@
       }
     }
   }
+  .hover\:border-amber-200 {
+    &:hover {
+      @media (hover: hover) {
+        border-color: var(--color-amber-200);
+      }
+    }
+  }
   .hover\:border-primary {
     &:hover {
       @media (hover: hover) {
@@ -8517,6 +8521,13 @@
     &:hover {
       @media (hover: hover) {
         background-color: #ff1f1f;
+      }
+    }
+  }
+  .hover\:bg-amber-50 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: var(--color-amber-50);
       }
     }
   }
@@ -8835,6 +8846,13 @@
     &:hover {
       @media (hover: hover) {
         color: var(--lp-primary);
+      }
+    }
+  }
+  .hover\:text-amber-600 {
+    &:hover {
+      @media (hover: hover) {
+        color: var(--color-amber-600);
       }
     }
   }

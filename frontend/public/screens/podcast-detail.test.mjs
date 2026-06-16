@@ -33,6 +33,15 @@ test("podcast detail renders the mind map immediately and fits it in view", () =
   assert.match(source, /<div id="mindmap-panel">/, "mindmap panel should be visible on first render because mindmap is the default tab");
   assert.doesNotMatch(source, /<div id="mindmap-panel" class="hidden">/, "mindmap panel should not start hidden while its tab is active");
   assert.match(source, /function initMindMapData\(deepDive\)[\s\S]*renderMindMapPanel\(\);/, "loading program data should render the mindmap without waiting for another click");
+  assert.match(source, /var mindMapRenderSeq = 0;/, "async first-render attempts should be tracked so stale render failures cannot replace the current mindmap");
+  assert.match(source, /function renderInteractiveMarkMap\(container, markdown, renderSeq\)/, "mindmap rendering should receive the current render batch");
+  assert.match(source, /if \(renderSeq !== mindMapRenderSeq\) return null;\s*container\.innerHTML = '';/, "stale async render batches should not clear the current mindmap container");
+  assert.match(source, /renderInteractiveMarkMap\(container, markdown, renderSeq\)/, "panel rendering should pass the current batch to the async renderer");
+  assert.match(source, /function waitForMindMapContainerReady\(container\)/, "mindmap should wait for a measurable iframe container before first rendering");
+  assert.match(source, /container\.innerHTML = getMindMapLoadingHtml\(\);/, "mindmap should keep a loading state while waiting for markmap and layout readiness");
+  assert.match(source, /function scheduleMindMapRefit\(markmap, container, wrapper, svg\)/, "mindmap should refit after late first-paint layout changes");
+  assert.match(source, /new ResizeObserver\(refit\)/, "mindmap should refit when the iframe container size changes");
+  assert.match(source, /document\.fonts\.ready\.then\(refit\)/, "mindmap should refit after web fonts settle");
   assert.match(source, /wrapper\.className = 'markmap'/, "mindmap should keep the original markmap renderer and interaction style");
   assert.match(source, /new markmapApi\.Transformer\(\)/, "mindmap should transform data through markmap-lib");
   assert.match(source, /markmapApi\.Markmap\.create\(svg/, "mindmap should render through markmap-view to preserve zoom and collapse interactions");

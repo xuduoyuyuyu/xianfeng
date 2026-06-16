@@ -8,6 +8,7 @@ import LearningMaterial from "../models/LearningMaterial";
 import User from "../models/User";
 import { getDefaultShowNotesTemplate, getShowNotesDefaultTemplate, saveShowNotesDefaultTemplate } from "../services/showNotes";
 import { ensureStore } from "../services/agentModelRegistry";
+import { getLoginInviteConfig, resetLoginInviteUsage, saveLoginInviteConfig } from "../services/loginInvite";
 
 const router = express.Router();
 
@@ -130,6 +131,34 @@ router.put("/show-notes-template", authenticate, requireAdmin, async (req, res) 
     });
   } catch (error) {
     res.status(500).json({ message: "保存 Shownotes 模板失败", error });
+  }
+});
+
+router.get("/login-invite", authenticate, requireAdmin, async (_req, res) => {
+  try {
+    res.status(200).json(await getLoginInviteConfig());
+  } catch (error) {
+    res.status(500).json({ message: "获取邀请码配置失败", error });
+  }
+});
+
+router.put("/login-invite", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const body = req.body || {};
+    if (body.resetUsage === true) {
+      res.status(200).json(await resetLoginInviteUsage());
+      return;
+    }
+    const saved = await saveLoginInviteConfig({
+      enabled: body.enabled === true,
+      code: typeof body.code === "string" ? body.code : "",
+      activationLimit: body.activationLimit,
+      usedActivations: body.usedActivations,
+      expiresAt: body.expiresAt,
+    });
+    res.status(200).json(saved);
+  } catch (error) {
+    res.status(500).json({ message: "保存邀请码配置失败", error });
   }
 });
 

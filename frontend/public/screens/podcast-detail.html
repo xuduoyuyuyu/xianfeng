@@ -2604,6 +2604,58 @@
   }
 
   var mindMapDataCache = null;
+  var mindMapRenderSeq = 0;
+  var mindMapResizeObserver = null;
+  function getMindMapLoadingHtml() {
+    return '<div class="flex items-center justify-center py-16 text-sm text-stone-400">加载脉络图...</div>';
+  }
+
+  function waitForMindMapContainerReady(container) {
+    return new Promise(function(resolve) {
+      var attempts = 0;
+      function check() {
+        if (!container || !container.isConnected) {
+          resolve(false);
+          return;
+        }
+        var rect = container.getBoundingClientRect ? container.getBoundingClientRect() : null;
+        var width = rect && Number.isFinite(rect.width) ? rect.width : container.clientWidth;
+        if (width > 0) {
+          resolve(true);
+          return;
+        }
+        attempts++;
+        if (attempts > 60) {
+          resolve(false);
+          return;
+        }
+        requestAnimationFrame(check);
+      }
+      requestAnimationFrame(check);
+    });
+  }
+
+  function scheduleMindMapRefit(markmap, container, wrapper, svg) {
+    if (!markmap || !container || !wrapper || !svg) return;
+    var refit = function() {
+      if (!container.isConnected) return;
+      try {
+        fitMindMapToFinalBounds(markmap, container, wrapper, svg);
+      } catch (_) {}
+    };
+    requestAnimationFrame(refit);
+    setTimeout(refit, 80);
+    setTimeout(refit, 240);
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(refit).catch(function() {});
+    }
+    if (window.ResizeObserver) {
+      if (mindMapResizeObserver) mindMapResizeObserver.disconnect();
+      mindMapResizeObserver = new ResizeObserver(refit);
+      mindMapResizeObserver.observe(container);
+    }
+  }
+
   function waitForMindMapAutoLoader() {
     return new Promise(function(resolve, reject) {
       var attempts = 0;
@@ -2694,8 +2746,11 @@
     });
   }
 
-  function renderInteractiveMarkMap(container, markdown) {
-    return ensureInteractiveMarkMapApi().then(function(markmapApi) {
+  function renderInteractiveMarkMap(container, markdown, renderSeq) {
+    return waitForMindMapContainerReady(container).then(function() {
+      return ensureInteractiveMarkMapApi();
+    }).then(function(markmapApi) {
+      if (renderSeq !== mindMapRenderSeq) return null;
       container.innerHTML = '';
       var wrapper = document.createElement('div');
       wrapper.className = 'markmap';
@@ -2717,6 +2772,8 @@
       markmap.setData(result.root);
       sizeMindMapSvg(svg, 220);
       fitMindMapToFinalBounds(markmap, container, wrapper, svg);
+      if (renderSeq !== mindMapRenderSeq) return null;
+      scheduleMindMapRefit(markmap, container, wrapper, svg);
       var heightObserver = new MutationObserver(function() {
         requestAnimationFrame(function() {
           syncMindMapHeight(container, wrapper, svg);
@@ -2735,19 +2792,26 @@
   function renderMindMapPanel() {
     var container = document.getElementById('mindmap-main-container');
     if (!container) return;
-
-    // 清空容器重新渲染
-    container.innerHTML = '';
+    var renderSeq = ++mindMapRenderSeq;
+    if (mindMapResizeObserver) {
+      mindMapResizeObserver.disconnect();
+      mindMapResizeObserver = null;
+    }
 
     if (!mindMapDataCache) {
       container.innerHTML = '<div class="flex items-center justify-center py-16 text-sm text-stone-400">暂无可用的脉络数据</div>';
       return;
     }
+    container.innerHTML = getMindMapLoadingHtml();
 
     try {
       var markdown = buildMindMapMarkdown(mindMapDataCache.root);
-      renderInteractiveMarkMap(container, markdown)
+      renderInteractiveMarkMap(container, markdown, renderSeq)
+        .then(function() {
+          if (renderSeq !== mindMapRenderSeq) return;
+        })
         .catch(function(error) {
+          if (renderSeq !== mindMapRenderSeq) return;
           console.warn('MindMap render failed', error);
           container.innerHTML = '<div class="flex items-center justify-center py-16 text-sm text-stone-400">脉络图渲染失败</div>';
         });

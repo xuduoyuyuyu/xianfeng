@@ -9,6 +9,14 @@ import { sendMobileCodeByVolcengine } from "../services/smsVolcengine";
 import UserChildMemory from "../models/UserChildMemory";
 import { splitChildMemoryItems } from "../services/childMemory";
 import { grantFreeLoginPointsForUser } from "../services/billing";
+import {
+  canAuthenticateWithMobileInvite,
+  canVerifyLoginInvite,
+  getLoginInviteConfig,
+  reserveLoginInviteActivation,
+} from "../services/loginInvite";
+
+export { canAuthenticateWithMobileInvite, canVerifyLoginInvite } from "../services/loginInvite";
 
 dotenv.config();
 const smsCodeStore = new Map<string, { code: string; expiresAt: number }>();
@@ -180,26 +188,6 @@ function canPublicRegister(): boolean {
 
 function normalizeText(value: unknown): string {
   return String(value || "").trim();
-}
-
-export function canAuthenticateWithMobileInvite(input: {
-  existingUser: unknown;
-  configuredInviteCode: unknown;
-  submittedInviteCode: unknown;
-}): boolean {
-  if (input.existingUser) return true;
-  const configuredInviteCode = normalizeText(input.configuredInviteCode);
-  if (!configuredInviteCode) return true;
-  return normalizeText(input.submittedInviteCode) === configuredInviteCode;
-}
-
-export function canVerifyLoginInvite(input: {
-  configuredInviteCode: unknown;
-  submittedInviteCode: unknown;
-}): boolean {
-  const configuredInviteCode = normalizeText(input.configuredInviteCode);
-  if (!configuredInviteCode) return true;
-  return normalizeText(input.submittedInviteCode) === configuredInviteCode;
 }
 
 function classifyDeviceType(value: string): "desktop" | "mobile" | "tablet" | "bot" | "other" {
@@ -414,9 +402,14 @@ export class UserController {
 
   async sendMobileCode(req: Request, res: Response): Promise<void> {
     const mobile = normalizeMobile(req.body?.mobile);
+    const inviteConfig = await getLoginInviteConfig();
     if (!canVerifyLoginInvite({
-      configuredInviteCode: process.env.LOGIN_INVITE_CODE,
+      enabled: inviteConfig.enabled,
+      configuredInviteCode: inviteConfig.code,
       submittedInviteCode: req.body?.inviteCode,
+      activationLimit: inviteConfig.activationLimit,
+      usedActivations: inviteConfig.usedActivations,
+      expiresAt: inviteConfig.expiresAt,
     })) {
       res.status(403).json({ error: "请输入正确的邀请码" });
       return;
@@ -447,9 +440,14 @@ export class UserController {
   }
 
   async verifyInviteCode(req: Request, res: Response): Promise<void> {
+    const inviteConfig = await getLoginInviteConfig();
     if (!canVerifyLoginInvite({
-      configuredInviteCode: process.env.LOGIN_INVITE_CODE,
+      enabled: inviteConfig.enabled,
+      configuredInviteCode: inviteConfig.code,
       submittedInviteCode: req.body?.inviteCode,
+      activationLimit: inviteConfig.activationLimit,
+      usedActivations: inviteConfig.usedActivations,
+      expiresAt: inviteConfig.expiresAt,
     })) {
       res.status(403).json({ error: "请输入正确的邀请码" });
       return;
@@ -483,10 +481,15 @@ export class UserController {
           await user.save();
         }
       }
+      const inviteConfig = await getLoginInviteConfig();
       if (!canAuthenticateWithMobileInvite({
         existingUser: user,
-        configuredInviteCode: process.env.LOGIN_INVITE_CODE,
+        enabled: inviteConfig.enabled,
+        configuredInviteCode: inviteConfig.code,
         submittedInviteCode: req.body?.inviteCode,
+        activationLimit: inviteConfig.activationLimit,
+        usedActivations: inviteConfig.usedActivations,
+        expiresAt: inviteConfig.expiresAt,
       })) {
         res.status(403).json({ error: "请输入正确的邀请码" });
         return;
@@ -494,6 +497,11 @@ export class UserController {
       smsCodeStore.delete(mobile);
 
       if (!user) {
+        const activationReserved = await reserveLoginInviteActivation(inviteConfig);
+        if (!activationReserved) {
+          res.status(403).json({ error: "邀请码可用次数已用完" });
+          return;
+        }
         const username = `u${mobile}`;
         const password = await bcryptjs.hash(`mob-${mobile}-${Date.now()}`, 10);
         const ipCity = await resolveCityFromIP(req);

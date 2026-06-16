@@ -11,6 +11,7 @@ const UserLoginPage: React.FC = () => {
   const [phone, setPhone] = useState("");
   const [verifyCode, setVerifyCode] = useState("");
   const [inviteCode, setInviteCode] = useState("");
+  const [verifiedInviteCode, setVerifiedInviteCode] = useState("");
   const [inviteVerified, setInviteVerified] = useState(false);
   const [isVerifyingInvite, setIsVerifyingInvite] = useState(false);
   const [countdown, setCountdown] = useState(0);
@@ -52,6 +53,7 @@ const UserLoginPage: React.FC = () => {
 
   const handleInviteChange = (value: string) => {
     setInviteCode(value.trim());
+    setVerifiedInviteCode("");
     setInviteVerified(false);
     setPhone("");
     setVerifyCode("");
@@ -68,11 +70,14 @@ const UserLoginPage: React.FC = () => {
     }
     try {
       setIsVerifyingInvite(true);
-      await userApi.verifyInviteCode(inviteCode.trim());
+      await userApi.verifyInviteCode(code);
+      setVerifiedInviteCode(code);
+      setInviteCode("");
       setInviteVerified(true);
       setLocalError("");
-      setHint("邀请码已校准，请继续输入手机号。");
+      setHint("");
     } catch (err: any) {
+      setVerifiedInviteCode("");
       setInviteVerified(false);
       const msg = err?.response?.data?.error || err?.response?.data?.message || err?.message || "邀请码校准失败";
       setLocalError(msg);
@@ -92,7 +97,7 @@ const UserLoginPage: React.FC = () => {
     }
     try {
       setIsSendingCode(true);
-      await userApi.sendMobileCode(phone, inviteCode.trim());
+      await userApi.sendMobileCode(phone, verifiedInviteCode);
       setCountdown(60);
       setLocalError("");
       setHint("验证码已发送，请注意查收短信。");
@@ -122,7 +127,7 @@ const UserLoginPage: React.FC = () => {
       return;
     }
     try {
-      await dispatch(loginByMobile({ mobile: phone, code: verifyCode, inviteCode: inviteCode.trim() }) as any).unwrap();
+      await dispatch(loginByMobile({ mobile: phone, code: verifyCode, inviteCode: verifiedInviteCode }) as any).unwrap();
       return;
     } catch (registerErr: any) {
       const message = typeof registerErr === "string" ? registerErr : registerErr?.response?.data?.error || registerErr?.response?.data?.message || registerErr?.message || "登录失败，请稍后重试";
@@ -298,7 +303,10 @@ const UserLoginPage: React.FC = () => {
           cursor: not-allowed;
         }
         .invite-ok {
-          margin: -8px 0 12px;
+          margin: 0 0 12px;
+          min-height: 28px;
+          display: flex;
+          align-items: center;
           color: #4c1d95;
           font-size: 13px;
           font-weight: 800;
@@ -495,24 +503,29 @@ const UserLoginPage: React.FC = () => {
             <img alt="家长先疯" src="/assets/logo.png" />
           </div>
           <form onSubmit={handleSubmit}>
-            <label className="field-label">邀请码</label>
-            <div className="row">
-              <input
-                className="input"
-                placeholder="请输入邀请码"
-                value={inviteCode}
-                onChange={(e) => handleInviteChange(e.target.value)}
-              />
-              <button
-                type="button"
-                className="code-btn"
-                onClick={handleVerifyInvite}
-                disabled={!inviteCode.trim() || isVerifyingInvite}
-              >
-                {isVerifyingInvite ? "校准中..." : "校准邀请码"}
-              </button>
-            </div>
-            {inviteReady ? <div className="invite-ok">邀请码已校准</div> : null}
+            {inviteReady ? (
+              <div className="invite-ok">邀请码已校准</div>
+            ) : (
+              <>
+                <label className="field-label">邀请码</label>
+                <div className="row">
+                  <input
+                    className="input"
+                    placeholder="请输入邀请码"
+                    value={inviteCode}
+                    onChange={(e) => handleInviteChange(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="code-btn"
+                    onClick={handleVerifyInvite}
+                    disabled={!inviteCode.trim() || isVerifyingInvite}
+                  >
+                    {isVerifyingInvite ? "校准中..." : "校准邀请码"}
+                  </button>
+                </div>
+              </>
+            )}
 
             {inviteReady && (
               <>

@@ -399,6 +399,8 @@ const LandingPage: React.FC = () => {
   const featureCards = [
     {
       title: "内容",
+      headline: "从真实节目，进入问题现场。",
+      learnMore: "进一步了解 内容",
       visual: "program",
       status: "推荐",
       action: "进入节目",
@@ -409,6 +411,8 @@ const LandingPage: React.FC = () => {
     },
     {
       title: "阅读",
+      headline: "从一份书单，继续理解。",
+      learnMore: "进一步了解 阅读",
       visual: "reading",
       status: "推荐",
       action: "继续阅读",
@@ -419,6 +423,8 @@ const LandingPage: React.FC = () => {
     },
     {
       title: "资料",
+      headline: "把资料拿走，也把方法用上。",
+      learnMore: "进一步了解 资料",
       visual: "materials",
       status: "热门",
       action: "获取资料",
@@ -429,6 +435,8 @@ const LandingPage: React.FC = () => {
     },
     {
       title: "智库",
+      headline: "和嘉宾一起，把问题问深。",
+      learnMore: "进一步了解 智库",
       visual: "experts",
       status: "推荐",
       action: "看嘉宾",
@@ -439,6 +447,8 @@ const LandingPage: React.FC = () => {
     },
     {
       title: "规划",
+      headline: "把长期目标，拆成下一步。",
+      learnMore: "进一步了解 规划",
       visual: "planning",
       status: "规划",
       action: "开始规划",
@@ -449,6 +459,8 @@ const LandingPage: React.FC = () => {
     },
     {
       title: "AI",
+      headline: "让小玩子，陪你读页面。",
+      learnMore: "进一步了解 小玩子",
       visual: "assistant",
       status: "智能",
       action: "打开助理",
@@ -484,23 +496,14 @@ const LandingPage: React.FC = () => {
     },
   ];
 
-  const cardColors: Record<string, { gradient: string; accent: string }> = {
-    program:  { gradient: 'linear-gradient(145deg, #3b82f6 0%, #2563eb 50%, #1d4ed8 100%)', accent: '#2563eb' },
-    reading:  { gradient: 'linear-gradient(145deg, #34d399 0%, #10b981 50%, #059669 100%)', accent: '#059669' },
-    materials:{ gradient: 'linear-gradient(145deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%)', accent: '#d97706' },
-    experts:  { gradient: 'linear-gradient(145deg, #f472b6 0%, #ec4899 50%, #db2777 100%)', accent: '#db2777' },
-    planning: { gradient: 'linear-gradient(145deg, #22d3ee 0%, #06b6d4 50%, #0891b2 100%)', accent: '#0891b2' },
-    assistant:{ gradient: 'linear-gradient(145deg, #a78bfa 0%, #8b5cf6 50%, #7c3aed 100%)', accent: '#7c3aed' },
+  const cardColors: Record<string, { accent: string }> = {
+    program: { accent: "#2f6df6" },
+    reading: { accent: "#10a37f" },
+    materials: { accent: "#e88a00" },
+    experts: { accent: "#db2777" },
+    planning: { accent: "#0f766e" },
+    assistant: { accent: "#5F19EC" },
   };
-
-  const xiaowanziAvatars = [
-    "/assets/xw-1.png",
-    "/assets/xw-2.png",
-    "/assets/xw-3.png",
-    "/assets/xw-4.png",
-    "/assets/xw-5.png",
-    "/assets/xw-6.png",
-  ];
 
   const navItems = heoSectionOrder.map((item, index) => ({ ...item, index }));
 
@@ -1182,6 +1185,25 @@ const LandingPage: React.FC = () => {
           line-height: 1.7;
           font-weight: 500;
         }
+        .heo-section-kicker {
+          display: block;
+          margin-top: 10px;
+          color: #1499e8;
+          font-size: clamp(20px, 2vw, 28px);
+          line-height: 1.1;
+          font-weight: 900;
+        }
+        #primary-entry .heo-section-head {
+          align-items: flex-start;
+          margin-bottom: 0;
+        }
+        #primary-entry .heo-section-head h2 {
+          max-width: 820px;
+          font-size: clamp(38px, 4.8vw, 58px);
+          line-height: 1.08;
+          font-weight: 950;
+          letter-spacing: -0.045em;
+        }
         .heo-product-list {
           display: flex;
           gap: 28px;
@@ -1570,7 +1592,14 @@ const LandingPage: React.FC = () => {
           box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06), 0 12px 32px rgba(0, 0, 0, 0.08);
         }
         .heo-special-card.tone-ask {
-          background: linear-gradient(145deg, #5F19EC 0%, #4c14c4 50%, #3a0f96 100%);
+          min-height: clamp(360px, 34vw, 470px);
+          grid-template-columns: minmax(0, 0.9fr) minmax(420px, 1.1fr);
+          padding: clamp(42px, 5vw, 74px) clamp(34px, 5vw, 78px);
+          border-radius: 28px;
+          background:
+            radial-gradient(circle at 75% 15%, rgba(255, 255, 255, 0.18), transparent 23%),
+            linear-gradient(135deg, #6f19f3 0%, #5F19EC 42%, #3a0f96 100%);
+          box-shadow: 0 22px 56px rgba(95, 25, 236, 0.2);
         }
         .heo-special-card.tone-worth {
           background: linear-gradient(145deg, #db2777 0%, #be185d 50%, #831843 100%);
@@ -1579,6 +1608,12 @@ const LandingPage: React.FC = () => {
           display: flex;
           flex-direction: column;
           gap: 12px;
+        }
+        .tone-ask .heo-special-copy {
+          position: relative;
+          z-index: 2;
+          max-width: 560px;
+          gap: 22px;
         }
         .heo-special-copy small {
           display: inline-flex;
@@ -1591,6 +1626,13 @@ const LandingPage: React.FC = () => {
           font-weight: 700;
           letter-spacing: 0.04em;
         }
+        .tone-ask .heo-special-copy small {
+          padding: 8px 18px;
+          background: rgba(255, 255, 255, 0.14);
+          color: #ffd23f;
+          font-size: 14px;
+          letter-spacing: 0;
+        }
         .heo-special-copy b {
           color: #fff;
           font-size: clamp(24px, 3vw, 36px);
@@ -1598,11 +1640,24 @@ const LandingPage: React.FC = () => {
           font-weight: 800;
           letter-spacing: -0.01em;
         }
+        .tone-ask .heo-special-copy b {
+          max-width: 680px;
+          font-size: clamp(34px, 4.6vw, 62px);
+          line-height: 1.08;
+          font-weight: 950;
+          letter-spacing: -0.045em;
+        }
         .heo-special-copy p {
           margin: 0;
           color: rgba(255, 255, 255, 0.6);
           font-size: clamp(14px, 1.5vw, 16px);
           line-height: 1.7;
+        }
+        .tone-ask .heo-special-copy p {
+          max-width: 700px;
+          color: rgba(255, 255, 255, 0.68);
+          font-size: clamp(16px, 1.6vw, 20px);
+          line-height: 1.8;
         }
         .heo-special-action {
           display: inline-flex;
@@ -1620,6 +1675,11 @@ const LandingPage: React.FC = () => {
         .heo-special-card.tone-ask .heo-special-action {
           color: #5F19EC;
         }
+        .tone-ask .heo-special-action {
+          padding: 14px 34px;
+          font-size: 17px;
+          box-shadow: 0 14px 28px rgba(20, 8, 50, 0.18);
+        }
         .heo-special-card.tone-worth .heo-special-action {
           color: #db2777;
         }
@@ -1627,15 +1687,57 @@ const LandingPage: React.FC = () => {
           transform: scale(1.04);
         }
         .heo-special-preview {
+          position: relative;
           border-radius: 14px;
           overflow: hidden;
           box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+        }
+        .tone-ask .heo-special-preview {
+          align-self: end;
+          width: min(760px, 100%);
+          min-height: 300px;
+          margin: 0 0 -76px auto;
+          padding: 38px 16px 0;
+          border-radius: 30px 30px 0 0;
+          border: 8px solid #111827;
+          border-bottom: 0;
+          background: #fff;
+          box-shadow: 0 28px 64px rgba(15, 23, 42, 0.34);
+          transform: rotate(-1deg);
+        }
+        .tone-ask .heo-special-preview::before {
+          content: "";
+          position: absolute;
+          left: 20px;
+          top: 14px;
+          width: 12px;
+          height: 12px;
+          border-radius: 999px;
+          background: #ff5f57;
+          box-shadow: 20px 0 0 #ffbd2e, 40px 0 0 #28c840;
+        }
+        .tone-ask .heo-special-preview::after {
+          content: "";
+          position: absolute;
+          left: 50%;
+          top: 15px;
+          width: min(240px, 42%);
+          height: 10px;
+          border-radius: 999px;
+          background: rgba(15, 23, 42, 0.08);
+          transform: translateX(-50%);
         }
         .heo-special-preview img {
           display: block;
           width: 100%;
           height: auto;
           border-radius: 14px;
+        }
+        .tone-ask .heo-special-preview img {
+          height: 292px;
+          border-radius: 20px 20px 0 0;
+          object-fit: cover;
+          object-position: top center;
         }
                 .heo-section-more {
           flex: 0 0 auto;
@@ -1660,139 +1762,346 @@ const LandingPage: React.FC = () => {
         }
         .heo-new-grid {
           display: flex;
-          gap: 20px;
-          margin-top: 8px;
+          gap: 28px;
+          margin-top: 24px;
           overflow-x: auto;
           scroll-behavior: smooth;
           scroll-snap-type: x mandatory;
           -webkit-overflow-scrolling: touch;
           scrollbar-width: none;
-          padding-bottom: 4px;
+          padding: 30px 0 8px;
         }
         .heo-new-grid::-webkit-scrollbar { display: none; }
         .heo-new-grid > * {
           scroll-snap-align: start;
-          flex: 0 0 calc((100% - 40px) / 3);
-          min-width: 300px;
+          flex: 0 0 calc((100% - 56px) / 3);
+          min-width: 360px;
         }
         .heo-new-card {
           display: flex;
           flex-direction: column;
+          align-items: center;
+          min-height: 560px;
           overflow: hidden;
-          border-radius: 24px;
+          border-radius: 30px;
           background: #fff;
-          border: 1px solid rgba(0, 0, 0, 0.05);
-          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.04);
+          border: 1px solid #dce6f3;
+          box-shadow: 0 14px 36px rgba(15, 23, 42, 0.06);
+          color: var(--lp-text);
+          padding: clamp(28px, 3vw, 42px);
+          text-align: center;
           text-decoration: none;
           transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
         }
         .heo-new-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06), 0 12px 32px rgba(0, 0, 0, 0.08);
+          transform: translateY(-6px);
+          box-shadow: 0 20px 48px rgba(15, 23, 42, 0.1);
         }
         .heo-new-card-art {
           position: relative;
           display: flex;
           align-items: center;
           justify-content: center;
-          height: 220px;
-          background: var(--card-gradient);
-          overflow: hidden;
+          width: 100%;
+          height: clamp(210px, 17vw, 270px);
+          margin-top: auto;
+          overflow: visible;
         }
         .heo-new-card-art::before {
-          content: attr(data-watermark-left);
+          content: "";
           position: absolute;
-          z-index: 1;
-          left: calc(50% - 40px);
-          top: 50%;
-          transform: translate(-100%, -50%);
-          color: rgba(255, 255, 255, 0.55);
-          font-size: 80px;
-          font-weight: 900;
-          letter-spacing: -0.04em;
-          pointer-events: none;
-          user-select: none;
+          left: 50%;
+          bottom: 10px;
+          width: min(360px, 86%);
+          height: 32px;
+          border-radius: 999px;
+          background: rgba(15, 23, 42, 0.14);
+          filter: blur(18px);
+          transform: translateX(-50%);
+        }
+        .heo-new-card-art.is-logo-only::before {
+          width: min(300px, 70%);
+          height: 42px;
+          bottom: 24px;
+          background: rgba(15, 23, 42, 0.13);
+          filter: blur(22px);
         }
         .heo-new-card-art::after {
-          content: attr(data-watermark-right);
-          position: absolute;
-          z-index: 1;
-          left: calc(50% + 40px);
-          top: 50%;
-          transform: translate(0, -50%);
-          color: rgba(255, 255, 255, 0.55);
-          font-size: 80px;
-          font-weight: 900;
-          letter-spacing: -0.04em;
-          pointer-events: none;
-          user-select: none;
+          display: none;
         }
-        .heo-new-card-avatar {
-          position: relative;
-          z-index: 2;
-          display: block;
-          width: 64px;
-          height: 64px;
-          border-radius: 50%;
-          object-fit: cover;
-          background: #fff;
-          border: 1px solid rgba(0, 0, 0, 0.1);
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-        }
-        .heo-new-card-body {
+        .heo-new-card-copy {
           display: flex;
           flex-direction: column;
-          gap: 12px;
-          padding: clamp(22px, 2.5vw, 30px);
+          align-items: center;
+          gap: 20px;
+          min-height: 190px;
         }
         .heo-new-card-tag {
           display: inline-flex;
-          width: fit-content;
+          align-items: center;
+          justify-content: center;
           border-radius: 8px;
-          padding: 5px 12px;
-          font-size: 11px;
-          font-weight: 700;
-          letter-spacing: 0.03em;
-          text-transform: uppercase;
+          padding: 6px 12px;
+          background: #f1f3f5;
+          color: #111827;
+          font-size: 13px;
+          line-height: 1;
+          font-weight: 800;
         }
         .heo-new-card-title {
           color: var(--lp-text);
-          font-size: clamp(22px, 2.2vw, 28px);
-          line-height: 1.15;
-          font-weight: 800;
-          letter-spacing: -0.02em;
+          max-width: 360px;
+          font-size: clamp(28px, 2.8vw, 40px);
+          line-height: 1.34;
+          font-weight: 900;
+          letter-spacing: -0.035em;
+          white-space: pre-line;
         }
-        .heo-new-card-desc {
-          margin: 0;
-          color: var(--lp-muted);
-          font-size: 15px;
-          line-height: 1.65;
-          font-weight: 500;
-          display: -webkit-box;
-          -webkit-line-clamp: 3;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-        .heo-new-card-action {
+        .heo-new-card-link {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          gap: 6px;
-          width: 100%;
-          margin-top: 8px;
-          border-radius: 14px;
-          padding: 11px 20px;
-          background: var(--card-accent);
-          color: #fff;
-          font-size: 14px;
-          font-weight: 700;
-          letter-spacing: 0.01em;
-          transition: transform 0.2s ease, box-shadow 0.2s ease;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          gap: 5px;
+          color: #1499e8;
+          font-size: 18px;
+          line-height: 1;
+          font-weight: 900;
+          transition: transform 0.2s ease, color 0.2s ease;
         }
-        .heo-new-card:hover .heo-new-card-action {
-          transform: scale(1.02);
-          box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+        .heo-new-card:hover .heo-new-card-link {
+          color: var(--card-accent);
+          transform: translateX(3px);
+        }
+        .heo-product-device,
+        .heo-product-side,
+        .heo-product-chip,
+        .heo-product-line,
+        .heo-product-orbit,
+        .heo-product-document {
+          position: absolute;
+          display: block;
+        }
+        .heo-product-device {
+          left: 50%;
+          bottom: 26px;
+          width: min(390px, 88%);
+          height: 156px;
+          border: 10px solid #111827;
+          border-radius: 30px;
+          background: #f8fbff;
+          box-shadow: 0 18px 34px rgba(15, 23, 42, 0.18);
+          transform: translateX(-50%);
+        }
+        .heo-product-device::before {
+          content: "";
+          position: absolute;
+          left: 50%;
+          top: -7px;
+          width: 70px;
+          height: 12px;
+          border-radius: 0 0 12px 12px;
+          background: #111827;
+          transform: translateX(-50%);
+        }
+        .heo-device-screen {
+          position: absolute;
+          inset: 16px;
+          overflow: hidden;
+          border-radius: 18px;
+          background:
+            radial-gradient(circle at 34% 34%, rgba(255, 255, 255, 0.9), transparent 18%),
+            color-mix(in srgb, var(--card-accent) 30%, #eaf6ff);
+        }
+        .heo-device-screen::before,
+        .heo-device-screen::after {
+          content: "";
+          position: absolute;
+          left: 18px;
+          right: 18px;
+          height: 12px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.75);
+        }
+        .heo-device-screen::before {
+          bottom: 30px;
+        }
+        .heo-device-screen::after {
+          bottom: 52px;
+          right: 76px;
+        }
+        .heo-product-side {
+          width: 76px;
+          height: 106px;
+          border-radius: 24px;
+          background: linear-gradient(180deg, #fff, #eef3f7);
+          border: 1px solid rgba(15, 23, 42, 0.06);
+          box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
+        }
+        .heo-product-side.one {
+          left: 12%;
+          bottom: 56px;
+        }
+        .heo-product-side.two {
+          right: 10%;
+          bottom: 58px;
+          width: 84px;
+          height: 118px;
+        }
+        .heo-product-side.three {
+          left: 47%;
+          bottom: 2px;
+          width: 88px;
+          height: 72px;
+          transform: translateX(-50%);
+        }
+        .heo-product-logo {
+          position: absolute;
+          z-index: 2;
+          left: 50%;
+          bottom: 58px;
+          width: min(150px, 32%);
+          height: min(150px, 54%);
+          object-fit: contain;
+          filter: drop-shadow(0 16px 24px rgba(15, 23, 42, 0.16));
+          transform: translateX(-50%);
+        }
+        .heo-product-logo.brand {
+          width: min(180px, 44%);
+          border-radius: 22px;
+          background: #fff;
+          padding: 14px;
+        }
+        .heo-square-logo-stack {
+          position: absolute;
+          z-index: 3;
+          left: 50%;
+          top: 50%;
+          width: min(320px, 76%);
+          height: min(220px, 82%);
+          transform: translate(-50%, -48%);
+        }
+        .heo-square-logo-stack img {
+          position: absolute;
+          display: block;
+          width: 132px;
+          height: 132px;
+          border-radius: 28px;
+          object-fit: cover;
+          border: 6px solid #fff;
+          background: #fff;
+          box-shadow: 0 18px 34px rgba(15, 23, 42, 0.2);
+        }
+        .is-logo-only .heo-square-logo-stack img {
+          width: 148px;
+          height: 148px;
+          border-radius: 30px;
+          box-shadow: 0 20px 42px rgba(95, 25, 236, 0.2);
+        }
+        .heo-square-logo-stack .is-xianfeng {
+          z-index: 2;
+          left: 0;
+          bottom: 0;
+          transform: rotate(-5deg);
+        }
+        .heo-square-logo-stack .is-zhiji {
+          z-index: 1;
+          right: 0;
+          top: 6px;
+          transform: rotate(7deg);
+        }
+        .heo-product-logo.assistant {
+          top: 50%;
+          bottom: auto;
+          width: min(190px, 48%);
+          height: min(190px, 72%);
+          filter: drop-shadow(0 24px 42px rgba(95, 25, 236, 0.2));
+          transform: translate(-50%, -48%);
+        }
+        .heo-product-logo.reading {
+          top: 50%;
+          bottom: auto;
+          width: min(210px, 52%);
+          height: min(210px, 76%);
+          filter: drop-shadow(0 24px 42px rgba(16, 163, 127, 0.22));
+          transform: translate(-50%, -48%);
+        }
+        .visual-materials .heo-product-device {
+          width: min(430px, 94%);
+          height: 178px;
+        }
+        .visual-materials .heo-device-screen {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 10px;
+          padding: 14px;
+          background: #f8fafc;
+        }
+        .visual-materials .heo-product-document {
+          position: relative;
+          border-radius: 8px;
+          background: #fff;
+          border: 1px solid rgba(15, 23, 42, 0.08);
+          box-shadow: inset 0 28px 0 rgba(15, 23, 42, 0.03);
+        }
+        .visual-materials .heo-product-document::before {
+          content: "";
+          position: absolute;
+          left: 12px;
+          right: 12px;
+          top: 42px;
+          height: 6px;
+          border-radius: 999px;
+          background: color-mix(in srgb, var(--card-accent) 60%, white);
+          box-shadow: 0 14px 0 rgba(15, 23, 42, 0.12), 0 28px 0 rgba(15, 23, 42, 0.08), 0 42px 0 rgba(15, 23, 42, 0.08);
+        }
+        .visual-experts .heo-product-device,
+        .visual-planning .heo-product-device {
+          border-radius: 32px;
+          background: #fbfcff;
+        }
+        .visual-experts .heo-product-chip,
+        .visual-planning .heo-product-chip {
+          width: 58px;
+          height: 58px;
+          border-radius: 999px;
+          background: color-mix(in srgb, var(--card-accent) 36%, #fff);
+          box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+        }
+        .visual-experts .heo-product-chip.one {
+          left: 24%;
+          bottom: 116px;
+        }
+        .visual-experts .heo-product-chip.two {
+          left: 48%;
+          bottom: 76px;
+        }
+        .visual-experts .heo-product-chip.three {
+          right: 24%;
+          bottom: 118px;
+        }
+        .visual-planning .heo-product-line {
+          height: 10px;
+          border-radius: 999px;
+          background: color-mix(in srgb, var(--card-accent) 70%, #fff);
+          box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+        }
+        .visual-planning .heo-product-line.one {
+          left: 22%;
+          bottom: 78px;
+          width: 88px;
+          transform: rotate(-18deg);
+        }
+        .visual-planning .heo-product-line.two {
+          left: 41%;
+          bottom: 112px;
+          width: 108px;
+          transform: rotate(14deg);
+        }
+        .visual-planning .heo-product-line.three {
+          right: 20%;
+          bottom: 82px;
+          width: 92px;
+          transform: rotate(-16deg);
         }
         .heo-new-nav-arrows {
           display: flex;
@@ -1826,24 +2135,27 @@ const LandingPage: React.FC = () => {
         .heo-topic-cards {
           display: grid;
           grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
-          gap: 32px 20px;
+          gap: 22px;
         }
         .heo-topic-card {
+          position: relative;
           display: flex;
           flex-direction: column;
-          gap: 8px;
+          min-height: 128px;
+          gap: 12px;
           background: #fff;
-          border-radius: 20px;
-          border: 1px solid rgba(0, 0, 0, 0.06);
-          padding: 20px;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 6px 20px rgba(0, 0, 0, 0.06);
+          border-radius: 22px;
+          border: 1px solid rgba(15, 23, 42, 0.05);
+          padding: 22px 72px 22px 24px;
+          box-shadow: 0 16px 34px rgba(15, 23, 42, 0.07);
           text-decoration: none;
           color: inherit;
-          transition: transform 0.2s ease, box-shadow 0.2s ease;
+          transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
         }
         .heo-topic-card:hover {
-          transform: translateY(-3px);
-          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06), 0 10px 30px rgba(0, 0, 0, 0.08);
+          transform: translateY(-4px);
+          border-color: rgba(95, 25, 236, 0.14);
+          box-shadow: 0 22px 44px rgba(95, 25, 236, 0.12);
         }
         .heo-topic-card-top {
           display: flex;
@@ -1864,8 +2176,18 @@ const LandingPage: React.FC = () => {
           overflow: hidden;
         }
         .heo-topic-emoji {
-          flex-shrink: 0;
-          font-size: 32px;
+          position: absolute;
+          right: 20px;
+          top: 20px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 44px;
+          height: 44px;
+          border-radius: 16px;
+          background: #f7f2ff;
+          box-shadow: inset 0 0 0 1px rgba(95, 25, 236, 0.08);
+          font-size: 27px;
           line-height: 1;
         }
         .heo-topic-desc {
@@ -1882,7 +2204,7 @@ const LandingPage: React.FC = () => {
           display: flex;
           align-items: center;
           gap: 8px;
-          margin-top: auto;
+          margin-top: 2px;
         }
         .heo-topic-tag {
           display: inline-flex;
@@ -2054,6 +2376,30 @@ const LandingPage: React.FC = () => {
             gap: 24px;
             padding: 28px 24px;
           }
+          .heo-special-card.tone-ask {
+            min-height: auto;
+            padding: 32px 24px 0;
+            border-radius: 26px;
+          }
+          .tone-ask .heo-special-copy {
+            gap: 16px;
+          }
+          .tone-ask .heo-special-copy b {
+            font-size: clamp(30px, 9vw, 44px);
+          }
+          .tone-ask .heo-special-preview {
+            width: 100%;
+            min-height: 210px;
+            margin: 8px 0 -28px;
+            padding: 30px 10px 0;
+            border-width: 6px;
+            border-radius: 24px 24px 0 0;
+            transform: none;
+          }
+          .tone-ask .heo-special-preview img {
+            height: 210px;
+            border-radius: 16px 16px 0 0;
+          }
           .heo-special-mockup {
             max-width: 100%;
           }
@@ -2065,7 +2411,11 @@ const LandingPage: React.FC = () => {
           }
           .heo-topic-cards {
             grid-template-columns: 1fr;
-            gap: 12px;
+            gap: 14px;
+          }
+          .heo-topic-card {
+            min-height: 120px;
+            padding: 20px 64px 20px 20px;
           }
           .heo-worthbuy-cards {
             grid-template-columns: 1fr;
@@ -2104,11 +2454,57 @@ const LandingPage: React.FC = () => {
             margin-bottom: -12px;
           }
           .heo-new-grid > * {
-            flex: 0 0 calc((100% - 20px) / 2);
-            min-width: 260px;
+            flex: 0 0 min(340px, calc(100vw - 46px));
+            min-width: min(340px, calc(100vw - 46px));
+          }
+          .heo-new-card {
+            min-height: 500px;
+            padding: 26px 22px;
+            border-radius: 26px;
+          }
+          .heo-new-card-copy {
+            min-height: 168px;
+            gap: 16px;
+          }
+          .heo-new-card-title {
+            font-size: 28px;
+          }
+          .heo-new-card-link {
+            font-size: 16px;
           }
           .heo-new-card-art {
-            height: 180px;
+            height: 210px;
+          }
+          .heo-product-device {
+            width: min(300px, 92%);
+            height: 126px;
+            border-width: 8px;
+            border-radius: 24px;
+          }
+          .heo-product-side.one {
+            left: 8%;
+            width: 60px;
+            height: 86px;
+          }
+          .heo-product-side.two {
+            right: 6%;
+            width: 68px;
+            height: 94px;
+          }
+          .heo-product-side.three {
+            width: 70px;
+            height: 58px;
+          }
+          .heo-square-logo-stack {
+            width: 220px;
+            height: 150px;
+            bottom: 34px;
+          }
+          .heo-square-logo-stack img {
+            width: 110px;
+            height: 110px;
+            border-radius: 22px;
+            border-width: 5px;
           }
           .heo-special-body {
             align-items: start;
@@ -2293,14 +2689,14 @@ const LandingPage: React.FC = () => {
         <section id="primary-entry" className="heo-section">
           <div className="heo-section-head">
             <div>
-              <span className="heo-kicker">主打推荐</span>
-              <h2>这是首页为你推荐的主要入口</h2>
+              <h2>这是我为你主要推荐的产品</h2>
+              <span className="heo-section-kicker">主打推荐</span>
             </div>
           </div>
 
           <div className="heo-new-grid-wrap">
             <div className="heo-new-grid" ref={(el) => { (window as any).__heoNewGrid = el; }}>
-              {featureCards.map((item, index) => {
+              {featureCards.map((item) => {
                 const color = cardColors[item.visual] || cardColors.program;
                 return (
                   <a
@@ -2308,22 +2704,58 @@ const LandingPage: React.FC = () => {
                     href={item.href}
                     key={item.title}
                     onClick={(event) => handleHomepageEntryClick(event, item.href)}
-                    style={{ '--card-gradient': color.gradient, '--card-accent': color.accent } as React.CSSProperties}
+                    style={{ '--card-accent': color.accent } as React.CSSProperties}
                   >
-                    <div className="heo-new-card-art" aria-hidden="true" data-watermark-left={item.title.slice(0, 1)} data-watermark-right={item.title.slice(1, 2)}>
-                      <img
-                        className="heo-new-card-avatar"
-                        src={xiaowanziAvatars[index % xiaowanziAvatars.length]}
-                        alt={item.title}
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    </div>
-                    <div className="heo-new-card-body">
-                      <span className="heo-new-card-tag" style={{ backgroundColor: color.accent + '1a', color: color.accent }}>{item.status}</span>
-                      <b className="heo-new-card-title">{item.title}</b>
-                      <p className="heo-new-card-desc">{item.text}</p>
-                      <span className="heo-new-card-action">{item.action}</span>
+                    <span className="heo-new-card-copy">
+                      <span className="heo-new-card-tag">{item.status}</span>
+                      <b className="heo-new-card-title">{item.headline}</b>
+                      <span className="heo-new-card-link">{item.learnMore} ›</span>
+                    </span>
+                    <div className={`heo-new-card-art visual-${item.visual} ${["program", "reading", "assistant"].includes(item.visual) ? "is-logo-only" : ""}`} aria-hidden="true">
+                      {!["program", "reading", "assistant"].includes(item.visual) ? (
+                        <>
+                          <span className="heo-product-device">
+                            <span className="heo-device-screen">
+                              {item.visual === "materials" ? (
+                                <>
+                                  <span className="heo-product-document" />
+                                  <span className="heo-product-document" />
+                                  <span className="heo-product-document" />
+                                </>
+                              ) : null}
+                            </span>
+                          </span>
+                          <span className="heo-product-side one" />
+                          <span className="heo-product-side two" />
+                          <span className="heo-product-side three" />
+                        </>
+                      ) : null}
+                      {item.visual === "program" ? (
+                        <span className="heo-square-logo-stack">
+                          <img className="is-zhiji" src="/assets/zhongnianzhiji-square-logo.png" alt="" loading="lazy" decoding="async" />
+                          <img className="is-xianfeng" src="/assets/xianfeng-square-logo.png" alt="" loading="lazy" decoding="async" />
+                        </span>
+                      ) : null}
+                      {item.visual === "reading" ? (
+                        <img className="heo-product-logo reading" src="/assets/jiyue-logo.png" alt="" loading="lazy" decoding="async" />
+                      ) : null}
+                      {item.visual === "assistant" ? (
+                        <img className="heo-product-logo assistant" src="/assets/xiaowanzi-nohat.png" alt="" loading="lazy" decoding="async" />
+                      ) : null}
+                      {item.visual === "experts" ? (
+                        <>
+                          <span className="heo-product-chip one" />
+                          <span className="heo-product-chip two" />
+                          <span className="heo-product-chip three" />
+                        </>
+                      ) : null}
+                      {item.visual === "planning" ? (
+                        <>
+                          <span className="heo-product-line one" />
+                          <span className="heo-product-line two" />
+                          <span className="heo-product-line three" />
+                        </>
+                      ) : null}
                     </div>
                   </a>
                 );

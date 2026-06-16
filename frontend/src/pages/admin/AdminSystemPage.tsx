@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { adminApi, ModelRegistryItem, SystemInfo } from "../../services/api";
+import { adminApi, LoginInviteConfig, ModelRegistryItem, SystemInfo } from "../../services/api";
 import TopAlert from "../../components/TopAlert";
 
 function formatUptime(sec: number): string {
@@ -29,6 +29,13 @@ type ModelForm = {
   metaJson: string;
 };
 
+type LoginInviteForm = {
+  enabled: boolean;
+  code: string;
+  activationLimit: string;
+  expiresAtLocal: string;
+};
+
 function buildModelForm(item?: ModelRegistryItem | null): ModelForm {
   return {
     id: item?.id || "",
@@ -43,6 +50,23 @@ function buildModelForm(item?: ModelRegistryItem | null): ModelForm {
   };
 }
 
+function toDateTimeLocal(value?: string | null): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (num: number) => String(num).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function buildInviteForm(config?: LoginInviteConfig | null): LoginInviteForm {
+  return {
+    enabled: config?.enabled ?? false,
+    code: config?.code || "",
+    activationLimit: config?.activationLimit === null || config?.activationLimit === undefined ? "" : String(config.activationLimit),
+    expiresAtLocal: toDateTimeLocal(config?.expiresAt),
+  };
+}
+
 const inputClass = "mt-1 w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-700 admin-form-input";
 
 const AdminSystemPage: React.FC = () => {
@@ -54,14 +78,23 @@ const AdminSystemPage: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<ModelRegistryItem | null>(null);
   const [modelForm, setModelForm] = useState<ModelForm>(buildModelForm(null));
+  const [inviteConfig, setInviteConfig] = useState<LoginInviteConfig | null>(null);
+  const [inviteForm, setInviteForm] = useState<LoginInviteForm>(buildInviteForm(null));
+  const [savingInvite, setSavingInvite] = useState(false);
 
   const load = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [infoResp, modelResp] = await Promise.all([adminApi.getSystemInfo(), adminApi.getModelRegistry()]);
+      const [infoResp, modelResp, inviteResp] = await Promise.all([
+        adminApi.getSystemInfo(),
+        adminApi.getModelRegistry(),
+        adminApi.getLoginInviteConfig(),
+      ]);
       setInfo(infoResp.data);
       setModels(Array.isArray(modelResp.data?.items) ? modelResp.data.items : []);
+      setInviteConfig(inviteResp.data);
+      setInviteForm(buildInviteForm(inviteResp.data));
     } catch (loadError: any) {
       setError(loadError?.response?.data?.message || loadError?.message || "获取系统信息失败");
     } finally {
@@ -175,6 +208,53 @@ const AdminSystemPage: React.FC = () => {
     }
   }
 
+  async function saveInviteConfig(nextForm = inviteForm) {
+    const code = nextForm.code.trim();
+    const activationLimitText = nextForm.activationLimit.trim();
+    let activationLimit: number | null = null;
+    if (activationLimitText) {
+      activationLimit = Number(activationLimitText);
+      if (!Number.isInteger(activationLimit) || activationLimit < 0) {
+        setError("激活总数量必须是大于等于 0 的整数");
+        return;
+      }
+    }
+    const expiresAt = nextForm.expiresAtLocal ? new Date(nextForm.expiresAtLocal).toISOString() : null;
+    setSavingInvite(true);
+    try {
+      const response = await adminApi.updateLoginInviteConfig({
+        enabled: nextForm.enabled && !!code,
+        code,
+        activationLimit,
+        expiresAt,
+      });
+      setInviteConfig(response.data);
+      setInviteForm(buildInviteForm(response.data));
+    } catch (e: any) {
+      setError(e?.response?.data?.message || e?.message || "保存邀请码配置失败");
+    } finally {
+      setSavingInvite(false);
+    }
+  }
+
+  async function expireInviteNow() {
+    await saveInviteConfig({ ...inviteForm, enabled: true, expiresAtLocal: toDateTimeLocal(new Date().toISOString()) });
+  }
+
+  async function resetInviteUsage() {
+    if (!window.confirm("确认将邀请码已使用次数重置为 0 吗？")) return;
+    setSavingInvite(true);
+    try {
+      const response = await adminApi.resetLoginInviteUsage();
+      setInviteConfig(response.data);
+      setInviteForm(buildInviteForm(response.data));
+    } catch (e: any) {
+      setError(e?.response?.data?.message || e?.message || "重置邀请码次数失败");
+    } finally {
+      setSavingInvite(false);
+    }
+  }
+
   return (
     <div className="space-y-8">
       <TopAlert message={error} onClose={() => setError(null)} />
@@ -235,6 +315,60 @@ const AdminSystemPage: React.FC = () => {
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="rounded-2xl border border-stone-100 bg-white p-5"><div className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500">ALLOW_PUBLIC_REGISTER</div><div className="mt-2 text-sm font-bold text-stone-900">{String(info.env.allowPublicRegister)}</div></div>
                 <div className="rounded-2xl border border-stone-100 bg-white p-5"><div className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500">CORS_ORIGIN</div><div className="mt-2 text-sm font-bold text-stone-900">{info.env.corsOrigin || "-"}</div></div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-stone-100 bg-white p-8 space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-black text-stone-900">登录邀请码</h2>
+                  <div className="mt-1 text-xs text-stone-500">
+                    {inviteConfig?.source === "env" ? "当前来自 .env，保存后改为后台配置" : "后台配置即时生效"}
+                  </div>
+                </div>
+                <span className={`rounded-full px-3 py-1 text-[10px] font-black ${inviteConfig?.isActive ? "bg-emerald-50 text-emerald-700" : "bg-stone-100 text-stone-500"}`}>
+                  {inviteConfig?.isExpired ? "已过期" : inviteConfig?.isActive ? "启用中" : "未启用"}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                <div className="rounded-2xl border border-stone-100 bg-white p-4">
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500">USED</div>
+                  <div className="mt-2 text-2xl font-black text-stone-900">{inviteConfig?.usedActivations ?? 0}</div>
+                </div>
+                <div className="rounded-2xl border border-stone-100 bg-white p-4">
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500">LEFT</div>
+                  <div className="mt-2 text-2xl font-black text-stone-900">{inviteConfig?.remainingActivations ?? "不限"}</div>
+                </div>
+                <div className="rounded-2xl border border-stone-100 bg-white p-4 md:col-span-2">
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500">EXPIRES</div>
+                  <div className="mt-2 text-sm font-bold text-stone-900">{inviteConfig?.expiresAt ? new Date(inviteConfig.expiresAt).toLocaleString("zh-CN") : "不自动失效"}</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="text-xs font-bold text-stone-500">
+                  邀请码
+                  <input value={inviteForm.code} onChange={(e) => setInviteForm({ ...inviteForm, code: e.target.value })} className={inputClass} placeholder="Xf..." />
+                </label>
+                <label className="text-xs font-bold text-stone-500">
+                  激活总数量
+                  <input value={inviteForm.activationLimit} onChange={(e) => setInviteForm({ ...inviteForm, activationLimit: e.target.value.replace(/\D/g, "") })} className={inputClass} placeholder="留空=不限" />
+                </label>
+                <label className="text-xs font-bold text-stone-500">
+                  失效时间
+                  <input type="datetime-local" value={inviteForm.expiresAtLocal} onChange={(e) => setInviteForm({ ...inviteForm, expiresAtLocal: e.target.value })} className={inputClass} />
+                </label>
+                <label className="text-xs font-bold text-stone-500">
+                  状态
+                  <select value={inviteForm.enabled ? "enabled" : "disabled"} onChange={(e) => setInviteForm({ ...inviteForm, enabled: e.target.value === "enabled" })} className={inputClass}>
+                    <option value="enabled">启用邀请码限制</option>
+                    <option value="disabled">关闭限制（开放注册）</option>
+                  </select>
+                </label>
+              </div>
+              <div className="flex flex-wrap justify-end gap-3">
+                <button disabled={savingInvite} onClick={() => void resetInviteUsage()} className="rounded-full border border-stone-200 px-5 py-2 text-sm font-bold text-stone-700 disabled:opacity-50">重置已用次数</button>
+                <button disabled={savingInvite} onClick={() => void expireInviteNow()} className="rounded-full border border-red-200 px-5 py-2 text-sm font-bold text-red-600 disabled:opacity-50">立即失效</button>
+                <button disabled={savingInvite} onClick={() => void saveInviteConfig()} className="rounded-full bg-[#5e17eb] px-5 py-2 text-sm font-bold text-white hover:bg-[#5112d1] disabled:opacity-50">{savingInvite ? "保存中..." : "保存邀请码"}</button>
               </div>
             </div>
 

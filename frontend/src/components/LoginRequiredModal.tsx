@@ -24,6 +24,7 @@ const LoginRequiredModal: React.FC<Props> = ({
   const [phone, setPhone] = useState("");
   const [verifyCode, setVerifyCode] = useState("");
   const [inviteCode, setInviteCode] = useState("");
+  const [verifiedInviteCode, setVerifiedInviteCode] = useState("");
   const [inviteVerified, setInviteVerified] = useState(false);
   const [isVerifyingInvite, setIsVerifyingInvite] = useState(false);
   const [countdown, setCountdown] = useState(0);
@@ -65,6 +66,7 @@ const LoginRequiredModal: React.FC<Props> = ({
 
   const handleInviteChange = (value: string) => {
     setInviteCode(value.trim());
+    setVerifiedInviteCode("");
     setInviteVerified(false);
     setPhone("");
     setVerifyCode("");
@@ -81,11 +83,14 @@ const LoginRequiredModal: React.FC<Props> = ({
     }
     try {
       setIsVerifyingInvite(true);
-      await userApi.verifyInviteCode(inviteCode.trim());
+      await userApi.verifyInviteCode(code);
+      setVerifiedInviteCode(code);
+      setInviteCode("");
       setInviteVerified(true);
       setLocalError("");
-      setHint("邀请码已校准，请继续输入手机号。");
+      setHint("");
     } catch (err: any) {
+      setVerifiedInviteCode("");
       setInviteVerified(false);
       const msg = err?.response?.data?.error || err?.response?.data?.message || err?.message || "邀请码校准失败";
       setLocalError(msg);
@@ -105,7 +110,7 @@ const LoginRequiredModal: React.FC<Props> = ({
     }
     try {
       setIsSendingCode(true);
-      await userApi.sendMobileCode(phone, inviteCode.trim());
+      await userApi.sendMobileCode(phone, verifiedInviteCode);
       setCountdown(60);
       setLocalError("");
       setHint("验证码已发送，请注意查收短信。");
@@ -136,7 +141,7 @@ const LoginRequiredModal: React.FC<Props> = ({
     }
 
     try {
-      await dispatch(loginByMobile({ mobile: phone, code: verifyCode, inviteCode: inviteCode.trim() }) as any).unwrap();
+      await dispatch(loginByMobile({ mobile: phone, code: verifyCode, inviteCode: verifiedInviteCode }) as any).unwrap();
     } catch (registerErr: any) {
       const message = typeof registerErr === "string" ? registerErr : registerErr?.response?.data?.error || registerErr?.response?.data?.message || registerErr?.message || "登录失败，请稍后重试";
       setLocalError(message);
@@ -202,13 +207,26 @@ const LoginRequiredModal: React.FC<Props> = ({
 
         /* ===== 左侧：内容 ===== */
         .xf-content {
-          padding: 0 24px;
+          padding: 20px 20px 16px 24px;
           display: flex;
           flex-direction: column;
           justify-content: flex-start;
           gap: 2px;
-          padding-top: 20px;
-          overflow: hidden;
+          min-height: 0;
+          overflow-x: hidden;
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          scrollbar-gutter: stable;
+        }
+        .xf-content::-webkit-scrollbar {
+          width: 6px;
+        }
+        .xf-content::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .xf-content::-webkit-scrollbar-thumb {
+          background: rgba(107, 61, 240, 0.22);
+          border-radius: 999px;
         }
         .xf-badge {
           display: inline-flex;
@@ -355,7 +373,10 @@ const LoginRequiredModal: React.FC<Props> = ({
           cursor: not-allowed;
         }
         .xf-login-form-section .xf-invite-ok {
-          margin: -3px 0 4px;
+          margin: 0 0 4px;
+          min-height: 22px;
+          display: flex;
+          align-items: center;
           color: #4c1d95;
           font-size: 11px;
           font-weight: 800;
@@ -464,14 +485,14 @@ const LoginRequiredModal: React.FC<Props> = ({
           .xf-modal {
             max-width: 380px;
             width: 92%;
-            height: auto;
+            height: min(88vh, 640px);
             max-height: 88vh;
             grid-template-columns: 1fr;
-            grid-template-rows: 188px auto;
+            grid-template-rows: 188px minmax(0, 1fr);
             border-radius: 20px;
             box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
           }
-          .xf-content { order: 2; padding: 16px 18px 16px; gap: 8px; }
+          .xf-content { order: 2; padding: 16px 14px 16px 18px; gap: 8px; }
           .xf-hero {
             order: 1;
             display: flex;
@@ -572,24 +593,29 @@ const LoginRequiredModal: React.FC<Props> = ({
 
           {/* 登录表单：邀请码校准 + 手机号 + 验证码 + 提交 */}
           <form className="xf-login-form-section" onSubmit={handleSubmit}>
-            <label>邀请码</label>
-            <div className="xf-field-row">
-              <input
-                className="xf-input"
-                placeholder="请输入邀请码"
-                value={inviteCode}
-                onChange={(e) => handleInviteChange(e.target.value)}
-              />
-              <button
-                type="button"
-                className="xf-code-btn"
-                onClick={handleVerifyInvite}
-                disabled={!inviteCode.trim() || isVerifyingInvite}
-              >
-                {isVerifyingInvite ? "校准中..." : "校准邀请码"}
-              </button>
-            </div>
-            {inviteReady ? <div className="xf-invite-ok">邀请码已校准</div> : null}
+            {inviteReady ? (
+              <div className="xf-invite-ok">邀请码已校准</div>
+            ) : (
+              <>
+                <label>邀请码</label>
+                <div className="xf-field-row">
+                  <input
+                    className="xf-input"
+                    placeholder="请输入邀请码"
+                    value={inviteCode}
+                    onChange={(e) => handleInviteChange(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="xf-code-btn"
+                    onClick={handleVerifyInvite}
+                    disabled={!inviteCode.trim() || isVerifyingInvite}
+                  >
+                    {isVerifyingInvite ? "校准中..." : "校准邀请码"}
+                  </button>
+                </div>
+              </>
+            )}
 
             {inviteReady && (
               <>

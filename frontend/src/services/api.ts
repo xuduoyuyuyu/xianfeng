@@ -679,6 +679,18 @@ export interface ShowNotesTemplateConfig {
   fallbackTemplate: string;
 }
 
+export interface LoginInviteConfig {
+  enabled: boolean;
+  code: string;
+  activationLimit: number | null;
+  usedActivations: number;
+  remainingActivations: number | null;
+  expiresAt: string | null;
+  isExpired: boolean;
+  isActive: boolean;
+  source: "setting" | "env";
+}
+
 export interface ProgramParseTask {
   programId: string;
   parseStatus: "idle" | "parsing" | "success" | "failed";
@@ -1000,6 +1012,14 @@ export const adminApi = {
   getShowNotesTemplate: () => api.get<ShowNotesTemplateConfig>("/admin/show-notes-template"),
   updateShowNotesTemplate: (template: string) =>
     api.put<ShowNotesTemplateConfig>("/admin/show-notes-template", { template }),
+  getLoginInviteConfig: () => api.get<LoginInviteConfig>("/admin/login-invite"),
+  updateLoginInviteConfig: (data: {
+    enabled: boolean;
+    code: string;
+    activationLimit: number | null;
+    expiresAt: string | null;
+  }) => api.put<LoginInviteConfig>("/admin/login-invite", data),
+  resetLoginInviteUsage: () => api.put<LoginInviteConfig>("/admin/login-invite", { resetUsage: true }),
 };
 
 // 用户 API

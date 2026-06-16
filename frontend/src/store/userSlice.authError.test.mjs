@@ -87,7 +87,10 @@ test("mobile login forms require invite code before phone fields activate", () =
     assert.match(text, /const \[inviteVerified, setInviteVerified\] = useState\(false\);/, `${name} should track backend-verified invite state`);
     assert.match(text, /const inviteReady = inviteVerified;/, `${name} should derive invite-ready from backend verification`);
     assert.match(text, /const canGetCode = useMemo\(\(\) => inviteReady && PHONE_REGEX\.test\(phone\)/, `${name} should block SMS until invite code is present`);
-    assert.match(text, /await userApi\.verifyInviteCode\(inviteCode\.trim\(\)\)/, `${name} should verify invite code before showing phone fields`);
+    assert.match(text, /const code = inviteCode\.trim\(\);[\s\S]*await userApi\.verifyInviteCode\(code\)/, `${name} should verify invite code before showing phone fields`);
+    assert.match(text, /setVerifiedInviteCode\(code\);[\s\S]*setInviteCode\(""\);/, `${name} should hide the visible invite code after verification`);
+    assert.match(text, /sendMobileCode\(phone, verifiedInviteCode\)/, `${name} should send the verified invite code after hiding the input value`);
+    assert.match(text, /loginByMobile\(\{ mobile: phone, code: verifyCode, inviteCode: verifiedInviteCode/, `${name} should submit the verified invite code after hiding the input value`);
     assert.match(text, /setInviteVerified\(false\);[\s\S]*setPhone\(""\);[\s\S]*setVerifyCode\(""\);/, `${name} should reset the mobile flow when invite code changes`);
     assert.match(text, /if \(!inviteReady\) \{\s*setLocalError\("请先校准邀请码"\);[\s\S]*return;\s*\}/, `${name} should guard submit and send-code handlers`);
     assert.match(text, /disabled=\{!inviteCode\.trim\(\) \|\| isVerifyingInvite\}/, `${name} should disable invite verification until a code is entered or while verifying`);
