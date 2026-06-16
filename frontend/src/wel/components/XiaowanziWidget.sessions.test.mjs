@@ -215,6 +215,19 @@ test("manual new conversation saves current session before opening a blank one",
   );
 });
 
+test("home top Xiaowanzi avatar quickly starts a new conversation", () => {
+  assert.match(
+    source,
+    /<button className="xw-home-brand-button" type="button" aria-label="新对话" onClick=\{openManualNewConversation\}>[\s\S]*<img key=\{displayAvatar\} className="xw-home-brand-avatar"/,
+    "top Xiaowanzi avatar should be a direct new-conversation button"
+  );
+  assert.match(
+    source,
+    /\.xw-home-brand-button\{[^}]*border:0[^}]*background:transparent[^}]*cursor:pointer/s,
+    "avatar new-conversation button should keep the original visual treatment"
+  );
+});
+
 test("xiaowanzi send buttons do not render Pro corner badges", () => {
   assert.doesNotMatch(source, /xw-pro-badge/, "Xiaowanzi surfaces should not show Pro corner badges");
 });

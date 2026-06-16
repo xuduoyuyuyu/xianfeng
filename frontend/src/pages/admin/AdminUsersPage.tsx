@@ -357,20 +357,20 @@ const AdminUsersPage: React.FC = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-                <table className="w-full min-w-[1640px] text-left">
+                <table className="w-full min-w-[1060px] text-left">
               <thead className="bg-white text-stone-500 uppercase text-[10px] font-black tracking-[0.2em]">
                 <tr>
-                  <th className="px-6 py-4">用户名</th>
-                  <th className="px-6 py-4">昵称</th>
-                  <th className="px-6 py-4">手机号</th>
-                  <th className="px-6 py-4">角色</th>
-                  <th className="px-6 py-4">城市</th>
-                      <th className="px-6 py-4">区域</th>
-                      <th className="px-6 py-4">年级</th>
-                      <th className="px-6 py-4">当前点数</th>
-                      <th className="px-6 py-4">记忆</th>
-                  <th className="px-6 py-4">注册时间</th>
-                  <th className="px-6 py-4 text-right">操作</th>
+                  <th className="px-4 py-3">用户名</th>
+                  <th className="px-4 py-3">昵称</th>
+                  <th className="px-4 py-3">手机号</th>
+                  <th className="px-4 py-3">角色</th>
+                  <th className="px-4 py-3">城市</th>
+                      <th className="px-4 py-3">区域</th>
+                      <th className="px-4 py-3">年级</th>
+                      <th className="px-4 py-3">点数</th>
+                      <th className="px-4 py-3">记忆</th>
+                  <th className="px-4 py-3 whitespace-nowrap">注册时间</th>
+                  <th className="px-4 py-3 text-right">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
@@ -380,53 +380,53 @@ const AdminUsersPage: React.FC = () => {
                   const isMe = myId && String(myId) === String(row._id);
                   return (
                     <tr key={row._id} className="hover:bg-stone-50/50 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="font-bold text-stone-900">{row.username}</div>
-                        <div className="text-xs text-stone-400">{row._id.slice(-8).toUpperCase()}</div>
+                      <td className="px-4 py-3">
+                        <div className="font-bold text-sm text-stone-900">{row.username}</div>
+                        <div className="text-[10px] text-stone-400">{row._id.slice(-8).toUpperCase()}</div>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-3">
                         <input
-                          className={`w-36 ${inputClass}`}
+                          className={`w-24 ${inputClass}`}
                           value={row.name || ""}
-                          placeholder="填写昵称"
+                          placeholder="昵称"
                           onChange={(event) => updateLocal(row._id, { name: event.target.value })}
                         />
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-3">
                         <div className="text-sm font-semibold text-stone-700">{resolveMobile(row) || "未绑定"}</div>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-3">
                         <span className={`px-3 py-1 rounded-full text-[10px] font-black ${row.role === "admin" ? "bg-emerald-50 text-emerald-700" : "bg-stone-100 text-stone-600"}`}>
                           {row.role === "admin" ? "管理员" : "用户"}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-3">
                         <input
-                          className={`w-40 ${inputClass}`}
+                          className={`w-20 ${inputClass}`}
                           value={row.city || ""}
-                          placeholder="填写城市"
+                          placeholder="城市"
                           onChange={(event) => updateLocal(row._id, { city: event.target.value })}
                         />
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-3">
                         <input
-                          className={`w-40 ${inputClass}`}
+                          className={`w-20 ${inputClass}`}
                           value={row.region || ""}
-                          placeholder="填写区域"
+                          placeholder="区域"
                           onChange={(event) => updateLocal(row._id, { region: event.target.value })}
                         />
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-3">
                         <input
-                          className={`w-40 ${inputClass}`}
+                          className={`w-20 ${inputClass}`}
                           value={row.grade || row.childGrade || ""}
-                          placeholder="填写年级"
+                          placeholder="年级"
                           onChange={(event) => updateLocal(row._id, { grade: event.target.value })}
                         />
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-3">
                         <input
-                          className={`w-28 ${inputClass}`}
+                          className={`w-20 ${inputClass}`}
                           min={0}
                           step={1}
                           type="number"
@@ -434,15 +434,15 @@ const AdminUsersPage: React.FC = () => {
                           onChange={(event) => updateLocal(row._id, { proPointBalance: Number(event.target.value || 0) })}
                         />
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="max-w-[220px]">
+                      <td className="px-4 py-3">
+                        <div className="max-w-[90px]">
                           <button
-                            className={`rounded-xl px-3 py-2 text-xs font-bold transition-colors ${row.memoryItemCount ? "border border-[#5e17eb]/20 bg-[#f7f3ff] text-[#5e17eb] hover:bg-[#efe7ff]" : "border border-stone-200 text-stone-400"}`}
+                            className={`truncate rounded-xl px-2 py-1.5 text-[11px] font-bold transition-colors ${row.memoryItemCount ? "border border-[#5e17eb]/20 bg-[#f7f3ff] text-[#5e17eb] hover:bg-[#efe7ff]" : "border border-stone-200 text-stone-400"}`}
                             disabled={!row.childMemories?.length}
                             onClick={() => setMemoryTarget(row)}
                             type="button"
                           >
-                            {row.memoryItemCount ? `查看记忆 ${row.memoryItemCount} 条` : "暂无记忆"}
+                            {row.memoryItemCount ? `${row.memoryItemCount} 条` : "暂无"}
                           </button>
                           {row.memoryPreview ? (
                             <div className="mt-2 truncate text-xs font-medium text-stone-400" title={row.memoryPreview}>
@@ -451,26 +451,28 @@ const AdminUsersPage: React.FC = () => {
                           ) : null}
                         </div>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-3">
                         <div className="text-sm font-bold text-stone-900">{formatDateTime(row.createdAt)}</div>
                       </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                      <td className="px-3 py-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={() => handleQuickSave(row)}
                             disabled={saving || deleting}
-                            className="px-3 py-2 rounded-xl bg-[#5e17eb] text-white text-xs font-bold hover:bg-[#5112d1] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="rounded-lg bg-[#5e17eb] px-2.5 py-1.5 text-white text-xs font-bold hover:bg-[#5112d1] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="保存"
                             type="button"
                           >
-                            {saving ? "保存中..." : "保存"}
+                            {saving ? "..." : "保存"}
                           </button>
                           <button
                             onClick={() => openEdit(row)}
                             disabled={saving || deleting}
-                            className="px-3 py-2 rounded-xl border border-stone-200 text-stone-700 text-xs font-bold hover:bg-stone-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="rounded-lg border border-stone-200 px-2 py-1.5 text-stone-500 hover:bg-stone-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="编辑"
                             type="button"
                           >
-                            编辑
+                            <span className="material-symbols-outlined text-base">edit</span>
                           </button>
                           <button
                             onClick={() => {
@@ -479,19 +481,20 @@ const AdminUsersPage: React.FC = () => {
                               setResetPassword("");
                             }}
                             disabled={saving || deleting}
-                            className="px-3 py-2 rounded-xl border border-[#5e17eb]/20 text-[#5e17eb] text-xs font-bold hover:bg-[#f7f3ff] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="rounded-lg border border-stone-200 px-2 py-1.5 text-stone-400 hover:border-amber-200 hover:text-amber-600 hover:bg-amber-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="重置密码"
                             type="button"
                           >
-                            重置密码
+                            <span className="material-symbols-outlined text-base">key</span>
                           </button>
                           <button
                             onClick={() => handleDelete(row)}
                             disabled={saving || deleting || isMe}
-                            className="px-3 py-2 rounded-xl border border-red-100 text-red-500 text-xs font-bold hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="rounded-lg border border-stone-200 px-2 py-1.5 text-stone-400 hover:border-red-200 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             title={isMe ? "不能删除当前登录账号" : "删除用户"}
                             type="button"
                           >
-                            {deleting ? "删除中..." : "删除"}
+                            {deleting ? "..." : <span className="material-symbols-outlined text-base">delete</span>}
                           </button>
                         </div>
                       </td>

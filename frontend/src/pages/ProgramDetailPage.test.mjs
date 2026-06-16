@@ -27,11 +27,16 @@ test("program detail uses the shared guest avatar fallback instead of remote fal
   assert.doesNotMatch(source, /1779668991727-vzxkyx0x\.png/, "remote fallback avatar marker should only live in the shared helper");
 });
 
-test("program detail deep dive keeps curated reading and related content adjacent", () => {
+test("program detail deep dive keeps real supplemental content compact", () => {
   assert.match(source, /<div className="p-8 pb-8">/, "deep dive content should use one padded body");
+  assert.match(source, /const hasSupplementalContent = curatedReadingUnique\.length > 0 \|\| relatedItems\.length > 0;/, "supplemental card should hide when there are no real items");
+  assert.match(source, /\{hasSupplementalContent \? \(/, "supplemental card should not render an empty shell");
+  assert.match(source, /\{curatedReadingUnique\.length > 0 \? \(/, "curated reading should be gated by real curated items");
+  assert.match(source, /\{relatedItems\.length > 0 \? \(/, "related content should be gated by real related items");
+  assert.match(source, /\{curatedReadingUnique\.length > 0 && relatedItems\.length > 0 \? <div className="mb-5 h-px w-full bg-gray-100"><\/div> : null\}/, "divider should only appear between two real sections");
   assert.match(source, /<div className="mb-5">\s*<p className="mb-3 text-\[10px\] font-black uppercase tracking-widest text-gray-400">推荐阅读 Curated Reading<\/p>/, "curated reading should use compact spacing");
-  assert.match(source, /<div className="mb-5 h-px w-full bg-gray-100"><\/div>\s*<div className="mb-6">\s*<p className="mb-3 text-\[10px\] font-black uppercase tracking-widest text-gray-400">相关内容推荐 Related Content<\/p>/, "related content should follow the divider without a large blank band");
   assert.doesNotMatch(source, /<div className="mb-10">\s*<p className="mb-4 text-\[10px\] font-black uppercase tracking-widest text-gray-400">推荐阅读 Curated Reading<\/p>/, "curated reading should not keep the old tall bottom spacing");
+  assert.doesNotMatch(source, /《家庭教育中的低摩擦沟通》/, "empty curated reading should not be replaced by a generated fallback item");
 });
 
 test("program detail related content uses guest metadata instead of episode labels", () => {
@@ -41,4 +46,16 @@ test("program detail related content uses guest metadata instead of episode labe
   assert.match(source, /\{guestMeta && \(/, "guest metadata should only render when present");
   assert.doesNotMatch(source, /EP\./, "related recommendations should not render EP labels");
   assert.doesNotMatch(source, /programCode.*index/, "related recommendations should not derive visible labels from program codes");
+});
+
+test("program detail gates mindmap quickview and transcript tabs by real data", () => {
+  assert.match(source, /function getRealTranscriptSegments\(program: Program \| null\): TranscriptSegment\[\]/, "transcript content should come from real transcript rows only");
+  assert.match(source, /function hasRealMindMapData\(program: Program \| null\): boolean/, "mindmap availability should reject empty root placeholders");
+  assert.match(source, /const detailContentModes = \[/, "detail tabs should be built from one availability list");
+  assert.match(source, /hasMindMapContent\s*\?\s*\{ key: "mindmap", label: "脉络"/, "mindmap tab should only render when real mindmap data exists");
+  assert.match(source, /quickView\.length > 0\s*\?\s*\{ key: "quickview", label: "速览"/, "quickview tab should only render when real quickview data exists");
+  assert.match(source, /transcriptSegments\.length > 0\s*\?\s*\{ key: "transcript", label: "逐字稿"/, "transcript tab should only render when real transcript rows exist");
+  assert.match(source, /\{hasDetailContent \? \(/, "the whole detail content block should be hidden when all tabs are empty");
+  assert.doesNotMatch(source, /const description = program\.description \|\| "这期节目围绕家庭教育与成长展开讨论。";/, "program descriptions should not seed synthetic transcript rows");
+  assert.doesNotMatch(source, /暂无脉络数据/, "empty mindmap data should hide the block instead of rendering a placeholder graph");
 });

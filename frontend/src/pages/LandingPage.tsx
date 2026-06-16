@@ -1,337 +1,332 @@
-import React, { useEffect, useMemo, useState } from "react";
-import GlobalPublicNav from "../components/GlobalPublicNav";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import type { PublicGuest } from "../services/api";
+import { resolveGuestAvatar } from "../utils/guestAvatar";
 
-type ProgramItem = {
-  _id: string;
-  programCode?: string;
-  title?: string;
-  description?: string;
-  coverImage?: string;
-  summary?: { tags?: string[] };
-  transcript?: Array<{ text?: string }>;
-  dictionaryEntries?: Array<{ term?: string }>;
-  deepDive?: { curatedReading?: Array<{ title?: string }> };
-  contentPack?: { showNotes?: { renderedText?: string } };
-  publishedAt?: string;
-  createdAt?: string;
-  updatedAt?: string;
-};
-
-type BookItem = {
-  _id: string;
-  title?: string;
-  description?: string;
-  coverImage?: string;
-  category?: string;
-  publishedAt?: string;
-  createdAt?: string;
-  updatedAt?: string;
-};
-
-type MaterialItem = {
-  _id: string;
-  title?: string;
-  description?: string;
-  category?: string;
-  fileUrl?: string;
-  publishedAt?: string;
-  createdAt?: string;
-  updatedAt?: string;
-};
-
-type LandingCaseType = "program" | "book" | "material";
-
-type LandingCaseItem = {
-  id: string;
-  type: LandingCaseType;
-  title: string;
-  summary: string;
-  tags: string[];
-  href: string;
-  cover?: string;
-  score: number;
-  updatedTs: number;
-};
-
-const FALLBACK_COVER = "http://xianfeng.xinzhi.info/uploads/images/1779669071894-42qbgvdv.png";
-const CASE_PAGE_SIZE = 8;
-const CASE_MAX_PROGRAMS = 8;
-
-const fallbackCases: LandingCaseItem[] = [
-  {
-    id: "fallback-program-1",
-    type: "program",
-    title: "第一次做爸妈，没人教，但我们陪你走",
-    summary: "围绕冲突、沟通和边界，提供可执行的家庭教育参考。",
-    tags: ["节目案例", "逐字稿", "成长对话"],
-    href: "/programs",
-    cover: FALLBACK_COVER,
-    score: 98,
-    updatedTs: 0,
-  },
-  {
-    id: "fallback-program-2",
-    type: "program",
-    title: "升学与择校的真实选择题",
-    summary: "聚焦上海本地和高适用策略，用案例帮助家庭在关键节点降低决策焦虑。",
-    tags: ["节目案例", "择校规划", "决策支持"],
-    href: "/programs",
-    cover: FALLBACK_COVER,
-    score: 95,
-    updatedTs: 0,
-  },
-  {
-    id: "fallback-program-3",
-    type: "program",
-    title: "当学习问题来到家庭现场",
-    summary: "把学习问题拆成可理解、可落地的家庭策略。",
-    tags: ["节目案例", "科学学习", "家庭实践"],
-    href: "/programs",
-    cover: FALLBACK_COVER,
-    score: 93,
-    updatedTs: 0,
-  },
-  {
-    id: "fallback-book-1",
-    type: "book",
-    title: "家长阅读清单：从理念到行动",
-    summary: "按阶段整理阅读路径，帮助家长从“知道”到“做到”。",
-    tags: ["书单案例", "阅读参考", "家长决策"],
-    href: "/books",
-    score: 86,
-    updatedTs: 0,
-  },
-  {
-    id: "fallback-book-2",
-    type: "book",
-    title: "教育主题精选书目",
-    summary: "围绕升学、学习、成长与家庭关系，提供结构化阅读入口。",
-    tags: ["书单案例", "主题阅读"],
-    href: "/books",
-    score: 84,
-    updatedTs: 0,
-  },
-  {
-    id: "fallback-material-1",
-    type: "material",
-    title: "家庭教育资料包",
-    summary: "把节目观点转换为可复用的资料模板，方便日常实践和复盘。",
-    tags: ["资料案例", "实操模板", "可下载"],
-    href: "/materials",
-    score: 87,
-    updatedTs: 0,
-  },
-  {
-    id: "fallback-material-2",
-    type: "material",
-    title: "学习与沟通工具集",
-    summary: "整理家庭学习与亲子沟通常用工具，提升执行效率。",
-    tags: ["资料案例", "在线查看"],
-    href: "/materials",
-    score: 82,
-    updatedTs: 0,
-  },
-  {
-    id: "fallback-program-4",
-    type: "program",
-    title: "教育里的“人”：家长、老师与孩子",
-    summary: "从多方视角看教育关系，避免只盯孩子的单点答案。",
-    tags: ["节目案例", "人间教育万象"],
-    href: "/programs",
-    cover: FALLBACK_COVER,
-    score: 91,
-    updatedTs: 0,
-  },
-  {
-    id: "fallback-material-3",
-    type: "material",
-    title: "节目复盘卡",
-    summary: "帮助家长把“听过”转成“做过”，形成可追踪的行动闭环。",
-    tags: ["资料案例", "复盘"],
-    href: "/materials",
-    score: 80,
-    updatedTs: 0,
-  },
-  {
-    id: "fallback-program-5",
-    type: "program",
-    title: "健康成长：身体与情绪是底层能力",
-    summary: "聚焦身心通畅与家庭节奏，重建长期教育决策的稳定底盘。",
-    tags: ["节目案例", "健康成长"],
-    href: "/programs",
-    cover: FALLBACK_COVER,
-    score: 89,
-    updatedTs: 0,
-  },
-  {
-    id: "fallback-book-3",
-    type: "book",
-    title: "家长沟通与边界建立",
-    summary: "围绕冲突管理与家庭规则，给出可实操的方法框架。",
-    tags: ["书单案例", "沟通"],
-    href: "/books",
-    score: 81,
-    updatedTs: 0,
-  },
-  {
-    id: "fallback-program-6",
-    type: "program",
-    title: "从焦虑到行动的家庭决策法",
-    summary: "不追求完美答案，先做小步验证，再迭代家庭策略。",
-    tags: ["节目案例", "策略验证"],
-    href: "/programs",
-    cover: FALLBACK_COVER,
-    score: 88,
-    updatedTs: 0,
-  },
-];
+const HOMEPAGE_XIAOWANZI_ENTRY_HREFS = new Set(["/index-xiaowanzi.html"]);
+const XIAOWANZI_DESKTOP_FULLSCREEN_BREAKPOINT = 769;
+const heoSectionOrder = [
+  { label: "内容", href: "/programs/list", anchor: "primary-entry" },
+  { label: "阅读", href: "/reading", anchor: "site-entry-list" },
+  { label: "资料", href: "/materials", anchor: "site-entry-list" },
+  { label: "规划", href: "/planning", anchor: "site-entry-list" },
+  { label: "决策", href: "/topics", anchor: "site-entry-list" },
+] as const;
+type HeoSectionNavItem = (typeof heoSectionOrder)[number];
 
 function toText(value: unknown): string {
   return String(value || "").trim();
 }
 
-function hasText(value: unknown): boolean {
-  return toText(value).length > 0;
+function isHomepageXiaowanziEntry(href: string): boolean {
+  return HOMEPAGE_XIAOWANZI_ENTRY_HREFS.has(href);
 }
 
-function toTimestamp(...values: Array<string | undefined>): number {
-  for (const value of values) {
-    const ts = Date.parse(value || "");
-    if (!Number.isNaN(ts)) return ts;
+type EntryTone = "deep" | "mint" | "lemon" | "sky" | "pink" | "lavender";
+
+type SiteEntryItem = {
+  title: string;
+  desc: string;
+  href: string;
+  action: string;
+  badge: string;
+  meta: string;
+  tone: EntryTone;
+};
+
+type SiteEntryGroup = {
+  title: string;
+  subtitle: string;
+  items: SiteEntryItem[];
+};
+
+type TopicDirectoryRecord = {
+  slug?: string;
+  title?: string;
+  subtitle?: string;
+  shortSummary?: string;
+  tags?: string[] | string;
+  questionCount?: number;
+  nodeCount?: number;
+};
+
+type WorthBuyDirectoryRecord = {
+  brand?: string;
+  query?: string;
+  status?: string;
+  result?: {
+    brand?: string;
+    title?: string;
+    reason?: string;
+    summary?: string;
+    verdict?: string;
+    recommendation?: string;
+    buyAdvice?: string;
+    score?: number;
+  };
+};
+
+function clampEntryText(value: unknown, fallback: string, max = 34): string {
+  const text = toText(value) || fallback;
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+function parseEntryTags(raw: TopicDirectoryRecord["tags"]): string[] {
+  if (Array.isArray(raw)) return raw.map(toText).filter(Boolean);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map(toText).filter(Boolean) : [];
+  } catch {
+    return toText(raw).split(/[,\s，、]+/).map(toText).filter(Boolean);
   }
-  return 0;
 }
 
-function normalizeTag(tag: string): string {
-  return tag.trim().toLowerCase();
+function buildTopicDirectoryItems(records: TopicDirectoryRecord[]): SiteEntryItem[] {
+  return records
+    .map((topic, index): SiteEntryItem | null => {
+      const title = clampEntryText(topic.title, "", 18);
+      const slug = toText(topic.slug);
+      if (!title || !slug) return null;
+      const tags = parseEntryTags(topic.tags);
+      const count = Number(topic.questionCount || topic.nodeCount || 0);
+      return {
+        title,
+        desc: clampEntryText(topic.shortSummary || topic.subtitle, "从真实问题进入回答与知识树", 42),
+        href: `/topics/${encodeURIComponent(slug)}`,
+        action: "查看",
+        badge: tags[0] || "问题",
+        meta: count > 0 ? `${count} 条线索` : "知识树",
+        tone: (["sky", "mint", "lavender"] as EntryTone[])[index % 3],
+      };
+    })
+    .filter((item): item is SiteEntryItem => Boolean(item))
+    .slice(0, 12);
 }
 
-function buildProgramCase(item: ProgramItem): LandingCaseItem {
-  const routeId = toText(item.programCode) || item._id;
-  const rawTags = Array.isArray(item.summary?.tags) ? item.summary?.tags : [];
-  const hasTranscript = Array.isArray(item.transcript) && item.transcript.some((segment) => hasText(segment?.text));
-  const hasDictionary = Array.isArray(item.dictionaryEntries) && item.dictionaryEntries.some((entry) => hasText(entry?.term));
-  const hasReading = Array.isArray(item.deepDive?.curatedReading) && item.deepDive?.curatedReading.some((entry) => hasText(entry?.title));
-  const hasShownotes = hasText(item.contentPack?.showNotes?.renderedText);
+function resolveWorthBuyTitle(item: WorthBuyDirectoryRecord): string {
+  return toText(item.result?.brand) || toText(item.result?.title) || toText(item.brand) || toText(item.query);
+}
 
-  const enrichTags = [
-    "节目案例",
-    hasTranscript ? "逐字稿" : "",
-    hasDictionary ? "教育词典" : "",
-    hasReading ? "延伸阅读" : "",
-    hasShownotes ? "节目信息卡" : "",
-  ].filter(Boolean);
+function resolveWorthBuyDesc(item: WorthBuyDirectoryRecord): string {
+  return (
+    toText(item.result?.recommendation) ||
+    toText(item.result?.buyAdvice) ||
+    toText(item.result?.reason) ||
+    toText(item.result?.summary) ||
+    toText(item.result?.verdict) ||
+    "从真实使用场景看产品、服务与购买判断"
+  );
+}
 
-  const tags = [...rawTags.map((tag) => toText(tag)).filter(Boolean), ...enrichTags].slice(0, 5);
-  const score =
-    (hasText(item.description) ? 24 : 8) +
-    (hasTranscript ? 20 : 0) +
-    (hasDictionary ? 16 : 0) +
-    (hasReading ? 16 : 0) +
-    (hasShownotes ? 16 : 0) +
-    tags.length * 5;
+function buildWorthBuyDirectoryItems(records: WorthBuyDirectoryRecord[]): SiteEntryItem[] {
+  return records
+    .map((item, index): SiteEntryItem | null => {
+      const query = toText(item.query) || toText(item.brand) || resolveWorthBuyTitle(item);
+      const title = clampEntryText(resolveWorthBuyTitle(item), "", 18);
+      if (!title || !query) return null;
+      const score = Number(item.result?.score);
+      return {
+        title,
+        desc: clampEntryText(resolveWorthBuyDesc(item), "从真实使用场景看产品、服务与购买判断", 42),
+        href: `/worthbuy/${encodeURIComponent(query)}`,
+        action: "查看",
+        badge: Number.isFinite(score) ? `${score}分` : "分析",
+        meta: item.status === "published" ? "公开" : "知物",
+        tone: (["lemon", "pink", "sky"] as EntryTone[])[index % 3],
+      };
+    })
+    .filter((item): item is SiteEntryItem => Boolean(item))
+    .slice(0, 12);
+}
 
-  return {
-    id: item._id,
-    type: "program",
-    title: toText(item.title) || "未命名节目",
-    summary: toText(item.description) || "暂无节目摘要，点击查看完整内容。",
-    tags: tags.length ? tags : ["节目案例"],
-    href: routeId ? `/programs/${encodeURIComponent(routeId)}` : "/programs",
-    cover: toText(item.coverImage) || undefined,
-    score,
-    updatedTs: toTimestamp(item.publishedAt, item.updatedAt, item.createdAt),
+const fallbackTopicDirectoryItems: SiteEntryItem[] = [
+  {
+    title: "告别拖延症",
+    desc: "把孩子无法启动的问题拆成执行功能、家庭节奏与今日行动",
+    href: "/topics",
+    action: "提问",
+    badge: "执行力",
+    meta: "12 条线索",
+    tone: "sky",
+  },
+  {
+    title: "儿童蛀牙防治",
+    desc: "从口腔习惯、饮食频次和家庭执行看一口好牙怎么养成",
+    href: "/topics",
+    action: "提问",
+    badge: "健康",
+    meta: "8 条线索",
+    tone: "mint",
+  },
+  {
+    title: "隔代教养沟通",
+    desc: "老人发脾气时先建立沟通机制，而不是只做对错裁判",
+    href: "/topics",
+    action: "提问",
+    badge: "沟通",
+    meta: "15 条线索",
+    tone: "lavender",
+  },
+  {
+    title: "孩子注意力不集中",
+    desc: "区分生理性分心与环境干扰，从执行功能角度寻找可操作策略",
+    href: "/topics",
+    action: "提问",
+    badge: "学习力",
+    meta: "10 条线索",
+    tone: "deep",
+  },
+  {
+    title: "青春期沟通困境",
+    desc: "当孩子关上房门，家长如何找到新的对话入口",
+    href: "/topics",
+    action: "提问",
+    badge: "青春期",
+    meta: "9 条线索",
+    tone: "pink",
+  },
+  {
+    title: "幼小衔接准备",
+    desc: "不只看知识储备，更要关注习惯、情绪与社会适应能力",
+    href: "/topics",
+    action: "提问",
+    badge: "入学",
+    meta: "14 条线索",
+    tone: "lemon",
+  },
+];
+
+const fallbackWorthBuyDirectoryItems: SiteEntryItem[] = [
+  {
+    title: "小猿学练机",
+    desc: "把教育硬件的卖点放回孩子作业、反馈和长期使用场景里判断",
+    href: "/worthbuy",
+    action: "分析",
+    badge: "硬件",
+    meta: "知物",
+    tone: "lemon",
+  },
+  {
+    title: "小天才电话手表",
+    desc: "从安全、社交和家庭管理边界判断儿童智能设备是否适合",
+    href: "/worthbuy",
+    action: "分析",
+    badge: "设备",
+    meta: "消费参考",
+    tone: "pink",
+  },
+  {
+    title: "斑马AI课年卡",
+    desc: "把启蒙课程的持续使用、孩子兴趣和家庭陪伴成本一起看",
+    href: "/worthbuy",
+    action: "分析",
+    badge: "课程",
+    meta: "知物分析",
+    tone: "sky",
+  },
+  {
+    title: "作业帮学习笔",
+    desc: "扫描查词功能是否真的帮到学习，还是养成了依赖习惯",
+    href: "/worthbuy",
+    action: "分析",
+    badge: "工具",
+    meta: "知物",
+    tone: "mint",
+  },
+  {
+    title: "网易有道词典笔",
+    desc: "对比同类学习笔，从查词精度、内容生态和使用频次进行判断",
+    href: "/worthbuy",
+    action: "分析",
+    badge: "对比",
+    meta: "消费参考",
+    tone: "lavender",
+  },
+  {
+    title: "儿童安全座椅选购",
+    desc: "从碰撞测试、安装便利性和孩子年龄段匹配度来做决策",
+    href: "/worthbuy",
+    action: "分析",
+    badge: "安全",
+    meta: "知物分析",
+    tone: "deep",
+  },
+];
+
+function resolveTopicEmoji(title: string, badge: string): string {
+  const map: Record<string, string> = {
+    "拖延": "⏰", "注意力": "🎯", "青春期": "🧑‍🎓", "蛀牙": "🦷",
+    "隔代": "👴", "衔接": "🎒", "沟通": "💬", "学习": "📖",
+    "健康": "❤️", "情绪": "🌈", "执行力": "⚡", "入学": "🏫",
   };
+  for (const [key, emoji] of Object.entries(map)) {
+    if (title.includes(key) || badge.includes(key)) return emoji;
+  }
+  // 按 badge 二级匹配
+  const badgeMap: Record<string, string> = {
+    "沟通": "💬", "学习力": "📖", "执行力": "⚡", "青春期": "🧑‍🎓",
+  };
+  if (badgeMap[badge]) return badgeMap[badge];
+  return "💡";
 }
 
-function buildBookCase(item: BookItem): LandingCaseItem {
-  const category = toText(item.category);
-  const hasCover = hasText(item.coverImage);
-  const tags = ["书单案例", category ? `书单/${category}` : "阅读参考", hasCover ? "封面素材" : "图文摘要"].filter(Boolean);
-
-  return {
-    id: item._id,
-    type: "book",
-    title: toText(item.title) || "未命名书单",
-    summary: toText(item.description) || "暂无书单摘要，点击查看完整内容。",
-    tags,
-    href: "/books",
-    cover: hasCover ? toText(item.coverImage) : undefined,
-    score: (hasText(item.description) ? 28 : 10) + (category ? 18 : 8) + (hasCover ? 10 : 0),
-    updatedTs: toTimestamp(item.publishedAt, item.updatedAt, item.createdAt),
+function resolveWorthBuyEmoji(title: string, badge: string): string {
+  const map: Record<string, string> = {
+    "手表": "⌚", "学练机": "📱", "学习机": "🖥️", "学习笔": "🖊️",
+    "词典笔": "🖊️", "AI课": "📚", "安全座椅": "🚗", "奶瓶": "🍼",
+    "课程": "📚", "硬件": "📱", "设备": "⌚", "安全": "🛡️",
+    "对比": "⚖️", "复读机": "🎧", "吸尘器": "🧹",
   };
-}
-
-function buildMaterialCase(item: MaterialItem): LandingCaseItem {
-  const category = toText(item.category);
-  const downloadable = hasText(item.fileUrl);
-  const tags = ["资料案例", category ? `资料/${category}` : "资料参考", downloadable ? "可下载" : "在线查看"].filter(Boolean);
-
-  return {
-    id: item._id,
-    type: "material",
-    title: toText(item.title) || "未命名资料",
-    summary: toText(item.description) || "暂无资料摘要，点击查看完整内容。",
-    tags,
-    href: "/materials",
-    score: (hasText(item.description) ? 26 : 8) + (downloadable ? 20 : 8) + (category ? 12 : 0),
-    updatedTs: toTimestamp(item.publishedAt, item.updatedAt, item.createdAt),
-  };
+  for (const [key, emoji] of Object.entries(map)) {
+    if (title.includes(key) || badge.includes(key)) return emoji;
+  }
+  return "📦";
 }
 
 const LandingPage: React.FC = () => {
-  const [items, setItems] = useState<LandingCaseItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeTag, setActiveTag] = useState<string>("all");
-  const [visibleCount, setVisibleCount] = useState(CASE_MAX_PROGRAMS);
-  const [stats, setStats] = useState({
-    programCount: 0,
-    bookCount: 0,
-    materialCount: 0,
-    totalCount: 0,
-  });
+  const productRailRef = useRef<HTMLDivElement | null>(null);
+  const [guests, setGuests] = useState<PublicGuest[]>([]);
+  const [topicDirectoryItems, setTopicDirectoryItems] = useState<SiteEntryItem[]>([]);
+  const [worthBuyDirectoryItems, setWorthBuyDirectoryItems] = useState<SiteEntryItem[]>([]);
+  const [activeCatalogIndex, setActiveCatalogIndex] = useState(-1);
+  const [failedGuestAvatars, setFailedGuestAvatars] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let disposed = false;
-
-    async function loadCases() {
-      const [programRes, bookRes, materialRes] = await Promise.allSettled([
-        fetch("/api/programs").then((res) => (res.ok ? res.json() : [])),
-        fetch("/api/books").then((res) => (res.ok ? res.json() : [])),
-        fetch("/api/learning-materials").then((res) => (res.ok ? res.json() : [])),
-      ]);
-
-      if (disposed) return;
-
-      const programs = programRes.status === "fulfilled" && Array.isArray(programRes.value) ? (programRes.value as ProgramItem[]) : [];
-      const books = bookRes.status === "fulfilled" && Array.isArray(bookRes.value) ? (bookRes.value as BookItem[]) : [];
-      const materials = materialRes.status === "fulfilled" && Array.isArray(materialRes.value) ? (materialRes.value as MaterialItem[]) : [];
-
-      const sortedPrograms = programs
-        .map((item) => buildProgramCase(item))
-        .sort((a, b) => b.score + b.updatedTs / 1e10 - (a.score + a.updatedTs / 1e10))
-        .slice(0, CASE_MAX_PROGRAMS);
-
-      setItems(sortedPrograms.length ? sortedPrograms : fallbackCases);
-      setStats({
-        programCount: programs.length,
-        bookCount: books.length,
-        materialCount: materials.length,
-        totalCount: programs.length + books.length + materials.length,
+    fetch("/api/guests?page=1&pageSize=120")
+      .then((res) => (res.ok ? res.json() : { guests: [] }))
+      .then((data) => {
+        if (disposed) return;
+        const list = Array.isArray(data) ? data : Array.isArray(data?.guests) ? data.guests : [];
+        setGuests(list.filter((guest: PublicGuest) => toText(guest?.name)).slice(0, 120));
+      })
+      .catch(() => {
+        if (!disposed) setGuests([]);
       });
-      setLoading(false);
-    }
+    return () => {
+      disposed = true;
+    };
+  }, []);
 
-    loadCases().catch(() => {
+  useEffect(() => {
+    let disposed = false;
+    const loadJson = async (url: string) => {
+      const res = await fetch(url);
+      if (!res.ok) return {};
+      return res.json().catch(() => ({}));
+    };
+
+    Promise.allSettled([
+      loadJson("/api/topic-hub?limit=12"),
+      loadJson("/api/worthbuy/list?limit=12"),
+    ]).then(([topicResult, worthBuyResult]) => {
       if (disposed) return;
-      setItems(fallbackCases);
-      setStats({
-        programCount: 0,
-        bookCount: 0,
-        materialCount: 0,
-        totalCount: 0,
-      });
-      setLoading(false);
+      const topicData = topicResult.status === "fulfilled" ? topicResult.value : {};
+      const worthBuyData = worthBuyResult.status === "fulfilled" ? worthBuyResult.value : {};
+      const topics = Array.isArray(topicData?.topics) ? topicData.topics : [];
+      const worthBuyItems = Array.isArray(worthBuyData?.items) ? worthBuyData.items : [];
+      setTopicDirectoryItems(buildTopicDirectoryItems(topics));
+      setWorthBuyDirectoryItems(buildWorthBuyDirectoryItems(worthBuyItems));
     });
 
     return () => {
@@ -339,170 +334,1654 @@ const LandingPage: React.FC = () => {
     };
   }, []);
 
-  const tags = useMemo(() => {
-    const bucket = new Map<string, number>();
-    items.forEach((item) => {
-      item.tags.forEach((tag) => {
-        const text = toText(tag);
-        if (!text) return;
-        bucket.set(text, (bucket.get(text) || 0) + 1);
-      });
+  const hostDuo = useMemo(() => {
+    if (guests.length === 0) return [];
+    const jessie = guests.find((g) => {
+      const n = toText(g.name).toLowerCase();
+      return n === 'jessie' || n.includes('jessie');
     });
-    return Array.from(bucket.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map((entry) => entry[0]);
-  }, [items]);
+    const ali = guests.find((g) => {
+      const n = toText(g.name);
+      return n === '阿力' || n === 'ali';
+    });
+    return [jessie, ali].filter(Boolean) as PublicGuest[];
+  }, [guests]);
 
-  const filteredItems = useMemo(() => {
-    return activeTag === "all"
-      ? items
-      : items.filter((item) => item.tags.some((tag) => normalizeTag(tag) === normalizeTag(activeTag)));
-  }, [items, activeTag]);
+  const guestMarqueeItems = useMemo(() => {
+    if (guests.length === 0) return [];
+    return [...guests, ...guests];
+  }, [guests]);
 
-  const visibleItems = useMemo(() => filteredItems.slice(0, visibleCount), [filteredItems, visibleCount]);
+  const handleHomepageEntryClick = (event: React.MouseEvent<HTMLAnchorElement>, href: string, afterClick?: () => void) => {
+    if (isHomepageXiaowanziEntry(href) && window.innerWidth >= XIAOWANZI_DESKTOP_FULLSCREEN_BREAKPOINT) {
+      event.preventDefault();
+      document.dispatchEvent(
+        new CustomEvent("xf-open-xiaowanzi", {
+          detail: { source: "landing-page", mode: "chat", maximized: true },
+        })
+      );
+    }
+    afterClick?.();
+  };
 
-  useEffect(() => {
-    setVisibleCount(CASE_MAX_PROGRAMS);
-  }, [activeTag]);
+  const openXiaowanziHome = () => {
+    document.dispatchEvent(
+      new CustomEvent("xf-open-xiaowanzi", {
+        detail: { source: "landing-topbar", mode: "home" },
+      })
+    );
+  };
 
-  const capabilityCards = [
+  const openHomepageLoginModal = () => {
+    document.dispatchEvent(
+      new CustomEvent("xf-show-login-modal", {
+        detail: {
+          title: "登录后继续浏览",
+          description: "登录后可解锁完整内容、同步孩子档案，并使用小玩子获得个性化建议。",
+        },
+      })
+    );
+  };
+
+  const scrollProductRail = (direction: "prev" | "next") => {
+    const rail = productRailRef.current;
+    if (!rail) return;
+    const card = rail.querySelector<HTMLElement>(".heo-product-card");
+    const step = card ? card.offsetWidth + 28 : rail.clientWidth * 0.86;
+    rail.scrollBy({ left: direction === "next" ? step : -step, behavior: "smooth" });
+  };
+
+  const handleNavCategoryClick = (index: number, targetId: string) => {
+    setActiveCatalogIndex(index);
+    document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const featureCards = [
     {
-      title: "节目深度收听",
-      text: "每期邀请教育相关从业者，输出观点、经验与真实案例。",
-      icon: "podcasts",
+      title: "内容",
+      visual: "program",
+      status: "推荐",
+      action: "进入节目",
+      tone: "deep",
+      featured: true,
+      text: "汇总已发布节目，支持按标题、摘要、标签和内容类型快速定位，适合从真实教育对话进入问题现场。",
+      href: "/programs/list",
     },
     {
-      title: "案例快速定位",
-      text: "通过标签和结构化摘要，按家庭问题快速检索参考内容。",
-      icon: "search",
+      title: "阅读",
+      visual: "reading",
+      status: "推荐",
+      action: "继续阅读",
+      tone: "mint",
+      featured: false,
+      text: "基于节目实践沉淀的书籍清单。可先按推荐人聚合浏览，再结合年级和关键词快速筛选。",
+      href: "/reading",
     },
     {
-      title: "书单与资料联动",
-      text: "从节目扩展到书单与资料，形成“听-看-用”闭环。",
-      icon: "library_books",
+      title: "资料",
+      visual: "materials",
+      status: "热门",
+      action: "获取资料",
+      tone: "lemon",
+      featured: false,
+      text: "整理可直接打开使用的学习资料。先按阶段和年级缩小范围，再按学科和资料类型精筛。",
+      href: "/materials",
     },
     {
-      title: "决策支持视角",
-      text: "不提供标准答案，提供可验证、可迭代的家庭策略。",
-      icon: "alt_route",
+      title: "智库",
+      visual: "experts",
+      status: "推荐",
+      action: "看嘉宾",
+      tone: "pink",
+      featured: false,
+      text: "从节目延伸到人物，汇总嘉宾背景、著作、公开参考链接与拓展内容，帮助判断方法是否适合当前问题。",
+      href: "/experts",
     },
     {
-      title: "AI 与检索能力",
-      text: "结合逐字稿、词典与延伸内容，提升家庭决策效率。",
-      icon: "smart_toy",
+      title: "规划",
+      visual: "planning",
+      status: "规划",
+      action: "开始规划",
+      tone: "mint",
+      featured: false,
+      text: "把长期目标放进阶段路径里，围绕升学、能力建设和家庭节奏做更清晰的规划。",
+      href: "/planning",
+    },
+    {
+      title: "AI",
+      visual: "assistant",
+      status: "智能",
+      action: "打开助理",
+      tone: "sky",
+      featured: false,
+      text: "在站内内容旁边随时提问，让AI帮你读页面、找线索、整理下一步。",
+      href: "/index-xiaowanzi.html",
     },
   ];
 
-  const topicCards = [
+  const specialActionCards = [
     {
-      title: "升学择校规划",
-      text: "以上海本地升学规划和高适用择校策略为主。",
-      stage: "适用阶段：幼升小到高中",
-      issue: "典型问题：路径选择、关键节点决策",
-      icon: "map_search",
-      href: "/programs",
+      title: "请教一下",
+      eyebrow: "持续开放",
+      headline: "把一个真实困惑，拆成能继续追问的线索",
+      text: "提交家庭教育现场里的具体问题，查看站内问题、回答与智能生成的知识树。",
+      product: "问题共创",
+      productText: "真实提问、回答与知识树入口",
+      action: "去提问",
+      href: "/topics",
+      tone: "ask",
     },
     {
-      title: "科学学习指南",
-      text: "涉及核心学科学习方法与家庭执行策略。",
-      stage: "适用阶段：小学到大学",
-      issue: "典型问题：学习效率、习惯与方法",
-      icon: "school",
-      href: "/programs",
-    },
-    {
-      title: "健康成长手册",
-      text: "关注身心健康与长期教育节奏的稳定性。",
-      stage: "适用阶段：全阶段",
-      issue: "典型问题：情绪、作息、压力管理",
-      icon: "favorite",
-      href: "/programs",
-    },
-    {
-      title: "人间教育万象",
-      text: "不止聊孩子，也聊家长、老师和教育行业中的每个“人”。",
-      stage: "适用阶段：全阶段",
-      issue: "典型问题：关系、角色与教育认知",
-      icon: "diversity_3",
-      href: "/programs",
+      title: "知物",
+      eyebrow: "持续更新",
+      headline: "把选择放回场景里，再做判断",
+      text: "围绕教育与家庭场景整理品牌、产品和服务分析，让购买和选择多一层参考。",
+      product: "知物分析",
+      productText: "品牌、产品与服务参考",
+      action: "查看分析",
+      href: "/worthbuy",
+      tone: "worth",
     },
   ];
+
+  const cardColors: Record<string, { gradient: string; accent: string }> = {
+    program:  { gradient: 'linear-gradient(145deg, #3b82f6 0%, #2563eb 50%, #1d4ed8 100%)', accent: '#2563eb' },
+    reading:  { gradient: 'linear-gradient(145deg, #34d399 0%, #10b981 50%, #059669 100%)', accent: '#059669' },
+    materials:{ gradient: 'linear-gradient(145deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%)', accent: '#d97706' },
+    experts:  { gradient: 'linear-gradient(145deg, #f472b6 0%, #ec4899 50%, #db2777 100%)', accent: '#db2777' },
+    planning: { gradient: 'linear-gradient(145deg, #22d3ee 0%, #06b6d4 50%, #0891b2 100%)', accent: '#0891b2' },
+    assistant:{ gradient: 'linear-gradient(145deg, #a78bfa 0%, #8b5cf6 50%, #7c3aed 100%)', accent: '#7c3aed' },
+  };
+
+  const xiaowanziAvatars = [
+    "/assets/xw-1.png",
+    "/assets/xw-2.png",
+    "/assets/xw-3.png",
+    "/assets/xw-4.png",
+    "/assets/xw-5.png",
+    "/assets/xw-6.png",
+  ];
+
+  const navItems = heoSectionOrder.map((item, index) => ({ ...item, index }));
 
   return (
     <div className="landing-root">
       <style>{`
         .landing-root {
-          --lp-bg: #f8f6f1;
-          --lp-bg-soft: #fefcf7;
-          --lp-panel: rgba(255, 255, 255, 0.88);
-          --lp-panel-solid: #ffffff;
-          --lp-panel-border: rgba(32, 53, 96, 0.12);
-          --lp-text: #19212c;
-          --lp-muted: #5e6878;
-          --lp-primary: #5e17eb;
-          --lp-primary-ink: #4d12c2;
-          --lp-accent: #8b5cf6;
-          --lp-shadow: 0 14px 40px rgba(27, 46, 87, 0.08);
-          --lp-radius-lg: 24px;
-          --lp-radius-md: 16px;
-          --lp-space: clamp(16px, 2.4vw, 30px);
+          --lp-bg: #f5f5f7;
+          --lp-panel: rgba(255, 255, 255, 0.72);
+          --lp-panel-soft: rgba(255, 255, 255, 0.6);
+          --lp-panel-border: rgba(0, 0, 0, 0.06);
+          --lp-text: #080a12;
+          --lp-muted: rgba(8, 10, 18, 0.48);
+          --lp-primary: #5F19EC;
+          --lp-primary-ink: #6d28d9;
+          --lp-pink: #fdf2f8;
+          --lp-mint: #f0fdf4;
+          --lp-lemon: #fefce8;
+          --lp-sky: #f0f9ff;
+          --lp-lavender: #faf5ff;
+          --lp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+          --lp-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
           min-height: 100vh;
           color: var(--lp-text);
-          background:
-            radial-gradient(900px 420px at 0% -8%, rgba(41, 84, 214, 0.12), transparent 60%),
-            radial-gradient(780px 340px at 100% -6%, rgba(0, 169, 165, 0.11), transparent 60%),
-            linear-gradient(180deg, var(--lp-bg-soft), var(--lp-bg));
+          background: #f5f5f7;
           overflow-x: hidden;
         }
         .landing-shell {
-          width: min(1220px, calc(100% - 28px));
+          width: min(1400px, calc(100% - 48px));
           margin: 0 auto;
         }
         .landing-block {
-          margin-top: clamp(40px, 6vw, 88px);
+          margin-top: clamp(42px, 6vw, 82px);
         }
-        .glass {
+        .landing-panel {
           background: var(--lp-panel);
           border: 1px solid var(--lp-panel-border);
           box-shadow: var(--lp-shadow);
-          backdrop-filter: blur(10px);
         }
-        .landing-panel {
-          background: var(--lp-panel-solid);
-          border: 1px solid var(--lp-panel-border);
-          box-shadow: 0 8px 24px rgba(25, 46, 80, 0.06);
+        .heo-topbar {
+          position: fixed;
+          top: 14px;
+          left: 0;
+          right: 0;
+          z-index: 70;
+          pointer-events: none;
+        }
+        .heo-topbar-inner {
+          position: relative;
+          width: fit-content;
+          max-width: calc(100% - 28px);
+          margin: 0 auto;
+          min-height: 56px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          background: rgba(255, 255, 255, 0.8);
+          border: 1px solid rgba(229, 231, 235, 0.5);
+          border-radius: 999px;
+          padding: 8px 14px;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          pointer-events: auto;
+        }
+        .heo-nav-brand {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          flex: 0 0 auto;
+          border: 0;
+          background: transparent;
+          padding: 0;
+          cursor: pointer;
+          transition: transform 0.18s ease;
+        }
+        .heo-nav-brand:hover {
+          transform: translateY(-1px) scale(1.04);
+        }
+        .heo-nav-avatar {
+          width: 42px;
+          height: 42px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          border-radius: 999px;
+          background:
+            radial-gradient(circle at 50% 18%, rgba(255, 241, 143, 0.98), transparent 30%),
+            linear-gradient(135deg, #fbf6d7, #f3e8ff 58%, #ffffff);
+          box-shadow:
+            inset 0 0 0 1px rgba(255, 255, 255, 0.46),
+            0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        .heo-nav-avatar img {
+          display: block;
+          width: 34px;
+          height: 34px;
+          object-fit: contain;
+        }
+        .heo-nav-links {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          border-radius: 999px;
+          padding: 0;
+          background: transparent;
+        }
+        .heo-nav-link,
+        .heo-login-link {
+          min-height: 40px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 999px;
+          font-size: 16px;
+        }
+        .heo-nav-link {
+          position: relative;
+          z-index: 1;
+          border: 0;
+          padding: 8px 14px;
+          background: transparent;
+          color: rgba(0, 0, 0, 0.64);
+          font-size: 16px;
+          font-weight: 400;
+          cursor: pointer;
+          font-family: inherit;
+          border-radius: 9999px;
+          transition: background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), color 0.15s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .heo-nav-link:hover,
+        .heo-nav-link.is-active {
+          z-index: 2;
+          background: rgba(124, 58, 237, 0.1);
+          color: var(--lp-text);
+          transform: scale(1.08);
+        }
+        .heo-nav-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .heo-login-link {
+          padding: 0 18px;
+          border: 0;
+          background: var(--lp-primary);
+          color: #fff;
+          cursor: pointer;
+          font-family: inherit;
+          font-size: 14px;
+          box-shadow: none;
+        }
+        .heo-login-link:hover {
+          transform: translateY(-1px);
         }
         .fade-up {
           opacity: 0;
           transform: translateY(16px);
           animation: fadeUp 0.55s ease forwards;
         }
-        .chip-btn {
-          min-height: 44px;
+        .heo-main {
+          padding-top: 0;
+          padding-bottom: 80px;
+        }
+        .heo-first-screen {
+          --lp-text: #080a12;
+          --lp-muted: rgba(8, 10, 18, 0.52);
+          position: relative;
+          overflow: hidden;
+          margin-inline: calc(50% - 50vw);
+          padding-inline: calc(50vw - 50%);
+          padding-bottom: clamp(30px, 4vw, 60px);
+          background: linear-gradient(180deg, #faf5ff 0%, #f5f5f7 30%, #f5f5f7 100%);
+          background-size: auto;
+          background-repeat: no-repeat;
+        }
+        .heo-first-screen::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background-image:
+            linear-gradient(rgba(5, 18, 38, 0.02) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(5, 18, 38, 0.02) 1px, transparent 1px);
+          background-size: 72px 72px;
+          pointer-events: none;
+          mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, #000 20%, transparent 60%);
+          -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, #000 20%, transparent 60%);
+        }
+        .heo-first-screen::after {
+          content: "";
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: -1px;
+          height: 80px;
+          background: linear-gradient(180deg, transparent, #f5f5f7 74%);
+          pointer-events: none;
+        }
+        .heo-hero {
+          display: block;
+          min-height: auto;
+          padding-top: clamp(100px, 10vw, 140px);
+          padding-bottom: clamp(20px, 3vw, 60px);
+          color: #080a12;
+          transform: scale(1.3);
+          transform-origin: center center;
+        }
+        .heo-hero-stage {
+          position: relative;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr);
+          gap: clamp(14px, 2vw, 22px);
+          overflow: hidden;
+          padding: clamp(22px, 3.6vw, 44px);
+          background: transparent;
+          border: none;
+          box-shadow: none;
+        }
+        .heo-hero-copy {
+          position: relative;
+          z-index: 1;
+          max-width: 960px;
+          margin: 0 auto;
+          text-align: center;
+        }
+        .heo-hero-copy::after {
+          content: "";
+          position: absolute;
+          inset: -80px auto auto 50%;
+          width: 420px;
+          height: 420px;
+          border-radius: 50%;
+          background: radial-gradient(circle, rgba(95, 25, 236, 0.08), transparent 68%);
+          transform: translateX(-50%);
+          pointer-events: none;
+        }
+        .heo-hero-wordmark {
+          position: absolute;
+          z-index: 0;
+          left: 50%;
+          top: 0px;
+          width: min(1300px, 96%);
+          transform: translateX(-50%);
+          color: rgba(8, 10, 18, 0.025);
+          font-size: clamp(48px, 9vw, 130px);
+          line-height: 0.78;
+          font-weight: 1000;
+          letter-spacing: -0.04em;
+          text-align: center;
+          text-transform: uppercase;
+          pointer-events: none;
+          user-select: none;
+        }
+        .heo-kicker {
+          display: inline-flex;
+          width: fit-content;
+          align-items: center;
+          gap: 6px;
           border-radius: 999px;
-          border: 1px solid #d6dde8;
-          padding: 0 14px;
-          font-size: 12px;
-          font-weight: 700;
-          color: #3d4a62;
+          padding: 8px 14px;
+          background: rgba(255, 255, 255, 0.5);
+          border: 1px solid rgba(8, 10, 18, 0.1);
+          color: rgba(8, 10, 18, 0.54);
+          font-size: 11px;
+          font-weight: 750;
+          letter-spacing: 0.06em;
+          backdrop-filter: blur(18px);
+          -webkit-backdrop-filter: blur(18px);
+        }
+        .heo-title {
+          max-width: 960px;
+          margin: 12px auto 14px;
+          font-size: clamp(60px, 8vw, 150px);
+          line-height: 0.78;
+          letter-spacing: -0.095em;
+          font-weight: 950;
+          color: #080a12;
+        }
+        .heo-title span {
+          display: block;
+        }
+        .heo-title-logo {
+          display: block;
+          width: 100%;
+          max-width: 480px;
+          height: auto;
+          margin: 0 auto;
+        }
+
+        .heo-lead {
+          max-width: 620px;
+          margin: 0 auto;
+          color: rgba(8, 10, 18, 0.56);
+          font-size: clamp(16px, 1.8vw, 19px);
+          line-height: 1.8;
+          font-weight: 500;
+        }
+        .heo-actions {
+          display: flex;
+          flex-wrap: wrap;
+          justify-content: center;
+          gap: 10px;
+          margin-top: 20px;
+        }
+        .heo-button {
+          display: inline-flex;
+          min-height: 44px;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          border-radius: 999px;
+          border: 1px solid rgba(0, 0, 0, 0.08);
+          padding: 0 22px;
           background: #fff;
-          transition: all 0.2s ease;
+          color: var(--lp-primary-ink);
+          font-size: 14px;
+          font-weight: 600;
+          text-decoration: none;
+          transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+        }
+        .heo-button:hover {
+          transform: translateY(-1px);
+          border-color: rgba(95, 25, 236, 0.3);
+          background: #faf5ff;
+          box-shadow: 0 4px 16px rgba(95, 25, 236, 0.12);
+        }
+        .heo-button.primary {
+          border-color: transparent;
+          background: var(--lp-primary);
+          color: #fff;
+          box-shadow: 0 2px 12px rgba(95, 25, 236, 0.3);
+        }
+        .heo-button.primary:hover {
+          box-shadow: 0 4px 20px rgba(95, 25, 236, 0.4);
+        }
+        .heo-manifesto-section {
+          margin-top: 14px;
+        }
+        .heo-manifesto-card {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 20px;
+          border-radius: 20px;
+          border: 1px solid rgba(0, 0, 0, 0.06);
+          background: #fff;
+          padding: clamp(24px, 3vw, 36px) clamp(22px, 2.5vw, 36px);
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 6px 20px rgba(0, 0, 0, 0.06);
+        }
+        .heo-manifesto-card p {
+          margin: 0;
+          color: var(--lp-text);
+          font-size: clamp(17px, 2vw, 24px);
+          line-height: 1.55;
+          font-weight: 600;
+          letter-spacing: -0.01em;
+          text-align: center;
+          max-width: 620px;
+        }
+        .heo-manifesto-card p em {
+          color: var(--lp-primary);
+          font-style: normal;
+          font-weight: 800;
+        }
+        .heo-manifesto-profile {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          border-radius: 16px;
+          background: #faf5ff;
+          padding: 12px 20px;
+        }
+        .heo-manifesto-profile b {
+          color: var(--lp-text);
+          font-size: 16px;
+          font-weight: 800;
           white-space: nowrap;
         }
-        .chip-btn:hover {
-          border-color: #a9b7d0;
-          transform: translateY(-1px);
+        .heo-manifesto-profile span {
+          color: var(--lp-muted);
+          font-size: 13px;
+          line-height: 1.45;
+          font-weight: 600;
+          white-space: nowrap;
         }
-        .chip-btn.on {
-          border-color: #2954d6;
-          background: #ebf0ff;
-          color: #1f43af;
+        .heo-manifesto-profile img {
+          width: 48px;
+          height: 32px;
+          object-fit: contain;
+          flex-shrink: 0;
+        }
+        .heo-duo-section {
+          margin-top: clamp(8px, 1.5vw, 18px);
+          max-width: 640px;
+          margin-inline: auto;
+          padding-inline: clamp(16px, 2vw, 24px);
+          transform: scale(1.3);
+          transform-origin: center top;
+        }
+        .heo-duo-card {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 14px;
+          background: transparent;
+          padding: 0;
+        }
+        .heo-duo-avatars {
+          display: flex;
+          align-items: center;
+        }
+        .heo-duo-avatar {
+          width: 48px;
+          height: 48px;
+          border-radius: 50%;
+          overflow: hidden;
+          border: 3px solid rgba(255, 255, 255, 0.9);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+          flex-shrink: 0;
+        }
+        .heo-duo-avatar + .heo-duo-avatar {
+          margin-left: -14px;
+        }
+        .heo-duo-avatar img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+        .heo-duo-quote {
+          margin: 0;
+          color: var(--lp-text);
+          font-size: clamp(16px, 1.8vw, 22px);
+          line-height: 1.4;
+          font-weight: 700;
+          letter-spacing: -0.01em;
+          text-align: center;
+        }
+        .heo-duo-names {
+          color: var(--lp-muted);
+          font-size: 13px;
+          font-weight: 600;
+          letter-spacing: 0.02em;
+        }
+        .heo-banner {
+          margin-top: clamp(28px, 4vw, 52px);
+        }
+        .heo-banner-card {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: clamp(24px, 3vw, 48px);
+          align-items: center;
+          border-radius: 24px;
+          background: linear-gradient(145deg, #5F19EC 0%, #4c14c4 50%, #3a0f96 100%);
+          padding: clamp(32px, 4vw, 56px) clamp(28px, 3vw, 48px);
+          overflow: hidden;
+        }
+        .heo-banner-copy {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .heo-banner-copy small {
+          display: inline-flex;
+          width: fit-content;
+          border-radius: 999px;
+          padding: 5px 14px;
+          background: rgba(255, 255, 255, 0.15);
+          color: #fbbf24;
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.04em;
+        }
+        .heo-banner-copy b {
+          color: #fff;
+          font-size: clamp(24px, 3vw, 36px);
+          line-height: 1.2;
+          font-weight: 800;
+          letter-spacing: -0.01em;
+        }
+        .heo-banner-copy p {
+          margin: 0;
+          color: rgba(255, 255, 255, 0.6);
+          font-size: clamp(14px, 1.5vw, 16px);
+          line-height: 1.7;
+        }
+        .heo-banner-mockup {
+          background: rgba(255, 255, 255, 0.08);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 18px;
+          overflow: hidden;
+          box-shadow: 0 16px 48px rgba(0, 0, 0, 0.25);
+        }
+        .heo-banner-mockup-top {
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          padding: 14px 16px;
+          background: rgba(255, 255, 255, 0.05);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .heo-banner-mockup-top .dot {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.4);
+        }
+        .heo-banner-mockup-body {
+          padding: 20px;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+        .heo-banner-mockup-head {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .heo-banner-mockup-head .circle {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.15);
+          flex-shrink: 0;
+        }
+        .heo-banner-mockup .line {
+          height: 6px;
+          border-radius: 3px;
+          background: rgba(255, 255, 255, 0.15);
+        }
+        .heo-banner-mockup .line.s { width: 60px; }
+        .heo-banner-mockup .line.m { width: 100px; margin-top: 6px; }
+        .heo-banner-mockup .line.xs { width: 70%; margin-top: 6px; }
+        .heo-banner-mockup-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+        }
+        .heo-banner-mockup-item {
+          border-radius: 10px;
+          padding: 12px;
+          background: rgba(255, 255, 255, 0.06);
+        }
+        .heo-banner-mockup-item .block {
+          height: 38px;
+          border-radius: 6px;
+          background: rgba(255, 255, 255, 0.1);
+          margin-bottom: 8px;
+        }
+        .guest-marquee-section {
+          margin-top: clamp(22px, 3.5vw, 44px);
+          overflow: hidden;
+          padding: 0;
+          background: none;
+          border: none;
+          box-shadow: none;
+        }
+        .guest-marquee-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          padding: 0 0 16px;
+        }
+        .guest-marquee-head b {
+          display: block;
+          color: var(--lp-text);
+          font-size: clamp(22px, 3vw, 34px);
+          line-height: 1.1;
+          font-weight: 1000;
+        }
+        .guest-marquee-head span {
+          color: var(--lp-muted);
+          font-size: 13px;
+          font-weight: 850;
+        }
+        .guest-marquee-head a {
+          flex: 0 0 auto;
+          border-radius: 999px;
+          padding: 8px 16px;
+          background: var(--lp-primary);
+          color: #fff;
+          font-size: 13px;
+          font-weight: 600;
+          text-decoration: none;
+        }
+        .guest-marquee-window {
+          overflow: hidden;
+          mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+        }
+        .guest-marquee-track {
+          display: flex;
+          width: max-content;
+          gap: 6px;
+          padding: 4px 0;
+          animation: guestMarquee 140s linear infinite;
+        }
+        .guest-marquee-window:hover .guest-marquee-track {
+          animation-play-state: paused;
+        }
+        .guest-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          border-radius: 999px;
+          border: 1px solid rgba(0, 0, 0, 0.04);
+          background: rgba(255, 255, 255, 0.72);
+          color: var(--lp-text);
+          padding: 6px 16px;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+          font-size: 12px;
+          font-weight: 600;
+          line-height: 1;
+          white-space: nowrap;
+          cursor: pointer;
+          text-decoration: none;
+          transition: all 0.2s;
+        }
+        .guest-pill:hover {
+          border-color: rgba(95, 25, 236, 0.3);
+          background: rgba(255, 255, 255, 0.95);
+          box-shadow: 0 2px 8px rgba(95, 25, 236, 0.1);
+        }
+        .guest-pill-avatar {
+          width: 24px;
+          height: 24px;
+          overflow: hidden;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.1);
+          display: inline-flex;
+          flex: 0 0 auto;
+          align-items: center;
+          justify-content: center;
+        }
+        .guest-pill-avatar img {
+          display: block;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          object-position: center;
+        }
+        .guest-pill-avatar img.is-fallback-avatar {
+          object-fit: contain;
+          padding: 2px;
+          background: rgba(255, 255, 255, 0.9);
+        }
+        .guest-pill-name {
+          max-width: 80px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .heo-section {
+          margin-top: clamp(40px, 5vw, 80px);
+          scroll-margin-top: 100px;
+        }
+        .heo-section-head {
+          display: flex;
+          align-items: end;
+          justify-content: space-between;
+          gap: 18px;
+          margin-bottom: 16px;
+        }
+        .heo-section-head h2 {
+          margin: 0;
+          color: var(--lp-text);
+          font-size: clamp(28px, 3vw, 36px);
+          line-height: 1.15;
+          font-weight: 700;
+        }
+        .heo-section-head p {
+          max-width: 430px;
+          margin: 0;
+          color: var(--lp-muted);
+          line-height: 1.7;
+          font-weight: 500;
+        }
+        .heo-product-list {
+          display: flex;
+          gap: 28px;
+          margin-inline: calc((min(1160px, calc(100vw - 28px)) - 100vw) / 2);
+          overflow-x: auto;
+          overscroll-behavior-x: contain;
+          padding: 42px 0 22px;
+          scroll-padding-inline: max(14px, calc((100vw - 1160px) / 2));
+          scroll-snap-type: x mandatory;
+          scrollbar-width: none;
+        }
+        .heo-product-list::-webkit-scrollbar {
+          display: none;
+        }
+        .heo-product-card {
+          --card-bg: #ffffff;
+          --card-fg: #080a12;
+          --card-muted: rgba(8, 10, 18, 0.5);
+          --card-chip: rgba(95, 25, 236, 0.08);
+          --card-accent: var(--lp-primary);
+          position: relative;
+          display: flex;
+          flex: 0 0 min(340px, calc(100vw - 56px));
+          min-height: 420px;
+          flex-direction: column;
+          justify-content: space-between;
+          overflow: hidden;
+          border-radius: 20px;
+          background: var(--card-bg);
+          color: var(--card-fg);
+          padding: clamp(20px, 2.5vw, 28px);
+          margin-inline: 10px;
+          border: 1px solid rgba(0, 0, 0, 0.06);
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 6px 20px rgba(0, 0, 0, 0.06);
+          scroll-snap-align: start;
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+          text-decoration: none;
+        }
+        .heo-product-card:hover {
+          transform: translateY(-3px);
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06), 0 10px 30px rgba(0, 0, 0, 0.08);
+        }
+        .tone-deep {
+          --card-accent: #2563eb;
+        }
+        .tone-mint {
+          --card-accent: #059669;
+        }
+        .tone-lemon {
+          --card-accent: #d97706;
+        }
+        .tone-sky {
+          --card-accent: #0891b2;
+        }
+        .tone-pink {
+          --card-accent: #db2777;
+        }
+        .tone-lavender {
+          --card-accent: #5F19EC;
+        }
+        .heo-product-copy {
+          position: relative;
+          z-index: 2;
+          min-width: 0;
+          display: grid;
+          gap: 14px;
+          max-width: 430px;
+        }
+        .heo-product-title-line {
+          display: flex;
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 12px;
+          min-width: 0;
+        }
+        .heo-product-title-line b {
+          min-width: 0;
+          font-size: clamp(28px, 2.8vw, 38px);
+          line-height: 1.1;
+          font-weight: 800;
+          letter-spacing: -0.02em;
+        }
+        .heo-product-text {
+          max-width: 360px;
+          color: var(--card-muted);
+          font-size: 15px;
+          line-height: 1.75;
+          font-weight: 780;
+        }
+        .heo-badge {
+          display: inline-flex;
+          border-radius: 999px;
+          padding: 5px 10px;
+          background: rgba(95, 25, 236, 0.08);
+          border: 1px solid rgba(95, 25, 236, 0.12);
+          color: var(--lp-primary);
+          font-size: 11px;
+          font-weight: 700;
+        }
+        .heo-product-status {
+          flex: 0 0 auto;
+          display: inline-flex;
+          border-radius: 999px;
+          padding: 6px 12px;
+          background: color-mix(in srgb, var(--card-accent) 12%, rgba(255,255,255,0.8));
+          color: var(--card-accent);
+          font-size: 12px;
+          font-weight: 700;
+          backdrop-filter: blur(10px);
+        }
+        .heo-product-action {
+          width: fit-content;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          border-radius: 999px;
+          background: var(--lp-primary);
+          color: #fff;
+          padding: 8px 18px;
+          font-size: 13px;
+          font-weight: 600;
+          box-shadow: 0 2px 8px rgba(95, 25, 236, 0.25);
+        }
+        .heo-carousel-controls {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+          margin-top: 10px;
+        }
+        .heo-carousel-button {
+          position: relative;
+          width: 40px;
+          height: 40px;
+          border: 1px solid rgba(0, 0, 0, 0.08);
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.7);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+          cursor: pointer;
+          transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+        }
+        .heo-carousel-button:hover {
+          transform: translateY(-1px);
+          border-color: rgba(95, 25, 236, 0.3);
+          background: rgba(255, 255, 255, 0.95);
+        }
+        .heo-carousel-button::before {
+          content: "";
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: 10px;
+          height: 10px;
+          border-left: 3px solid #374151;
+          border-bottom: 3px solid #374151;
+          transform: translate(-40%, -50%) rotate(45deg);
+        }
+        .heo-carousel-button.next::before {
+          transform: translate(-60%, -50%) rotate(225deg);
+        }
+        .heo-card-art {
+          position: relative;
+          display: flex;
+          align-items: flex-end;
+          justify-content: center;
+          min-height: 230px;
+          margin: 16px -12px -18px;
+        }
+        .heo-card-art::before {
+          content: "";
+          position: absolute;
+          left: 50%;
+          bottom: 8px;
+          width: min(320px, 78%);
+          height: 34px;
+          border-radius: 999px;
+          background: rgba(0, 0, 0, 0.16);
+          filter: blur(14px);
+          transform: translateX(-50%);
+        }
+        .heo-jiyue-bird-art {
+          position: absolute;
+          left: 50%;
+          bottom: 16px;
+          width: min(240px, 68%);
+          height: min(240px, 68%);
+          border-radius: 36px;
+          object-fit: contain;
+          filter: drop-shadow(0 26px 42px rgba(0, 0, 0, 0.28));
+          transform: translateX(-50%) rotate(-4deg);
+        }
+        .heo-xiaowanzi-art {
+          position: absolute;
+          left: 50%;
+          bottom: 12px;
+          width: min(250px, 70%);
+          height: min(250px, 70%);
+          object-fit: contain;
+          filter: drop-shadow(0 26px 42px rgba(0, 0, 0, 0.24));
+          transform: translateX(-50%);
+        }
+        .heo-visual-scene {
+          position: absolute;
+          left: 50%;
+          bottom: 18px;
+          width: min(340px, 84%);
+          height: 190px;
+          transform: translateX(-50%);
+        }
+        .heo-scene-panel,
+        .heo-scene-card,
+        .heo-scene-node,
+        .heo-scene-line {
+          position: absolute;
+          display: block;
+        }
+        .heo-scene-panel {
+          left: 50%;
+          bottom: 0;
+          width: 78%;
+          height: 136px;
+          overflow: hidden;
+          border-radius: 20px;
+          border: 1px solid rgba(0, 0, 0, 0.06);
+          background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), color-mix(in srgb, var(--card-accent) 5%, white));
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+          transform: translateX(-50%);
+        }
+        .heo-scene-panel::before {
+          content: "";
+          position: absolute;
+          inset: 18px;
+          border-radius: 18px;
+          background: radial-gradient(circle at 28% 32%, rgba(95, 25, 236, 0.06), transparent 20%), rgba(255, 255, 255, 0.1);
+        }
+        .heo-scene-card {
+          border-radius: 20px;
+          background: rgba(255, 255, 255, 0.8);
+          border: 1px solid rgba(0, 0, 0, 0.05);
+          box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
+          backdrop-filter: blur(10px);
+        }
+        .heo-scene-card.one {
+          left: 4%;
+          bottom: 40px;
+          width: 84px;
+          height: 106px;
+        }
+        .heo-scene-card.two {
+          right: 2%;
+          bottom: 24px;
+          width: 110px;
+          height: 128px;
+        }
+        .heo-scene-node {
+          width: 54px;
+          height: 54px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.8);
+          border: 1px solid rgba(0, 0, 0, 0.05);
+          box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
+        }
+        .heo-scene-node.one {
+          left: 44%;
+          bottom: 128px;
+        }
+        .heo-scene-node.two {
+          left: 50%;
+          bottom: -4px;
+          transform: translateX(-50%);
+        }
+        .heo-scene-line {
+          height: 8px;
+          border-radius: 999px;
+          background: color-mix(in srgb, var(--card-accent) 20%, rgba(255,255,255,0.6));
+          box-shadow: 0 2px 8px rgba(16, 24, 40, 0.05);
+        }
+        .visual-program .heo-scene-panel::after {
+          content: "";
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: 54px;
+          height: 54px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.9);
+          transform: translate(-50%, -50%);
+        }
+        .visual-program .heo-scene-card.one::before {
+          content: "";
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: 0;
+          height: 0;
+          border-top: 14px solid transparent;
+          border-bottom: 14px solid transparent;
+          border-left: 22px solid var(--card-accent);
+          transform: translate(-35%, -50%);
+        }
+        .visual-materials .heo-scene-card.one,
+        .visual-materials .heo-scene-card.two {
+          border-radius: 12px 12px 22px 22px;
+        }
+        .visual-materials .heo-scene-card.one::before,
+        .visual-materials .heo-scene-card.two::before {
+          content: "";
+          position: absolute;
+          left: 18px;
+          right: 18px;
+          top: 26px;
+          height: 8px;
+          border-radius: 999px;
+          background: color-mix(in srgb, var(--card-accent) 46%, white);
+          box-shadow: 0 18px 0 rgba(31, 41, 55, 0.12), 0 36px 0 rgba(31, 41, 55, 0.09);
+        }
+        .visual-experts .heo-scene-panel {
+          width: 210px;
+          height: 150px;
+          border-radius: 42px;
+        }
+        .visual-experts .heo-scene-node {
+          background: linear-gradient(135deg, #7dd3fc, #f9a8d4);
+        }
+        .visual-experts .heo-scene-line.one {
+          left: 26%;
+          bottom: 86px;
+          width: 145px;
+          transform: rotate(-18deg);
+        }
+        .visual-experts .heo-scene-line.two {
+          right: 22%;
+          bottom: 64px;
+          width: 120px;
+          transform: rotate(18deg);
+        }
+        .visual-planning .heo-scene-line.one,
+        .visual-planning .heo-scene-line.two,
+        .visual-planning .heo-scene-line.three {
+          height: 10px;
+          background: color-mix(in srgb, var(--card-accent) 60%, white);
+        }
+        .visual-planning .heo-scene-line.one {
+          left: 16%;
+          bottom: 58px;
+          width: 90px;
+          transform: rotate(-16deg);
+        }
+        .visual-planning .heo-scene-line.two {
+          left: 41%;
+          bottom: 95px;
+          width: 94px;
+          transform: rotate(17deg);
+        }
+        .visual-planning .heo-scene-line.three {
+          right: 12%;
+          bottom: 62px;
+          width: 74px;
+          transform: rotate(-20deg);
+        }
+        .heo-special-actions {
+          margin-top: clamp(30px, 4vw, 60px);
+        }
+        .heo-special-grid {
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
+          margin-top: 8px;
+        }
+        .heo-special-card {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: clamp(24px, 3vw, 48px);
+          align-items: center;
+          overflow: hidden;
+          border-radius: 24px;
+          padding: clamp(32px, 4vw, 56px) clamp(28px, 3vw, 48px);
+          text-decoration: none;
+          transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.04);
+        }
+        .heo-special-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06), 0 12px 32px rgba(0, 0, 0, 0.08);
+        }
+        .heo-special-card.tone-ask {
+          background: linear-gradient(145deg, #5F19EC 0%, #4c14c4 50%, #3a0f96 100%);
+        }
+        .heo-special-card.tone-worth {
+          background: linear-gradient(145deg, #db2777 0%, #be185d 50%, #831843 100%);
+        }
+        .heo-special-copy {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .heo-special-copy small {
+          display: inline-flex;
+          width: fit-content;
+          border-radius: 999px;
+          padding: 5px 14px;
+          background: rgba(255, 255, 255, 0.15);
+          color: #fbbf24;
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.04em;
+        }
+        .heo-special-copy b {
+          color: #fff;
+          font-size: clamp(24px, 3vw, 36px);
+          line-height: 1.2;
+          font-weight: 800;
+          letter-spacing: -0.01em;
+        }
+        .heo-special-copy p {
+          margin: 0;
+          color: rgba(255, 255, 255, 0.6);
+          font-size: clamp(14px, 1.5vw, 16px);
+          line-height: 1.7;
+        }
+        .heo-special-action {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: fit-content;
+          margin-top: 4px;
+          border-radius: 999px;
+          padding: 12px 28px;
+          background: #fff;
+          font-size: 15px;
+          font-weight: 700;
+          transition: transform 0.2s ease;
+        }
+        .heo-special-card.tone-ask .heo-special-action {
+          color: #5F19EC;
+        }
+        .heo-special-card.tone-worth .heo-special-action {
+          color: #db2777;
+        }
+        .heo-special-card:hover .heo-special-action {
+          transform: scale(1.04);
+        }
+        .heo-special-preview {
+          border-radius: 14px;
+          overflow: hidden;
+          box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+        }
+        .heo-special-preview img {
+          display: block;
+          width: 100%;
+          height: auto;
+          border-radius: 14px;
+        }
+                .heo-section-more {
+          flex: 0 0 auto;
+          border-radius: 999px;
+          padding: 6px 16px;
+          background: var(--lp-primary);
+          color: #fff;
+          font-size: 13px;
+          font-weight: 600;
+          text-decoration: none;
+        }
+        .heo-section-more-top {
+          display: flex;
+          justify-content: flex-end;
+          margin-top: 20px;
+          margin-bottom: 20px;
+        }
+
+        /* ===== 新版主打推荐卡片 ===== */
+        .heo-new-grid-wrap {
+          position: relative;
+        }
+        .heo-new-grid {
+          display: flex;
+          gap: 20px;
+          margin-top: 8px;
+          overflow-x: auto;
+          scroll-behavior: smooth;
+          scroll-snap-type: x mandatory;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+          padding-bottom: 4px;
+        }
+        .heo-new-grid::-webkit-scrollbar { display: none; }
+        .heo-new-grid > * {
+          scroll-snap-align: start;
+          flex: 0 0 calc((100% - 40px) / 3);
+          min-width: 300px;
+        }
+        .heo-new-card {
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          border-radius: 24px;
+          background: #fff;
+          border: 1px solid rgba(0, 0, 0, 0.05);
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.04);
+          text-decoration: none;
+          transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
+        }
+        .heo-new-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06), 0 12px 32px rgba(0, 0, 0, 0.08);
+        }
+        .heo-new-card-art {
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: 220px;
+          background: var(--card-gradient);
+          overflow: hidden;
+        }
+        .heo-new-card-art::before {
+          content: attr(data-watermark-left);
+          position: absolute;
+          z-index: 1;
+          left: calc(50% - 40px);
+          top: 50%;
+          transform: translate(-100%, -50%);
+          color: rgba(255, 255, 255, 0.55);
+          font-size: 80px;
+          font-weight: 900;
+          letter-spacing: -0.04em;
+          pointer-events: none;
+          user-select: none;
+        }
+        .heo-new-card-art::after {
+          content: attr(data-watermark-right);
+          position: absolute;
+          z-index: 1;
+          left: calc(50% + 40px);
+          top: 50%;
+          transform: translate(0, -50%);
+          color: rgba(255, 255, 255, 0.55);
+          font-size: 80px;
+          font-weight: 900;
+          letter-spacing: -0.04em;
+          pointer-events: none;
+          user-select: none;
+        }
+        .heo-new-card-avatar {
+          position: relative;
+          z-index: 2;
+          display: block;
+          width: 64px;
+          height: 64px;
+          border-radius: 50%;
+          object-fit: cover;
+          background: #fff;
+          border: 1px solid rgba(0, 0, 0, 0.1);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+        }
+        .heo-new-card-body {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          padding: clamp(22px, 2.5vw, 30px);
+        }
+        .heo-new-card-tag {
+          display: inline-flex;
+          width: fit-content;
+          border-radius: 8px;
+          padding: 5px 12px;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.03em;
+          text-transform: uppercase;
+        }
+        .heo-new-card-title {
+          color: var(--lp-text);
+          font-size: clamp(22px, 2.2vw, 28px);
+          line-height: 1.15;
+          font-weight: 800;
+          letter-spacing: -0.02em;
+        }
+        .heo-new-card-desc {
+          margin: 0;
+          color: var(--lp-muted);
+          font-size: 15px;
+          line-height: 1.65;
+          font-weight: 500;
+          display: -webkit-box;
+          -webkit-line-clamp: 3;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+        .heo-new-card-action {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          width: 100%;
+          margin-top: 8px;
+          border-radius: 14px;
+          padding: 11px 20px;
+          background: var(--card-accent);
+          color: #fff;
+          font-size: 14px;
+          font-weight: 700;
+          letter-spacing: 0.01em;
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        .heo-new-card:hover .heo-new-card-action {
+          transform: scale(1.02);
+          box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+        }
+        .heo-new-nav-arrows {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 16px;
+          margin-top: 24px;
+        }
+        .heo-new-nav-arrow {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 42px;
+          height: 42px;
+          border-radius: 50%;
+          border: 1px solid rgba(0, 0, 0, 0.1);
+          background: #fff;
+          color: var(--lp-text);
+          font-size: 20px;
+          cursor: pointer;
+          transition: background 0.2s ease, box-shadow 0.2s ease;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+        }
+        .heo-new-nav-arrow:hover {
+          background: var(--lp-primary);
+          color: #fff;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+        }
+
+        /* ===== 请教一下 Topic Cards ===== */
+        .heo-topic-cards {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+          gap: 32px 20px;
+        }
+        .heo-topic-card {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          background: #fff;
+          border-radius: 20px;
+          border: 1px solid rgba(0, 0, 0, 0.06);
+          padding: 20px;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 6px 20px rgba(0, 0, 0, 0.06);
+          text-decoration: none;
+          color: inherit;
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .heo-topic-card:hover {
+          transform: translateY(-3px);
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06), 0 10px 30px rgba(0, 0, 0, 0.08);
+        }
+        .heo-topic-card-top {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 12px;
+        }
+        .heo-topic-card-top h3 {
+          margin: 0;
+          flex: 1;
+          font-size: 17px;
+          font-weight: 700;
+          color: var(--lp-text);
+          line-height: 1.3;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+        .heo-topic-emoji {
+          flex-shrink: 0;
+          font-size: 32px;
+          line-height: 1;
+        }
+        .heo-topic-desc {
+          margin: 0;
+          font-size: 12px;
+          color: var(--lp-muted);
+          line-height: 1.5;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+        .heo-topic-meta {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-top: auto;
+        }
+        .heo-topic-tag {
+          display: inline-flex;
+          border-radius: 999px;
+          padding: 3px 10px;
+          background: #f3eeff;
+          color: #5F19EC;
+          font-size: 11px;
+          font-weight: 600;
+        }
+        .heo-topic-meta small {
+          color: #9ca3af;
+          font-size: 11px;
+          font-weight: 500;
+        }
+        .heo-worthbuy-cards {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+          gap: 32px 20px;
+        }
+        .heo-worthbuy-card {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          background: #fff;
+          border-radius: 20px;
+          border: 1px solid rgba(0, 0, 0, 0.06);
+          padding: 18px;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 6px 20px rgba(0, 0, 0, 0.06);
+          text-decoration: none;
+          color: inherit;
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .heo-worthbuy-card:hover {
+          transform: translateY(-3px);
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06), 0 10px 30px rgba(0, 0, 0, 0.08);
+        }
+        .heo-worthbuy-icon {
+          font-size: 28px;
+          line-height: 1;
+        }
+        .heo-worthbuy-copy {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .heo-worthbuy-title {
+          margin: 0;
+          font-size: 14px;
+          font-weight: 700;
+          color: var(--lp-text);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          flex: 1;
+          min-width: 0;
+        }
+        .heo-worthbuy-tag {
+          flex-shrink: 0;
+          display: inline-flex;
+          border-radius: 8px;
+          padding: 2px 8px;
+          background: #f3eeff;
+          color: #5F19EC;
+          font-size: 10px;
+          font-weight: 600;
+        }
+        .heo-worthbuy-desc {
+          margin: 0;
+          font-size: 12px;
+          color: var(--lp-muted);
+          line-height: 1.5;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
         }
         @keyframes fadeUp {
           to {
             opacity: 1;
             transform: translateY(0);
+          }
+        }
+        @keyframes menuDrop {
+          from {
+            opacity: 0;
+            transform: translate(-50%, -10px) scale(0.98);
+          }
+          to {
+            opacity: 1;
+            transform: translate(-50%, 0) scale(1);
+          }
+        }
+        @keyframes guestMarquee {
+          from {
+            transform: translateX(0);
+          }
+          to {
+            transform: translateX(-50%);
           }
         }
         @media (max-width: 768px) {
@@ -512,225 +1991,433 @@ const LandingPage: React.FC = () => {
           .landing-block {
             margin-top: 32px;
           }
+          .heo-topbar {
+            top: 10px;
+          }
+          .heo-topbar-inner {
+            width: calc(100% - 18px);
+            min-height: 58px;
+            padding: 7px 8px 7px 10px;
+          }
+          .heo-nav-links,
+          .heo-login-link {
+            display: none;
+          }
+          .heo-main {
+            padding-top: 0;
+          }
+          .heo-hero {
+            grid-template-columns: 1fr;
+            min-height: auto;
+          }
+          .heo-title {
+            font-size: clamp(42px, 14vw, 64px);
+          }
+          .heo-hero-stage,
+          .heo-hero-copy {
+            border-radius: 28px;
+          }
+          .heo-manifesto-card {
+            align-items: flex-start;
+            padding: 22px 20px;
+          }
+          .heo-manifesto-card p {
+            text-align: left;
+            font-size: 16px;
+          }
+          .heo-manifesto-profile {
+            width: fit-content;
+          }
+          .heo-manifesto-profile span {
+            white-space: normal;
+          }
+          .heo-special-card {
+            grid-template-columns: 1fr;
+            gap: 24px;
+            padding: 28px 24px;
+          }
+          .heo-special-mockup {
+            max-width: 100%;
+          }
+          .heo-product-list {
+            gap: 16px;
+            margin-inline: -14px;
+            padding: 24px 14px 16px;
+            scroll-padding-inline: 14px;
+          }
+          .heo-topic-cards {
+            grid-template-columns: 1fr;
+            gap: 12px;
+          }
+          .heo-worthbuy-cards {
+            grid-template-columns: 1fr;
+            gap: 10px;
+          }
+          .heo-banner-card {
+            grid-template-columns: 1fr;
+            gap: 24px;
+            padding: 28px 24px;
+          }
+          .heo-banner-mockup {
+            max-width: 100%;
+          }
+          .guest-marquee-section {
+            border-radius: 28px;
+          }
+          .guest-marquee-head {
+            align-items: flex-start;
+            flex-direction: column;
+          }
+          .guest-pill {
+            font-size: 11px;
+          }
+          .guest-pill-avatar {
+            width: 24px;
+            height: 24px;
+          }
+          .heo-product-card {
+            flex-basis: min(300px, calc(100vw - 48px));
+            min-height: 380px;
+            border-radius: 24px;
+            padding: 22px;
+          }
+          .heo-card-art {
+            min-height: 170px;
+            margin-bottom: -12px;
+          }
+          .heo-new-grid > * {
+            flex: 0 0 calc((100% - 20px) / 2);
+            min-width: 260px;
+          }
+          .heo-new-card-art {
+            height: 180px;
+          }
+          .heo-special-body {
+            align-items: start;
+            padding: 20px;
+          }
+          .heo-special-action {
+            width: fit-content;
+          }
+          .heo-jiyue-bird-art {
+            width: min(170px, 64%);
+            height: min(170px, 64%);
+            border-radius: 28px;
+            bottom: 10px;
+          }
+          .heo-xiaowanzi-art {
+            width: min(176px, 66%);
+            height: min(176px, 66%);
+            bottom: 8px;
+          }
+          .heo-visual-scene {
+            width: min(260px, 88%);
+            height: 144px;
+            bottom: 12px;
+          }
+          .heo-scene-panel {
+            height: 104px;
+            border-width: 6px;
+            border-radius: 20px;
+          }
+          .heo-scene-card.one {
+            left: 5%;
+            width: 62px;
+            height: 78px;
+          }
+          .heo-scene-card.two {
+            right: 3%;
+            width: 82px;
+            height: 96px;
+          }
+          .heo-scene-node {
+            width: 42px;
+            height: 42px;
+          }
+          .heo-section-head {
+            align-items: start;
+            flex-direction: column;
+          }
         }
       `}</style>
 
-      <GlobalPublicNav
-        showSearch={false}
-        showAiOnline={false}
-        showLogout={false}
-        compactMobile
-      />
-
-      <main className="landing-shell pb-20 pt-10 sm:pt-12">
-        <section className="landing-block mt-0">
-          <div className="glass fade-up overflow-hidden rounded-[32px] border p-6 sm:p-10" style={{ animationDelay: "80ms" }}>
-            <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
-              <div>
-                <p className="inline-flex min-h-8 items-center rounded-full border border-[#bfd0f7] bg-[#eaf1ff] px-3 text-[11px] font-black uppercase tracking-[0.16em] text-[#1f43af]">
-                  Parenting Talk Show
-                </p>
-                <h1 className="mt-4 text-3xl font-black leading-tight sm:text-5xl">
-                  为孩子发声，替家长发疯
-                </h1>
-                <p className="mt-5 max-w-2xl text-sm leading-7 text-[var(--lp-muted)] sm:text-base">
-                  《家长先疯》是一档教育对话节目。我们邀请教育及相关行业从业者，聊观点、经验和真实案例，
-                  给家长在育儿路上一个可靠参考。不止聊教育，更聊成长；不止关注孩子，也关注教育中的每个“人”。
-                </p>
-                <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-                  <a
-                    href="/programs/list"
-                    className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--lp-primary)] px-6 text-sm font-black text-white transition hover:bg-[var(--lp-primary-ink)]"
-                    style={{ color: "#fff" }}
-                  >
-                    立即收听节目
-                  </a>
-                  <a
-                    href="#case-wall"
-                    className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#c8d2e3] bg-white px-6 text-sm font-bold text-[#34445e] transition hover:border-[#2954d6] hover:text-[#1f43af]"
-                  >
-                    查看案例矩阵
-                  </a>
-                </div>
-              </div>
-
-              <aside className="landing-panel fade-up rounded-[24px] p-5 sm:p-7" style={{ animationDelay: "160ms" }}>
-                <p className="text-sm font-black text-[#22314a]">内容规模与信任背书</p>
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <div className="rounded-2xl border border-[#d9e1ee] bg-[#f8fbff] p-4">
-                    <div className="text-2xl font-black text-[#1f43af]">{stats.programCount}+</div>
-                    <p className="mt-1 text-xs font-semibold text-[#60718d]">节目案例</p>
-                  </div>
-                  <div className="rounded-2xl border border-[#d9e1ee] bg-[#f8fbff] p-4">
-                    <div className="text-2xl font-black text-[#1f43af]">{stats.bookCount}+</div>
-                    <p className="mt-1 text-xs font-semibold text-[#60718d]">书单参考</p>
-                  </div>
-                  <div className="rounded-2xl border border-[#d9e1ee] bg-[#f8fbff] p-4">
-                    <div className="text-2xl font-black text-[#1f43af]">{stats.materialCount}+</div>
-                    <p className="mt-1 text-xs font-semibold text-[#60718d]">资料模板</p>
-                  </div>
-                  <div className="rounded-2xl border border-[#d9e1ee] bg-[#f8fbff] p-4">
-                    <div className="text-2xl font-black text-[#1f43af]">0-18+</div>
-                    <p className="mt-1 text-xs font-semibold text-[#60718d]">覆盖成长阶段</p>
-                  </div>
-                </div>
-                <p className="mt-4 text-xs leading-6 text-[#5e6e89]">
-                  目前我们关注孩子出生到上大学阶段。选题会因嘉宾档期和议题时效动态分布。
-                </p>
-              </aside>
-            </div>
-          </div>
-        </section>
-
-        <section className="landing-block">
-          <div className="mb-5 flex items-end justify-between">
-            <h2 className="text-2xl font-black sm:text-3xl">功能概述</h2>
-            <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#72829c]">Capability Strip</span>
-          </div>
-          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
-            {capabilityCards.map((card, index) => (
-              <article key={card.title} className="landing-panel fade-up rounded-2xl p-4" style={{ animationDelay: `${120 + index * 50}ms` }}>
-                <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#eaf1ff]">
-                  <span className="material-symbols-outlined text-[#1f43af]">{card.icon}</span>
-                </div>
-                <h3 className="text-sm font-black text-[#25324a]">{card.title}</h3>
-                <p className="mt-2 text-xs leading-6 text-[#60718d]">{card.text}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section id="case-wall" className="landing-block">
-          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h2 className="text-2xl font-black sm:text-3xl">参考案例矩阵</h2>
-              <p className="mt-2 text-sm text-[#63718a]">优先展示真实已发布节目内容，最多展示 8 条，便于快速浏览和进入详情。</p>
-            </div>
-            <a className="text-sm font-bold text-[#1f43af] hover:text-[#152e7a]" href="/programs">
-              进入完整内容库 →
-            </a>
-          </div>
-
-          <div className="landing-panel rounded-3xl p-4 sm:p-6">
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              <button type="button" className={`chip-btn ${activeTag === "all" ? "on" : ""}`} onClick={() => setActiveTag("all")}>
-                全部标签
-              </button>
-              {tags.map((tag) => (
-                <button key={tag} type="button" className={`chip-btn ${activeTag === tag ? "on" : ""}`} onClick={() => setActiveTag(tag)}>
-                  {tag}
-                </button>
-              ))}
-            </div>
-
-            <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {visibleItems.map((item, index) => (
-                <a
-                  key={`${item.type}-${item.id}`}
-                  href={item.href}
-                  className="fade-up group landing-panel flex min-h-[310px] flex-col overflow-hidden rounded-2xl transition hover:-translate-y-1 hover:border-[#b9c8e4]"
-                  style={{ animationDelay: `${160 + index * 40}ms` }}
-                >
-                  {item.cover ? (
-                    <div className="h-40 overflow-hidden border-b border-[#dce4f2] bg-[#eef4ff]">
-                      <img src={item.cover} alt={item.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
-                    </div>
-                  ) : null}
-                  <div className="flex flex-1 flex-col p-5">
-                    <div className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.13em] text-[#1f43af]">
-                      节目案例
-                    </div>
-                    <h3 className="line-clamp-2 text-lg font-black text-[#24314a]">{item.title}</h3>
-                    <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#5f6f89]">{item.summary}</p>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {item.tags.slice(0, 4).map((tag) => (
-                        <span key={`${item.id}-${tag}`} className="rounded-full border border-[#d4deef] bg-[#f8fbff] px-2.5 py-1 text-[11px] font-bold text-[#4b5b76]">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </a>
-              ))}
-            </div>
-
-            {filteredItems.length === 0 ? <p className="mt-4 text-sm text-[#6c7a93]">当前暂无可展示的真实节目内容。</p> : null}
-
-            {visibleCount < filteredItems.length ? (
-              <div className="mt-6 flex justify-center">
-                <button
-                  type="button"
-                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#c5d2e8] bg-white px-6 text-sm font-black text-[#314561] transition hover:border-[#2954d6] hover:text-[#1f43af]"
-                  onClick={() => setVisibleCount((count) => count + CASE_PAGE_SIZE)}
-                >
-                  加载更多案例
-                </button>
-              </div>
-            ) : null}
-
-            {loading ? <p className="mt-4 text-sm text-[#6c7a93]">正在加载案例内容...</p> : null}
-          </div>
-        </section>
-
-        <section className="landing-block">
-          <div className="mb-5 flex items-end justify-between">
-            <h2 className="text-2xl font-black sm:text-3xl">四大内容板块</h2>
-            <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#72829c]">Topics</span>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            {topicCards.map((card, index) => (
+      <header className="heo-topbar">
+        <div className="heo-topbar-inner">
+          <button className="heo-nav-brand" type="button" aria-label="打开节目列表" onClick={() => { window.location.href = "/programs/list"; }}>
+            <span className="heo-nav-avatar">
+              <img src="/assets/xiaowanzi-nohat.png" alt="" aria-hidden="true" />
+            </span>
+          </button>
+          <nav className="heo-nav-links" aria-label="首页导航">
+            {navItems.map((item) => (
               <a
-                key={card.title}
-                href={card.href}
-                className="landing-panel fade-up block rounded-3xl p-6 transition hover:-translate-y-1 hover:border-[#b4c6e4]"
-                style={{ animationDelay: `${120 + index * 55}ms` }}
+                key={item.label}
+                href={item.href}
+                className={`heo-nav-link ${activeCatalogIndex === item.index ? "is-active" : ""}`}
+                onMouseEnter={() => setActiveCatalogIndex(item.index)}
+                onPointerEnter={() => setActiveCatalogIndex(item.index)}
+                onFocus={() => setActiveCatalogIndex(item.index)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  const targetEl = document.getElementById(item.anchor);
+                  if (targetEl) {
+                    targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
+                    setActiveCatalogIndex(item.index);
+                  } else {
+                    window.location.href = item.href;
+                  }
+                }}
               >
-                <div className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#eaf1ff]">
-                  <span className="material-symbols-outlined text-[#1f43af]">{card.icon}</span>
+                {item.label}
+              </a>
+            ))}
+          </nav>
+          <div className="heo-nav-actions">
+            <button type="button" className="heo-login-link" onClick={openHomepageLoginModal}>登录</button>
+          </div>
+        </div>
+      </header>
+
+      <main className="landing-shell heo-main">
+        <div className="heo-first-screen">
+          <section className="heo-hero fade-up" style={{ animationDelay: "60ms" }}>
+            <div className="heo-hero-stage fade-up" style={{ animationDelay: "140ms" }}>
+              <span className="heo-hero-wordmark" aria-hidden="true">JIAZHANG XIANFENG DIGITAL</span>
+              <div className="heo-hero-copy">
+                <span className="heo-kicker">JIAZHANG XIANFENG / PARENTING CONTENT EST. 2025</span>
+                <h1 className="heo-title">
+                  <img src="/assets/logo.png" alt="家长先疯" className="heo-title-logo" />
+                </h1>
+                <p className="heo-lead">
+                  把节目、书单、资料、请教、智库、知物和教育规划放进同一个内容现场。我们关心孩子，也关心教育关系里每一个正在做判断的人。
+                </p>
+                <div className="heo-actions">
+                  <a className="heo-button primary" href="/programs/list">进入节目列表</a>
+                  <a className="heo-button" href="/topics">请教一下</a>
+                  <a className="heo-button" href="/materials">找学习资料</a>
                 </div>
-                <h3 className="text-lg font-black text-[#26344e]">{card.title}</h3>
-                <p className="mt-2 text-sm leading-7 text-[#5f6f89]">{card.text}</p>
-                <p className="mt-3 text-xs font-semibold text-[#51617d]">{card.stage}</p>
-                <p className="mt-1 text-xs font-semibold text-[#51617d]">{card.issue}</p>
+              </div>
+
+            </div>
+          </section>
+
+
+        </div>
+
+        {hostDuo.length === 2 ? (
+          <section className="heo-duo-section fade-up" style={{ animationDelay: "180ms" }}>
+            <div className="heo-duo-card">
+              <div className="heo-duo-avatars">
+                {hostDuo.map((host) => {
+                  const hostName = toText(host.name);
+                  const avatar = resolveGuestAvatar(host.avatar, !!failedGuestAvatars[host._id]);
+                  const avatarSrc = avatar.isFallback ? avatar.src : toText(host.avatar);
+                  return (
+                    <div className="heo-duo-avatar" key={host._id}>
+                      <img
+                        src={avatarSrc}
+                        alt={hostName}
+                        loading="lazy"
+                        decoding="async"
+                        onError={() => {
+                          setFailedGuestAvatars((prev) => (prev[host._id] ? prev : { ...prev, [host._id]: true }));
+                        }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="heo-duo-quote">“教育只有方法，没有答案”</p>
+              <span className="heo-duo-names">{hostDuo.map((h) => toText(h.name)).join(' & ')}</span>
+            </div>
+          </section>
+        ) : null}
+
+        {guestMarqueeItems.length > 0 ? (
+          <section id="guest-marquee" className="guest-marquee-section" aria-label="先疯智库嘉宾">
+            <div className="guest-marquee-head">
+              <div>
+                <span>来自先疯智库</span>
+                <b>和这些嘉宾一起，把问题继续问深一点</b>
+              </div>
+              <a href="/experts">进入智库</a>
+            </div>
+            <div className="guest-marquee-window">
+              <div className="guest-marquee-track">
+                {guestMarqueeItems.map((guest, index) => {
+                  const guestName = toText(guest.name) || "未命名嘉宾";
+                  const avatar = resolveGuestAvatar(guest.avatar, !!failedGuestAvatars[guest._id]);
+                  const avatarSrc = avatar.isFallback ? avatar.src : toText(guest.avatar);
+                  return (
+                    <a className="guest-pill" href={`/experts/${encodeURIComponent(guest._id)}`} key={`${guest._id}-${index}`}>
+                      <span className="guest-pill-avatar">
+                        <img
+                          className={avatar.isFallback ? "is-fallback-avatar" : undefined}
+                          src={avatarSrc}
+                          alt={guestName}
+                          loading="lazy"
+                          decoding="async"
+                          onError={() => {
+                            setFailedGuestAvatars((prev) => (prev[guest._id] ? prev : { ...prev, [guest._id]: true }));
+                          }}
+                        />
+                      </span>
+                      <span className="guest-pill-name">{guestName}</span>
+                    </a>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        {/* ===== 主打推荐 — 全新卡片设计 ===== */}
+        <section id="primary-entry" className="heo-section">
+          <div className="heo-section-head">
+            <div>
+              <span className="heo-kicker">主打推荐</span>
+              <h2>这是首页为你推荐的主要入口</h2>
+            </div>
+          </div>
+
+          <div className="heo-new-grid-wrap">
+            <div className="heo-new-grid" ref={(el) => { (window as any).__heoNewGrid = el; }}>
+              {featureCards.map((item, index) => {
+                const color = cardColors[item.visual] || cardColors.program;
+                return (
+                  <a
+                    className="heo-new-card"
+                    href={item.href}
+                    key={item.title}
+                    onClick={(event) => handleHomepageEntryClick(event, item.href)}
+                    style={{ '--card-gradient': color.gradient, '--card-accent': color.accent } as React.CSSProperties}
+                  >
+                    <div className="heo-new-card-art" aria-hidden="true" data-watermark-left={item.title.slice(0, 1)} data-watermark-right={item.title.slice(1, 2)}>
+                      <img
+                        className="heo-new-card-avatar"
+                        src={xiaowanziAvatars[index % xiaowanziAvatars.length]}
+                        alt={item.title}
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    </div>
+                    <div className="heo-new-card-body">
+                      <span className="heo-new-card-tag" style={{ backgroundColor: color.accent + '1a', color: color.accent }}>{item.status}</span>
+                      <b className="heo-new-card-title">{item.title}</b>
+                      <p className="heo-new-card-desc">{item.text}</p>
+                      <span className="heo-new-card-action">{item.action}</span>
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+            <div className="heo-new-nav-arrows">
+              <button className="heo-new-nav-arrow" type="button" aria-label="上一个" onClick={() => {
+                const el = (window as any).__heoNewGrid;
+                if (el) el.scrollBy({ left: -(el.clientWidth - 40), behavior: 'smooth' });
+              }}>‹</button>
+              <button className="heo-new-nav-arrow" type="button" aria-label="下一个" onClick={() => {
+                const el = (window as any).__heoNewGrid;
+                if (el) el.scrollBy({ left: el.clientWidth - 40, behavior: 'smooth' });
+              }}>›</button>
+            </div>
+          </div>
+        </section>
+
+        <section className="heo-section">
+          <div className="heo-section-head">
+            <div>
+              <span className="heo-kicker">持续开放</span>
+              <h2>请教一下</h2>
+              <p>从真实问题进入回答、线索和知识树</p>
+            </div>
+          </div>
+          <a className={`heo-special-card tone-ask`} href="/topics">
+            <span className="heo-special-copy">
+              <small>持续开放</small>
+              <b>把一个真实困惑，拆成能继续追问的线索</b>
+              <p>提交家庭教育现场里的具体问题，查看站内问题、回答与智能生成的知识树。</p>
+              <span className="heo-special-action">去提问</span>
+            </span>
+            <div className="heo-special-preview" aria-hidden="true">
+              <img src="/assets/preview-topics.png" alt="" loading="lazy" decoding="async" />
+            </div>
+          </a>
+          <div className="heo-section-more-top">
+            <a className="heo-section-more" href="/topics">查看全部 →</a>
+          </div>
+          <div className="heo-topic-cards">
+            {(topicDirectoryItems.length > 0 ? topicDirectoryItems : fallbackTopicDirectoryItems).map((item) => (
+              <a
+                className="heo-topic-card"
+                href={item.href}
+                key={`${item.href}-${item.title}`}
+              >
+                <div className="heo-topic-card-top">
+                  <h3>{item.title}</h3>
+                  <span className="heo-topic-emoji">{resolveTopicEmoji(item.title, item.badge)}</span>
+                </div>
+                <p className="heo-topic-desc">{item.desc}</p>
+                <div className="heo-topic-meta">
+                  {item.badge ? <span className="heo-topic-tag">{item.badge}</span> : null}
+                  <small>{item.meta}</small>
+                </div>
               </a>
             ))}
           </div>
         </section>
 
-        <section className="landing-block">
-          <h2 className="mb-4 text-2xl font-black sm:text-3xl">常见问题</h2>
-          <div className="space-y-3">
-            {[
-              "适合哪些家庭阶段？我们目前关注孩子出生到上大学阶段的教育议题。",
-              "为什么不同阶段内容分布不均？节目选题受嘉宾档期与议题时效影响，会动态调整。",
-              "如何开始使用？建议先从案例矩阵按标签筛选，再进入节目详情做针对性复盘。",
-            ].map((text, index) => (
-              <article key={text} className="landing-panel fade-up rounded-2xl p-5" style={{ animationDelay: `${120 + index * 55}ms` }}>
-                <p className="text-sm leading-7 text-[#566783]">{text}</p>
-              </article>
+        {/* ===== 知物 — 大卡片 + 内容列表 ===== */}
+        <section className="heo-section">
+          <div className="heo-section-head">
+            <div>
+              <span className="heo-kicker">持续更新</span>
+              <h2>知物</h2>
+              <p>从公开产品与服务分析进入判断</p>
+            </div>
+          </div>
+          <a className={`heo-special-card tone-worth`} href="/worthbuy">
+            <span className="heo-special-copy">
+              <small>持续更新</small>
+              <b>把选择放回场景里，再做判断</b>
+              <p>围绕教育与家庭场景整理品牌、产品和服务分析，让购买和选择多一层参考。</p>
+              <span className="heo-special-action">查看分析</span>
+            </span>
+            <div className="heo-special-preview" aria-hidden="true">
+              <img src="/assets/preview-worthbuy.png" alt="" loading="lazy" decoding="async" />
+            </div>
+          </a>
+          <div className="heo-section-more-top">
+            <a className="heo-section-more" href="/worthbuy">查看全部 →</a>
+          </div>
+          <div className="heo-worthbuy-cards">
+            {(worthBuyDirectoryItems.length > 0 ? worthBuyDirectoryItems : fallbackWorthBuyDirectoryItems).map((item) => (
+              <a
+                className="heo-worthbuy-card"
+                href={item.href}
+                key={`${item.href}-${item.title}`}
+              >
+                <span className="heo-worthbuy-icon">{resolveWorthBuyEmoji(item.title, item.badge)}</span>
+                <div className="heo-worthbuy-copy">
+                  <p className="heo-worthbuy-title">{item.title}</p>
+                  <span className="heo-worthbuy-tag">{item.badge}</span>
+                </div>
+                <p className="heo-worthbuy-desc">{item.desc}</p>
+              </a>
             ))}
           </div>
         </section>
 
-        <section className="landing-block">
-          <h2 className="mb-4 text-2xl font-black sm:text-3xl">关于我们</h2>
-          <div className="landing-panel rounded-3xl p-6 sm:p-9">
-            <p className="text-sm leading-7 text-[#5f6f89] sm:text-base">
-              《家长先疯》由“家和万事”团队出品，秉持“服务家庭，智慧决策”的宗旨。我们希望通过优质内容和专业判断，
-              为家长在关键选择上提供真实、可靠、可落地的参考。
-            </p>
-          </div>
-        </section>
       </main>
 
-      <footer className="mt-16 border-t border-[#d9e1ef] bg-[#f8fafc] py-7">
+      <footer id="contact" className="border-t border-[rgba(23,24,31,0.06)] bg-[#f8fafc]/90 py-7">
         <div className="landing-shell flex flex-col items-center justify-between gap-4 md:flex-row">
           <img alt="家和万事 服务家庭 智慧决策" className="h-[30px] w-auto object-contain" src="/assets/jiahe-logo.png" />
-          <div className="flex flex-wrap items-center justify-center gap-5 text-xs font-bold text-[#61728d]">
-            <a className="hover:text-[#1f43af]" href="#">关于我们</a>
-            <a className="hover:text-[#1f43af]" href="#">合作联系</a>
-            <a className="hover:text-[#1f43af]" href="#">隐私政策</a>
-            <a className="hover:text-[#1f43af]" href="/programs">节目入口</a>
+          <div className="flex flex-wrap items-center justify-center gap-5 text-xs font-bold text-[rgba(23,24,31,0.44)]">
+            <a className="hover:text-[var(--lp-primary)]" href="#">关于我们</a>
+            <a className="hover:text-[var(--lp-primary)]" href="#">合作联系</a>
+            <a className="hover:text-[var(--lp-primary)]" href="#">隐私政策</a>
+            <a className="hover:text-[var(--lp-primary)]" href="/programs/list">节目入口</a>
           </div>
         </div>
       </footer>

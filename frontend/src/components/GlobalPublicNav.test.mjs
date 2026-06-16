@@ -80,3 +80,49 @@ test("mobile tab bar has an opaque Safari safe-area backdrop", () => {
   );
   assert.doesNotMatch(source, /calc\(96px \+ env\(safe-area-inset-bottom\)\)/, "mobile tab backdrop should not overpaint above the tab bar");
 });
+
+test("mobile Xiaowanzi tab avatar uses the existing optimized image asset", () => {
+  assert.match(
+    source,
+    /const DEFAULT_CHILD_AVATAR = "\/assets\/wel-avatar\/optimized\/no-hat\.webp";/,
+    "mobile Xiaowanzi avatar should not reference the removed no-hat.png asset"
+  );
+  assert.match(
+    source,
+    /aria-label="小玩子，长按打开主页面"><img src=\{DEFAULT_CHILD_AVATAR\}/,
+    "bottom Xiaowanzi tab should use the shared fallback avatar constant"
+  );
+});
+
+test("mobile navigation images are preloaded and decoded before route transitions repaint", () => {
+  assert.match(
+    source,
+    /const PUBLIC_NAV_IMAGE_ASSETS = \["\/assets\/logo\.png", "\/assets\/jiyue-logo\.png", DEFAULT_CHILD_AVATAR\] as const;/,
+    "public nav should keep its static chrome images in one preload list"
+  );
+  assert.match(
+    source,
+    /function preloadPublicNavImage\(src:string\)[\s\S]*document\.querySelector\(`link\[rel="preload"\]\[as="image"\]\[href="\$\{src\}"\]`\)[\s\S]*link\.rel = "preload";[\s\S]*link\.as = "image";[\s\S]*image\.decoding = "sync";[\s\S]*image\.src = src;[\s\S]*image\.decode\?\.\(\)\.catch/,
+    "public nav should add image preload hints and warm the decode cache"
+  );
+  assert.match(
+    source,
+    /useEffect\(\(\)=>\{PUBLIC_NAV_IMAGE_ASSETS\.forEach\(preloadPublicNavImage\);if\(user\?\.avatar_image\)preloadPublicNavImage\(user\.avatar_image\)\},\[user\?\.avatar_image\]\);/,
+    "nav should warm static assets and the current user avatar on mount"
+  );
+  assert.match(
+    source,
+    /<img src="\/assets\/logo\.png" alt="家长先疯" loading="eager" decoding="sync"/,
+    "top logo should decode eagerly instead of waiting for route repaint"
+  );
+  assert.match(
+    source,
+    /<img className="jiyue-icon" src=\{image\} alt=\{label\} loading="eager" decoding="sync"/,
+    "Jiyue image icons should decode eagerly in nav links and menu items"
+  );
+  assert.match(
+    source,
+    /aria-label="小玩子，长按打开主页面"><img src=\{DEFAULT_CHILD_AVATAR\} alt="" loading="eager" decoding="sync"/,
+    "bottom Xiaowanzi avatar should decode eagerly"
+  );
+});

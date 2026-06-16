@@ -20,6 +20,12 @@ import {
 } from "../utils/guestAvatar";
 
 const PAGE_SIZE = 15;
+const XIAOWANZI_HOME_NAV_HEIGHT_CLASS = "h-[56px]";
+const XIAOWANZI_HOME_NAV_BUTTON_TOP_CLASS = "top-[calc(8px+env(safe-area-inset-top))]";
+const XIAOWANZI_HOME_NAV_SEARCH_TOP_CLASS = "top-[calc(6px+env(safe-area-inset-top))]";
+const XIAOWANZI_HOME_NAV_FLOATING_TOP_CLASS = "top-[56px]";
+const EXPERTS_SUPER_MAIN_TOP_PADDING_CLASS = "pt-[68px]";
+const XIAOWANZI_HOME_NAV_DOCK_SCROLL_Y = 56;
 
 function mergeById<T extends { _id: string }>(current: T[], next: T[]) {
   const seen = new Set(current.map((item) => item._id));
@@ -115,7 +121,7 @@ const ExpertsPage: React.FC = () => {
   useEffect(() => {
     if (!superModePage) return;
     const updateDockedSearch = () => {
-      const docked = window.scrollY > 72;
+      const docked = window.scrollY > XIAOWANZI_HOME_NAV_DOCK_SCROLL_Y;
       setSuperSearchDocked(docked);
       if (!docked) setSuperSearchExpanded(false);
     };
@@ -294,7 +300,7 @@ const ExpertsPage: React.FC = () => {
         />
       ) : null}
       {superModePage ? (
-        <header className="fixed left-0 right-0 top-0 z-[70] flex h-[72px] items-center justify-center bg-[#f7f5ff]/95 px-5 pt-[env(safe-area-inset-top)] backdrop-blur">
+        <header className={`fixed left-0 right-0 top-0 z-[70] flex ${XIAOWANZI_HOME_NAV_HEIGHT_CLASS} items-center justify-center bg-[#f7f5ff]/95 px-5 pt-[env(safe-area-inset-top)] backdrop-blur`}>
           <button
             type="button"
             aria-label="返回小玩子"
@@ -304,7 +310,7 @@ const ExpertsPage: React.FC = () => {
               } catch (_error) {}
               window.location.href = "/programs/list?xw_restore=xiaowanzi";
             }}
-            className="absolute left-4 top-[calc(14px+env(safe-area-inset-top))] inline-flex h-10 w-10 items-center justify-center rounded-full border-0 bg-transparent text-[#11143b]"
+            className={`absolute left-4 ${XIAOWANZI_HOME_NAV_BUTTON_TOP_CLASS} inline-flex h-10 w-10 items-center justify-center rounded-full border-0 bg-transparent text-[#11143b]`}
           >
             <span className="material-symbols-outlined text-[30px]">arrow_back</span>
           </button>
@@ -314,7 +320,7 @@ const ExpertsPage: React.FC = () => {
               type="button"
               aria-label="展开搜索框"
               onClick={() => setSuperSearchExpanded(true)}
-              className="absolute right-4 top-[calc(12px+env(safe-area-inset-top))] inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#11143b] shadow-[0_12px_28px_rgba(70,73,132,0.12)] transition active:scale-95"
+              className={`absolute right-4 ${XIAOWANZI_HOME_NAV_SEARCH_TOP_CLASS} inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#11143b] shadow-[0_12px_28px_rgba(70,73,132,0.12)] transition active:scale-95`}
             >
               <span className="material-symbols-outlined text-[27px]">search</span>
             </button>
@@ -322,7 +328,7 @@ const ExpertsPage: React.FC = () => {
         </header>
       ) : null}
       {showSuperFloatingSearch ? (
-        <div className="fixed left-0 right-0 top-[72px] z-[65] px-3">
+        <div className={`fixed left-0 right-0 ${XIAOWANZI_HOME_NAV_FLOATING_TOP_CLASS} z-[65] px-3`}>
           <section className="experts-super-main mx-auto w-full overflow-hidden rounded-[24px] bg-white/95 px-3 py-3 shadow-[0_18px_45px_rgba(70,73,132,0.12)] backdrop-blur">
             <label className="flex h-11 items-center gap-3 rounded-full bg-[#f5f3ff] px-4 text-[#8f93b3] focus-within:ring-0">
               <span className="material-symbols-outlined text-[22px]">search</span>
@@ -341,7 +347,7 @@ const ExpertsPage: React.FC = () => {
           </section>
         </div>
       ) : null}
-      <main className={`${superModePage ? "experts-super-main mx-auto pb-[calc(96px+env(safe-area-inset-bottom))] pt-[84px]" : "experts-mobile-main mx-auto max-w-7xl px-4 pb-16 pt-[76px] sm:px-6 lg:px-8"}`}>
+      <main className={`${superModePage ? `experts-super-main mx-auto pb-[calc(96px+env(safe-area-inset-bottom))] ${EXPERTS_SUPER_MAIN_TOP_PADDING_CLASS}` : "experts-mobile-main mx-auto max-w-7xl px-4 pb-16 pt-[76px] sm:px-6 lg:px-8"}`}>
         {!superModePage ? (
           <section className="experts-mobile-hero group relative overflow-hidden rounded-[2rem] border border-[#d8d0ef] bg-[radial-gradient(circle_at_top_left,_rgba(143,100,255,0.12),_transparent_32%),linear-gradient(135deg,_#f4f1fd_0%,_#fff_52%,_#f0ebff_100%)] p-8 shadow-[0_24px_80px_rgba(80,62,125,0.08)] sm:p-10">
             <div className="max-w-3xl">

@@ -55,7 +55,7 @@
             content: "";
             position: absolute;
             inset: 0;
-            background-image: var(--hero-cover, url('https://lh3.googleusercontent.com/aida-public/AB6AXuClCE9ekp3PPlQ8bcuZWinqGC_qfQf-TKqkEU8KY505YX7B7t4LSQZSAud82EAcnQ8DU6U5dhENuVIt1u7xMcWmrZYt96CrE3wPdvJEEU8D3QwFomwrExRMSX6sn5vIqZOzxsqYGyiAi4xd4dwF-CkAJ47nVOn-LcN0fX9B-jWTgrnx0RbS53aK04x_ceztbkSlZgTUPwIzjIPJCVkPhCLys2-E8Qn1x4fWfefog2RPPewNrTiiV3AL5R1IUaHBKVtTtXzyAoAD9KpW'));
+            background-image: var(--hero-cover, none);
             background-size: cover;
             background-position: center 20%;
             filter: grayscale(100%) contrast(120%) brightness(80%);
@@ -149,6 +149,9 @@
             font-weight: 500;
             letter-spacing: 0;
             white-space: nowrap;
+        }
+        .detail-view-switch .transcript-tool-btn.hidden {
+            display: none !important;
         }
         .detail-view-switch .transcript-tool-btn:hover {
             transform: none;
@@ -346,6 +349,41 @@
                 top: 6rem;
                 align-self: flex-start;
             }
+            .detail-content-empty-main {
+                padding-top: 2rem !important;
+            }
+            .detail-content-empty-layout {
+                grid-template-columns: minmax(0, 1fr) !important;
+                align-items: start !important;
+            }
+            .detail-content-empty-layout #deep-dive-aside {
+                grid-column: 1 / -1 !important;
+                width: min(960px, 100%);
+                justify-self: center;
+                align-self: start !important;
+            }
+            .detail-content-empty-layout #deep-dive-aside > .space-y-10 {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr);
+                gap: 24px;
+            }
+            .detail-content-empty-layout #deep-dive-sticky-wrap {
+                position: static !important;
+                top: auto !important;
+                left: auto !important;
+                width: 100% !important;
+                transform: none !important;
+            }
+            .detail-content-empty-layout #deep-dive-sticky-wrap section {
+                max-height: none !important;
+                overflow: visible !important;
+            }
+            .detail-content-empty-layout > #deep-dive-aside {
+                max-width: 960px;
+            }
+            .deep-dive-empty-layout #deep-dive-sticky-wrap {
+                display: none !important;
+            }
             #mindmap-main-container svg {
                 width: 100% !important;
                 height: 100% !important;
@@ -435,8 +473,8 @@
                 font-size: 11px;
             }
             #floating-back-to-top-btn {
-                right: 14px;
-                bottom: 150px;
+                right: 20px;
+                bottom: calc(194px + env(safe-area-inset-bottom));
                 width: 52px;
                 height: 52px;
                 border-radius: 9999px;
@@ -467,8 +505,8 @@
                 justify-content: flex-end;
                 gap: 8px;
                 position: fixed;
-                right: 14px;
-                bottom: calc(84px + env(safe-area-inset-bottom));
+                right: 20px;
+                bottom: calc(128px + env(safe-area-inset-bottom));
             }
             #mobile-player-quick-actions {
                 position: absolute;
@@ -666,7 +704,7 @@
 <div class="relative z-10 max-w-7xl mx-auto px-6 w-full text-white">
 <div class="flex flex-col md:flex-row gap-12 items-start">
 <div class="w-64 h-64 flex-shrink-0 rounded-2xl overflow-hidden shadow-[0_32px_64px_-16px_rgba(0,0,0,0.8)] border-2 border-white/20 hidden md:block">
-<img id="program-cover-image" alt="播客封面" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuClCE9ekp3PPlQ8bcuZWinqGC_qfQf-TKqkEU8KY505YX7B7t4LSQZSAud82EAcnQ8DU6U5dhENuVIt1u7xMcWmrZYt96CrE3wPdvJEEU8D3QwFomwrExRMSX6sn5vIqZOzxsqYGyiAi4xd4dwF-CkAJ47nVOn-LcN0fX9B-jWTgrnx0RbS53aK04x_ceztbkSlZgTUPwIzjIPJCVkPhCLys2-E8Qn1x4fWfefog2RPPewNrTiiV3AL5R1IUaHBKVtTtXzyAoAD9KpW"/>
+<img id="program-cover-image" alt="播客封面" class="hidden w-full h-full object-cover" data-src-pending="1"/>
 </div>
 <div class="flex-1 min-w-0">
 <h1 id="program-title" class="text-4xl lg:text-5xl xl:text-6xl font-black tracking-tight mb-6 leading-[1.15]">加载中…</h1>
@@ -693,7 +731,7 @@
 </div>
 </section>
 <div class="max-w-7xl mx-auto px-6 -mt-16 relative z-20">
-<section class="bg-white rounded-3xl p-12 md:p-14 shadow-sm border border-gray-200 overflow-hidden relative">
+<section id="summary-overview-card" class="hidden bg-white rounded-3xl p-12 md:p-14 shadow-sm border border-gray-200 overflow-hidden relative">
 <div class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-xl -mr-16 -mt-16"></div>
 <div class="flex flex-col md:flex-row gap-10 items-center relative z-10">
 <div class="flex-shrink-0 flex flex-row md:flex-col items-center gap-3 border-b md:border-b-0 md:border-r border-gray-100 pb-6 md:pb-0 md:pr-10">
@@ -702,22 +740,17 @@
 </div>
 <div class="text-center md:text-left">
 <h2 class="text-xl md:text-[1.44rem] font-black tracking-tight text-primary uppercase leading-none">总结摘要</h2>
-<p class="text-[10px] font-bold text-gray-400 tracking-widest uppercase mt-1">AI Overview</p>
+<p class="text-[10px] font-bold text-gray-400 tracking-widest uppercase mt-1">内容摘要</p>
 </div>
 </div>
 <div class="flex-1 md:max-h-52 md:overflow-hidden">
 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 <div class="flex flex-col justify-center">
-<h3 id="summary-headline" class="text-base md:text-[1.32rem] font-black text-on-surface mb-3 flex items-center gap-2">
-<span class="w-1.5 h-4 bg-primary rounded-xl"></span>
-                            感官环境的神经学重塑
-                        </h3>
-<p id="summary-body" class="text-sm md:text-[15px] text-on-surface-variant leading-relaxed line-clamp-3 overflow-hidden">
-                            物理空间对儿童神经发育具有深远影响。通过优化室内光线与色彩，可以显著降低处于发育期大脑的应激激素水平，提升核心专注力。
-                        </p>
+<h3 id="summary-headline" class="text-base md:text-[1.32rem] font-black text-on-surface mb-3 flex items-center gap-2"></h3>
+<p id="summary-body" class="text-sm md:text-[15px] text-on-surface-variant leading-relaxed line-clamp-3 overflow-hidden"></p>
 </div>
 <div class="flex flex-col gap-3">
-<div class="flex-1 p-4 rounded-2xl bg-primary/5 border border-primary/10 overflow-hidden">
+<div id="summary-highlight-card" class="flex-1 p-4 rounded-2xl bg-primary/5 border border-primary/10 overflow-hidden">
 <p class="text-sm text-on-surface leading-normal">
 <span id="summary-highlight-label" class="font-black text-primary"></span><span id="summary-highlight-text" class="line-clamp-3 overflow-hidden"></span>
                             </p>
@@ -731,9 +764,9 @@
 </div>
 </section>
 </div>
-<main class="py-16 px-6 max-w-7xl mx-auto">
-<div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start lg:items-stretch">
-<div class="lg:col-span-8 space-y-16">
+<main id="program-detail-main" class="py-16 px-6 max-w-7xl mx-auto">
+<div id="program-detail-main-grid" class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start lg:items-stretch">
+<div id="detail-content-column" class="lg:col-span-8 space-y-16">
 <section id="transcript-section" class="bg-white/95 rounded-3xl p-8 md:p-12 shadow-sm border border-gray-200">
 <div class="mb-8 flex flex-col gap-4">
 <div class="detail-view-switch inline-flex w-fit rounded-full p-1">
@@ -804,17 +837,17 @@
 <span class="material-symbols-outlined text-primary text-xl">insights</span>
 <h3 id="deep-dive-title" class="text-sm font-black tracking-tight text-on-surface uppercase">—</h3>
 </div>
-<div class="mb-5">
-<p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">推荐阅读 Curated Reading</p>
+<div id="curated-reading-wrap" class="mb-5">
+<p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">推荐阅读</p>
 <div id="curated-reading-list" class="space-y-3">
 <div class="group cursor-pointer">
 
 </div>
 </div>
 </div>
-<div class="h-px bg-gray-100 w-full mb-5"></div>
-<div>
-<p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">相关内容推荐 Related Content</p>
+<div id="deep-dive-divider" class="h-px bg-gray-100 w-full mb-5"></div>
+<div id="related-programs-wrap">
+<p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">相关内容推荐</p>
 <div id="related-programs-list" class="space-y-0">
 <div class="group cursor-pointer py-3 border-b border-gray-50 last:border-0">
 <h4 class="mt-0 text-xs font-bold text-on-surface leading-tight break-words">—</h4>
@@ -860,12 +893,12 @@
 <div class="capsule-player rounded-xl px-8 py-3.5 flex items-center justify-between">
 <div class="flex items-center gap-4 min-w-0 flex-1">
 <div class="w-11 h-11 rounded-xl overflow-hidden flex-shrink-0 shadow-xl border border-white/40">
-<img id="player-cover-image" alt="Now Playing" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuClCE9ekp3PPlQ8bcuZWinqGC_qfQf-TKqkEU8KY505YX7B7t4LSQZSAud82EAcnQ8DU6U5dhENuVIt1u7xMcWmrZYt96CrE3wPdvJEEU8D3QwFomwrExRMSX6sn5vIqZOzxsqYGyiAi4xd4dwF-CkAJ47nVOn-LcN0fX9B-jWTgrnx0RbS53aK04x_ceztbkSlZgTUPwIzjIPJCVkPhCLys2-E8Qn1x4fWfefog2RPPewNrTiiV3AL5R1IUaHBKVtTtXzyAoAD9KpW"/>
+<img id="player-cover-image" alt="Now Playing" class="hidden w-full h-full object-cover" data-src-pending="1"/>
 </div>
 <div id="player-title-wrap" class="min-w-0 pr-4">
-<h4 id="player-title" class="text-[13px] font-black text-on-surface truncate leading-tight">启蒙早教：如何为孩子营造宁静的学习环境</h4>
+<h4 id="player-title" class="text-[13px] font-black text-on-surface truncate leading-tight"></h4>
 <div class="flex items-center gap-2 mt-0.5">
-<span id="player-episode-label" class="sidebar-episode-num text-[9px]">EP. 42</span>
+<span id="player-episode-label" class="sidebar-episode-num text-[9px]"></span>
 <span id="player-subtitle" class="hidden text-[9px] text-on-surface-variant font-bold uppercase tracking-widest opacity-60"></span>
 </div>
 </div>
@@ -926,13 +959,18 @@
 
   function normalizeGuestAvatar(url) {
     var clean = String(url || "").trim();
+    return clean.replace(/^https:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::(\d+))?\//i, function (_match, host, port) {
+      return "http://" + host + (port ? ":" + port : "") + "/";
+    });
+  }
+
+  function getLocalUploadAvatarUrl(url) {
+    var clean = String(url || "").trim();
     var uploadMatch = clean.match(XIANFENG_UPLOAD_HOST_RE);
     if (uploadMatch && LOCAL_DEV_HOST_RE.test(window.location.hostname)) {
       return "/uploads/images/" + (uploadMatch[1] || "") + (uploadMatch[2] || "");
     }
-    return clean.replace(/^https:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::(\d+))?\//i, function (_match, host, port) {
-      return "http://" + host + (port ? ":" + port : "") + "/";
-    });
+    return "";
   }
 
   function resolveGuestAvatar(url) {
@@ -946,6 +984,8 @@
   function setGuestAvatarSrc(avatarEl, url) {
     if (!avatarEl) return;
     var src = resolveGuestAvatar(url);
+    var localUploadSrc = src === FALLBACK_AVATAR ? "" : getLocalUploadAvatarUrl(url);
+    avatarEl.dataset.localUploadSrc = localUploadSrc;
     avatarEl.style.opacity = "1";
     avatarEl.classList.toggle("is-fallback-avatar", src === FALLBACK_AVATAR);
     avatarEl.src = src;
@@ -955,6 +995,11 @@
     var avatarEl = document.getElementById("guest-avatar");
     if (!avatarEl) return;
     if (avatarEl.getAttribute("src") === FALLBACK_AVATAR) return;
+    var localUploadSrc = avatarEl.dataset.localUploadSrc || "";
+    if (localUploadSrc && avatarEl.getAttribute("src") !== localUploadSrc) {
+      avatarEl.src = localUploadSrc;
+      return;
+    }
     avatarEl.style.opacity = "1";
     avatarEl.classList.add("is-fallback-avatar");
     avatarEl.src = FALLBACK_AVATAR;
@@ -989,6 +1034,7 @@
   };
   const detailViewState = {
     mode: "mindmap",
+    availableModes: ["mindmap", "quickview", "transcript"],
   };
   function formatDate(value) {
     if (!value) return "未发布";
@@ -1324,12 +1370,45 @@
     return String(value || "").trim().length > 0;
   }
 
-  function transcriptFallback(program) {
-    return [
-      { time: "00:00-01:10", speaker: "主播·阿力", text: "欢迎回到《家长先疯》。今天我们围绕本期主题展开，先快速梳理问题背景和家庭场景中的常见误区。", featured: false },
-      { time: "01:10-02:40", speaker: "嘉宾", text: (program && program.description) || "核心观点讨论。", featured: true },
-      { time: "02:40-04:00", speaker: "主播·Jessie", text: "把这次讨论转化为家庭中可执行的行动步骤，并给出复盘节奏建议。", featured: false },
-    ];
+  function hasMindMapContent(deepDive) {
+    const mindMap = deepDive && deepDive.mindMap;
+    const root = mindMap && mindMap.root;
+    return !!(root && (hasText(root.title) || (Array.isArray(root.children) && root.children.length > 0)));
+  }
+
+  function getRealTranscriptRows(program) {
+    return Array.isArray(program && program.transcript)
+      ? program.transcript.filter(function (row) { return hasText(row && row.text); })
+      : [];
+  }
+
+  function getRealQuickViewItems(program) {
+    const contentPack = program && program.contentPack ? program.contentPack : {};
+    return Array.isArray(contentPack.quickView)
+      ? contentPack.quickView.filter(function (item) {
+          return hasText(item && (item.summary || item.title || item.text));
+        })
+      : [];
+  }
+
+  function hasRealCuratedReading(deepDive) {
+    return Array.isArray(deepDive && deepDive.curatedReading) && deepDive.curatedReading.some(function (item) {
+      return hasText(item && (item.title || item.subtitle || item.url));
+    });
+  }
+
+  function hasRealRelatedPrograms(programs) {
+    const currentId = String(playerState.currentProgram && playerState.currentProgram._id || "");
+    return Array.isArray(programs) && programs.some(function (item) {
+      return item && hasText(item._id) && String(item._id) !== currentId;
+    });
+  }
+
+  function syncDeepDiveExtrasLayout(programs) {
+    const grid = document.getElementById("program-detail-main-grid");
+    const hasDeepDiveExtras = hasRealCuratedReading(playerState.currentProgram && playerState.currentProgram.deepDive) || hasRealRelatedPrograms(programs);
+    if (grid) grid.classList.toggle("deep-dive-empty-layout", !hasDeepDiveExtras);
+    return hasDeepDiveExtras;
   }
 
   function renderTranscript(items) {
@@ -1469,15 +1548,23 @@
 
   function renderRelated(program, programs) {
     const list = document.getElementById("related-programs-list");
+    const relatedWrap = document.getElementById("related-programs-wrap");
+    const divider = document.getElementById("deep-dive-divider");
     const currentId = String(program && program._id || "");
     const directRelated = Array.isArray(programs)
       ? programs.filter(function (item) { return item && String(item._id || "") !== currentId; }).slice(0, 4)
       : [];
     const others = directRelated.length ? directRelated : buildDictionaryRelatedPrograms(program, programs);
     if (!others.length) {
-      list.innerHTML = '<div class="rounded-2xl border border-dashed border-stone-200 bg-stone-50 px-4 py-5 text-sm leading-6 text-stone-500">当前词典尚未为这期节目聚合出相关节目，等更多节目共现后会自动出现。</div>';
+      if (relatedWrap) relatedWrap.classList.add("hidden");
+      if (divider) divider.classList.add("hidden");
+      if (list) list.innerHTML = "";
+      syncDeepDiveExtrasLayout([]);
       return;
     }
+    if (relatedWrap) relatedWrap.classList.remove("hidden");
+    if (divider) divider.classList.toggle("hidden", !hasRealCuratedReading(program && program.deepDive));
+    syncDeepDiveExtrasLayout(others);
     list.innerHTML = others.map(function (item) {
       const routeId = item.programCode || item._id;
       const guestMeta = formatRelatedGuestMeta(item);
@@ -1512,26 +1599,23 @@
   }
 
   function renderContentPack(program, transcript) {
-    const contentPack = program && program.contentPack ? program.contentPack : {};
-    const quickView = Array.isArray(contentPack.quickView) && contentPack.quickView.length
-      ? contentPack.quickView
-      : (Array.isArray(transcript) ? transcript.slice(0, 10).map(function (item) {
-          return {
-            timeRangeLabel: String(item && item.time || ""),
-            summary: String(item && item.text || "").slice(0, 280),
-          };
-        }) : []);
+    const quickView = getRealQuickViewItems(program);
     const quickViewList = document.getElementById("quickview-list");
 	    if (quickViewList) {
 	      quickViewList.innerHTML = quickView.length
 	        ? quickView.map(function (item) {
-	            return '<div class="py-3"><div class="text-xs font-black text-primary mb-2">' + escapeHtml(item.timeRangeLabel || "") + '</div><p class="text-sm leading-relaxed text-on-surface">' + escapeHtml(item.summary || "") + "</p></div>";
+	            return '<div class="py-3"><div class="text-xs font-black text-primary mb-2">' + escapeHtml(item.timeRangeLabel || "") + '</div><p class="text-sm leading-relaxed text-on-surface">' + escapeHtml(item.summary || item.text || item.title || "") + "</p></div>";
 	          }).join("")
 	        : '<div class="py-3 text-sm text-stone-500">暂无速览内容，解析后将自动生成。</div>';
 	    }
+      return quickView;
 	  }
 
 	  function setDetailViewMode(mode) {
+      if (detailViewState.availableModes.length && detailViewState.availableModes.indexOf(mode) === -1) {
+        mode = detailViewState.availableModes[0];
+      }
+      if (!detailViewState.availableModes.length) return;
 	    detailViewState.mode = mode;
 	    const quickPanel = document.getElementById("quickview-panel");
 	    const transcriptPanel = document.getElementById("transcript-panel");
@@ -1550,12 +1634,64 @@
 	    if (mode === "mindmap") renderMindMapPanel();
 	  }
 
+    function configureDetailContentTabs(availability) {
+      const section = document.getElementById("transcript-section");
+      const main = document.getElementById("program-detail-main");
+      const grid = document.getElementById("program-detail-main-grid");
+      const contentColumn = document.getElementById("detail-content-column");
+      const quickBtn = document.getElementById("detail-mode-quickview");
+      const transcriptBtn = document.getElementById("detail-mode-transcript");
+      const mindmapBtn = document.getElementById("detail-mode-mindmap");
+      const modes = [];
+      if (availability && availability.mindmap) modes.push("mindmap");
+      if (availability && availability.quickview) modes.push("quickview");
+      if (availability && availability.transcript) modes.push("transcript");
+      detailViewState.availableModes = modes;
+      syncDeepDiveExtrasLayout(availability && availability.relatedPrograms);
+      if (main) main.classList.toggle("detail-content-empty-main", !modes.length);
+      if (grid) grid.classList.toggle("detail-content-empty-layout", !modes.length);
+      if (contentColumn) contentColumn.classList.toggle("hidden", !modes.length);
+      if (quickBtn) quickBtn.classList.toggle("hidden", modes.indexOf("quickview") === -1);
+      if (transcriptBtn) transcriptBtn.classList.toggle("hidden", modes.indexOf("transcript") === -1);
+      if (mindmapBtn) mindmapBtn.classList.toggle("hidden", modes.indexOf("mindmap") === -1);
+      if (!modes.length) {
+        if (section) section.classList.add("hidden");
+        return;
+      }
+      if (section) section.classList.remove("hidden");
+      const nextMode = modes.indexOf(detailViewState.mode) >= 0 ? detailViewState.mode : modes[0];
+      setDetailViewMode(nextMode);
+    }
+
   function applyProgram(program, programs) {
     playerState.currentProgram = program;
     const cover = program.coverImage || "";
-    document.querySelector(".duotone-hero").style.setProperty("--hero-cover", 'url("' + cover + '")');
-    if (cover) { document.getElementById("program-cover-image").src = cover; } else { document.getElementById("program-cover-image").style.display = "none"; }
-    document.getElementById("player-cover-image").src = cover;
+    const heroEl = document.querySelector(".duotone-hero");
+    const programCoverImage = document.getElementById("program-cover-image");
+    const playerCoverImage = document.getElementById("player-cover-image");
+    if (cover) {
+      if (heroEl) heroEl.style.setProperty("--hero-cover", 'url("' + cover + '")');
+      if (programCoverImage) {
+        programCoverImage.src = cover;
+        programCoverImage.removeAttribute("data-src-pending");
+        programCoverImage.classList.remove("hidden");
+      }
+      if (playerCoverImage) {
+        playerCoverImage.src = cover;
+        playerCoverImage.removeAttribute("data-src-pending");
+        playerCoverImage.classList.remove("hidden");
+      }
+    } else {
+      if (heroEl) heroEl.style.setProperty("--hero-cover", "none");
+      if (programCoverImage) {
+        programCoverImage.removeAttribute("src");
+        programCoverImage.classList.add("hidden");
+      }
+      if (playerCoverImage) {
+        playerCoverImage.removeAttribute("src");
+        playerCoverImage.classList.add("hidden");
+      }
+    }
     document.getElementById("program-title").innerHTML = (program.title || "").replace(/\n/g, "<br/>");
     document.getElementById("player-title").textContent = program.title || "";
     document.getElementById("program-description").textContent = program.description || "";
@@ -1584,16 +1720,22 @@
     }
 
     const summary = program.summary || {};
-    document.getElementById("summary-headline").innerHTML = '<span class="w-1.5 h-4 bg-primary rounded-xl"></span>' + (summary.headline || "—");
+    const summaryHeadline = summary.headline || program.title || "本期节目";
+    const summaryOverviewCard = document.getElementById("summary-overview-card");
+    document.getElementById("summary-headline").innerHTML = '<span class="w-1.5 h-4 bg-primary rounded-xl"></span>' + summaryHeadline;
     document.getElementById("summary-body").textContent = summary.body || program.description || "";
-    document.getElementById("summary-highlight-label").textContent = (summary.highlightLabel || "—") + "：";
-    document.getElementById("summary-highlight-text").textContent = " " + (summary.highlightText || program.description || "");
+    const hasHighlight = hasText(summary.highlightLabel) || hasText(summary.highlightText);
+    const summaryHighlightCard = document.getElementById("summary-highlight-card");
+    if (summaryHighlightCard) summaryHighlightCard.classList.toggle("hidden", !hasHighlight);
+    document.getElementById("summary-highlight-label").textContent = summary.highlightLabel ? (summary.highlightLabel + "：") : "";
+    document.getElementById("summary-highlight-text").textContent = summary.highlightText ? (" " + summary.highlightText) : "";
     const tags = Array.isArray(summary.tags) && summary.tags.length ? summary.tags.slice(0, 4) : [];
     document.getElementById("summary-tags").innerHTML = tags.map(function (tag) {
       return '<span class="px-3 py-1 rounded-xl bg-gray-100 text-[10px] font-bold text-gray-500 whitespace-nowrap">' + tag + "</span>";
     }).join("");
+    if (summaryOverviewCard) summaryOverviewCard.classList.remove("hidden");
 
-    const transcriptRaw = Array.isArray(program.transcript) && program.transcript.length ? program.transcript : transcriptFallback(program);
+    const transcriptRaw = getRealTranscriptRows(program);
     const transcript = (function (rows) {
       const parseTime = function (value) {
         if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, value);
@@ -1661,12 +1803,12 @@
       }
       return items;
     })(transcriptRaw);
-    transcriptState.source = transcript.length ? transcript : transcriptFallback(program);
+    transcriptState.source = transcript;
     transcriptState.glossary = Array.isArray(program.dictionaryEntries) && program.dictionaryEntries.length
       ? program.dictionaryEntries
       : (Array.isArray(program.termGlossary) ? program.termGlossary : []);
     renderTranscript(transcriptState.source);
-    renderContentPack(program, transcriptState.source);
+    const quickViewItems = renderContentPack(program, transcriptState.source);
 
     // === 嘉宾数据处理 ===
     const guestBindings = Array.isArray(program.guestBindings) ? program.guestBindings : [];
@@ -1827,15 +1969,23 @@
     })();
 
     const deepDive = program.deepDive || {};
-    document.getElementById("deep-dive-title").textContent = deepDive.sectionTitle || "深度挖掘 Deep Dive";
-    const reading = Array.isArray(deepDive.curatedReading) && deepDive.curatedReading.length ? deepDive.curatedReading : [{ title: "《家庭教育中的低摩擦沟通》", subtitle: "围绕节目主题延展出的实用阅读线索" }];
+    document.getElementById("deep-dive-title").textContent = deepDive.sectionTitle || "内容延展";
+    const reading = hasRealCuratedReading(deepDive) ? deepDive.curatedReading : [];
+    const curatedWrap = document.getElementById("curated-reading-wrap");
+    if (curatedWrap) curatedWrap.classList.toggle("hidden", !reading.length);
     document.getElementById("curated-reading-list").innerHTML = reading.map(function (item) {
       const href = item.url ? ' href="' + item.url + '" target="_blank" rel="noopener noreferrer"' : "";
       return "<a" + href + ' class="group block cursor-pointer"><h4 class="text-xs font-bold text-on-surface group-hover:text-primary transition-colors leading-snug break-words">' + (item.title || "") + '</h4><p class="text-[10px] text-gray-400 mt-1 break-all">' + (item.subtitle || "") + "</p></a>";
     }).join("");
 
     renderRelated(program, programs);
-    initMindMapData(deepDive);
+    const hasMindMapTab = initMindMapData(deepDive);
+    configureDetailContentTabs({
+      mindmap: hasMindMapTab,
+      quickview: Array.isArray(quickViewItems) && quickViewItems.length > 0,
+      transcript: Array.isArray(transcriptState.source) && transcriptState.source.length > 0,
+      relatedPrograms: programs,
+    });
     requestDeepDiveFloatingUpdate();
     syncFavoriteButton(program);
   }
@@ -2608,9 +2758,11 @@
   }
   function initMindMapData(deepDive) {
     var mindMap = deepDive && deepDive.mindMap;
-    if (!mindMap || !mindMap.root || (!mindMap.root.title && (!mindMap.root.children || !mindMap.root.children.length))) return;
+    mindMapDataCache = null;
+    if (!hasMindMapContent(deepDive)) return false;
     mindMapDataCache = mindMap;
     renderMindMapPanel();
+    return true;
   }
 
   load();

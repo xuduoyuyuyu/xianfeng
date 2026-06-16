@@ -17,7 +17,7 @@ const Navbar: React.FC = () => {
           </Link>
           <div className="hidden md:flex gap-8">
             <Link 
-              to="/programs" 
+              to="/programs/list" 
               className={`text-sm font-medium transition-colors pb-1 border-b-2 ${
                 isActive('/programs') 
                   ? 'text-[#5e17eb] border-[#5e17eb] font-bold' 

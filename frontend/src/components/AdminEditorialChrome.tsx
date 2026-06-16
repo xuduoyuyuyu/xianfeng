@@ -5,7 +5,7 @@ export const AdminEditorialNav: React.FC = () => {
   return (
     <nav className="fixed top-0 z-50 flex h-20 w-full items-center justify-between border-b border-stone-100 bg-white/80 px-10 backdrop-blur-2xl">
       <div className="flex items-center gap-16">
-        <Link to="/programs">
+        <Link to="/programs/list">
           <img alt="家长先疯" className="h-12 w-auto object-contain" src="/assets/logo.png" />
         </Link>
         <div className="hidden items-center gap-10 lg:flex">

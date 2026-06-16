@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { RootState } from "../store";
@@ -10,6 +10,9 @@ import { useXiaowanziEmbeddedLayer } from "../utils/xiaowanziLayer";
 
 const PAGE_SIZE = 24;
 const UNKNOWN_GUEST = "未标注推荐人";
+const DESKTOP_VISIBLE_TOPIC_FILTERS = 48;
+const TOPIC_FILTER_COLLAPSED_ROWS = 4;
+const MOBILE_VISIBLE_TOPIC_FILTER_FALLBACK = 22;
 
 type EnrichedBook = Book & {
   normalizedGuest: string;
@@ -35,6 +38,10 @@ function getSourceGuestId(value: Book["sourceGuestId"]): string {
   return "";
 }
 
+function hasBookCover(item: Pick<Book, "coverImage">): boolean {
+  return normalizeText(item.coverImage).length > 0;
+}
+
 function uniq(values: string[]): string[] {
   return Array.from(new Set(values.filter(Boolean)));
 }
@@ -42,9 +49,9 @@ function uniq(values: string[]): string[] {
 const BookCard: React.FC<BookCardProps> = ({ item }) => {
   return (
     <article className="group mb-3 break-inside-avoid overflow-hidden rounded-[1rem] border border-[#e2dcf0] bg-white shadow-[0_8px_18px_rgba(60,40,80,0.06)]">
-      <div className="relative w-full p-2">
-        <div className="flex items-center justify-center overflow-hidden rounded-lg bg-white">
-          {item.coverImage ? (
+      {item.coverImage ? (
+        <div className="relative w-full p-2">
+          <div className="flex items-center justify-center overflow-hidden rounded-lg bg-white">
             <img
               src={`/api/books/proxy-image?url=${encodeURIComponent(item.coverImage)}`}
               alt={item.title || "书籍封面"}
@@ -54,15 +61,11 @@ const BookCard: React.FC<BookCardProps> = ({ item }) => {
                 e.currentTarget.style.display = "none";
               }}
             />
-          ) : (
-            <div className="w-full aspect-[3/4] bg-stone-100 rounded-lg flex items-center justify-center">
-              <span className="text-stone-300 text-4xl">📖</span>
-            </div>
-          )}
+          </div>
+          {/* 购买功能暂隐藏 */}
         </div>
-        {/* 购买功能暂隐藏 */}
-      </div>
-      <div className="px-3 pb-3 pt-1">
+      ) : null}
+      <div className={`px-3 pb-3 ${item.coverImage ? "pt-1" : "pt-3"}`}>
         <h3 className="line-clamp-2 text-[22px] font-black leading-tight text-[#2b1a3a]">{item.title || "未命名书籍"}</h3>
         <p className="mt-2 text-sm text-[#6f62a4]">作者: {item.author || "未标注"}</p>
         {item.translator ? <p className="mt-1 text-sm text-[#6f62a4]">译者: {item.translator}</p> : null}
@@ -124,6 +127,9 @@ const BooksPage: React.FC = () => {
   const [keyword, setKeyword] = useState(initialKeyword);
   const [selectedGrades, setSelectedGrades] = useState<string[]>(initialGrades);
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
+  const [topicExpanded, setTopicExpanded] = useState(false);
+  const [collapsedTopicLimit, setCollapsedTopicLimit] = useState(MOBILE_VISIBLE_TOPIC_FILTER_FALLBACK);
+  const topicMeasureRef = useRef<HTMLDivElement | null>(null);
   const fromGuestLink = Boolean(initialGuestId || initialGuestName);
 
   useEffect(() => {
@@ -215,9 +221,16 @@ const BooksPage: React.FC = () => {
     });
   }, [guestBoundBase, keyword, selectedGrades, selectedTopics]);
 
+  const coverFirstFiltered = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      const coverDelta = Number(hasBookCover(b)) - Number(hasBookCover(a));
+      return coverDelta;
+    });
+  }, [filtered]);
+
   const grouped = useMemo(() => {
     const map = new Map<string, EnrichedBook[]>();
-    for (const item of filtered) {
+    for (const item of coverFirstFiltered) {
       const key = normalizeText(item.recommendedGuest) || UNKNOWN_GUEST;
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(item);
@@ -228,9 +241,9 @@ const BooksPage: React.FC = () => {
         items: items.sort((a, b) => normalizeText(a.title).localeCompare(normalizeText(b.title), "zh-CN")),
       }))
       .sort((a, b) => a.guest.localeCompare(b.guest, "zh-CN"));
-  }, [filtered]);
+  }, [coverFirstFiltered]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(coverFirstFiltered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const visibleBookLimit = safePage * PAGE_SIZE;
 
@@ -245,7 +258,7 @@ const BooksPage: React.FC = () => {
   const pagedGrouped = useMemo(() => {
     const start = isMobilePager ? 0 : (safePage - 1) * PAGE_SIZE;
     const end = isMobilePager ? visibleBookLimit : start + PAGE_SIZE;
-    const sliced = filtered.slice(start, end);
+    const sliced = coverFirstFiltered.slice(start, end);
     const map = new Map<string, EnrichedBook[]>();
     for (const item of sliced) {
       const key = normalizeText(item.recommendedGuest) || UNKNOWN_GUEST;
@@ -255,18 +268,19 @@ const BooksPage: React.FC = () => {
     return Array.from(map.entries())
       .map(([guest, items]) => ({ guest, items }))
       .sort((a, b) => a.guest.localeCompare(b.guest, "zh-CN"));
-  }, [filtered, isMobilePager, safePage, visibleBookLimit]);
+  }, [coverFirstFiltered, isMobilePager, safePage, visibleBookLimit]);
 
   const pagedFlat = useMemo(() => {
-    if (isMobilePager) return filtered.slice(0, visibleBookLimit);
+    if (isMobilePager) return coverFirstFiltered.slice(0, visibleBookLimit);
     const start = (safePage - 1) * PAGE_SIZE;
-    return filtered.slice(start, start + PAGE_SIZE);
-  }, [filtered, isMobilePager, safePage, visibleBookLimit]);
+    return coverFirstFiltered.slice(start, start + PAGE_SIZE);
+  }, [coverFirstFiltered, isMobilePager, safePage, visibleBookLimit]);
 
   const clearFilters = () => {
     setBoundGuestId("");
     setBoundGuestName("");
     setSelectedGrades([]);
+    setSelectedTopics([]);
     setKeyword("");
   };
 
@@ -294,6 +308,65 @@ const BooksPage: React.FC = () => {
     }
     return Array.from(set).sort();
   }, [books]);
+
+  useEffect(() => {
+    if (!isMobilePager) {
+      setCollapsedTopicLimit(DESKTOP_VISIBLE_TOPIC_FILTERS);
+      return;
+    }
+
+    const node = topicMeasureRef.current;
+    if (!node) {
+      setCollapsedTopicLimit(MOBILE_VISIBLE_TOPIC_FILTER_FALLBACK);
+      return;
+    }
+
+    let frame = 0;
+    const calculateCollapsedTopicLimit = () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        const chips = Array.from(node.querySelectorAll<HTMLElement>("[data-topic-measure-chip]"));
+        if (chips.length === 0) {
+          setCollapsedTopicLimit(MOBILE_VISIBLE_TOPIC_FILTER_FALLBACK);
+          return;
+        }
+
+        const rowTops: number[] = [];
+        let nextLimit = chips.length;
+        for (let index = 0; index < chips.length; index += 1) {
+          const top = Math.round(chips[index].offsetTop);
+          if (!rowTops.includes(top)) rowTops.push(top);
+          if (rowTops.length > TOPIC_FILTER_COLLAPSED_ROWS) {
+            nextLimit = index;
+            break;
+          }
+        }
+
+        const clamped = Math.max(1, Math.min(nextLimit, topicOptions.length));
+        setCollapsedTopicLimit((prev) => (prev === clamped ? prev : clamped));
+      });
+    };
+
+    calculateCollapsedTopicLimit();
+    if (typeof ResizeObserver !== "undefined") {
+      const resizeObserver = new ResizeObserver(calculateCollapsedTopicLimit);
+      resizeObserver.observe(node);
+      return () => {
+        if (frame) window.cancelAnimationFrame(frame);
+        resizeObserver.disconnect();
+      };
+    }
+
+    window.addEventListener("resize", calculateCollapsedTopicLimit);
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", calculateCollapsedTopicLimit);
+    };
+  }, [isMobilePager, topicOptions]);
+
+  const maxVisibleTopicFilters = isMobilePager ? collapsedTopicLimit : DESKTOP_VISIBLE_TOPIC_FILTERS;
+  const visibleTopicOptions = topicExpanded ? topicOptions : topicOptions.slice(0, maxVisibleTopicFilters);
+  const hasMoreTopicOptions = topicOptions.length > maxVisibleTopicFilters;
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#f3f2f8] text-[#1f1d1a]">
@@ -447,9 +520,9 @@ const BooksPage: React.FC = () => {
 
           <div className="flex flex-col gap-3 md:flex-row md:items-start mb-4">
             <div className="books-mobile-label w-[72px] pt-1 text-sm font-black tracking-[0.1em] text-[#6b5fa0]">主题</div>
-            <div className="flex-1">
+            <div className="relative flex-1">
               <div className="flex flex-wrap gap-2">
-                {topicOptions.map((topic) => {
+                {visibleTopicOptions.map((topic) => {
                   const active = selectedTopics.includes(topic);
                   return (
                     <button
@@ -468,6 +541,33 @@ const BooksPage: React.FC = () => {
                 })}
                 {topicOptions.length === 0 ? <span className="text-sm text-[#8b7db6]">暂无可筛选主题</span> : null}
               </div>
+              <div
+                ref={topicMeasureRef}
+                aria-hidden="true"
+                className="pointer-events-none invisible absolute left-0 top-0 flex h-0 w-full flex-wrap gap-2 overflow-hidden"
+              >
+                {topicOptions.map((topic) => (
+                  <span
+                    key={`measure-${topic}`}
+                    data-topic-measure-chip
+                    className="books-filter-chip inline-block rounded-full border border-[#d8c8ef] bg-white px-3 py-1.5 text-xs font-bold text-[#6b5fa0]"
+                  >
+                    {topic}
+                  </span>
+                ))}
+              </div>
+              {hasMoreTopicOptions ? (
+                <div className="mt-2 text-center">
+                  <button
+                    type="button"
+                    onClick={() => setTopicExpanded((expanded) => !expanded)}
+                    className="border-0 bg-transparent p-0 text-xs font-semibold text-[#7C3AED]"
+                    style={{ fontSize: 12 }}
+                  >
+                    {topicExpanded ? "收起 ▲" : "展开全部 ▼"}
+                  </button>
+                </div>
+              ) : null}
             </div>
           </div>
 

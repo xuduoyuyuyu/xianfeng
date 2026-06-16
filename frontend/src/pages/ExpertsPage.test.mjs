@@ -68,3 +68,12 @@ test("expert cards hide zero public-content badges", () => {
     "archive cards should render public-content badge only when count is positive"
   );
 });
+
+test("super-mode expert header matches Xiaowanzi home nav height", () => {
+  assert.match(source, /XIAOWANZI_HOME_NAV_HEIGHT_CLASS = "h-\[56px\]"/, "super-mode expert header should share the Xiaowanzi home nav height");
+  assert.match(source, /XIAOWANZI_HOME_NAV_FLOATING_TOP_CLASS = "top-\[56px\]"/, "floating search should dock immediately below the compact home-height header");
+  assert.match(source, /EXPERTS_SUPER_MAIN_TOP_PADDING_CLASS = "pt-\[68px\]"/, "content should sit 12px below the home-height header");
+  assert.doesNotMatch(source, /<header className="[^"]*h-\[72px\]/, "super-mode expert header should not keep the taller old 72px height");
+  assert.doesNotMatch(source, /top-\[72px\]/, "super-mode floating search should not keep the old 72px header offset");
+  assert.doesNotMatch(source, /pt-\[84px\]/, "super-mode content should not keep the old 72px header spacing");
+});

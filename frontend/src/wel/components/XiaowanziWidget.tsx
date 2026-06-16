@@ -96,6 +96,7 @@ type XiaowanziTopicLinkSource = {
 };
 type XiaowanziWidgetProps = {
   standalone?: boolean;
+  hideLauncher?: boolean;
 };
 const STANDALONE_MENU_ITEMS: HomeBrowseTarget[] = [
   { label: "播客节目", path: "/programs/list" },
@@ -1375,7 +1376,7 @@ async function loadXiaowanziMentionLinks(): Promise<XiaowanziMentionLink[]> {
   return buildXiaowanziMentionLinks({ programs, topics, materials });
 }
 
-const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false }) => {
+const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, hideLauncher = false }) => {
   const { pathname } = useLocation();
   const [shouldOpenHomeOnMount] = useState(() => standalone ? true : shouldRestoreXiaowanziHome());
   const [skipHomeIntroOnMount] = useState(() => standalone ? true : shouldSkipXiaowanziHomeIntro());
@@ -1844,6 +1845,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
   }, []);
 
   useEffect(() => {
+    if (standalone) return;
     if (!open || !homeActive) return;
     const exitHomeOnDesktop = () => {
       if (window.innerWidth >= HOME_DESKTOP_BREAKPOINT) {
@@ -1853,7 +1855,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
     exitHomeOnDesktop();
     window.addEventListener("resize", exitHomeOnDesktop);
     return () => window.removeEventListener("resize", exitHomeOnDesktop);
-  }, [open, homeActive]);
+  }, [open, homeActive, standalone]);
 
   useEffect(() => {
     try {
@@ -2121,7 +2123,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
 
   useEffect(() => {
     const onOpenFromTab = (event: Event) => {
-      const customEvent = event as CustomEvent<{ avatarState?: { avatarIndex: number; clickCount: number }; childProfileId?: string; childId?: string; mode?: "chat" | "home" }>;
+      const customEvent = event as CustomEvent<{ avatarState?: { avatarIndex: number; clickCount: number }; childProfileId?: string; childId?: string; mode?: "chat" | "home"; maximized?: boolean }>;
       if (shouldBlockXiaowanziForAuth()) return;
       if (customEvent?.detail?.mode === "home" && shouldBlockXiaowanziSuperModeForAuth()) return;
       const incomingAvatarState = customEvent?.detail?.avatarState;
@@ -2153,7 +2155,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
       }
       const nextIsHomeMode = customEvent?.detail?.mode === "home";
       setPinned(false);
-      setMaximized(false);
+      setMaximized(Boolean(!nextIsHomeMode && customEvent?.detail?.maximized));
       setHomeActive(nextIsHomeMode);
       setHomeBrowsingOpen(false);
       setHomeBrowseTarget(null);
@@ -3183,6 +3185,8 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
         .xw-home-top{position:relative;z-index:30;height:56px;padding:env(safe-area-inset-top) 12px 0;display:flex;align-items:center;gap:7px;flex-shrink:0;background:transparent!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
         .xw-home-icon{border:0;background:transparent;color:rgba(17,20,59,.78);box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
         .xw-home-menu{width:38px;height:32px;border:0;background:transparent;box-shadow:none;color:rgba(17,20,59,.82);font-family:'Material Symbols Rounded';font-size:24px;font-weight:300;display:flex;align-items:center;justify-content:center;padding:0;opacity:.9}
+        .xw-home-brand-button{width:36px;height:36px;border:0;border-radius:999px;background:transparent;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
+        .xw-home-brand-button:focus-visible{outline:2px solid rgba(96,27,236,.38);outline-offset:2px}
         .xw-home-brand-avatar{width:32px;height:32px;object-fit:contain;display:block;filter:drop-shadow(0 5px 10px rgba(92,75,190,.14));transform:translate(-4px,1px);animation:xwBrandAvatarSwap .38s cubic-bezier(.2,.9,.22,1) both}
         .xw-home-spacer{flex:1}
         .xw-home-icon{width:38px;height:32px;border-radius:999px;font-family:'Material Symbols Rounded';font-size:24px;font-weight:300;display:flex;align-items:center;justify-content:center}
@@ -3360,7 +3364,9 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
             >
               menu
             </button>
-            <img key={displayAvatar} className="xw-home-brand-avatar" src={displayAvatar} alt="小玩子" draggable={false} loading="eager" decoding="async" fetchPriority="high" onError={onAvatarError} />
+            <button className="xw-home-brand-button" type="button" aria-label="新对话" onClick={openManualNewConversation}>
+              <img key={displayAvatar} className="xw-home-brand-avatar" src={displayAvatar} alt="小玩子" draggable={false} loading="eager" decoding="async" fetchPriority="high" onError={onAvatarError} />
+            </button>
             <div className="xw-home-spacer" />
             <button
               className="xw-home-agent-entry"
@@ -3900,7 +3906,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false })
           </div>
         </>
       ) : null}
-      {!standalone ? (
+      {!standalone && !hideLauncher ? (
         <button
           id="ai-fab"
           title="小玩子"

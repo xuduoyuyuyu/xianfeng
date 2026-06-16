@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import MindMapView from "../components/MindMapView";
-import { CuratedReadingItem, Program, ProgramGuest, TranscriptSegment, publicApi } from "../services/api";
+import { MindMapNode, Program, ProgramGuest, TranscriptSegment, publicApi } from "../services/api";
 import {
   GUEST_FALLBACK_AVATAR_DETAIL_IMG_CLASS,
   GUEST_FALLBACK_AVATAR_FRAME_CLASS,
@@ -16,7 +16,11 @@ const COVER_FALLBACK =
   "http://xianfeng.xinzhi.info/uploads/images/1779669071894-42qbgvdv.png";
 const FAVORITES_KEY = "favorite-programs";
 
-
+type DetailContentMode = {
+  key: "mindmap" | "quickview" | "transcript";
+  label: string;
+  icon: string;
+};
 
 function formatDate(date?: string): string {
   if (!date) return "未发布";
@@ -46,32 +50,23 @@ function speakerDisplay(raw: string): string {
   return '嘉宾·' + s;
 }
 
-function inferTranscript(program: Program | null): TranscriptSegment[] {
+function hasText(value?: string | null): boolean {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function getRealTranscriptSegments(program: Program | null): TranscriptSegment[] {
   if (!program) return [];
-  if (program.transcript && program.transcript.length > 0) {
-    return program.transcript;
-  }
-  const description = program.description || "这期节目围绕家庭教育与成长展开讨论。";
-  const firstEpisode = program.episodes[0];
-  const titleLead = firstEpisode?.title || program.title;
-  return [
-    {
-      time: "00:00",
-      speaker: "主播·阿力",
-      text: `欢迎回到《家长先疯》。今天我们围绕「${program.title}」展开，对话从 ${titleLead} 开始，聚焦家长真正关心的成长问题。`,
-    },
-    {
-      time: "02:45",
-      speaker: "主播·Jessie",
-      text: description,
-      featured: true,
-    },
-    {
-      time: "04:12",
-      speaker: "主播·阿力",
-      text: "如果把这些观察带回到家庭环境里，我们最先应该调整的，不只是方法，而是家长与孩子互动时的节奏、情绪和空间感。",
-    },
-  ];
+  return (program.transcript || []).filter((segment) => hasText(segment?.text));
+}
+
+function hasMindMapNodeContent(node?: MindMapNode | null): boolean {
+  if (!node) return false;
+  if (hasText(node.title) || hasText(node.summary) || hasText(node.emoji)) return true;
+  return (node.children || []).some((child) => hasMindMapNodeContent(child));
+}
+
+function hasRealMindMapData(program: Program | null): boolean {
+  return hasMindMapNodeContent(program?.deepDive?.mindMap?.root);
 }
 
 function downloadTranscript(program: Program, segments: TranscriptSegment[]) {
@@ -130,11 +125,11 @@ const ProgramDetailPage: React.FC = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [avatarFallbackActive, setAvatarFallbackActive] = useState(false);
 
-  const transcriptSegments = inferTranscript(program);
+  const transcriptSegments = getRealTranscriptSegments(program);
   const currentEpisode = program?.episodes?.[0];
   const relatedPrograms = programs.filter((item) => item._id !== program?._id).slice(0, 4);
   const summary = program?.summary;
-  const summaryHeadline = summary?.headline || "";
+  const summaryHeadline = summary?.headline?.trim() || program?.title || "";
   const summaryBody = summary?.body || program?.description || "本期节目围绕家庭教育与成长展开讨论。";
   const summaryHighlightLabel = summary?.highlightLabel || "";
   const summaryHighlightText = summary?.highlightText || (transcriptSegments[1]?.text && transcriptSegments[1].text !== summaryBody ? transcriptSegments[1].text : "");
@@ -146,14 +141,21 @@ const ProgramDetailPage: React.FC = () => {
     guest?.bio || "围绕家庭关系、成长节奏与学习环境，提炼节目中的关键视角，帮助家长把内容真正带回到日常生活里。";
   const { src: guestAvatar, isFallback: isGuestFallbackAvatar } = resolveGuestAvatar(guest?.avatar, avatarFallbackActive);
   const deepDiveTitle = program?.deepDive?.sectionTitle || "深度挖掘 Deep Dive";
-  const curatedReading: CuratedReadingItem[] =
-    program?.deepDive?.curatedReading && program.deepDive.curatedReading.length > 0
-      ? program.deepDive.curatedReading
-      : [{ title: "《家庭教育中的低摩擦沟通》", subtitle: "围绕节目主题延展出的实用阅读线索" }];
+  const curatedReading = (program?.deepDive?.curatedReading || []).filter((item) => hasText(item?.title));
   const curatedReadingUnique = curatedReading.filter(
     (item, idx, arr) => arr.findIndex((x) => x.title === item.title && (x.subtitle || "") === (item.subtitle || "")) === idx
   );
-  const quickView = (program?.contentPack?.quickView || []).filter((item) => item?.summary).slice(0, 12);
+  const quickView = (program?.contentPack?.quickView || []).filter((item) => hasText(item?.summary)).slice(0, 12);
+  const hasMindMapContent = hasRealMindMapData(program);
+  const detailContentModes = [
+    hasMindMapContent ? { key: "mindmap", label: "脉络", icon: "account_tree" } : null,
+    quickView.length > 0 ? { key: "quickview", label: "速览", icon: "view_timeline" } : null,
+    transcriptSegments.length > 0 ? { key: "transcript", label: "逐字稿", icon: "description" } : null,
+  ].filter((item): item is DetailContentMode => Boolean(item));
+  const hasDetailContent = detailContentModes.length > 0;
+  const activeContentMode = detailContentModes.find((item) => item.key === contentViewMode) || detailContentModes[0];
+  const relatedItems = relatedPrograms.length > 0 ? relatedPrograms : programs.slice(0, 4);
+  const hasSupplementalContent = curatedReadingUnique.length > 0 || relatedItems.length > 0;
   const minutesText = program?.contentPack?.minutes?.text || summaryBody;
   const showNotesText = program?.contentPack?.showNotes?.renderedText || [
     "导引",
@@ -224,6 +226,13 @@ const ProgramDetailPage: React.FC = () => {
   useEffect(() => {
     setAvatarFallbackActive(false);
   }, [guest?.avatar]);
+
+  useEffect(() => {
+    if (!hasDetailContent || !activeContentMode) return;
+    if (activeContentMode.key !== contentViewMode) {
+      setContentViewMode(activeContentMode.key);
+    }
+  }, [activeContentMode, contentViewMode, hasDetailContent]);
 
   useEffect(() => {
     if (!program) return;
@@ -374,12 +383,14 @@ const ProgramDetailPage: React.FC = () => {
   };
 
   const jumpToContentView = (mode: "quickview" | "transcript" | "mindmap") => {
+    if (!detailContentModes.some((item) => item.key === mode)) return;
     setContentViewMode(mode);
     jumpToSection("content-section");
   };
 
   /** 脑图点击节点 → 切到逐字稿 + 滚动到对应时间戳 */
   const handleNavigateToTime = (startTime: string) => {
+    if (!transcriptSegments.length) return;
     setContentViewMode("transcript");
     // 等待视图切换 + 渲染完成后滚动到对应时间戳
     setTimeout(() => {
@@ -665,42 +676,41 @@ const ProgramDetailPage: React.FC = () => {
             </div>
           </div>
         </section>
-        <section className="mt-6 bg-transparent">
-          <div className="flex flex-col gap-3">
-            <div className="inline-flex w-fit items-center overflow-hidden rounded-full border border-stone-200 bg-[#fafafa] p-1 shadow-[inset_0_0_0_1px_rgba(17,10,8,0.03)]">
-              {[
-                { key: "quickview", label: "速览", icon: "view_timeline" },
-                { key: "transcript", label: "逐字稿", icon: "description" },
-                { key: "mindmap", label: "脉络图", icon: "account_tree" },
-              ].map((item) => {
-                const isActive = contentViewMode === item.key;
-                return (
-                  <button
-                    key={item.key}
-                    className={`min-w-[96px] rounded-full px-7 py-2.5 text-xl font-medium tracking-normal transition-colors ${
-                      isActive ? "bg-[#5e17eb] text-white shadow-[0_10px_24px_rgba(94,23,235,0.22)]" : "text-[#211a18]/70 hover:text-[#5e17eb]"
-                    }`}
-                    onClick={() => jumpToContentView(item.key as "quickview" | "transcript" | "mindmap")}
-                    type="button"
-                  >
-                    {item.label}
-                  </button>
-                );
-              })}
+        {hasDetailContent ? (
+          <section className="mt-6 bg-transparent">
+            <div className="flex flex-col gap-3">
+              <div className="inline-flex w-fit items-center overflow-hidden rounded-full border border-stone-200 bg-[#fafafa] p-1 shadow-[inset_0_0_0_1px_rgba(17,10,8,0.03)]">
+                {detailContentModes.map((item) => {
+                  const isActive = contentViewMode === item.key;
+                  return (
+                    <button
+                      key={item.key}
+                      className={`min-w-[96px] rounded-full px-7 py-2.5 text-xl font-medium tracking-normal transition-colors ${
+                        isActive ? "bg-[#5e17eb] text-white shadow-[0_10px_24px_rgba(94,23,235,0.22)]" : "text-[#211a18]/70 hover:text-[#5e17eb]"
+                      }`}
+                      onClick={() => jumpToContentView(item.key)}
+                      type="button"
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        ) : null}
       </div>
 
-      <main className="program-detail-main mx-auto grid max-w-7xl grid-cols-1 items-start gap-8 px-6 pt-16 pb-56 lg:grid-cols-12">
-        <div className="space-y-16 lg:col-span-8">
-          <section id="content-section" className="rounded-xl border border-gray-100 bg-white p-8 shadow-[0_4px_24px_rgba(0,0,0,0.03)] md:p-12">
+      <main className={`program-detail-main mx-auto grid max-w-7xl grid-cols-1 items-start gap-8 px-6 pb-56 lg:grid-cols-12 ${hasDetailContent ? "pt-16" : "pt-10"}`}>
+        {hasDetailContent ? (
+          <div className="space-y-16 lg:col-span-8">
+            <section id="content-section" className="rounded-xl border border-gray-100 bg-white p-8 shadow-[0_4px_24px_rgba(0,0,0,0.03)] md:p-12">
             <div className="mb-6 flex items-center gap-3">
               <span className="material-symbols-outlined text-xl text-[#5e17eb]">
-                {contentViewMode === "transcript" ? "description" : contentViewMode === "mindmap" ? "account_tree" : "view_timeline"}
+                {activeContentMode?.icon}
               </span>
               <h2 className="text-2xl font-black tracking-tight text-[#211a18]">
-                {contentViewMode === "transcript" ? "逐字稿" : contentViewMode === "mindmap" ? "脉络图" : "速览"}
+                {activeContentMode?.label}
               </h2>
             </div>
 
@@ -710,7 +720,7 @@ const ProgramDetailPage: React.FC = () => {
                   quickView={quickView}
                   title={program.title}
                   onNavigateToTime={handleNavigateToTime}
-                  mode={(program.deepDive?.mindMap && program.deepDive.mindMap.root && (program.deepDive.mindMap.root.title || (program.deepDive.mindMap.root.children && program.deepDive.mindMap.root.children.length > 0))) ? "ai" : (program.contentPack?.quickView && program.contentPack.quickView.length > 0) ? "quickview" : isAdmin ? "ai" : "quickview"}
+                  mode="ai"
                   mindMapData={program.deepDive?.mindMap}
                   generating={mindMapGenerating}
                   onGenerate={isAdmin ? handleGenerateMindMap : undefined}
@@ -727,10 +737,6 @@ const ProgramDetailPage: React.FC = () => {
                 ))}
               </div>
             ) : null}
-            {contentViewMode === "quickview" && quickView.length === 0 ? (
-              <p className="text-sm text-[#53433f]">暂无速览内容，解析后将自动生成。</p>
-            ) : null}
-
             {contentViewMode === "transcript" && transcriptSegments.length > 0 ? (
               <div className="space-y-4">
                 {transcriptSegments.map((segment) => (
@@ -742,13 +748,11 @@ const ProgramDetailPage: React.FC = () => {
                 ))}
               </div>
             ) : null}
-            {contentViewMode === "transcript" && transcriptSegments.length === 0 ? (
-              <p className="text-sm text-[#53433f]">暂无逐字稿内容，解析后将自动生成。</p>
-            ) : null}
-          </section>
-        </div>
+            </section>
+          </div>
+        ) : null}
 
-        <aside className="space-y-10 lg:col-span-4">
+        <aside className={hasDetailContent ? "space-y-10 lg:col-span-4" : "grid gap-8 md:grid-cols-2 lg:col-span-10 lg:col-start-2"}>
           <section className="rounded-xl border border-gray-100 bg-white p-8 text-center shadow-sm">
             <div className="relative mb-6 flex justify-center">
               <div className="relative h-32 w-32">
@@ -785,48 +789,53 @@ const ProgramDetailPage: React.FC = () => {
             </button>
           </section>
 
+          {hasSupplementalContent ? (
           <section className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
             <div className="p-8 pb-8">
               <div className="mb-8 flex items-center gap-3">
                 <span className="material-symbols-outlined text-xl text-[#5e17eb]">insights</span>
                 <h3 className="text-sm font-black uppercase tracking-tight text-[#211a18]">{deepDiveTitle}</h3>
               </div>
-              <div className="mb-5">
-                <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-gray-400">推荐阅读 Curated Reading</p>
-                <div className="curated-reading-list space-y-3">
-                  {curatedReadingUnique.map((item) => (
-                    <div
-                      key={`${item.title}-${item.subtitle || ""}`}
-                      className={`group ${item.url ? "cursor-pointer" : ""}`}
-                      onClick={() => {
-                        if (item.url) {
-                          window.open(item.url, "_blank", "noopener,noreferrer");
-                        }
-                      }}
-                    >
-                      <h4 className="text-xs font-bold leading-snug text-[#211a18] transition-colors group-hover:text-[#5e17eb]">{item.title}</h4>
-                      <p className="mt-1 text-[10px] text-gray-400">{item.subtitle || "围绕节目主题延展出的实用阅读线索"}</p>
-                    </div>
-                  ))}
+              {curatedReadingUnique.length > 0 ? (
+                <div className="mb-5">
+                  <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-gray-400">推荐阅读 Curated Reading</p>
+                  <div className="curated-reading-list space-y-3">
+                    {curatedReadingUnique.map((item) => (
+                      <div
+                        key={`${item.title}-${item.subtitle || ""}`}
+                        className={`group ${item.url ? "cursor-pointer" : ""}`}
+                        onClick={() => {
+                          if (item.url) {
+                            window.open(item.url, "_blank", "noopener,noreferrer");
+                          }
+                        }}
+                      >
+                        <h4 className="text-xs font-bold leading-snug text-[#211a18] transition-colors group-hover:text-[#5e17eb]">{item.title}</h4>
+                        <p className="mt-1 text-[10px] text-gray-400">{item.subtitle || "围绕节目主题延展出的实用阅读线索"}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-              <div className="mb-5 h-px w-full bg-gray-100"></div>
-              <div className="mb-6">
-                <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-gray-400">相关内容推荐 Related Content</p>
-                <div className="space-y-0">
-                  {(relatedPrograms.length > 0 ? relatedPrograms : programs.slice(0, 4)).map((item) => {
-                    const guestMeta = formatRelatedGuestMeta(item);
-                    return (
-                      <Link key={item._id} className="group block cursor-pointer border-b border-gray-50 py-3 last:border-0" to={withXiaowanziLayerParam(`/programs/${item._id}`, superModePage)}>
-                        <h4 className="mt-0 text-xs font-bold leading-tight text-[#211a18] transition-colors break-words group-hover:text-[#5e17eb]">{item.title}</h4>
-                        {guestMeta && (
-                          <span className="mt-1 block text-[10px] font-bold leading-none text-gray-400">{guestMeta}</span>
-                        )}
-                      </Link>
-                    );
-                  })}
+              ) : null}
+              {curatedReadingUnique.length > 0 && relatedItems.length > 0 ? <div className="mb-5 h-px w-full bg-gray-100"></div> : null}
+              {relatedItems.length > 0 ? (
+                <div className="mb-6">
+                  <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-gray-400">相关内容推荐 Related Content</p>
+                  <div className="space-y-0">
+                    {relatedItems.map((item) => {
+                      const guestMeta = formatRelatedGuestMeta(item);
+                      return (
+                        <Link key={item._id} className="group block cursor-pointer border-b border-gray-50 py-3 last:border-0" to={withXiaowanziLayerParam(`/programs/${item._id}`, superModePage)}>
+                          <h4 className="mt-0 text-xs font-bold leading-tight text-[#211a18] transition-colors break-words group-hover:text-[#5e17eb]">{item.title}</h4>
+                          {guestMeta && (
+                            <span className="mt-1 block text-[10px] font-bold leading-none text-gray-400">{guestMeta}</span>
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              ) : null}
             </div>
             <div className="mt-4 bg-gray-50 p-6">
               <Link className="flex w-full items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-widest text-[#5e17eb] hover:underline" to={withXiaowanziLayerParam("/programs/list", superModePage)}>
@@ -835,6 +844,7 @@ const ProgramDetailPage: React.FC = () => {
               </Link>
             </div>
           </section>
+          ) : null}
         </aside>
       </main>
 

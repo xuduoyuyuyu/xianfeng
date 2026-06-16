@@ -112,6 +112,19 @@ async function syncUserToWel(mobile: string, name: string, grade: string, city: 
   }
 }
 
+async function resolveCityFromIP(req: Request): Promise<string> {
+  try {
+    const ip = String(req.ip || req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "");
+    if (!ip || ip === "127.0.0.1" || ip === "::1" || ip.startsWith("::ffff:127.") || ip.startsWith("192.168.") || ip.startsWith("10.")) return "";
+    const res = await fetch(`http://ip-api.com/json/${ip}?fields=city&lang=zh-CN`, { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) return "";
+    const data = await res.json();
+    return data?.city || "";
+  } catch {
+    return "";
+  }
+}
+
 function normalizeMobile(input: unknown): string {
   return String(input || "").replace(/\D/g, "").slice(-11);
 }
@@ -483,12 +496,14 @@ export class UserController {
       if (!user) {
         const username = `u${mobile}`;
         const password = await bcryptjs.hash(`mob-${mobile}-${Date.now()}`, 10);
+        const ipCity = await resolveCityFromIP(req);
         user = new User({
           username,
           password,
           mobile,
           name: username,
-          grade: "初中八年级",
+          grade: "",
+          city: ipCity,
           role: "user",
           level: 1,
           xp: 0,
@@ -505,6 +520,15 @@ export class UserController {
         }
       }
       await grantFreeLoginPointsForUser(user);
+
+      // 登录时如果 city 为空，用 IP 推断补填
+      if (!user.city) {
+        const ipCity = await resolveCityFromIP(req);
+        if (ipCity) {
+          user.city = ipCity;
+          await user.save();
+        }
+      }
 
       const expiresIn = (process.env.JWT_EXPIRES_IN || "7d") as jwt.SignOptions["expiresIn"];
       const token = jwt.sign(

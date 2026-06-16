@@ -12,12 +12,12 @@ export const PodcastHomeNav: React.FC = () => {
     <nav className="fixed top-0 z-50 w-full border-b border-[#e2e8f0] bg-white/80 backdrop-blur-xl">
       <div className="mx-auto flex h-20 w-full max-w-6xl items-center justify-between px-8">
         <div className="flex items-center gap-12">
-          <Link to="/programs">
+          <Link to="/programs/list">
             <img alt="家长先疯" className="h-[62px] w-auto object-contain" src="/assets/logo.png" />
           </Link>
           <div className="hidden items-center gap-8 xl:flex">
             <div className="flex gap-8 border-r border-[#e2e8f0] pr-8">
-              <Link className="relative flex items-center gap-1.5 text-sm font-bold text-[#1a1a1b] after:absolute after:bottom-[-29px] after:left-0 after:h-1 after:w-full after:bg-[#5e17eb]" to="/programs">
+              <Link className="relative flex items-center gap-1.5 text-sm font-bold text-[#1a1a1b] after:absolute after:bottom-[-29px] after:left-0 after:h-1 after:w-full after:bg-[#5e17eb]" to="/programs/list">
                 播客节目
               </Link>
               <a className="flex items-center gap-1.5 text-sm font-semibold text-[#64748b] transition-colors hover:text-[#5e17eb]" href="#">
@@ -68,14 +68,14 @@ export const PodcastDetailNav: React.FC<NavProps> = () => {
     <nav className="fixed top-0 z-50 h-16 w-full border-b border-gray-100 bg-white/80 backdrop-blur-md">
       <div className="mx-auto flex h-full w-full max-w-screen-2xl items-center justify-between px-6">
         <div className="flex items-center gap-10">
-          <Link to="/programs">
+          <Link to="/programs/list">
             <img alt="家长先疯" className="h-[52px] w-auto object-contain" src="/assets/logo.png" />
           </Link>
           <div className="hidden gap-8 md:flex">
             <a className="text-sm font-medium text-[#53433f] transition-colors hover:text-[#5e17eb]" href="#">
               推荐书单
             </a>
-            <Link className="border-b-2 border-[#5e17eb] pb-1 text-sm font-bold text-[#5e17eb]" to="/programs">
+            <Link className="border-b-2 border-[#5e17eb] pb-1 text-sm font-bold text-[#5e17eb]" to="/programs/list">
               播客节目
             </Link>
             <a className="text-sm font-medium text-[#53433f] transition-colors hover:text-[#5e17eb]" href="#">

@@ -49,20 +49,13 @@ const PublicScreenRouter: React.FC = () => {
   const navigate = useNavigate();
   const normalizedPathname = pathname.startsWith("/v2/") ? pathname.slice(3) : pathname === "/v2" ? "/" : pathname;
   const screenRev = "20260502-podcast-home-force-refresh-1";
-  const cacheBust = String(Date.now());
 
   if (normalizedPathname === "/") {
     return <LandingPage />;
   }
 
   if (normalizedPathname === "/programs") {
-    const src = `/wel/index.html?page=61&hideWidget=1&v=${screenRev}&cb=${cacheBust}`;
-    return (
-      <>
-        <GlobalPublicNav compactMobile />
-        <ScreenPage src={src} title="播客列表（框架内）" />
-      </>
-    );
+    return <Navigate to="/programs/list" replace />;
   }
 
   if (normalizedPathname === "/programs/list") {
@@ -196,7 +189,6 @@ const App: React.FC = () => {
   const hideWidget = searchParams.get("hideWidget") === "1" || searchParams.get("widgetOnly") === "1";
 
   const shouldRenderGlobalXiaowanzi =
-    pathname !== "/" &&
     pathname !== "/login" &&
     !pathname.startsWith("/admin") &&
     !pathname.startsWith("/planning") &&
@@ -243,7 +235,7 @@ const App: React.FC = () => {
           <Route path="*" element={<PublicScreenRouter />} />
         </Routes>
       </div>
-      {shouldRenderGlobalXiaowanzi ? <XiaowanziWidget /> : null}
+      {shouldRenderGlobalXiaowanzi ? <XiaowanziWidget hideLauncher={pathname === "/"} /> : null}
     </LoginModalProvider>
   );
 };
