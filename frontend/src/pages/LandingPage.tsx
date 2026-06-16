@@ -1995,13 +1995,31 @@ const LandingPage: React.FC = () => {
             top: 10px;
           }
           .heo-topbar-inner {
-            width: calc(100% - 18px);
-            min-height: 58px;
-            padding: 7px 8px 7px 10px;
+            width: fit-content;
+            min-height: auto;
+            padding: 0;
+            background: none;
+            border: none;
+            box-shadow: none;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+            margin-left: auto;
+            margin-right: 9px;
           }
-          .heo-nav-links,
-          .heo-login-link {
+          .heo-nav-brand {
             display: none;
+          }
+          .heo-nav-links {
+            display: none;
+          }
+          .heo-nav-actions {
+            gap: 0;
+          }
+          .heo-login-link {
+            padding: 6px 14px;
+            font-size: 13px;
+            min-height: 32px;
+            border-radius: 999px;
           }
           .heo-main {
             padding-top: 0;
@@ -2347,7 +2365,7 @@ const LandingPage: React.FC = () => {
             <a className="heo-section-more" href="/topics">查看全部 →</a>
           </div>
           <div className="heo-topic-cards">
-            {(topicDirectoryItems.length > 0 ? topicDirectoryItems : fallbackTopicDirectoryItems).map((item) => (
+            {(topicDirectoryItems.length > 0 ? topicDirectoryItems.slice(0, 12) : fallbackTopicDirectoryItems).map((item) => (
               <a
                 className="heo-topic-card"
                 href={item.href}
@@ -2391,7 +2409,7 @@ const LandingPage: React.FC = () => {
             <a className="heo-section-more" href="/worthbuy">查看全部 →</a>
           </div>
           <div className="heo-worthbuy-cards">
-            {(worthBuyDirectoryItems.length > 0 ? worthBuyDirectoryItems : fallbackWorthBuyDirectoryItems).map((item) => (
+            {(worthBuyDirectoryItems.length > 0 ? worthBuyDirectoryItems.slice(0, 12) : fallbackWorthBuyDirectoryItems).map((item) => (
               <a
                 className="heo-worthbuy-card"
                 href={item.href}
