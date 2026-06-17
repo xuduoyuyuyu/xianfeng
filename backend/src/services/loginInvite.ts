@@ -168,6 +168,18 @@ export function canAuthenticateWithMobileInvite(input: {
   return canVerifyLoginInvite(input);
 }
 
+export function canSendMobileCodeWithInvite(input: {
+  existingUser: unknown;
+  enabled?: unknown;
+  configuredInviteCode: unknown;
+  submittedInviteCode: unknown;
+  activationLimit?: unknown;
+  usedActivations?: unknown;
+  expiresAt?: unknown;
+}): boolean {
+  return canAuthenticateWithMobileInvite(input);
+}
+
 export async function reserveLoginInviteActivation(config: LoginInviteStatus): Promise<boolean> {
   if (!config.enabled || !config.code || config.activationLimit === null) return true;
   await SystemSetting.findOneAndUpdate(

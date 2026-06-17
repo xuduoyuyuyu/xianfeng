@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "../store";
 import { loginByMobile } from "../store/userSlice";
 import { userApi } from "../services/api";
+import { clearLoginInviteCookie, readLoginInviteCookie, writeLoginInviteCookie } from "../utils/loginInviteCookie";
 
 const PHONE_REGEX = /^1\d{10}$/;
 
@@ -21,11 +22,12 @@ const LoginRequiredModal: React.FC<Props> = ({
   description = "登录后可解锁完整知识树、查看详细内容、参与互动提问，获得个性化成长推荐。",
 }) => {
   // ---- 登录表单 state ----
+  const storedInviteCode = readLoginInviteCookie();
   const [phone, setPhone] = useState("");
   const [verifyCode, setVerifyCode] = useState("");
   const [inviteCode, setInviteCode] = useState("");
-  const [verifiedInviteCode, setVerifiedInviteCode] = useState("");
-  const [inviteVerified, setInviteVerified] = useState(false);
+  const [verifiedInviteCode, setVerifiedInviteCode] = useState(storedInviteCode);
+  const [inviteVerified, setInviteVerified] = useState(!!storedInviteCode);
   const [isVerifyingInvite, setIsVerifyingInvite] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [isSendingCode, setIsSendingCode] = useState(false);
@@ -62,17 +64,24 @@ const LoginRequiredModal: React.FC<Props> = ({
   }, [countdown]);
 
   const inviteReady = inviteVerified;
+  const activeInviteCode = verifiedInviteCode || inviteCode.trim() || undefined;
   const canGetCode = useMemo(() => inviteReady && PHONE_REGEX.test(phone) && countdown === 0 && !isSendingCode, [inviteReady, phone, countdown, isSendingCode]);
 
-  const handleInviteChange = (value: string) => {
-    setInviteCode(value.trim());
+  const getErrorMessage = (value: any, fallback: string) =>
+    value?.response?.data?.error || value?.response?.data?.message || value?.message || fallback;
+
+  const isInviteCodeErrorMessage = (message: string) => /邀请码|已过期|用完/.test(message);
+
+  const resetInviteVerification = (message: string) => {
+    clearLoginInviteCookie();
     setVerifiedInviteCode("");
     setInviteVerified(false);
+    setInviteCode("");
     setPhone("");
     setVerifyCode("");
     setCountdown(0);
-    setLocalError("");
     setHint("");
+    setLocalError(message);
   };
 
   const handleVerifyInvite = async () => {
@@ -84,16 +93,14 @@ const LoginRequiredModal: React.FC<Props> = ({
     try {
       setIsVerifyingInvite(true);
       await userApi.verifyInviteCode(code);
+      writeLoginInviteCookie(code);
       setVerifiedInviteCode(code);
-      setInviteCode("");
       setInviteVerified(true);
+      setInviteCode("");
       setLocalError("");
       setHint("");
     } catch (err: any) {
-      setVerifiedInviteCode("");
-      setInviteVerified(false);
-      const msg = err?.response?.data?.error || err?.response?.data?.message || err?.message || "邀请码校准失败";
-      setLocalError(msg);
+      resetInviteVerification(getErrorMessage(err, "邀请码校准失败"));
     } finally {
       setIsVerifyingInvite(false);
     }
@@ -110,13 +117,17 @@ const LoginRequiredModal: React.FC<Props> = ({
     }
     try {
       setIsSendingCode(true);
-      await userApi.sendMobileCode(phone, verifiedInviteCode);
+      await userApi.sendMobileCode(phone, activeInviteCode);
       setCountdown(60);
       setLocalError("");
       setHint("验证码已发送，请注意查收短信。");
     } catch (err: any) {
-      const msg = err?.response?.data?.error || err?.response?.data?.message || err?.message || "发送验证码失败";
-      setLocalError(msg);
+      const message = getErrorMessage(err, "发送验证码失败");
+      if (isInviteCodeErrorMessage(message)) {
+        resetInviteVerification(message);
+        return;
+      }
+      setLocalError(message);
     } finally {
       setIsSendingCode(false);
     }
@@ -141,9 +152,13 @@ const LoginRequiredModal: React.FC<Props> = ({
     }
 
     try {
-      await dispatch(loginByMobile({ mobile: phone, code: verifyCode, inviteCode: verifiedInviteCode }) as any).unwrap();
+      await dispatch(loginByMobile({ mobile: phone, code: verifyCode, inviteCode: activeInviteCode }) as any).unwrap();
     } catch (registerErr: any) {
       const message = typeof registerErr === "string" ? registerErr : registerErr?.response?.data?.error || registerErr?.response?.data?.message || registerErr?.message || "登录失败，请稍后重试";
+      if (isInviteCodeErrorMessage(message)) {
+        resetInviteVerification(message);
+        return;
+      }
       setLocalError(message);
     }
   };
@@ -603,7 +618,7 @@ const LoginRequiredModal: React.FC<Props> = ({
                     className="xf-input"
                     placeholder="请输入邀请码"
                     value={inviteCode}
-                    onChange={(e) => handleInviteChange(e.target.value)}
+                    onChange={(e) => setInviteCode(e.target.value)}
                   />
                   <button
                     type="button"
@@ -644,7 +659,7 @@ const LoginRequiredModal: React.FC<Props> = ({
                     type="button"
                     className="xf-code-btn"
                     onClick={handleGetCode}
-                    disabled={!inviteReady || !canGetCode}
+                    disabled={!canGetCode}
                   >
                     {isSendingCode ? "发送中..." : countdown > 0 ? `${countdown}s` : "获取验证码"}
                   </button>

@@ -4,6 +4,7 @@ import { resolveGuestAvatar } from "../utils/guestAvatar";
 
 const HOMEPAGE_XIAOWANZI_ENTRY_HREFS = new Set(["/index-xiaowanzi.html"]);
 const XIAOWANZI_DESKTOP_FULLSCREEN_BREAKPOINT = 769;
+const HOMEPAGE_MOBILE_BREAKPOINT = 768;
 const heoSectionOrder = [
   { label: "内容", href: "/programs/list", anchor: "primary-entry" },
   { label: "阅读", href: "/reading", anchor: "site-entry-list" },
@@ -66,6 +67,7 @@ type WorthBuyDirectoryRecord = {
 };
 
 const HOMEPAGE_DIRECTORY_PREVIEW_LIMIT = 12;
+const HOMEPAGE_MOBILE_DIRECTORY_CARD_LIMIT = 6;
 
 function clampEntryText(value: unknown, fallback: string, max = 34): string {
   const text = toText(value) || fallback;
@@ -400,6 +402,19 @@ const LandingPage: React.FC = () => {
   const [worthBuyDirectoryItems, setWorthBuyDirectoryItems] = useState<SiteEntryItem[]>([]);
   const [activeCatalogIndex, setActiveCatalogIndex] = useState(-1);
   const [failedGuestAvatars, setFailedGuestAvatars] = useState<Record<string, boolean>>({});
+  const [isMobileHomepage, setIsMobileHomepage] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(`(max-width: ${HOMEPAGE_MOBILE_BREAKPOINT}px)`);
+    const sync = () => {
+      setIsMobileHomepage(mediaQuery.matches);
+    };
+    sync();
+    mediaQuery.addEventListener("change", sync);
+    return () => {
+      mediaQuery.removeEventListener("change", sync);
+    };
+  }, []);
 
   useEffect(() => {
     let disposed = false;
@@ -461,6 +476,18 @@ const LandingPage: React.FC = () => {
     if (guests.length === 0) return [];
     return [...guests, ...guests];
   }, [guests]);
+
+  const homepageDirectoryCardLimit = isMobileHomepage
+    ? HOMEPAGE_MOBILE_DIRECTORY_CARD_LIMIT
+    : HOMEPAGE_DIRECTORY_PREVIEW_LIMIT;
+  const homepageTopicCards = (topicDirectoryItems.length > 0 ? topicDirectoryItems : fallbackTopicDirectoryItems).slice(
+    0,
+    homepageDirectoryCardLimit,
+  );
+  const homepageWorthBuyCards = (worthBuyDirectoryItems.length > 0 ? worthBuyDirectoryItems : fallbackWorthBuyDirectoryItems).slice(
+    0,
+    homepageDirectoryCardLimit,
+  );
 
   const handleHomepageEntryClick = (event: React.MouseEvent<HTMLAnchorElement>, href: string, afterClick?: () => void) => {
     if (isHomepageXiaowanziEntry(href) && window.innerWidth >= XIAOWANZI_DESKTOP_FULLSCREEN_BREAKPOINT) {
@@ -1751,6 +1778,12 @@ const LandingPage: React.FC = () => {
           margin: 0;
           padding-top: clamp(8px, 1vw, 20px);
           text-align: left;
+        }
+        .tone-ask .heo-special-section-title {
+          color: #fff;
+        }
+        .tone-ask .heo-special-section-summary {
+          color: rgba(255, 255, 255, 0.88);
         }
         .tone-worth .heo-special-copy {
           align-items: center;
@@ -3176,11 +3209,11 @@ const LandingPage: React.FC = () => {
           <div className="heo-section-more-top">
             <a className="heo-section-more" href="/topics">查看全部 →</a>
           </div>
-          <div className="heo-topic-cards">
-            {(topicDirectoryItems.length > 0 ? topicDirectoryItems.slice(0, HOMEPAGE_DIRECTORY_PREVIEW_LIMIT) : fallbackTopicDirectoryItems).map((item) => (
-              <a
-                className="heo-topic-card"
-                href={item.href}
+              <div className="heo-topic-cards">
+                {homepageTopicCards.map((item) => (
+                  <a
+                    className="heo-topic-card"
+                    href={item.href}
                 key={`${item.href}-${item.title}`}
               >
                 <div className="heo-topic-card-top">
@@ -3219,11 +3252,11 @@ const LandingPage: React.FC = () => {
           <div className="heo-section-more-top">
             <a className="heo-section-more" href="/worthbuy">查看全部 →</a>
           </div>
-          <div className="heo-worthbuy-cards">
-            {(worthBuyDirectoryItems.length > 0 ? worthBuyDirectoryItems.slice(0, HOMEPAGE_DIRECTORY_PREVIEW_LIMIT) : fallbackWorthBuyDirectoryItems).map((item) => (
-              <a
-                className="heo-worthbuy-card"
-                href={item.href}
+              <div className="heo-worthbuy-cards">
+                {homepageWorthBuyCards.map((item) => (
+                  <a
+                    className="heo-worthbuy-card"
+                    href={item.href}
                 key={`${item.href}-${item.title}`}
               >
                 <span className="heo-worthbuy-icon">{resolveWorthBuyEmoji(item.title, item.badge)}</span>

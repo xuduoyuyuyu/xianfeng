@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { canAuthenticateWithMobileInvite, canVerifyLoginInvite } from "./user";
+import { canAuthenticateWithMobileInvite, canSendMobileCodeWithInvite, canVerifyLoginInvite } from "./user";
 
 describe("mobile invite gate", () => {
   it("allows existing mobile users without an invite when the gate is configured", () => {
@@ -66,6 +66,19 @@ describe("mobile invite gate", () => {
   it("does not apply the new-user activation limit to existing mobile users", () => {
     assert.equal(
       canAuthenticateWithMobileInvite({
+        existingUser: { _id: "user-1" },
+        configuredInviteCode: "Xf260616618KL",
+        submittedInviteCode: "",
+        activationLimit: 100,
+        usedActivations: 100,
+      }),
+      true
+    );
+  });
+
+  it("allows existing mobile users to request SMS codes without re-entering the invite", () => {
+    assert.equal(
+      canSendMobileCodeWithInvite({
         existingUser: { _id: "user-1" },
         configuredInviteCode: "Xf260616618KL",
         submittedInviteCode: "",

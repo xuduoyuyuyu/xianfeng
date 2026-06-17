@@ -10,6 +10,8 @@ const apiSource = readFileSync(resolve(__dirname, "../services/api.ts"), "utf8")
 const modalSource = readFileSync(resolve(__dirname, "../components/LoginRequiredModal.tsx"), "utf8");
 const pageSource = readFileSync(resolve(__dirname, "../pages/UserLoginPage.tsx"), "utf8");
 const inlineSource = readFileSync(resolve(__dirname, "../components/InlineLoginForm.tsx"), "utf8");
+const welLoginSource = readFileSync(resolve(__dirname, "../../public/wel/login.html"), "utf8");
+const welIndexSource = readFileSync(resolve(__dirname, "../../public/wel/index.html"), "utf8");
 
 test("mobile login preserves backend 400 messages instead of axios status text", () => {
   assert.match(
@@ -72,34 +74,43 @@ test("mobile login submits invite code from every login form", () => {
   }
 });
 
-test("mobile login forms require invite code before phone fields activate", () => {
-  assert.match(
-    apiSource,
-    /verifyInviteCode: \(inviteCode: string\) =>\s*api\.post<\{ ok: boolean \}>\("\/users\/invite\/verify", \{ inviteCode \}\)/,
-    "frontend should call the backend invite verification endpoint before revealing mobile login"
-  );
-
+test("mobile login forms restore invite-ready state from a stored cookie", () => {
   for (const [name, text] of [
     ["login modal", modalSource],
     ["login page", pageSource],
     ["inline login form", inlineSource],
   ]) {
-    assert.match(text, /const \[inviteVerified, setInviteVerified\] = useState\(false\);/, `${name} should track backend-verified invite state`);
-    assert.match(text, /const inviteReady = inviteVerified;/, `${name} should derive invite-ready from backend verification`);
-    assert.match(text, /const canGetCode = useMemo\(\(\) => inviteReady && PHONE_REGEX\.test\(phone\)/, `${name} should block SMS until invite code is present`);
-    assert.match(text, /const code = inviteCode\.trim\(\);[\s\S]*await userApi\.verifyInviteCode\(code\)/, `${name} should verify invite code before showing phone fields`);
-    assert.match(text, /setVerifiedInviteCode\(code\);[\s\S]*setInviteCode\(""\);/, `${name} should hide the visible invite code after verification`);
-    assert.match(text, /sendMobileCode\(phone, verifiedInviteCode\)/, `${name} should send the verified invite code after hiding the input value`);
-    assert.match(text, /loginByMobile\(\{ mobile: phone, code: verifyCode, inviteCode: verifiedInviteCode/, `${name} should submit the verified invite code after hiding the input value`);
-    assert.match(text, /setInviteVerified\(false\);[\s\S]*setPhone\(""\);[\s\S]*setVerifyCode\(""\);/, `${name} should reset the mobile flow when invite code changes`);
-    assert.match(text, /if \(!inviteReady\) \{\s*setLocalError\("请先校准邀请码"\);[\s\S]*return;\s*\}/, `${name} should guard submit and send-code handlers`);
-    assert.match(text, /disabled=\{!inviteCode\.trim\(\) \|\| isVerifyingInvite\}/, `${name} should disable invite verification until a code is entered or while verifying`);
-    assert.match(text, /\{inviteReady && \([\s\S]*placeholder="请输入手机号"[\s\S]*placeholder="请输入验证码"[\s\S]*\)\}/, `${name} should only render phone and SMS inputs after invite verification`);
-    assert.match(text, /disabled=\{!inviteReady \|\| !canGetCode\}/, `${name} should disable get-code before invite code`);
-    assert.match(text, /disabled=\{isLoading \|\| !inviteReady\}/, `${name} should disable submit before invite code`);
+    assert.match(text, /readLoginInviteCookie\(\)/, `${name} should read the stored invite cookie`);
+    assert.match(text, /const \[verifiedInviteCode, setVerifiedInviteCode\] = useState\(storedInviteCode\);/, `${name} should boot the verified invite value from cookie`);
+    assert.match(text, /const \[inviteVerified, setInviteVerified\] = useState\(!!storedInviteCode\);/, `${name} should boot invite-ready state from cookie`);
+    assert.match(text, /const activeInviteCode = verifiedInviteCode \|\| inviteCode\.trim\(\) \|\| undefined;/, `${name} should reuse the remembered invite code for later requests`);
+    assert.match(text, /const canGetCode = useMemo\(\(\) => inviteReady && PHONE_REGEX\.test\(phone\)/, `${name} should go straight to SMS flow when invite cookie exists`);
+    assert.match(text, /sendMobileCode\(phone, activeInviteCode\)/, `${name} should send the cookie-backed invite code with SMS`);
+    assert.match(text, /loginByMobile\(\{ mobile: phone, code: verifyCode, inviteCode: activeInviteCode/, `${name} should send the cookie-backed invite code with login`);
+    assert.match(text, /邀请码已校准/, `${name} should keep the lightweight verified state when cookie exists`);
+  }
+});
 
-    const inviteIndex = text.indexOf("placeholder=\"请输入邀请码\"");
-    const phoneIndex = text.indexOf("placeholder=\"请输入手机号\"");
-    assert.ok(inviteIndex >= 0 && phoneIndex >= 0 && inviteIndex < phoneIndex, `${name} should render invite code before phone input`);
+test("mobile login forms clear the invite cookie when backend rejects a stale remembered code", () => {
+  for (const [name, text] of [
+    ["login modal", modalSource],
+    ["login page", pageSource],
+    ["inline login form", inlineSource],
+  ]) {
+    assert.match(text, /clearLoginInviteCookie\(\);[\s\S]*setVerifiedInviteCode\(""\);[\s\S]*setInviteVerified\(false\);/, `${name} should clear cookie-backed invite state on invite failures`);
+    assert.match(text, /isInviteCodeErrorMessage\(/, `${name} should distinguish invite failures from other login errors`);
+  }
+});
+
+test("static wel login pages persist and clear the shared invite cookie", () => {
+  for (const [name, text] of [
+    ["wel login", welLoginSource],
+    ["wel index", welIndexSource],
+  ]) {
+    assert.match(text, /function readLoginInviteCookie\(\)/, `${name} should read the stored invite cookie`);
+    assert.match(text, /function writeLoginInviteCookie\(inviteCode\)/, `${name} should persist the invite cookie after verification`);
+    assert.match(text, /function clearLoginInviteCookie\(\)/, `${name} should clear stale invite cookies`);
+    assert.match(text, /if \(isInviteCodeErrorMessage\(message\)\) \{[\s\S]*clearLoginInviteCookie\(\)/, `${name} should clear stale cookie values on invite failures`);
+    assert.match(text, /const inviteCode = .*verifiedInviteCode.*mb-invite.*trim\(\)/, `${name} should prefer the remembered invite code when sending requests`);
   }
 });

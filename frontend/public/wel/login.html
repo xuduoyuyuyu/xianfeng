@@ -115,26 +115,33 @@
       <div>
         <div class="brand"><img src="/logo.png" alt="wel" style="height:34px"></div>
         <div class="card">
-          <div class="field">
+          <div class="field" id="mb-phone-field">
             <label>手机号</label>
             <div class="mb-row">
               <div class="mb-code">+86</div>
               <input id="mb-mobile" type="tel" placeholder="请输入手机号">
             </div>
           </div>
-          <div class="field">
+          <div class="field" id="mb-code-field">
             <label>验证码</label>
             <div class="code-row">
               <input id="mb-code" type="text" placeholder="请输入验证码">
               <button class="btn" id="mb-send-btn" onclick="sendMobileCode()">获取验证码</button>
             </div>
           </div>
-          <div class="field">
+          <div class="field" id="mb-invite-field">
             <label>邀请码</label>
-            <input id="mb-invite" type="text" placeholder="请输入邀请码">
+            <div class="code-row">
+              <input id="mb-invite" type="text" placeholder="请输入邀请码">
+              <button class="btn" id="mb-invite-verify-btn" onclick="verifyInviteCode()">校准邀请码</button>
+            </div>
+          </div>
+          <div class="field" id="mb-invite-ok" style="display:none">
+            <label>邀请码</label>
+            <div style="height:46px;display:flex;align-items:center;color:#6c27d6;font-size:14px;font-weight:800">邀请码已校准</div>
           </div>
           <div class="err" id="mb-err"></div>
-          <button class="btn" onclick="doMobileAuth()">登录/注册</button>
+          <button class="btn" id="mb-submit-btn" onclick="doMobileAuth()">登录/注册</button>
           <div class="consent">
             登录视为您已阅读并同意
             <a href="/terms-of-service" target="_blank" rel="noopener">服务条款</a>
@@ -148,6 +155,8 @@
   <script>
     const LOGIN_REQUIRED_KEY = 'wel_login_required';
     const LOGIN_REQUIRED_ACTION_KEY = 'wel_login_required_action';
+    const LOGIN_INVITE_COOKIE = 'xf_login_invite';
+    const LOGIN_INVITE_COOKIE_MAX_AGE = 60 * 60 * 24 * 30;
     (function maybeBypassLoginWhenAuthed(){
       const tok = localStorage.getItem('wel_tok') || '';
       if (!tok) return;
@@ -196,6 +205,7 @@
 
     let _mbSendCooldown = 0;
     let _mbSendTimer = null;
+    let _verifiedInviteCode = readLoginInviteCookie();
     function api(method, path, body) {
       const opts = { method, headers: { 'Content-Type':'application/json' } };
       if (body) opts.body = JSON.stringify(body);
@@ -204,6 +214,45 @@
         if (!r.ok && d.error) throw new Error(d.error);
         return d;
       });
+    }
+    function readLoginInviteCookie() {
+      const prefix = LOGIN_INVITE_COOKIE + '=';
+      const raw = document.cookie
+        .split(';')
+        .map((item) => item.trim())
+        .find((item) => item.startsWith(prefix));
+      if (!raw) return '';
+      try {
+        return decodeURIComponent(raw.slice(prefix.length)).trim();
+      } catch (e) {
+        return '';
+      }
+    }
+    function writeLoginInviteCookie(inviteCode) {
+      const normalized = String(inviteCode || '').trim();
+      if (!normalized) return;
+      document.cookie = `${LOGIN_INVITE_COOKIE}=${encodeURIComponent(normalized)}; Max-Age=${LOGIN_INVITE_COOKIE_MAX_AGE}; Path=/; SameSite=Lax`;
+      _verifiedInviteCode = normalized;
+    }
+    function clearLoginInviteCookie() {
+      document.cookie = `${LOGIN_INVITE_COOKIE}=; Max-Age=0; Path=/; SameSite=Lax`;
+      _verifiedInviteCode = '';
+    }
+    function isInviteCodeErrorMessage(message) {
+      return /邀请码|已过期|用完/.test(String(message || ''));
+    }
+    function syncInviteGate() {
+      const ready = !!_verifiedInviteCode;
+      const inviteField = document.getElementById('mb-invite-field');
+      const inviteOk = document.getElementById('mb-invite-ok');
+      const phoneField = document.getElementById('mb-phone-field');
+      const codeField = document.getElementById('mb-code-field');
+      const submitBtn = document.getElementById('mb-submit-btn');
+      if (inviteField) inviteField.style.display = ready ? 'none' : '';
+      if (inviteOk) inviteOk.style.display = ready ? '' : 'none';
+      if (phoneField) phoneField.style.display = ready ? '' : 'none';
+      if (codeField) codeField.style.display = ready ? '' : 'none';
+      if (submitBtn) submitBtn.style.display = ready ? '' : 'none';
     }
     function _tickMobileSendBtn() {
       const btn = document.getElementById('mb-send-btn');
@@ -218,25 +267,52 @@
       _mbSendCooldown -= 1;
       _mbSendTimer = setTimeout(_tickMobileSendBtn, 1000);
     }
+    async function verifyInviteCode() {
+      const inviteCode = (document.getElementById('mb-invite').value || '').trim();
+      const err = document.getElementById('mb-err');
+      err.textContent = '';
+      if (!inviteCode) return err.textContent = '请输入邀请码';
+      const btn = document.getElementById('mb-invite-verify-btn');
+      try {
+        if (btn) btn.disabled = true;
+        await api('POST', '/api/users/invite/verify', { inviteCode });
+        writeLoginInviteCookie(inviteCode);
+        document.getElementById('mb-invite').value = '';
+        syncInviteGate();
+      } catch (e) {
+        const message = e.message || '邀请码校准失败';
+        clearLoginInviteCookie();
+        syncInviteGate();
+        err.textContent = message;
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
     async function sendMobileCode() {
       const mobile = (document.getElementById('mb-mobile').value || '').trim();
+      const inviteCode = _verifiedInviteCode || (document.getElementById('mb-invite').value || '').trim();
       const err = document.getElementById('mb-err');
       err.textContent = '';
       if (!/^1\d{10}$/.test(mobile)) return err.textContent = '请输入正确的11位手机号';
       try {
-        const d = await api('POST', '/api/sms/send-code', { mobile, purpose: 'login' });
+        const d = await api('POST', '/api/sms/send-code', { mobile, inviteCode, purpose: 'login' });
         _mbSendCooldown = 60;
         if (_mbSendTimer) clearTimeout(_mbSendTimer);
         _tickMobileSendBtn();
         if (d && d.debugCode) err.textContent = '测试验证码：' + d.debugCode + '（上线可关闭）';
       } catch (e) {
-        err.textContent = e.message || '发送失败';
+        const message = e.message || '发送失败';
+        if (isInviteCodeErrorMessage(message)) {
+          clearLoginInviteCookie();
+          syncInviteGate();
+        }
+        err.textContent = message;
       }
     }
     async function doMobileAuth() {
       const mobile = (document.getElementById('mb-mobile').value || '').trim();
       const code = (document.getElementById('mb-code').value || '').trim();
-      const inviteCode = (document.getElementById('mb-invite').value || '').trim();
+      const inviteCode = _verifiedInviteCode || (document.getElementById('mb-invite').value || '').trim();
       const err = document.getElementById('mb-err');
       err.textContent = '';
       if (!/^1\d{10}$/.test(mobile)) return err.textContent = '请输入正确的11位手机号';
@@ -249,9 +325,15 @@
         const redirect = new URLSearchParams(location.search).get('redirect') || '/?page=zhongkao';
         location.href = redirect;
       } catch (e) {
-        err.textContent = e.message || '登录失败';
+        const message = e.message || '登录失败';
+        if (isInviteCodeErrorMessage(message)) {
+          clearLoginInviteCookie();
+          syncInviteGate();
+        }
+        err.textContent = message;
       }
     }
+    syncInviteGate();
   </script>
 </body>
 </html>

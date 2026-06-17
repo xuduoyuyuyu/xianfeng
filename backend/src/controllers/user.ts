@@ -11,12 +11,13 @@ import { splitChildMemoryItems } from "../services/childMemory";
 import { grantFreeLoginPointsForUser } from "../services/billing";
 import {
   canAuthenticateWithMobileInvite,
+  canSendMobileCodeWithInvite,
   canVerifyLoginInvite,
   getLoginInviteConfig,
   reserveLoginInviteActivation,
 } from "../services/loginInvite";
 
-export { canAuthenticateWithMobileInvite, canVerifyLoginInvite } from "../services/loginInvite";
+export { canAuthenticateWithMobileInvite, canSendMobileCodeWithInvite, canVerifyLoginInvite } from "../services/loginInvite";
 
 dotenv.config();
 const smsCodeStore = new Map<string, { code: string; expiresAt: number }>();
@@ -34,6 +35,19 @@ type AdminChildMemoryDoc = {
   summary?: unknown;
   updatedAt?: unknown;
 };
+
+async function findUserByMobileOrLegacyUsername(mobile: string) {
+  let user = await User.findOne({ mobile });
+  if (user) return user;
+  user = await User.findOne({
+    $or: [{ username: `u${mobile}` }, { username: mobile }],
+  });
+  if (user && !user.mobile) {
+    user.mobile = mobile;
+    await user.save();
+  }
+  return user;
+}
 
 export function summarizeAdminChildMemories(docs: AdminChildMemoryDoc[]) {
   const grouped = new Map<
@@ -120,16 +134,68 @@ async function syncUserToWel(mobile: string, name: string, grade: string, city: 
   }
 }
 
-async function resolveCityFromIP(req: Request): Promise<string> {
+function normalizeIpToken(raw: unknown): string {
+  const value = String(raw || "").trim();
+  if (!value) return "";
+  const token = value.split(",")[0]?.trim() || "";
+  if (!token || token.toLowerCase() === "unknown") return "";
+  if (token.startsWith("::ffff:")) return token.slice(7);
+  return token;
+}
+
+function isPrivateIp(ip: string): boolean {
+  if (!ip) return true;
+  if (ip === "::1" || ip === "127.0.0.1" || ip === "localhost") return true;
+  if (ip.startsWith("10.") || ip.startsWith("192.168.") || ip.startsWith("169.254.")) return true;
+  if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(ip)) return true;
+  if (ip.startsWith("fc") || ip.startsWith("fd")) return true;
+  return false;
+}
+
+export function extractClientIp(req: Request): string {
+  const forwarded = String(req.headers["x-forwarded-for"] || "")
+    .split(",")
+    .map((item) => normalizeIpToken(item))
+    .filter(Boolean);
+  const xRealIp = normalizeIpToken(req.headers["x-real-ip"]);
+  const reqIp = normalizeIpToken(req.ip);
+  const remoteAddress = normalizeIpToken(req.socket?.remoteAddress);
+  const candidates = [...forwarded, xRealIp, reqIp, remoteAddress].filter(Boolean);
+  return candidates.find((ip) => !isPrivateIp(ip)) || "";
+}
+
+export async function resolveGeoFromIP(req: Request): Promise<{ city: string; region: string }> {
   try {
-    const ip = String(req.ip || req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "");
-    if (!ip || ip === "127.0.0.1" || ip === "::1" || ip.startsWith("::ffff:127.") || ip.startsWith("192.168.") || ip.startsWith("10.")) return "";
-    const res = await fetch(`http://ip-api.com/json/${ip}?fields=city&lang=zh-CN`, { signal: AbortSignal.timeout(3000) });
-    if (!res.ok) return "";
+    const ip = extractClientIp(req);
+    if (!ip) return { city: "", region: "" };
+    const res = await fetch(`http://ip-api.com/json/${ip}?fields=status,message,city,regionName&lang=zh-CN`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!res.ok) return { city: "", region: "" };
     const data = await res.json();
-    return data?.city || "";
+    return {
+      city: data?.city || "",
+      region: data?.regionName || "",
+    };
   } catch {
-    return "";
+    return { city: "", region: "" };
+  }
+}
+
+async function backfillUserGeoIfNeeded(user: any, req: Request): Promise<void> {
+  if (user?.city && user?.region) return;
+  const geo = await resolveGeoFromIP(req);
+  let changed = false;
+  if (!user?.city && geo.city) {
+    user.city = geo.city;
+    changed = true;
+  }
+  if (!user?.region && geo.region) {
+    user.region = geo.region;
+    changed = true;
+  }
+  if (changed) {
+    await user.save();
   }
 }
 
@@ -402,8 +468,14 @@ export class UserController {
 
   async sendMobileCode(req: Request, res: Response): Promise<void> {
     const mobile = normalizeMobile(req.body?.mobile);
+    if (!/^1\d{10}$/.test(mobile)) {
+      res.status(400).json({ error: "请输入正确的11位手机号" });
+      return;
+    }
+    const user = await findUserByMobileOrLegacyUsername(mobile);
     const inviteConfig = await getLoginInviteConfig();
-    if (!canVerifyLoginInvite({
+    if (!canSendMobileCodeWithInvite({
+      existingUser: user,
       enabled: inviteConfig.enabled,
       configuredInviteCode: inviteConfig.code,
       submittedInviteCode: req.body?.inviteCode,
@@ -412,10 +484,6 @@ export class UserController {
       expiresAt: inviteConfig.expiresAt,
     })) {
       res.status(403).json({ error: "请输入正确的邀请码" });
-      return;
-    }
-    if (!/^1\d{10}$/.test(mobile)) {
-      res.status(400).json({ error: "请输入正确的11位手机号" });
       return;
     }
     const now = Date.now();
@@ -469,18 +537,7 @@ export class UserController {
         return;
       }
 
-      let user = await User.findOne({ mobile });
-      // Backfill legacy accounts that were created before `mobile` was reliably persisted.
-      // Some rows only kept `username` as `u<mobile>` or raw `<mobile>`.
-      if (!user) {
-        user = await User.findOne({
-          $or: [{ username: `u${mobile}` }, { username: mobile }],
-        });
-        if (user && !user.mobile) {
-          user.mobile = mobile;
-          await user.save();
-        }
-      }
+      let user = await findUserByMobileOrLegacyUsername(mobile);
       const inviteConfig = await getLoginInviteConfig();
       if (!canAuthenticateWithMobileInvite({
         existingUser: user,
@@ -504,14 +561,15 @@ export class UserController {
         }
         const username = `u${mobile}`;
         const password = await bcryptjs.hash(`mob-${mobile}-${Date.now()}`, 10);
-        const ipCity = await resolveCityFromIP(req);
+        const geo = await resolveGeoFromIP(req);
         user = new User({
           username,
           password,
           mobile,
           name: username,
           grade: "",
-          city: ipCity,
+          city: geo.city,
+          region: geo.region,
           role: "user",
           level: 1,
           xp: 0,
@@ -529,14 +587,7 @@ export class UserController {
       }
       await grantFreeLoginPointsForUser(user);
 
-      // 登录时如果 city 为空，用 IP 推断补填
-      if (!user.city) {
-        const ipCity = await resolveCityFromIP(req);
-        if (ipCity) {
-          user.city = ipCity;
-          await user.save();
-        }
-      }
+      await backfillUserGeoIfNeeded(user, req);
 
       const expiresIn = (process.env.JWT_EXPIRES_IN || "7d") as jwt.SignOptions["expiresIn"];
       const token = jwt.sign(
@@ -657,6 +708,7 @@ export class UserController {
         }
       }
       await grantFreeLoginPointsForUser(user);
+      await backfillUserGeoIfNeeded(user, req);
       const expiresIn = (process.env.JWT_EXPIRES_IN || "7d") as jwt.SignOptions["expiresIn"];
       const token = jwt.sign(
         { id: user._id, role: user.role },

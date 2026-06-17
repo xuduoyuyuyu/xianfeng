@@ -266,6 +266,8 @@ test("landing topics special card mirrors the worthbuy showcase rhythm", () => {
   assert.match(askBlock, /margin-left: 50%;/, "desktop topics card should center from the viewport midpoint");
   assert.match(askBlock, /transform: translateX\(-50%\);/, "desktop topics card should stay centered after breakout");
   assert.match(source, /\.tone-ask \.heo-special-copy \{[\s\S]*align-items: flex-start;[\s\S]*max-width: 640px;[\s\S]*text-align: left;/, "topics copy should return to a left-aligned reading column");
+  assert.match(source, /\.tone-ask \.heo-special-section-title \{[\s\S]*color: #fff;/, "topics section title should stay white on the purple card");
+  assert.match(source, /\.tone-ask \.heo-special-section-summary \{[\s\S]*color: rgba\(255, 255, 255, 0\.88\);/, "topics section summary should also stay white on the purple card");
   assert.match(source, /\.tone-ask \.heo-special-preview \{[\s\S]*justify-self: end;[\s\S]*width: min\(820px, 54vw\);[\s\S]*transform: rotate\(-2deg\) translateX\(24px\);/, "topics preview should read like a casually placed supporting prop");
   assert.match(source, /\.heo-topics-shot-frame \{[\s\S]*background: linear-gradient\(180deg, #17161d 0%, #07070b 100%\);/, "topics preview should use the same elegant dark outer frame");
   assert.match(mobileAskBlock, /grid-template-columns: 1fr;/, "mobile topics card should remain single-column");
@@ -301,17 +303,24 @@ test("landing worthbuy special card uses a taller zhheo-like showcase scale", ()
   assert.match(mobileWorthBlock, /width: auto;[\s\S]*margin-left: 0;[\s\S]*transform: none;/, "mobile worthbuy card should reset the desktop breakout to avoid horizontal overflow");
 });
 
-test("landing topics and worthbuy homepage lists cap at 12 cards", () => {
+test("landing topics and worthbuy homepage lists keep desktop twelve but cap mobile homepage cards at six", () => {
   const topicFallbackBlock = source.match(/const fallbackTopicDirectoryItems: SiteEntryItem\[] = \[[\s\S]*?\n\];/)?.[0] || "";
   const worthFallbackBlock = source.match(/const fallbackWorthBuyDirectoryItems: SiteEntryItem\[] = \[[\s\S]*?\n\];/)?.[0] || "";
 
   assert.match(source, /const HOMEPAGE_DIRECTORY_PREVIEW_LIMIT = 12;/, "homepage should centralize the preview card count at twelve");
+  assert.match(source, /const HOMEPAGE_MOBILE_DIRECTORY_CARD_LIMIT = 6;/, "homepage should centralize the mobile preview card count at six");
+  assert.match(source, /const HOMEPAGE_MOBILE_BREAKPOINT = 768;/, "homepage should keep the mobile breakpoint explicit");
   assert.match(source, /loadJson\(`\/api\/topic-hub\?limit=\$\{HOMEPAGE_DIRECTORY_PREVIEW_LIMIT\}`\)/, "homepage topics request should load the twelve cards it can display");
   assert.match(source, /loadJson\(`\/api\/worthbuy\/list\?limit=\$\{HOMEPAGE_DIRECTORY_PREVIEW_LIMIT\}`\)/, "homepage worthbuy request should load the twelve cards it can display");
   assert.match(source, /buildTopicDirectoryItems\(records: TopicDirectoryRecord\[\]\): SiteEntryItem\[\] \{[\s\S]*?\.slice\(0, HOMEPAGE_DIRECTORY_PREVIEW_LIMIT\);/, "topic directory builder should cap homepage cards at twelve");
   assert.match(source, /buildWorthBuyDirectoryItems\(records: WorthBuyDirectoryRecord\[\]\): SiteEntryItem\[\] \{[\s\S]*?\.slice\(0, HOMEPAGE_DIRECTORY_PREVIEW_LIMIT\);/, "worthbuy directory builder should cap homepage cards at twelve");
-  assert.match(source, /\(topicDirectoryItems\.length > 0 \? topicDirectoryItems\.slice\(0, HOMEPAGE_DIRECTORY_PREVIEW_LIMIT\) : fallbackTopicDirectoryItems\)\.map/, "topics section should render at most twelve homepage cards");
-  assert.match(source, /\(worthBuyDirectoryItems\.length > 0 \? worthBuyDirectoryItems\.slice\(0, HOMEPAGE_DIRECTORY_PREVIEW_LIMIT\) : fallbackWorthBuyDirectoryItems\)\.map/, "worthbuy section should render at most twelve homepage cards");
+  assert.match(source, /const \[isMobileHomepage, setIsMobileHomepage\] = useState\(false\);/, "homepage should track whether it is in mobile mode");
+  assert.match(source, /window\.matchMedia\(`\(max-width: \$\{HOMEPAGE_MOBILE_BREAKPOINT}px\)`\)/, "homepage should derive mobile mode from a media query");
+  assert.match(source, /const homepageDirectoryCardLimit = isMobileHomepage[\s\S]*\? HOMEPAGE_MOBILE_DIRECTORY_CARD_LIMIT[\s\S]*: HOMEPAGE_DIRECTORY_PREVIEW_LIMIT;/, "homepage should switch between six mobile cards and twelve desktop cards");
+  assert.match(source, /const homepageTopicCards = \(topicDirectoryItems\.length > 0 \? topicDirectoryItems : fallbackTopicDirectoryItems\)\.slice\([\s\S]*0,[\s\S]*homepageDirectoryCardLimit,[\s\S]*\);/, "topics section should apply the responsive homepage cap at render time");
+  assert.match(source, /const homepageWorthBuyCards = \(worthBuyDirectoryItems\.length > 0 \? worthBuyDirectoryItems : fallbackWorthBuyDirectoryItems\)\.slice\([\s\S]*0,[\s\S]*homepageDirectoryCardLimit,[\s\S]*\);/, "worthbuy section should apply the responsive homepage cap at render time");
+  assert.match(source, /\{homepageTopicCards\.map\(\(item\) => \(/, "topics section should render from the responsive homepage card list");
+  assert.match(source, /\{homepageWorthBuyCards\.map\(\(item\) => \(/, "worthbuy section should render from the responsive homepage card list");
   assert.ok((topicFallbackBlock.match(/title: "/g) || []).length >= 12, "topic fallback list should also provide twelve cards");
   assert.ok((worthFallbackBlock.match(/title: "/g) || []).length >= 12, "worthbuy fallback list should also provide twelve cards");
 });
