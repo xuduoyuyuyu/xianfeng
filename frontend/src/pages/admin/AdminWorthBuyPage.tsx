@@ -43,7 +43,7 @@ interface WorthBuyItem {
   brand: string;
   query: string;
   submittedBy: string;
-  status: "draft" | "published" | "hidden";
+  status: "draft" | "published" | "hidden" | "deleted";
   result: WorthBuyResult;
   createdAt: string;
   updatedAt: string;
@@ -66,7 +66,7 @@ const emptyResult: WorthBuyResult = {
   buyAdvice: "",
 };
 
-const emptyForm: { brand: string; query: string; status: "draft" | "published" | "hidden"; result: WorthBuyResult } = {
+const emptyForm: { brand: string; query: string; status: "draft" | "published" | "hidden" | "deleted"; result: WorthBuyResult } = {
   brand: "",
   query: "",
   status: "draft",
@@ -139,14 +139,18 @@ const formatDate = (s: string) => {
 const statusColor = (s: string) => {
   if (s === "published") return { bg: "#F0FDF4", text: "#166534", border: "#D1FAE5" };
   if (s === "hidden") return { bg: "#FEF2F2", text: "#DC2626", border: "#FECACA" };
+  if (s === "deleted") return { bg: "#F9FAFB", text: "#6B7280", border: "#E5E7EB" };
   return { bg: "#FFFBEB", text: "#92400E", border: "#FDE68A" };
 };
 
 const statusLabel = (s: string) => {
   if (s === "published") return "已发布";
   if (s === "hidden") return "已隐藏";
+  if (s === "deleted") return "已删除";
   return "草稿";
 };
+
+const PAGE_SIZE = 20;
 
 /* ===== 页面组件 ===== */
 const AdminWorthBuyPage: React.FC = () => {
@@ -154,6 +158,10 @@ const AdminWorthBuyPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [openingEditId, setOpeningEditId] = useState("");
+  const [listMode, setListMode] = useState<"active" | "deleted">("active");
 
   // 表单
   const [showForm, setShowForm] = useState(false);
@@ -165,12 +173,14 @@ const AdminWorthBuyPage: React.FC = () => {
   const [editForm, setEditForm] = useState({ ...emptyForm });
 
   // ========== 加载列表 ==========
-  const loadItems = async () => {
+  const loadItems = async (pageNum = page) => {
     setLoading(true);
     setError("");
     try {
-      const res = await axios.get("/api/admin/worthbuy", { headers: authHeaders() });
+      const res = await axios.get(`/api/admin/worthbuy?page=${pageNum}&limit=${PAGE_SIZE}&status=${listMode === "deleted" ? "deleted" : "active"}`, { headers: authHeaders() });
       setItems(res.data.items || []);
+      setTotal(Number(res.data.total) || (res.data.items || []).length);
+      setPage(Number(res.data.page) || pageNum);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -178,7 +188,7 @@ const AdminWorthBuyPage: React.FC = () => {
     }
   };
 
-  React.useEffect(() => { loadItems(); }, []);
+  React.useEffect(() => { loadItems(page); }, [page, listMode]);
 
   // ========== 新增 & AI 生成 ==========
   const [genBrand, setGenBrand] = useState("");
@@ -191,7 +201,8 @@ const AdminWorthBuyPage: React.FC = () => {
       const res = await axios.post("/api/admin/worthbuy/generate", { brand: genBrand.trim() }, { headers: authHeaders() });
       setToast(`✨ 「${genBrand.trim()}」AI 分析完成！`);
       setGenBrand("");
-      loadItems();
+      setPage(1);
+      loadItems(1);
     } catch (e: any) {
       if (e.response?.status === 401 || String(e.message || "").includes("not valid JSON")) {
         setToast("登录已过期，请刷新页面重新登录");
@@ -208,23 +219,33 @@ const AdminWorthBuyPage: React.FC = () => {
   const handleCreate = async () => { /* no-op, replaced by AI generate */ };
 
   // ========== 编辑品牌 ==========
-  const openEdit = (item: WorthBuyItem) => {
-    setEditingItem(item);
-    setEditForm({
-      brand: item.brand,
-      query: item.query,
-      status: item.status,
-      result: {
-        ...emptyResult,
-        ...item.result,
-        ratingDimensions: item.result.ratingDimensions
-          ? { ...emptyResult.ratingDimensions!, ...item.result.ratingDimensions }
-          : { ...emptyResult.ratingDimensions! },
-        suitableFor: item.result.suitableFor || [],
-        notSuitableFor: item.result.notSuitableFor || [],
-        alternatives: item.result.alternatives || [],
-      },
-    });
+  const openEdit = async (item: WorthBuyItem) => {
+    setOpeningEditId(item._id);
+    try {
+      const res = await axios.get(`/api/admin/worthbuy/${item._id}`, { headers: authHeaders() });
+      const detail = res.data.item as WorthBuyItem;
+      setEditingItem(detail);
+      setEditForm({
+        brand: detail.brand,
+        query: detail.query,
+        status: detail.status,
+        result: {
+          ...emptyResult,
+          ...detail.result,
+          ratingDimensions: detail.result.ratingDimensions
+            ? { ...emptyResult.ratingDimensions!, ...detail.result.ratingDimensions }
+            : { ...emptyResult.ratingDimensions! },
+          suitableFor: detail.result.suitableFor || [],
+          notSuitableFor: detail.result.notSuitableFor || [],
+          alternatives: detail.result.alternatives || [],
+        },
+      });
+    } catch (e: any) {
+      const errMsg = e.response?.data?.error || e.message;
+      setToast(`❌ ${errMsg}`);
+    } finally {
+      setOpeningEditId("");
+    }
   };
 
   const closeEdit = () => {
@@ -239,7 +260,7 @@ const AdminWorthBuyPage: React.FC = () => {
       const res = await axios.put(`/api/admin/worthbuy/${editingItem._id}`, editForm, { headers: authHeaders() });
       setToast(`✅ 「${editForm.brand}」已更新`);
       closeEdit();
-      loadItems();
+      loadItems(page);
     } catch (e: any) {
       setToast(`❌ 网络错误: ${e.message}`);
     } finally {
@@ -250,11 +271,42 @@ const AdminWorthBuyPage: React.FC = () => {
   // ========== 状态切换 ==========
   const handleStatusChange = async (item: WorthBuyItem, newStatus: string) => {
     try {
-      const res = await axios.patch(`/api/admin/worthbuy/${item._id}/status`, { status: newStatus }, { headers: authHeaders() });
+      await axios.patch(`/api/admin/worthbuy/${item._id}/status`, { status: newStatus }, { headers: authHeaders() });
       setToast(`✅ 状态已切换为「${statusLabel(newStatus)}」`);
-      loadItems();
+      loadItems(page);
     } catch (e: any) {
       setToast(`❌ ${e.message}`);
+    }
+  };
+
+  const handleDelete = async (item: WorthBuyItem) => {
+    if (!window.confirm(`确定删除「${item.brand}」？删除后默认列表不显示，可在「已删除」中恢复。`)) return;
+    try {
+      await axios.delete(`/api/admin/worthbuy/${item._id}`, { headers: authHeaders() });
+      setToast(`✅ 「${item.brand}」已删除`);
+      if (items.length === 1 && page > 1) {
+        setPage(page - 1);
+      } else {
+        loadItems(page);
+      }
+    } catch (e: any) {
+      const errMsg = e.response?.data?.error || e.message;
+      setToast(`❌ ${errMsg}`);
+    }
+  };
+
+  const handleRestore = async (item: WorthBuyItem) => {
+    try {
+      await axios.patch(`/api/admin/worthbuy/${item._id}/status`, { status: "hidden" }, { headers: authHeaders() });
+      setToast(`✅ 「${item.brand}」已恢复为「已隐藏」`);
+      if (items.length === 1 && page > 1) {
+        setPage(page - 1);
+      } else {
+        loadItems(page);
+      }
+    } catch (e: any) {
+      const errMsg = e.response?.data?.error || e.message;
+      setToast(`❌ ${errMsg}`);
     }
   };
 
@@ -283,6 +335,8 @@ const AdminWorthBuyPage: React.FC = () => {
 
   const tagsFromString = (s: string): string[] =>
     s.split(/,|\n/).map((t) => t.trim()).filter(Boolean);
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   // ====== 表单渲染（复用于新增 & 编辑 Modal） ======
   const renderForm = (
@@ -314,6 +368,7 @@ const AdminWorthBuyPage: React.FC = () => {
             <option value="draft">草稿</option>
             <option value="published">已发布</option>
             <option value="hidden">已隐藏</option>
+            <option value="deleted">已删除</option>
           </select>
         </div>
       </div>
@@ -538,6 +593,38 @@ const AdminWorthBuyPage: React.FC = () => {
       </div>
 
       {/* ===== 品牌列表 ===== */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "6px 0 12px" }}>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            style={{
+              ...(listMode === "active" ? btnPrimary : btnGhost),
+              padding: "6px 14px",
+            }}
+            onClick={() => {
+              setListMode("active");
+              setPage(1);
+            }}
+          >
+            当前内容
+          </button>
+          <button
+            style={{
+              ...(listMode === "deleted" ? btnPrimary : btnGhost),
+              padding: "6px 14px",
+            }}
+            onClick={() => {
+              setListMode("deleted");
+              setPage(1);
+            }}
+          >
+            已删除
+          </button>
+        </div>
+        <span style={{ fontSize: 12, color: "#9CA3AF" }}>
+          {listMode === "deleted" ? "已删除内容可恢复为已隐藏" : "默认隐藏已删除内容"}
+        </span>
+      </div>
+
       {loading && (
         <p style={{ textAlign: "center", color: "#9CA3AF", padding: 40 }}>⏳ 加载中...</p>
       )}
@@ -546,7 +633,7 @@ const AdminWorthBuyPage: React.FC = () => {
       )}
       {!loading && !error && items.length === 0 && (
         <p style={{ textAlign: "center", color: "#9CA3AF", padding: 40 }}>
-          暂无品牌数据，点击「展开」新增
+          {listMode === "deleted" ? "暂无已删除内容" : "暂无品牌数据，点击「展开」新增"}
         </p>
       )}
 
@@ -556,7 +643,7 @@ const AdminWorthBuyPage: React.FC = () => {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 100px 120px 150px 180px",
+              gridTemplateColumns: "1fr 100px 120px 150px 220px",
               gap: 12,
               padding: "8px 16px",
               fontSize: 12,
@@ -578,7 +665,7 @@ const AdminWorthBuyPage: React.FC = () => {
                 key={item._id}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1fr 100px 120px 150px 180px",
+                  gridTemplateColumns: "1fr 100px 120px 150px 220px",
                   gap: 12,
                   alignItems: "center",
                   padding: "10px 16px",
@@ -625,6 +712,7 @@ const AdminWorthBuyPage: React.FC = () => {
                     <option value="draft">草稿</option>
                     <option value="published">已发布</option>
                     <option value="hidden">已隐藏</option>
+                    <option value="deleted">已删除</option>
                   </select>
                 </div>
 
@@ -637,13 +725,56 @@ const AdminWorthBuyPage: React.FC = () => {
                     style={{
                       padding: "4px 12px", borderRadius: 6, border: "1px solid #DDD6FE",
                       background: "#F8F5FF", color: "#7C3AED", fontSize: 12, cursor: "pointer",
+                      opacity: openingEditId === item._id ? 0.6 : 1,
                     }}
                     onClick={() => openEdit(item)}
-                  >编辑</button>
+                    disabled={openingEditId === item._id}
+                  >{openingEditId === item._id ? "加载中..." : "编辑"}</button>
+                  {listMode === "deleted" ? (
+                    <button
+                      style={{
+                        padding: "4px 12px", borderRadius: 6, border: "1px solid #BBF7D0",
+                        background: "#F0FDF4", color: "#15803D", fontSize: 12, cursor: "pointer",
+                      }}
+                      onClick={() => handleRestore(item)}
+                    >恢复</button>
+                  ) : (
+                    <button
+                      style={{
+                        padding: "4px 12px", borderRadius: 6, border: "1px solid #FECACA",
+                        background: "#FEF2F2", color: "#DC2626", fontSize: 12, cursor: "pointer",
+                      }}
+                      onClick={() => handleDelete(item)}
+                    >删除</button>
+                  )}
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {!loading && !error && total > 0 && (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16 }}>
+          <span style={{ fontSize: 12, color: "#6B7280" }}>
+            第 {page} / {totalPages} 页，共 {total} 条
+          </span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              style={{ ...btnGhost, padding: "6px 12px", opacity: page <= 1 ? 0.5 : 1 }}
+              disabled={page <= 1}
+              onClick={() => setPage(page - 1)}
+            >
+              上一页
+            </button>
+            <button
+              style={{ ...btnGhost, padding: "6px 12px", opacity: page >= totalPages ? 0.5 : 1 }}
+              disabled={page >= totalPages}
+              onClick={() => setPage(page + 1)}
+            >
+              下一页
+            </button>
+          </div>
         </div>
       )}
 

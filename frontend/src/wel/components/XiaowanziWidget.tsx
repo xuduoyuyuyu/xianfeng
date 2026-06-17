@@ -50,6 +50,10 @@ type ChildProfileLite = {
   createdAt: string;
   draft?: boolean;
 };
+type ChildProfileDeletion = {
+  id: string;
+  removedAt: string;
+};
 type ChatSessionContext = {
   sessionId: string;
   childProfileId: string;
@@ -64,6 +68,7 @@ type BrowsingMemoryItem = {
 };
 type XiaowanziSyncPayload = {
   childProfiles?: ChildProfileLite[];
+  childProfileDeletions?: ChildProfileDeletion[];
   chatContext?: ChatSessionContext | null;
   browsingMemory?: BrowsingMemoryItem[];
   conversationSessions?: ConversationSession[];
@@ -580,6 +585,7 @@ const XIAOWANZI_TOPIC_PROMPT_CACHE_KEY = "xiaowanzi_topic_prompt_cache_v1";
 const GLOBAL_DOCKED_PREF_KEY = "xiaowanzi_global_docked_v1";
 const GLOBAL_DOCKED_THEME_KEY = "xiaowanzi_global_docked_theme_v1";
 const CHILD_PROFILES_KEY = "xiaowanzi_child_profiles_v1";
+const CHILD_PROFILE_DELETIONS_KEY = "xiaowanzi_child_profile_deletions_v1";
 const CHAT_CONTEXT_KEY = "xiaowanzi_chat_context_v1";
 const LAST_CHILD_ID_KEY = "xiaowanzi_last_child_id_v1";
 const BROWSING_MEMORY_KEY = "xiaowanzi_browsing_memory_v1";
@@ -658,9 +664,41 @@ function shouldUseXiaowanziAppMode(): boolean {
   }
 }
 
+function childProfileTime(value?: string | null): number {
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? date.getTime() : 0;
+}
+
+function loadChildProfileDeletions(): ChildProfileDeletion[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(CHILD_PROFILE_DELETIONS_KEY) || "[]");
+    if (!Array.isArray(parsed)) return [];
+    return mergeByLatest(
+      parsed
+        .map((item: any): ChildProfileDeletion => ({
+          id: String(item?.id || "").trim(),
+          removedAt: String(item?.removedAt || new Date(0).toISOString()),
+        }))
+        .filter((item) => Boolean(item.id)),
+      (item) => item.id,
+      (item) => item.removedAt,
+      12
+    );
+  } catch (_error) {
+    return [];
+  }
+}
+
+function isDeletedChildProfile(item: { id: string; createdAt?: string }, deletions: ChildProfileDeletion[]): boolean {
+  const removed = deletions.find((entry) => entry.id === item.id);
+  return Boolean(removed) && childProfileTime(removed?.removedAt) >= childProfileTime(item.createdAt);
+}
+
 function loadChildProfiles(): ChildProfileLite[] {
   if (typeof window === "undefined") return [];
   try {
+    const childProfileDeletions = loadChildProfileDeletions();
     const raw = localStorage.getItem(CHILD_PROFILES_KEY) || "[]";
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -679,7 +717,7 @@ function loadChildProfiles(): ChildProfileLite[] {
         createdAt: String(item?.createdAt || new Date().toISOString()),
         draft: Boolean(item?.draft),
       }))
-      .filter((item) => Boolean(item.id));
+      .filter((item) => Boolean(item.id) && !item.draft && !isDeletedChildProfile(item, childProfileDeletions));
   } catch (_error) {
     return [];
   }
@@ -944,6 +982,7 @@ function collectXiaowanziSyncPayload(): XiaowanziSyncPayload {
   });
   return {
     childProfiles: loadChildProfiles(),
+    childProfileDeletions: loadChildProfileDeletions(),
     chatContext: loadChatContext(),
     browsingMemory: readBrowsingMemory(),
     conversationSessions,
@@ -973,20 +1012,32 @@ function applyXiaowanziSyncPayload(remote: XiaowanziSyncPayload | null | undefin
   if (typeof window === "undefined" || !remote) return;
   xiaowanziSyncApplyingRemote = true;
   try {
+    const childProfileDeletions = mergeByLatest(
+      [...loadChildProfileDeletions(), ...(Array.isArray(remote.childProfileDeletions) ? remote.childProfileDeletions : [])],
+      (item) => item.id,
+      (item) => item.removedAt,
+      12
+    );
+    localStorage.setItem(CHILD_PROFILE_DELETIONS_KEY, JSON.stringify(childProfileDeletions));
+
     const childProfiles = mergeByLatest(
       [...loadChildProfiles(), ...(Array.isArray(remote.childProfiles) ? remote.childProfiles : [])],
       (item) => item.id,
       (item) => item.createdAt,
       12
-    );
+    ).filter((item) => !isDeletedChildProfile(item, childProfileDeletions));
     localStorage.setItem(CHILD_PROFILES_KEY, JSON.stringify(childProfiles));
 
     const localContext = loadChatContext();
     const remoteContext = remote.chatContext || null;
-    const nextContext =
+    const mergedContext =
       latestTime(remoteContext?.lastSwitchedAt) >= latestTime(localContext?.lastSwitchedAt)
         ? remoteContext
         : localContext;
+    const nextContext =
+      mergedContext?.childProfileId && !childProfiles.some((item) => item.id === mergedContext.childProfileId)
+        ? null
+        : mergedContext;
     if (nextContext) localStorage.setItem(CHAT_CONTEXT_KEY, JSON.stringify(nextContext));
     else localStorage.removeItem(CHAT_CONTEXT_KEY);
 
@@ -2185,6 +2236,12 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
     const onProfilesUpdated = () => {
       const latestProfiles = loadChildProfiles();
       setChildProfiles(latestProfiles);
+      try {
+        const lastId = localStorage.getItem(LAST_CHILD_ID_KEY) || "";
+        if (lastId && !latestProfiles.some((profile) => profile.id === lastId)) {
+          localStorage.removeItem(LAST_CHILD_ID_KEY);
+        }
+      } catch (_error) {}
       setChatContext((prev) => {
         if (!prev) return prev;
         const stillExists = latestProfiles.some((profile) => profile.id === prev.childProfileId);
@@ -2194,6 +2251,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
         } catch (_error) {}
         return null;
       });
+      scheduleXiaowanziAccountSync();
     };
     document.addEventListener("xf-child-profiles-updated", onProfilesUpdated as EventListener);
     return () => document.removeEventListener("xf-child-profiles-updated", onProfilesUpdated as EventListener);

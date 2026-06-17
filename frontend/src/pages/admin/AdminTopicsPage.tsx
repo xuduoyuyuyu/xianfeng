@@ -151,12 +151,17 @@ const statusLabel = (s: string) => {
 const tagsFromString = (s: string): string[] =>
   s.split(/,|\n/).map((t) => t.trim()).filter(Boolean);
 
+const PAGE_SIZE = 20;
+
 /* ===== 页面组件 ===== */
 const AdminTopicsPage: React.FC = () => {
   const [items, setItems] = useState<TopicHubItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [openingEditId, setOpeningEditId] = useState("");
 
   // AI 生成
   const [genSearch, setGenSearch] = useState("");
@@ -173,14 +178,16 @@ const AdminTopicsPage: React.FC = () => {
   const [activeNodeIdx, setActiveNodeIdx] = useState(0);
 
   // ========== 加载列表 ==========
-  const loadItems = async () => {
+  const loadItems = async (pageNum = page) => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/admin/topic-hub?all=true", { headers: authHeaders() });
+      const res = await fetch(`/api/admin/topic-hub?page=${pageNum}&limit=${PAGE_SIZE}`, { headers: authHeaders() });
       const data = await res.json();
       const rawItems = Array.isArray(data.topics) ? data.topics : Array.isArray(data) ? data : [];
       setItems(rawItems);
+      setTotal(Number(data.total) || rawItems.length);
+      setPage(Number(data.page) || pageNum);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -189,8 +196,8 @@ const AdminTopicsPage: React.FC = () => {
   };
 
   React.useEffect(() => {
-    loadItems();
-  }, []);
+    loadItems(page);
+  }, [page]);
 
   // ========== AI 搜索生成话题 ==========
   const handleAiGenerate = async () => {
@@ -209,7 +216,8 @@ const AdminTopicsPage: React.FC = () => {
       if (res.ok) {
         setToast(`✨ 「${genSearch.trim()}」话题生成完成！`);
         setGenSearch("");
-        loadItems();
+        setPage(1);
+        loadItems(1);
       } else {
         setToast(`❌ ${data.error || "生成失败"}`);
       }
@@ -239,20 +247,36 @@ const AdminTopicsPage: React.FC = () => {
   };
 
   // ========== 编辑话题 ==========
-  const openEdit = (item: TopicHubItem) => {
-    setEditingItem(item);
-    setEditForm({
-      title: item.title || "",
-      slug: item.slug || "",
-      subtitle: item.subtitle || "",
-      shortSummary: (item as any).shortSummary || "",
-      coverEmoji: item.coverEmoji || "📚",
-      tags: Array.isArray(item.tags) ? item.tags.join(", ") : "",
-      status: item.status || "draft",
-      suitableGrades: Array.isArray(item.suitableGrades) ? (item.suitableGrades).join(", ") : "",
-    });
-    initLayerEdit(item);
+  const openEdit = async (item: TopicHubItem) => {
+    setOpeningEditId(item._id);
+    try {
+      const res = await fetch(`/api/admin/topic-hub/${encodeURIComponent(item.slug)}`, { headers: authHeaders() });
+      const data = await res.json();
+      if (!res.ok) {
+        setToast(`❌ ${data.error || "加载详情失败"}`);
+        return;
+      }
+      const detail = data.topic as TopicHubItem;
+      setEditingItem(detail);
+      setEditForm({
+        title: detail.title || "",
+        slug: detail.slug || "",
+        subtitle: detail.subtitle || "",
+        shortSummary: (detail as any).shortSummary || "",
+        coverEmoji: detail.coverEmoji || "📚",
+        tags: Array.isArray(detail.tags) ? detail.tags.join(", ") : "",
+        status: detail.status || "draft",
+        suitableGrades: Array.isArray(detail.suitableGrades) ? (detail.suitableGrades).join(", ") : "",
+      });
+      initLayerEdit(detail);
+    } catch (e: any) {
+      setToast(`❌ 网络错误: ${e.message}`);
+    } finally {
+      setOpeningEditId("");
+    }
   };
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const closeEdit = () => {
     setEditingItem(null);
@@ -285,7 +309,7 @@ const AdminTopicsPage: React.FC = () => {
       if (res.ok) {
         setToast(`✅ 「${editForm.title}」已更新`);
         closeEdit();
-        loadItems();
+        loadItems(page);
       } else {
         const data = await res.json();
         setToast(`❌ ${data.error || "更新失败"}`);
@@ -310,7 +334,7 @@ const AdminTopicsPage: React.FC = () => {
       });
       if (res.ok) {
         setToast(`✅ 状态已切换为「${statusLabel(newStatus)}」`);
-        loadItems();
+        loadItems(page);
       } else {
         const data = await res.json();
         setToast(`❌ ${data.error || "切换失败"}`);
@@ -330,7 +354,8 @@ const AdminTopicsPage: React.FC = () => {
       });
       if (res.ok) {
         setToast(`🗑 「${item.title}」已删除`);
-        loadItems();
+        if (items.length === 1 && page > 1) setPage(page - 1);
+        else loadItems(page);
       } else {
         const data = await res.json();
         setToast(`❌ ${data.error || "删除失败"}`);
@@ -350,7 +375,7 @@ const AdminTopicsPage: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         setToast(`🔄 「${item.title}」已重新开始解析（${data.totalNodes} 个节点），稍后刷新页面查看结果`);
-        loadItems();
+        loadItems(page);
       } else {
         const data = await res.json();
         setToast(`❌ ${data.error || "操作失败"}`);
@@ -560,10 +585,12 @@ const AdminTopicsPage: React.FC = () => {
                       fontWeight: 600,
                       cursor: "pointer",
                       whiteSpace: "nowrap",
+                      opacity: openingEditId === item._id ? 0.6 : 1,
                     }}
                     onClick={() => openEdit(item)}
+                    disabled={openingEditId === item._id}
                   >
-                    编辑
+                    {openingEditId === item._id ? "加载中..." : "编辑"}
                   </button>
                   <button
                     style={{
@@ -585,6 +612,30 @@ const AdminTopicsPage: React.FC = () => {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {!loading && !error && total > 0 && (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16 }}>
+          <span style={{ fontSize: 12, color: "#6B7280" }}>
+            第 {page} / {totalPages} 页，共 {total} 条
+          </span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              style={{ ...btnGhost, padding: "6px 12px", opacity: page <= 1 ? 0.5 : 1 }}
+              disabled={page <= 1}
+              onClick={() => setPage(page - 1)}
+            >
+              上一页
+            </button>
+            <button
+              style={{ ...btnGhost, padding: "6px 12px", opacity: page >= totalPages ? 0.5 : 1 }}
+              disabled={page >= totalPages}
+              onClick={() => setPage(page + 1)}
+            >
+              下一页
+            </button>
+          </div>
         </div>
       )}
 

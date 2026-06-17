@@ -23,7 +23,7 @@ test("landing guest marquee uses guest avatar images instead of generated initia
 test("landing guest marquee pill height matches detail guest switcher scale", () => {
   assert.match(source, /\.guest-marquee-track \{[\s\S]*gap: 6px;/, "guest marquee track should match the detail guest pill row gap");
   assert.match(source, /animation: guestMarquee 140s linear infinite;/, "full guest marquee should move slowly enough for the longer all-guest loop");
-  assert.match(source, /\.guest-pill \{[\s\S]*gap: 8px;[\s\S]*border: 1px solid rgba\(23, 24, 31, 0\.1\);[\s\S]*background: rgba\(255, 255, 255, 0\.82\);[\s\S]*padding: 6px 12px;[\s\S]*font-size: 11px;[\s\S]*font-weight: 700;[\s\S]*line-height: 1;/, "guest pill should keep the compact detail-page scale while adapting to the light page background");
+  assert.match(source, /\.guest-pill \{[\s\S]*gap: 8px;[\s\S]*border: 1px solid rgba\(0, 0, 0, 0\.04\);[\s\S]*background: rgba\(255, 255, 255, 0\.72\);[\s\S]*padding: 6px 16px;[\s\S]*font-size: 12px;[\s\S]*font-weight: 600;[\s\S]*line-height: 1;/, "guest pill should stay compact while matching the lighter homepage shell");
   assert.match(source, /\.guest-pill-avatar \{[\s\S]*width: 24px;[\s\S]*height: 24px;[\s\S]*flex: 0 0 auto;/, "guest pill avatar should use the same 24px avatar scale as the detail guest switcher");
   assert.match(source, /\.guest-pill-name \{[\s\S]*max-width: 80px;/, "guest names should use the same max width as the detail page guest switcher");
 });
@@ -38,15 +38,27 @@ test("landing guest marquee is tiled directly on the page background", () => {
   const headBlock = getStyleBlock(".guest-marquee-head");
   const trackBlock = getStyleBlock(".guest-marquee-track");
 
-  assert.match(sectionBlock, /margin-top: clamp\(26px, 4vw, 52px\);/, "guest marquee should keep the same vertical placement");
+  assert.match(sectionBlock, /margin-top: clamp\(92px, 10vw, 164px\);/, "guest marquee should start lower so the duo anchor can finish the first screen");
   assert.match(sectionBlock, /overflow: hidden;/, "guest marquee should keep horizontal clipping for the marquee");
   assert.match(sectionBlock, /padding: 0;/, "guest marquee should sit directly on the page background");
-  assert.doesNotMatch(sectionBlock, /background:/, "guest marquee should not render a card background");
-  assert.doesNotMatch(sectionBlock, /border:/, "guest marquee should not render a card border");
-  assert.doesNotMatch(sectionBlock, /box-shadow:/, "guest marquee should not render a card shadow");
+  assert.match(sectionBlock, /background: none;/, "guest marquee should not render a card background");
+  assert.match(sectionBlock, /border: none;/, "guest marquee should not render a card border");
+  assert.match(sectionBlock, /box-shadow: none;/, "guest marquee should not render a card shadow");
   assert.doesNotMatch(sectionBlock, /border-radius:/, "guest marquee should not render as a rounded card");
-  assert.match(headBlock, /padding: 0 0 16px;/, "guest marquee heading should align to the page content instead of an inner card gutter");
+  assert.match(headBlock, /padding: 0 0 24px;/, "guest marquee heading should breathe more under the lowered section start");
   assert.match(trackBlock, /padding: 4px 0;/, "guest marquee pills should align to the page content instead of an inner card gutter");
+});
+
+test("landing duo anchor closes the first screen before the expert marquee begins", () => {
+  assert.match(source, /<div className="heo-first-screen">[\s\S]*<section className="heo-hero fade-up"[\s\S]*hostDuo\.length === 2[\s\S]*className="heo-duo-section fade-up"[\s\S]*<\/div>\s*\{guestMarqueeItems\.length > 0 \? \(/, "Ali and Jessie should stay inside the first-screen wrapper and finish the hero before the expert marquee starts");
+  assert.match(source, /\.heo-duo-section \{[\s\S]*margin-top: clamp\(40px, 6vw, 92px\);[\s\S]*padding-bottom: clamp\(6px, 1vw, 12px\);/, "duo anchor should sit lower as a dedicated first-screen footer");
+  assert.doesNotMatch(source, /\.heo-duo-section \{[\s\S]*transform: scale\(1\.3\);/, "duo anchor should no longer be oversized with an extra scale transform");
+});
+
+test("landing first screen loosens the vertical rhythm around the hero", () => {
+  assert.match(source, /\.heo-first-screen \{[\s\S]*padding-bottom: clamp\(88px, 9vw, 148px\);/, "first screen should leave a larger handoff gap before the next section");
+  assert.match(source, /\.heo-hero \{[\s\S]*padding-bottom: clamp\(52px, 6vw, 96px\);[\s\S]*transform: scale\(1\.14\);/, "hero should ease its previous oversized scaling and leave more lower breathing room");
+  assert.match(source, /\.heo-actions \{[\s\S]*gap: 14px;[\s\S]*margin-top: 28px;/, "hero actions should have looser spacing so the first view feels less compressed");
 });
 
 test("landing topbar Xiaowanzi avatar opens Xiaowanzi home instead of a dropdown menu", () => {
@@ -242,6 +254,68 @@ test("landing highlights topics and worthbuy as standalone activity cards", () =
   assert.match(source, /\.heo-special-card \{[\s\S]*min-height: 460px;[\s\S]*border-radius: 34px;/, "special cards should use the large rounded activity-card scale");
 });
 
+test("landing topics special card mirrors the worthbuy showcase rhythm", () => {
+  const askBlock = getStyleBlock(".heo-special-card.tone-ask");
+  const mobileAskBlock = source.match(/@media \(max-width: 768px\) \{[\s\S]*?\.heo-special-card\.tone-ask \{([\s\S]*?)\n          \}/)?.[1] || "";
+  assert.match(source, /<a className=\{`heo-special-card tone-ask`\} href="\/topics">[\s\S]*<small>持续开放<\/small>[\s\S]*<strong className="heo-special-section-title">请教一下<\/strong>[\s\S]*<span className="heo-special-section-summary">从真实问题进入回答、线索和知识树<\/span>/, "topics card should carry its own section label and summary inside the card");
+  assert.match(source, /<div className="heo-topics-shot-frame" aria-hidden="true">[\s\S]*<img src="\/assets\/preview-topics\.png" alt="" loading="lazy" decoding="async" \/>/, "topics card should keep the provided preview inside a framed screen");
+  assert.match(askBlock, /grid-template-columns: minmax\(0, 0\.92fr\) minmax\(360px, 0\.98fr\);/, "desktop topics card should return to a left-copy right-preview split");
+  assert.match(askBlock, /align-items: end;/, "desktop topics card should settle the preview toward the lower edge");
+  assert.match(askBlock, /text-align: left;/, "desktop topics card copy should no longer be centered");
+  assert.match(askBlock, /width: min\(1960px, calc\(100vw - clamp\(32px, 3\.5vw, 72px\)\)\);/, "desktop topics card should also break out wider");
+  assert.match(askBlock, /margin-left: 50%;/, "desktop topics card should center from the viewport midpoint");
+  assert.match(askBlock, /transform: translateX\(-50%\);/, "desktop topics card should stay centered after breakout");
+  assert.match(source, /\.tone-ask \.heo-special-copy \{[\s\S]*align-items: flex-start;[\s\S]*max-width: 640px;[\s\S]*text-align: left;/, "topics copy should return to a left-aligned reading column");
+  assert.match(source, /\.tone-ask \.heo-special-preview \{[\s\S]*justify-self: end;[\s\S]*width: min\(820px, 54vw\);[\s\S]*transform: rotate\(-2deg\) translateX\(24px\);/, "topics preview should read like a casually placed supporting prop");
+  assert.match(source, /\.heo-topics-shot-frame \{[\s\S]*background: linear-gradient\(180deg, #17161d 0%, #07070b 100%\);/, "topics preview should use the same elegant dark outer frame");
+  assert.match(mobileAskBlock, /grid-template-columns: 1fr;/, "mobile topics card should remain single-column");
+  assert.match(mobileAskBlock, /justify-items: start;/, "mobile topics card should keep the left-aligned rhythm");
+  assert.match(mobileAskBlock, /text-align: left;/, "mobile topics card should not center the content anymore");
+});
+
+test("landing worthbuy special card uses a taller zhheo-like showcase scale", () => {
+  const worthBlock = getStyleBlock(".heo-special-card.tone-worth");
+  const mobileWorthBlock = source.match(/@media \(max-width: 768px\) \{[\s\S]*?\.heo-special-card\.tone-worth \{([\s\S]*?)\n          \}/)?.[1] || "";
+
+  assert.match(source, /<a className=\{`heo-special-card tone-worth`\} href="\/worthbuy">[\s\S]*<small>持续更新<\/small>[\s\S]*<strong className="heo-special-section-title">知物<\/strong>[\s\S]*<span className="heo-special-section-summary">从公开产品与服务分析进入判断<\/span>/, "worthbuy card should carry its own section label and summary inside the card");
+  assert.doesNotMatch(source, /preview-worthbuy\.png/, "worthbuy card should stop reusing the list-page screenshot");
+  assert.match(source, /<div className="heo-worthbuy-shot-frame" aria-hidden="true">[\s\S]*<img src="\/assets\/preview-worthbuy-detail-chair\.png" alt="" loading="lazy" decoding="async" \/>/, "worthbuy card should use the provided detail screenshot inside a framed preview");
+  assert.match(worthBlock, /grid-template-columns: 1fr;/, "desktop worthbuy card should switch from split columns to centered single-column presentation");
+  assert.match(worthBlock, /justify-items: center;/, "desktop worthbuy card should center its inner content");
+  assert.match(worthBlock, /align-content: start;/, "desktop worthbuy card should start its content higher instead of vertically centering it");
+  assert.match(worthBlock, /text-align: center;/, "desktop worthbuy card copy should be centered like the reference hero card");
+  assert.match(worthBlock, /min-height: clamp\(640px, 46vw, 820px\);/, "desktop worthbuy card should stay tall but reclaim excess headroom");
+  assert.match(worthBlock, /width: min\(1960px, calc\(100vw - clamp\(32px, 3\.5vw, 72px\)\)\);/, "desktop worthbuy card should break out wider with zhheo-like narrow page margins");
+  assert.match(worthBlock, /margin-left: 50%;/, "desktop worthbuy card should be centered from the viewport midpoint");
+  assert.match(worthBlock, /max-width: none;/, "desktop worthbuy card should not be capped by the content shell");
+  assert.match(worthBlock, /transform: translateX\(-50%\);/, "desktop worthbuy card should stay centered after breaking out of the content shell");
+  assert.match(worthBlock, /padding: clamp\(40px, 4vw, 72px\) clamp\(34px, 5vw, 78px\) 0;/, "desktop worthbuy card should tighten the top padding");
+  assert.match(worthBlock, /box-shadow: 0 24px 62px rgba\(190, 24, 93, 0\.22\);/, "worthbuy card should keep a stronger tall-card shadow");
+  assert.match(source, /\.tone-worth \.heo-special-copy \{[\s\S]*align-items: center;[\s\S]*max-width: 760px;[\s\S]*text-align: center;/, "worthbuy copy should be centered within a readable max width");
+  assert.match(source, /\.tone-worth \.heo-special-section-title \{[\s\S]*font-size: clamp\(42px, 6vw, 72px\);/, "worthbuy section title should become an oversized card-internal title");
+  assert.match(source, /\.tone-worth \.heo-special-section-summary \{[\s\S]*font-size: clamp\(18px, 2\.2vw, 30px\);/, "worthbuy section summary should sit inside the card as a secondary line");
+  assert.match(source, /\.heo-worthbuy-shot-frame \{[\s\S]*border-radius: 38px 38px 0 0;[\s\S]*background: linear-gradient\(180deg, #17161d 0%, #07070b 100%\);/, "worthbuy preview should wrap the provided screenshot in an elegant dark frame");
+  assert.match(source, /\.heo-worthbuy-shot-screen \{[\s\S]*background: #fff;[\s\S]*border-radius: 26px 26px 0 0;[\s\S]*overflow: hidden;/, "worthbuy preview should keep the screenshot inside a lighter screen surface");
+  assert.match(source, /\.tone-worth \.heo-special-preview \{[\s\S]*align-self: center;[\s\S]*width: min\(1120px, 78vw\);[\s\S]*min-height: clamp\(400px, 28vw, 520px\);[\s\S]*margin: 0 auto -150px;/, "worthbuy preview should be larger and centered under the copy like the reference card");
+  assert.match(mobileWorthBlock, /min-height: 620px;/, "mobile worthbuy card should also trim excess vertical headroom");
+  assert.match(mobileWorthBlock, /width: auto;[\s\S]*margin-left: 0;[\s\S]*transform: none;/, "mobile worthbuy card should reset the desktop breakout to avoid horizontal overflow");
+});
+
+test("landing topics and worthbuy homepage lists cap at 12 cards", () => {
+  const topicFallbackBlock = source.match(/const fallbackTopicDirectoryItems: SiteEntryItem\[] = \[[\s\S]*?\n\];/)?.[0] || "";
+  const worthFallbackBlock = source.match(/const fallbackWorthBuyDirectoryItems: SiteEntryItem\[] = \[[\s\S]*?\n\];/)?.[0] || "";
+
+  assert.match(source, /const HOMEPAGE_DIRECTORY_PREVIEW_LIMIT = 12;/, "homepage should centralize the preview card count at twelve");
+  assert.match(source, /loadJson\(`\/api\/topic-hub\?limit=\$\{HOMEPAGE_DIRECTORY_PREVIEW_LIMIT\}`\)/, "homepage topics request should load the twelve cards it can display");
+  assert.match(source, /loadJson\(`\/api\/worthbuy\/list\?limit=\$\{HOMEPAGE_DIRECTORY_PREVIEW_LIMIT\}`\)/, "homepage worthbuy request should load the twelve cards it can display");
+  assert.match(source, /buildTopicDirectoryItems\(records: TopicDirectoryRecord\[\]\): SiteEntryItem\[\] \{[\s\S]*?\.slice\(0, HOMEPAGE_DIRECTORY_PREVIEW_LIMIT\);/, "topic directory builder should cap homepage cards at twelve");
+  assert.match(source, /buildWorthBuyDirectoryItems\(records: WorthBuyDirectoryRecord\[\]\): SiteEntryItem\[\] \{[\s\S]*?\.slice\(0, HOMEPAGE_DIRECTORY_PREVIEW_LIMIT\);/, "worthbuy directory builder should cap homepage cards at twelve");
+  assert.match(source, /\(topicDirectoryItems\.length > 0 \? topicDirectoryItems\.slice\(0, HOMEPAGE_DIRECTORY_PREVIEW_LIMIT\) : fallbackTopicDirectoryItems\)\.map/, "topics section should render at most twelve homepage cards");
+  assert.match(source, /\(worthBuyDirectoryItems\.length > 0 \? worthBuyDirectoryItems\.slice\(0, HOMEPAGE_DIRECTORY_PREVIEW_LIMIT\) : fallbackWorthBuyDirectoryItems\)\.map/, "worthbuy section should render at most twelve homepage cards");
+  assert.ok((topicFallbackBlock.match(/title: "/g) || []).length >= 12, "topic fallback list should also provide twelve cards");
+  assert.ok((worthFallbackBlock.match(/title: "/g) || []).length >= 12, "worthbuy fallback list should also provide twelve cards");
+});
+
 test("landing page includes a zhheo-like site entry directory list", () => {
   assert.match(source, /const siteEntryGroups: SiteEntryGroup\[\] = \[[\s\S]*title: "应用"[\s\S]*subtitle: "把常用功能放在一个入口列表里"/, "homepage should define grouped site entry data");
   assert.match(source, /title: "节目列表"[\s\S]*href: "\/programs\/list"[\s\S]*title: "请教一下"[\s\S]*href: "\/topics"/, "entry list should include real product routes");
@@ -259,11 +333,12 @@ test("landing page includes a zhheo-like site entry directory list", () => {
 test("landing site entry directory pulls concrete topics and worthbuy analyses", () => {
   assert.match(source, /const \[topicDirectoryItems, setTopicDirectoryItems\] = useState<SiteEntryItem\[\]>\(\[\]\)/, "homepage should keep live topic preview entries in state");
   assert.match(source, /const \[worthBuyDirectoryItems, setWorthBuyDirectoryItems\] = useState<SiteEntryItem\[\]>\(\[\]\)/, "homepage should keep live worthbuy preview entries in state");
-  assert.match(source, /loadJson\("\/api\/topic-hub\?limit=6"\)/, "homepage should fetch public topic content for the directory");
-  assert.match(source, /loadJson\("\/api\/worthbuy\/list"\)/, "homepage should fetch public worthbuy content for the directory");
+  assert.match(source, /loadJson\(`\/api\/topic-hub\?limit=\$\{HOMEPAGE_DIRECTORY_PREVIEW_LIMIT\}`\)/, "homepage should fetch public topic content for the directory");
+  assert.match(source, /loadJson\(`\/api\/worthbuy\/list\?limit=\$\{HOMEPAGE_DIRECTORY_PREVIEW_LIMIT\}`\)/, "homepage should fetch public worthbuy content for the directory");
   assert.match(source, /setTopicDirectoryItems\(buildTopicDirectoryItems\(topics\)\)/, "topic API data should be normalized into entry rows");
   assert.match(source, /setWorthBuyDirectoryItems\(buildWorthBuyDirectoryItems\(worthBuyItems\)\)/, "worthbuy API data should be normalized into entry rows");
-  assert.match(source, /const displaySiteEntryGroups = useMemo<SiteEntryGroup\[\]>\(\(\) => \{[\s\S]*title: "请教一下"[\s\S]*items: topicDirectoryItems\.length > 0 \? topicDirectoryItems : fallbackTopicDirectoryItems[\s\S]*title: "知物"[\s\S]*items: worthBuyDirectoryItems\.length > 0 \? worthBuyDirectoryItems : fallbackWorthBuyDirectoryItems/, "directory should insert real topic and worthbuy content groups between the static entry groups");
+  assert.match(source, /\(topicDirectoryItems\.length > 0 \? topicDirectoryItems\.slice\(0, HOMEPAGE_DIRECTORY_PREVIEW_LIMIT\) : fallbackTopicDirectoryItems\)\.map/, "topics section should render live topic entries before falling back");
+  assert.match(source, /\(worthBuyDirectoryItems\.length > 0 \? worthBuyDirectoryItems\.slice\(0, HOMEPAGE_DIRECTORY_PREVIEW_LIMIT\) : fallbackWorthBuyDirectoryItems\)\.map/, "worthbuy section should render live worthbuy entries before falling back");
   assert.match(source, /href: `\/topics\/\$\{encodeURIComponent\(slug\)\}`/, "topic entries should deep link to the concrete topic detail route");
   assert.match(source, /href: `\/worthbuy\/\$\{encodeURIComponent\(query\)\}`/, "worthbuy entries should deep link to concrete analysis detail routes");
 });

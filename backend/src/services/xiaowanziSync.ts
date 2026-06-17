@@ -6,6 +6,7 @@ const MAX_TEXT = 1200;
 
 export type XiaowanziSyncState = {
   childProfiles: any[];
+  childProfileDeletions: any[];
   chatContext: any | null;
   browsingMemory: any[];
   conversationSessions: any[];
@@ -15,6 +16,7 @@ export type XiaowanziSyncState = {
 export function emptyXiaowanziSyncState(): XiaowanziSyncState {
   return {
     childProfiles: [],
+    childProfileDeletions: [],
     chatContext: null,
     browsingMemory: [],
     conversationSessions: [],
@@ -60,10 +62,35 @@ function latestByKey<T>(items: T[], keyOf: (item: T) => string, timeOf: (item: T
     .slice(0, limit);
 }
 
+function pruneDeletedChildProfiles(childProfiles: any[], deletions: any[]): any[] {
+  const deletedAtById = new Map<string, number>();
+  deletions.forEach((item) => {
+    const id = cleanText(item?.id, 80);
+    if (!id) return;
+    deletedAtById.set(id, dateTime(item?.removedAt));
+  });
+  return childProfiles.filter((item) => {
+    const removedAt = deletedAtById.get(item.id);
+    return typeof removedAt !== "number" || removedAt < dateTime(item.createdAt);
+  });
+}
+
 export function sanitizeXiaowanziSyncState(input: Partial<XiaowanziSyncState> | null | undefined): XiaowanziSyncState {
   const raw = input || {};
 
-  const childProfiles = latestByKey(
+  const childProfileDeletions = latestByKey(
+    asArray(raw.childProfileDeletions)
+      .map((item) => ({
+        id: cleanText((item as any)?.id, 80),
+        removedAt: validDate((item as any)?.removedAt),
+      }))
+      .filter((item) => item.id),
+    (item) => item.id,
+    (item) => item.removedAt,
+    MAX_CHILD_PROFILES
+  );
+
+  const childProfiles = pruneDeletedChildProfiles(latestByKey(
     asArray(raw.childProfiles)
       .map((item) => ({
         ...asRecord(item),
@@ -83,10 +110,10 @@ export function sanitizeXiaowanziSyncState(input: Partial<XiaowanziSyncState> | 
     (item) => item.id,
     (item) => item.createdAt,
     MAX_CHILD_PROFILES
-  );
+  ), childProfileDeletions);
 
   const chatContextRaw = asRecord(raw.chatContext);
-  const chatContext = cleanText(chatContextRaw.sessionId, 120) || cleanText(chatContextRaw.childProfileId, 80)
+  const chatContextCandidate = cleanText(chatContextRaw.sessionId, 120) || cleanText(chatContextRaw.childProfileId, 80)
     ? {
         sessionId: cleanText(chatContextRaw.sessionId, 120),
         childProfileId: cleanText(chatContextRaw.childProfileId, 80),
@@ -94,6 +121,9 @@ export function sanitizeXiaowanziSyncState(input: Partial<XiaowanziSyncState> | 
         lastSwitchedAt: validDate(chatContextRaw.lastSwitchedAt),
       }
     : null;
+  const chatContext = chatContextCandidate?.childProfileId && !childProfiles.some((item) => item.id === chatContextCandidate.childProfileId)
+    ? null
+    : chatContextCandidate;
 
   const browsingMemory = latestByKey(
     asArray(raw.browsingMemory)
@@ -145,6 +175,7 @@ export function sanitizeXiaowanziSyncState(input: Partial<XiaowanziSyncState> | 
 
   return {
     childProfiles,
+    childProfileDeletions,
     chatContext,
     browsingMemory,
     conversationSessions,
@@ -173,6 +204,7 @@ export function mergeXiaowanziSyncState(
 
   return sanitizeXiaowanziSyncState({
     childProfiles: [...left.childProfiles, ...right.childProfiles],
+    childProfileDeletions: [...left.childProfileDeletions, ...right.childProfileDeletions],
     chatContext: dateTime(right.chatContext?.lastSwitchedAt) >= dateTime(left.chatContext?.lastSwitchedAt) ? right.chatContext : left.chatContext,
     browsingMemory: [...left.browsingMemory, ...right.browsingMemory],
     conversationSessions,

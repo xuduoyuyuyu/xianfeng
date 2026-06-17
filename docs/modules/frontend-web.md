@@ -27,6 +27,13 @@
 ### Active
 
 - XF-001 - Keep public/admin web behavior stable while governance is introduced.
+- Child profile drawer creates local unnamed draft profiles immediately in the
+  tabs UI, but only one unnamed draft may exist at a time; Xiaowanzi only
+  treats saved non-draft profiles as selectable or syncable.
+- Deleting a child profile must persist a local deletion tombstone so browser
+  refresh and Xiaowanzi account sync cannot revive removed profiles.
+- Admin worthbuy management defaults to non-deleted records and provides an
+  explicit deleted-record view for restoring logically deleted submissions.
 
 ### Deferred / Obsolete
 

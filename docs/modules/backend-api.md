@@ -33,11 +33,16 @@
   used count, and expiry time. `LOGIN_INVITE_CODE` and
   `LOGIN_INVITE_ACTIVATION_LIMIT` are fallback defaults when no admin config
   has been saved.
+- `WorthBuyAnalysis.status=deleted` is a logical deletion state for admin
+  worthbuy records. Admin lists hide deleted records by default and can request
+  them explicitly for recovery.
 
 ### Active
 
 - XF-003 - Decide whether the WeKnora global RAG plan is still active and, if
   active, keep backend routing and service changes test-first.
+- Xiaowanzi account sync must preserve child-profile deletion tombstones so
+  synced child lists do not resurrect removed profiles after merge.
 
 ### Deferred / Obsolete
 

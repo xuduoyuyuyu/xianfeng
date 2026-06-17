@@ -126,3 +126,93 @@ test("mobile navigation images are preloaded and decoded before route transition
     "bottom Xiaowanzi avatar should decode eagerly"
   );
 });
+
+test("adding a child profile immediately creates a local unnamed draft tab", () => {
+  assert.match(
+    source,
+    /const add=\(\)=>\{const existingDraft=items\.find\(x=>x\.draft\);if\(existingDraft\)\{const pg=parseGrade\(existingDraft\.grade\);localStorage\.setItem\(LAST_CHILD_ID_KEY,existingDraft\.id\);setActiveId\(existingDraft\.id\);setDraft\(existingDraft\);setStage\(pg\.stage\);setGradeName\(pg\.gradeName\);setMsg\("请先完善当前未命名档案"\);return\}const n=\{\.\.\.emptyChild\(\),draft:true\};const next=\[\.\.\.items,n\];const pg=parseGrade\(n\.grade\);setItems\(next\);saveChildren\(next\);notifyChildrenUpdated\(\);localStorage\.setItem\(LAST_CHILD_ID_KEY,n\.id\);setActiveId\(n\.id\);setDraft\(n\);setStage\(pg\.stage\);setGradeName\(pg\.gradeName\);setMsg\(""\)\}/,
+    "add should persist an unnamed draft profile immediately instead of waiting for save"
+  );
+});
+
+test("child profile drawer blocks creating a second unnamed draft", () => {
+  assert.match(
+    source,
+    /const hasDraftProfile=items\.some\(x=>x\.draft\);/,
+    "drawer should derive whether an unfinished draft already exists"
+  );
+  assert.match(
+    source,
+    /<button className="add" type="button" aria-label="添加孩子档案" onClick=\{add\} disabled=\{hasDraftProfile\}><span aria-hidden="true"\/><\/button>/,
+    "add button should stay closed while an unnamed draft still needs to be completed"
+  );
+});
+
+test("deleting a child profile persists a tombstone so refresh cannot resurrect it", () => {
+  assert.match(
+    source,
+    /const CHILD_PROFILE_DELETIONS_KEY = "xiaowanzi_child_profile_deletions_v1";/,
+    "child profile drawer should keep a dedicated deletion ledger"
+  );
+  assert.match(
+    source,
+    /function loadChildren\(\): ChildProfileLite\[\][\s\S]*const deletedIds=new Set\(loadChildProfileDeletions\(\)\.map\(item=>item\.id\)\);[\s\S]*filter\(item=>!deletedIds\.has\(item\.id\)\)/,
+    "loading child profiles should hide any ids that were already deleted locally or from sync"
+  );
+  assert.match(
+    source,
+    /const remove=\(\)=>\{const next=items\.filter\(x=>x\.id!==draft\.id\);const deletions=mergeChildProfileDeletions\(loadChildProfileDeletions\(\),\[\{id:draft\.id,removedAt:new Date\(\)\.toISOString\(\)\}\]\);saveChildProfileDeletions\(deletions\);saveChildren\(next\);notifyChildrenUpdated\(\);setItems\(next\);/,
+    "removing a child should persist a deletion tombstone before the next refresh"
+  );
+});
+
+test("child profile tabs keep each child separate and truncate long names", () => {
+  assert.match(
+    source,
+    /\.tabs\{[^}]*overflow-x:auto[^}]*scrollbar-width:none/s,
+    "children tabs should scroll horizontally instead of squeezing together"
+  );
+  assert.match(
+    source,
+    /\.tab\{[^}]*flex:0 0 auto[^}]*max-width:132px[^}]*min-width:0/s,
+    "each child tab should keep its own pill width"
+  );
+  assert.match(
+    source,
+    /\.tab span\{[^}]*overflow:hidden[^}]*text-overflow:ellipsis/s,
+    "long child names should truncate inside the tab"
+  );
+  assert.match(
+    source,
+    /<span>\{x\.displayName\|\|"未命名"\}<\/span>/,
+    "child tab labels should have a dedicated text box for truncation"
+  );
+});
+
+test("add child button centers the plus inside a stable icon box", () => {
+  assert.match(
+    source,
+    /\.add\{[^}]*position:relative[^}]*width:32px[^}]*height:32px[^}]*display:flex[^}]*align-items:center[^}]*justify-content:center[^}]*flex:0 0 32px/s,
+    "add button should center its visual glyph independently from text baseline"
+  );
+  assert.match(
+    source,
+    /\.add span\{[^}]*position:relative[^}]*display:block[^}]*width:13px[^}]*height:13px[^}]*flex:0 0 13px/s,
+    "add button glyph should reserve a fixed square for the drawn plus"
+  );
+  assert.match(
+    source,
+    /\.add span::before,\.add span::after\{[^}]*content:""[^}]*position:absolute[^}]*left:50%[^}]*top:50%/s,
+    "add button glyph should be redrawn from centered bars instead of relying on font baselines"
+  );
+  assert.match(
+    source,
+    /\.add span::before\{width:13px;height:2px\}/,
+    "add button horizontal stroke should use the thinner 13px glyph size"
+  );
+  assert.match(
+    source,
+    /\.add span::after\{width:2px;height:13px\}/,
+    "add button vertical stroke should use the thinner 13px glyph size"
+  );
+});

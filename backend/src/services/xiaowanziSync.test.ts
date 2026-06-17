@@ -53,11 +53,43 @@ test("mergeXiaowanziSyncState merges sessions and messages by latest session met
   assert.equal(merged.conversationMessages.orphan, undefined);
 });
 
+test("mergeXiaowanziSyncState keeps child profile deletions from reviving removed children", () => {
+  const merged = mergeXiaowanziSyncState(
+    {
+      childProfiles: [
+        { id: "child-1", displayName: "测试", createdAt: "2026-06-10T01:00:00.000Z" },
+        { id: "child-2", displayName: "小圆子", createdAt: "2026-06-10T02:00:00.000Z" },
+      ],
+    },
+    {
+      childProfiles: [
+        { id: "child-1", displayName: "测试", createdAt: "2026-06-10T01:00:00.000Z" },
+      ],
+      childProfileDeletions: [
+        { id: "child-1", removedAt: "2026-06-11T01:00:00.000Z" },
+      ],
+    }
+  );
+
+  assert.deepEqual(
+    merged.childProfiles.map((item) => item.id),
+    ["child-2"],
+    "deleted child ids should not come back from older synced profile payloads"
+  );
+  assert.deepEqual(merged.childProfileDeletions, [
+    { id: "child-1", removedAt: "2026-06-11T01:00:00.000Z" },
+  ]);
+});
+
 test("sanitizeXiaowanziSyncState keeps only bounded account sync data", () => {
   const sanitized = sanitizeXiaowanziSyncState({
     childProfiles: [
       { id: "child-1", displayName: "小圆子", gender: "女", concernTags: Array.from({ length: 20 }, (_, index) => `标签${index}`) },
       { displayName: "无 id" },
+    ],
+    childProfileDeletions: [
+      { id: "child-1", removedAt: "2026-06-11T01:00:00.000Z" },
+      { removedAt: "2026-06-12T01:00:00.000Z" },
     ],
     chatContext: { sessionId: "s1", childProfileId: "child-1", isChildBound: true, lastSwitchedAt: "bad-date" },
     conversationSessions: [{ id: "s1", title: "会话", updatedAt: "2026-06-11T01:00:00.000Z" }],
@@ -66,8 +98,9 @@ test("sanitizeXiaowanziSyncState keeps only bounded account sync data", () => {
     },
   });
 
-  assert.equal(sanitized.childProfiles.length, 1);
-  assert.equal(sanitized.childProfiles[0].concernTags.length, 12);
-  assert.equal(sanitized.chatContext?.lastSwitchedAt, "1970-01-01T00:00:00.000Z");
+  assert.equal(sanitized.childProfiles.length, 0);
+  assert.equal(sanitized.childProfileDeletions.length, 1);
+  assert.equal(sanitized.childProfileDeletions[0].id, "child-1");
+  assert.equal(sanitized.chatContext, null);
   assert.equal(sanitized.conversationMessages.s1.length, 120);
 });

@@ -1,11 +1,9 @@
 import React, { useEffect, useRef } from "react";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 
-const CACHE_BUST = Date.now().toString(36);
-
 const PlanningPage: React.FC = () => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const src = `/wel/Planning/教育规划首页.html?v=${CACHE_BUST}`;
+  const src = "/wel/Planning/教育规划首页.html";
 
   // Force body background to match our container
   useEffect(() => {

@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 interface UserXiaowanziSync extends mongoose.Document {
   userId: mongoose.Types.ObjectId;
   childProfiles: any[];
+  childProfileDeletions: any[];
   chatContext: any | null;
   browsingMemory: any[];
   conversationSessions: any[];
@@ -15,6 +16,7 @@ const userXiaowanziSyncSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, unique: true, index: true },
     childProfiles: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    childProfileDeletions: { type: [mongoose.Schema.Types.Mixed], default: [] },
     chatContext: { type: mongoose.Schema.Types.Mixed, default: null },
     browsingMemory: { type: [mongoose.Schema.Types.Mixed], default: [] },
     conversationSessions: { type: [mongoose.Schema.Types.Mixed], default: [] },

@@ -8,12 +8,58 @@ const VOLC_ENDPOINT =
 const VOLC_API_KEY = process.env.VOLCENGINE_API_KEY || "";
 
 const adminWorthbuyRouter = Router();
+const WORTHBUY_STATUSES = ["draft", "published", "hidden", "deleted"];
 
-// 管理员获取所有分析（含 draft/hidden/published）
-adminWorthbuyRouter.get("/", async (_req: Request, res: Response) => {
+const resolveWorthbuyListFilter = (status?: string) => {
+  if (status === "deleted") return { status: "deleted" };
+  if (status && WORTHBUY_STATUSES.includes(status)) return { status };
+  return { status: { $ne: "deleted" } };
+};
+
+// 管理员获取分析列表（默认不含 deleted）
+adminWorthbuyRouter.get("/", async (req: Request, res: Response) => {
   try {
-    const items = await WorthBuyAnalysis.find().sort({ createdAt: -1 }).lean();
-    res.json({ items });
+    const { page = "1", limit = "20", status } = req.query as Record<string, string>;
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 20));
+    const filter = resolveWorthbuyListFilter(status);
+
+    const [items, total] = await Promise.all([
+      WorthBuyAnalysis.aggregate([
+        { $match: filter },
+        { $sort: { createdAt: -1 } },
+        { $skip: (pageNum - 1) * limitNum },
+        { $limit: limitNum },
+        {
+          $project: {
+            _id: 1,
+            brand: 1,
+            query: 1,
+            submittedBy: 1,
+            status: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            result: {
+              score: { $ifNull: ["$result.score", 0] },
+            },
+          },
+        },
+      ]),
+      WorthBuyAnalysis.countDocuments(filter),
+    ]);
+    res.json({ items, total, page: pageNum, limit: limitNum });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+adminWorthbuyRouter.get("/:id", async (req: Request, res: Response) => {
+  try {
+    const item = await WorthBuyAnalysis.findById(req.params.id).lean();
+    if (!item) {
+      return res.status(404).json({ error: "未找到该条目" });
+    }
+    res.json({ item });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -38,7 +84,7 @@ adminWorthbuyRouter.post("/", async (req: Request, res: Response) => {
       brand: brand.trim(),
       query: query || brand.trim(),
       submittedBy: submittedBy || "",
-      status: status && ["draft", "published", "hidden"].includes(status) ? status : "draft",
+      status: status && WORTHBUY_STATUSES.includes(status) ? status : "draft",
       result: result || {
         score: 0,
         isIqTax: false,
@@ -69,13 +115,13 @@ adminWorthbuyRouter.put("/:id", async (req: Request, res: Response) => {
     if (brand !== undefined) update.brand = brand;
     if (query !== undefined) update.query = query;
     if (submittedBy !== undefined) update.submittedBy = submittedBy;
-    if (status !== undefined && ["draft", "published", "hidden"].includes(status)) update.status = status;
+    if (status !== undefined && WORTHBUY_STATUSES.includes(status)) update.status = status;
     if (result !== undefined) update.result = result;
 
     const item = await WorthBuyAnalysis.findByIdAndUpdate(
       req.params.id,
       update,
-      { new: true, runValidators: true }
+      { returnDocument: "after", runValidators: true }
     ).lean();
 
     if (!item) return res.status(404).json({ error: "未找到该条目" });
@@ -94,13 +140,28 @@ adminWorthbuyRouter.put("/:id", async (req: Request, res: Response) => {
 adminWorthbuyRouter.patch("/:id/status", async (req: Request, res: Response) => {
   try {
     const { status } = req.body || {};
-    if (!["draft", "published", "hidden"].includes(status)) {
-      return res.status(400).json({ error: "status 只能为 draft/published/hidden" });
+    if (!WORTHBUY_STATUSES.includes(status)) {
+      return res.status(400).json({ error: "status 只能为 draft/published/hidden/deleted" });
     }
     const item = await WorthBuyAnalysis.findByIdAndUpdate(
       req.params.id,
       { status },
-      { new: true }
+      { returnDocument: "after" }
+    ).lean();
+    if (!item) return res.status(404).json({ error: "未找到该条目" });
+    res.json({ item });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 管理员逻辑删除，保留记录并从默认列表隐藏
+adminWorthbuyRouter.delete("/:id", async (req: Request, res: Response) => {
+  try {
+    const item = await WorthBuyAnalysis.findByIdAndUpdate(
+      req.params.id,
+      { status: "deleted" },
+      { returnDocument: "after" }
     ).lean();
     if (!item) return res.status(404).json({ error: "未找到该条目" });
     res.json({ item });

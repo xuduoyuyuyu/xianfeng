@@ -36,6 +36,7 @@ export function resolveWorthBuyUserId(req: Pick<Request, "query"> & { userId?: u
 }
 
 export function canReadWorthBuyItem(item: { status?: string; submittedBy?: string }, userId: string, isAdmin: boolean) {
+  if (item.status === "deleted") return isAdmin;
   return item.status === "published" || isAdmin || Boolean(userId && item.submittedBy === userId);
 }
 
@@ -62,7 +63,7 @@ function requireProForNewAnalysis(req: Request, res: Response, next: any) {
 router.get("/my", async (req: Request, res: Response) => {
   try {
     const userId = resolveWorthBuyUserId(req);
-    const items = await WorthBuyAnalysis.find({ submittedBy: userId }).sort({ createdAt: -1 }).lean();
+    const items = await WorthBuyAnalysis.find({ submittedBy: userId, status: { $ne: "deleted" } }).sort({ createdAt: -1 }).lean();
     res.json({ items });
   } catch (e: any) {
     res.status(500).json({ error: e.message });

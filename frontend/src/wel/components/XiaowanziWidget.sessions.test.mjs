@@ -633,9 +633,18 @@ test("share selection mode exposes all home conversation messages for multi-sele
 });
 
 test("xiaowanzi account sync mirrors local profiles browsing memory and sessions", () => {
-  assert.match(source, /function collectXiaowanziSyncPayload\(\): XiaowanziSyncPayload[\s\S]*childProfiles: loadChildProfiles\(\)[\s\S]*browsingMemory: readBrowsingMemory\(\)[\s\S]*conversationSessions,[\s\S]*conversationMessages/s, "account sync payload should include local profiles, browsing memory, and conversation sessions");
+  assert.match(source, /function collectXiaowanziSyncPayload\(\): XiaowanziSyncPayload[\s\S]*childProfiles: loadChildProfiles\(\)[\s\S]*childProfileDeletions: loadChildProfileDeletions\(\)[\s\S]*browsingMemory: readBrowsingMemory\(\)[\s\S]*conversationSessions,[\s\S]*conversationMessages/s, "account sync payload should include local profiles, deletion tombstones, browsing memory, and conversation sessions");
   assert.match(source, /async function pullAndMergeXiaowanziAccountSync\(\): Promise<boolean>[\s\S]*\/api\/users\/me\/xiaowanzi-sync[\s\S]*applyXiaowanziSyncPayload\(remote\)[\s\S]*pushXiaowanziAccountSync\(\)/s, "login sync should pull remote data, merge it locally, then push the merged state");
   assert.match(source, /useEffect\(\(\) => \{[\s\S]*pullAndMergeXiaowanziAccountSync\(\)[\s\S]*setChildProfiles\(loadChildProfiles\(\)\)[\s\S]*setChatContext\(loadChatContext\(\)\)[\s\S]*refreshConversationSessions\(\)/s, "widget should automatically refresh state after account sync");
   assert.match(source, /function appendBrowsingMemory[\s\S]*localStorage\.setItem\(BROWSING_MEMORY_KEY[\s\S]*scheduleXiaowanziAccountSync\(\)/s, "browsing memory writes should schedule account sync");
   assert.match(source, /function saveConversationSessionMessages[\s\S]*localStorage\.setItem\([\s\S]*conversationSessionMessagesKey\(sessionId\)[\s\S]*scheduleXiaowanziAccountSync\(\)/s, "session message writes should schedule account sync");
+  assert.match(source, /function applyXiaowanziSyncPayload\(remote: XiaowanziSyncPayload \| null \| undefined\) \{[\s\S]*const childProfileDeletions = mergeByLatest\([\s\S]*remote\.childProfileDeletions[\s\S]*localStorage\.setItem\(CHILD_PROFILE_DELETIONS_KEY, JSON\.stringify\(childProfileDeletions\)\);[\s\S]*const childProfiles = mergeByLatest\([\s\S]*filter\(\(item\) => !isDeletedChildProfile\(item, childProfileDeletions\)\)/s, "account sync merge should keep deletion tombstones and filter deleted child profiles before writing local state");
+});
+
+test("xiaowanzi ignores draft child profiles before they are saved", () => {
+  assert.match(
+    source,
+    /const childProfileDeletions = loadChildProfileDeletions\(\);[\s\S]*\.filter\(\(item\) => Boolean\(item\.id\) && !item\.draft && !isDeletedChildProfile\(item, childProfileDeletions\)\)/,
+    "newly created draft child profiles or deleted ids should not become selectable or synced before save"
+  );
 });

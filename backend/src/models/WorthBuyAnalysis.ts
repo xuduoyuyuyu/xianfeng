@@ -4,7 +4,7 @@ export interface WorthBuyAnalysis extends mongoose.Document {
   brand: string;        // 品牌名（唯一键）
   query: string;        // 用户原始输入
   submittedBy?: string; // 提交者（可选，未登录为空）
-  status: "draft" | "published" | "hidden"; // draft=仅自己可见, published=所有人可见, hidden=管理员隐藏
+  status: "draft" | "published" | "hidden" | "deleted"; // deleted=逻辑删除，仅后台已删除视图可见
   result: {
     url?: string | null;
     brand?: string | null;
@@ -41,7 +41,7 @@ const worthBuySchema = new mongoose.Schema(
     brand: { type: String, required: true, unique: true, index: true, trim: true },
     query: { type: String, default: "" },
     submittedBy: { type: String, default: "" },
-    status: { type: String, default: "draft", enum: ["draft", "published", "hidden"] },
+    status: { type: String, default: "draft", enum: ["draft", "published", "hidden", "deleted"] },
     result: { type: mongoose.Schema.Types.Mixed, default: {} },
   },
   { timestamps: true }

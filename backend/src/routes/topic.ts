@@ -795,7 +795,7 @@ async function resolveSubmitterName(createdBy: string): Promise<string> {
 
 export const adminRouter = Router();
 
-// GET /api/admin/topic-hub — 全量列表（含 pending/hidden）
+// GET /api/admin/topic-hub — 管理端列表（含 pending/hidden）
 adminRouter.get("/", async (req: Request, res: Response) => {
   try {
     const {
@@ -812,11 +812,6 @@ adminRouter.get("/", async (req: Request, res: Response) => {
 
     const filter: Record<string, any> = {};
 
-    // 非 all 模式只返回 published
-    if (!allMode) {
-      filter.status = "published";
-    }
-
     if (tag) {
       filter.tags = { $in: [tag] };
     }
@@ -831,11 +826,39 @@ adminRouter.get("/", async (req: Request, res: Response) => {
     }
 
     const [topics, total] = await Promise.all([
-      Topic.find(filter)
-        .sort({ createdAt: -1 })
-        .skip(allMode ? 0 : (pageNum - 1) * limitNum)
-        .limit(limitNum)
-        .lean(),
+      Topic.aggregate([
+        { $match: filter },
+        { $sort: { createdAt: -1 } },
+        { $skip: allMode ? 0 : (pageNum - 1) * limitNum },
+        { $limit: limitNum },
+        {
+          $project: {
+            _id: 1,
+            title: 1,
+            slug: 1,
+            subtitle: 1,
+            shortSummary: 1,
+            coverEmoji: 1,
+            tags: 1,
+            suitableGrades: 1,
+            status: 1,
+            source: 1,
+            createdBy: 1,
+            viewCount: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            nodeCount: {
+              $add: [
+                { $size: { $ifNull: ["$layers.layer1", []] } },
+                { $size: { $ifNull: ["$layers.layer2", []] } },
+                { $size: { $ifNull: ["$layers.layer3", []] } },
+                { $size: { $ifNull: ["$layers.layer4", []] } },
+                { $size: { $ifNull: ["$layers.layer5", []] } },
+              ],
+            },
+          },
+        },
+      ]),
       Topic.countDocuments(filter),
     ]);
 
@@ -850,15 +873,10 @@ adminRouter.get("/", async (req: Request, res: Response) => {
       });
     await Promise.all(userLookupPromises);
 
-    // 计算 nodeCount + 注入 submitterName
+    // 注入 submitterName
     const withNodeCount = topics.map((t: any) => {
-      const layers = t.layers || {};
-      let nodeCount = 0;
-      for (const key of Object.keys(layers)) {
-        if (Array.isArray(layers[key])) nodeCount += layers[key].length;
-      }
       const submitterName = t.createdBy ? (submitterNames.get(t.createdBy) || t.createdBy) : "-";
-      return { ...t, nodeCount, submitterName };
+      return { ...t, submitterName };
     });
 
     res.json({ topics: withNodeCount, total, page: pageNum, limit: limitNum });

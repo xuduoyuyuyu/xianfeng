@@ -65,6 +65,8 @@ type WorthBuyDirectoryRecord = {
   };
 };
 
+const HOMEPAGE_DIRECTORY_PREVIEW_LIMIT = 12;
+
 function clampEntryText(value: unknown, fallback: string, max = 34): string {
   const text = toText(value) || fallback;
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
@@ -100,7 +102,7 @@ function buildTopicDirectoryItems(records: TopicDirectoryRecord[]): SiteEntryIte
       };
     })
     .filter((item): item is SiteEntryItem => Boolean(item))
-    .slice(0, 12);
+    .slice(0, HOMEPAGE_DIRECTORY_PREVIEW_LIMIT);
 }
 
 function resolveWorthBuyTitle(item: WorthBuyDirectoryRecord): string {
@@ -136,7 +138,7 @@ function buildWorthBuyDirectoryItems(records: WorthBuyDirectoryRecord[]): SiteEn
       };
     })
     .filter((item): item is SiteEntryItem => Boolean(item))
-    .slice(0, 12);
+    .slice(0, HOMEPAGE_DIRECTORY_PREVIEW_LIMIT);
 }
 
 const fallbackTopicDirectoryItems: SiteEntryItem[] = [
@@ -194,6 +196,60 @@ const fallbackTopicDirectoryItems: SiteEntryItem[] = [
     meta: "14 条线索",
     tone: "lemon",
   },
+  {
+    title: "写作业总磨蹭",
+    desc: "从任务拆分、启动提示和奖励反馈重建每天的作业节奏",
+    href: "/topics",
+    action: "提问",
+    badge: "作业",
+    meta: "11 条线索",
+    tone: "sky",
+  },
+  {
+    title: "孩子沉迷短视频",
+    desc: "先处理替代活动和家庭规则，而不是只靠反复训斥",
+    href: "/topics",
+    action: "提问",
+    badge: "屏幕",
+    meta: "13 条线索",
+    tone: "mint",
+  },
+  {
+    title: "兄弟姐妹总冲突",
+    desc: "拆开争抢、偏爱感和家庭边界，重新安排相处结构",
+    href: "/topics",
+    action: "提问",
+    badge: "关系",
+    meta: "9 条线索",
+    tone: "lavender",
+  },
+  {
+    title: "孩子不愿去幼儿园",
+    desc: "从分离焦虑、同伴关系和晨间节奏判断问题卡点",
+    href: "/topics",
+    action: "提问",
+    badge: "适应",
+    meta: "10 条线索",
+    tone: "deep",
+  },
+  {
+    title: "英语启蒙怎么开始",
+    desc: "把资源选择、输入频率和家庭陪伴成本放在一起看",
+    href: "/topics",
+    action: "提问",
+    badge: "启蒙",
+    meta: "12 条线索",
+    tone: "pink",
+  },
+  {
+    title: "孩子总是顶嘴",
+    desc: "先区分情绪爆发和边界试探，再决定回应方式",
+    href: "/topics",
+    action: "提问",
+    badge: "边界",
+    meta: "8 条线索",
+    tone: "lemon",
+  },
 ];
 
 const fallbackWorthBuyDirectoryItems: SiteEntryItem[] = [
@@ -249,6 +305,60 @@ const fallbackWorthBuyDirectoryItems: SiteEntryItem[] = [
     action: "分析",
     badge: "安全",
     meta: "知物分析",
+    tone: "deep",
+  },
+  {
+    title: "贝亲宽口径奶瓶",
+    desc: "从奶嘴适配、清洗便利性和长期替换成本判断是否值得买",
+    href: "/worthbuy",
+    action: "分析",
+    badge: "喂养",
+    meta: "消费参考",
+    tone: "lemon",
+  },
+  {
+    title: "科大讯飞学习机",
+    desc: "把课程生态、题库质量和家长陪跑成本放回真实使用场景",
+    href: "/worthbuy",
+    action: "分析",
+    badge: "学习机",
+    meta: "知物",
+    tone: "pink",
+  },
+  {
+    title: "步步高词典笔",
+    desc: "对比扫描识别速度、释义质量和孩子独立使用体验",
+    href: "/worthbuy",
+    action: "分析",
+    badge: "词典笔",
+    meta: "消费参考",
+    tone: "sky",
+  },
+  {
+    title: "babygo儿童推车",
+    desc: "把重量、折叠便利性和日常通勤场景放在一起判断",
+    href: "/worthbuy",
+    action: "分析",
+    badge: "出行",
+    meta: "知物分析",
+    tone: "mint",
+  },
+  {
+    title: "德国宝得适安全座椅",
+    desc: "从安装稳定性、年龄覆盖段和车内空间占用做横向比较",
+    href: "/worthbuy",
+    action: "分析",
+    badge: "对比",
+    meta: "知物",
+    tone: "lavender",
+  },
+  {
+    title: "儿童电动牙刷",
+    desc: "不只看清洁力，也看噪音、刷头成本和孩子接受度",
+    href: "/worthbuy",
+    action: "分析",
+    badge: "健康",
+    meta: "消费参考",
     tone: "deep",
   },
 ];
@@ -317,8 +427,8 @@ const LandingPage: React.FC = () => {
     };
 
     Promise.allSettled([
-      loadJson("/api/topic-hub?limit=12"),
-      loadJson("/api/worthbuy/list?limit=12"),
+      loadJson(`/api/topic-hub?limit=${HOMEPAGE_DIRECTORY_PREVIEW_LIMIT}`),
+      loadJson(`/api/worthbuy/list?limit=${HOMEPAGE_DIRECTORY_PREVIEW_LIMIT}`),
     ]).then(([topicResult, worthBuyResult]) => {
       if (disposed) return;
       const topicData = topicResult.status === "fulfilled" ? topicResult.value : {};
@@ -678,7 +788,7 @@ const LandingPage: React.FC = () => {
           overflow: hidden;
           margin-inline: calc(50% - 50vw);
           padding-inline: calc(50vw - 50%);
-          padding-bottom: clamp(30px, 4vw, 60px);
+          padding-bottom: clamp(88px, 9vw, 148px);
           background: linear-gradient(180deg, #faf5ff 0%, #f5f5f7 30%, #f5f5f7 100%);
           background-size: auto;
           background-repeat: no-repeat;
@@ -708,10 +818,10 @@ const LandingPage: React.FC = () => {
         .heo-hero {
           display: block;
           min-height: auto;
-          padding-top: clamp(100px, 10vw, 140px);
-          padding-bottom: clamp(20px, 3vw, 60px);
+          padding-top: clamp(104px, 10vw, 146px);
+          padding-bottom: clamp(52px, 6vw, 96px);
           color: #080a12;
-          transform: scale(1.3);
+          transform: scale(1.14);
           transform-origin: center center;
         }
         .heo-hero-stage {
@@ -808,8 +918,8 @@ const LandingPage: React.FC = () => {
           display: flex;
           flex-wrap: wrap;
           justify-content: center;
-          gap: 10px;
-          margin-top: 20px;
+          gap: 14px;
+          margin-top: 28px;
         }
         .heo-button {
           display: inline-flex;
@@ -901,18 +1011,17 @@ const LandingPage: React.FC = () => {
           flex-shrink: 0;
         }
         .heo-duo-section {
-          margin-top: clamp(8px, 1.5vw, 18px);
+          margin-top: clamp(40px, 6vw, 92px);
           max-width: 640px;
           margin-inline: auto;
           padding-inline: clamp(16px, 2vw, 24px);
-          transform: scale(1.3);
-          transform-origin: center top;
+          padding-bottom: clamp(6px, 1vw, 12px);
         }
         .heo-duo-card {
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 14px;
+          gap: 12px;
           background: transparent;
           padding: 0;
         }
@@ -941,7 +1050,7 @@ const LandingPage: React.FC = () => {
         .heo-duo-quote {
           margin: 0;
           color: var(--lp-text);
-          font-size: clamp(16px, 1.8vw, 22px);
+          font-size: clamp(18px, 1.9vw, 26px);
           line-height: 1.4;
           font-weight: 700;
           letter-spacing: -0.01em;
@@ -949,7 +1058,7 @@ const LandingPage: React.FC = () => {
         }
         .heo-duo-names {
           color: var(--lp-muted);
-          font-size: 13px;
+          font-size: 14px;
           font-weight: 600;
           letter-spacing: 0.02em;
         }
@@ -1059,7 +1168,7 @@ const LandingPage: React.FC = () => {
           margin-bottom: 8px;
         }
         .guest-marquee-section {
-          margin-top: clamp(22px, 3.5vw, 44px);
+          margin-top: clamp(92px, 10vw, 164px);
           overflow: hidden;
           padding: 0;
           background: none;
@@ -1071,7 +1180,7 @@ const LandingPage: React.FC = () => {
           align-items: center;
           justify-content: space-between;
           gap: 16px;
-          padding: 0 0 16px;
+          padding: 0 0 24px;
         }
         .guest-marquee-head b {
           display: block;
@@ -1592,17 +1701,43 @@ const LandingPage: React.FC = () => {
           box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06), 0 12px 32px rgba(0, 0, 0, 0.08);
         }
         .heo-special-card.tone-ask {
-          min-height: clamp(360px, 34vw, 470px);
-          grid-template-columns: minmax(0, 0.9fr) minmax(420px, 1.1fr);
-          padding: clamp(42px, 5vw, 74px) clamp(34px, 5vw, 78px);
-          border-radius: 28px;
+          grid-template-columns: minmax(0, 0.92fr) minmax(360px, 0.98fr);
+          align-items: end;
+          gap: clamp(24px, 3vw, 54px);
+          text-align: left;
+          width: min(1960px, calc(100vw - clamp(32px, 3.5vw, 72px)));
+          max-width: none;
+          margin-left: 50%;
+          transform: translateX(-50%);
+          min-height: clamp(560px, 40vw, 720px);
+          padding: clamp(40px, 4vw, 72px) clamp(34px, 5vw, 78px) 0;
+          border-radius: 30px;
           background:
             radial-gradient(circle at 75% 15%, rgba(255, 255, 255, 0.18), transparent 23%),
             linear-gradient(135deg, #6f19f3 0%, #5F19EC 42%, #3a0f96 100%);
           box-shadow: 0 22px 56px rgba(95, 25, 236, 0.2);
         }
+        .heo-special-card.tone-ask:hover {
+          transform: translateX(-50%) translateY(-4px);
+        }
         .heo-special-card.tone-worth {
+          grid-template-columns: 1fr;
+          justify-items: center;
+          align-content: start;
+          gap: clamp(34px, 4vw, 58px);
+          text-align: center;
+          width: min(1960px, calc(100vw - clamp(32px, 3.5vw, 72px)));
+          max-width: none;
+          margin-left: 50%;
+          transform: translateX(-50%);
+          min-height: clamp(640px, 46vw, 820px);
+          padding: clamp(40px, 4vw, 72px) clamp(34px, 5vw, 78px) 0;
+          border-radius: 30px;
           background: linear-gradient(145deg, #db2777 0%, #be185d 50%, #831843 100%);
+          box-shadow: 0 24px 62px rgba(190, 24, 93, 0.22);
+        }
+        .heo-special-card.tone-worth:hover {
+          transform: translateX(-50%) translateY(-4px);
         }
         .heo-special-copy {
           display: flex;
@@ -1610,10 +1745,29 @@ const LandingPage: React.FC = () => {
           gap: 12px;
         }
         .tone-ask .heo-special-copy {
-          position: relative;
-          z-index: 2;
-          max-width: 560px;
-          gap: 22px;
+          align-items: flex-start;
+          align-self: start;
+          max-width: 640px;
+          margin: 0;
+          padding-top: clamp(8px, 1vw, 20px);
+          text-align: left;
+        }
+        .tone-worth .heo-special-copy {
+          align-items: center;
+          max-width: 760px;
+          margin: 0 auto;
+          text-align: center;
+        }
+        .tone-worth .heo-special-section-title {
+          color: #fff;
+          font-size: clamp(42px, 6vw, 72px);
+          font-weight: 800;
+          line-height: 0.96;
+        }
+        .tone-worth .heo-special-section-summary {
+          color: rgba(255, 255, 255, 0.72);
+          font-size: clamp(18px, 2.2vw, 30px);
+          line-height: 1.3;
         }
         .heo-special-copy small {
           display: inline-flex;
@@ -1641,8 +1795,8 @@ const LandingPage: React.FC = () => {
           letter-spacing: -0.01em;
         }
         .tone-ask .heo-special-copy b {
-          max-width: 680px;
-          font-size: clamp(34px, 4.6vw, 62px);
+          max-width: 620px;
+          font-size: clamp(34px, 4.2vw, 58px);
           line-height: 1.08;
           font-weight: 950;
           letter-spacing: -0.045em;
@@ -1654,7 +1808,7 @@ const LandingPage: React.FC = () => {
           line-height: 1.7;
         }
         .tone-ask .heo-special-copy p {
-          max-width: 700px;
+          max-width: 600px;
           color: rgba(255, 255, 255, 0.68);
           font-size: clamp(16px, 1.6vw, 20px);
           line-height: 1.8;
@@ -1694,38 +1848,12 @@ const LandingPage: React.FC = () => {
         }
         .tone-ask .heo-special-preview {
           align-self: end;
-          width: min(760px, 100%);
-          min-height: 300px;
-          margin: 0 0 -76px auto;
-          padding: 38px 16px 0;
-          border-radius: 30px 30px 0 0;
-          border: 8px solid #111827;
-          border-bottom: 0;
-          background: #fff;
-          box-shadow: 0 28px 64px rgba(15, 23, 42, 0.34);
-          transform: rotate(-1deg);
-        }
-        .tone-ask .heo-special-preview::before {
-          content: "";
-          position: absolute;
-          left: 20px;
-          top: 14px;
-          width: 12px;
-          height: 12px;
-          border-radius: 999px;
-          background: #ff5f57;
-          box-shadow: 20px 0 0 #ffbd2e, 40px 0 0 #28c840;
-        }
-        .tone-ask .heo-special-preview::after {
-          content: "";
-          position: absolute;
-          left: 50%;
-          top: 15px;
-          width: min(240px, 42%);
-          height: 10px;
-          border-radius: 999px;
-          background: rgba(15, 23, 42, 0.08);
-          transform: translateX(-50%);
+          justify-self: end;
+          width: min(820px, 54vw);
+          min-height: clamp(320px, 24vw, 430px);
+          margin: clamp(18px, 2vw, 36px) 0 -92px auto;
+          border-radius: 26px 26px 0 0;
+          transform: rotate(-2deg) translateX(24px);
         }
         .heo-special-preview img {
           display: block;
@@ -1734,8 +1862,85 @@ const LandingPage: React.FC = () => {
           border-radius: 14px;
         }
         .tone-ask .heo-special-preview img {
-          height: 292px;
+          height: clamp(320px, 24vw, 430px);
           border-radius: 20px 20px 0 0;
+          object-fit: cover;
+          object-position: top center;
+        }
+        .heo-topics-shot-frame {
+          position: relative;
+          padding: clamp(14px, 1.5vw, 18px) clamp(14px, 1.5vw, 18px) 0;
+          border-radius: 38px 38px 0 0;
+          background: linear-gradient(180deg, #17161d 0%, #07070b 100%);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          box-shadow:
+            0 28px 60px rgba(4, 6, 12, 0.38),
+            inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        }
+        .heo-topics-shot-frame::before {
+          content: "";
+          position: absolute;
+          left: 50%;
+          top: 7px;
+          width: min(180px, 28%);
+          height: 5px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.12);
+          transform: translateX(-50%);
+        }
+        .heo-topics-shot-screen {
+          background: #fff;
+          border-radius: 26px 26px 0 0;
+          overflow: hidden;
+          border: 1px solid rgba(15, 23, 42, 0.08);
+          box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+        }
+        .heo-topics-shot-screen img {
+          display: block;
+          width: 100%;
+          height: clamp(400px, 28vw, 520px);
+          object-fit: cover;
+          object-position: top center;
+        }
+        .tone-worth .heo-special-preview {
+          align-self: center;
+          width: min(1120px, 78vw);
+          min-height: clamp(400px, 28vw, 520px);
+          margin: 0 auto -150px;
+          border-radius: 26px 26px 0 0;
+        }
+        .heo-worthbuy-shot-frame {
+          position: relative;
+          padding: clamp(14px, 1.5vw, 18px) clamp(14px, 1.5vw, 18px) 0;
+          border-radius: 38px 38px 0 0;
+          background: linear-gradient(180deg, #17161d 0%, #07070b 100%);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          box-shadow:
+            0 28px 60px rgba(4, 6, 12, 0.38),
+            inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        }
+        .heo-worthbuy-shot-frame::before {
+          content: "";
+          position: absolute;
+          left: 50%;
+          top: 7px;
+          width: min(180px, 28%);
+          height: 5px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.12);
+          transform: translateX(-50%);
+        }
+        .heo-worthbuy-shot-screen {
+          background: #fff;
+          border-radius: 26px 26px 0 0;
+          overflow: hidden;
+          border: 1px solid rgba(15, 23, 42, 0.08);
+          box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+        }
+        .heo-worthbuy-shot-screen img {
+          display: block;
+          width: 100%;
+          height: clamp(400px, 28vw, 520px);
           object-fit: cover;
           object-position: top center;
         }
@@ -1820,11 +2025,7 @@ const LandingPage: React.FC = () => {
           transform: translateX(-50%);
         }
         .heo-new-card-art.is-logo-only::before {
-          width: min(300px, 70%);
-          height: 42px;
-          bottom: 24px;
-          background: rgba(15, 23, 42, 0.13);
-          filter: blur(22px);
+          display: none;
         }
         .heo-new-card-art::after {
           display: none;
@@ -1883,75 +2084,67 @@ const LandingPage: React.FC = () => {
         }
         .heo-product-device {
           left: 50%;
-          bottom: 26px;
-          width: min(390px, 88%);
-          height: 156px;
-          border: 10px solid #111827;
-          border-radius: 30px;
-          background: #f8fbff;
-          box-shadow: 0 18px 34px rgba(15, 23, 42, 0.18);
+          bottom: 18px;
+          width: min(372px, 86%);
+          height: 154px;
+          border: 1px solid rgba(210, 223, 236, 0.9);
+          border-radius: 34px;
+          background: linear-gradient(180deg, #ffffff 0%, #f4f8fc 100%);
+          box-shadow: 0 18px 42px rgba(166, 180, 200, 0.18);
           transform: translateX(-50%);
         }
         .heo-product-device::before {
-          content: "";
-          position: absolute;
-          left: 50%;
-          top: -7px;
-          width: 70px;
-          height: 12px;
-          border-radius: 0 0 12px 12px;
-          background: #111827;
-          transform: translateX(-50%);
+          display: none;
         }
         .heo-device-screen {
           position: absolute;
-          inset: 16px;
+          inset: 14px;
           overflow: hidden;
-          border-radius: 18px;
+          border-radius: 24px;
           background:
-            radial-gradient(circle at 34% 34%, rgba(255, 255, 255, 0.9), transparent 18%),
-            color-mix(in srgb, var(--card-accent) 30%, #eaf6ff);
+            radial-gradient(circle at 30% 26%, rgba(255, 255, 255, 0.92), transparent 16%),
+            linear-gradient(135deg, color-mix(in srgb, var(--card-accent) 42%, white) 0%, color-mix(in srgb, var(--card-accent) 16%, #ffffff) 100%);
         }
         .heo-device-screen::before,
         .heo-device-screen::after {
           content: "";
           position: absolute;
-          left: 18px;
-          right: 18px;
-          height: 12px;
+          left: 28px;
+          right: 28px;
+          height: 10px;
           border-radius: 999px;
-          background: rgba(255, 255, 255, 0.75);
+          background: rgba(255, 255, 255, 0.65);
         }
         .heo-device-screen::before {
-          bottom: 30px;
+          bottom: 34px;
         }
         .heo-device-screen::after {
-          bottom: 52px;
-          right: 76px;
+          bottom: 56px;
+          right: 92px;
         }
         .heo-product-side {
-          width: 76px;
-          height: 106px;
-          border-radius: 24px;
-          background: linear-gradient(180deg, #fff, #eef3f7);
-          border: 1px solid rgba(15, 23, 42, 0.06);
-          box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
+          width: 78px;
+          height: 104px;
+          border-radius: 26px;
+          background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), #edf3fa);
+          border: 1px solid rgba(213, 224, 236, 0.94);
+          box-shadow: 0 18px 30px rgba(202, 212, 224, 0.28);
         }
         .heo-product-side.one {
-          left: 12%;
-          bottom: 56px;
+          left: 14%;
+          bottom: 48px;
         }
         .heo-product-side.two {
-          right: 10%;
-          bottom: 58px;
-          width: 84px;
-          height: 118px;
+          right: 12%;
+          bottom: 50px;
+          width: 82px;
+          height: 112px;
         }
         .heo-product-side.three {
-          left: 47%;
-          bottom: 2px;
-          width: 88px;
-          height: 72px;
+          left: 50%;
+          bottom: -2px;
+          width: 84px;
+          height: 68px;
           transform: translateX(-50%);
         }
         .heo-product-logo {
@@ -1962,7 +2155,7 @@ const LandingPage: React.FC = () => {
           width: min(150px, 32%);
           height: min(150px, 54%);
           object-fit: contain;
-          filter: drop-shadow(0 16px 24px rgba(15, 23, 42, 0.16));
+          filter: none;
           transform: translateX(-50%);
         }
         .heo-product-logo.brand {
@@ -1989,13 +2182,13 @@ const LandingPage: React.FC = () => {
           object-fit: cover;
           border: 6px solid #fff;
           background: #fff;
-          box-shadow: 0 18px 34px rgba(15, 23, 42, 0.2);
+          box-shadow: none;
         }
         .is-logo-only .heo-square-logo-stack img {
           width: 148px;
           height: 148px;
           border-radius: 30px;
-          box-shadow: 0 20px 42px rgba(95, 25, 236, 0.2);
+          box-shadow: none;
         }
         .heo-square-logo-stack .is-xianfeng {
           z-index: 2;
@@ -2014,7 +2207,6 @@ const LandingPage: React.FC = () => {
           bottom: auto;
           width: min(190px, 48%);
           height: min(190px, 72%);
-          filter: drop-shadow(0 24px 42px rgba(95, 25, 236, 0.2));
           transform: translate(-50%, -48%);
         }
         .heo-product-logo.reading {
@@ -2022,86 +2214,194 @@ const LandingPage: React.FC = () => {
           bottom: auto;
           width: min(210px, 52%);
           height: min(210px, 76%);
-          filter: drop-shadow(0 24px 42px rgba(16, 163, 127, 0.22));
           transform: translate(-50%, -48%);
         }
         .visual-materials .heo-product-device {
-          width: min(430px, 94%);
-          height: 178px;
+          width: min(356px, 86%);
+          height: 144px;
+        }
+        .visual-materials .heo-product-side.one,
+        .visual-materials .heo-product-side.two,
+        .visual-materials .heo-product-side.three {
+          background: linear-gradient(180deg, #ffffff, #f8fafc);
+          border-color: rgba(232, 138, 0, 0.08);
+        }
+        .visual-materials .heo-product-side.one {
+          left: 18%;
+          bottom: 46px;
+          width: 68px;
+          height: 102px;
+        }
+        .visual-materials .heo-product-side.two {
+          right: 18%;
+          bottom: 46px;
+          width: 68px;
+          height: 102px;
+        }
+        .visual-materials .heo-product-side.three {
+          width: 78px;
+          height: 62px;
+          bottom: -4px;
         }
         .visual-materials .heo-device-screen {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 10px;
-          padding: 14px;
-          background: #f8fafc;
+          background:
+            radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.96), transparent 14%),
+            linear-gradient(135deg, #fff4dc 0%, #fff6e7 18%, #f7fbff 100%);
         }
         .visual-materials .heo-product-document {
-          position: relative;
-          border-radius: 8px;
-          background: #fff;
-          border: 1px solid rgba(15, 23, 42, 0.08);
-          box-shadow: inset 0 28px 0 rgba(15, 23, 42, 0.03);
+          display: none;
         }
-        .visual-materials .heo-product-document::before {
+        .visual-materials .heo-device-screen::before {
           content: "";
           position: absolute;
-          left: 12px;
-          right: 12px;
-          top: 42px;
-          height: 6px;
-          border-radius: 999px;
-          background: color-mix(in srgb, var(--card-accent) 60%, white);
-          box-shadow: 0 14px 0 rgba(15, 23, 42, 0.12), 0 28px 0 rgba(15, 23, 42, 0.08), 0 42px 0 rgba(15, 23, 42, 0.08);
+          inset: 18px 88px 18px 92px;
+          border-radius: 18px;
+          background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0 38%, transparent 38% 100%),
+            linear-gradient(180deg, rgba(239, 244, 250, 0.92), rgba(255, 255, 255, 0.94));
+          box-shadow: inset 0 0 0 1px rgba(226, 232, 240, 0.88);
+        }
+        .visual-materials .heo-device-screen::after {
+          left: 116px;
+          right: 116px;
+          bottom: auto;
+          top: 54px;
+          height: 5px;
+          background: color-mix(in srgb, var(--card-accent) 64%, #fff);
+          box-shadow:
+            0 15px 0 rgba(177, 191, 208, 0.55),
+            0 30px 0 rgba(202, 212, 224, 0.48);
         }
         .visual-experts .heo-product-device,
         .visual-planning .heo-product-device {
-          border-radius: 32px;
-          background: #fbfcff;
+          width: min(340px, 82%);
+          height: 138px;
+          border-radius: 30px;
+          background: linear-gradient(180deg, #ffffff 0%, #f6faff 100%);
         }
         .visual-experts .heo-product-chip,
         .visual-planning .heo-product-chip {
-          width: 58px;
-          height: 58px;
+          width: 54px;
+          height: 54px;
           border-radius: 999px;
-          background: color-mix(in srgb, var(--card-accent) 36%, #fff);
-          box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+          background: color-mix(in srgb, var(--card-accent) 32%, #fff);
+          box-shadow: none;
         }
         .visual-experts .heo-product-chip.one {
           left: 24%;
-          bottom: 116px;
+          bottom: 108px;
         }
         .visual-experts .heo-product-chip.two {
-          left: 48%;
-          bottom: 76px;
+          left: 47%;
+          bottom: 64px;
         }
         .visual-experts .heo-product-chip.three {
           right: 24%;
-          bottom: 118px;
+          bottom: 110px;
+        }
+        .visual-experts .heo-product-side.one,
+        .visual-experts .heo-product-side.two,
+        .visual-experts .heo-product-side.three {
+          background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), #fff7fb);
+          border-color: rgba(219, 39, 119, 0.09);
+        }
+        .visual-experts .heo-product-side.one {
+          left: 15%;
+          bottom: 42px;
+        }
+        .visual-experts .heo-product-side.two {
+          right: 15%;
+          bottom: 42px;
+        }
+        .visual-experts .heo-product-side.three {
+          bottom: -2px;
+        }
+        .visual-experts .heo-device-screen {
+          background:
+            radial-gradient(circle at 28% 28%, rgba(255, 255, 255, 0.96), transparent 14%),
+            linear-gradient(145deg, #fde7f1 0%, #f8d3e8 40%, #f5efff 100%);
+        }
+        .visual-experts .heo-device-screen::before {
+          left: 72px;
+          right: 72px;
+          bottom: auto;
+          top: 38px;
+          height: 8px;
+          background: rgba(255, 255, 255, 0.9);
+          box-shadow: 0 22px 0 rgba(255, 255, 255, 0.82);
+        }
+        .visual-experts .heo-device-screen::after {
+          left: 122px;
+          right: 122px;
+          bottom: auto;
+          top: 76px;
+          height: 8px;
+          background: rgba(255, 255, 255, 0.74);
         }
         .visual-planning .heo-product-line {
-          height: 10px;
+          height: 9px;
           border-radius: 999px;
-          background: color-mix(in srgb, var(--card-accent) 70%, #fff);
-          box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+          background: color-mix(in srgb, var(--card-accent) 68%, #fff);
+          box-shadow: none;
+        }
+        .visual-planning .heo-product-side.one,
+        .visual-planning .heo-product-side.two,
+        .visual-planning .heo-product-side.three {
+          background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), #f3fbfb);
+          border-color: rgba(15, 118, 110, 0.08);
+        }
+        .visual-planning .heo-product-side.one {
+          left: 15%;
+          bottom: 48px;
+          transform: rotate(-6deg);
+        }
+        .visual-planning .heo-product-side.two {
+          right: 14%;
+          bottom: 48px;
+          transform: rotate(6deg);
+        }
+        .visual-planning .heo-product-side.three {
+          bottom: -1px;
+        }
+        .visual-planning .heo-device-screen {
+          background:
+            radial-gradient(circle at 26% 26%, rgba(255, 255, 255, 0.95), transparent 14%),
+            linear-gradient(145deg, #e8fbfa 0%, #d2f3f0 42%, #eff9fd 100%);
+        }
+        .visual-planning .heo-device-screen::before {
+          left: 74px;
+          right: 74px;
+          bottom: auto;
+          top: 48px;
+          height: 7px;
+          background: rgba(255, 255, 255, 0.82);
+          box-shadow: 0 22px 0 rgba(255, 255, 255, 0.72);
+        }
+        .visual-planning .heo-device-screen::after {
+          left: 124px;
+          right: 124px;
+          bottom: auto;
+          top: 84px;
+          height: 7px;
+          background: rgba(255, 255, 255, 0.66);
         }
         .visual-planning .heo-product-line.one {
-          left: 22%;
-          bottom: 78px;
-          width: 88px;
-          transform: rotate(-18deg);
+          left: 24%;
+          bottom: 74px;
+          width: 80px;
+          transform: rotate(-22deg);
         }
         .visual-planning .heo-product-line.two {
-          left: 41%;
-          bottom: 112px;
-          width: 108px;
+          left: 43%;
+          bottom: 106px;
+          width: 98px;
           transform: rotate(14deg);
         }
         .visual-planning .heo-product-line.three {
-          right: 20%;
-          bottom: 82px;
-          width: 92px;
-          transform: rotate(-16deg);
+          right: 21%;
+          bottom: 72px;
+          width: 84px;
+          transform: rotate(-18deg);
         }
         .heo-new-nav-arrows {
           display: flex;
@@ -2376,29 +2676,101 @@ const LandingPage: React.FC = () => {
             gap: 24px;
             padding: 28px 24px;
           }
+          .heo-first-screen {
+            padding-bottom: 72px;
+          }
+          .heo-hero {
+            padding-top: 112px;
+            padding-bottom: 38px;
+            transform: none;
+          }
+          .heo-actions {
+            gap: 12px;
+            margin-top: 22px;
+          }
+          .heo-duo-section {
+            margin-top: 34px;
+            padding-inline: 0;
+            padding-bottom: 0;
+          }
+          .heo-duo-quote {
+            font-size: 19px;
+          }
+          .heo-duo-names {
+            font-size: 13px;
+          }
           .heo-special-card.tone-ask {
-            min-height: auto;
+            grid-template-columns: 1fr;
+            width: auto;
+            max-width: none;
+            margin-left: 0;
+            transform: none;
+            justify-items: start;
+            align-content: start;
+            text-align: left;
+            min-height: 0;
             padding: 32px 24px 0;
             border-radius: 26px;
           }
-          .tone-ask .heo-special-copy {
-            gap: 16px;
+          .heo-special-card.tone-ask:hover {
+            transform: none;
+          }
+          .heo-special-card.tone-worth {
+            width: auto;
+            max-width: none;
+            margin-left: 0;
+            transform: none;
+            justify-items: center;
+            align-content: start;
+            text-align: center;
+            min-height: 620px;
+            padding: 32px 24px 0;
+            border-radius: 26px;
+          }
+          .heo-special-card.tone-worth:hover {
+            transform: none;
+          }
+          .tone-worth .heo-special-section-title {
+            font-size: 44px;
+          }
+          .tone-worth .heo-special-section-summary {
+            font-size: 18px;
           }
           .tone-ask .heo-special-copy b {
             font-size: clamp(30px, 9vw, 44px);
           }
           .tone-ask .heo-special-preview {
-            width: 100%;
-            min-height: 210px;
-            margin: 8px 0 -28px;
-            padding: 30px 10px 0;
-            border-width: 6px;
-            border-radius: 24px 24px 0 0;
-            transform: none;
+            width: min(100%, 560px);
+            min-height: 320px;
+            margin: 12px 0 -34px auto;
+            border-radius: 22px 22px 0 0;
+            transform: rotate(-1.4deg) translateX(6px);
           }
-          .tone-ask .heo-special-preview img {
-            height: 210px;
-            border-radius: 16px 16px 0 0;
+          .heo-topics-shot-frame {
+            padding: 12px 12px 0;
+            border-radius: 28px 28px 0 0;
+          }
+          .heo-topics-shot-screen {
+            border-radius: 18px 18px 0 0;
+          }
+          .heo-topics-shot-screen img {
+            height: 320px;
+          }
+          .tone-worth .heo-special-preview {
+            width: 100%;
+            min-height: 320px;
+            margin: 12px auto -34px;
+            border-radius: 22px 22px 0 0;
+          }
+          .heo-worthbuy-shot-frame {
+            padding: 12px 12px 0;
+            border-radius: 28px 28px 0 0;
+          }
+          .heo-worthbuy-shot-screen {
+            border-radius: 18px 18px 0 0;
+          }
+          .heo-worthbuy-shot-screen img {
+            height: 320px;
           }
           .heo-special-mockup {
             max-width: 100%;
@@ -2430,11 +2802,14 @@ const LandingPage: React.FC = () => {
             max-width: 100%;
           }
           .guest-marquee-section {
+            margin-top: 68px;
             border-radius: 28px;
           }
           .guest-marquee-head {
             align-items: flex-start;
             flex-direction: column;
+            gap: 12px;
+            padding-bottom: 18px;
           }
           .guest-pill {
             font-size: 11px;
@@ -2562,7 +2937,12 @@ const LandingPage: React.FC = () => {
               <img src="/assets/xiaowanzi-nohat.png" alt="" aria-hidden="true" />
             </span>
           </button>
-          <nav className="heo-nav-links" aria-label="首页导航">
+          <nav
+            className="heo-nav-links"
+            aria-label="首页导航"
+            onMouseLeave={() => setActiveCatalogIndex(-1)}
+            onPointerLeave={() => setActiveCatalogIndex(-1)}
+          >
             {navItems.map((item) => (
               <a
                 key={item.label}
@@ -2573,6 +2953,10 @@ const LandingPage: React.FC = () => {
                 onFocus={() => setActiveCatalogIndex(item.index)}
                 onClick={(e) => {
                   e.preventDefault();
+                  if (item.href === "/programs/list") {
+                    window.location.href = item.href;
+                    return;
+                  }
                   const targetEl = document.getElementById(item.anchor);
                   if (targetEl) {
                     targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -2614,38 +2998,35 @@ const LandingPage: React.FC = () => {
 
             </div>
           </section>
-
-
-        </div>
-
-        {hostDuo.length === 2 ? (
-          <section className="heo-duo-section fade-up" style={{ animationDelay: "180ms" }}>
-            <div className="heo-duo-card">
-              <div className="heo-duo-avatars">
-                {hostDuo.map((host) => {
-                  const hostName = toText(host.name);
-                  const avatar = resolveGuestAvatar(host.avatar, !!failedGuestAvatars[host._id]);
-                  const avatarSrc = avatar.isFallback ? avatar.src : toText(host.avatar);
-                  return (
-                    <div className="heo-duo-avatar" key={host._id}>
-                      <img
-                        src={avatarSrc}
-                        alt={hostName}
-                        loading="lazy"
-                        decoding="async"
-                        onError={() => {
-                          setFailedGuestAvatars((prev) => (prev[host._id] ? prev : { ...prev, [host._id]: true }));
-                        }}
-                      />
-                    </div>
-                  );
-                })}
+          {hostDuo.length === 2 ? (
+            <section className="heo-duo-section fade-up" style={{ animationDelay: "180ms" }}>
+              <div className="heo-duo-card">
+                <div className="heo-duo-avatars">
+                  {hostDuo.map((host) => {
+                    const hostName = toText(host.name);
+                    const avatar = resolveGuestAvatar(host.avatar, !!failedGuestAvatars[host._id]);
+                    const avatarSrc = avatar.isFallback ? avatar.src : toText(host.avatar);
+                    return (
+                      <div className="heo-duo-avatar" key={host._id}>
+                        <img
+                          src={avatarSrc}
+                          alt={hostName}
+                          loading="lazy"
+                          decoding="async"
+                          onError={() => {
+                            setFailedGuestAvatars((prev) => (prev[host._id] ? prev : { ...prev, [host._id]: true }));
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="heo-duo-quote">“教育只有方法，没有答案”</p>
+                <span className="heo-duo-names">{hostDuo.map((h) => toText(h.name)).join(' & ')}</span>
               </div>
-              <p className="heo-duo-quote">“教育只有方法，没有答案”</p>
-              <span className="heo-duo-names">{hostDuo.map((h) => toText(h.name)).join(' & ')}</span>
-            </div>
-          </section>
-        ) : null}
+            </section>
+          ) : null}
+        </div>
 
         {guestMarqueeItems.length > 0 ? (
           <section id="guest-marquee" className="guest-marquee-section" aria-label="先疯智库嘉宾">
@@ -2775,29 +3156,28 @@ const LandingPage: React.FC = () => {
         </section>
 
         <section className="heo-section">
-          <div className="heo-section-head">
-            <div>
-              <span className="heo-kicker">持续开放</span>
-              <h2>请教一下</h2>
-              <p>从真实问题进入回答、线索和知识树</p>
-            </div>
-          </div>
           <a className={`heo-special-card tone-ask`} href="/topics">
             <span className="heo-special-copy">
               <small>持续开放</small>
+              <strong className="heo-special-section-title">请教一下</strong>
+              <span className="heo-special-section-summary">从真实问题进入回答、线索和知识树</span>
               <b>把一个真实困惑，拆成能继续追问的线索</b>
               <p>提交家庭教育现场里的具体问题，查看站内问题、回答与智能生成的知识树。</p>
               <span className="heo-special-action">去提问</span>
             </span>
             <div className="heo-special-preview" aria-hidden="true">
-              <img src="/assets/preview-topics.png" alt="" loading="lazy" decoding="async" />
+              <div className="heo-topics-shot-frame" aria-hidden="true">
+                <div className="heo-topics-shot-screen">
+                  <img src="/assets/preview-topics.png" alt="" loading="lazy" decoding="async" />
+                </div>
+              </div>
             </div>
           </a>
           <div className="heo-section-more-top">
             <a className="heo-section-more" href="/topics">查看全部 →</a>
           </div>
           <div className="heo-topic-cards">
-            {(topicDirectoryItems.length > 0 ? topicDirectoryItems.slice(0, 12) : fallbackTopicDirectoryItems).map((item) => (
+            {(topicDirectoryItems.length > 0 ? topicDirectoryItems.slice(0, HOMEPAGE_DIRECTORY_PREVIEW_LIMIT) : fallbackTopicDirectoryItems).map((item) => (
               <a
                 className="heo-topic-card"
                 href={item.href}
@@ -2819,29 +3199,28 @@ const LandingPage: React.FC = () => {
 
         {/* ===== 知物 — 大卡片 + 内容列表 ===== */}
         <section className="heo-section">
-          <div className="heo-section-head">
-            <div>
-              <span className="heo-kicker">持续更新</span>
-              <h2>知物</h2>
-              <p>从公开产品与服务分析进入判断</p>
-            </div>
-          </div>
           <a className={`heo-special-card tone-worth`} href="/worthbuy">
             <span className="heo-special-copy">
               <small>持续更新</small>
+              <strong className="heo-special-section-title">知物</strong>
+              <span className="heo-special-section-summary">从公开产品与服务分析进入判断</span>
               <b>把选择放回场景里，再做判断</b>
               <p>围绕教育与家庭场景整理品牌、产品和服务分析，让购买和选择多一层参考。</p>
               <span className="heo-special-action">查看分析</span>
             </span>
             <div className="heo-special-preview" aria-hidden="true">
-              <img src="/assets/preview-worthbuy.png" alt="" loading="lazy" decoding="async" />
+              <div className="heo-worthbuy-shot-frame" aria-hidden="true">
+                <div className="heo-worthbuy-shot-screen">
+                  <img src="/assets/preview-worthbuy-detail-chair.png" alt="" loading="lazy" decoding="async" />
+                </div>
+              </div>
             </div>
           </a>
           <div className="heo-section-more-top">
             <a className="heo-section-more" href="/worthbuy">查看全部 →</a>
           </div>
           <div className="heo-worthbuy-cards">
-            {(worthBuyDirectoryItems.length > 0 ? worthBuyDirectoryItems.slice(0, 12) : fallbackWorthBuyDirectoryItems).map((item) => (
+            {(worthBuyDirectoryItems.length > 0 ? worthBuyDirectoryItems.slice(0, HOMEPAGE_DIRECTORY_PREVIEW_LIMIT) : fallbackWorthBuyDirectoryItems).map((item) => (
               <a
                 className="heo-worthbuy-card"
                 href={item.href}
