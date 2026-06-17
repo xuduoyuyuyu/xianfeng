@@ -182,9 +182,36 @@ export async function resolveGeoFromIP(req: Request): Promise<{ city: string; re
   }
 }
 
+export async function resolveGeoFromMobile(mobile: string): Promise<{ city: string; region: string }> {
+  if (!/^1\d{10}$/.test(mobile)) return { city: "", region: "" };
+  try {
+    const res = await fetch(`https://cx.shouji.360.cn/phonearea.php?number=${mobile}`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!res.ok) return { city: "", region: "" };
+    const data = await res.json();
+    return {
+      city: String(data?.data?.city || "").trim(),
+      region: String(data?.data?.province || "").trim(),
+    };
+  } catch {
+    return { city: "", region: "" };
+  }
+}
+
+export async function resolveGeoWithFallback(req: Request, mobile = ""): Promise<{ city: string; region: string }> {
+  const geo = await resolveGeoFromIP(req);
+  if (geo.city && geo.region) return geo;
+  const mobileGeo = await resolveGeoFromMobile(mobile);
+  return {
+    city: geo.city || mobileGeo.city,
+    region: geo.region || mobileGeo.region,
+  };
+}
+
 async function backfillUserGeoIfNeeded(user: any, req: Request): Promise<void> {
   if (user?.city && user?.region) return;
-  const geo = await resolveGeoFromIP(req);
+  const geo = await resolveGeoWithFallback(req, String(user?.mobile || ""));
   let changed = false;
   if (!user?.city && geo.city) {
     user.city = geo.city;
@@ -561,7 +588,7 @@ export class UserController {
         }
         const username = `u${mobile}`;
         const password = await bcryptjs.hash(`mob-${mobile}-${Date.now()}`, 10);
-        const geo = await resolveGeoFromIP(req);
+        const geo = await resolveGeoWithFallback(req, mobile);
         user = new User({
           username,
           password,
