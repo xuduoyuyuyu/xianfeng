@@ -349,17 +349,21 @@ export class BookController {
   async getByIdPublic(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const book = await Book.findOne({ _id: id, status: "published" });
-      if (!book) {
+      // 使用原生 collection 查询以避免 Mongoose 将字符串 _id 自动 cast 为 ObjectId 导致查不到
+      const col = (Book as any).collection.conn?.db?.collection?.("books") || (Book as any).collection;
+      const doc = await col.findOne(
+        { _id: id, status: "published" },
+        { projection: { title: 1, categoryLabel: 1, topic: 1, author: 1, translator: 1, publisher: 1, isbn: 1, publishedDate: 1, grade: 1, coverImage: 1, recommendedGuest: 1, wxProductId: 1, wxShopName: 1, wxShopAppid: 1, wxSalePrice: 1, wxMonthlySales: 1, wxShopScore: 1, wxHeadImgs: 1, wxQrcodeUrl: 1, wxSyncAt: 1, sourceName: 1, sourceGuestId: 1, status: 1, publishedAt: 1, createdAt: 1, updatedAt: 1 } }
+      );
+      if (!doc) {
         res.status(404).json({ message: "书籍不存在或未上架" });
         return;
       }
-      const plain = typeof book.toObject === "function" ? book.toObject() : book;
-      const metadata = await findApprovedBookMetadataByBookId(String(plain?._id || ""));
+      const metadata = await findApprovedBookMetadataByBookId(String(doc._id || ""));
       const metadataCover = normalizeBookCoverUrl(metadata?.cover);
       res.status(200).json({
-        ...plain,
-        coverImage: pickPublicBookCover(plain?.coverImage, metadataCover),
+        ...doc,
+        coverImage: pickPublicBookCover(doc?.coverImage, metadataCover),
         hasMetadataDetail: Boolean(metadata),
         metadataCover,
       });
@@ -371,17 +375,22 @@ export class BookController {
   async getMetadataPublic(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const book = await Book.findOne({ _id: id, status: "published" }).select({ _id: 1, title: 1, author: 1, publisher: 1 });
-      if (!book) {
+      // 使用原生 collection 查询以避免 Mongoose 将字符串 _id 自动 cast 为 ObjectId 导致查不到
+      const col = (Book as any).collection.conn?.db?.collection?.("books") || (Book as any).collection;
+      const doc = await col.findOne(
+        { _id: id, status: "published" },
+        { projection: { _id: 1, title: 1, author: 1, publisher: 1 } }
+      );
+      if (!doc) {
         res.status(404).json({ message: "书籍不存在或未上架" });
         return;
       }
-      const metadata = await findApprovedBookMetadataByBookId(String(book._id));
+      const metadata = await findApprovedBookMetadataByBookId(String(doc._id));
       if (!metadata) {
         res.status(404).json({ message: "暂无图书详情数据" });
         return;
       }
-      res.status(200).json(await formatPublicBookMetadata(metadata, book));
+      res.status(200).json(await formatPublicBookMetadata(metadata, doc));
     } catch (error) {
       res.status(500).json({ message: "获取书籍详情元数据失败", error });
     }
