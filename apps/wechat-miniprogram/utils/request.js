@@ -8,6 +8,7 @@ function buildUrl(path) {
 
 function request(options) {
   const token = getToken();
+  const url = buildUrl(options.url);
   const headers = Object.assign(
     {
       "content-type": "application/json"
@@ -19,7 +20,7 @@ function request(options) {
   return new Promise((resolve, reject) => {
     wx.request({
       method: options.method || "GET",
-      url: buildUrl(options.url),
+      url,
       data: options.data || {},
       header: headers,
       success(res) {
@@ -35,7 +36,7 @@ function request(options) {
         });
       },
       fail(error) {
-        reject({ statusCode: 0, message: error.errMsg || "网络连接失败", error });
+        reject({ statusCode: 0, message: error.errMsg || "网络连接失败", url, error });
       }
     });
   });

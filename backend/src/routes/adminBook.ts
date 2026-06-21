@@ -9,6 +9,8 @@ const bookController = new BookController();
 router.use(authenticate, requireAdmin);
 router.get("/", bookController.getAllAdmin);
 router.post("/import", bookController.importBatch);
+router.get("/metadata", bookController.getMetadataAdmin);
+router.patch("/metadata/:metadataId", bookController.reviewMetadataAdmin);
 router.get("/:id", bookController.getByIdAdmin);
 router.post("/", bookController.create);
 router.put("/:id", bookController.update);

@@ -1,0 +1,12 @@
+939:       // 加载真实数据
+940:       api('GET','/api/textbooks').then(d=>{
+941:         const books = d.textbooks||[];
+942:         const grid = doc.getElementById('hubGrid');
+943:         if (!books.length) {
+944:           grid.innerHTML = '<div style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;padding:40px;gap:12px;color:#94a3b8;border:2px dashed #e2e8f0;border-radius:20px"><span c
+945:           return;
+946:         }
+947:         const SM = {done:['#d1fae5','#065f46','✓ 已解析'],analyzing:['#fef3c7','#92400e','解析中…'],pending:['#f3f4f6','#6b7280','待解析'],error:['#fee2e2','#991b1b','失败']};
+948:         grid.innerHTML = books.map(b=>{
+
+TOTAL_LINES:1823

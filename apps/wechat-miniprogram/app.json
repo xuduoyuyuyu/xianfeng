@@ -1,45 +1,58 @@
 {
   "pages": [
-    "pages/home/index",
     "pages/programs/index",
+    "pages/reading/index",
     "pages/xiaowanzi/index",
+    "pages/materials/index",
+    "pages/topics/index",
+    "pages/home/index",
+    "pages/login/index",
     "pages/pro/index",
     "pages/mine/index",
-    "pages/login/index",
     "pages/webview/index"
   ],
   "window": {
     "navigationBarTitleText": "家长先疯",
-    "navigationBarBackgroundColor": "#0f172a",
-    "navigationBarTextStyle": "white",
+    "navigationBarBackgroundColor": "#ffffff",
+    "navigationBarTextStyle": "black",
     "backgroundColor": "#f7f4ed",
     "backgroundTextStyle": "dark"
   },
   "tabBar": {
     "color": "#667085",
-    "selectedColor": "#0f172a",
+    "selectedColor": "#6c27d6",
     "backgroundColor": "#ffffff",
     "borderStyle": "black",
     "list": [
       {
-        "pagePath": "pages/home/index",
-        "text": "首页"
+        "pagePath": "pages/programs/index",
+        "text": "节目",
+        "iconPath": "assets/tabbar/programs.png",
+        "selectedIconPath": "assets/tabbar/programs-active.png"
       },
       {
-        "pagePath": "pages/programs/index",
-        "text": "节目"
+        "pagePath": "pages/reading/index",
+        "text": "及阅",
+        "iconPath": "assets/tabbar/reading.png",
+        "selectedIconPath": "assets/tabbar/reading-active.png"
       },
       {
         "pagePath": "pages/xiaowanzi/index",
-        "text": "小玩子"
+        "text": "小玩子",
+        "iconPath": "assets/tabbar/xiaowanzi.png",
+        "selectedIconPath": "assets/tabbar/xiaowanzi-active.png"
       },
       {
-        "pagePath": "pages/pro/index",
-        "text": "Pro"
+        "pagePath": "pages/materials/index",
+        "text": "资料",
+        "iconPath": "assets/tabbar/materials.png",
+        "selectedIconPath": "assets/tabbar/materials-active.png"
       },
       {
-        "pagePath": "pages/mine/index",
-        "text": "我的"
+        "pagePath": "pages/topics/index",
+        "text": "请教",
+        "iconPath": "assets/tabbar/topics.png",
+        "selectedIconPath": "assets/tabbar/topics-active.png"
       }
     ]
   },

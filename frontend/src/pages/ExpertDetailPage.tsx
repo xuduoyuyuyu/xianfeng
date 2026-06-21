@@ -513,24 +513,41 @@ const ExpertDetailPage: React.FC = () => {
                 <div className="mt-4 overflow-x-auto pb-2 -mx-2 px-2">
                   <div className="flex gap-3" style={{ minWidth: "max-content" }}>
                     {sortedAuthoredBooks.map((book) => {
-                      const pubYear = (book.publishedDate || book.publishedAt) ? new Date(book.publishedDate || book.publishedAt).getFullYear() : "";
-                      return (
-                      <div key={book._id} className="group shrink-0 w-[120px] sm:w-[140px] rounded-[1.25rem] border border-[#e8e0f2] bg-[#fcfaff] p-2.5 transition hover:border-[#b79bff] hover:bg-white relative">
-                        <div className="aspect-[2/3] overflow-hidden rounded-xl bg-[#f3eefc] relative">
-                          <img
-                            src={book.coverImage || `https://via.placeholder.com/240x360/630ed4/ffffff?text=${encodeURIComponent((book.title || '书').slice(0, 4))}`}
-                            alt={book.title || "著作封面"}
-                            className="w-full h-full object-cover transition group-hover:scale-105"
-                            loading="lazy"
-                            onError={(e) => { e.currentTarget.src = `https://via.placeholder.com/240x360/630ed4/ffffff?text=${encodeURIComponent((book.title || '书').slice(0, 4))}`; }}
-                          />
-                          {/* 购买功能暂隐藏 */}
+                      const publishedAt = String(book.publishedDate || book.publishedAt || "");
+                      const pubYear = publishedAt ? new Date(publishedAt).getFullYear() : "";
+                      const cardContent = (
+                        <>
+                          <div className="aspect-[2/3] overflow-hidden rounded-xl bg-[#f3eefc] relative">
+                            <img
+                              src={book.coverImage || `https://via.placeholder.com/240x360/630ed4/ffffff?text=${encodeURIComponent((book.title || '书').slice(0, 4))}`}
+                              alt={book.title || "著作封面"}
+                              className="w-full h-full object-cover transition group-hover:scale-105"
+                              loading="lazy"
+                              onError={(e) => { e.currentTarget.src = `https://via.placeholder.com/240x360/630ed4/ffffff?text=${encodeURIComponent((book.title || '书').slice(0, 4))}`; }}
+                            />
+                          </div>
+                          <div className="mt-2 text-center">
+                            <div className="text-xs font-black text-[#241a3a] line-clamp-2 leading-tight">{book.title || "未命名书籍"}</div>
+                            <div className="mt-0.5 text-[10px] font-bold text-[#8e81b3]">{pubYear}{pubYear && book.publisher ? " · " : ""}{book.publisher || ""}</div>
+                            {book.hasMetadataDetail ? (
+                              <div className="mt-1 text-[10px] font-black text-[#7C3AED]">查看详情</div>
+                            ) : null}
+                          </div>
+                        </>
+                      );
+
+                      return book.hasMetadataDetail ? (
+                        <Link
+                          key={book._id}
+                          to={`/reading/${book._id}`}
+                          className="group relative w-[120px] shrink-0 rounded-[1.25rem] border border-[#e8e0f2] bg-[#fcfaff] p-2.5 transition hover:border-[#b79bff] hover:bg-white sm:w-[140px]"
+                        >
+                          {cardContent}
+                        </Link>
+                      ) : (
+                        <div key={book._id} className="group relative w-[120px] shrink-0 rounded-[1.25rem] border border-[#e8e0f2] bg-[#fcfaff] p-2.5 sm:w-[140px]">
+                          {cardContent}
                         </div>
-                        <div className="mt-2 text-center">
-                          <div className="text-xs font-black text-[#241a3a] line-clamp-2 leading-tight">{book.title || "未命名书籍"}</div>
-                          <div className="mt-0.5 text-[10px] font-bold text-[#8e81b3]">{pubYear}{pubYear && book.publisher ? " · " : ""}{book.publisher || ""}</div>
-                        </div>
-                      </div>
                       );
                     })}
                   </div>

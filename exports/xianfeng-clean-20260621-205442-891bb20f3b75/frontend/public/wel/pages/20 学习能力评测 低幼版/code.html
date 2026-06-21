@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>wel 能力测评学前适配页</title>
+<script src="/wel/vendor/tailwindcdn.forms.container-queries.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#7f13ec",
+                        "pearl": "#fbfbfc",
+                        "electron-purple": "#8b2cf5",
+                        "soft-purple": "#f5f0ff",
+                        "preschool-mint": "#4ade80",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "Noto Sans SC", "sans-serif"]
+                    },
+                    backgroundImage: {
+                        'grid-pattern': "url(\"data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%237f13ec' fill-opacity='0.02' fill-rule='evenodd'%3E%3Cpath d='M0 40L40 0H20L0 20M40 40V20L20 40'/%3E%3C/g%3E%3C/svg%3E\")",
+                    }
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        @layer base {
+            body {
+                @apply font-display bg-pearl text-slate-900;
+            }
+        }
+        .holographic-glow {
+            background: linear-gradient(135deg, rgba(127,19,236,0.08) 0%, rgba(255,255,255,0) 50%, rgba(139,44,245,0.08) 100%);
+        }
+        .pearl-card {
+            background: #ffffff;
+            border: 1px solid rgba(127, 19, 236, 0.08);
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.02), 0 4px 6px -2px rgba(0, 0, 0, 0.01);
+            @apply rounded-[2rem] transition-all duration-500 hover:shadow-2xl hover:shadow-primary/10 hover:-translate-y-1;
+        }
+        .btn-electron {
+            background: #8b2cf5;
+            box-shadow: 0 0 20px rgba(139, 44, 245, 0.3), inset 0 0 12px rgba(255, 255, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+        .energy-spatter {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.2) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .btn-electron:hover .energy-spatter {
+            opacity: 1;
+        }
+        .nav-active {
+            @apply bg-primary text-white shadow-lg shadow-primary/20;
+        }
+        .nav-inactive {
+            @apply text-slate-500 hover:bg-slate-100;
+        }
+        .shape-float {
+            animation: floating 3s ease-in-out infinite;
+        }
+        @keyframes floating {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+    </style>
+</head>
+<body class="antialiased min-h-screen relative overflow-x-hidden">
+<div class="fixed inset-0 bg-grid-pattern pointer-events-none"></div>
+<div class="fixed top-[-5%] left-[-5%] w-[600px] h-[600px] bg-primary/3 blur-[140px] rounded-full pointer-events-none"></div>
+<div class="fixed bottom-[-5%] right-[-5%] w-[600px] h-[600px] bg-electron-purple/3 blur-[140px] rounded-full pointer-events-none"></div>
+<div class="relative flex flex-col min-h-screen z-10">
+<header class="flex items-center justify-between px-10 py-6">
+<div class="flex items-center gap-3 text-primary">
+<img src="/logo.png" alt="Logo" class="h-7"/>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2">
+<div class="size-8 rounded-full bg-slate-200 bg-cover bg-center border border-white" style="background-image: url('/assets/wel-avatar/no-hat.png');"></div>
+<span class="text-sm font-semibold text-slate-700">李明华</span>
+</div>
+</div>
+</header>
+<main class="flex-1 flex flex-col items-center px-6 pt-12 pb-20">
+<div class="text-center mb-12 space-y-4">
+<span class="inline-block px-4 py-1.5 rounded-full bg-primary/5 text-primary text-[10px] font-bold tracking-widest uppercase">Preschool Education Edition</span>
+<h2 class="text-slate-900 text-5xl font-black tracking-tight">学习能力测评</h2>
+<p class="text-slate-500 text-lg max-w-2xl mx-auto">针对不同成长阶段，AI 为您精准匹配核心测评，开启智慧成长之旅。</p>
+</div>
+<div class="bg-white/60 backdrop-blur-md p-2 rounded-2xl border border-slate-200 mb-16 flex items-center gap-2 shadow-sm">
+<div class="flex items-center bg-slate-100/50 rounded-xl p-1">
+<button class="px-6 py-2 rounded-lg text-sm font-bold nav-active">学前阶段</button>
+<button class="px-6 py-2 rounded-lg text-sm font-medium nav-inactive">小学低年级</button>
+<button class="px-6 py-2 rounded-lg text-sm font-medium nav-inactive">小学高年级</button>
+</div>
+<div class="h-6 w-[1px] bg-slate-200 mx-2"></div>
+<div class="flex items-center bg-slate-100/50 rounded-xl p-1">
+<button class="px-6 py-2 rounded-lg text-sm font-bold nav-active">综合成长</button>
+<button class="px-6 py-2 rounded-lg text-sm font-medium nav-inactive">数理逻辑</button>
+<button class="px-6 py-2 rounded-lg text-sm font-medium nav-inactive">语言表达</button>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-7xl w-full">
+<div class="pearl-card p-10 flex flex-col border-primary/20 ring-4 ring-primary/5 relative group">
+<div class="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-white px-4 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase shadow-lg shadow-primary/20">Featured</div>
+<div class="flex items-center gap-4 mb-8">
+<div class="size-16 rounded-2xl bg-soft-purple flex items-center justify-center relative overflow-hidden">
+<span class="material-symbols-outlined text-primary text-4xl font-extralight z-10">mic_external_on</span>
+<div class="absolute -bottom-2 -right-2 size-8 bg-primary/10 rounded-full blur-md"></div>
+</div>
+<div class="flex gap-1.5">
+<div class="size-4 bg-amber-400 rounded-sm rotate-12 shape-float"></div>
+<div class="size-4 bg-sky-400 rounded-full -rotate-12 shape-float" style="animation-delay: 0.5s"></div>
+<div class="size-4 border-2 border-primary/40 rounded-sm rotate-45 shape-float" style="animation-delay: 1s"></div>
+</div>
+</div>
+<div class="mb-4">
+<span class="text-[10px] font-bold text-primary tracking-widest uppercase bg-primary/5 px-2 py-0.5 rounded">Preschool Voice Quest</span>
+</div>
+<h3 class="text-2xl font-bold text-slate-900 mb-4">学前语音智测</h3>
+<p class="text-slate-500 text-sm leading-relaxed mb-10">
+<span class="text-primary font-semibold">无需识字、全图形化、语音互动。</span><br/>
+                        专为学龄前儿童设计，通过趣味语音问答与图形识别，探索孩子的天赋潜能。
+                    </p>
+<div class="mt-auto space-y-4">
+<div class="flex items-center gap-2 text-xs text-slate-400">
+<span class="material-symbols-outlined text-sm">spatial_tracking</span>
+<span>沉浸式语音交互引导</span>
+</div>
+<button class="w-full h-14 btn-electron text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 group-hover:scale-[1.02]">
+<div class="energy-spatter"></div>
+<span class="relative z-10">开始语音测评</span>
+<span class="material-symbols-outlined relative z-10 text-xl">graphic_eq</span>
+</button>
+</div>
+</div>
+<div class="pearl-card p-10 flex flex-col group">
+<div class="size-14 rounded-2xl border border-primary/20 flex items-center justify-center mb-8">
+<span class="material-symbols-outlined text-primary text-3xl font-extralight">smart_toy</span>
+</div>
+<div class="mb-4">
+<span class="text-[10px] font-bold text-primary tracking-widest uppercase bg-primary/5 px-2 py-0.5 rounded">All-Rounder</span>
+</div>
+<h3 class="text-2xl font-bold text-slate-900 mb-4">全景素质评估</h3>
+<p class="text-slate-500 text-sm leading-relaxed mb-10">通过观察力、想象力及基础逻辑模块，全方位扫描学前儿童的认知发育情况。</p>
+<div class="mt-auto space-y-4">
+<div class="flex items-center gap-2 text-xs text-slate-400">
+<span class="material-symbols-outlined text-sm">schedule</span>
+<span>预计用时 20 分钟</span>
+</div>
+<button class="w-full h-14 btn-electron text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 group-hover:scale-[1.02]">
+<div class="energy-spatter"></div>
+<span class="relative z-10">开启标准测评</span>
+<span class="material-symbols-outlined relative z-10 text-xl">arrow_right_alt</span>
+</button>
+</div>
+</div>
+<div class="pearl-card p-10 flex flex-col group">
+<div class="size-14 rounded-2xl border border-primary/20 flex items-center justify-center mb-8">
+<span class="material-symbols-outlined text-primary text-3xl font-extralight">celebration</span>
+</div>
+<div class="mb-4">
+<span class="text-[10px] font-bold text-primary tracking-widest uppercase bg-primary/5 px-2 py-0.5 rounded">Quick Start</span>
+</div>
+<h3 class="text-2xl font-bold text-slate-900 mb-4">AI 趣味萌测</h3>
+<p class="text-slate-500 text-sm leading-relaxed mb-10">5分钟快速游戏式检测，通过颜色、形状与空间感的互动，初步感知学习兴趣点。</p>
+<div class="mt-auto space-y-4">
+<div class="flex items-center gap-2 text-xs text-slate-400">
+<span class="material-symbols-outlined text-sm">schedule</span>
+<span>预计用时 5 分钟</span>
+</div>
+<button class="w-full h-14 btn-electron text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 group-hover:scale-[1.02]">
+<div class="energy-spatter"></div>
+<span class="relative z-10">立即闪测</span>
+<span class="material-symbols-outlined relative z-10 text-xl">auto_fix_high</span>
+</button>
+</div>
+</div>
+</div>
+<p class="mt-16 text-slate-400 text-sm flex items-center gap-2">
+<span class="material-symbols-outlined text-sm text-primary">verified</span>
+                测评采用国际学前教育评估标准，结果将通过 AI 语音为家长生成专属分析报告
+            </p>
+</main>
+<footer class="px-10 py-8 flex items-center justify-between border-t border-slate-100">
+<div class="flex items-center gap-6">
+<span class="text-slate-400 text-xs">© 2024 wel Platform. Preschool Education Adaptation Edition.</span>
+<div class="flex gap-4">
+<a class="text-slate-400 hover:text-primary text-xs transition-colors" href="#">隐私协议</a>
+<a class="text-slate-400 hover:text-primary text-xs transition-colors" href="#">用户条款</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex -space-x-2">
+<div class="size-6 rounded-full border-2 border-white bg-amber-100 flex items-center justify-center text-[10px] font-bold text-amber-600">A</div>
+<div class="size-6 rounded-full border-2 border-white bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-600">B</div>
+<div class="size-6 rounded-full border-2 border-white bg-purple-100 flex items-center justify-center text-[10px] font-bold text-purple-600">C</div>
+</div>
+<span class="text-slate-400 text-xs font-medium">已有 12,502 位学前用户在 wel 开启启蒙第一课</span>
+</div>
+</footer>
+</div>
+<div class="fixed inset-0 pointer-events-none overflow-hidden">
+<div class="absolute top-[30%] right-[10%] w-64 h-64 bg-primary/5 rounded-full blur-[100px] holographic-glow"></div>
+<div class="absolute bottom-[30%] left-[10%] w-80 h-80 bg-electron-purple/5 rounded-full blur-[100px] holographic-glow"></div>
+</div>
+
+</body></html>

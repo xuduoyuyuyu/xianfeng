@@ -1,0 +1,3318 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>上海教育路径规划 - 教育规划</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap"></noscript>
+<script src="https://cdn.bootcdn.net/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#060810;--s1:#0b0d17;--s2:#10131f;--s3:#161928;--brd:rgba(255,255,255,.05);--brd2:rgba(255,255,255,.09);--brd3:rgba(255,255,255,.14);--tx:#dde2f0;--mu:#5a6280;--mu2:#353c56;--p:#5c6ff7;--pg:rgba(92,111,247,.12);--pgg:rgba(92,111,247,.06);--green:#1dd17a;--greeng:rgba(29,209,122,.1);--red:#f04f4f;--redg:rgba(240,79,79,.1);--amber:#f5a623;--amberg:rgba(245,166,35,.1);--cyan:#18d4e8;--cyag:rgba(24,212,232,.1);--purple:#b07ef8;--purpleg:rgba(176,126,248,.1);--sb:220px;--r:12px}
+html,body{height:100%;overflow:hidden;font-family:'Noto Sans SC',sans-serif;font-size:13px;color:var(--tx);background:var(--bg);-webkit-font-smoothing:antialiased}
+button{cursor:pointer;font:inherit}
+.ms{font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji','Microsoft YaHei',sans-serif;font-weight:400;line-height:1;vertical-align:middle;user-select:none;display:inline-block;font-size:16px}
+#app{position:fixed;inset:0;display:flex;flex-direction:row}
+#sb{width:var(--sb);flex-shrink:0;background:var(--s1);border-right:1px solid var(--brd);display:flex;flex-direction:column}
+.sb-top{padding:16px 14px 12px;border-bottom:1px solid var(--brd)}
+.sb-brand{display:flex;align-items:center;gap:9px}
+.sb-gem{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#5c6ff7,#9b59f7);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sb-gem .ms{font-size:15px;color:white}
+.sb-name{font-family:'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif;font-size:14px;font-weight:700;color:#fff}
+.sb-name sup{font-size:9px;color:var(--p);vertical-align:super}
+.sb-tag{margin-left:auto;font-size:9px;font-weight:700;font-family:'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif;color:var(--p);background:var(--pg);border:1px solid rgba(92,111,247,.2);border-radius:4px;padding:1px 5px}
+.sb-nav{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:1px}
+.sb-nav::-webkit-scrollbar{width:3px}
+.sb-nav::-webkit-scrollbar-thumb{background:var(--mu2);border-radius:3px}
+.sb-sec{font-size:10px;font-weight:600;color:var(--mu2);text-transform:uppercase;letter-spacing:.1em;padding:8px 8px 3px;margin-top:2px}
+.ni{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer;transition:all .15s;color:var(--mu);font-size:12.5px;border:1px solid transparent}
+.ni:hover{background:var(--s2);color:var(--tx)}
+.ni.on{background:var(--pg);color:var(--p);border-color:rgba(92,111,247,.18);font-weight:500}
+.ni .ms{font-size:16px;flex-shrink:0}
+.ni-badge{margin-left:auto;background:var(--red);color:white;border-radius:8px;padding:1px 6px;font-size:10px;font-weight:700}
+.sb-foot{padding:10px 8px;border-top:1px solid var(--brd)}
+.sb-user{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer;transition:background .15s}
+.sb-user:hover{background:var(--s2)}
+.sb-av{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#5c6ff7,#9b59f7);display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:700;flex-shrink:0}
+.sb-uname{font-size:12px;font-weight:500;color:var(--tx)}
+.sb-urole{font-size:10px;color:var(--mu)}
+.sb-logout{margin-left:auto;color:var(--mu);transition:color .15s;background:none;border:none;padding:2px}
+.sb-logout:hover{color:var(--red)}
+#main{flex:1;overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.topbar{height:48px;border-bottom:1px solid var(--brd);display:flex;align-items:center;padding:0 22px;gap:10px;flex-shrink:0;background:var(--s1)}
+.tb-title{font-family:'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif;font-size:15px;font-weight:700;color:#fff;letter-spacing:-.3px}
+.tb-sub{font-size:12px;color:var(--mu)}
+.tb-right{margin-left:auto;display:flex;align-items:center;gap:6px}
+.tb-btn{display:flex;align-items:center;gap:5px;padding:6px 13px;border-radius:8px;border:1px solid var(--brd2);background:transparent;color:var(--mu);font-size:12px;transition:all .15s}
+.tb-btn:hover{background:var(--s2);color:var(--tx)}
+.tb-btn.pri{background:var(--p);color:white;border-color:transparent;font-weight:600}
+.tb-btn.pri:hover{filter:brightness(1.1)}
+.sdot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0}
+.content{flex:1;overflow-y:auto;padding:22px}
+.content::-webkit-scrollbar{width:4px}
+.content::-webkit-scrollbar-thumb{background:var(--mu2);border-radius:4px}
+.view{display:block;animation:fadeIn .2s ease both}
+@keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+.card{background:var(--s1);border:1px solid var(--brd);border-radius:var(--r);padding:18px;margin-bottom:24px}
+.card-title{font-size:20px;font-weight:600;margin-bottom:24px;color:var(--tx)}
+.form-item{margin-bottom:20px}
+.form-item label{font-size:14px;color:var(--tx);display:block;margin-bottom:8px;font-weight:500}
+.form-item input, .form-item select{width:100%;height:44px;padding:0 16px;background:var(--s2);border:2px solid var(--brd2);border-radius:12px;font-size:14px;color:var(--tx)}
+.btn{background:linear-gradient(135deg,#5c6ff7,#7c4df0);color:#fff;border:none;border-radius:12px;padding:12px 28px;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.3s ease;position:relative;z-index:9999}
+.btn:hover{transform:translateY(-2px);box-shadow:0 8px 25px rgba(92,111,247,0.3)}
+.btn-outline{background:var(--s2);color:var(--p);border:2px solid var(--p);border-radius:12px;padding:10px 24px;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.3s ease;position:relative;z-index:9999}
+.btn-outline:hover{background:var(--p);color:#fff}
+/* 全站策略：仅保留输入框示例，不显示下方学校快速选择卡 */
+#schoolSection .btn-outline{display:none !important}
+#schoolSection .form-item div[style*="flex-wrap:wrap"]{display:none !important}
+/* 学科按钮样式 */
+.subject-btn{background:var(--s2);color:var(--p);border:2px solid var(--p);border-radius:8px;padding:6px 16px;font-size:14px;font-weight:500;cursor:pointer;transition:all 0.3s ease}
+.subject-btn:hover{background:var(--p);color:#fff}
+/* 滚动容器样式 */
+.scroll-container::-webkit-scrollbar{width:6px}
+.scroll-container::-webkit-scrollbar-track{background:var(--s2);border-radius:3px}
+.scroll-container::-webkit-scrollbar-thumb{background:var(--mu2);border-radius:3px}
+.scroll-container::-webkit-scrollbar-thumb:hover{background:var(--mu)}
+/* 删除按钮样式 */
+.btn-delete{background:rgba(240,79,79,.1) !important;color:var(--red) !important;border:none !important;border-radius:50% !important;width:32px !important;height:32px !important;font-size:18px !important;font-weight:bold !important;cursor:pointer !important;display:flex !important;align-items:center !important;justify-content:center !important;line-height:1 !important;z-index:99999 !important;opacity:0.6 !important;transition:all 0.3s ease !important}
+.btn-delete:hover{opacity:1 !important;transform:scale(1.2) !important;background:rgba(240,79,79,.2) !important}
+/* 添加按钮悬浮样式 */
+button[onclick="addSchoolGroup()"]:hover{background:rgba(92,111,247,.2) !important;color:var(--p) !important;transform:scale(1.2) !important}
+/* 自定义悬浮提示样式 */
+.tooltip{position:absolute;background:var(--s3);color:var(--tx);padding:6px 10px;border-radius:6px;font-size:12px;white-space:nowrap;z-index:9999;pointer-events:none;opacity:0;visibility:hidden;transition:opacity 0.2s, visibility 0.2s}
+.tooltip.show{opacity:1;visibility:visible}
+.step-content{display:none}
+.step-content.active{display:block}
+.step-nav{display:flex;gap:20px;align-items:center;margin-bottom:40px;padding:20px 30px;background:var(--s2);border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,0.1);border:1px solid var(--brd2)}
+.step-item{display:flex;align-items:center;gap:12px;transition:all 0.3s ease}
+.step-text{font-size:15px;color:var(--mu);font-weight:500;padding:10px 20px;border-radius:25px;cursor:pointer;transition:all 0.3s ease;position:relative;overflow:hidden}
+.step-text:hover{background:rgba(92,111,247,.1);color:var(--p);transform:translateY(-2px);box-shadow:0 4px 12px rgba(92,111,247,.2)}
+.step-text.active{background:linear-gradient(135deg,#5c6ff7,#7c4df0);color:#fff;font-weight:600;box-shadow:0 6px 20px rgba(92,111,247,.4);transform:translateY(-2px)}
+.step-text.active::before{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent);animation:shine 2s infinite}
+@keyframes shine{100%{left:100%}}
+.step-line{flex:1;height:4px;background:var(--brd2);border-radius:2px;transition:all 0.3s ease;position:relative}
+.step-line::after{content:'';position:absolute;top:0;left:0;height:100%;width:0;background:linear-gradient(90deg,#5c6ff7,#7c4df0);border-radius:2px;transition:width 0.6s ease}
+.step-nav.completed .step-line::after{width:100%}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.radio-group{display:flex;gap:32px;margin-top:12px}
+.radio-item{display:flex;align-items:center;gap:8px}
+.radio-item input{width:auto;height:auto}
+/* 升学路线选项卡样式 */
+.route-tabs{display:flex;gap:16px;margin-top:8px}
+.route-tab{flex:1;position:relative}
+.route-tab input{display:none}
+.route-tab-label{display:block;padding:12px 24px;background:var(--s2);border:2px solid var(--brd2);border-radius:12px;text-align:center;font-weight:600;color:var(--mu);cursor:pointer;transition:all 0.3s ease}
+.route-tab input:checked + .route-tab-label{background:linear-gradient(135deg,#5c6ff7,#7c4df0);color:#fff;border-color:var(--p);box-shadow:0 4px 15px rgba(92,111,247,0.3)}
+.route-tab-label:hover{background:var(--s3);border-color:var(--brd3);color:var(--tx)}
+/* 通用选项卡样式（用于房产、户籍等） */
+.option-tabs{display:flex;gap:8px;margin-top:8px;justify-content:flex-start}
+.option-tab{position:relative;flex:none}
+.option-tab input{display:none}
+.option-tab-label{display:block;padding:6px 12px;background:var(--s2);border:1px solid var(--brd2);border-radius:6px;text-align:center;font-weight:500;font-size:13px;color:var(--mu);cursor:pointer;transition:all 0.3s ease;min-width:70px}
+.option-tab input:checked + .option-tab-label{background:linear-gradient(135deg,#5c6ff7,#7c4df0);color:#fff;border-color:var(--p);box-shadow:0 2px 8px rgba(92,111,247,0.3)}
+.option-tab-label:hover{background:var(--s3);border-color:var(--brd3);color:var(--tx)}
+.conditional-field{display:none}
+/* 升学率展示样式 */
+.rate-card{background:var(--s2);border:1px solid var(--brd2);border-radius:16px;padding:20px;margin-top:16px;font-size:14px}
+.rate-row{display:flex;justify-content:space-between;margin-bottom:12px;align-items:center}
+.rate-row:last-child{margin-bottom:0}
+.rate-label{color:var(--mu);font-weight:500}
+.rate-value{font-weight:600;color:var(--tx);font-size:16px}
+/* 报告面板样式 */
+.report-panel{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%, -50%);width:90%;max-width:1200px;height:85vh;background:var(--s1);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.2);padding:40px;overflow-y:auto;z-index:999;opacity:0;transition:opacity 0.3s ease;border:1px solid var(--brd2)}
+.report-panel.show{display:block;opacity:1}
+.report-mask{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);backdrop-filter:blur(5px);z-index:998}
+.report-mask.show{display:block}
+.report-title{font-size:24px;font-weight:700;text-align:center;margin-bottom:30px;color:var(--tx)}
+.report-section{margin-bottom:30px}
+.report-section h4{font-size:18px;font-weight:600;margin-bottom:16px;color:var(--p);border-left:4px solid var(--p);padding-left:12px}
+.report-table{width:100%;border-collapse:collapse;margin:16px 0}
+.report-table th, .report-table td{border:2px solid var(--brd2);padding:12px 16px;font-size:14px;text-align:left}
+.report-table th{background:var(--s2);font-weight:600;color:var(--tx)}
+.suggest-item{background:var(--s2);border:1px solid var(--brd2);border-radius:8px;padding:12px 16px;margin-bottom:12px;line-height:1.5}
+.risk-item{background:var(--redg);border:1px solid rgba(240,79,79,.2);border-radius:8px;padding:12px 16px;margin-bottom:12px;line-height:1.5;color:var(--red)}
+.toggle-section{display:none}
+.toggle-section.show{display:block}
+</style>
+</head>
+<body>
+<div id="app">
+    <!-- 侧边栏 -->
+    <div id="sb">
+        <div class="sb-top">
+            <div class="sb-brand">
+                <div class="sb-gem"><span class="ms">&#x1F3EB;</span></div>
+                <div class="sb-name">家长端<sup>Beta</sup></div>
+                <div class="sb-tag">教育规划</div>
+            </div>
+        </div>
+        <div class="sb-nav">
+            <div class="sb-sec">导航</div>
+            <div class="ni" onclick="window.location.href='#'">
+                <span class="ms">&#x1F3E0;</span>
+                <span>首页</span>
+            </div>
+            <div class="ni on" onclick="window.location.href='教育规划.html'">
+                <span class="ms">&#x1F3EB;</span>
+                <span>教育规划</span>
+            </div>
+            <div class="ni" onclick="window.location.href='#'">
+                <span class="ms">&#x1F4C5;</span>
+                <span>成长记录</span>
+            </div>
+            <div class="ni" onclick="window.location.href='#'">
+                <span class="ms">&#x1F4CA;</span>
+                <span>学业评估</span>
+            </div>
+            <div class="ni" onclick="window.location.href='#'">
+                <span class="ms">&#x1F4AC;</span>
+                <span>咨询服务</span>
+            </div>
+            <div class="sb-sec">设置</div>
+            <div class="ni" onclick="window.location.href='#'">
+                <span class="ms">&#x2699;</span>
+                <span>个人设置</span>
+            </div>
+        </div>
+        <div class="sb-foot">
+            <div class="sb-user">
+                <div class="sb-av">家</div>
+                <div>
+                    <div class="sb-uname">家长用户</div>
+                    <div class="sb-urole">普通用户</div>
+                </div>
+                <button class="sb-logout"><span class="ms ms0">&#x2716;</span></button>
+            </div>
+        </div>
+    </div>
+    <!-- 主内容区 -->
+    <div id="main">
+        <div class="topbar">
+            <div>
+                <div class="tb-title">教育规划</div>
+                <div class="tb-sub">为孩子制定个性化教育路径</div>
+            </div>
+            <div class="tb-right">
+                <button class="tb-btn" onclick="window.history.back()"><span class="ms ms0">&#x2190;</span> 返回</button>
+                <button class="tb-btn pri" onclick="savePlan()"><span class="ms">&#x2714;</span> 保存规划</button>
+            </div>
+        </div>
+        <div class="content">
+            <div class="view on">
+                <!-- 步骤导航 -->
+                <div class="step-nav">
+                    <div class="step-item">
+                        <div class="step-text active">基础信息</div>
+                    </div>
+                    <div class="step-line"></div>
+                    <div class="step-item">
+                        <div class="step-text">学业情况</div>
+                    </div>
+                    <div class="step-line"></div>
+                    <div class="step-item">
+                        <div class="step-text">目标定位</div>
+                    </div>
+                    <div class="step-line"></div>
+                    <div class="step-item">
+                        <div class="step-text">家庭投入</div>
+                    </div>
+                    <div class="step-line"></div>
+                    <div class="step-item">
+                        <div class="step-text">结果展示</div>
+                    </div>
+                </div>
+        
+        <!-- 步骤1：基础信息 -->
+        <div class="card step-content active" data-step="1">
+            <div class="card-title">基础信息</div>
+            
+            <div class="grid">
+                <div class="form-item">
+                    <label>所在行政区</label>
+                    <select id="district">
+                        <option value="none">请选择</option>
+                        <option value="minhang" selected>闵行区</option>
+                        <option value="xuhui">徐汇区</option>
+                        <option value="yangpu">杨浦区</option>
+                        <option value="pudong">浦东新区</option>
+                        <option value="jingan">静安区</option>
+                        <option value="huangpu">黄浦区</option>
+                    </select>
+                </div>
+                <div class="form-item">
+                    <label>出生日期</label>
+                    <input type="date" id="birthDate">
+                </div>
+                <div class="form-item">
+                    <label>学段</label>
+                    <select id="educationStage">
+                        <option value="preschool">托育园</option>
+                        <option value="kindergarten" selected>幼儿园</option>
+                        <option value="primary">小学</option>
+                        <option value="middle">初中</option>
+                        <option value="high">高中</option>
+                    </select>
+                </div>
+                <div class="form-item">
+                    <label>年级</label>
+                    <select id="currentGrade">
+                        <option value="p1">一年级</option>
+                        <option value="p2">二年级</option>
+                        <option value="p3">三年级</option>
+                        <option value="p4">四年级</option>
+                        <option value="p5" selected>五年级</option>
+                    </select>
+                </div>
+                <div class="form-item">
+                    <label>当前就读学校</label>
+                    <input id="currentSchool" placeholder="如：明珠小学、闵行实验小学" maxlength="50" pattern="[\u4e00-\u9fa5a-zA-Z0-9\s\(\)（）-]+" title="学校名称只能包含中文、英文、数字、空格、括号和连字符">
+                </div>
+                <div class="form-item">
+                    <label>就读学校类型</label>
+                    <select id="schoolType">
+                        <option>体制内公办</option>
+                        <option>体制内民办</option>
+                        <option>双语学校</option>
+                        <option>国际学校</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- 房产信息（仅小学/幼儿园/托育园显示） -->
+            <div id="propertySection" style="margin-top:20px">
+                <div class="grid">
+                    <!-- 本市房产 -->
+                    <div class="form-item">
+                        <label>本市房产</label>
+                        <div class="option-tabs">
+                            <div class="option-tab">
+                                <input type="radio" id="hasPropertyYes" name="hasProperty" value="yes" checked>
+                                <label for="hasPropertyYes" class="option-tab-label">有房产</label>
+                            </div>
+                            <div class="option-tab">
+                                <input type="radio" id="hasPropertyNo" name="hasProperty" value="no">
+                                <label for="hasPropertyNo" class="option-tab-label">无房产</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 近期购房计划（条件显示） -->
+                    <div class="form-item" id="buyPlanField">
+                        <label style="white-space: nowrap;">近期购房计划（半年内）</label>
+                        <div class="option-tabs">
+                            <div class="option-tab">
+                                <input type="radio" id="buyPlanYes" name="buyPlan" value="yes" checked>
+                                <label for="buyPlanYes" class="option-tab-label">有计划</label>
+                            </div>
+                            <div class="option-tab">
+                                <input type="radio" id="buyPlanNo" name="buyPlan" value="no">
+                                <label for="buyPlanNo" class="option-tab-label">无计划</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 户籍信息（所有学段都显示） -->
+            <div class="grid" style="margin-top:20px">
+                <!-- 家长户籍信息 -->
+                <div>
+                    <div class="form-item">
+                        <label>家长户籍</label>
+                        <div class="option-tabs">
+                            <div class="option-tab">
+                                <input type="radio" id="parentHukouLocal" name="parentHukou" value="local" checked>
+                                <label for="parentHukouLocal" class="option-tab-label">本市户籍</label>
+                            </div>
+                            <div class="option-tab">
+                                <input type="radio" id="parentHukouNonLocal" name="parentHukou" value="nonlocal">
+                                <label for="parentHukouNonLocal" class="option-tab-label">非本市户籍</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-item conditional-field" id="parentHukouLocationField" style="margin-top:16px">
+                        <label>家长户籍所在地</label>
+                        <select id="parentHukouLocation">
+                            <option value="">请选择</option>
+                            <option value="minhang">闵行区</option>
+                            <option value="xuhui">徐汇区</option>
+                            <option value="yangpu">杨浦区</option>
+                            <option value="pudong">浦东新区</option>
+                            <option value="jingan">静安区</option>
+                            <option value="huangpu">黄浦区</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-item conditional-field" id="parentResidenceField" style="margin-top:16px">
+                        <label>家长居住证所在地</label>
+                        <select id="parentResidence">
+                            <option value="">请选择</option>
+                            <option value="minhang">闵行区</option>
+                            <option value="xuhui">徐汇区</option>
+                            <option value="yangpu">杨浦区</option>
+                            <option value="pudong">浦东新区</option>
+                            <option value="jingan">静安区</option>
+                            <option value="huangpu">黄浦区</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-item conditional-field" id="parentCreditField" style="margin-top:16px">
+                        <label>是否有积分</label>
+                        <div class="option-tabs">
+                            <div class="option-tab">
+                                <input type="radio" id="parentCreditNone" name="parentCredit" value="none" checked>
+                                <label for="parentCreditNone" class="option-tab-label">无积分</label>
+                            </div>
+                            <div class="option-tab">
+                                <input type="radio" id="parentCredit120" name="parentCredit" value="120">
+                                <label for="parentCredit120" class="option-tab-label">满120分</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 孩子户籍信息 -->
+                <div>
+                    <div class="form-item">
+                        <label>孩子户籍</label>
+                        <div class="option-tabs">
+                            <div class="option-tab">
+                                <input type="radio" id="childHukouLocal" name="childHukou" value="local" checked>
+                                <label for="childHukouLocal" class="option-tab-label">本市户籍</label>
+                            </div>
+                            <div class="option-tab">
+                                <input type="radio" id="childHukouNonLocal" name="childHukou" value="nonlocal">
+                                <label for="childHukouNonLocal" class="option-tab-label">非本市户籍</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-item conditional-field" id="childHukouLocationField" style="margin-top:16px">
+                        <label>孩子户籍所在地</label>
+                        <select id="childHukouLocation">
+                            <option value="">请选择</option>
+                            <option value="minhang">闵行区</option>
+                            <option value="xuhui">徐汇区</option>
+                            <option value="yangpu">杨浦区</option>
+                            <option value="pudong">浦东新区</option>
+                            <option value="jingan">静安区</option>
+                            <option value="huangpu">黄浦区</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-item conditional-field" id="childResidenceField" style="margin-top:16px">
+                        <label>孩子居住证所在地</label>
+                        <select id="childResidence">
+                            <option value="">请选择</option>
+                            <option value="minhang">闵行区</option>
+                            <option value="xuhui">徐汇区</option>
+                            <option value="yangpu">杨浦区</option>
+                            <option value="pudong">浦东新区</option>
+                            <option value="jingan">静安区</option>
+                            <option value="huangpu">黄浦区</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 对口学校选择（小学和初中成对展示） -->
+            <div id="schoolSection" class="conditional-field" style="margin-top:20px">
+                <!-- 学校组容器 -->
+                <div id="schoolGroups">
+                    <!-- 第一组学校 -->
+                    <div class="school-group" id="schoolGroup1" style="margin-bottom: 24px; position: relative;">
+                        <button onclick="addSchoolGroup()" style="position: absolute; top: 0; right: 0; width: 32px; height: 32px; padding: 0; font-size: 18px; line-height: 1; background: rgba(102, 126, 234, 0.1); border: none; color: #667eea; cursor: pointer; border-radius: 50%; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center;" onmouseenter="showTooltip(this, '最多填写3所，建议填写意向度与条件最佳的3所学校')" onmouseleave="hideTooltip()">+</button>
+                        <div class="tooltip" id="schoolTooltip"></div>
+                        
+                        <div class="grid" style="margin-top:16px">
+                            <!-- 小学部分 -->
+                            <div class="form-item">
+                                <label>对口公办小学</label>
+                                <div style="position: relative;">
+                                    <input placeholder="例：明珠小学、闵行实验小学" style="width: 100%;">
+                                </div>
+                                <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+                                    <button class="btn-outline" onclick="setSchoolPair('明珠小学', '莘松中学', this)" style="padding:6px 12px;font-size:12px">明珠小学</button>
+                                    <button class="btn-outline" onclick="setSchoolPair('闵行实验小学', '闵行中学初中部', this)" style="padding:6px 12px;font-size:12px">闵行实验小学</button>
+                                    <button class="btn-outline" onclick="setSchoolPair('徐汇区第一中心小学', '徐汇中学', this)" style="padding:6px 12px;font-size:12px">徐汇区第一中心小学</button>
+                                </div>
+                            </div>
+                            
+                            <!-- 初中部分 -->
+                            <div class="form-item">
+                                <label>对口公办初中</label>
+                                <div style="position: relative;">
+                                    <input placeholder="例：莘松中学、徐汇中学" style="width: 100%;">
+                                </div>
+                                <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+                                    <button class="btn-outline" onclick="this.parentElement.parentElement.querySelector('input').value='莘松中学'" style="padding:6px 12px;font-size:12px">莘松中学</button>
+                                    <button class="btn-outline" onclick="this.parentElement.parentElement.querySelector('input').value='闵行中学初中部'" style="padding:6px 12px;font-size:12px">闵行中学初中部</button>
+                                    <button class="btn-outline" onclick="this.parentElement.parentElement.querySelector('input').value='徐汇中学'" style="padding:6px 12px;font-size:12px">徐汇中学</button>
+                                </div>
+                            </div>
+                            
+                            <!-- 备注部分 -->
+                            <div class="form-item">
+                                <label>对口条件</label>
+                                <input placeholder="例：人户一致3年、租房、积分120" style="max-width: 300px;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 升学路径选择 -->
+                <div class="grid" style="margin-top:20px">
+                    <div class="form-item" id="primaryRouteSection">
+                        <label>小学升学路径</label>
+                        <div style="margin-top:8px">
+                            <div class="option-tabs">
+                                <div class="option-tab">
+                                    <input type="radio" id="primaryRoutePublic" name="primaryRoute" value="public" checked>
+                                    <label for="primaryRoutePublic" class="option-tab-label">公办对口</label>
+                                </div>
+                                <div class="option-tab">
+                                    <input type="radio" id="primaryRoutePrivate" name="primaryRoute" value="private">
+                                    <label for="primaryRoutePrivate" class="option-tab-label">民办摇号</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="primaryPrivateSchoolField" style="display:none;margin-top:12px">
+                            <label style="font-size:13px;color:#666">摇号目标学校（可填多所，用逗号分隔）</label>
+                            <input id="primaryPrivateSchool" placeholder="例：世外中学,盛大花园小学,逸夫小学" style="margin-top:6px;width:100%">
+                        </div>
+                    </div>
+                    
+                    <div class="form-item" id="middleRouteSection">
+                        <label>初中升学路径</label>
+                        <div style="margin-top:8px">
+                            <div class="option-tabs">
+                                <div class="option-tab">
+                                    <input type="radio" id="middleRoutePublic" name="middleRoute" value="public" checked>
+                                    <label for="middleRoutePublic" class="option-tab-label">公办对口</label>
+                                </div>
+                                <div class="option-tab">
+                                    <input type="radio" id="middleRoutePrivate" name="middleRoute" value="private">
+                                    <label for="middleRoutePrivate" class="option-tab-label">民办摇号</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="middlePrivateSchoolField" style="display:none;margin-top:12px">
+                            <label style="font-size:13px;color:#666">摇号目标学校（可填多所，用逗号分隔）</label>
+                            <input id="middlePrivateSchool" placeholder="例：华育中学,兰生复旦,上宝中学" style="margin-top:6px;width:100%">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="margin-top:20px;text-align:right">
+                <button class="btn" id="nextStep1">下一步</button>
+            </div>
+        </div>
+        
+        <!-- 步骤2：学业情况 -->
+        <div class="card step-content" data-step="2">
+            <div class="card-title">学业情况</div>
+            
+            <div class="grid">
+                <div class="form-item">
+                    <label>校内大致排名</label>
+                    <input id="schoolRank" placeholder="例：年级前15%">
+                </div>
+                <div class="form-item">
+                    <label>近3次大考排名波动区间</label>
+                    <input id="rankFluctuation" placeholder="例：年级前10%-15%、波动不超过5个名次">
+                </div>
+
+                <div class="form-item">
+                    <label>学科得分率</label>
+                    <div style="margin-top:8px">
+                        <!-- 学科选择区域 -->
+                        <div style="margin-bottom:16px;display:flex;flex-wrap:wrap;gap:8px">
+                            <button class="subject-btn" data-subject="math" onclick="toggleSubjectSlider('math')">数学</button>
+                            <button class="subject-btn" data-subject="chinese" onclick="toggleSubjectSlider('chinese')">语文</button>
+                            <button class="subject-btn" data-subject="english" onclick="toggleSubjectSlider('english')">英语</button>
+                            <button class="subject-btn" data-subject="physics" onclick="toggleSubjectSlider('physics')">物理</button>
+                            <button class="subject-btn" data-subject="chemistry" onclick="toggleSubjectSlider('chemistry')">化学</button>
+                            <button class="subject-btn" data-subject="biology" onclick="toggleSubjectSlider('biology')">生物</button>
+                            <button class="subject-btn" data-subject="history" onclick="toggleSubjectSlider('history')">历史</button>
+                            <button class="subject-btn" data-subject="geography" onclick="toggleSubjectSlider('geography')">地理</button>
+                            <button class="subject-btn" data-subject="politics" onclick="toggleSubjectSlider('politics')">政治</button>
+                        </div>
+                        
+                        <!-- 滚动容器 -->
+                        <div class="scroll-container" style="max-height:300px;overflow-y:auto;padding-right:8px">
+                            <!-- 数学 -->
+                            <div class="subject-slider" id="mathSlider" style="margin-bottom:16px;display:none">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                                    <span style="font-size:14px;font-weight:500">数学</span>
+                                    <span id="mathScoreRateValue" style="font-size:14px;color:#6b7280">85%</span>
+                                </div>
+                                <input type="range" id="mathScoreRate" min="0" max="100" value="85" step="1" style="width:100%;height:8px;border-radius:4px;background:#e2e8f0;outline:none">
+                            </div>
+                            
+                            <!-- 语文 -->
+                            <div class="subject-slider" id="chineseSlider" style="margin-bottom:16px;display:none">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                                    <span style="font-size:14px;font-weight:500">语文</span>
+                                    <span id="chineseScoreRateValue" style="font-size:14px;color:#6b7280">85%</span>
+                                </div>
+                                <input type="range" id="chineseScoreRate" min="0" max="100" value="85" step="1" style="width:100%;height:8px;border-radius:4px;background:#e2e8f0;outline:none">
+                            </div>
+                            
+                            <!-- 英语 -->
+                            <div class="subject-slider" id="englishSlider" style="margin-bottom:16px;display:none">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                                    <span style="font-size:14px;font-weight:500">英语</span>
+                                    <span id="englishScoreRateValue" style="font-size:14px;color:#6b7280">85%</span>
+                                </div>
+                                <input type="range" id="englishScoreRate" min="0" max="100" value="85" step="1" style="width:100%;height:8px;border-radius:4px;background:#e2e8f0;outline:none">
+                            </div>
+                            
+                            <!-- 物理 -->
+                            <div class="subject-slider" id="physicsSlider" style="margin-bottom:16px;display:none">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                                    <span style="font-size:14px;font-weight:500">物理</span>
+                                    <span id="physicsScoreRateValue" style="font-size:14px;color:#6b7280">85%</span>
+                                </div>
+                                <input type="range" id="physicsScoreRate" min="0" max="100" value="85" step="1" style="width:100%;height:8px;border-radius:4px;background:#e2e8f0;outline:none">
+                            </div>
+                            
+                            <!-- 化学 -->
+                            <div class="subject-slider" id="chemistrySlider" style="margin-bottom:16px;display:none">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                                    <span style="font-size:14px;font-weight:500">化学</span>
+                                    <span id="chemistryScoreRateValue" style="font-size:14px;color:#6b7280">85%</span>
+                                </div>
+                                <input type="range" id="chemistryScoreRate" min="0" max="100" value="85" step="1" style="width:100%;height:8px;border-radius:4px;background:#e2e8f0;outline:none">
+                            </div>
+                            
+                            <!-- 生物 -->
+                            <div class="subject-slider" id="biologySlider" style="margin-bottom:16px;display:none">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                                    <span style="font-size:14px;font-weight:500">生物</span>
+                                    <span id="biologyScoreRateValue" style="font-size:14px;color:#6b7280">85%</span>
+                                </div>
+                                <input type="range" id="biologyScoreRate" min="0" max="100" value="85" step="1" style="width:100%;height:8px;border-radius:4px;background:#e2e8f0;outline:none">
+                            </div>
+                            
+                            <!-- 历史 -->
+                            <div class="subject-slider" id="historySlider" style="margin-bottom:16px;display:none">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                                    <span style="font-size:14px;font-weight:500">历史</span>
+                                    <span id="historyScoreRateValue" style="font-size:14px;color:#6b7280">85%</span>
+                                </div>
+                                <input type="range" id="historyScoreRate" min="0" max="100" value="85" step="1" style="width:100%;height:8px;border-radius:4px;background:#e2e8f0;outline:none">
+                            </div>
+                            
+                            <!-- 地理 -->
+                            <div class="subject-slider" id="geographySlider" style="margin-bottom:16px;display:none">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                                    <span style="font-size:14px;font-weight:500">地理</span>
+                                    <span id="geographyScoreRateValue" style="font-size:14px;color:#6b7280">85%</span>
+                                </div>
+                                <input type="range" id="geographyScoreRate" min="0" max="100" value="85" step="1" style="width:100%;height:8px;border-radius:4px;background:#e2e8f0;outline:none">
+                            </div>
+                            
+                            <!-- 政治 -->
+                            <div class="subject-slider" id="politicsSlider" style="display:none">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                                    <span style="font-size:14px;font-weight:500">政治</span>
+                                    <span id="politicsScoreRateValue" style="font-size:14px;color:#6b7280">85%</span>
+                                </div>
+                                <input type="range" id="politicsScoreRate" min="0" max="100" value="85" step="1" style="width:100%;height:8px;border-radius:4px;background:#e2e8f0;outline:none">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-item" style="grid-column: 1 / -1;">
+                    <label>学业相关证书/考级情况</label>
+                    <input id="certificates" placeholder="例：英语PET、钢琴8级、信息学奥赛CSP-J二等奖">
+                </div>
+                <div class="form-item" style="grid-column: 1 / -1;">
+                    <label>校内学业荣誉情况</label>
+                    <input id="honors" placeholder="例：校级三好学生、区级数学学科之星、市级优秀学生">
+                </div>
+                <div class="form-item" style="grid-column: 1 / -1;">
+                    <label>是否有竞赛/特长</label>
+                    <select id="specialty">
+                        <option>无</option>
+                        <option>学科竞赛</option>
+                        <option>艺术特长</option>
+                        <option>体育特长</option>
+                        <option>科创类奖项</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div style="margin-top:20px;display:flex;justify-content:space-between">
+                <button class="btn-outline" id="prevStep2">上一步</button>
+                <button class="btn" id="nextStep2">下一步</button>
+            </div>
+        </div>
+        
+        <!-- 步骤3：目标定位 -->
+        <div class="card step-content" data-step="3">
+            <div class="card-title">目标定位</div>
+            
+            <!-- 升学路线 -->
+            <div class="grid">
+                <div class="form-item" style="grid-column: 1 / -1;">
+                    <label>升学路线 <span style="font-size:12px;font-weight:normal;color:#9ca3af">(以高考为节点)</span></label>
+                    <div class="route-tabs">
+                        <div class="route-tab">
+                            <input type="radio" name="routeType" id="routeInternal" value="internal" checked>
+                            <label for="routeInternal" class="route-tab-label">国内路线</label>
+                        </div>
+                        <div class="route-tab">
+                            <input type="radio" name="routeType" id="routeAbroad" value="abroad">
+                            <label for="routeAbroad" class="route-tab-label">海外升学</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 目标定位 -->
+            <!-- 体制内联动模块 -->
+            <div id="sectionInternal" class="toggle-section show">
+                <div class="grid" style="margin-top:10px">
+                    <div class="form-item">
+                        <label>目标大学档位</label>
+                        <select id="targetLevel">
+                            <option value="qingbei">清北档位</option>
+                            <option value="huawu" selected>华五档位（复交浙科南）</option>
+                            <option value="985">985 高校</option>
+                            <option value="211">211 高校</option>
+                            <option value="key">双一流/重点本科</option>
+                            <option value="above">本科以上</option>
+                            <option value="none">不做要求</option>
+                        </select>
+                    </div>
+                    <div class="form-item" id="highLevelField">
+                        <label id="highLevelLabel">目标高中档位</label>
+                        <select id="highLevel">
+                            <option value="sixiao">四校级（上中/复附/华二/交附）</option>
+                            <option value="sixiao_fenxiao" selected>四校分校级</option>
+                            <option value="bada">八大金刚级</option>
+                            <option value="shizhong">市重点级</option>
+                            <option value="quzhong">区重点级</option>
+                            <option value="general">普通高中</option>
+                            <option value="none">不做要求</option>
+                        </select>
+                    </div>
+                    <div class="form-item" id="targetHighSchoolField">
+                        <label id="targetHighSchoolLabel">目标高中（可选）</label>
+                        <input id="targetHighSchool" placeholder="例：七宝中学、华二紫竹（多所学校用空格或顿号隔开）">
+                    </div>
+                </div>
+                
+                <!-- 升学率联动展示 -->
+                <div class="rate-card">
+                    <div class="rate-row">
+                        <span class="rate-label" id="highLevelRateLabel">目标高中档位基准清北复交率</span>
+                        <span class="rate-value" id="highLevelRate">25%-30%</span>
+                    </div>
+                    <div class="rate-row">
+                        <span class="rate-label" id="high985RateLabel">目标高中985录取率</span>
+                        <span class="rate-value" id="high985Rate">65%</span>
+                    </div>
+
+                </div>
+            </div>
+            
+            <!-- 体制外联动模块 -->
+            <div id="sectionExternal" class="toggle-section">
+                <div class="grid" style="margin-top:10px">
+                    <div class="form-item">
+                        <label>国际课程方向</label>
+                        <select id="courseType">
+                            <option value="ib">IB 课程</option>
+                            <option value="alevel">A-Level 课程</option>
+                            <option value="ap">AP 课程</option>
+                            <option value="ronghe">中西融合课程</option>
+                        </select>
+                    </div>
+                    <div class="form-item">
+                        <label>目标留学国家</label>
+                        <select id="abroadCountry">
+                            <option>英国</option>
+                            <option>美国</option>
+                            <option>中国香港</option>
+                            <option>新加坡</option>
+                            <option>加拿大</option>
+                            <option>澳大利亚</option>
+                        </select>
+                    </div>
+                    <div class="form-item">
+                        <label>目标大学档位</label>
+                        <select id="targetAbroadLevel">
+                            <option value="top10">QS TOP10</option>
+                            <option value="top30">QS TOP30</option>
+                            <option value="top50">QS TOP50</option>
+                            <option value="top100">QS TOP100</option>
+                            <option value="top300">QS TOP300</option>
+                            <option value="other">其他</option>
+                        </select>
+                    </div>
+                    <div class="form-item" id="targetAbroadHighSchoolField">
+                        <label id="targetAbroadHighSchoolLabel">目标高中（可选）</label>
+                        <input id="targetAbroadHighSchool" placeholder="例：上海平和双语学校、包玉刚实验学校（多所学校用空格或顿号隔开）">
+                    </div>
+                </div>
+                
+                <!-- 海外升学达成率展示 -->
+                <div class="rate-card" id="abroadRateCard">
+                    <div class="rate-row">
+                        <span class="rate-label">目标大学全球排名达成率</span>
+                        <span class="rate-value" id="abroadLevelRate">5%-8%</span>
+                    </div>
+                    <div class="rate-row">
+                        <span class="rate-label">国际高中对应录取率</span>
+                        <span class="rate-value" id="abroadHighRate">30%-40%</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="margin-top:20px;display:flex;justify-content:space-between">
+                <button class="btn-outline" id="prevStep3">上一步</button>
+                <button class="btn" id="nextStep3">下一步</button>
+            </div>
+        </div>
+        
+        <!-- 步骤4：家庭投入 -->
+        <div class="card step-content" data-step="4">
+            <div class="card-title">家庭投入</div>
+            
+            <div class="grid">
+                <div class="form-item">
+                    <label>费用预算/年</label>
+                    <div style="margin-top:8px">
+                        <input type="range" id="costBudget" min="1" max="20" value="10" step="1" style="width:100%;height:8px;border-radius:4px;background:#e2e8f0;outline:none">
+                        <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:14px;color:#6b7280">
+                            <span>1万</span>
+                            <span id="costBudgetValue">10万</span>
+                            <span>20万</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-item">
+                    <label>陪伴时间/天</label>
+                    <div style="margin-top:8px">
+                        <input type="range" id="timeInput" min="0" max="8" value="2" step="0.5" style="width:100%;height:8px;border-radius:4px;background:#e2e8f0;outline:none">
+                        <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:14px;color:#6b7280">
+                            <span>0小时</span>
+                            <span id="timeInputValue">2小时</span>
+                            <span>8小时</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="margin-top:20px;display:flex;justify-content:space-between">
+                <button class="btn-outline" id="prevStep4">上一步</button>
+                <button class="btn" id="nextStep4">下一步</button>
+            </div>
+        </div>
+        
+        <!-- 步骤5：结果展示 -->
+        <div class="card step-content" data-step="5">
+            <div class="card-title">教育规划结果</div>
+            
+            <!-- 目标定位总览 & 现状与差距分析 & 规划综述 - 整体板块 -->
+            <div style="background:linear-gradient(135deg,#fefce8 0%,#fef9c3 100%);border:2px solid #fbbf24;border-radius:12px;padding:20px;margin-bottom:30px">
+                <!-- 目标定位总览 -->
+                <div style="margin-bottom:24px">
+                    <h5 style="margin:0 0 16px 0;font-size:16px;font-weight:600;color:#92400e">🎯 目标定位总览</h5>
+                    <div style="background:#fff;border:1px solid #fde68a;border-radius:8px;padding:16px">
+                        <table style="width:100%;border-collapse:collapse;font-size:14px">
+                        <tr>
+                            <th style="text-align:left;padding:8px;border-bottom:1px solid #e2e8f0;width:25%">长期升学路线</th>
+                            <td style="padding:8px;border-bottom:1px solid #e2e8f0" id="planRoute">-</td>
+                            <th style="text-align:left;padding:8px;border-bottom:1px solid #e2e8f0;width:25%">目标大学档位</th>
+                            <td style="padding:8px;border-bottom:1px solid #e2e8f0" id="planLevel">-</td>
+                        </tr>
+                        <tr id="highSchoolRow" style="display:none">
+                            <th style="text-align:left;padding:8px;border-bottom:1px solid #e2e8f0">目标高中档位</th>
+                            <td style="padding:8px;border-bottom:1px solid #e2e8f0" id="planHighLevel">-</td>
+                            <th style="text-align:left;padding:8px;border-bottom:1px solid #e2e8f0">目标高中</th>
+                            <td style="padding:8px;border-bottom:1px solid #e2e8f0" id="planHighSchool">-</td>
+                        </tr>
+                        <tr id="routeRow" style="display:none">
+                            <th style="text-align:left;padding:8px;border-bottom:1px solid #e2e8f0">小学升学路径</th>
+                            <td style="padding:8px;border-bottom:1px solid #e2e8f0" id="planPrimaryRoute"></td>
+                            <th style="text-align:left;padding:8px;border-bottom:1px solid #e2e8f0">初中升学路径</th>
+                            <td style="padding:8px;border-bottom:1px solid #e2e8f0" id="planMiddleRoute"></td>
+                        </tr>
+                        <tr id="abroadCourseRow" style="display:none">
+                            <th style="text-align:left;padding:8px;border-bottom:1px solid #e2e8f0">国际课程方向</th>
+                            <td style="padding:8px;border-bottom:1px solid #e2e8f0" id="planCourseType">-</td>
+                            <th style="text-align:left;padding:8px;border-bottom:1px solid #e2e8f0">目标留学国家</th>
+                            <td style="padding:8px;border-bottom:1px solid #e2e8f0" id="planAbroadCountry">-</td>
+                        </tr>
+                        <tr>
+                            <th style="text-align:left;padding:8px">当前就读年级</th>
+                            <td style="padding:8px;border-bottom:1px solid #e2e8f0" id="planGrade">-</td>
+                            <th style="text-align:left;padding:8px;border-bottom:1px solid #e2e8f0">所在行政区</th>
+                            <td style="padding:8px;border-bottom:1px solid #e2e8f0" id="planDistrict">-</td>
+                        </tr>
+                        <tr id="currentSchoolRow">
+                            <th style="text-align:left;padding:8px">当前就读学校</th>
+                            <td style="padding:8px" id="planCurrentSchool" colspan="3">-</td>
+                        </tr>
+                    </table>
+                    </div>
+                </div>
+
+                <!-- 现状与差距分析 -->
+                <div style="margin-bottom:24px">
+                    <h5 style="margin:0 0 16px 0;font-size:16px;font-weight:600;color:#92400e">📊 现状与差距分析</h5>
+                    <div style="background:#fff;border:1px solid #fde68a;border-radius:8px;padding:16px">
+                        <ul style="margin:0;padding-left:20px;line-height:1.8" id="planGap">
+                            <li><strong>暂无现状与差距分析内容</strong></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- 规划综述 -->
+                <div id="planningSummary">
+                    <h5 style="margin:0 0 16px 0;font-size:16px;font-weight:600;color:#92400e">📋 规划综述</h5>
+                    <div style="background:#fff;border:1px solid #fde68a;border-radius:8px;padding:16px">
+                        <ul style="margin:0;padding-left:20px;line-height:1.8" id="planningSummaryContent">
+                            <li><strong>暂无规划综述内容</strong></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 升学路径图 & 分阶段学习规划 -->
+            <div id="basicPlanResult" style="margin-bottom:30px">
+                <!-- 当前阶段学习规划 -->
+                <div id="currentStagePlan" style="margin-bottom:30px">
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+                        <div style="width:12px;height:12px;border-radius:50%;background:#10b981"></div>
+                        <h5 style="margin:0;font-size:16px" id="currentStageTitle">当前：小学五年级 <span style="background:#f3f4f6;color:#6b7280;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:normal">稳定</span></h5>
+                </div>
+                <p style="color:#6b7280;margin-bottom:16px" id="currentStageGoal">核心目标：夯实校内基础，完成【公办对口】升学准备</p>
+                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px">
+                        <h6 style="margin:0 0 12px 0;color:#667eea">本阶段学习规划建议</h6>
+                        <ul style="margin:0;padding-left:20px;line-height:1.8" id="currentStageContent">
+                            <li><strong>课内巩固：</strong>语文数学英语三科成绩稳定班级前10%，每周复盘错题，杜绝基础知识点漏洞</li>
+                            <li><strong>数学拓展：</strong>每周1次思维训练，适配民办面谈/公办分班考，提前预习六年级数学基础</li>
+                            <li><strong>英语规划：</strong>每日15分钟单词背诵，小学毕业词汇量达2000+，每周2篇阅读训练，打磨听说能力</li>
+                            <li><strong>习惯培养：</strong>建立自主学习、时间管理能力，每日固定阅读时长，积累作文素材</li>
+                            <li><strong>升学准备：</strong>梳理对口公办初中政策，确认人户一致要求与年限要求</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- 幼升小阶段学习规划 -->
+                <div id="kindergartenToPrimaryPlan" style="margin-bottom:30px">
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+                        <div style="width:12px;height:12px;border-radius:50%;background:#f59e0b"></div>
+                        <h5 style="margin:0;font-size:16px">幼升小 <span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:normal" id="kindergartenToPrimaryRate">65%</span></h5>
+                    </div>
+                    <p style="color:#6b7280;margin-bottom:16px" id="kindergartenToPrimaryGoal">核心目标：进入优质小学，完成幼儿园-小学衔接</p>
+                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px">
+                        <h6 style="margin:0 0 12px 0;color:#667eea">本阶段学习规划建议</h6>
+                        <ul style="margin:0;padding-left:20px;line-height:1.8" id="kindergartenToPrimaryContent">
+                            <li><strong>知识准备：</strong>掌握200-300个常用汉字，会20以内加减法，具备基本的英语听说能力</li>
+                            <li><strong>能力培养：</strong>培养专注力、观察力、想象力，建立良好的学习习惯和生活习惯</li>
+                            <li><strong>心理适应：</strong>培养独立能力，学会与同学相处，适应集体生活</li>
+                            <li><strong>政策关注：</strong>确认对口小学招生政策，提前准备入学材料</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- 小升初阶段学习规划 -->
+                <div id="primaryToMiddlePlan" style="margin-bottom:30px">
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+                        <div style="width:12px;height:12px;border-radius:50%;background:#f59e0b"></div>
+                        <h5 style="margin:0;font-size:16px">小升初 <span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:normal" id="primaryToMiddleRate">58%</span></h5>
+                </div>
+                <p style="color:#6b7280;margin-bottom:16px" id="primaryToMiddleGoal">核心目标：进入对口公办初中，完成小学-初中衔接</p>
+                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px">
+                        <h6 style="margin:0 0 12px 0;color:#667eea">本阶段学习规划建议</h6>
+                        <ul style="margin:0;padding-left:20px;line-height:1.8" id="primaryToMiddleContent">
+                            <li><strong>升学冲刺：</strong>小升初前3个月完成公办分班考专项训练，重点突破数学拓展、语文文言文、英语时态</li>
+                            <li><strong>衔接预习：</strong>暑假完成初中语数英三科预科学习，重点突破有理数、文言文入门、英语语法体系</li>
+                            <li><strong>能力过渡：</strong>从小学被动学习转向初中自主学习，建立完整学习闭环</li>
+                            <li><strong>政策关注：</strong>确认对口初中分班考时间、科目，提前准备复习计划</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- 初中阶段学习规划 -->
+                <div id="middleStagePlan" style="margin-bottom:30px">
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+                        <div style="width:12px;height:12px;border-radius:50%;background:#f59e0b"></div>
+                        <h5 style="margin:0;font-size:16px">初中阶段 <span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:normal" id="middleStageRate">52%</span></h5>
+                </div>
+                <p style="color:#6b7280;margin-bottom:16px" id="middleStageGoal">核心目标：稳定年级前15%，备战中考，冲刺目标高中</p>
+                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px">
+                        <h6 style="margin:0 0 12px 0;color:#667eea">本阶段学习规划建议</h6>
+                        <ul style="margin:0;padding-left:20px;line-height:1.8" id="middleStageContent">
+                            <li><strong>初一：</strong>夯实全科基础，重点突破数学代数、英语语法、语文文言文，提前接触地理生物等级考内容，建立错题本</li>
+                            <li><strong>初二：</strong>攻克物理新学科，数学几何难点，英语完成中考考纲词汇背诵，关注生地等级考，参与科创竞赛积累综评素材</li>
+                            <li><strong>初三：</strong>完成中考一轮二轮三轮复习，每周模考训练，复盘错题，关注名额分配政策，打磨志愿填报方案</li>
+                            <li><strong>综合提升：</strong>每周固定体育训练，适配中考体育分值，同步准备综评面试素材</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- 高中阶段学习规划 -->
+                <div id="highStagePlan" style="margin-bottom:30px">
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+                        <div style="width:12px;height:12px;border-radius:50%;background:#f59e0b"></div>
+                        <h5 style="margin:0;font-size:16px">高中阶段 <span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:normal" id="highStageRate">66%</span></h5>
+                </div>
+                <p style="color:#6b7280;margin-bottom:16px" id="highStageGoal">核心目标：稳定年级前15%，备战高考，冲刺目标大学</p>
+                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px">
+                        <h6 style="margin:0 0 12px 0;color:#667eea">本阶段学习规划建议</h6>
+                        <ul style="margin:0;padding-left:20px;line-height:1.8" id="highStageContent">
+                            <li><strong>高一：</strong>适应高中学习节奏，夯实学科基础，确定选考科目，建立自主学习体系</li>
+                            <li><strong>高二：</strong>重点突破选考科目，参与学科竞赛/科创项目，准备强基计划/综评素材</li>
+                            <li><strong>高三：</strong>完成高考一轮二轮三轮复习，参加模考训练，关注招生政策变化</li>
+                            <li><strong>综合提升：</strong>保持身心健康，合理安排作息，积极准备志愿填报</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- 高考录取阶段 -->
+                <div id="collegeAdmissionPlan" style="margin-bottom:30px">
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+                        <div style="width:12px;height:12px;border-radius:50%;background:#ef4444"></div>
+                        <h5 style="margin:0;font-size:16px" id="collegeAdmissionTitle">高考录取 <span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:normal" id="collegeAdmissionRate">31%</span></h5>
+                </div>
+                <p style="color:#6b7280;margin-bottom:16px" id="collegeAdmissionGoal">核心目标：高考达目标院校投档线，完成录取，补齐缺口后可达概率：57%</p>
+                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px">
+                        <h6 style="margin:0 0 12px 0;color:#667eea">最终冲刺规划建议</h6>
+                        <ul style="margin:0;padding-left:20px;line-height:1.8" id="collegeAdmissionContent">
+                            <li><strong>高考冲刺：</strong>高三下学期聚焦高频考点、易错点，减少偏难题，保持模考节奏，调整应试心态</li>
+                            <li><strong>综评/强基：</strong>完成报名材料提交，打磨自我介绍、专业认知、热点分析内容，进行模拟面试训练</li>
+                            <li><strong>志愿填报：</strong>提前梳理目标院校近3-5年录取分数线、位次、招生人数，按冲-稳-保搭建志愿方案</li>
+                            <li><strong>备选方案：</strong>同步关注港澳院校招生、中外合作办学项目，搭建保底升学路径，降低风险</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="margin-top:20px;text-align:right">
+                <button class="btn" id="generateBtn">下载报告</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 生成的报告面板 -->
+<div class="report-mask" id="reportMask"></div>
+<div class="report-panel" id="reportPanel">
+    <div class="report-title">上海学生教育路径规划报告</div>
+    <div style="text-align:right;margin-bottom:16px">
+        <button class="btn" id="closeReportBtn">关闭报告</button>
+    </div>
+
+    <div class="report-section">
+        <h4>一、目标定位总览</h4>
+        <table class="report-table">
+            <tr>
+                <th>升学路线</th>
+                <td id="reportRoute">国内路线</td>
+                <th>目标大学档位</th>
+                <td id="reportLevel">华五档位（复交浙科南）</td>
+            </tr>
+            <tr>
+                <th>目标高中档位</th>
+                <td id="reportHighLevel">四校分校级</td>
+                <th>目标高中</th>
+                <td id="reportHighSchool">七宝中学</td>
+            </tr>
+            <tr>
+                <th>小学升学路径</th>
+                <td id="reportPrimaryRoute">公办对口</td>
+                <th>初中升学路径</th>
+                <td id="reportMiddleRoute">公办对口</td>
+            </tr>
+            <tr>
+                <th>年级</th>
+                <td id="reportGrade">小学五年级</td>
+                <th>所在行政区</th>
+                <td id="reportDistrict">闵行区</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="report-section">
+        <h4>二、现状与差距分析</h4>
+        <div id="reportGap"></div>
+    </div>
+
+    <div class="report-section">
+        <h4>三、升学路径图 & 分阶段学习规划</h4>
+        
+        <!-- 当前阶段学习规划 -->
+        <div style="margin-bottom:30px" id="reportCurrentStage">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+                <div style="width:12px;height:12px;border-radius:50%;background:#10b981"></div>
+                <h5 style="margin:0;font-size:16px" id="reportCurrentStageTitle">当前：小学五年级 <span style="background:#f3f4f6;color:#6b7280;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:normal">稳定</span></h5>
+            </div>
+            <p style="color:#6b7280;margin-bottom:16px" id="reportCurrentStageGoal">核心目标：夯实校内基础，完成【公办对口】升学准备</p>
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px">
+                <h6 style="margin:0 0 12px 0;color:#667eea">本阶段学习规划建议</h6>
+                <ul style="margin:0;padding-left:20px;line-height:1.8" id="reportCurrentStageContent">
+                    <li><strong>暂无内容</strong></li>
+                </ul>
+            </div>
+        </div>
+        
+        <!-- 幼升小阶段学习规划 -->
+        <div style="margin-bottom:30px" id="reportKindergartenToPrimary">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+                <div style="width:12px;height:12px;border-radius:50%;background:#f59e0b"></div>
+                <h5 style="margin:0;font-size:16px">幼升小 <span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:normal" id="reportKindergartenRate">65%</span></h5>
+            </div>
+            <p style="color:#6b7280;margin-bottom:16px" id="reportKindergartenGoal">核心目标：进入优质小学</p>
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px">
+                <h6 style="margin:0 0 12px 0;color:#667eea">本阶段学习规划建议</h6>
+                <ul style="margin:0;padding-left:20px;line-height:1.8" id="reportKindergartenContent">
+                    <li><strong>暂无内容</strong></li>
+                </ul>
+            </div>
+        </div>
+        
+        <!-- 小升初阶段学习规划 -->
+        <div style="margin-bottom:30px" id="reportPrimaryToMiddle">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+                <div style="width:12px;height:12px;border-radius:50%;background:#f59e0b"></div>
+                <h5 style="margin:0;font-size:16px">小升初 <span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:normal" id="reportPrimaryToMiddleRate">58%</span></h5>
+            </div>
+            <p style="color:#6b7280;margin-bottom:16px" id="reportPrimaryToMiddleGoal">核心目标：进入对口公办初中</p>
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px">
+                <h6 style="margin:0 0 12px 0;color:#667eea">本阶段学习规划建议</h6>
+                <ul style="margin:0;padding-left:20px;line-height:1.8" id="reportPrimaryToMiddleContent">
+                    <li><strong>暂无内容</strong></li>
+                </ul>
+            </div>
+        </div>
+        
+        <!-- 初中阶段学习规划 -->
+        <div style="margin-bottom:30px" id="reportMiddleStage">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+                <div style="width:12px;height:12px;border-radius:50%;background:#f59e0b"></div>
+                <h5 style="margin:0;font-size:16px">初中阶段 <span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:normal" id="reportMiddleStageRate">52%</span></h5>
+            </div>
+            <p style="color:#6b7280;margin-bottom:16px" id="reportMiddleStageGoal">核心目标：稳定年级前15%</p>
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px">
+                <h6 style="margin:0 0 12px 0;color:#667eea">本阶段学习规划建议</h6>
+                <ul style="margin:0;padding-left:20px;line-height:1.8" id="reportMiddleStageContent">
+                    <li><strong>暂无内容</strong></li>
+                </ul>
+            </div>
+        </div>
+        
+        <!-- 高中阶段学习规划 -->
+        <div style="margin-bottom:30px" id="reportHighStage">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+                <div style="width:12px;height:12px;border-radius:50%;background:#f59e0b"></div>
+                <h5 style="margin:0;font-size:16px">高中阶段 <span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:normal" id="reportHighStageRate">66%</span></h5>
+            </div>
+            <p style="color:#6b7280;margin-bottom:16px" id="reportHighStageGoal">核心目标：稳定年级前15%</p>
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px">
+                <h6 style="margin:0 0 12px 0;color:#667eea">本阶段学习规划建议</h6>
+                <ul style="margin:0;padding-left:20px;line-height:1.8" id="reportHighStageContent">
+                    <li><strong>暂无内容</strong></li>
+                </ul>
+            </div>
+        </div>
+        
+        <!-- 高考录取阶段 -->
+        <div style="margin-bottom:30px" id="reportCollegeAdmission">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+                <div style="width:12px;height:12px;border-radius:50%;background:#ef4444"></div>
+                <h5 style="margin:0;font-size:16px" id="reportCollegeAdmissionTitle">高考录取 <span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:normal" id="reportCollegeAdmissionRate">31%</span></h5>
+            </div>
+            <p style="color:#6b7280;margin-bottom:16px" id="reportCollegeAdmissionGoal">核心目标：高考达目标院校投档线</p>
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px">
+                <h6 style="margin:0 0 12px 0;color:#667eea">最终冲刺规划建议</h6>
+                <ul style="margin:0;padding-left:20px;line-height:1.8" id="reportCollegeAdmissionContent">
+                    <li><strong>暂无内容</strong></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="report-section">
+        <h4>四、分学科学习建议</h4>
+        <div id="reportSuggest"></div>
+    </div>
+
+    <div class="report-section">
+        <h4>五、风险提示与备选方案</h4>
+        <div id="reportRisk"></div>
+    </div>
+</div>
+
+<script>
+// 设置小学和初中的关联关系
+window.setSchoolPair = function(primarySchool, middleSchool, element) {
+    // 获取当前学校组
+    let schoolGroup;
+    if (element) {
+        schoolGroup = element.closest('.school-group');
+    } else {
+        // 动态添加的学校组，获取当前点击的按钮所在组
+        const buttons = document.querySelectorAll('.btn-outline');
+        buttons.forEach(btn => {
+            if (btn.textContent === primarySchool) {
+                schoolGroup = btn.closest('.school-group');
+            }
+        });
+    }
+    
+    if (schoolGroup) {
+        // 设置小学输入框
+        const primaryInput = schoolGroup.querySelector('.form-item:nth-child(1) input');
+        if (primaryInput) {
+            primaryInput.value = primarySchool;
+        }
+        
+        // 设置初中输入框
+        const middleInput = schoolGroup.querySelector('.form-item:nth-child(2) input');
+        if (middleInput) {
+            middleInput.value = middleSchool;
+        }
+    }
+};
+
+// 添加新的学校组（小学+初中）
+window.addSchoolGroup = function() {
+    console.log('点击添加学校组');
+    
+    // 验证学校组唯一性
+    if (!validateSchoolGroups()) {
+        return;
+    }
+    
+    const schoolGroups = document.getElementById('schoolGroups');
+    const schoolGroupsCount = schoolGroups.querySelectorAll('.school-group').length;
+    
+    if (schoolGroupsCount >= 3) {
+        alert('最多只能添加3组学校');
+        return;
+    }
+    
+    const newSchoolGroupId = 'schoolGroup' + (schoolGroupsCount + 1);
+    const newSchoolGroup = document.createElement('div');
+    newSchoolGroup.className = 'school-group';
+    newSchoolGroup.id = newSchoolGroupId;
+    newSchoolGroup.style.marginBottom = '24px';
+    newSchoolGroup.style.paddingBottom = '24px';
+    newSchoolGroup.style.borderBottom = '1px solid rgba(240, 240, 240, 0.5)';
+    newSchoolGroup.style.position = 'relative';
+    
+    newSchoolGroup.innerHTML = `
+        <button class="btn-delete" data-group-id="${newSchoolGroupId}" style="position: absolute !important; top: 0 !important; right: 0 !important; width: 32px !important; height: 32px !important; padding: 0 !important; font-size: 18px !important; line-height: 1 !important; border: none !important; color: red !important; cursor: pointer !important; border-radius: 50% !important; transition: all 0.3s ease !important; display: flex !important; align-items: center !important; justify-content: center !important; transform: none !important;">×</button>
+        
+        <div class="grid" style="margin-top:16px">
+            <!-- 小学部分 -->
+            <div class="form-item">
+                <label>对口公办小学</label>
+                <div style="position: relative;">
+                    <input placeholder="例：明珠小学、闵行实验小学" style="width: 100%;">
+                </div>
+                <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+                    <button class="btn-outline" onclick="setSchoolPair('明珠小学', '莘松中学', this)" style="padding:6px 12px;font-size:12px">明珠小学</button>
+                    <button class="btn-outline" onclick="setSchoolPair('闵行实验小学', '闵行中学初中部', this)" style="padding:6px 12px;font-size:12px">闵行实验小学</button>
+                    <button class="btn-outline" onclick="setSchoolPair('徐汇区第一中心小学', '徐汇中学', this)" style="padding:6px 12px;font-size:12px">徐汇区第一中心小学</button>
+                </div>
+            </div>
+            
+            <!-- 初中部分 -->
+            <div class="form-item">
+                <label>对口公办初中</label>
+                <div style="position: relative;">
+                    <input placeholder="例：莘松中学、徐汇中学" style="width: 100%;">
+                </div>
+                <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+                    <button class="btn-outline" onclick="this.parentElement.parentElement.querySelector('input').value='莘松中学'" style="padding:6px 12px;font-size:12px">莘松中学</button>
+                    <button class="btn-outline" onclick="this.parentElement.parentElement.querySelector('input').value='闵行中学初中部'" style="padding:6px 12px;font-size:12px">闵行中学初中部</button>
+                    <button class="btn-outline" onclick="this.parentElement.parentElement.querySelector('input').value='徐汇中学'" style="padding:6px 12px;font-size:12px">徐汇中学</button>
+                </div>
+            </div>
+            
+            <!-- 备注部分 -->
+            <div class="form-item">
+                <label>对口条件</label>
+                <input placeholder="例：人户一致3年、租房、积分120" style="max-width: 300px;">
+            </div>
+        </div>
+    `;
+    
+    schoolGroups.appendChild(newSchoolGroup);
+    updateSchoolGroupNumbers();
+    
+    // 根据当前学段更新显示状态
+    const educationStage = document.getElementById('educationStage').value;
+    if (educationStage === 'primary') {
+        const primarySchool = newSchoolGroup.querySelector('.form-item:nth-child(1)');
+        primarySchool.style.display = 'none';
+    }
+};
+
+// 更新学校组序号
+window.updateSchoolGroupNumbers = function() {
+    try {
+        const schoolGroups = document.getElementById('schoolGroups');
+        if (!schoolGroups) return;
+        
+        const groups = schoolGroups.querySelectorAll('.school-group');
+        const groupCount = groups.length;
+        
+        groups.forEach((group, index) => {
+            // 更新小学标签
+            const primaryLabel = group.querySelector('.form-item:nth-child(1) label');
+            if (primaryLabel) {
+                if (groupCount > 1) {
+                    primaryLabel.textContent = `对口公办小学 ${index + 1}`;
+                } else {
+                    primaryLabel.textContent = '对口公办小学';
+                }
+            }
+            
+            // 更新初中标签
+            const middleLabel = group.querySelector('.form-item:nth-child(2) label');
+            if (middleLabel) {
+                if (groupCount > 1) {
+                    middleLabel.textContent = `对口公办初中 ${index + 1}`;
+                } else {
+                    middleLabel.textContent = '对口公办初中';
+                }
+            }
+        });
+        
+        // 根据学校组数量控制第一组的分割线显示
+        const firstGroup = document.getElementById('schoolGroup1');
+        if (firstGroup) {
+            if (groupCount > 1) {
+                firstGroup.style.paddingBottom = '24px';
+                firstGroup.style.borderBottom = '1px solid rgba(240, 240, 240, 0.5)';
+            } else {
+                firstGroup.style.paddingBottom = '';
+                firstGroup.style.borderBottom = '';
+            }
+        }
+        
+        console.log('序号更新完成');
+    } catch (error) {
+        console.error('更新序号失败:', error);
+    }
+};
+
+// 删除学校组
+function deleteSchoolGroup(groupId) {
+    console.log('删除学校组:', groupId);
+    try {
+        const schoolGroup = document.getElementById(groupId);
+        if (schoolGroup) {
+            schoolGroup.remove();
+            updateSchoolGroupNumbers();
+            console.log('学校组已删除:', groupId);
+        } else {
+            console.error('未找到学校组:', groupId);
+        }
+    } catch (error) {
+        console.error('删除失败:', error);
+    }
+}
+window.deleteSchoolGroup = deleteSchoolGroup;
+
+// 验证学校组唯一性（不允许完全相同的学校组）
+window.validateSchoolGroups = function() {
+    const schoolGroups = document.querySelectorAll('.school-group');
+    const schoolPairs = [];
+    
+    // 收集所有学校组的小学和初中组合
+    schoolGroups.forEach(group => {
+        const primarySchool = group.querySelector('.form-item:nth-child(1) input').value.trim();
+        const middleSchool = group.querySelector('.form-item:nth-child(2) input').value.trim();
+        
+        // 只验证有内容的学校组
+        if (primarySchool || middleSchool) {
+            schoolPairs.push({ primary: primarySchool, middle: middleSchool });
+        }
+    });
+    
+    // 检查是否有完全相同的组合
+    for (let i = 0; i < schoolPairs.length; i++) {
+        for (let j = i + 1; j < schoolPairs.length; j++) {
+            const pair1 = schoolPairs[i];
+            const pair2 = schoolPairs[j];
+            
+            // 如果小学和初中都完全相同，则不允许
+            if (pair1.primary === pair2.primary && pair1.middle === pair2.middle) {
+                alert('不允许添加完全相同的学校组（小学和初中都相同）！');
+                return false;
+            }
+        }
+    }
+    
+    return true;
+};
+
+// 页面加载完成后执行
+window.onload = function() {
+    console.log('页面加载完成');
+    
+    // 使用事件委托处理删除按钮点击
+    document.addEventListener('click', function(event) {
+        if (event.target.classList.contains('btn-delete')) {
+            console.log('删除按钮被点击');
+            const groupId = event.target.getAttribute('data-group-id');
+            if (groupId) {
+                const schoolGroup = document.getElementById(groupId);
+                if (schoolGroup) {
+                    schoolGroup.remove();
+                    updateSchoolGroupNumbers();
+                    console.log('学校组已删除:', groupId);
+                } else {
+                    console.error('未找到学校组:', groupId);
+                }
+            } else {
+                console.error('没有找到data-group-id属性');
+            }
+        }
+    });
+    
+    // 步骤导航功能
+    function goToStep(step) {
+        console.log('切换到步骤:', step);
+        // 隐藏所有步骤内容
+        document.querySelectorAll('.step-content').forEach(item => {
+            item.classList.remove('active');
+        });
+        
+        // 显示当前步骤内容
+        const targetStep = document.querySelector(`.step-content[data-step="${step}"]`);
+        if (targetStep) {
+            targetStep.classList.add('active');
+            console.log('步骤内容显示成功');
+        } else {
+            console.error('未找到步骤内容:', step);
+        }
+        
+        // 更新步骤导航状态
+        const stepTexts = document.querySelectorAll('.step-text');
+        
+        stepTexts.forEach((item, index) => {
+            const stepNum = index + 1;
+            item.classList.remove('active');
+            if (stepNum === step) {
+                item.classList.add('active');
+            }
+        });
+    }
+    
+    // 更新步骤5的基础规划结果
+    function updateBasicPlanResult() {
+        // 获取表单数据
+        const educationStageEl = document.getElementById('educationStage');
+        const currentGrade = document.getElementById('currentGrade');
+        
+        // 获取升学路径 - 确保获取正确的值
+        let primaryRoute = document.querySelector('input[name="primaryRoute"]:checked')?.value;
+        if (!primaryRoute) {
+            primaryRoute = 'public';
+        }
+        let middleRoute = document.querySelector('input[name="middleRoute"]:checked')?.value;
+        if (!middleRoute) {
+            middleRoute = 'public';
+        }
+        
+        // 获取阶段和年级文本
+        const stage = educationStageEl.value;
+        const stageText = educationStageEl.options[educationStageEl.selectedIndex].text;
+        const gradeText = currentGrade.options[currentGrade.selectedIndex].text;
+        
+        // 更新当前阶段标题
+        document.getElementById('currentStageTitle').innerHTML = `当前：${stageText} ${gradeText} <span style="background:#f3f4f6;color:#6b7280;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:normal">稳定</span>`;
+        
+        // 获取所有阶段元素
+        const currentStagePlan = document.getElementById('currentStagePlan');
+        const kindergartenToPrimaryPlan = document.getElementById('kindergartenToPrimaryPlan');
+        const primaryToMiddlePlan = document.getElementById('primaryToMiddlePlan');
+        const middleStagePlan = document.getElementById('middleStagePlan');
+        const highStagePlan = document.getElementById('highStagePlan');
+        const collegeAdmissionPlan = document.getElementById('collegeAdmissionPlan');
+        
+        // 获取目标高中文本
+        const highLevel = document.getElementById('highLevel');
+        const highLevelText = highLevel?.options?.[highLevel?.selectedIndex]?.text || '';
+        const targetLevel = document.getElementById('targetLevel');
+        const targetLevelText = targetLevel?.options?.[targetLevel?.selectedIndex]?.text || '';
+
+        // 更新目标定位总览表格
+        const routeTypeVal = document.querySelector('input[name="routeType"]:checked')?.value;
+        const isAbroad = routeTypeVal === 'abroad';
+        document.getElementById('planRoute').textContent = isAbroad ? '海外升学' : (routeTypeVal === 'internal' ? '国内路线' : '未填写');
+
+        // 海外升学使用QS排名版本
+        const abroadCourseRow = document.getElementById('abroadCourseRow');
+        if (isAbroad) {
+            abroadCourseRow.style.display = '';
+            const targetAbroadLevel = document.getElementById('targetAbroadLevel');
+            const targetAbroadLevelText = targetAbroadLevel?.options?.[targetAbroadLevel?.selectedIndex]?.text || '';
+            document.getElementById('planLevel').textContent = targetAbroadLevelText || '未填写';
+
+            const courseType = document.getElementById('courseType');
+            const courseTypeText = courseType?.options?.[courseType?.selectedIndex]?.text || '';
+            document.getElementById('planCourseType').textContent = courseTypeText || '未填写';
+
+            const abroadCountry = document.getElementById('abroadCountry');
+            const abroadCountryText = abroadCountry?.options?.[abroadCountry?.selectedIndex]?.text || '';
+            document.getElementById('planAbroadCountry').textContent = abroadCountryText || '未填写';
+
+            const targetAbroadHighSchoolEl = document.getElementById('targetAbroadHighSchool');
+            const targetAbroadHighSchoolVal = targetAbroadHighSchoolEl?.value?.trim() || '';
+            document.getElementById('planHighSchool').textContent = targetAbroadHighSchoolVal || '未填写';
+        } else {
+            abroadCourseRow.style.display = 'none';
+            document.getElementById('planLevel').textContent = targetLevelText || '未填写';
+            document.getElementById('planHighLevel').textContent = highLevelText || '未填写';
+            const targetHighSchoolEl = document.getElementById('targetHighSchool');
+            const targetHighSchoolVal = targetHighSchoolEl?.value?.trim() || '';
+            document.getElementById('planHighSchool').textContent = targetHighSchoolVal || '未填写';
+        }
+        
+        const districtEl = document.getElementById('district');
+        const districtText = districtEl?.options?.[districtEl?.selectedIndex]?.text || '';
+        
+        const routeRow = document.getElementById('routeRow');
+        if (stage === 'preschool' || stage === 'kindergarten') {
+            routeRow.style.display = '';
+            document.getElementById('planPrimaryRoute').textContent = primaryRoute === 'private' ? '民办摇号' : (primaryRoute === 'public' ? '公办对口' : '未填写');
+            document.getElementById('planMiddleRoute').textContent = middleRoute === 'private' ? '民办摇号' : (middleRoute === 'public' ? '公办对口' : '未填写');
+        } else if (stage === 'primary') {
+            routeRow.style.display = '';
+            document.getElementById('planPrimaryRoute').textContent = '-';
+            document.getElementById('planMiddleRoute').textContent = middleRoute === 'private' ? '民办摇号' : (middleRoute === 'public' ? '公办对口' : '未填写');
+        } else {
+            routeRow.style.display = 'none';
+        }
+        
+        const highSchoolRow = document.getElementById('highSchoolRow');
+        if (stage === 'high') {
+            highSchoolRow.style.display = 'none';
+        } else {
+            highSchoolRow.style.display = '';
+        }
+        
+        document.getElementById('planGrade').textContent = `${stageText} ${gradeText}`;
+        document.getElementById('planDistrict').textContent = districtText || '未填写';
+        const currentSchoolEl = document.getElementById('currentSchool');
+        const currentSchoolVal = currentSchoolEl?.value?.trim() || '';
+        document.getElementById('planCurrentSchool').textContent = currentSchoolVal || '未填写';
+
+        // 默认隐藏所有阶段
+        currentStagePlan.style.display = 'none';
+        kindergartenToPrimaryPlan.style.display = 'none';
+        primaryToMiddlePlan.style.display = 'none';
+        middleStagePlan.style.display = 'none';
+        highStagePlan.style.display = 'none';
+        collegeAdmissionPlan.style.display = 'none';
+        
+        // 根据学段和年级显示相应阶段
+        if (stage === 'preschool' || stage === 'kindergarten') {
+            // 托育园/幼儿园：当前阶段 + 幼升小阶段+小升初 + 初中阶段 + 高中阶段 + 高考录取
+            currentStagePlan.style.display = 'block';
+            kindergartenToPrimaryPlan.style.display = 'block';
+            primaryToMiddlePlan.style.display = 'block';
+            middleStagePlan.style.display = 'block';
+            highStagePlan.style.display = 'block';
+            collegeAdmissionPlan.style.display = 'block';
+        } else if (stage === 'primary') {
+            // 小学：当前阶段 + 小升初 + 初中阶段 + 高中阶段 + 高考录取
+            currentStagePlan.style.display = 'block';
+            kindergartenToPrimaryPlan.style.display = 'none'; // 强制隐藏幼升小阶段
+            primaryToMiddlePlan.style.display = 'block';
+            middleStagePlan.style.display = 'block';
+            highStagePlan.style.display = 'block';
+            collegeAdmissionPlan.style.display = 'block';
+        } else if (stage === 'middle') {
+            // 初中：当前阶段 + 高中阶段 + 高考录取
+            currentStagePlan.style.display = 'block';
+            kindergartenToPrimaryPlan.style.display = 'none'; // 强制隐藏幼升小阶段
+            primaryToMiddlePlan.style.display = 'none'; // 强制隐藏小升初阶段
+            middleStagePlan.style.display = 'none'; // 强制隐藏初中阶段
+            highStagePlan.style.display = 'block';
+            collegeAdmissionPlan.style.display = 'block';
+        } else if (stage === 'high') {
+            // 高中：只显示升学路线和目标大学档位
+            currentStagePlan.style.display = 'none';
+            kindergartenToPrimaryPlan.style.display = 'none'; // 强制隐藏幼升小阶段
+            primaryToMiddlePlan.style.display = 'none'; // 强制隐藏小升初阶段
+            middleStagePlan.style.display = 'none'; // 强制隐藏初中阶段
+            highStagePlan.style.display = 'none'; // 强制隐藏高中阶段
+            collegeAdmissionPlan.style.display = 'none'; // 强制隐藏高考录取
+        }
+        
+        // 动态生成核心目标内容
+        generateStageGoals(stage, currentGrade.value, routeTypeVal, primaryRoute, middleRoute, targetLevelText, highLevelText);
+        
+        // 动态生成规划建议内容
+        generateStageContent(
+            stage,
+            currentGrade.value,
+            routeTypeVal,
+            primaryRoute,
+            middleRoute,
+            targetLevelText,
+            highLevelText
+        );
+        
+        // 动态计算各阶段达成率
+        calculateStageRates(stage, currentGrade.value, primaryRoute, middleRoute, targetLevelText, highLevelText);
+        
+        // 动态生成规划综述
+        generatePlanningSummary(stage, currentGrade.value, primaryRoute, middleRoute, targetLevelText, highLevelText);
+
+        // 动态生成现状与差距分析
+        generatePlanGap(stage, currentGrade.value, primaryRoute, middleRoute, targetLevelText, highLevelText);
+    }
+
+    // 生成教育规划页面的现状与差距分析
+    function generatePlanGap(stage, grade, primaryRoute, middleRoute, targetLevelText, highLevelText) {
+        let gapItems = [];
+
+        if (stage === 'preschool' || stage === 'kindergarten') {
+            gapItems = [
+                `<li><strong>1. 升学路径：</strong>当前选择【${primaryRoute === 'public' ? '公办对口' : '民办摇号'}】升学路径，需提前了解目标小学的招生政策和报名时间节点</li>`,
+                `<li><strong>2. 能力储备：</strong>建议在幼儿园阶段重点培养专注力、语言表达和基础数感，为小学学习打下坚实基础</li>`,
+                `<li><strong>3. 习惯培养：</strong>建立规律作息，培养阅读习惯和时间管理意识，这对未来长期学习至关重要</li>`,
+                `<li><strong>4. 竞争态势：</strong>${primaryRoute === 'private' ? '民办小学竞争激烈，建议提前准备面试环节' : '公办小学相对稳定，但需确保人户一致'}</li>`
+            ];
+        } else if (stage === 'primary') {
+            const isHighTarget = targetLevelText.includes('四校') || targetLevelText.includes('八大') || targetLevelText.includes('市重点');
+            gapItems = [
+                `<li><strong>1. 升学路径差距：</strong>当前选择【${primaryRoute === 'public' ? '公办对口' : '民办摇号'}】升学路径，${primaryRoute === 'private' ? '民办小学竞争激烈，需有心理准备' : '公办小学相对稳定，但分班考成绩影响初中起点'}</li>`,
+                `<li><strong>2. 目标达成路径：</strong>目标大学档位为${targetLevelText}，需在小学阶段打好基础，培养良好学习习惯</li>`,
+                `<li><strong>3. 能力储备差距：</strong>${isHighTarget ? '若目标是四校/八大，建议适度参加思维训练和学科拓展' : '保持学科均衡发展，培养1-2项特长爱好'}</li>`,
+                `<li><strong>4. 时间规划：</strong>距离小升初仅剩${grade === 'p5' ? '1年' : '数年'}，需制定合理的学习计划</li>`
+            ];
+        } else if (stage === 'middle') {
+            const isHighTarget = highLevelText.includes('四校') || highLevelText.includes('分校') || highLevelText.includes('八大');
+            gapItems = [
+                `<li><strong>1. 升学路径差距：</strong>目标为${highLevelText}，需进入优质初中，否则中考竞争力不足</li>`,
+                `<li><strong>2. 学业能力差距：</strong>目标${targetLevelText}需高中保持年级前${isHighTarget ? '5%' : '15%'}，当前校内排名需持续提升</li>`,
+                `<li><strong>3. 竞赛素材差距：</strong>${isHighTarget ? '建议积极参与学科竞赛和科创项目，为综评积累素材' : '适度拓展学科深度，保持均衡发展'}</li>`,
+                `<li><strong>4. 时间规划差距：</strong>距离中考仅剩${grade === 'c4' ? '1年' : grade === 'c3' ? '2年' : '数年'}，需立即启动针对性提升计划</li>`
+            ];
+        } else if (stage === 'high') {
+            const isHighTarget = targetLevelText.includes('清北') || targetLevelText.includes('华五');
+            gapItems = [
+                `<li><strong>1. 目标难度分析：</strong>目标为${targetLevelText}，上海市高考竞争激烈，需达目标院校投档线</li>`,
+                `<li><strong>2. 学业能力差距：</strong>${targetLevelText}需年级排名前${isHighTarget ? '5%' : '15%'}，当前成绩与目标存在差距</li>`,
+                `<li><strong>3. 综评准备差距：</strong>${isHighTarget ? '建议准备强基计划/综评材料，参与竞赛争取奖项' : '关注综合评价招生政策，提前准备相关材料'}</li>`,
+                `<li><strong>4. 时间紧迫性：</strong>高三阶段时间紧迫，需聚焦高频考点，确保稳定发挥</li>`
+            ];
+        }
+
+        document.getElementById('planGap').innerHTML = gapItems.join('');
+    }
+    
+    // 生成各阶段核心目标
+    function generateStageGoals(stage, grade, routeType, primaryRoute, middleRoute, targetLevelText, highLevelText) {
+        // 获取初中升学路径文本
+        const middleRouteText = middleRoute === 'public' ? '公办对口' : '民办摇号';
+        
+        // 当前阶段核心目标 - 根据年级和目标高度个性化
+        let currentGoal = '';
+        if (stage === 'preschool') {
+            currentGoal = '核心目标：培养良好生活习惯，为幼儿园入园做好准备';
+        } else if (stage === 'kindergarten') {
+            currentGoal = '核心目标：培养学习兴趣，为小学入学做好准备';
+        } else if (stage === 'primary') {
+            const routeText = primaryRoute === 'public' ? '公办对口' : '民办摇号';
+            currentGoal = `核心目标：夯实校内基础，完成【${routeText}】升学准备`;
+        } else if (stage === 'middle') {
+            // 根据年级生成针对性目标
+            if (grade === 'c1') {
+                // 六年级（初一）
+                currentGoal = `核心目标：适应初中学习节奏，夯实全科基础，为中考打下坚实基础`;
+            } else if (grade === 'c2') {
+                // 七年级（初二）
+                currentGoal = `核心目标：稳定年级排名前15%，重点突破物理等新学科，备战生地等级考`;
+            } else if (grade === 'c3') {
+                // 八年级（初三）- 中考关键年
+                currentGoal = `核心目标：稳定年级排名前15%，全力备战中考，冲刺${highLevelText}`;
+            } else if (grade === 'c4') {
+                // 九年级（初三）- 最后冲刺
+                currentGoal = `核心目标：全力冲刺中考，达成【${middleRouteText}】目标，确保进入${highLevelText}`;
+            }
+        } else if (stage === 'high') {
+            // 根据年级生成针对性目标
+            if (grade === 'h1') {
+                currentGoal = `核心目标：适应高中学习节奏，确定选考科目，夯实学科基础，冲刺${targetLevelText}`;
+            } else if (grade === 'h2') {
+                currentGoal = `核心目标：稳定年级排名前15%，重点突破选考科目，备战等级考，冲刺${targetLevelText}`;
+            } else if (grade === 'h3') {
+                currentGoal = `核心目标：全力备战高考，达成目标院校投档线，冲击${targetLevelText}`;
+            }
+        }
+        document.getElementById('currentStageGoal').textContent = currentGoal;
+        
+        // 幼升小阶段核心目标
+        if (stage === 'preschool' || stage === 'kindergarten') {
+            document.getElementById('kindergartenToPrimaryGoal').textContent = `核心目标：进入${primaryRoute === 'public' ? '对口公办' : '优质民办'}小学，完成幼儿园-小学衔接`;
+        }
+        
+        // 小升初阶段核心目标 - 使用middleRoute因为是小升初阶段
+        if (stage === 'preschool' || stage === 'kindergarten' || stage === 'primary') {
+            document.getElementById('primaryToMiddleGoal').textContent = `核心目标：进入${middleRoute === 'public' ? '对口公办' : '优质民办'}初中，完成小学-初中衔接`;
+        }
+        
+        // 初中阶段核心目标 - 个性化
+        if (stage === 'preschool' || stage === 'kindergarten' || stage === 'primary') {
+            document.getElementById('middleStageGoal').textContent = `核心目标：稳定年级前15%，备战中考，冲刺${highLevelText}`;
+        }
+        
+        // 高中阶段核心目标 - 个性化
+        if (stage === 'preschool' || stage === 'kindergarten' || stage === 'primary' || stage === 'middle') {
+            document.getElementById('highStageGoal').textContent = `核心目标：稳定年级前15%，备战高考，冲刺${targetLevelText}`;
+        }
+        
+        // 高考录取阶段核心目标 - 个性化
+        if (stage === 'preschool' || stage === 'kindergarten' || stage === 'primary' || stage === 'middle' || stage === 'high') {
+            document.getElementById('collegeAdmissionGoal').textContent = `核心目标：高考达${targetLevelText}投档线，完成录取，补齐缺口后可达概率：57%`;
+        }
+    }
+    
+    // 计算各阶段达成率百分比
+    function calculateStageRates(stage, grade, primaryRoute, middleRoute, targetLevelText, highLevelText) {
+        // 确定当前阶段和下一个阶段
+        let currentStageName = '';
+        let nextStageName = '';
+
+        if (stage === 'preschool' || stage === 'kindergarten') {
+            currentStageName = 'kindergartenToPrimary';
+            nextStageName = 'primaryToMiddle';
+        } else if (stage === 'primary') {
+            currentStageName = 'primaryToMiddle';
+            nextStageName = 'middleStage';
+        } else if (stage === 'middle') {
+            currentStageName = 'middleStage';
+            nextStageName = 'highStage';
+        } else if (stage === 'high') {
+            currentStageName = 'highStage';
+            nextStageName = 'collegeAdmission';
+        }
+
+        // 幼升小阶段达成率
+        let kindergartenRate = primaryRoute === 'public' ? 85 : 45; // 公办对口85%，民办摇号45%
+        document.getElementById('kindergartenToPrimaryRate').textContent = kindergartenRate + '%';
+
+        // 小升初阶段达成率
+        let primaryToMiddleRate = primaryRoute === 'public' ? 78 : 52; // 公办对口78%，民办摇号52%
+        document.getElementById('primaryToMiddleRate').textContent = primaryToMiddleRate + '%';
+
+        // 初中阶段达成率 - 根据目标高中档位计算
+        let middleRate = 50;
+        if (highLevelText.includes('四校')) {
+            middleRate = 8; // 四校约8%
+        } else if (highLevelText.includes('分校') || highLevelText.includes('八大')) {
+            middleRate = 25; // 四校分校/八大约25%
+        } else if (highLevelText.includes('市重点')) {
+            middleRate = 45; // 市重点约45%
+        } else if (highLevelText.includes('区重点')) {
+            middleRate = 65; // 区重点约65%
+        } else if (highLevelText.includes('普高')) {
+            middleRate = 80; // 普通高中约80%
+        } else {
+            middleRate = 52; // 默认52%
+        }
+        document.getElementById('middleStageRate').textContent = middleRate + '%';
+
+        // 高中阶段达成率 - 根据目标大学档位计算
+        let highRate = 50;
+        if (targetLevelText.includes('清北')) {
+            highRate = 5; // 清北约5%
+        } else if (targetLevelText.includes('华五') || targetLevelText.includes('复旦') || targetLevelText.includes('交大')) {
+            highRate = 12; // 华五约12%
+        } else if (targetLevelText.includes('985')) {
+            highRate = 25; // 985约25%
+        } else if (targetLevelText.includes('211')) {
+            highRate = 40; // 211约40%
+        } else if (targetLevelText.includes('一本')) {
+            highRate = 60; // 一本约60%
+        } else if (targetLevelText.includes('本科')) {
+            highRate = 85; // 本科约85%
+        } else {
+            highRate = 66; // 默认66%
+        }
+        document.getElementById('highStageRate').textContent = highRate + '%';
+
+        // 高考录取达成率 - 综合计算（考虑当前阶段和最终目标的难度递减）
+        let collegeRate = Math.round(middleRate * highRate / 100 * 1.2); // 综合父母期望、竞争程度等因素
+        collegeRate = Math.min(95, Math.max(5, collegeRate)); // 限制在5%-95%之间
+        document.getElementById('collegeAdmissionRate').textContent = collegeRate + '%';
+
+        // 更新高考录取标题 - 显示目标大学档位
+        const collegeTitle = document.getElementById('collegeAdmissionTitle');
+        if (collegeTitle) {
+            collegeTitle.firstChild.textContent = `高考录取（${targetLevelText}） `;
+        }
+
+        // 为教育规划页面各阶段标题添加"最重要"标签
+        const updatePlanStageTitle = (planElementId, rate, isMostImportant) => {
+            const element = document.getElementById(planElementId);
+            if (element) {
+                const titleText = element.querySelector('h5');
+                if (titleText) {
+                    // 先移除已有的"最重要"标签
+                    const existingTags = titleText.querySelectorAll('span');
+                    existingTags.forEach(tag => {
+                        if (tag.textContent === '最重要') {
+                            tag.remove();
+                        }
+                    });
+
+                    // 获取所有span元素，找到百分比那个（通常第一个）
+                    const allSpans = titleText.querySelectorAll('span');
+                    // 第一个span通常是百分比的span
+                    if (allSpans.length > 0) {
+                        // 检查是否是百分比格式
+                        if (allSpans[0].textContent.includes('%')) {
+                            allSpans[0].textContent = rate + '%';
+                        }
+                    }
+
+                    // 添加新的重要性标签
+                    if (isMostImportant) {
+                        const importanceTag = '<span style="background:#ef4444;color:#fff;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:normal;margin-left:8px">最重要</span>';
+                        titleText.innerHTML = titleText.innerHTML + importanceTag;
+                    }
+                }
+            }
+        };
+
+        // 更新教育规划页面的各阶段标题
+        updatePlanStageTitle('kindergartenToPrimaryPlan', kindergartenRate, currentStageName === 'kindergartenToPrimary');
+        updatePlanStageTitle('primaryToMiddlePlan', primaryToMiddleRate, currentStageName === 'primaryToMiddle');
+        updatePlanStageTitle('middleStagePlan', middleRate, currentStageName === 'middleStage');
+        updatePlanStageTitle('highStagePlan', highRate, currentStageName === 'highStage');
+    }
+    
+    // 生成各阶段规划建议内容
+    function generateStageContent(stage, grade, routeType, primaryRoute, middleRoute, targetLevelText, highLevelText) {
+        // 当前阶段规划建议
+        let currentContent = [];
+        if (stage === 'preschool') {
+            currentContent = [
+                '<strong>生活习惯：</strong>培养规律作息，学会自己穿衣、吃饭、上厕所等基本生活技能',
+                '<strong>社交能力：</strong>学会与同龄人友好相处，分享玩具，遵守基本规则',
+                '<strong>语言发展：</strong>培养语言表达能力，积累词汇，学习简单的儿歌和故事',
+                '<strong>认知能力：</strong>认识颜色、形状、数字，培养观察力和想象力',
+                '<strong>运动能力：</strong>进行跑、跳、爬等基本运动，增强体质'
+            ];
+        } else if (stage === 'kindergarten') {
+            currentContent = [
+                '<strong>知识准备：</strong>掌握200-300个常用汉字，会20以内加减法，具备基本的英语听说能力',
+                '<strong>能力培养：</strong>培养专注力、观察力、想象力，建立良好的学习习惯和生活习惯',
+                '<strong>心理适应：</strong>培养独立能力，学会与同学相处，适应集体生活',
+                '<strong>艺术启蒙：</strong>接触绘画、音乐、舞蹈等艺术活动，培养审美能力',
+                '<strong>政策关注：</strong>确认对口小学招生政策，提前准备入学材料'
+            ];
+        } else if (stage === 'primary') {
+            const routeText = primaryRoute === 'public' ? '公办对口' : '民办摇号';
+            const isHighTarget = targetLevelText.includes('四校') || targetLevelText.includes('八大');
+            
+            // 根据年级生成针对性内容 - 遵循近期详细、远期方向性原则
+            if (grade === 'p1') {
+                // 一年级 - 基础习惯培养为主
+                currentContent = [
+                    `<strong>习惯养成：</strong>培养良好学习习惯，固定作息时间，学会整理书包和文具`,
+                    `<strong>语文启蒙：</strong>培养阅读兴趣，识字量达到300-500字，会写简单汉字，练习看图说话`,
+                    `<strong>数学基础：</strong>20以内加减法运算，培养数感和简单逻辑思维`,
+                    `<strong>英语兴趣：</strong>通过儿歌、动画培养英语兴趣，积累日常简单词汇`,
+                    `<strong>综合发展：</strong>保证体育锻炼时间，培养1-2个兴趣爱好`
+                ];
+            } else if (grade === 'p2') {
+                // 二年级 - 稳扎稳打
+                currentContent = [
+                    `<strong>习惯巩固：</strong>巩固一年级养成的好习惯，提升专注力和学习效率`,
+                    `<strong>语文提升：</strong>识字量达到800-1000字，能独立阅读简单课外书，练习看图写话`,
+                    `<strong>数学进阶：</strong>掌握乘法口诀，100以内加减法，开始接触简单应用题`,
+                    `<strong>英语积累：</strong>掌握基本日常词汇和简单句型，每周2-3次听力练习`,
+                    `<strong>下一个目标：</strong>三年级开始接触作文和英语语法，需提前培养阅读习惯`
+                ];
+            } else if (grade === 'p3') {
+                // 三年级 - 关键转折期
+                currentContent = [
+                    `<strong>学科转折：</strong>语文进入作文起步阶段，数学进入应用题和几何启蒙，需特别关注`,
+                    `<strong>英语系统：</strong>开始系统学习英语语法，积累词汇量达500+，培养读写基础`,
+                    `<strong>学习方法：</strong>学会预习、复习，建立错题本，初步形成自主学习能力`,
+                    `<strong>目标导向：</strong>了解小升初基本政策，初步确定初中目标学校类型`,
+                    `<strong>拓展培养：</strong>适度参加学科类兴趣班，为初中理科学习打基础`
+                ];
+            } else if (grade === 'p4') {
+                // 四年级 - 能力提升期
+                currentContent = [
+                    `<strong>学科深化：</strong>语文加强阅读理解和作文训练，数学进入复杂应用题和几何`,
+                    `<strong>英语达标：</strong>词汇量达1000+，能进行简单英语阅读和写作`,
+                    `<strong>理科启蒙：</strong>开始接触简单科学知识，培养探究兴趣`,
+                    `<strong>政策了解：</strong>深入了解所在区小升初政策，确认公办或民办升学路径`,
+                    `<strong>备考准备：</strong>五年级将面临小升初，四年级需扎实基础，提升竞争力`
+                ];
+            } else if (grade === 'p5') {
+                // 五年级 - 小升初关键年
+                currentContent = [
+                    `<strong>升学冲刺：</strong>梳理${middleRoute === 'public' ? '对口公办初中' : '目标民办初中'}政策，确认人户一致要求与年限要求`,
+                    `<strong>分班考准备：</strong>${middleRoute === 'public' ? '针对公办分班考进行专项训练' : '准备民办初中面谈'}，重点突破数学拓展、语文文言文、英语时态`,
+                    `<strong>衔接预习：</strong>暑假完成小升初预科学习，提前适应初中学习节奏`,
+                    `<strong>习惯过渡：</strong>从小学被动学习转向初中自主学习，建立完整学习闭环`,
+                    `<strong>政策把握：</strong>关注各区招生政策变化时间节点，及时准备相关材料`
+                ];
+            }
+        } else if (stage === 'middle') {
+            const routeText = middleRoute === 'public' ? '公办对口' : '民办摇号';
+            const isHighTarget = highLevelText.includes('四校') || highLevelText.includes('八大');
+            
+            // 根据年级生成针对性内容
+            if (grade === 'c1') {
+                // 六年级（初一）
+                currentContent = [
+                    `<strong>适应过渡：</strong>适应初中学习节奏，建立良好的学习习惯和方法`,
+                    `<strong>基础夯实：</strong>语文数学英语三科同步推进，重点突破数学代数、英语语法入门`,
+                    `<strong>新学科接触：</strong>提前接触地理、生物新学科，建立基本知识框架`,
+                    `<strong>习惯养成：</strong>建立错题本习惯，每周复盘总结，培养自主学习能力`,
+                    `<strong>政策了解：</strong>了解初中三年学习规划和中考政策要求`
+                ];
+            } else if (grade === 'c2') {
+                // 七年级（初二）
+                currentContent = [
+                    `<strong>重点突破：</strong>攻克物理新学科，数学几何难点，英语完成中考考纲词汇背诵`,
+                    `<strong>等级考准备：</strong>关注地理、生物等级考内容，争取在等级考中取得好成绩`,
+                    `<strong>竞赛启蒙：</strong>${isHighTarget ? '积极参与科创竞赛，培养创新思维，积累综评素材' : '适度拓展学科深度，巩固基础知识'}`,
+                    `<strong>综合提升：</strong>每周固定体育训练，保持身心健康`,
+                    `<strong>目标明确：</strong>根据自身实力初步确定目标高中方向`
+                ];
+            } else if (grade === 'c3') {
+                // 八年级（初三）
+                currentContent = [
+                    `<strong>中考冲刺：</strong>完成中考一轮复习，重点突破语数英物核心考点`,
+                    `<strong>强化训练：</strong>每周模考训练，复盘错题，关注薄弱科目提升`,
+                    `<strong>政策利用：</strong>关注名额分配政策，了解自招和裸考规则`,
+                    `<strong>等级考冲刺：</strong>地理、生物等级考最后冲刺，确保拿到理想成绩`,
+                    `<strong>目标锁定：</strong>确定目标高中，制定针对性备考计划`
+                ];
+            } else if (grade === 'c4') {
+                // 九年级（初三）
+                currentContent = [
+                    `<strong>最后冲刺：</strong>完成中考二轮三轮复习，聚焦高频考点和易错点`,
+                    `<strong>模拟训练：</strong>保持每周模考节奏，调整应试状态和心态`,
+                    `<strong>志愿填报：</strong>根据一模二模成绩，合理规划志愿填报方案`,
+                    `<strong>政策把握：</strong>关注中考政策变化，确保符合心仪学校的招生要求`,
+                    `<strong>身心调整：</strong>保持良好作息和心态，以最佳状态迎接中考`
+                ];
+            }
+        } else if (stage === 'high') {
+            const isHighTarget = targetLevelText.includes('清北') || targetLevelText.includes('华五');
+            
+            // 根据年级生成针对性内容
+            if (grade === 'h1') {
+                // 十年级（高一）
+                currentContent = [
+                    `<strong>适应高中：</strong>适应高中学习节奏，夯实学科基础`,
+                    `<strong>选科规划：</strong>了解各学科特点，初步确定选考科目方向`,
+                    `<strong>竞赛准备：</strong>${isHighTarget ? '积极参与学科竞赛和科创项目' : '适度拓展学科深度'}`,
+                    `<strong>习惯养成：</strong>建立自主学习体系，提升时间管理能力`,
+                    `<strong>目标明确：</strong>初步确定目标大学和专业方向`
+                ];
+            } else if (grade === 'h2') {
+                // 十一年级（高二）
+                currentContent = [
+                    `<strong>选科确定：</strong>确定最终选考科目，制定针对性学习计划`,
+                    `<strong>重点突破：</strong>重点突破选考科目核心知识点`,
+                    `<strong>综评准备：</strong>${isHighTarget ? '准备强基计划/综评材料，打磨自我介绍' : '关注三位一体招生政策'}`,
+                    `<strong>竞赛提升：</strong>${isHighTarget ? '参加学科竞赛冲击奖项' : '适度参与竞赛活动'}`,
+                    `<strong>学业平衡：</strong>保持各科均衡发展，不出现明显短板`
+                ];
+            } else if (grade === 'h3') {
+                // 十二年级（高三）
+                currentContent = [
+                    `<strong>高考冲刺：</strong>完成高考一轮二轮三轮复习，聚焦高频考点`,
+                    `<strong>模考训练：</strong>保持每周模考，调整应试心态`,
+                    `<strong>招生关注：</strong>关注目标院校招生政策变化，及时调整备考策略`,
+                    `<strong>志愿填报：</strong>根据模考成绩合理规划志愿填报方案`,
+                    `<strong>身心调适：</strong>保持积极心态，以最佳状态迎接高考`
+                ];
+            }
+        }
+        
+        // 更新当前阶段内容
+        updateStageContent('currentStageContent', currentContent);
+        
+        // 幼升小阶段规划建议
+        if (stage === 'preschool' || stage === 'kindergarten') {
+            let kindergartenToPrimaryContent = [];
+            
+            // 根据年级生成不同详细程度的内容
+            if (stage === 'preschool') {
+                // 托育园阶段 - 早期启蒙
+                kindergartenToPrimaryContent = [
+                    `<strong>【早期启蒙阶段】</strong>当前处于托育园阶段，距离幼升小还有3-4年时间，需注重全方位启蒙教育，为顺利过渡到幼儿园大班做准备`,
+                    `<strong>生活习惯培养：</strong>规律作息时间，学会独立穿衣、吃饭、上厕所等基本生活技能，培养时间概念和任务意识，这是孩子未来学习习惯的基础`,
+                    `<strong>语言发展：</strong>通过绘本阅读、儿歌演唱、简单故事讲述等方式培养语言表达能力，增加词汇量，为正式学习汉字打下基础。建议每天至少30分钟亲子阅读时间`,
+                    `<strong>数学启蒙：</strong>通过游戏认识数字1-10，理解大小、多少、形状等基本概念，培养数感。可以通过积木、拼图等玩具进行启蒙教育`,
+                    `<strong>社交能力：</strong>鼓励与同龄人玩耍，学会分享玩具、轮流等待、表达需求，培养合作意识和解决冲突的基本能力`,
+                    `<strong>运动发展：</strong>进行跑、跳、爬、投掷等基本运动，增强体质和手眼协调能力，为未来书写和学习打下运动基础`,
+                    `<strong>艺术启蒙：</strong>接触绘画、音乐、舞蹈等艺术活动，培养审美能力和创造力，丰富情感表达方式`,
+                    `<strong>政策了解：</strong>提前了解上海幼升小政策，包括公民办招生流程、人户一致要求、积分政策等，为后续选择升学路径做好准备`,
+                    `<strong>目标规划：</strong>建议在大班阶段根据孩子发展情况确定目标小学类型，提前关注目标学校的招生要求和报名时间节点`
+                ];
+            } else {
+                // 幼儿园大班阶段 - 幼小衔接关键期
+                kindergartenToPrimaryContent = [
+                    `<strong>【幼小衔接关键期】</strong>当前处于幼儿园大班，是幼升小前的最后准备阶段，需系统进行知识储备和能力培养，确保顺利过渡到小学学习`,
+                    `<strong>知识储备：</strong>掌握300-500个常用汉字（建议通过绘本阅读识字，避免死记硬背），20以内加减法运算，基本英语听说能力，培养对学习的兴趣而非压力`,
+                    `<strong>能力培养：</strong>专注力训练（可进行15-20分钟专注完成任务，如画画、拼图）、观察力提升、想象力培养、逻辑思维初步建立，这些是小学学习的核心能力`,
+                    `<strong>习惯养成：</strong>建立良好学习习惯，包括按时完成作业、认真听讲、积极举手发言、正确握笔姿势、坐姿规范等，为小学课堂学习做好准备`,
+                    `<strong>心理适应：</strong>大班下学期开始培养对小学的向往和期待，了解小学生作息时间和学习方式，减少对小学的陌生感和畏惧心理，建立积极入学心态`,
+                    `<strong>社交准备：</strong>学会与陌生同学相处，培养合作意识和沟通能力，为小学新环境建立朋友圈做好准备`,
+                    `<strong>政策把握：</strong>详细了解上海幼升小招生政策，包括公民办招生时间节点、报名流程、所需材料（户籍证明、房产证明、居住证等），确保报名材料准备齐全`,
+                    `<strong>面试准备：</strong>${primaryRoute === 'public' ? '公办小学主要看人户一致和房产情况，提前确认是否满足要求' : '民办小学通常有面谈环节，建议提前培养孩子自我介绍、简单问答、才艺展示等能力，但切忌过度培训'}`,
+                    `<strong>衔接课程：</strong>暑假期间可参加幼小衔接班，重点学习课堂规范、基本课堂礼仪、简单书写准备等，但避免过度学业化，保持学习兴趣更重要`
+                ];
+            }
+            updateStageContent('kindergartenToPrimaryContent', kindergartenToPrimaryContent);
+        }
+        
+        // 小升初阶段规划建议
+        if (stage === 'preschool' || stage === 'kindergarten' || stage === 'primary') {
+            let primaryToMiddleContent = [];
+            
+            // 根据年级生成不同详细程度的内容
+            if (grade === 'p1') {
+                // 一年级学生 - 远期规划，详细描述小升初路径和准备策略
+                primaryToMiddleContent = [
+                    `<strong>【长期规划视角】</strong>当前处于小学一年级，距离小升初还有5年时间，需建立长期规划意识，稳扎稳打打好基础`,
+                    `<strong>语文基础：</strong>一年级是语文学习的起步阶段，重点培养识字兴趣和阅读习惯。建议每日30分钟亲子阅读，到三年级时识字量应达到1500-2000字，为高年级阅读理解和作文打下坚实基础`,
+                    `<strong>数学思维：</strong>从一年级开始培养数感和逻辑思维，通过趣味数学游戏激发学习兴趣。建议适量接触浅奥内容，培养解决问题的思维能力，避免只刷题不思考的误区`,
+                    `<strong>英语启蒙：</strong>一年级是英语学习的黄金期，建议通过儿歌、动画、绘本等方式培养英语兴趣，积累日常词汇100-200个，建立良好的语音语感`,
+                    `<strong>习惯养成：</strong>一二年级是培养学习习惯的关键期，重点培养专注力、按时完成作业、整理文具、预复习等习惯，这些习惯将直接影响小升初阶段的学习效率`,
+                    `<strong>兴趣拓展：</strong>建议培养1-2项兴趣爱好，如乐器、美术、体育等，既能丰富课余生活，又能在未来成为调节学习压力的方式`,
+                    `<strong>政策了解：</strong>提前了解上海小升初政策，关注公办对口和民办摇号两种升学路径的区别，根据孩子情况选择适合的升学策略`,
+                    `<strong>目标导向：</strong>建议在三四年级时初步确定目标初中类型，五六年级时针对性准备${primaryRoute === 'public' ? '公办分班考' : '民办面谈'}，做到有的放矢`
+                ];
+            } else if (grade === 'p2') {
+                // 二年级学生 - 持续培养，为高年级做准备
+                primaryToMiddleContent = [
+                    `<strong>【规划重点】</strong>二年级是小学阶段的过渡期，需要巩固一年级成果并为高年级蓄力，距离小升初还有4年时间`,
+                    `<strong>语文进阶：</strong>二年级下学期开始看图写话，是作文启蒙的关键期。建议每日坚持写日记或看图说话，积累词汇和表达方式，为三年级作文起步做好准备`,
+                    `<strong>数学提升：</strong>二年级完成乘法口诀学习，数学进入快速提升期。建议加强计算能力训练，同时接触简单应用题，培养数学思维`,
+                    `<strong>英语系统：</strong>二年级开始系统学习英语单词和简单句型，建议每周安排2-3次英语学习时间，积累词汇量为三年级英语打好基础`,
+                    `<strong>习惯巩固：</strong>持续巩固一二年级养成的学习习惯，提升专注力和学习效率，开始培养时间管理意识`,
+                    `<strong>能力储备：</strong>适度参加思维训练、科创活动等，培养创新思维和动手能力，为初中理科学习打基础`,
+                    `<strong>政策关注：</strong>开始关注小升初政策变化，了解目标初中的招生要求和选拔标准，做到心中有数`,
+                    `<strong>衔接意识：</strong>树立小升初目标意识，了解小学和初中的学习差异，逐步培养自主学习能力`
+                ];
+            } else if (grade === 'p3') {
+                // 三年级学生 - 关键转折期
+                primaryToMiddleContent = [
+                    `<strong>【关键转折】</strong>三年级是小学关键转折期，语数英三科难度提升，距离小升初还有3年，需全面提升竞争力`,
+                    `<strong>语文突破：</strong>三年级进入作文起步阶段，阅读理解难度提升。建议加强阅读训练，积累好词好句，建立自己的素材库，为高年级作文提供素材支撑`,
+                    `<strong>数学拓展：</strong>三年级数学进入综合应用阶段，几何和应用题成为重点。建议适量接触奥数内容，培养逻辑思维和解决问题的能力，但切忌过度刷题`,
+                    `<strong>英语深化：</strong>三年级英语开始系统学习语法和写作，单词量要求大幅提升。建议系统学习英语语法，积累词汇量达到500+`,
+                    `<strong>学科均衡：</strong>三四年级需保持学科均衡发展，避免偏科现象，为初中学习打下坚实基础`,
+                    `<strong>目标明确：</strong>开始明确小升初目标，了解目标初中的招生要求，评估自身差距，制定提升计划`,
+                    `<strong>政策了解：</strong>深入了解上海小升初政策，包括公民办招生流程、人户一致要求、积分政策等`,
+                    `<strong>综合准备：</strong>适度参加学科竞赛、科创活动等，积累综评素材，提升综合竞争力`
+                ];
+            } else if (grade === 'p4') {
+                // 四年级学生 - 能力提升期
+                primaryToMiddleContent = [
+                    `<strong>【全力冲刺准备期】</strong>四年级是小学高年级阶段，距离小升初仅剩2年，需全力提升实力，为小升初做好准备`,
+                    `<strong>语文深化：</strong>四年级语文进入阅读理解和作文提升的关键期，需大量阅读课外书籍，提升阅读速度和理解深度，作文需形成自己的风格`,
+                    `<strong>数学攻坚：</strong>四年级数学难度显著提升，接触分数、小数、多边形面积等重难点。建议针对性突破，加强思维训练，为分班考数学做准备`,
+                    `<strong>英语达标：</strong>四年级英语词汇量需达到800-1000词，能进行简单阅读和写作。建议系统复习小学英语语法，完成中考考纲词汇背诵`,
+                    `<strong>备考意识：</strong>强烈建议开始关注小升初备考，四年级暑假可参加小升初衔接班，提前了解初中学习内容和要求`,
+                    `<strong>目标锁定：</strong>四年级应对目标初中进行全面了解，包括学校排名、招生人数、分班考内容等，制定详细备考计划`,
+                    `<strong>政策跟进：</strong>密切关注市教委和各区教育局的小升初政策变化，确保信息畅通，不错过任何重要时间节点`,
+                    `<strong>心理调适：</strong>四年级学习压力增大，需关注孩子心理变化，保持积极心态，理性看待升学竞争`
+                ];
+            } else if (grade === 'p5') {
+                // 五年级学生 - 小升初冲刺年
+                primaryToMiddleContent = [
+                    `<strong>【最后冲刺】</strong>五年级是小升初最后一年，需全力以赴做好各项准备，确保顺利进入目标初中`,
+                    `<strong>升学冲刺：</strong>梳理${middleRoute === 'public' ? '对口公办初中' : '目标民办初中'}政策，确认人户一致要求与年限要求，${middleRoute === 'public' ? '重点准备公办分班考' : '重点准备民办初中面谈'}`,
+                    `<strong>分班考准备：</strong>针对目标初中的分班考进行专项训练，重点突破数学拓展题、语文文言文阅读、英语时态语法，确保进入重点班`,
+                    `<strong>衔接预习：</strong>暑假完成小升初预科学习，提前适应初中学习节奏，重点突破有理数运算、文言文入门、英语语法体系`,
+                    `<strong>习惯过渡：</strong>从小学被动学习转向初中自主学习，建立完整学习闭环，培养时间管理和自主学习能力`,
+                    `<strong>政策把握：</strong>关注各区招生政策变化时间节点，及时准备相关材料，确保报名流程顺利进行`,
+                    `<strong>心理调适：</strong>保持积极心态，正确看待升学压力，家长需理性预期，避免给孩子过大压力`,
+                    `<strong>备选方案：</strong>同时关注跨区择校、民办补录等备选方案，降低升学风险`
+                ];
+            } else {
+                // 默认内容
+                primaryToMiddleContent = [
+                    `<strong>升学冲刺：</strong>小升初前3个月完成${middleRoute === 'public' ? '公办分班考' : '民办摇号'}专项训练，重点突破数学拓展、语文文言文、英语时态`,
+                    `<strong>衔接预习：</strong>暑假完成初中语数英三科预科学习，重点突破有理数、文言文入门、英语语法体系`,
+                    `<strong>能力过渡：</strong>从小学被动学习转向初中自主学习，建立完整学习闭环`,
+                    `<strong>政策关注：</strong>确认${middleRoute === 'public' ? '对口初中分班考' : '民办初中招生'}时间、科目，提前准备复习计划`,
+                    `<strong>心理准备：</strong>适应初中学习节奏和压力，建立良好的学习心态`
+                ];
+            }
+            
+            updateStageContent('primaryToMiddleContent', primaryToMiddleContent);
+        }
+        
+        // 初中阶段规划建议
+        if (stage === 'preschool' || stage === 'kindergarten' || stage === 'primary' || stage === 'middle') {
+            let middleStageContent = [];
+            const isHighTarget = highLevelText.includes('四校') || highLevelText.includes('八大');
+            
+            // 根据年级生成不同详细程度的内容
+            if (grade === 'c1') {
+                // 初一阶段 - 小升初衔接期
+                middleStageContent = [
+                    `<strong>【初小衔接关键期】</strong>当前处于初一阶段，刚从小学升入初中，需要适应全新的学习节奏、学科设置和师生关系，是整个初中学习的基础建立期`,
+                    `<strong>适应策略：</strong>初中学习与小学最大区别在于科目增多、难度提升、进度加快。建议提前了解初中各学科特点，建立积极学习心态，主动适应中学学习节奏`,
+                    `<strong>语文学法：</strong>初一语文重点是文言文入门和现代文阅读理解。建议每周背诵1-2篇古诗词，养成做阅读笔记的习惯，积累作文素材，为初三中考作文打好基础`,
+                    `<strong>数学进阶：</strong>初一数学是整个初中代数的基础，包括有理数运算、整式加减一元一次方程等。建议深入理解概念而非死记公式，建立代数思维，为初二几何打基础`,
+                    `<strong>英语系统：</strong>初一英语完成从小学基础到初中系统的过渡，重点是音标、词汇积累和语法框架建立。建议每日背诵单词不少于10个，完成中考考纲词汇的初步积累`,
+                    `<strong>新学科接触：</strong>初一新增地理和生物两门学科，这是等级考科目的提前熟悉期。建议建立知识框架笔记培养科学思维，为初二生地等级考做好准备`,
+                    `<strong>习惯培养：</strong>建立错题本制度（各科准备1本），每周复盘总结；养成预习-听课-复习的学习闭环；合理安排作息时间，保证充足睡眠`,
+                    `<strong>政策了解：</strong>开始了解上海中考政策，包括名额分配、综评录取、自招等升学途径，初步确定初中三年的努力方向和目标`,
+                    `<strong>综合发展：</strong>适度参加1-2个兴趣社团或学科活动，培养综合素质，为未来综评积累素材，但切忌贪多影响学业`
+                ];
+            } else if (grade === 'c2') {
+                // 初二阶段 - 关键分化和冲刺准备期
+                middleStageContent = [
+                    `<strong>【关键分化期】</strong>初二是整个初中最关键的阶段，数学进入几何难点（三角形、全等三角形、平行四边形），物理新学科加入，竞争开始明显分化`,
+                    `<strong>数学攻坚：</strong>初二数学是初中几何的核心，涉及三角形角度关系、全等证明、平行四边形判定等重难点。建议大量练习证明题，培养几何直觉和逻辑推理能力，这是中考数学的核心考点`,
+                    `<strong>物理突破：</strong>初二物理是理科思维培养的关键期，包括力学（力与运动、压强）、光学（反射折射）等。建议深入理解物理概念而非死记公式，建立物理模型思维`,
+                    `<strong>英语提升：</strong>初二英语需完成中考考纲1600词汇的背诵，系统学习时态（现在完成时、过去进行时等）和从句（宾语从句、定语从句），为中考英语满分打基础`,
+                    `<strong>生地备考：</strong>初二下学期面临生物地理等级考（计入中考总分）。建议提前1年开始系统复习，背诵重要知识点，确保拿到A或B等级，为中考总分增添优势`,
+                    `<strong>竞赛拓展：</strong>${isHighTarget ? '强烈建议参与数学杯赛（如大同杯、拓展杯）、物理竞赛、科创大赛等，争取获奖为综评材料添彩' : '根据兴趣适度参与学科拓展，巩固课内知识即可'}`,
+                    `<strong>综评准备：</strong>关注综评招生要求，参与学校社团活动、科创项目、志愿服务等，积累综评面试素材。有余力者可开始准备自我介绍和专业认知材料`,
+                    `<strong>政策把握：</strong>详细了解上海中考名额分配到区、到校规则，评估自己所在初中和所在区的竞争态势，合理设定目标高中范围`,
+                    `<strong>心态调整：</strong>初二学业压力显著增大，家长和孩子都需保持理性，避免过度焦虑，以稳定心态应对成绩波动`
+                ];
+            } else if (grade === 'c3' || grade === 'c4') {
+                // 初三阶段 - 中考冲刺年
+                middleStageContent = [
+                    `<strong>【中考冲刺决胜期】</strong>初三是一切努力的目标兑现期，中考成绩直接决定能进入哪所高中，进而影响高考命运。需全力冲刺，确保稳定发挥`,
+                    `<strong>一模定位：</strong>初三上学期末的一模考试是全区定位的关键考试，建议认真对待，检测薄弱科目，一模成绩可作为自招简历和目标高中定位的依据`,
+                    `<strong>自招准备：</strong>${isHighTarget ? '四校八大自招通常在寒假和一模后进行，建议元旦后开始针对性准备，重点复习竞赛难度内容' : '部分市重点高中有自招名额，可关注目标高中的自招政策，准备自荐信和简历'}`,
+                    `<strong>中考一轮复习：</strong>初三下学期开学即进入一轮复习，建议跟随老师节奏的同时，针对性补强薄弱知识点，建立完整知识网络`,
+                    `<strong>二模冲刺：</strong>二模考试通常在4月底5月初，是中考前最后一次全区统考。建议二模后聚焦高频考点，减少偏难怪题的训练，保持做题手感`,
+                    `<strong>志愿填报：</strong>上海中考志愿填报在中考后出分前进行，建议提前根据一模二模成绩和区排名，设定"冲-稳-保"的志愿梯度，确保被理想高中录取`,
+                    `<strong>政策利用：</strong>充分利用名额分配到校（校内竞争）和名额分配到区（区里竞争）两种途径，合理评估竞争态势，增加进入好高中的概率`,
+                    `<strong>体育备考：</strong>中考体育30分需认真准备，建议每周固定体育训练，针对性练习中考体育项目，确保体育满分或高分`,
+                    `<strong>心理调适：</strong>初三下学期压力巨大，保持积极乐观心态非常重要。建议适当运动放松，保证充足睡眠，以最佳状态迎接中考`,
+                    `<strong>暑假衔接：</strong>被高中录取后，暑假提前预习高一内容，特别是数学和英语，为高中学习打基础，但避免过度培训保持学习兴趣`
+                ];
+            } else {
+                // 默认内容
+                middleStageContent = [
+                    `<strong>初一：</strong>夯实全科基础，重点突破数学代数、英语语法、语文文言文，提前接触地理生物等级考内容，建立错题本`,
+                    `<strong>初二：</strong>攻克物理新学科，数学几何难点，英语完成中考考纲词汇背诵，关注生地等级考，${isHighTarget ? '参与科创竞赛积累综评素材' : '巩固基础知识'}`,
+                    `<strong>初三：</strong>完成中考一轮二轮三轮复习，每周模考训练，复盘错题，关注名额分配政策，打磨志愿填报方案`,
+                    `<strong>综合提升：</strong>每周固定体育训练，适配中考体育分值，${isHighTarget ? '同步准备综评面试素材' : '保持身心健康'}`,
+                    `<strong>目标冲刺：</strong>冲刺${highLevelText}，制定针对性提分计划，提升中考竞争力`
+                ];
+            }
+            updateStageContent('middleStageContent', middleStageContent);
+        }
+        
+        // 高中阶段规划建议
+        if (stage === 'preschool' || stage === 'kindergarten' || stage === 'primary' || stage === 'middle' || stage === 'high') {
+            let highStageContent = [];
+            const isHighTarget = targetLevelText.includes('清北') || targetLevelText.includes('华五');
+            
+            // 根据年级生成不同详细程度的内容
+            if (grade === 'h1') {
+                // 高一阶段 - 中考后衔接期
+                highStageContent = [
+                    `<strong>【初升高衔接关键期】</strong>高一是从初中到高中过渡的关键阶段，学习难度和容量比初中大幅提升，选科压力提前到来。能否在高一建立优势，直接影响整个高中三年的信心和方向`,
+                    `<strong>学科适应：</strong>高中数学进入函数体系（指数函数、对数函数、三角函数），物理进入力学难点（牛顿运动定律、功和能），化学进入氧化还原反应等。建议深入理解概念，建立学科思维，而非初中式的刷题套路`,
+                    `<strong>语文转型：</strong>高中语文文言文比重增大，阅读理解深度提升，作文要求思辨性。建议加强文言文实词虚词积累，阅读经典文学作品，培养文学素养和思辨能力`,
+                    `<strong>英语进阶：</strong>高中英语词汇量要求3500-4000词，语法更加系统复杂。建议制定词汇积累计划，每日背诵+复习，同时加强阅读理解的训练`,
+                    `<strong>选科决策：</strong>上海新高考3+3模式，选科直接影响未来专业选择。建议综合考虑个人兴趣、学科优势、专业意向等因素，在高二前确定选考科目组合`,
+                    `<strong>习惯塑造：</strong>高中学习需要更强的自主学习能力。建议养成预习-专注听课-及时复习-定期总结的学习习惯，合理安排时间，避免"高一放松，高二紧张，高三崩溃"`,
+                    `<strong>竞赛入门：</strong>${isHighTarget ? '高一开始系统学习数学/物理/化学竞赛内容，争取在高二获得省级以上奖项，为强基计划和综评材料增加砝码' : '根据兴趣适度参加学科竞赛或科创活动，积累综合素质素材'}`,
+                    `<strong>政策了解：</strong>提前了解上海高考招生政策，包括综合评价批次、平行志愿批次、强基计划等升学途径，初步确定努力方向`,
+                    `<strong>综合发展：</strong>保持1-2项兴趣爱好或社团活动，参与志愿服务和科创项目，为综评积累素材，但重心仍应放在学业上`
+                ];
+            } else if (grade === 'h2') {
+                // 高二阶段 - 分化与提升期
+                highStageContent = [
+                    `<strong>【高中最关键分化期】</strong>高二是高中三年的分水岭，数学进入解析几何和导数等高考重难点，物理进入电磁学核心模块，化学进入反应原理等难点。成绩分化在这一年最为明显`,
+                    `<strong>数学攻坚：</strong>高二数学是高考数学的核心，包括圆锥曲线、导数及其应用、数列等。建议大量练习中高档题，培养数学思想（函数与方程、数形结合、分类讨论），冲击高考数学高分`,
+                    `<strong>物理突破：</strong>高二物理进入电磁学模块（电场、电路、磁场、电磁感应），这是高考物理的半壁江山。建议建立完整的电磁学知识体系，掌握常见题型和解题方法`,
+                    `<strong>化学提升：</strong>高二化学涉及反应原理（化学反应速率、化学平衡、离子平衡）和有机化学基础。建议理解原理而非死记反应，培养化学逻辑思维`,
+                    `<strong>选科备考：</strong>高二开始选考科目等级考（计入高考总分）。建议针对选考科目进行强化训练，确保等级考拿到A或B档，为高考总分增添优势`,
+                    `<strong>竞赛冲刺：</strong>${isHighTarget ? '高二通常是竞赛获奖的关键年，建议全力冲刺数学/物理/化学省级竞赛，争取一等奖或二等奖，为强基计划校测增加核心竞争力' : '根据自身情况决定是否继续竞赛学习，若无把握获奖建议专注课内成绩'}`,
+                    `<strong>综评准备：</strong>开始准备综合评价招生材料，包括自我介绍（突出学科特长和创新潜质）、学校成绩单、奖项证书、推荐信等。关注各校综评招生简章`,
+                    `<strong>学业平衡：</strong>高二学业压力巨大，需平衡各科学习时间。建议针对薄弱科目重点突破，同时保持优势科目的领先地位`,
+                    `<strong>心态管理：</strong>高二是成绩容易出现剧烈波动的时期，保持稳定心态非常重要。不要因一次考试失利而过度焦虑，及时调整学习方法和策略`
+                ];
+            } else if (grade === 'h3' || grade === 'h4') {
+                // 高三阶段 - 高考冲刺决胜期
+                highStageContent = [
+                    `<strong>【高考冲刺决胜期】</strong>高三是一切努力的目标兑现期，高考成绩决定能进入哪所大学、哪个专业，进而影响未来职业发展。需全力冲刺但保持战略定力`,
+                    `<strong>一模定位：</strong>高三上学期末的一模考试是高考前最重要的全区统考，成绩可作为强基计划报名和定位的依据。认真对待，检测各科薄弱环节`,
+                    `<strong>强基计划：</strong>${isHighTarget ? '清华、北大、复旦、上交大、同济、浙大等校强基计划通常在4月报名，5月底校测。强基校测通常考数学、物理（或化学）、面试，建议寒假期间针对性准备' : '非顶尖目标学生建议以普通批次为主，强基可作为冲高志愿的补充'}`,
+                    `<strong>综合评价：</strong>复旦、交大、同济、华东师范、上财等校综评在高考后出分前报名。综评面试通常考察学科素养、创新能力、沟通表达等，需提前打磨自我介绍和专业认知`,
+                    `<strong>等级考冲刺：</strong>高三1月进行物理、化学、生物、政治、历史、地理等科目的等级考（计入高考总分）。建议等级考报名后全力冲刺，确保拿到理想等级`,
+                    `<strong>高考一轮复习：</strong>高三下学期开学即进入全面复习。建议跟随老师节奏的同时，针对性补强个人薄弱知识点，建立完整知识网络`,
+                    `<strong>二模及冲刺：</strong>二模后进入最后冲刺阶段，建议聚焦高频考点和易错点，减少偏难怪题，保持做题手感和应考状态`,
+                    `<strong>志愿填报：</strong>上海高考志愿在高考出分后填报，建议提前根据一模二模成绩和位次，设定"冲-稳-保"的志愿梯度，重点研究各校专业组选科要求和录取分数`,
+                    `<strong>心理调适：</strong>高三下学期压力巨大，保持积极乐观心态非常重要。建议适当运动放松，保证充足睡眠，以最佳状态迎接高考`,
+                    `<strong>未来规划：</strong>高考不是终点，是起点。进入大学后需尽早规划发展方向（出国、考研、就业），在大学期间积累实习经验、提升专业能力`
+                ];
+            } else {
+                // 默认内容
+                highStageContent = [
+                    `<strong>高一：</strong>适应高中学习节奏，夯实学科基础，确定选考科目，建立自主学习体系`,
+                    `<strong>高二：</strong>重点突破选考科目，${isHighTarget ? '参与学科竞赛/科创项目，准备强基计划/综评素材' : '巩固基础知识，提升解题能力'}`,
+                    `<strong>高三：</strong>完成高考一轮二轮三轮复习，参加模考训练，关注招生政策变化`,
+                    `<strong>综合提升：</strong>保持身心健康，合理安排作息，积极准备志愿填报`,
+                    `<strong>目标冲刺：</strong>冲刺${targetLevelText}，制定个性化复习计划，提升高考竞争力`
+                ];
+            }
+            updateStageContent('highStageContent', highStageContent);
+        }
+        
+        // 高考录取阶段规划建议
+        if (stage === 'preschool' || stage === 'kindergarten' || stage === 'primary' || stage === 'middle' || stage === 'high') {
+            let collegeAdmissionContent = [];
+            const isHighTarget = targetLevelText.includes('清北') || targetLevelText.includes('华五');
+            const isTopTarget = targetLevelText.includes('清北');
+            
+            // 根据目标大学档位生成不同详细程度的内容
+            if (isTopTarget) {
+                // 清北级别 - 最高目标
+                collegeAdmissionContent = [
+                    `<strong>【清北级别-最高目标】</strong>清华北大是金字塔尖的终极目标，全国每年约50万考生中录取约7000人，录取率约1.4%。需要天赋+努力+策略+运气，四者缺一不可`,
+                    `<strong>强基计划：</strong>清华北大的强基计划通常在4月报名，6月底校测。校测笔试考数学、物理（或化学）、历史/语文，面试考察学科潜质和创新思维。建议高三寒假开始针对性训练往年春赛真题`,
+                    `<strong>数学竞赛：</strong>进入清华北大的学生中，竞赛生占比较大。若有数学竞赛一等奖（省级及以上），强基校测和录取会有显著优势。建议有竞赛背景的学生重点准备`,
+                    `<strong>统招批次：</strong>清华北大在上海的统招名额极少（通常每年各专业组合计几十人），竞争极为激烈。建议以强基为主要途径，统招作为冲刺`,
+                    `<strong>提前准备：</strong>高三上学期即开始准备清北暑校、寒假学堂等活动，这些活动是提前了解学生和获得优惠的方式`,
+                    `<strong>综合评价：</strong>清华北大在上海没有综合评价批次，但有"领军计划"等特殊招生渠道。关注清华北大家长开放日、招生宣讲等信息`,
+                    `<strong>志愿填报：</strong>清北在沪招生不分省招生计划，需要全市位次竞争。建议根据一模二模成绩和市排名进行定位，合理评估录取概率`,
+                    `<strong>备选方案：</strong>若清北未录取，复旦交大是优秀的替代选择。强基计划可作为双保险，同时关注复旦交大浙大等校的综评和自招渠道`,
+                    `<strong>心态管理：</strong>冲击清北的过程压力大、变数多。保持"尽力而为、顺其自然"的心态，确保正常发挥，避免因过度紧张而失误`
+                ];
+            } else if (isHighTarget) {
+                // 华五级别 - 高目标
+                collegeAdmissionContent = [
+                    `<strong>【华五级别-高目标】</strong>复旦、交大、浙大、中科大、南大是华东五校，是上海考生除清北外的最优选择。竞争激烈但通过合理规划可大幅提升录取概率`,
+                    `<strong>综合评价：</strong>复旦、交大综评是进入华五的最主要途径（复旦约90%名额、交大约85%名额通过综评录取）。综评在高考后出分前报名，面试在出分后进行。建议高三寒假开始准备`,
+                    `<strong>强基计划：</strong>复旦、交大、浙大强基通常在4月报名。强基校测通常笔试数学+物理/化学+面试。复旦强基校测难度略高于高考，适合竞赛生和有竞赛基础的学生`,
+                    `<strong>自招校测：</strong>复旦、交大、浙大有自主招生资格（面向全国）。若获得学科竞赛省级及以上奖项，自招初审通过率大幅提升`,
+                    `<strong>志愿填报：</strong>华五在上海的平行志愿批次名额很少，建议以综评为主要途径。复旦、交大、浙大的专业组设置和选科要求需提前研究`,
+                    `<strong>面试准备：</strong>复旦交大综评面试采用"1123"模式（随机分组、小组讨论、个人陈述、专家面试）。建议提前模拟训练，关注时事热点和专业认知`,
+                    `<strong>高一高二积累：</strong>综评面试考察综合素质，高一高二期间建议参与课题研究、社会实践、志愿服务等活动，积累面试素材`,
+                    `<strong>备选方案：</strong>同济、华东师范、上财、外贸等是华五之外的优秀选择。若综评失利，可通过平行志愿进入这些学校`,
+                    `<strong>志愿梯度：</strong>建议设定"冲-稳-保"的志愿梯度：复旦交大冲一冲，浙大同济稳一稳，上财华理保一保，确保有学上`
+                ];
+            } else if (targetLevelText.includes('985')) {
+                // 985级别
+                collegeAdmissionContent = [
+                    `<strong>【985级别-优质目标】</strong>985工程大学全国仅39所，是国家重点建设的高水平大学，就业竞争力强，保研率高。上海考生可通过综评、平行志愿等多种途径报考`,
+                    `<strong>综评批次：</strong>同济、华东师范、上财、上外、东华等校有综评批次招生。建议关注综评报名时间和材料准备，综评面试考察综合素质和创新潜质`,
+                    `<strong>平行志愿：</strong>985高校在上海的平行志愿批次有较多名额。建议研究各校专业组选科要求和历年录取分数，合理定位`,
+                    `<strong>自主招生：</strong>若获得学科竞赛奖项，可关注985高校的自主招生通道，提前准备申请材料`,
+                    `<strong>提前批：</strong>部分985高校有提前批次（如军校、师范、地方专项），符合条件的可关注`,
+                    `<strong>专业选择：</strong>985高校转专业相对灵活，若分数不占优可优先选择985高校的冷门专业，进校后再寻求转专业机会`,
+                    `<strong>地域考虑：</strong>985高校分布全国各地，北京、上海、南京、杭州、武汉、西安等城市高校云集。可根据地域偏好选择目标院校`,
+                    `<strong>备选方案：</strong>若985未录取，211高校是优质替代。部分211高校的强势专业就业竞争力不亚于985`,
+                    `<strong>志愿填报：</strong>建议985和211搭配填报，设置合理梯度，确保志愿有效性`
+                ];
+            } else if (targetLevelText.includes('211')) {
+                // 211级别
+                collegeAdmissionContent = [
+                    `<strong>【211级别-重点目标】</strong>211工程大学是全国重点建设的高校，共112所，就业认可度高，保研考研竞争力强。上海考生可通过平行志愿、提前批等多种途径报考`,
+                    `<strong>平行志愿：</strong>211高校在上海的平行志愿批次是主要招生渠道。建议根据一模二模成绩定位，合理选择目标院校和专业组`,
+                    `<strong>专业优先：</strong>若分数不占优，建议优先选择211高校的强势/热门专业（如金融、计算机、电子信息等），而非为了进211选择冷门专业`,
+                    `<strong>提前批次：</strong>部分211高校有提前批次（师范、农业、林业等），符合条件的可关注，可能有降分录取机会`,
+                    `<strong>地方专项：</strong>上海生源若符合地方专项计划条件，可关注部分211高校的地方专项招生，可能有优惠政策`,
+                    `<strong>综合评价：</strong>上戏、上音、东华、上大等校有综评批次招生，可作为进入优质高校的途径之一`,
+                    `<strong>备选方案：</strong>若211未录取，双非重点大学（如上海理工、上海师范、上海外贸等）是务实选择，部分专业就业质量不输211`,
+                    `<strong>考研深造：</strong>本科进入211后可通过考研进入985，实现学历升级。211高校保研率通常高于普通本科`,
+                    `<strong>志愿梯度：</strong>建议211和重点本科搭配填报，设置"冲-稳-保"梯度，确保录取到理想学校`
+                ];
+            } else if (targetLevelText.includes('一本')) {
+                // 一本级别
+                collegeAdmissionContent = [
+                    `<strong>【一本级别-本科目标】</strong>一本批次是本科批次中的较高层次，就业竞争力较强。上海考生应争取进入一本高校，为未来就业或考研打下基础`,
+                    `<strong>平行志愿：</strong>上海一本批次（部分地区已合并为本科批次）实行平行志愿，建议研究各校历年录取分数，合理定位，避免志愿浪费`,
+                    `<strong>专业选择：</strong>一本高校的专业差异较大，建议优先选择学校的强势/热门专业，避免被调剂到不喜欢的专业`,
+                    `<strong>外地一本：</strong>部分外地一本高校性价比很高（如杭州电子科技、东北财经等），可作为上海高校的保底选择`,
+                    `<strong>提前批次：</strong>本科提前批次包含军事、公安、师范、航海等类型，有志于此的可提前准备政审和体检`,
+                    `<strong>综合评价：</strong>部分一本高校有综合评价招生，关注学校招生简章`,
+                    `<strong>专升本：</strong>若未能进入一本，可考虑通过专升本进入一本高校（但难度较大），或先进入二本后考研深造`,
+                    `<strong>备选方案：</strong>若一本未录取，可关注二本批次的优质高校和专业，部分二本高校的特色专业就业很好`,
+                    `<strong>志愿填报：</strong>上海已合并本科批次，建议一二本搭配填报，确保有本科读`
+                ];
+            } else {
+                // 普通本科
+                collegeAdmissionContent = [
+                    `<strong>【本科目标-夯实基础】</strong>本科学历是就业市场的基本门槛。无论进入哪所本科院校，都应认真学习专业知识，提升综合能力，为未来就业或深造做准备`,
+                    `<strong>平行志愿：</strong>本科批次实行平行志愿，建议研究各校历年录取数据，合理定位，确保被心仪学校录取`,
+                    `<strong>专业优先：</strong>若分数不占优，建议优先选择好就业的专业（如计算机、会计、护理、机械等），而非盲目追求学校名气`,
+                    `<strong>地域选择：</strong>一线城市的本科院校实习和就业机会更多，建议优先考虑北上广深的本科院校`,
+                    `<strong>考研深造：</strong>本科阶段若成绩优秀，可通过考研进入更好的院校。建议早做准备，了解目标院校考研要求`,
+                    `<strong>技能证书：</strong>在校期间考取相关技能证书（如计算机二级、会计资格证、教师资格证等），增加就业竞争力`,
+                    `<strong>实习经验：</strong>利用寒暑假积累实习经验，了解行业需求，为毕业后就业做准备`,
+                    `<strong>备选方案：</strong>若本科未录取，专科院校是务实选择。部分专科院校的特色专业就业率很高，且可通过专升本获得本科学历`,
+                    `<strong>终身学习：</strong>学历不是终点，而是起点。保持学习热情，不断提升自己，在任何学校都能实现人生价值`
+                ];
+            }
+            updateStageContent('collegeAdmissionContent', collegeAdmissionContent);
+        }
+    }
+    
+    // 更新阶段内容
+    function updateStageContent(elementId, contentArray) {
+        const element = document.getElementById(elementId);
+        if (element) {
+            element.innerHTML = contentArray.map(item => `<li>${item}</li>`).join('');
+        }
+    }
+    
+    // 生成规划综述内容
+    function generatePlanningSummary(stage, grade, primaryRoute, middleRoute, targetLevelText, highLevelText) {
+        let summaryItems = [];
+        
+        // 根据学段和目标生成综述
+        if (stage === 'preschool' || stage === 'kindergarten') {
+            // 学前阶段综述
+            summaryItems = [
+                `<strong>升学路径：</strong>当前选择【${primaryRoute === 'public' ? '公办对口' : '民办摇号'}】升学路径，需提前了解目标小学的招生政策和报名时间节点`,
+                `<strong>能力储备：</strong>建议在幼儿园阶段重点培养专注力、语言表达和基础数感，为小学学习打下坚实基础`,
+                `<strong>习惯培养：</strong>建立规律作息，培养阅读习惯和时间管理意识，这对未来长期学习至关重要`,
+                `<strong>竞争态势：</strong>${primaryRoute === 'private' ? '民办小学竞争激烈，建议提前准备面试环节，包括自我介绍、简单问答和基本才艺展示' : '公办小学相对稳定，但需确保人户一致，提前了解房产和户籍要求'}`,
+                `<strong>下一步重点：</strong>进入小学后，需关注幼小衔接适应期，重点培养学习兴趣和良好学习习惯`
+            ];
+        } else if (stage === 'primary') {
+            // 小学阶段综述
+            const isHighTarget = targetLevelText.includes('四校') || targetLevelText.includes('八大') || targetLevelText.includes('市重点');
+            
+            if (grade === 'p1' || grade === 'p2') {
+                // 一二年级综述
+                summaryItems = [
+                    `<strong>阶段定位：</strong>小学低年级是习惯养成的关键期，需重点培养良好的学习习惯和生活习惯`,
+                    `<strong>核心能力：</strong>语文重在阅读兴趣和表达能力，数学重在数感和计算能力，英语重在听说兴趣培养`,
+                    `<strong>升学路径：</strong>当前选择【${primaryRoute === 'public' ? '公办对口' : '民办摇号'}】，建议提前了解目标初中的招生偏好`,
+                    `<strong>拓展建议：</strong>${isHighTarget ? '若目标是四校/八大，建议适度参加思维训练和学科拓展，但切忌拔苗助长' : '保持学科均衡发展，培养1-2项特长爱好'}`,
+                    `<strong>家长关注：</strong>关注孩子学习兴趣，避免过度学业压力，保证充足体育运动和户外活动时间`
+                ];
+            } else if (grade === 'p3' || grade === 'p4') {
+                // 三四年级综述
+                summaryItems = [
+                    `<strong>阶段特点：</strong>小学中年级是成绩分化和能力提升的关键期，语文进入作文起步，数学难度提升`,
+                    `<strong>学科重点：</strong>语文需加强阅读理解和作文训练，数学需注重应用题和逻辑思维，英语需系统学习语法`,
+                    `<strong>目标衔接：</strong>若目标是民办初中，三年级起需关注数学拓展和语文文言文，为小升初分班考做准备`,
+                    `<strong>竞争准备：</strong>${middleRoute === 'private' ? '民办初中竞争激烈，建议五年级开始针对性备考，包括思维训练和面谈准备' : '公办对口相对稳定，但分班考成绩影响初中起点，需认真准备'}`,
+                    `<strong>综合发展：</strong>在追求学科成绩的同时，保持兴趣爱好和体育锻炼，综评素材从小积累`
+                ];
+            } else if (grade === 'p5') {
+                // 五年级综述
+                summaryItems = [
+                    `<strong>关键一年：</strong>五年级是小升初的关键年，需全面了解目标初中的招生政策和时间节点`,
+                    `<strong>备考重点：</strong>${middleRoute === 'public' ? '公办分班考重点在数学拓展、语文文言文基础、英语语法入门' : '民办面谈重点在思维反应、语言表达、学科基础和综合素养'}`,
+                    `<strong>政策把握：</strong>关注各区招生政策变化，特别是公民办同步招生政策和志愿填报规则`,
+                    `<strong>衔接准备：</strong>暑假期间完成小升初预科学习，提前适应初中学习节奏和学习方式转变`,
+                    `<strong>心态调整：</strong>小升初竞争压力大，家长需帮助孩子保持平稳心态，避免过度焦虑`
+                ];
+            }
+        } else if (stage === 'middle') {
+            // 初中阶段综述
+            const isHighTarget = highLevelText.includes('四校') || highLevelText.includes('分校') || highLevelText.includes('八大');
+            
+            if (grade === 'c1') {
+                // 六年级综述
+                summaryItems = [
+                    `<strong>过渡关键：</strong>六年级是小学到初中的过渡期，学科数量增加，学习难度提升，需尽快适应`,
+                    `<strong>学科适应：</strong>语文数学英语三科同步推进，新增地理生物学科，需合理安排学习时间`,
+                    `<strong>目标设定：</strong>若目标是四校/八大或市重点，初一就需明确目标，保持年级排名前列`,
+                    `<strong>习惯养成：</strong>建立预习、复习习惯，使用错题本进行知识梳理，培养自主学习能力`,
+                    `<strong>家长关注：</strong>关注孩子心理适应，帮助建立积极学习心态，避免成绩波动影响信心`
+                ];
+            } else if (grade === 'c2') {
+                // 七年级综述
+                summaryItems = [
+                    `<strong>学科分化：</strong>七年级开始出现学科分化，物理新增科目，需明确优势科目和薄弱科目`,
+                    `<strong>等级考准备：</strong>地理生物等级考在八年级进行，建议七年 级开始系统复习，争取A率`,
+                    `<strong>目标达成：</strong>若目标是${highLevelText}，七年级成绩至关重要，需稳定在年级前15%`,
+                    `<strong>竞赛启蒙：</strong>${isHighTarget ? '建议积极参与学科竞赛和科创项目，为综评积累素材' : '适度拓展学科深度，保持均衡发展'}`,
+                    `<strong>中考认知：</strong>提前了解上海中考政策、名额分配规则和自招条件，明确努力方向`
+                ];
+            } else if (grade === 'c3' || grade === 'c4') {
+                // 八九年级综述
+                summaryItems = [
+                    `<strong>冲刺阶段：</strong>${grade === 'c3' ? '八年级' : '九年级'}是中考冲刺的关键期，需制定针对性复习计划`,
+                    `<strong>目标拆解：</strong>冲刺${highLevelText}，需达到年级前${isHighTarget ? '5%' : '15%'}，每分必争`,
+                    `<strong>政策利用：</strong>熟悉名额分配到区和到校规则，合理评估裸考和自招路径`,
+                    `<strong>备考策略：</strong>一模成绩定位目标院校，二模后调整志愿填报方案，冲刺阶段聚焦高频考点`,
+                    `<strong>心理调适：</strong>中考压力大，保持良好心态，合理安排作息，确保稳定发挥`
+                ];
+            }
+        } else if (stage === 'high') {
+            // 高中阶段综述
+            const isHighTarget = targetLevelText.includes('清北') || targetLevelText.includes('华五');
+            
+            if (grade === 'h1') {
+                // 高一综述
+                summaryItems = [
+                    `<strong>高中特点：</strong>高一学科难度大幅提升，选科决定未来方向，需尽快适应高中学习节奏`,
+                    `<strong>选科规划：</strong>根据个人兴趣、学科优势和大学专业要求，初步确定选考科目组合`,
+                    `<strong>目标设定：</strong>冲刺${targetLevelText}，高一成绩直接影响高三高考定位和综评初审`,
+                    `<strong>竞赛准备：</strong>${isHighTarget ? '高一开始准备学科竞赛，争取省级奖项，为强基计划增加筹码' : '适度参与学科活动，培养综合素养'}`,
+                    `<strong>习惯保持：</strong>高中竞争更激烈，保持初中养成的良好学习习惯，合理安排时间`
+                ];
+            } else if (grade === 'h2') {
+                // 高二综述
+                summaryItems = [
+                    `<strong>关键一年：</strong>高二承上启下，选科确定后重点突破，同时准备等级考`,
+                    `<strong>等级考策略：</strong>地理生物等级考在高三前进行，建议高二全力冲刺，争取A或A+`,
+                    `<strong>目标强化：</strong>若目标是${targetLevelText}，高二成绩需保持年级前列，为高三报名做准备`,
+                    `<strong>综评准备：</strong>${isHighTarget ? '开始准备综评材料，包括自我介绍、典型事例和社会实践经历' : '关注综合评价招生政策，提前准备相关材料'}`,
+                    `<strong>压力管理：</strong>高二学业压力增大，保持良好心态，合理宣泄压力`
+                ];
+            } else if (grade === 'h3') {
+                // 高三综述
+                summaryItems = [
+                    `<strong>决胜一年：</strong>高三最终冲刺阶段，一轮二轮三轮复习有序进行，聚焦高频考点`,
+                    `<strong>目标达成：</strong>冲刺${targetLevelText}，需达目标院校投档线，每一分都至关重要`,
+                    `<strong>招生关注：</strong>关注秋考、强基计划、综评录取等招生节点，及时调整备考策略`,
+                    `<strong>志愿填报：</strong>根据一模二模成绩和位次，合理规划志愿填报，冲稳保梯度设置`,
+                    `<strong>最后冲刺：</strong>保持良好作息，调整应试心态，以最佳状态迎接高考`
+                ];
+            }
+        }
+        
+        // 更新规划综述内容
+        const summaryContent = document.getElementById('planningSummaryContent');
+        if (summaryContent) {
+            summaryContent.innerHTML = summaryItems.map(item => `<li>${item}</li>`).join('');
+        }
+    }
+    
+    // 生成详细报告内容
+    function generateDetailedReportContent(stage, grade, primaryRoute, middleRoute, targetLevelText, highLevelText) {
+        // 1. 生成现状与差距分析
+        generateReportGap(stage, grade, primaryRoute, middleRoute, targetLevelText, highLevelText);
+        
+        // 2. 生成各阶段详细规划
+        generateReportStages(stage, grade, primaryRoute, middleRoute, targetLevelText, highLevelText);
+        
+        // 3. 生成分学科学习建议
+        generateReportSuggest(stage, grade, targetLevelText, highLevelText);
+        
+        // 4. 生成风险提示
+        generateReportRisk(stage, grade, primaryRoute, middleRoute, targetLevelText, highLevelText);
+    }
+    
+    // 生成现状与差距分析
+    function generateReportGap(stage, grade, primaryRoute, middleRoute, targetLevelText, highLevelText) {
+        let gapItems = [];
+        
+        if (stage === 'preschool' || stage === 'kindergarten') {
+            gapItems = [
+                `<div class="suggest-item"><strong>1. 升学路径：</strong>当前选择【${primaryRoute === 'public' ? '公办对口' : '民办摇号'}】升学路径，需提前了解目标小学的招生政策和报名时间节点</div>`,
+                `<div class="suggest-item"><strong>2. 能力储备：</strong>建议在幼儿园阶段重点培养专注力、语言表达和基础数感，为小学学习打下坚实基础</div>`,
+                `<div class="suggest-item"><strong>3. 习惯培养：</strong>建立规律作息，培养阅读习惯和时间管理意识，这对未来长期学习至关重要</div>`,
+                `<div class="suggest-item"><strong>4. 竞争态势：</strong>${primaryRoute === 'private' ? '民办小学竞争激烈，建议提前准备面试环节' : '公办小学相对稳定，但需确保人户一致'}</div>`
+            ];
+        } else if (stage === 'primary') {
+            const isHighTarget = targetLevelText.includes('四校') || targetLevelText.includes('八大') || targetLevelText.includes('市重点');
+            gapItems = [
+                `<div class="suggest-item"><strong>1. 升学路径差距：</strong>当前选择【${primaryRoute === 'public' ? '公办对口' : '民办摇号'}】升学路径，${primaryRoute === 'private' ? '民办小学竞争激烈，需有心理准备' : '公办小学相对稳定，但分班考成绩影响初中起点'}</div>`,
+                `<div class="suggest-item"><strong>2. 目标达成路径：</strong>目标大学档位为${targetLevelText}，需在小学阶段打好基础，培养良好学习习惯</div>`,
+                `<div class="suggest-item"><strong>3. 能力储备差距：</strong>${isHighTarget ? '若目标是四校/八大，建议适度参加思维训练和学科拓展' : '保持学科均衡发展，培养1-2项特长爱好'}</div>`,
+                `<div class="suggest-item"><strong>4. 时间规划：</strong>距离小升初仅剩${grade === 'p5' ? '1年' : '数年'}，需制定合理的学习计划</div>`
+            ];
+        } else if (stage === 'middle') {
+            const isHighTarget = highLevelText.includes('四校') || highLevelText.includes('分校') || highLevelText.includes('八大');
+            gapItems = [
+                `<div class="suggest-item"><strong>1. 升学路径差距：</strong>目标为${highLevelText}，需进入优质初中，否则中考竞争力不足</div>`,
+                `<div class="suggest-item"><strong>2. 学业能力差距：</strong>目标${targetLevelText}需高中保持年级前${isHighTarget ? '5%' : '15%'}，当前校内排名需持续提升</div>`,
+                `<div class="suggest-item"><strong>3. 竞赛素材差距：</strong>${isHighTarget ? '建议积极参与学科竞赛和科创项目，为综评积累素材' : '适度拓展学科深度，保持均衡发展'}</div>`,
+                `<div class="suggest-item"><strong>4. 时间规划差距：</strong>距离中考仅剩${grade === 'c4' ? '1年' : grade === 'c3' ? '2年' : '数年'}，需立即启动针对性提升计划</div>`
+            ];
+        } else if (stage === 'high') {
+            const isHighTarget = targetLevelText.includes('清北') || targetLevelText.includes('华五');
+            gapItems = [
+                `<div class="suggest-item"><strong>1. 目标难度分析：</strong>目标为${targetLevelText}，上海市高考竞争激烈，需达目标院校投档线</div>`,
+                `<div class="suggest-item"><strong>2. 学业能力差距：</strong>${targetLevelText}需年级排名前${isHighTarget ? '5%' : '15%'}，当前成绩与目标存在差距</div>`,
+                `<div class="suggest-item"><strong>3. 综评准备差距：</strong>${isHighTarget ? '建议准备强基计划/综评材料，参与竞赛争取奖项' : '关注综合评价招生政策，提前准备相关材料'}</div>`,
+                `<div class="suggest-item"><strong>4. 时间紧迫性：</strong>高三阶段时间紧迫，需聚焦高频考点，确保稳定发挥</div>`
+            ];
+        }
+        
+        document.getElementById('reportGap').innerHTML = gapItems.join('');
+    }
+    
+    // 生成各阶段详细规划
+    function generateReportStages(stage, grade, primaryRoute, middleRoute, targetLevelText, highLevelText) {
+        const stageText = document.getElementById('educationStage').options[document.getElementById('educationStage').selectedIndex].text;
+        const gradeText = document.getElementById('currentGrade').options[document.getElementById('currentGrade').selectedIndex].text;
+        
+        // 计算各阶段达成率
+        let kindergartenRate = primaryRoute === 'public' ? 85 : 45;
+        let primaryToMiddleRate = primaryRoute === 'public' ? 78 : 52;
+        let middleRate = 50;
+        if (highLevelText.includes('四校')) middleRate = 8;
+        else if (highLevelText.includes('分校') || highLevelText.includes('八大')) middleRate = 25;
+        else if (highLevelText.includes('市重点')) middleRate = 45;
+        else if (highLevelText.includes('区重点')) middleRate = 65;
+        else if (highLevelText.includes('普高')) middleRate = 80;
+        
+        let highRate = 50;
+        if (targetLevelText.includes('清北')) highRate = 5;
+        else if (targetLevelText.includes('华五') || targetLevelText.includes('复旦') || targetLevelText.includes('交大')) highRate = 12;
+        else if (targetLevelText.includes('985')) highRate = 25;
+        else if (targetLevelText.includes('211')) highRate = 40;
+        else if (targetLevelText.includes('一本')) highRate = 60;
+        else if (targetLevelText.includes('本科')) highRate = 85;
+        
+        let collegeRate = Math.round(middleRate * highRate / 100 * 1.2);
+        collegeRate = Math.min(95, Math.max(5, collegeRate));
+        
+        // 确定当前阶段和下一个阶段
+        // 学段顺序：preschool -> kindergarten -> primary -> middle -> high
+        let currentStageName = '';  // 当前阶段名称
+        let nextStageName = '';     // 下一个阶段名称
+        
+        if (stage === 'preschool') {
+            currentStageName = 'kindergartenToPrimary';
+            nextStageName = 'primaryToMiddle';
+        } else if (stage === 'kindergarten') {
+            currentStageName = 'kindergartenToPrimary';
+            nextStageName = 'primaryToMiddle';
+        } else if (stage === 'primary') {
+            currentStageName = 'primaryToMiddle';
+            nextStageName = 'middleStage';
+        } else if (stage === 'middle') {
+            currentStageName = 'middleStage';
+            nextStageName = 'highStage';
+        } else if (stage === 'high') {
+            currentStageName = 'highStage';
+            nextStageName = 'collegeAdmission';
+        }
+        
+        // 控制显示/隐藏 - 只显示当前阶段和下一个阶段
+        const showKindergartenToPrimary = currentStageName === 'kindergartenToPrimary' || nextStageName === 'kindergartenToPrimary';
+        const showPrimaryToMiddle = currentStageName === 'primaryToMiddle' || nextStageName === 'primaryToMiddle';
+        const showMiddleStage = currentStageName === 'middleStage' || nextStageName === 'middleStage';
+        const showHighStage = currentStageName === 'highStage' || nextStageName === 'highStage';
+        const showCollegeAdmission = currentStageName === 'collegeAdmission' || nextStageName === 'collegeAdmission';
+        
+        document.getElementById('reportKindergartenToPrimary').style.display = showKindergartenToPrimary ? 'block' : 'none';
+        document.getElementById('reportPrimaryToMiddle').style.display = showPrimaryToMiddle ? 'block' : 'none';
+        document.getElementById('reportMiddleStage').style.display = showMiddleStage ? 'block' : 'none';
+        document.getElementById('reportHighStage').style.display = showHighStage ? 'block' : 'none';
+        document.getElementById('reportCollegeAdmission').style.display = showCollegeAdmission ? 'block' : 'none';
+        
+        // 更新各阶段标题，添加重要程度标注
+        const updateStageTitle = (elementId, rate, isMostImportant) => {
+            const element = document.getElementById(elementId);
+            if (element) {
+                const titleText = element.querySelector('h5');
+                if (titleText) {
+                    const importanceTag = isMostImportant ? '<span style="background:#ef4444;color:#fff;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:normal;margin-left:8px">最重要</span>' : '';
+                    const originalTitle = titleText.innerHTML.split('<span')[0].trim();
+                    titleText.innerHTML = `${originalTitle} <span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:normal">${rate}%</span>${importanceTag}`;
+                }
+            }
+        };
+        
+        // 更新各阶段标题
+        if (showKindergartenToPrimary) {
+            updateStageTitle('reportKindergartenToPrimary', kindergartenRate, currentStageName === 'kindergartenToPrimary');
+        }
+        if (showPrimaryToMiddle) {
+            updateStageTitle('reportPrimaryToMiddle', primaryToMiddleRate, currentStageName === 'primaryToMiddle');
+        }
+        if (showMiddleStage) {
+            updateStageTitle('reportMiddleStage', middleRate, currentStageName === 'middleStage');
+        }
+        if (showHighStage) {
+            updateStageTitle('reportHighStage', highRate, currentStageName === 'highStage');
+        }
+        if (showCollegeAdmission) {
+            updateStageTitle('reportCollegeAdmission', collegeRate, currentStageName === 'collegeAdmission');
+        }
+        
+        // 更新当前阶段标题
+        document.getElementById('reportCurrentStageTitle').innerHTML = `当前：${stageText} ${gradeText} <span style="background:#10b981;color:#fff;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:normal;margin-left:8px">当前阶段</span>`;
+        
+        // 更新核心目标
+        document.getElementById('reportCurrentStageGoal').textContent = document.getElementById('currentStageGoal').textContent;
+        document.getElementById('reportKindergartenGoal').textContent = document.getElementById('kindergartenToPrimaryGoal').textContent;
+        document.getElementById('reportPrimaryToMiddleGoal').textContent = document.getElementById('primaryToMiddleGoal').textContent;
+        document.getElementById('reportMiddleStageGoal').textContent = document.getElementById('middleStageGoal').textContent;
+        document.getElementById('reportHighStageGoal').textContent = document.getElementById('highStageGoal').textContent;
+        document.getElementById('reportCollegeAdmissionGoal').textContent = document.getElementById('collegeAdmissionGoal').textContent;
+        
+        // 更新规划内容 - 只更新显示的阶段
+        document.getElementById('reportCurrentStageContent').innerHTML = document.getElementById('currentStageContent').innerHTML;
+        document.getElementById('reportKindergartenContent').innerHTML = document.getElementById('kindergartenToPrimaryContent').innerHTML;
+        document.getElementById('reportPrimaryToMiddleContent').innerHTML = document.getElementById('primaryToMiddleContent').innerHTML;
+        document.getElementById('reportMiddleStageContent').innerHTML = document.getElementById('middleStageContent').innerHTML;
+        document.getElementById('reportHighStageContent').innerHTML = document.getElementById('highStageContent').innerHTML;
+        document.getElementById('reportCollegeAdmissionContent').innerHTML = document.getElementById('collegeAdmissionContent').innerHTML;
+    }
+    
+    // 生成分学科学习建议
+    function generateReportSuggest(stage, grade, targetLevelText, highLevelText) {
+        const isHighTarget = targetLevelText.includes('清北') || targetLevelText.includes('华五') || targetLevelText.includes('四校') || targetLevelText.includes('八大');
+        
+        let suggestItems = [];
+        
+        if (stage === 'preschool' || stage === 'kindergarten') {
+            suggestItems = [
+                `<div class="suggest-item"><strong>语文启蒙：</strong>通过绘本阅读培养语言兴趣，鼓励孩子讲故事、复述情节，提升表达能力</div>`,
+                `<div class="suggest-item"><strong>数学启蒙：</strong>通过游戏认识数字、形状，进行简单计数，培养数感</div>`,
+                `<div class="suggest-item"><strong>英语兴趣：</strong>通过儿歌、动画培养英语兴趣，建立语音语感</div>`,
+                `<div class="suggest-item"><strong>综合发展：</strong>培养专注力、观察力，通过手工、绘画等活动锻炼精细动作</div>`
+            ];
+        } else if (stage === 'primary') {
+            suggestItems = [
+                `<div class="suggest-item"><strong>语文：</strong>1. 培养阅读习惯，每日30分钟课外阅读；2. 看图写话练习，积累作文素材；3. ${grade === 'p5' ? '小升初前重点突破文言文基础' : '循序渐进提升写作能力'}</div>`,
+                `<div class="suggest-item"><strong>数学：</strong>1. 夯实计算基础，确保准确率；2. ${grade === 'p5' ? '小升初前进行思维拓展训练' : '适度接触奥数内容，培养逻辑思维'}</div>`,
+                `<div class="suggest-item"><strong>英语：</strong>1. 积累词汇量，每日背诵；2. ${grade === 'p5' ? '小升初前完成小学核心词汇' : '通过绘本提升阅读兴趣'}</div>`,
+                `<div class="suggest-item"><strong>综合：</strong>1. 参与1项兴趣活动；2. 培养时间管理习惯；3. ${isHighTarget ? '适度参加学科拓展' : '保持身心健康均衡发展'}</div>`
+            ];
+        } else if (stage === 'middle') {
+            suggestItems = [
+                `<div class="suggest-item"><strong>语文：</strong>1. 文言文阅读与实词积累；2. 每月2篇作文，专项训练；3. 每日30分钟阅读，积累素材</div>`,
+                `<div class="suggest-item"><strong>数学：</strong>1. 几何与代数并重，建立知识体系；2. 错题本每周复盘；3. ${isHighTarget ? '竞赛数学适度拓展' : '基础扎实为先'}</div>`,
+                `<div class="suggest-item"><strong>英语：</strong>1. 中考词汇全覆盖；2. 阅读理解和写作专项训练；3. ${grade === 'c3' || grade === 'c4' ? '一模二模针对性复习' : '听说读写均衡发展'}</div>`,
+                `<div class="suggest-item"><strong>物化/生地：</strong>1. 物理新增科目需重视概念理解；2. ${grade === 'c3' || grade === 'c4' ? '生地等级考冲刺' : '地理生物基础知识掌握'}</div>`,
+                `<div class="suggest-item"><strong>综合：</strong>1. 参与科创/竞赛积累综评素材；2. ${isHighTarget ? '关注自招信息' : '保持均衡发展'}</div>`
+            ];
+        } else if (stage === 'high') {
+            suggestItems = [
+                `<div class="suggest-item"><strong>语文：</strong>1. 现代文阅读与作文技巧提升；2. 传统文化知识积累；3. 高考真题针对性训练</div>`,
+                `<div class="suggest-item"><strong>数学：</strong>1. 选考科目重点突破；2. 压轴题分类训练；3. ${isHighTarget ? '竞赛数学拓展' : '基础题型满分训练'}</div>`,
+                `<div class="suggest-item"><strong>英语：</strong>1. 词汇量达高考要求；2. 阅读理解高分训练；3. 写作模板积累</div>`,
+                `<div class="suggest-item"><strong>选科：</strong>1. 根据兴趣和专业要求选择；2. 等级考针对性复习；3. ${isHighTarget ? '关注强基计划校考' : '确保稳定发挥'}</div>`,
+                `<div class="suggest-item"><strong>综合：</strong>1. ${isHighTarget ? '综评材料准备' : '关注综合评价招生'}</div>`
+            ];
+        }
+        
+        document.getElementById('reportSuggest').innerHTML = suggestItems.join('');
+    }
+    
+    // 生成风险提示
+    function generateReportRisk(stage, grade, primaryRoute, middleRoute, targetLevelText, highLevelText) {
+        let riskItems = [];
+        
+        if (stage === 'preschool' || stage === 'kindergarten') {
+            riskItems = [
+                `<div class="risk-item"><strong>1. 政策变化风险：</strong>小学招生政策可能有调整，需持续关注市教委最新通知</div>`,
+                `<div class="risk-item"><strong>2. 竞争压力：</strong>${primaryRoute === 'private' ? '民办小学竞争激烈，落选后需有公办保底方案' : '公办小学相对稳定，但需关注人户一致等要求'}</div>`,
+                `<div class="risk-item"><strong>3. 适应风险：</strong>小学一年级是适应期，需关注孩子心理变化</div>`,
+                `<div class="risk-item"><strong>4. 备选方案：</strong>可同步了解其他区优质学校，扩大选择范围</div>`
+            ];
+        } else if (stage === 'primary') {
+            riskItems = [
+                `<div class="risk-item"><strong>1. 小升初政策风险：</strong>${middleRoute === 'private' ? '民办初中实行摇号政策，需有公办保底方案' : '公办初中相对稳定，但分班考成绩影响起点'}</div>`,
+                `<div class="risk-item"><strong>2. 学业压力：</strong>${grade === 'p5' ? '小升初关键年学业压力增大' : '高年级学业难度提升，需保持成绩稳定'}</div>`,
+                `<div class="risk-item"><strong>3. 目标达成风险：</strong>若小升初未进入目标初中，可能影响后续中考规划</div>`,
+                `<div class="risk-item"><strong>4. 备选方案：</strong>可同时关注转学插班、跨区择校等备选路径</div>`
+            ];
+        } else if (stage === 'middle') {
+            riskItems = [
+                `<div class="risk-item"><strong>1. 中考政策风险：</strong>上海中考名额分配、综评政策可能有调整，需持续关注</div>`,
+                `<div class="risk-item"><strong>2. 成绩波动风险：</strong>初中阶段成绩可能出现波动，需及时调整目标</div>`,
+                `<div class="risk-item"><strong>3. 竞争加剧：</strong>${highLevelText.includes('四校') || highLevelText.includes('八大') ? '四校八大竞争极其激烈，需有保底方案' : '目标高中竞争较大，需确保稳定发挥'}</div>`,
+                `<div class="risk-item"><strong>4. 备选方案：</strong>可同步准备国际课程备选，体制内+体制外双路线规划</div>`
+            ];
+        } else if (stage === 'high') {
+            riskItems = [
+                `<div class="risk-item"><strong>1. 高考政策风险：</strong>上海高考招生政策可能有调整，需关注最新通知</div>`,
+                `<div class="risk-item"><strong>2. 目标达成风险：</strong>${targetLevelText.includes('清北') || targetLevelText.includes('华五') ? '顶尖院校竞争极其激烈，需有保底志愿' : '目标院校录取存在不确定性，需合理设置志愿梯度'}</div>`,
+                `<div class="risk-item"><strong>3. 综评风险：</strong>${targetLevelText.includes('清北') || targetLevelText.includes('华五') ? '强基计划竞争激烈，需充分准备' : '综评招生准备需充分'}</div>`,
+                `<div class="risk-item"><strong>4. 备选方案：</strong>同步关注港澳院校、中外合作办学等保底路径</div>`
+            ];
+        }
+        
+        document.getElementById('reportRisk').innerHTML = riskItems.join('');
+    }
+    
+    // 步骤切换按钮事件
+    document.getElementById('nextStep1').onclick = function() {
+        // 验证学校组唯一性
+        if (!validateSchoolGroups()) {
+            return;
+        }
+        
+        // 根据学段判断是否跳过学业情况步骤
+        const educationStage = document.getElementById('educationStage').value;
+        if (educationStage === 'preschool' || educationStage === 'kindergarten') {
+            goToStep(3);
+        } else {
+            goToStep(2);
+        }
+    };
+    
+    document.getElementById('prevStep2').onclick = function() {
+        goToStep(1);
+    };
+    
+    document.getElementById('nextStep2').onclick = function() {
+        goToStep(3);
+    };
+    
+    document.getElementById('prevStep3').onclick = function() {
+        // 根据学段判断返回步骤
+        const educationStage = document.getElementById('educationStage').value;
+        if (educationStage === 'preschool' || educationStage === 'kindergarten') {
+            goToStep(1);
+        } else {
+            goToStep(2);
+        }
+    };
+    
+    document.getElementById('nextStep3').onclick = function() {
+        goToStep(4);
+    };
+    
+    document.getElementById('prevStep4').onclick = function() {
+        goToStep(3);
+    };
+    
+    document.getElementById('nextStep4').onclick = function() {
+        goToStep(5);
+        updateBasicPlanResult();
+    };
+    
+    // 更新步骤导航显示
+    function updateStepNav() {
+        const educationStage = document.getElementById('educationStage').value;
+        const step2Item = document.querySelector('.step-item:nth-child(3)'); // 步骤2的step-item
+        const step2Line = document.querySelector('.step-line:nth-child(4)'); // 步骤2和3之间的线
+        
+        if (educationStage === 'preschool' || educationStage === 'kindergarten') {
+            step2Item.style.display = 'none';
+            step2Line.style.display = 'none';
+        } else {
+            step2Item.style.display = 'flex';
+            step2Line.style.display = 'block';
+        }
+    }
+    
+    // 学段和年级联动
+    const educationStage = document.getElementById('educationStage');
+    const currentGrade = document.getElementById('currentGrade');
+    
+    const gradeData = {
+        preschool: [{ value: 'p0', text: '托育园' }],
+        kindergarten: [
+            { value: 'k1', text: '小班' },
+            { value: 'k2', text: '中班' },
+            { value: 'k3', text: '大班' }
+        ],
+        primary: [
+            { value: 'p1', text: '一年级' },
+            { value: 'p2', text: '二年级' },
+            { value: 'p3', text: '三年级' },
+            { value: 'p4', text: '四年级' },
+            { value: 'p5', text: '五年级' }
+        ],
+        middle: [
+            { value: 'c1', text: '六年级' },
+            { value: 'c2', text: '七年级' },
+            { value: 'c3', text: '八年级' },
+            { value: 'c4', text: '九年级' }
+        ],
+        high: [
+            { value: 'h1', text: '十年级' },
+            { value: 'h2', text: '十一年级' },
+            { value: 'h3', text: '十二年级' }
+        ]
+    };
+    
+    function updateGradeOptions() {
+        const stage = educationStage.value;
+        const grades = gradeData[stage] || [];
+        
+        currentGrade.innerHTML = '';
+        grades.forEach(grade => {
+            const option = document.createElement('option');
+            option.value = grade.value;
+            option.textContent = grade.text;
+            currentGrade.appendChild(option);
+        });
+        
+        // 根据学段显示/隐藏房产字段
+        const propertySection = document.getElementById('propertySection');
+        if (stage === 'middle' || stage === 'high') {
+            propertySection.style.display = 'none'; // 初中/高中隐藏房产字段
+        } else {
+            propertySection.style.display = 'grid'; // 小学/幼儿园/托育园显示房产字段
+        }
+        
+        // 根据学段显示/隐藏学校选择
+        const schoolSection = document.getElementById('schoolSection');
+        if (stage === 'middle' || stage === 'high') {
+            schoolSection.style.display = 'none'; // 初中/高中隐藏学校选择
+        } else {
+            schoolSection.style.display = 'block'; // 小学/幼儿园/托育园显示学校选择
+            
+            // 当学段为小学时，隐藏小学部分，只显示初中部分
+            const schoolGroups = document.querySelectorAll('.school-group');
+            schoolGroups.forEach(group => {
+                const primarySchool = group.querySelector('.form-item:nth-child(1)');
+                const middleSchool = group.querySelector('.form-item:nth-child(2)');
+                const remark = group.querySelector('.form-item:nth-child(3)');
+                
+                if (stage === 'primary') {
+                    primarySchool.style.display = 'none';
+                    middleSchool.style.display = 'block';
+                    remark.style.display = 'block';
+                } else {
+                    primarySchool.style.display = 'block';
+                    middleSchool.style.display = 'block';
+                    remark.style.display = 'block';
+                }
+            });
+            
+            // 控制升学路径显示：学段为小学时只显示初中升学路径
+            const primaryRouteSection = document.getElementById('primaryRouteSection');
+            if (stage === 'primary') {
+                primaryRouteSection.style.display = 'none';
+            } else {
+                primaryRouteSection.style.display = 'block';
+            }
+        }
+        
+        // 更新学科滑块显示
+        updateSubjectSliders();
+        
+        // 更新步骤导航显示
+        updateStepNav();
+        
+        // 根据学段显示/隐藏高中相关字段
+        const highLevelField = document.getElementById('highLevelField');
+        const targetHighSchoolField = document.getElementById('targetHighSchoolField');
+        const targetAbroadHighSchoolField = document.getElementById('targetAbroadHighSchoolField');
+        
+        // 根据学段更新标签文本
+        const highLevelLabel = document.getElementById('highLevelLabel');
+        const targetHighSchoolLabel = document.getElementById('targetHighSchoolLabel');
+        const targetAbroadHighSchoolLabel = document.getElementById('targetAbroadHighSchoolLabel');
+        
+        // 根据学段更新展示部分的标签文本
+        const highLevelRateLabel = document.getElementById('highLevelRateLabel');
+        const high985RateLabel = document.getElementById('high985RateLabel');
+        
+        if (stage === 'high') {
+            // 高中阶段隐藏高中相关字段
+            highLevelField.style.display = 'none';
+            targetHighSchoolField.style.display = 'none';
+            targetAbroadHighSchoolField.style.display = 'none';
+            
+            // 更新展示部分的标签文本
+            highLevelRateLabel.textContent = '就读高中档位基准清北复交率';
+            high985RateLabel.textContent = '就读高中985录取率';
+        } else {
+            // 非高中阶段显示高中相关字段
+            highLevelField.style.display = 'block';
+            targetHighSchoolField.style.display = 'block';
+            targetAbroadHighSchoolField.style.display = 'block';
+            
+            // 更新标签文本
+            highLevelLabel.textContent = '目标高中档位';
+            targetHighSchoolLabel.textContent = '目标高中（可选）';
+            targetAbroadHighSchoolLabel.textContent = '目标高中（可选）';
+            
+            // 更新展示部分的标签文本
+            highLevelRateLabel.textContent = '目标高中档位基准清北复交率';
+            high985RateLabel.textContent = '目标高中985录取率';
+        }
+    }
+    
+    educationStage.onchange = function() {
+        updateGradeOptions();
+        updateStepNav();
+        // 如果已经进入结果页面，更新规划结果
+        const currentStep = document.querySelector('.step-content.active').dataset.step;
+        if (currentStep === '5') {
+            updateBasicPlanResult();
+        }
+    };
+    
+    // 年级变化时也更新规划结果
+    currentGrade.onchange = function() {
+        const currentStep = document.querySelector('.step-content.active').dataset.step;
+        if (currentStep === '5') {
+            updateBasicPlanResult();
+        }
+    };
+    
+    updateGradeOptions();
+    updateStepNav();
+    // 页面加载时更新规划结果
+    updateBasicPlanResult();
+    
+    // 条件字段联动
+    const hasPropertyYes = document.getElementById('hasPropertyYes');
+    const hasPropertyNo = document.getElementById('hasPropertyNo');
+    const buyPlanField = document.getElementById('buyPlanField');
+    
+    const parentHukouLocal = document.getElementById('parentHukouLocal');
+    const parentHukouNonLocal = document.getElementById('parentHukouNonLocal');
+    const parentHukouLocationField = document.getElementById('parentHukouLocationField');
+    const parentResidenceField = document.getElementById('parentResidenceField');
+    const parentCreditField = document.getElementById('parentCreditField');
+    
+    const childHukouLocal = document.getElementById('childHukouLocal');
+    const childHukouNonLocal = document.getElementById('childHukouNonLocal');
+    const childHukouLocationField = document.getElementById('childHukouLocationField');
+    const childResidenceField = document.getElementById('childResidenceField');
+    
+    function updateConditionalFields() {
+        console.log('更新条件字段:', 'hasPropertyNo.checked =', hasPropertyNo.checked);
+        // 购房计划联动：无房产才显示
+        buyPlanField.style.display = hasPropertyNo.checked ? 'block' : 'none';
+        
+        // 家长户籍所在地联动：本市户籍才显示
+        parentHukouLocationField.style.display = parentHukouLocal.checked ? 'block' : 'none';
+        // 家长居住证联动：非本市户籍才显示
+        parentResidenceField.style.display = parentHukouNonLocal.checked ? 'block' : 'none';
+        // 家长积分联动：非本市户籍才显示
+        parentCreditField.style.display = parentHukouNonLocal.checked ? 'block' : 'none';
+        
+        // 孩子户籍所在地联动：本市户籍才显示
+        childHukouLocationField.style.display = childHukouLocal.checked ? 'block' : 'none';
+        // 孩子居住证联动：非本市户籍才显示
+        childResidenceField.style.display = childHukouNonLocal.checked ? 'block' : 'none';
+    }
+    
+    hasPropertyYes.onchange = updateConditionalFields;
+    hasPropertyNo.onchange = updateConditionalFields;
+    parentHukouLocal.onchange = updateConditionalFields;
+    parentHukouNonLocal.onchange = updateConditionalFields;
+    childHukouLocal.onchange = updateConditionalFields;
+    childHukouNonLocal.onchange = updateConditionalFields;
+
+    // 民办摇号目标学校字段联动
+    const primaryRoutePublic = document.getElementById('primaryRoutePublic');
+    const primaryRoutePrivate = document.getElementById('primaryRoutePrivate');
+    const primaryPrivateSchoolField = document.getElementById('primaryPrivateSchoolField');
+    const middleRoutePublic = document.getElementById('middleRoutePublic');
+    const middleRoutePrivate = document.getElementById('middleRoutePrivate');
+    const middlePrivateSchoolField = document.getElementById('middlePrivateSchoolField');
+
+    function updatePrivateSchoolFields() {
+        console.log('updatePrivateSchoolFields called');
+        console.log('primaryRoutePrivate.checked:', primaryRoutePrivate.checked);
+        // 小学升学路径：选择民办时显示目标学校输入框
+        primaryPrivateSchoolField.style.display = primaryRoutePrivate.checked ? 'block' : 'none';
+        // 初中升学路径：选择民办时显示目标学校输入框
+        middlePrivateSchoolField.style.display = middleRoutePrivate.checked ? 'block' : 'none';
+    }
+
+    primaryRoutePublic.addEventListener('change', updatePrivateSchoolFields);
+    primaryRoutePrivate.addEventListener('change', updatePrivateSchoolFields);
+    middleRoutePublic.addEventListener('change', updatePrivateSchoolFields);
+    middleRoutePrivate.addEventListener('change', updatePrivateSchoolFields);
+
+    // 就读学校输入验证
+    const currentSchoolInput = document.getElementById('currentSchool');
+    currentSchoolInput.addEventListener('input', function() {
+        const validChars = /[\u4e00-\u9fa5a-zA-Z0-9\s（）\(\)-]/g;
+        let filtered = this.value.match(validChars)?.join('') || '';
+        if (filtered !== this.value) {
+            this.value = filtered;
+        }
+        setTimeout(updateTargetOverview, 50);
+    });
+
+    // 确保初始状态正确
+    setTimeout(updateConditionalFields, 100);
+    setTimeout(updatePrivateSchoolFields, 100);
+    
+    // 初始化步骤5的基础规划结果
+    setTimeout(updateBasicPlanResult, 200);
+    
+    // 滑块事件处理
+    const costBudget = document.getElementById('costBudget');
+    const costBudgetValue = document.getElementById('costBudgetValue');
+    const timeInput = document.getElementById('timeInput');
+    const timeInputValue = document.getElementById('timeInputValue');
+    const knowledgeRate = document.getElementById('knowledgeRate');
+    const knowledgeRateValue = document.getElementById('knowledgeRateValue');
+    const subjectScoreRate = document.getElementById('subjectScoreRate');
+    const subjectScoreRateValue = document.getElementById('subjectScoreRateValue');
+    const subjectSelect = document.getElementById('subjectSelect');
+    
+    costBudget.oninput = function() {
+        costBudgetValue.textContent = this.value + '万';
+    };
+    
+    timeInput.oninput = function() {
+        timeInputValue.textContent = this.value + '小时';
+    };
+    
+
+    
+    // 数学滑块
+    mathScoreRate.oninput = function() {
+        mathScoreRateValue.textContent = this.value + '%';
+    };
+    
+    // 语文滑块
+    chineseScoreRate.oninput = function() {
+        chineseScoreRateValue.textContent = this.value + '%';
+    };
+    
+    // 英语滑块
+    englishScoreRate.oninput = function() {
+        englishScoreRateValue.textContent = this.value + '%';
+    };
+    
+    // 物理滑块
+    physicsScoreRate.oninput = function() {
+        physicsScoreRateValue.textContent = this.value + '%';
+    };
+    
+    // 化学滑块
+    chemistryScoreRate.oninput = function() {
+        chemistryScoreRateValue.textContent = this.value + '%';
+    };
+    
+    // 生物滑块
+    biologyScoreRate.oninput = function() {
+        biologyScoreRateValue.textContent = this.value + '%';
+    };
+    
+    // 历史滑块
+    historyScoreRate.oninput = function() {
+        historyScoreRateValue.textContent = this.value + '%';
+    };
+    
+    // 地理滑块
+    geographyScoreRate.oninput = function() {
+        geographyScoreRateValue.textContent = this.value + '%';
+    };
+    
+    // 政治滑块
+    politicsScoreRate.oninput = function() {
+        politicsScoreRateValue.textContent = this.value + '%';
+    };
+    
+    // 根据学段联动学科滑块显示
+    function updateSubjectSliders() {
+        const educationStage = document.getElementById('educationStage').value;
+        
+        // 获取学业情况相关字段
+        const academicSection = document.querySelector('.form-item:nth-child(1)').parentElement;
+        const rankFluctuationField = document.getElementById('rankFluctuation').parentElement;
+        const subjectScoreRateField = document.getElementById('mathSlider').parentElement.parentElement.parentElement;
+        const certificatesField = document.getElementById('certificates').parentElement;
+        const honorsField = document.getElementById('honors').parentElement;
+        const specialtyField = document.getElementById('specialty').parentElement;
+        
+        // 获取所有学科按钮和滑块
+        const mathBtn = document.querySelector('[data-subject="math"]');
+        const chineseBtn = document.querySelector('[data-subject="chinese"]');
+        const englishBtn = document.querySelector('[data-subject="english"]');
+        const physicsBtn = document.querySelector('[data-subject="physics"]');
+        const chemistryBtn = document.querySelector('[data-subject="chemistry"]');
+        const biologyBtn = document.querySelector('[data-subject="biology"]');
+        const historyBtn = document.querySelector('[data-subject="history"]');
+        const geographyBtn = document.querySelector('[data-subject="geography"]');
+        const politicsBtn = document.querySelector('[data-subject="politics"]');
+        
+        const mathSlider = document.getElementById('mathSlider');
+        const chineseSlider = document.getElementById('chineseSlider');
+        const englishSlider = document.getElementById('englishSlider');
+        const physicsSlider = document.getElementById('physicsSlider');
+        const chemistrySlider = document.getElementById('chemistrySlider');
+        const biologySlider = document.getElementById('biologySlider');
+        const historySlider = document.getElementById('historySlider');
+        const geographySlider = document.getElementById('geographySlider');
+        const politicsSlider = document.getElementById('politicsSlider');
+        
+        // 根据学段显示不同的内容
+        if (educationStage === 'preschool' || educationStage === 'kindergarten') {
+            // 学前/幼儿园阶段：整体跳过学业情况的输入
+            rankFluctuationField.style.display = 'none';
+            subjectScoreRateField.style.display = 'none';
+            certificatesField.style.display = 'none';
+            honorsField.style.display = 'none';
+            specialtyField.style.display = 'none';
+        } else if (educationStage === 'primary') {
+            // 小学阶段：显示数学、语文、英语
+            rankFluctuationField.style.display = 'block';
+            subjectScoreRateField.style.display = 'block';
+            certificatesField.style.display = 'block';
+            honorsField.style.display = 'block';
+            specialtyField.style.display = 'block';
+            
+            // 显示基础学科按钮
+            mathBtn.style.display = 'inline-block';
+            chineseBtn.style.display = 'inline-block';
+            englishBtn.style.display = 'inline-block';
+            
+            // 隐藏其他学科按钮
+            physicsBtn.style.display = 'none';
+            chemistryBtn.style.display = 'none';
+            biologyBtn.style.display = 'none';
+            historyBtn.style.display = 'none';
+            geographyBtn.style.display = 'none';
+            politicsBtn.style.display = 'none';
+            
+            // 默认只显示语数外滑块并选中对应按钮
+            mathSlider.style.display = 'block';
+            chineseSlider.style.display = 'block';
+            englishSlider.style.display = 'block';
+            mathBtn.style.backgroundColor = '#667eea';
+            mathBtn.style.color = '#fff';
+            chineseBtn.style.backgroundColor = '#667eea';
+            chineseBtn.style.color = '#fff';
+            englishBtn.style.backgroundColor = '#667eea';
+            englishBtn.style.color = '#fff';
+            
+            // 隐藏其他滑块
+            physicsSlider.style.display = 'none';
+            chemistrySlider.style.display = 'none';
+            biologySlider.style.display = 'none';
+            historySlider.style.display = 'none';
+            geographySlider.style.display = 'none';
+            politicsSlider.style.display = 'none';
+        } else if (educationStage === 'middle' || educationStage === 'high') {
+            // 初中/高中阶段：显示全部9个学科
+            rankFluctuationField.style.display = 'block';
+            subjectScoreRateField.style.display = 'block';
+            certificatesField.style.display = 'block';
+            honorsField.style.display = 'block';
+            specialtyField.style.display = 'block';
+            
+            // 显示全部9个学科按钮
+            mathBtn.style.display = 'inline-block';
+            chineseBtn.style.display = 'inline-block';
+            englishBtn.style.display = 'inline-block';
+            physicsBtn.style.display = 'inline-block';
+            chemistryBtn.style.display = 'inline-block';
+            biologyBtn.style.display = 'inline-block';
+            historyBtn.style.display = 'inline-block';
+            geographyBtn.style.display = 'inline-block';
+            politicsBtn.style.display = 'inline-block';
+            
+            // 默认只显示语数外滑块并选中对应按钮
+            mathSlider.style.display = 'block';
+            chineseSlider.style.display = 'block';
+            englishSlider.style.display = 'block';
+            mathBtn.style.backgroundColor = '#667eea';
+            mathBtn.style.color = '#fff';
+            chineseBtn.style.backgroundColor = '#667eea';
+            chineseBtn.style.color = '#fff';
+            englishBtn.style.backgroundColor = '#667eea';
+            englishBtn.style.color = '#fff';
+            
+            // 隐藏其他滑块
+            physicsSlider.style.display = 'none';
+            chemistrySlider.style.display = 'none';
+            biologySlider.style.display = 'none';
+            historySlider.style.display = 'none';
+            geographySlider.style.display = 'none';
+            politicsSlider.style.display = 'none';
+        }
+    }
+    
+    // 初始化学科滑块显示
+    updateSubjectSliders();
+    
+    // 切换学科滑块显示
+    window.toggleSubjectSlider = function(subject) {
+        const slider = document.getElementById(subject + 'Slider');
+        const btn = document.querySelector(`[data-subject="${subject}"]`);
+        
+        if (slider.style.display === 'none') {
+            slider.style.display = 'block';
+            btn.style.backgroundColor = '#667eea';
+            btn.style.color = '#fff';
+        } else {
+            slider.style.display = 'none';
+            btn.style.backgroundColor = '';
+            btn.style.color = '';
+        }
+    };
+    
+
+    
+    // 路线切换联动
+    const routeInternal = document.getElementById('routeInternal');
+    const routeAbroad = document.getElementById('routeAbroad');
+    const highLevel = document.getElementById('highLevel');
+    
+    // 高中档位基准升学率数据
+    const highLevelRate = {
+        "sixiao": {"c9": "50%+", "985": "80%+"},
+        "sixiao_fenxiao": {"c9": "25%-30%", "985": "60%-70%"},
+        "bada": {"c9": "10%-20%", "985": "35%-45%"},
+        "shizhong": {"c9": "3%-8%", "985": "15%-25%"},
+        "quzhong": {"c9": "1%-2%", "985": "5%-10%"}
+    };
+    
+    // 海外升学达成率数据
+    const abroadLevelRate = {
+        "top10": {"rate": "5%-8%"},
+        "top30": {"rate": "15%-20%"},
+        "top50": {"rate": "30%-40%"},
+        "top100": {"rate": "50%-60%"},
+        "other": {"rate": "70%+"}
+    };
+    
+    function updateRouteSection() {
+        const sectionInternal = document.getElementById('sectionInternal');
+        const sectionExternal = document.getElementById('sectionExternal');
+        
+        sectionInternal.classList.remove('show');
+        sectionExternal.classList.remove('show');
+        
+        if (routeInternal.checked) {
+            sectionInternal.classList.add('show');
+        } else {
+            sectionExternal.classList.add('show');
+            updateAbroadLevelRate(); // 切换到海外升学时更新达成率
+        }
+    }
+    
+    // 高中档位切换刷新基准升学率
+    function updateHighLevelRate() {
+        const level = highLevel.value;
+        const rateData = highLevelRate[level];
+        if (rateData) {
+            document.getElementById('highLevelRate').textContent = rateData.c9;
+            document.getElementById('high985Rate').textContent = rateData['985'];
+        }
+    }
+    
+    // 海外升学达成率更新
+    function updateAbroadLevelRate() {
+        const level = targetAbroadLevel.value;
+        const rateData = abroadLevelRate[level];
+        if (rateData) {
+            document.getElementById('abroadLevelRate').textContent = rateData.rate;
+        }
+    }
+    
+    routeInternal.onchange = updateRouteSection;
+    routeAbroad.onchange = updateRouteSection;
+    highLevel.onchange = updateHighLevelRate;
+    targetAbroadLevel.onchange = updateAbroadLevelRate;
+    
+    // 初始化升学路线和升学率
+    updateRouteSection();
+    updateHighLevelRate();
+    updateAbroadLevelRate();
+    
+    // 报告生成功能
+    const reportPanel = document.getElementById('reportPanel');
+    const reportMask = document.getElementById('reportMask');
+    const closeReportBtn = document.getElementById('closeReportBtn');
+    
+    document.getElementById('generateBtn').onclick = function() {
+        try {
+            const btn = this;
+
+            const element = document.querySelector('.app');
+            const filename = `教育规划报告_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.pdf`;
+
+            html2canvas(element, {
+                scale: 2,
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff',
+                windowWidth: element.scrollWidth,
+                windowHeight: element.scrollHeight
+            }).then(canvas => {
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const imgWidth = 210;
+                const pageHeight = 297;
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                
+                let height = imgHeight;
+                let y = 0;
+                
+                const imgData = canvas.toDataURL('image/png');
+                
+                if (imgHeight < pageHeight) {
+                    pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+                } else {
+                    while (height > 0) {
+                        pdf.addImage(imgData, 'PNG', 0, y, imgWidth, imgHeight);
+                        height -= pageHeight;
+                        y -= pageHeight;
+                        if (height > 0) {
+                            pdf.addPage();
+                        }
+                    }
+                }
+                
+                pdf.save(filename);
+            }).catch(error => {
+                console.error('PDF生成错误:', error);
+                alert('PDF生成失败: ' + error.message);
+            });
+
+        } catch (error) {
+            console.error('报告生成错误:', error);
+            alert('报告生成失败: ' + error.message);
+        }
+    };
+    
+    // 关闭报告
+    closeReportBtn.onclick = function() {
+        reportPanel.classList.remove('show');
+        reportMask.classList.remove('show');
+    };
+    
+    // 点击遮罩层关闭报告
+    reportMask.onclick = function() {
+        reportPanel.classList.remove('show');
+        reportMask.classList.remove('show');
+    };
+    
+    // 保存规划
+    window.savePlan = function() {
+        alert('规划已保存');
+    };
+    
+    // 自定义悬浮提示函数
+    function showTooltip(element, text) {
+        const tooltipId = element.parentElement.querySelector('.tooltip').id;
+        const tooltip = document.getElementById(tooltipId);
+        tooltip.textContent = text;
+        
+        const rect = element.getBoundingClientRect();
+        const parentRect = element.parentElement.getBoundingClientRect();
+        
+        tooltip.style.top = (rect.top - parentRect.top - tooltip.offsetHeight - 8) + 'px';
+        tooltip.style.left = (rect.left - parentRect.left) + 'px';
+        
+        tooltip.classList.add('show');
+    }
+    
+    function hideTooltip() {
+        document.querySelectorAll('.tooltip').forEach(tooltip => {
+            tooltip.classList.remove('show');
+        });
+    }
+};
+</script>
+</body>
+</html>

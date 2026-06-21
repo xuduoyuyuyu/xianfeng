@@ -72,6 +72,44 @@ function normalizeTerm(value: unknown): string {
   return asText(value).toLowerCase().replace(/\s+/g, "");
 }
 
+type CuratedReadingCandidate = {
+  title?: string;
+  subtitle?: string;
+  url?: string;
+};
+
+type CuratedReadingLandingEvidence = {
+  finalUrl?: string;
+  title?: string;
+  description?: string;
+  siteName?: string;
+  contributors?: string[];
+};
+
+type CuratedReadingVerificationItem = {
+  title: string;
+  subtitle: string;
+  url: string;
+  finalUrl: string;
+  landingTitle: string;
+  landingDescription: string;
+  landingSite: string;
+  landingContributors: string[];
+  titleMatched: boolean;
+  contributorMatched: boolean;
+  passed: boolean;
+  issues: string[];
+};
+
+type CuratedReadingVerificationReport = {
+  checkedAt: Date;
+  total: number;
+  passedCount: number;
+  failedCount: number;
+  summary: string;
+  items: CuratedReadingVerificationItem[];
+};
+
 export function normalizeSpaces(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
@@ -121,6 +159,125 @@ function isGeneratedFallbackReading(item: { title?: unknown; subtitle?: unknown;
   if (subtitle === "概念词条与背景知识" || subtitle === "概念入门与背景梳理") return true;
   if (url.includes("baike.baidu.com/item/") && /^延伸阅读：/.test(title)) return true;
   return false;
+}
+
+function normalizeReadingMatchText(value: unknown): string {
+  return asText(value)
+    .toLowerCase()
+    .replace(/[《》〈〉「」『』【】\[\]()（）"'`]/g, "")
+    .replace(/[，。！？、,.!?;:：/|·\-]/g, "")
+    .replace(/\s+/g, "");
+}
+
+function tokenizeContributorHint(value: unknown): string[] {
+  const text = asText(value)
+    .replace(/作者|译者|著|编著|编|主编|by/gi, " ")
+    .replace(/[|｜/、，,；;：:（）()]/g, " ");
+  return Array.from(new Set(text.split(/\s+/).map((item) => item.trim()).filter((item) => item.length >= 2)));
+}
+
+function readingTitleMatches(expected: string, actual: string): boolean {
+  const left = normalizeReadingMatchText(expected);
+  const right = normalizeReadingMatchText(actual);
+  if (!left || !right) return false;
+  return left === right || left.includes(right) || right.includes(left);
+}
+
+function contributorTokensMatch(expectedTokens: string[], evidenceText: string): boolean {
+  if (!expectedTokens.length) return true;
+  const normalizedEvidence = normalizeReadingMatchText(evidenceText);
+  if (!normalizedEvidence) return false;
+  return expectedTokens.some((token) => normalizedEvidence.includes(normalizeReadingMatchText(token)));
+}
+
+function extractJsonLdContributorNames(html: string): string[] {
+  const names = new Set<string>();
+  const matches = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi) || [];
+
+  const collect = (value: any) => {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      value.forEach(collect);
+      return;
+    }
+    if (typeof value === "object") {
+      const candidateName = asText(value?.name);
+      const candidateType = asText(value?.["@type"] || value?.type).toLowerCase();
+      if (candidateName && (candidateType.includes("person") || candidateType.includes("author"))) {
+        names.add(candidateName);
+      }
+      collect(value.author);
+      collect(value.creator);
+      collect(value.translator);
+      collect(value.contributor);
+    }
+  };
+
+  for (const script of matches) {
+    const raw = script.replace(/^<script[^>]*>/i, "").replace(/<\/script>$/i, "").trim();
+    if (!raw) continue;
+    try {
+      collect(JSON.parse(raw));
+    } catch (_error) {
+      continue;
+    }
+  }
+  return Array.from(names);
+}
+
+function extractLabeledContributorNames(html: string): string[] {
+  const text = decodeHtmlContent(html);
+  const names = new Set<string>();
+  const patterns = [
+    /作者[：:\s]+([^\n。；;]+)/g,
+    /译者[：:\s]+([^\n。；;]+)/g,
+  ];
+  for (const pattern of patterns) {
+    let match: RegExpExecArray | null = null;
+    while ((match = pattern.exec(text))) {
+      const segment = asText(match[1]);
+      tokenizeContributorHint(segment).forEach((token) => names.add(token));
+    }
+  }
+  return Array.from(names);
+}
+
+export function compareCuratedReadingAgainstLandingEvidence(
+  reading: CuratedReadingCandidate,
+  evidence: CuratedReadingLandingEvidence
+): CuratedReadingVerificationItem {
+  const title = asText(reading.title);
+  const subtitle = asText(reading.subtitle);
+  const url = asText(reading.url);
+  const landingTitle = asText(evidence.title);
+  const landingDescription = asText(evidence.description);
+  const landingSite = asText(evidence.siteName);
+  const landingContributors = Array.from(new Set((Array.isArray(evidence.contributors) ? evidence.contributors : []).map((item) => asText(item)).filter(Boolean)));
+  const finalUrl = asText(evidence.finalUrl) || url;
+  const titleMatched = readingTitleMatches(title, landingTitle);
+  const contributorTokens = tokenizeContributorHint(subtitle);
+  const contributorMatched = contributorTokensMatch(
+    contributorTokens,
+    [landingTitle, landingDescription, landingContributors.join(" ")].filter(Boolean).join(" ")
+  );
+  const issues: string[] = [];
+  if (!landingTitle) issues.push("落地页标题解析失败");
+  if (!titleMatched) issues.push("标题与落地页不一致");
+  if (contributorTokens.length > 0 && !contributorMatched) issues.push("作者或译者与落地页不一致");
+  return {
+    title,
+    subtitle,
+    url,
+    finalUrl,
+    landingTitle,
+    landingDescription,
+    landingSite,
+    landingContributors,
+    titleMatched,
+    contributorMatched,
+    passed: issues.length === 0,
+    issues,
+  };
 }
 
 function decodeXmlEntities(text: string): string {
@@ -197,9 +354,18 @@ function inferPublicationType(materialType: string, url: string): "paper" | "boo
   return "other";
 }
 
-async function fetchReferenceDocument(url: string): Promise<{ title: string; description: string; image: string }> {
+async function fetchReferenceDocument(url: string): Promise<{
+  title: string;
+  description: string;
+  image: string;
+  finalUrl: string;
+  siteName: string;
+  contributors: string[];
+}> {
   const target = asText(url);
-  if (!isRealReferenceUrl(target)) return { title: "", description: "", image: "" };
+  if (!isRealReferenceUrl(target)) {
+    return { title: "", description: "", image: "", finalUrl: target, siteName: "", contributors: [] };
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 4000);
   try {
@@ -211,7 +377,9 @@ async function fetchReferenceDocument(url: string): Promise<{ title: string; des
         Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       },
     });
-    if (!response.ok) return { title: "", description: "", image: "" };
+    if (!response.ok) {
+      return { title: "", description: "", image: "", finalUrl: response.url || target, siteName: "", contributors: [] };
+    }
     const html = await response.text();
     const title =
       decodeHtmlContent(html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"]*?)["']/i)?.[1] || "") ||
@@ -219,16 +387,32 @@ async function fetchReferenceDocument(url: string): Promise<{ title: string; des
     const description =
       decodeHtmlContent(html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"]*?)["']/i)?.[1] || "") ||
       decodeHtmlContent(html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"]*?)["']/i)?.[1] || "");
+    const siteName =
+      decodeHtmlContent(html.match(/<meta[^>]+property=["']og:site_name["'][^>]+content=["']([^"]*?)["']/i)?.[1] || "") ||
+      decodeHtmlContent(html.match(/<meta[^>]+name=["']application-name["'][^>]+content=["']([^"]*?)["']/i)?.[1] || "");
     const image =
       asText(html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"]*?)["']/i)?.[1] || "") ||
       asText(html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"]*?)["']/i)?.[1] || "");
+    const metaAuthor =
+      decodeHtmlContent(html.match(/<meta[^>]+name=["']author["'][^>]+content=["']([^"]*?)["']/i)?.[1] || "") ||
+      decodeHtmlContent(html.match(/<meta[^>]+property=["']article:author["'][^>]+content=["']([^"]*?)["']/i)?.[1] || "");
+    const contributors = Array.from(
+      new Set([
+        ...tokenizeContributorHint(metaAuthor),
+        ...extractJsonLdContributorNames(html),
+        ...extractLabeledContributorNames(html),
+      ].map((item) => asText(item)).filter(Boolean))
+    );
     return {
       title: clipText(title, 120),
       description: clipText(description, 220),
       image: looksLikeReferenceUrl(image) ? image : "",
+      finalUrl: asText(response.url) || target,
+      siteName: clipText(siteName, 80),
+      contributors,
     };
   } catch (_error) {
-    return { title: "", description: "", image: "" };
+    return { title: "", description: "", image: "", finalUrl: target, siteName: "", contributors: [] };
   } finally {
     clearTimeout(timeout);
   }
@@ -265,6 +449,44 @@ async function fetchNewsArticlesByKeyword(keyword: string, limit = 2): Promise<A
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function verifyCuratedReadingList(readings: CuratedReadingCandidate[]): Promise<CuratedReadingVerificationReport> {
+  const checkedAt = new Date();
+  const items = await Promise.all(
+    (Array.isArray(readings) ? readings : []).map(async (reading) => {
+      const url = asText(reading?.url);
+      if (!isRealReferenceUrl(url)) {
+        return compareCuratedReadingAgainstLandingEvidence(reading, {
+          finalUrl: url,
+          title: "",
+          description: "",
+          siteName: "",
+          contributors: [],
+        });
+      }
+      const evidence = await fetchReferenceDocument(url);
+      return compareCuratedReadingAgainstLandingEvidence(reading, {
+        finalUrl: evidence.finalUrl,
+        title: evidence.title,
+        description: evidence.description,
+        siteName: evidence.siteName,
+        contributors: evidence.contributors,
+      });
+    })
+  );
+  const passedCount = items.filter((item) => item.passed).length;
+  const failedCount = items.length - passedCount;
+  return {
+    checkedAt,
+    total: items.length,
+    passedCount,
+    failedCount,
+    summary: items.length
+      ? `校准完成：${passedCount}/${items.length} 条通过落地页校验。`
+      : "本次没有可校准的推荐阅读。",
+    items,
+  };
 }
 
 function normalizeModelNameForUpstream(provider: string, modelName: string): string {
@@ -966,6 +1188,14 @@ async function runProgramEnrichmentTask(task: any) {
         ...sanitizedExistingReadings,
         ...suggestedReadings.filter((item) => !readingKeys.has(asText(item.title).toLowerCase())),
       ];
+  const readingVerificationReport = await verifyCuratedReadingList(mergedReadings);
+  const verifiedReadings = readingVerificationReport.items
+    .filter((item) => item.passed)
+    .map((item) => ({
+      title: item.title,
+      subtitle: item.subtitle,
+      url: item.finalUrl || item.url,
+    }));
 
   await Program.findByIdAndUpdate(
     task.targetId,
@@ -974,13 +1204,14 @@ async function runProgramEnrichmentTask(task: any) {
         termGlossary: nextGlossary,
         deepDive: {
           sectionTitle: asText(currentDeepDive?.sectionTitle) || "延伸阅读",
-          curatedReading: mergedReadings,
+          curatedReading: verifiedReadings,
         },
         "agentOutputs.enrichment.taskId": task._id,
         "agentOutputs.enrichment.generatedAt": new Date(),
         "agentOutputs.enrichment.forceOverwrite": forceOverwrite,
         "agentOutputs.enrichment.suggestedGlossary": suggestedGlossary,
         "agentOutputs.enrichment.suggestedReadings": suggestedReadings,
+        "agentOutputs.enrichment.readingVerificationReport": readingVerificationReport,
       },
     },
     { new: false }
@@ -989,11 +1220,13 @@ async function runProgramEnrichmentTask(task: any) {
   await syncProgramDictionaryEntries(String(task.targetId), nextGlossary, "ai_program");
 
   return {
-    outputSummary: `完成资料收集：建议术语 ${suggestedGlossary.length} 项，延伸阅读 ${suggestedReadings.length} 项。`,
+    outputSummary: `完成资料收集：建议术语 ${suggestedGlossary.length} 项，推荐阅读校准通过 ${readingVerificationReport.passedCount}/${readingVerificationReport.total} 项。`,
     output: {
       forceOverwrite,
       suggestedGlossary,
       suggestedReadings,
+      readingVerificationReport,
+      verifiedReadings,
       mergedGlossaryCount: nextGlossary.length,
       runtimeConfig: {
         agent_code: "deepseek-direct",

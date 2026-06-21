@@ -1,0 +1,272 @@
+import fs from "fs";
+import path from "path";
+
+export type ModelCapability = "chat" | "reasoning" | "asr" | "extract";
+
+export type ModelRegistryItem = {
+  id: string;
+  name: string;
+  provider: string;
+  model_name: string;
+  api_key: string;
+  base_url: string;
+  enabled: boolean;
+  capabilities: ModelCapability[];
+  meta: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AgentFeatureModels = {
+  asr?: string;
+  extract?: string;
+};
+
+export type AgentRow = {
+  agent_code: string;
+  name: string;
+  description: string;
+  status: string;
+  model_provider: string;
+  model_name: string;
+  primary_model_id?: string;
+  feature_models?: AgentFeatureModels;
+  temperature: number;
+  top_p: number;
+  max_tokens: number;
+  timeout_ms: number;
+  max_retry: number;
+  enable_web_search: boolean;
+};
+
+export type Store = {
+  agents: AgentRow[];
+  prompts: Record<string, { current: any; items: any[] }>;
+  policies: Record<string, any>;
+  strategies: Record<string, any>;
+  runs: any[];
+  model_registry: ModelRegistryItem[];
+};
+
+// Keep storage path stable regardless of process cwd.
+// Both tsx (src/*) and compiled dist/* resolve to backend/data/multi_agents.
+// 使用已挂载的 uploads 目录确保持久化（容器重建不会丢失）
+const STORE_DIR = path.resolve(__dirname, "..", "..", "uploads", "_agents_store");
+const STORE_FILE = path.join(STORE_DIR, "store.json");
+// 迁移兼容：旧路径 data/multi_agents
+const LEGACY_STORE_FILE_1 = path.join(process.cwd(), "data", "multi_agents", "store.json");
+const LEGACY_STORE_FILE_2 = path.resolve(__dirname, "..", "..", "data", "multi_agents", "store.json");
+
+const DEFAULT_MODEL_REGISTRY: ModelRegistryItem[] = [
+  {
+    id: "deepseek-v4-flash",
+    name: "deepseek-v4-flash",
+    provider: "Deepseek",
+    model_name: "deepseek-v4-flash",
+    api_key: "sk-5861237803ed495e913fc97001f1a214",
+    base_url: "https://api.deepseek.com",
+    enabled: true,
+    capabilities: ["chat", "reasoning"],
+    meta: {},
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "default-openai-deepseek-v4",
+    name: "deepseek-v4-pro",
+    provider: "Deepseek",
+    model_name: "deepseek-v4-pro",
+    api_key: "sk-5861237803ed495e913fc97001f1a214",
+    base_url: "https://api.deepseek.com",
+    enabled: true,
+    capabilities: ["chat", "reasoning"],
+    meta: {},
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "doubao-seedream-5-0-260128",
+    name: "Doubao-Seedream-5.0",
+    provider: "Doubao",
+    model_name: "Doubao-Seedream-5.0",
+    api_key: "b74002c7-a04a-4ace-99f4-595c2cf397de",
+    base_url: "https://ark.cn-beijing.volces.com/api/v3",
+    enabled: true,
+    capabilities: ["reasoning"],
+    meta: {},
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "Speech_Recognition_Seed",
+    name: "录音文件识别2.0",
+    provider: "Doubao",
+    model_name: "Doubao_Seed_ASR_AUC_2.02000000735829284098",
+    api_key: "59daea53-dfbf-41de-91b3-ed47a831b6e1",
+    base_url: "https://openspeech.bytedance.com/api/v3/auc/bigmodel/submit",
+    enabled: true,
+    capabilities: ["reasoning", "asr"],
+    meta: {},
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+];
+
+function normalizeFeatureModels(input: any): AgentFeatureModels {
+  const raw = input && typeof input === "object" ? input : {};
+  const out: AgentFeatureModels = {};
+  if (typeof raw.asr === "string" && raw.asr.trim()) out.asr = raw.asr.trim();
+  if (typeof raw.extract === "string" && raw.extract.trim()) out.extract = raw.extract.trim();
+  return out;
+}
+
+export function envPreview(value: string): string {
+  if (!value) return "";
+  if (value.length <= 8) return "****";
+  return `${value.slice(0, 4)}...${value.slice(-4)}`;
+}
+
+export function maskModelRegistryItem(item: ModelRegistryItem) {
+  return {
+    ...item,
+    api_key: undefined,
+    api_key_preview: envPreview(String(item.api_key || "").trim()),
+  };
+}
+
+function migrateStore(parsed: any): Store {
+  const raw = parsed && typeof parsed === "object" ? parsed : {};
+  const agents = Array.isArray(raw.agents) ? raw.agents : [];
+  const normalizedAgents = agents.map((a: any) => ({
+    ...a,
+    primary_model_id: typeof a?.primary_model_id === "string" ? a.primary_model_id : "",
+    feature_models: normalizeFeatureModels(a?.feature_models),
+  })) as AgentRow[];
+  const modelRegistry = Array.isArray(raw.model_registry) && raw.model_registry.length ? raw.model_registry : DEFAULT_MODEL_REGISTRY;
+  return {
+    agents: normalizedAgents,
+    prompts: raw.prompts && typeof raw.prompts === "object" ? raw.prompts : {},
+    policies: raw.policies && typeof raw.policies === "object" ? raw.policies : {},
+    strategies: raw.strategies && typeof raw.strategies === "object" ? raw.strategies : {},
+    runs: Array.isArray(raw.runs) ? raw.runs : [],
+    model_registry: modelRegistry.map((m: any) => ({
+      id: String(m?.id || ""),
+      name: String(m?.name || ""),
+      provider: String(m?.provider || ""),
+      model_name: String(m?.model_name || ""),
+      api_key: String(m?.api_key || ""),
+      base_url: String(m?.base_url || ""),
+      enabled: Boolean(m?.enabled),
+      capabilities: Array.isArray(m?.capabilities) ? m.capabilities.filter(Boolean) : [],
+      meta: m?.meta && typeof m.meta === "object" ? m.meta : {},
+      created_at: String(m?.created_at || new Date().toISOString()),
+      updated_at: String(m?.updated_at || new Date().toISOString()),
+    })),
+  };
+}
+
+export function ensureStore(seedFactory: () => Omit<Store, "model_registry">): Store {
+  fs.mkdirSync(STORE_DIR, { recursive: true });
+  if (!fs.existsSync(STORE_FILE)) {
+    // One-time compatibility: migrate from old paths
+    const legacySources = [LEGACY_STORE_FILE_1, LEGACY_STORE_FILE_2];
+    for (const legacyPath of legacySources) {
+      if (fs.existsSync(legacyPath)) {
+        const parsed = JSON.parse(fs.readFileSync(legacyPath, "utf-8"));
+        const migrated = migrateStore(parsed);
+        fs.writeFileSync(STORE_FILE, JSON.stringify(migrated, null, 2), "utf-8");
+        return migrated;
+      }
+    }
+    const seed = seedFactory();
+    const full: Store = {
+      ...seed,
+      agents: seed.agents.map((a) => ({
+        ...a,
+        primary_model_id: a.primary_model_id || "",
+        feature_models: normalizeFeatureModels(a.feature_models),
+      })),
+      model_registry: DEFAULT_MODEL_REGISTRY,
+    };
+    fs.writeFileSync(STORE_FILE, JSON.stringify(full, null, 2), "utf-8");
+    return full;
+  }
+  const parsed = JSON.parse(fs.readFileSync(STORE_FILE, "utf-8"));
+  const migrated = migrateStore(parsed);
+  const rawText = JSON.stringify(parsed);
+  const migratedText = JSON.stringify(migrated);
+  if (rawText !== migratedText) {
+    fs.writeFileSync(STORE_FILE, JSON.stringify(migrated, null, 2), "utf-8");
+  }
+  return migrated;
+}
+
+export function saveStore(store: Store) {
+  fs.writeFileSync(STORE_FILE, JSON.stringify(store, null, 2), "utf-8");
+}
+
+function normalizeUpstreamModelName(provider: string, modelName: string): string {
+  const p = String(provider || "").trim().toLowerCase();
+  const m = String(modelName || "").trim();
+  const ml = m.toLowerCase();
+  // Compatibility: gateways often reject shorthand names like "Pro"/"Flash".
+  if (ml === "pro") return "deepseek-v4-pro";
+  if (ml === "flash") return "deepseek-v4-flash";
+  if (p === "deepseek" && ml === "deepseek-chat") return "deepseek-v4-flash";
+  return m;
+}
+
+export function resolveAgentModelConfig(agent: AgentRow, registry: ModelRegistryItem[]) {
+  const primaryById = registry.find((x) => x.id === agent.primary_model_id && x.enabled);
+  const fallbackPrimary = !primaryById
+    ? registry
+        .filter((x) => x.enabled && x.provider === agent.model_provider && x.model_name === agent.model_name)
+        .sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || "")))[0]
+    : null;
+  const primary = primaryById || fallbackPrimary;
+  const asr = registry.find((x) => x.id === agent.feature_models?.asr && x.enabled);
+  const extract = registry.find((x) => x.id === agent.feature_models?.extract && x.enabled);
+  return {
+    primary: primary
+      ? {
+          id: primary.id,
+          name: primary.name,
+          provider: primary.provider,
+          model_name: normalizeUpstreamModelName(primary.provider, primary.model_name),
+          api_key: primary.api_key,
+          base_url: primary.base_url,
+          meta: primary.meta,
+        }
+      : {
+          provider: agent.model_provider,
+          model_name: normalizeUpstreamModelName(agent.model_provider, agent.model_name),
+          api_key: "",
+          base_url: "",
+          meta: {},
+        },
+    features: {
+      asr: asr
+        ? {
+            id: asr.id,
+            name: asr.name,
+            provider: asr.provider,
+            model_name: normalizeUpstreamModelName(asr.provider, asr.model_name),
+            api_key: asr.api_key,
+            base_url: asr.base_url,
+            meta: asr.meta,
+          }
+        : null,
+      extract: extract
+        ? {
+            id: extract.id,
+            name: extract.name,
+            provider: extract.provider,
+            model_name: normalizeUpstreamModelName(extract.provider, extract.model_name),
+            api_key: extract.api_key,
+            base_url: extract.base_url,
+            meta: extract.meta,
+          }
+        : null,
+    },
+  };
+}

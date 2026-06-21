@@ -39,6 +39,11 @@ function mergeById<T extends { _id: string }>(current: T[], next: T[]) {
   return [...current, ...next.filter((item) => !seen.has(item._id))];
 }
 
+function isMiniProgramWebView() {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("xf_mp") === "1" || window.sessionStorage.getItem("xf_mp_webview") === "1";
+}
+
 const ProgramListPage: React.FC = () => {
   const navigate = useNavigate();
   const { user: currentUser, token } = useSelector((state: RootState) => state.user);
@@ -53,6 +58,7 @@ const ProgramListPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const superModePage = useXiaowanziEmbeddedLayer();
   const isMobilePager = useIsMobilePager();
+  const miniProgramWebView = isMiniProgramWebView();
   const showInitialLoading = loading && (!isMobilePager || currentPage <= 1);
 
   const keyword = useMemo(() => String(searchParams.get("q") || "").trim(), [searchParams]);
@@ -111,9 +117,51 @@ const ProgramListPage: React.FC = () => {
   }, [currentPage, isMobilePager, keyword]);
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#f3f2f8] text-[#1f1d1a]">
+    <div className={`xf-program-list-page ${miniProgramWebView ? "xf-mp-webview" : ""} relative min-h-screen overflow-hidden bg-[#f3f2f8] text-[#1f1d1a]`}>
       {/* ProgramList: diagonal grid lines + pulsing orbs */}
       <style>{`
+        .xf-program-list-page { background: #f3f2f8; color: #1f1d1a; min-height: 100vh; overflow-x: hidden; }
+        .xf-program-main { position: relative; z-index: 10; width: min(100% - 32px, 1280px); margin: 0 auto; padding-bottom: 64px; }
+        .xf-program-main.with-nav { padding-top: 76px; }
+        .xf-program-main.without-nav { padding-top: 24px; }
+        .xf-program-hero { position: relative; overflow: hidden; border: 1px solid #d8d0ef; border-radius: 32px; background: radial-gradient(circle at 18% 0%, rgba(143,100,255,.14), transparent 36%), radial-gradient(circle at 76% 22%, rgba(124,58,237,.08), transparent 32%), linear-gradient(135deg,#f4f1fd 0%,#f9f7ff 45%,#f0ebff 100%); padding: 32px; box-shadow: 0 24px 80px rgba(80,62,125,.12); }
+        .xf-program-eyebrow { display: inline-flex; border: 1px solid #cfc2ef; border-radius: 999px; background: #f3eefc; padding: 4px 16px; color: #5b3fa1; font-size: 11px; font-weight: 900; letter-spacing: .28em; text-transform: uppercase; }
+        .xf-program-title { margin: 20px 0 0; max-width: 760px; color: #24180a; font-size: clamp(28px, 7vw, 48px); line-height: 1.14; font-weight: 900; letter-spacing: 0; }
+        .xf-program-intro { margin: 16px 0 0; max-width: 680px; color: #6f665d; font-size: 15px; line-height: 1.85; }
+        .xf-program-list { margin-top: 32px; display: grid; gap: 20px; }
+        .xf-program-card { display: block; overflow: hidden; border: 1px solid #e1daf0; border-radius: 27px; background: #fff; padding: 20px; color: inherit; text-decoration: none; box-shadow: 0 20px 60px rgba(63,38,112,.06); }
+        .xf-program-card:hover { border-color: #b79bff; box-shadow: 0 28px 80px rgba(63,38,112,.14); }
+        .xf-program-card-inner { display: flex; flex-direction: column; gap: 20px; }
+        .xf-program-cover { width: 100%; min-height: 180px; overflow: hidden; border-radius: 19px; background: linear-gradient(135deg,#1f143a,#4b1db2 44%,#b79bff); }
+        .xf-program-cover img { width: 100%; height: 208px; object-fit: cover; display: block; }
+        .xf-program-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+        .xf-program-pill { border-radius: 999px; padding: 3px 10px; font-size: 10px; font-weight: 800; }
+        .xf-program-pill.group-only { background: #ffedd5; color: #ea580c; }
+        .xf-program-pill.published { background: #d1fae5; color: #059669; }
+        .xf-program-date { color: #8b8177; font-size: 12px; font-weight: 500; }
+        .xf-program-card-title { margin: 16px 0 0; color: #24180a; font-size: 24px; line-height: 1.2; font-weight: 850; letter-spacing: 0; }
+        .xf-program-desc { margin: 16px 0 0; color: #6f665d; font-size: 14px; line-height: 1.85; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+        .xf-program-tags { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 8px; }
+        .xf-program-tag { border: 1px solid #d9c8ff; border-radius: 999px; background: #f6f0ff; padding: 4px 12px; color: #5e17eb; font-size: 11px; font-weight: 800; }
+        .xf-program-empty { border: 1px dashed #d2c5ee; border-radius: 27px; background: #fff; padding: 48px 24px; text-align: center; color: #8e81b3; font-size: 14px; }
+        .xf-program-loading { border: 1px solid #e2dcf0; border-radius: 27px; background: #fff; padding: 20px; }
+        .xf-program-loading div { border-radius: 8px; background: #ece3f7; }
+        .xf-program-error { margin-top: 24px; border: 1px solid #fee2e2; border-radius: 16px; background: #fef2f2; padding: 16px 20px; color: #ef4444; font-size: 14px; }
+        .xf-program-pager { display: flex; justify-content: center; padding: 16px 0 8px; }
+        @media (min-width: 1024px) {
+          .xf-program-card-inner { flex-direction: row; }
+          .xf-program-cover { width: 280px; flex: 0 0 280px; }
+          .xf-program-cover img { height: 100%; min-height: 220px; }
+        }
+        @media (max-width: 768px) {
+          .xf-program-main { width: calc(100% - 24px); padding-bottom: 28px; }
+          .xf-program-main.with-nav { padding-top: 68px; }
+          .xf-program-hero { border-radius: 24px; padding: 22px 20px; }
+          .xf-program-card { border-radius: 22px; padding: 16px; }
+          .xf-program-cover { min-height: 150px; border-radius: 16px; }
+          .xf-program-cover img { height: 174px; }
+          .xf-program-card-title { font-size: 20px; }
+        }
         @keyframes progOrb1 {
           0%,100% { transform: translate3d(0,0,0) scale(1); opacity: .65; }
           40% { transform: translate3d(2%,-3%,0) scale(1.15); opacity: .9; }
@@ -180,34 +228,34 @@ const ProgramListPage: React.FC = () => {
         />
       ) : null}
 
-      <main className={`relative z-10 mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8 ${superModePage ? "pt-6" : "pt-[76px]"}`}>
-        <section className="group relative overflow-hidden rounded-[2rem] border border-[#d8d0ef] bg-[radial-gradient(circle_at_18%_0%,_rgba(143,100,255,0.14),_transparent_36%),radial-gradient(circle_at_76%_22%,_rgba(124,58,237,0.08),_transparent_32%),linear-gradient(135deg,_#f4f1fd_0%,_#f9f7ff_45%,_#f0ebff_100%)] p-8 shadow-[0_24px_80px_rgba(80,62,125,0.12)] sm:p-10">
+      <main className={`xf-program-main ${superModePage ? "without-nav" : "with-nav"} relative z-10 mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8 ${superModePage ? "pt-6" : "pt-[76px]"}`}>
+        <section className="xf-program-hero group relative overflow-hidden rounded-[2rem] border border-[#d8d0ef] bg-[radial-gradient(circle_at_18%_0%,_rgba(143,100,255,0.14),_transparent_36%),radial-gradient(circle_at_76%_22%,_rgba(124,58,237,0.08),_transparent_32%),linear-gradient(135deg,_#f4f1fd_0%,_#f9f7ff_45%,_#f0ebff_100%)] p-8 shadow-[0_24px_80px_rgba(80,62,125,0.12)] sm:p-10">
             <div className="max-w-3xl">
-              <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.28em] text-[#5b3fa1]">
+              <div className="xf-program-eyebrow inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.28em] text-[#5b3fa1]">
                 Programs
               </div>
-              <h1 className="mt-5 text-4xl font-black leading-[1.14] tracking-tight text-[#24180a] sm:text-5xl">
+              <h1 className="xf-program-title mt-5 text-4xl font-black leading-[1.14] tracking-tight text-[#24180a] sm:text-5xl">
                 从完整节目索引中，快速定位你此刻最需要的内容
               </h1>
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-[#6f665d] sm:text-base">
+              <p className="xf-program-intro mt-4 max-w-2xl text-sm leading-7 text-[#6f665d] sm:text-base">
                 这里汇总已发布节目，按时间倒序呈现。你可以直接搜索标题与简介，并通过标签和内容类型快速判断每一期是否值得立即深听。
               </p>
             </div>
         </section>
 
-        {error ? <div className="mt-6 rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm text-red-500">{error}</div> : null}
+        {error ? <div className="xf-program-error mt-6 rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm text-red-500">{error}</div> : null}
 
-        <section className="mt-8 space-y-5">
+        <section className="xf-program-list mt-8 space-y-5">
           {showInitialLoading ? (
             Array.from({ length: 5 }).map((_, idx) => (
-              <div key={idx} className="animate-pulse rounded-[1.7rem] border border-[#e2dcf0] bg-white p-5 sm:p-6">
+              <div key={idx} className="xf-program-loading animate-pulse rounded-[1.7rem] border border-[#e2dcf0] bg-white p-5 sm:p-6">
                 <div className="h-6 w-1/3 rounded bg-[#ece3f7]" />
                 <div className="mt-4 h-4 w-2/3 rounded bg-[#ece3f7]" />
                 <div className="mt-6 h-24 rounded bg-[#ece3f7]" />
               </div>
             ))
           ) : programs.length === 0 ? (
-            <div className="rounded-[1.7rem] border border-dashed border-[#d2c5ee] bg-white px-6 py-12 text-center text-sm text-[#8e81b3]">
+            <div className="xf-program-empty rounded-[1.7rem] border border-dashed border-[#d2c5ee] bg-white px-6 py-12 text-center text-sm text-[#8e81b3]">
               暂无已发布节目。
             </div>
           ) : (
@@ -222,11 +270,11 @@ const ProgramListPage: React.FC = () => {
                 return (
                   <a
                     key={program._id}
-                    href={`/programs/${encodeURIComponent(routeId)}${superModePage ? "?xw_layer=1" : ""}`}
-                    className="group block overflow-hidden rounded-[1.7rem] border border-[#e1daf0] bg-white p-5 shadow-[0_20px_60px_rgba(63,38,112,0.06)] transition hover:-translate-y-1 hover:border-[#b79bff] hover:shadow-[0_28px_80px_rgba(63,38,112,0.14)] sm:p-6"
+                    href={`/programs/${encodeURIComponent(routeId)}${miniProgramWebView ? "?xf_mp=1" : superModePage ? "?xw_layer=1" : ""}`}
+                    className="xf-program-card group block overflow-hidden rounded-[1.7rem] border border-[#e1daf0] bg-white p-5 shadow-[0_20px_60px_rgba(63,38,112,0.06)] transition hover:-translate-y-1 hover:border-[#b79bff] hover:shadow-[0_28px_80px_rgba(63,38,112,0.14)] sm:p-6"
                   >
-                    <div className="flex flex-col gap-5 lg:flex-row">
-                      <div className="w-full overflow-hidden rounded-[1.2rem] bg-[linear-gradient(135deg,_#1f143a,_#4b1db2_44%,_#b79bff)] lg:w-[280px] lg:shrink-0">
+                    <div className="xf-program-card-inner flex flex-col gap-5 lg:flex-row">
+                      <div className="xf-program-cover w-full overflow-hidden rounded-[1.2rem] bg-[linear-gradient(135deg,_#1f143a,_#4b1db2_44%,_#b79bff)] lg:w-[280px] lg:shrink-0">
                         {program.coverImage ? (
                           <img
                             src={program.coverImage}
@@ -240,30 +288,30 @@ const ProgramListPage: React.FC = () => {
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
+                        <div className="xf-program-meta flex flex-wrap items-center gap-2">
                           {program.status === "group-only" && (
-                            <span className="rounded-full bg-orange-100 px-2.5 py-0.5 text-[10px] font-bold text-orange-600">群友特供</span>
+                            <span className="xf-program-pill group-only rounded-full bg-orange-100 px-2.5 py-0.5 text-[10px] font-bold text-orange-600">群友特供</span>
                           )}
                           {program.status === "published" && (
-                            <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-600">公开发布</span>
+                            <span className="xf-program-pill published rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-600">公开发布</span>
                           )}
-                          <span className="text-xs font-medium text-[#8b8177]">{fmtDate(program.publishedAt || program.createdAt)}</span>
+                          <span className="xf-program-date text-xs font-medium text-[#8b8177]">{fmtDate(program.publishedAt || program.createdAt)}</span>
                         </div>
 
-                        <h2 className="mt-4 text-2xl font-extrabold leading-tight tracking-tight text-[#24180a] sm:text-[1.75rem]">
+                        <h2 className="xf-program-card-title mt-4 text-2xl font-extrabold leading-tight tracking-tight text-[#24180a] sm:text-[1.75rem]">
                           {program.title || "未命名节目"}
                         </h2>
 
-                        <p className="mt-4 line-clamp-3 text-sm leading-7 text-[#6f665d]">
+                        <p className="xf-program-desc mt-4 line-clamp-3 text-sm leading-7 text-[#6f665d]">
                           {program.description || "暂无简介，后续可在后台补充节目摘要、show notes 与学习线索。"}
                         </p>
 
                         {tags.length > 0 ? (
-                          <div className="mt-5 flex flex-wrap gap-2">
+                          <div className="xf-program-tags mt-5 flex flex-wrap gap-2">
                             {tags.map((tag, tagIndex) => (
                               <span
                                 key={`${program._id}-tag-${tagIndex}`}
-                                className="rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[11px] font-bold text-[#5e17eb]"
+                                className="xf-program-tag rounded-full border border-[#d9c8ff] bg-[#f6f0ff] px-3 py-1 text-[11px] font-bold text-[#5e17eb]"
                               >
                                 #{tag}
                               </span>
@@ -278,7 +326,7 @@ const ProgramListPage: React.FC = () => {
                 );
               })}
 
-              <div className="flex justify-center pt-4 pb-2">
+              <div className="xf-program-pager flex justify-center pt-4 pb-2">
                 <Pagination
                   currentPage={currentPage}
                   totalPages={totalPages}

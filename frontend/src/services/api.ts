@@ -332,6 +332,30 @@ export interface ProgramDeepDive {
   mindMap?: MindMapData;
 }
 
+export interface CuratedReadingVerificationItem {
+  title?: string;
+  subtitle?: string;
+  url?: string;
+  finalUrl?: string;
+  landingTitle?: string;
+  landingDescription?: string;
+  landingSite?: string;
+  landingContributors?: string[];
+  titleMatched?: boolean;
+  contributorMatched?: boolean;
+  passed?: boolean;
+  issues?: string[];
+}
+
+export interface CuratedReadingVerificationReport {
+  checkedAt?: string | null;
+  total?: number;
+  passedCount?: number;
+  failedCount?: number;
+  summary?: string;
+  items?: CuratedReadingVerificationItem[];
+}
+
 export interface ProgramQuickViewItem {
   startTime: string;
   endTime: string;
@@ -401,6 +425,7 @@ export interface Program {
       forceOverwrite?: boolean;
       suggestedGlossary?: ProgramTermGlossaryItem[];
       suggestedReadings?: CuratedReadingItem[];
+      readingVerificationReport?: CuratedReadingVerificationReport;
     };
   };
   status: 'draft' | 'published' | 'group-only';
@@ -445,6 +470,44 @@ export interface Book {
   wxShopAppid?: string;
   wxQrcodeUrl?: string;
   wxSyncAt?: string;
+  hasMetadataDetail?: boolean;
+  metadataCover?: string;
+  metadataStatus?: 'auto_approved' | 'needs_review' | 'rejected' | '';
+  metadataId?: string;
+}
+
+export interface BookMetadataDetail {
+  bookId: string;
+  title: string;
+  author: string;
+  publisher: string;
+  isbn?: string;
+  cover?: string;
+  description?: string;
+  source?: string;
+  sourceTitle?: string;
+  sourceId?: string;
+  rating?: number | null;
+  ratingCount?: number | null;
+  ratingLabel?: string;
+  matchScore?: number;
+}
+
+export interface AdminBookMetadata extends Omit<BookMetadataDetail, 'bookId'> {
+  _id: string;
+  bookId: string | {
+    _id: string;
+    title?: string;
+    author?: string;
+    publisher?: string;
+    coverImage?: string;
+  };
+  status: 'auto_approved' | 'needs_review' | 'rejected';
+  matchReason?: string[];
+  reviewNote?: string;
+  reviewedAt?: string | null;
+  updatedAt?: string;
+  createdAt?: string;
 }
 
 export interface LearningMaterial {
@@ -820,6 +883,7 @@ export const publicApi = {
   // 书单
   getBooks: () => api.get<Book[]>('/books'),
   getBook: (id: string) => api.get<Book>(`/books/${id}`),
+  getBookMetadata: (id: string) => api.get<BookMetadataDetail>(`/books/${id}/metadata`),
   
   // 学习资料
   getMaterials: () => api.get<LearningMaterial[]>('/learning-materials'),
@@ -985,6 +1049,10 @@ export const adminApi = {
   ),
   batchPublishBooks: (data: { filter?: string; ids?: string[] }) =>
     api.post<{ matched: number; modified: number }>('/admin/books/batch-publish', data),
+  getBookMetadataReview: (status?: string) =>
+    api.get<AdminBookMetadata[]>('/admin/books/metadata', { params: { status } }),
+  reviewBookMetadata: (id: string, data: Partial<AdminBookMetadata>) =>
+    api.patch<AdminBookMetadata>(`/admin/books/metadata/${id}`, data),
   
   // 学习资料管理
   getMaterials: (status?: string) => api.get<LearningMaterial[]>('/admin/learning-materials', { params: { status } }),

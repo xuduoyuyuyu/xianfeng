@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildGlossaryDefinition,
+  compareCuratedReadingAgainstLandingEvidence,
   extractCandidateTerms,
   normalizePunctuation,
   normalizeSpaces,
@@ -57,4 +58,46 @@ test("buildGlossaryDefinition returns non-empty guidance", () => {
   const value = buildGlossaryDefinition("执行功能");
   assert.ok(value.includes("执行功能"));
   assert.ok(value.length > 10);
+});
+
+test("compareCuratedReadingAgainstLandingEvidence passes when title and contributor match landing data", () => {
+  const result = compareCuratedReadingAgainstLandingEvidence(
+    {
+      title: "父母的语言",
+      subtitle: "达娜·萨斯金德 著｜颜筝 译",
+      url: "https://book.example.com/parents-language",
+    },
+    {
+      finalUrl: "https://book.example.com/parents-language",
+      title: "父母的语言",
+      description: "作者达娜·萨斯金德，译者颜筝。讲述家庭语言环境与儿童发展。",
+      siteName: "豆瓣读书",
+      contributors: ["达娜·萨斯金德", "颜筝"],
+    }
+  );
+
+  assert.equal(result.titleMatched, true);
+  assert.equal(result.contributorMatched, true);
+  assert.equal(result.passed, true);
+});
+
+test("compareCuratedReadingAgainstLandingEvidence fails when landing title does not match", () => {
+  const result = compareCuratedReadingAgainstLandingEvidence(
+    {
+      title: "父母的语言",
+      subtitle: "达娜·萨斯金德 著",
+      url: "https://book.example.com/parents-language",
+    },
+    {
+      finalUrl: "https://book.example.com/other-book",
+      title: "另一本文字完全不同的书",
+      description: "作者也不同。",
+      siteName: "豆瓣读书",
+      contributors: ["别的作者"],
+    }
+  );
+
+  assert.equal(result.titleMatched, false);
+  assert.equal(result.passed, false);
+  assert.ok(result.issues.some((item) => item.includes("标题")));
 });

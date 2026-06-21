@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+@source "../public/screens/admin-*.html";
+
+@theme {
+  --color-primary: #5e17eb;
+  --color-panel: var(--panel);
+  --color-panel2: var(--panel2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+
+  --color-signature-violet: #5e17eb;
+  --color-warm-gray: #7a746e;
+  --color-muted-teal: #5e8b8e;
+  --color-soft-teal: #e8f1f2;
+  --color-cream: #fcf9f1;
+}
+
+@layer base {
+  body {
+    font-family: "Noto Sans SC", "Plus Jakarta Sans", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: var(--panel);
+    color: var(--ink);
+    background-image: radial-gradient(var(--grid) 1px, transparent 1px);
+    background-size: 56px 56px;
+  }
+}
+
+@layer components {
+  :root {
+    --form-bg: #f5f5f4;
+    --form-text: #1c1917;
+    --form-placeholder: #78716c;
+    --form-border: #d6d3d1;
+    --form-focus: #5e17eb;
+    --form-disabled-text: #a8a29e;
+  }
+
+  html[data-theme="dark"] {
+    --form-bg: rgba(255, 255, 255, 0.06);
+    --form-text: #e7e5e4;
+    --form-placeholder: #a8a29e;
+    --form-border: rgba(255, 255, 255, 0.14);
+    --form-focus: #8f63ff;
+    --form-disabled-text: #78716c;
+  }
+
+  /* 后台表单可读性基线：页面级不要覆写 color / placeholder */
+  .admin-form-input,
+  .admin-form-textarea,
+  .admin-form-select {
+    border: 1px solid var(--form-border);
+    background: var(--form-bg);
+    color: var(--form-text);
+    caret-color: var(--form-focus);
+  }
+
+  .admin-form-input::placeholder,
+  .admin-form-textarea::placeholder,
+  .admin-form-select::placeholder {
+    color: var(--form-placeholder);
+    opacity: 1;
+  }
+
+  .admin-form-input:focus,
+  .admin-form-textarea:focus,
+  .admin-form-select:focus {
+    outline: none;
+    border-color: color-mix(in srgb, var(--form-focus) 55%, #ffffff 45%);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--form-focus) 12%, transparent);
+  }
+
+  .admin-form-input:disabled,
+  .admin-form-textarea:disabled,
+  .admin-form-select:disabled {
+    color: var(--form-disabled-text);
+    opacity: 1;
+  }
+}

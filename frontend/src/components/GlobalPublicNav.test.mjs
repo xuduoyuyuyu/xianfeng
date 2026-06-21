@@ -97,8 +97,8 @@ test("mobile Xiaowanzi tab avatar uses the existing optimized image asset", () =
 test("mobile navigation images are preloaded and decoded before route transitions repaint", () => {
   assert.match(
     source,
-    /const PUBLIC_NAV_IMAGE_ASSETS = \["\/assets\/logo\.png", "\/assets\/jiyue-logo\.png", DEFAULT_CHILD_AVATAR\] as const;/,
-    "public nav should keep its static chrome images in one preload list"
+    /const LOGGED_OUT_XIAOWANZI_AVATAR = "\/assets\/xiaowanzi-nohat\.png";[\s\S]*const PUBLIC_NAV_IMAGE_ASSETS = \["\/assets\/logo\.png", "\/assets\/jiyue-logo\.png", DEFAULT_CHILD_AVATAR, LOGGED_OUT_XIAOWANZI_AVATAR\] as const;/,
+    "public nav should preload the logged-out Xiaowanzi avatar together with its static chrome images"
   );
   assert.match(
     source,
@@ -124,6 +124,29 @@ test("mobile navigation images are preloaded and decoded before route transition
     source,
     /aria-label="小玩子，长按打开主页面"><img src=\{DEFAULT_CHILD_AVATAR\} alt="" loading="eager" decoding="sync"/,
     "bottom Xiaowanzi avatar should decode eagerly"
+  );
+});
+
+test("logged-out account entries use the normal Xiaowanzi nohat avatar", () => {
+  assert.doesNotMatch(
+    source,
+    /\.uc-av\.logged-out-xw/,
+    "logged-out avatar should not keep a dedicated muted grayscale style"
+  );
+  assert.match(
+    source,
+    /function LoggedOutAvatar\(\)\{return <span className="uc-av has-image"><img src=\{LOGGED_OUT_XIAOWANZI_AVATAR\} alt="" aria-hidden="true" loading="eager" decoding="sync"\/><\/span>\}/,
+    "logged-out state should reuse the shared Xiaowanzi nohat avatar helper"
+  );
+  assert.match(
+    source,
+    /:<button className="uc" onClick=\{\(\)=>document\.dispatchEvent\(new CustomEvent\("xf-show-login-modal"\)\)\}><LoggedOutAvatar\/><span className="uc-name">登录\/注册<\/span><\/button>/,
+    "desktop logged-out entry should use the Xiaowanzi avatar instead of the text badge"
+  );
+  assert.match(
+    source,
+    /<button className="account" onClick=\{openLogin\}><LoggedOutAvatar\/><span><strong>登录\/注册<\/strong><small>登录后同步档案和个性化推荐<\/small><\/span><span className="chev">›<\/span><\/button>/,
+    "menu logged-out entry should match the same avatar treatment"
   );
 });
 

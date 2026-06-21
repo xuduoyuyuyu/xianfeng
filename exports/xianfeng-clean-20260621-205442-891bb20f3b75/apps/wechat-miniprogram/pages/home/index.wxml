@@ -1,0 +1,16 @@
+<view class="page">
+  <view class="hero">
+    <text class="eyebrow">家长先疯</text>
+    <text class="title">给家长的行动型成长工具</text>
+    <text class="subtitle">小程序负责入口、登录和微信能力，成熟页面继续加载线上内容。</text>
+  </view>
+
+  <view class="section">
+    <block wx:for="{{entries}}" wx:key="path">
+      <view class="card" bindtap="openEntry" data-item="{{item}}">
+        <text class="card-title">{{item.title}}</text>
+        <text class="card-text">{{item.text}}</text>
+      </view>
+    </block>
+  </view>
+</view>

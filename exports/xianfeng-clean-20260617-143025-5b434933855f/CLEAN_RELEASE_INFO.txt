@@ -1,0 +1,5 @@
+CLEAN_RELEASE=true
+SOURCE_REPO=/Volumes/家长先疯/xianfeng
+LOCK_COMMIT=5b434933855f2f69d6d0d619b81edf549bea8c1c
+EXPORTED_AT=2026-06-17T06:30:29Z
+NOTE=This export includes only git-tracked files from the locked commit.

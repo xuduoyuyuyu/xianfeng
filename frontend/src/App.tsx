@@ -29,6 +29,7 @@ import ExpertDetailPage from "./pages/ExpertDetailPage";
 import LandingPage from "./pages/LandingPage";
 import MaterialsPage from "./pages/MaterialsPage";
 import BooksPage from "./pages/BooksPage";
+import BookDetailPage from "./pages/BookDetailPage";
 import PublicContentPage from "./pages/PublicContentPage";
 import PlanningPage from "./pages/PlanningPage";
 import TopicHubPage from "./pages/TopicHubPage";
@@ -120,6 +121,10 @@ const PublicScreenRouter: React.FC = () => {
 
   if (normalizedPathname === "/reading") {
     return <BooksPage />;
+  }
+
+  if (/^\/reading\/[^/]+$/.test(normalizedPathname)) {
+    return <BookDetailPage />;
   }
 
   if (normalizedPathname === "/public-content") {

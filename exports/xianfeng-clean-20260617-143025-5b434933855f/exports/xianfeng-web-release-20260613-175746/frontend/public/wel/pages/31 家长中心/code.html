@@ -1,0 +1,290 @@
+<!DOCTYPE html><html class="light" lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Zhi² 指挥中心版</title>
+<script src="/wel/vendor/tailwindcdn.forms.container-queries.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#7f13ec",
+                        "background-light": "#f7f6f8",
+                        "background-dark": "#191022",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "Noto Sans SC", "sans-serif"],
+                        "sans": ["Noto Sans SC", "Lexend", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        body { font-family: 'Noto Sans SC', 'Lexend', sans-serif; }
+        .radar-grid {
+            background-image: radial-gradient(circle, #7f13ec22 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen">
+<div class="layout-container flex h-full grow flex-col">
+<header class="flex items-center justify-between border-b border-primary/10 bg-white/80 backdrop-blur-md px-6 md:px-10 py-3 sticky top-0 z-50">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-3 text-primary">
+<img src="/logo.png" alt="Logo" class="h-6" />
+</div>
+<nav class="hidden lg:flex items-center gap-6">
+<a class="text-slate-600 hover:text-primary text-sm font-semibold transition-colors" href="#" style="">控制面板</a>
+<a class="text-slate-600 hover:text-primary text-sm font-semibold transition-colors" href="#" style="">学习路径</a>
+<a class="text-primary text-sm font-bold border-b-2 border-primary pb-1" href="#" style="">家长看板&nbsp;&nbsp;</a>
+<a class="text-slate-600 hover:text-primary text-sm font-semibold transition-colors" href="#" style="">成长报告</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="hidden sm:flex items-center bg-primary/5 rounded-full px-4 py-1.5 border border-primary/10">
+<span class="size-2 rounded-full bg-green-500 animate-pulse mr-2"></span>
+<span class="text-xs font-bold text-primary tracking-wider" style="">实时同步状态: 正在学习中</span>
+</div>
+<button class="flex items-center justify-center rounded-full size-10 bg-primary/10 text-primary hover:bg-primary/20 transition-all" style="">
+<span class="material-symbols-outlined" style="">notifications</span>
+</button>
+<div class="bg-primary/20 rounded-full size-10 border-2 border-primary/20 overflow-hidden">
+<img alt="家长头像" class="w-full h-full object-cover" src="/assets/wel-avatar/no-hat.png" style="">
+</div>
+</div>
+</header>
+<main class="flex flex-1 overflow-hidden">
+<aside class="w-64 border-r border-primary/10 bg-white hidden xl:flex flex-col p-6 gap-8">
+<div>
+<h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4" style="">核心指挥</h3>
+<div class="flex flex-col gap-1">
+<a class="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-primary text-white font-medium shadow-lg shadow-primary/20" href="#" style="">
+<span class="material-symbols-outlined size-5" style="">monitoring</span>
+<span class="text-sm" style="">实时追踪</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-slate-600 hover:bg-primary/5 font-medium transition-all" href="#" style="">
+<span class="material-symbols-outlined size-5" style="">radar</span>
+<span class="text-sm" style="">掌握度雷达</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-slate-600 hover:bg-primary/5 font-medium transition-all" href="#" style="">
+<span class="material-symbols-outlined size-5" style="">history</span>
+<span class="text-sm" style="">学习日志</span>
+</a>
+</div>
+</div>
+<div>
+<h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4" style="">当前课时</h3>
+<div class="bg-primary/5 rounded-2xl p-4 border border-primary/10">
+<div class="flex items-center gap-3 mb-3">
+<div class="size-10 rounded-full border-2 border-white shadow-sm overflow-hidden bg-slate-200">
+<img alt="学生头像" class="w-full h-full object-cover" src="/assets/wel-avatar/no-hat.png" style="">
+</div>
+<div>
+<p class="text-sm font-bold text-slate-800" style="">学习者</p>
+<p class="text-[10px] font-bold text-primary uppercase" style="">四年级 • 代数基础</p>
+</div>
+</div>
+<div class="space-y-3">
+<div class="h-1.5 w-full bg-white rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[72%]"></div>
+</div>
+<div class="flex justify-between text-[10px] font-bold text-slate-500 uppercase">
+<span class="" style="">课时目标</span>
+<span class="" style="">72%</span>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-auto flex flex-col gap-2">
+<div class="text-[10px] text-center text-slate-400 font-bold uppercase tracking-widest" style="">Zhi² 指挥中心版</div>
+<button class="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl border-2 border-red-100 text-red-500 font-bold text-sm hover:bg-red-50 transition-all" style="">
+<span class="material-symbols-outlined size-5" style="">lock_reset</span>
+                    远程锁定
+                </button>
+</div>
+</aside>
+<section class="flex-1 overflow-y-auto p-6 md:p-8 space-y-8">
+<div class="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+<div class="space-y-1">
+<h1 class="text-3xl font-black text-slate-900 tracking-tight" style="">家长指挥中心</h1>
+<p class="text-slate-500 font-medium" style="">实时监控教育规划与专注力核心指标</p>
+</div>
+<div class="flex gap-3">
+<button class="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-bold text-sm shadow-xl shadow-primary/30 hover:scale-[1.02] transition-transform active:scale-[0.98]" style="">
+<span class="material-symbols-outlined" style="">auto_awesome</span>
+                        投递鼓励能量
+                    </button>
+<button class="flex items-center gap-2 px-6 py-3 bg-white text-slate-700 border border-slate-200 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all" style="">
+<span class="material-symbols-outlined" style="">videocam</span>
+                        远程协同
+                    </button>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+<div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+<p class="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1" style="">实时能量同步状态</p>
+<p class="text-xl font-extrabold text-slate-900" style="">高级代数</p>
+<div class="mt-4 flex items-center text-emerald-500 text-sm font-bold" style="">
+<span class="material-symbols-outlined text-sm mr-1" style="">trending_up</span>
+                        比昨日提升 12%
+                    </div>
+</div>
+<div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm border-b-4 border-b-primary/40">
+<p class="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1" style="">准确率</p>
+<p class="text-3xl font-black text-primary" style="">94.2%</p>
+<div class="mt-4 flex items-center text-emerald-500 text-sm font-bold" style="">
+<span class="material-symbols-outlined text-sm mr-1" style="">check_circle</span>
+                        表现卓越
+                    </div>
+</div>
+<div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+<p class="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1" style="">活跃时长</p>
+<p class="text-3xl font-black text-slate-900" style="">42分 15秒</p>
+<div class="mt-4 flex items-center text-slate-400 text-sm font-bold" style="">
+<span class="material-symbols-outlined text-sm mr-1" style="">schedule</span>
+                        建议 18 分钟后休息
+                    </div>
+</div>
+<div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+<p class="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1" style="">认知负荷</p>
+<p class="text-3xl font-black text-amber-500" style="">理想状态</p>
+<div class="mt-4 flex items-center text-amber-500 text-sm font-bold" style="">
+<span class="material-symbols-outlined text-sm mr-1" style="">psychology</span>
+                        进入心流模式
+                    </div>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<div class="lg:col-span-2 bg-white rounded-3xl border border-slate-100 shadow-sm p-8">
+<div class="flex justify-between items-center mb-8">
+<div>
+<h3 class="text-xl font-black text-slate-900" style="">掌握度雷达</h3>
+<p class="text-sm text-slate-500" style="">当前模块的各项能力分布</p>
+</div>
+<div class="flex gap-2">
+<span class="px-3 py-1 bg-primary/10 text-primary text-[10px] font-bold rounded-full uppercase tracking-tighter" style="">本周数据</span>
+</div>
+</div>
+<div class="relative aspect-video radar-grid border border-primary/5 rounded-2xl flex items-center justify-center overflow-hidden">
+<div class="absolute inset-0 flex items-center justify-center">
+<div class="size-[300px] border border-primary/10 rounded-full flex items-center justify-center">
+<div class="size-[200px] border border-primary/20 rounded-full flex items-center justify-center">
+<div class="size-[100px] border border-primary/30 rounded-full"></div>
+</div>
+</div>
+<svg class="absolute w-full h-full p-10 drop-shadow-xl" viewBox="0 0 100 100">
+<polygon fill="rgba(127, 19, 236, 0.15)" points="50,10 80,40 70,80 30,80 20,40" stroke="#7f13ec" stroke-width="0.5"></polygon>
+<circle cx="50" cy="10" fill="#7f13ec" r="1.5"></circle>
+<circle cx="80" cy="40" fill="#7f13ec" r="1.5"></circle>
+<circle cx="70" cy="80" fill="#7f13ec" r="1.5"></circle>
+<circle cx="30" cy="80" fill="#7f13ec" r="1.5"></circle>
+<circle cx="20" cy="40" fill="#7f13ec" r="1.5"></circle>
+</svg>
+</div>
+<div class="absolute top-4 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400 uppercase" style="">逻辑思维</div>
+<div class="absolute bottom-4 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400 uppercase" style="">实际应用</div>
+<div class="absolute top-1/2 -right-2 -translate-y-1/2 rotate-90 text-[10px] font-bold text-slate-400 uppercase" style="">解题速度</div>
+<div class="absolute top-1/2 -left-2 -translate-y-1/2 -rotate-90 text-[10px] font-bold text-slate-400 uppercase" style="">知识记忆</div>
+</div>
+<div class="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
+<div class="text-center">
+<p class="text-[10px] font-bold text-slate-400 uppercase mb-1" style="">逻辑</p>
+<p class="text-lg font-black text-slate-800" style="">88%</p>
+</div>
+<div class="text-center">
+<p class="text-[10px] font-bold text-slate-400 uppercase mb-1" style="">记忆</p>
+<p class="text-lg font-black text-slate-800" style="">72%</p>
+</div>
+<div class="text-center">
+<p class="text-[10px] font-bold text-slate-400 uppercase mb-1" style="">速度</p>
+<p class="text-lg font-black text-slate-800" style="">91%</p>
+</div>
+<div class="text-center">
+<p class="text-[10px] font-bold text-slate-400 uppercase mb-1" style="">创造力</p>
+<p class="text-lg font-black text-slate-800" style="">65%</p>
+</div>
+</div>
+</div>
+<div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 flex flex-col">
+<div class="flex items-center justify-between mb-6">
+<h3 class="text-lg font-black text-slate-900" style="">每日成长动态</h3>
+<span class="material-symbols-outlined text-primary" style="">more_horiz</span>
+</div>
+<div class="space-y-6 flex-1">
+<div class="flex gap-4 relative">
+<div class="absolute left-3 top-8 bottom-[-24px] w-px bg-slate-100"></div>
+<div class="size-6 rounded-full bg-primary/10 flex items-center justify-center z-10">
+<span class="material-symbols-outlined text-xs text-primary" style="">check</span>
+</div>
+<div class="flex-1">
+<p class="text-sm font-bold text-slate-800 leading-tight" style="">完成 模块 4.1</p>
+<p class="text-xs text-slate-500 mt-1" style="">二次方程入门</p>
+<p class="text-[10px] font-bold text-primary/60 mt-2 uppercase" style="">2分钟前</p>
+</div>
+</div>
+<div class="flex gap-4 relative">
+<div class="absolute left-3 top-8 bottom-[-24px] w-px bg-slate-100"></div>
+<div class="size-6 rounded-full bg-emerald-100 flex items-center justify-center z-10">
+<span class="material-symbols-outlined text-xs text-emerald-600" style="">star</span>
+</div>
+<div class="flex-1">
+<p class="text-sm font-bold text-slate-800 leading-tight" style="">解锁成就</p>
+<p class="text-xs text-slate-500 mt-1" style="">"代数精英" - 10连对</p>
+<p class="text-[10px] font-bold text-primary/60 mt-2 uppercase" style="">8分钟前</p>
+</div>
+</div>
+<div class="flex gap-4">
+<div class="size-6 rounded-full bg-amber-100 flex items-center justify-center z-10">
+<span class="material-symbols-outlined text-xs text-amber-600" style="">lightbulb</span>
+</div>
+<div class="flex-1">
+<p class="text-sm font-bold text-slate-800 leading-tight" style="">正在请求提示</p>
+<p class="text-xs text-slate-500 mt-1" style="">第 14 题难度激增</p>
+<p class="text-[10px] font-bold text-primary/60 mt-2 uppercase" style="">刚刚</p>
+</div>
+</div>
+</div>
+<div class="mt-6">
+<div class="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+<p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2" style="">家长建议</p>
+<p class="text-xs text-slate-600 leading-relaxed italic" style="">"当前正处于高效心流状态，建议在 15 分钟后再与其交流，以确保知识留存效果最大化。"</p>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-primary/5 rounded-3xl border border-primary/10 p-8">
+<div class="flex flex-col md:flex-row gap-8 items-center">
+<div class="flex-1 space-y-4">
+<div class="inline-flex items-center gap-2 px-3 py-1 bg-white rounded-full text-primary text-[10px] font-bold border border-primary/20 uppercase" style="">
+<span class="material-symbols-outlined text-sm" style="">settings_suggest</span>
+                            AI 智能引导开启中
+                        </div>
+<h3 class="text-2xl font-black text-slate-900 leading-tight" style="">个性化学习路径：<br>通往高等微积分的桥梁</h3>
+<div class="flex flex-wrap gap-2">
+<span class="px-4 py-2 bg-white rounded-xl text-slate-600 text-sm font-bold shadow-sm" style="">模块 1: 几何绘图</span>
+<span class="px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold shadow-sm" style="">模块 2: 高级代数 II</span>
+<span class="px-4 py-2 bg-white rounded-xl text-slate-300 text-sm font-bold shadow-sm border border-dashed border-slate-200" style="">模块 3: 函数进阶</span>
+</div>
+</div>
+<div class="w-full md:w-auto flex flex-col gap-3">
+<button class="w-full md:min-w-[200px] px-6 py-4 bg-white border border-primary/20 text-primary font-black rounded-2xl shadow-sm hover:bg-primary hover:text-white transition-all" style="">
+                            调整学习难度
+                        </button>
+<button class="w-full md:min-w-[200px] px-6 py-4 bg-slate-900 text-white font-black rounded-2xl shadow-sm hover:bg-slate-800 transition-all" style="">
+                            管理日程规划
+                        </button>
+</div>
+</div>
+</div>
+</section>
+</main>
+</div>
+
+</body></html>

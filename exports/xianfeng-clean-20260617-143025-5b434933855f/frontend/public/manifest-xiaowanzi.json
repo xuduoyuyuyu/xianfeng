@@ -1,0 +1,17 @@
+{
+  "name": "小玩子",
+  "short_name": "小玩子",
+  "description": "小玩子超能模式",
+  "start_url": "/index-xiaowanzi.html",
+  "display": "standalone",
+  "background_color": "#f2f1ff",
+  "theme_color": "#11143b",
+  "icons": [
+    {
+      "src": "/assets/xiaowanzi-nohat.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

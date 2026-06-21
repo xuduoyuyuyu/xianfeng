@@ -1,0 +1,7 @@
+.card {
+  transition: opacity 0.15s ease;
+}
+
+.card:active {
+  opacity: 0.72;
+}

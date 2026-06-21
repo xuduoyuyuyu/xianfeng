@@ -1,0 +1,92 @@
+page {
+  background: #f7f4ed;
+  color: #111827;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+}
+
+.page {
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 32rpx;
+}
+
+.hero {
+  padding: 32rpx;
+  border-radius: 24rpx;
+  background: #0f172a;
+  color: #fff;
+}
+
+.eyebrow {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.title {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 44rpx;
+  font-weight: 900;
+  line-height: 1.18;
+}
+
+.subtitle {
+  display: block;
+  margin-top: 16rpx;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 28rpx;
+  line-height: 1.55;
+}
+
+.section {
+  margin-top: 28rpx;
+}
+
+.card {
+  display: block;
+  margin-top: 20rpx;
+  padding: 28rpx;
+  border: 1rpx solid rgba(15, 23, 42, 0.08);
+  border-radius: 20rpx;
+  background: #fff;
+  box-shadow: 0 12rpx 30rpx rgba(15, 23, 42, 0.06);
+}
+
+.card-title {
+  display: block;
+  color: #111827;
+  font-size: 32rpx;
+  font-weight: 850;
+}
+
+.card-text {
+  display: block;
+  margin-top: 10rpx;
+  color: #667085;
+  font-size: 26rpx;
+  line-height: 1.5;
+}
+
+.button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 88rpx;
+  margin-top: 22rpx;
+  border-radius: 999rpx;
+  background: #111827;
+  color: #fff;
+  font-size: 28rpx;
+  font-weight: 800;
+}
+
+.button.secondary {
+  background: #fff;
+  color: #111827;
+  border: 1rpx solid rgba(15, 23, 42, 0.12);
+}
+
+.muted {
+  color: #667085;
+}

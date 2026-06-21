@@ -14,9 +14,9 @@ function webUrl(path, params) {
   return `${WEB_ORIGIN}${safePath}${qs ? `?${qs}` : ""}`;
 }
 
-function openWeb(path, title) {
+function openWeb(path, title, params) {
   wx.navigateTo({
-    url: `/pages/webview/index?url=${encodeURIComponent(webUrl(path))}&title=${encodeURIComponent(title || "家长先疯")}`
+    url: `/pages/webview/index?url=${encodeURIComponent(webUrl(path, params))}&title=${encodeURIComponent(title || "家长先疯")}`
   });
 }
 

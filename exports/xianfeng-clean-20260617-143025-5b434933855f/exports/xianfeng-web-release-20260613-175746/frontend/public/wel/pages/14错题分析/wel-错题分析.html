@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>wel - 错题深度同步与讲解界面</title>
+<script src="/wel/vendor/tailwindcdn.forms.container-queries.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#7f13ec",
+                        "pearl-white": "#f8f9fc",
+                        "soft-purple": "#e9d5ff",
+                        "dark-grey": "#334155",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        body {
+            font-family: 'Lexend', sans-serif;
+            background: radial-gradient(circle at top left, #ffffff 0%, #f3f4f9 100%);
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+        }
+        .primary-glow {
+            box-shadow: 0 0 25px rgba(127, 19, 236, 0.6);
+        }
+        .logic-connector {
+            background: #d8b4fe;
+        }
+        .video-overlay {
+            background: linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%);
+        }
+    </style>
+</head>
+<body class="text-dark-grey min-h-screen">
+<div class="relative flex flex-col w-full min-h-screen overflow-x-hidden">
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-purple-100 px-6 lg:px-20 py-4 bg-white/60 backdrop-blur-md sticky top-0 z-50">
+<div class="flex items-center gap-4 text-primary">
+<div class="size-8 flex items-center justify-center bg-primary/10 rounded-lg">
+<span class="material-symbols-outlined text-primary text-2xl">auto_awesome</span>
+</div>
+<img src="/logo.png" alt="Logo" class="h-6" />
+</div>
+<div class="flex flex-1 justify-end gap-8 items-center">
+<nav class="hidden md:flex items-center gap-8">
+<a class="text-slate-500 hover:text-primary transition-colors text-sm font-medium" href="#">成长报告</a>
+<a class="text-primary text-sm font-bold border-b-2 border-primary pb-1" href="#">错题分析</a>
+<a class="text-slate-500 hover:text-primary transition-colors text-sm font-medium" href="#">练习中心</a>
+<a class="text-slate-500 hover:text-primary transition-colors text-sm font-medium" href="#">个人档案</a>
+</nav>
+<div class="h-6 w-px bg-slate-200 mx-2"></div>
+<button class="flex min-w-[100px] cursor-pointer items-center justify-center rounded-lg h-10 px-5 bg-primary text-white text-sm font-bold shadow-lg hover:opacity-90 transition-opacity">
+<span>资源同步增强版</span>
+</button>
+<div class="bg-primary/10 rounded-full size-10 flex items-center justify-center overflow-hidden border-2 border-primary/20">
+<img alt="User avatar" class="w-full h-full object-cover" src="/assets/wel-avatar/no-hat.png"/>
+</div>
+</div>
+</header>
+<main class="flex-1 flex flex-col max-w-6xl mx-auto w-full px-6 py-8">
+<div class="flex items-center gap-2 mb-6">
+<a class="text-slate-400 text-sm hover:text-primary transition-colors" href="#">首页</a>
+<span class="material-symbols-outlined text-slate-300 text-sm">chevron_right</span>
+<a class="text-slate-400 text-sm hover:text-primary transition-colors" href="#">成长报告</a>
+<span class="material-symbols-outlined text-slate-300 text-sm">chevron_right</span>
+<span class="text-primary font-medium text-sm">错题深度同步</span>
+</div>
+<div class="mb-8">
+<h1 class="text-slate-800 text-3xl font-bold mb-2">错题逻辑拆解与资源同步</h1>
+<p class="text-slate-500 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary/70 text-sm">insights</span>
+                针对特定错误的深度路径分析与 AI 智慧讲解
+            </p>
+</div>
+<section class="mb-10">
+<h2 class="text-slate-800 text-xl font-bold mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary/80">menu_book</span>
+                原题回顾
+            </h2>
+<div class="flex flex-col lg:flex-row rounded-xl overflow-hidden glass-card">
+<div class="lg:w-2/5 h-64 lg:h-auto bg-slate-50 overflow-hidden border-r border-white/50">
+<img alt="Mathematical problem" class="w-full h-full object-cover opacity-90 mix-blend-multiply" src="/assets/wel-avatar/no-hat.png"/>
+</div>
+<div class="lg:w-3/5 p-6 flex flex-col justify-between">
+<div>
+<span class="text-primary text-xs font-bold uppercase tracking-widest px-2 py-1 bg-primary/10 rounded mb-4 inline-block">题号：20240501-08</span>
+<h3 class="text-slate-800 text-2xl font-bold mb-3">初中数学：二次函数综合题</h3>
+<p class="text-slate-600 leading-relaxed italic border-l-4 border-soft-purple pl-4 py-2 bg-purple-50/50 rounded-r">
+                            "已知抛物线 y = ax² + bx + c 经过点 A(-1,0) 和 B(3,0)，且与 y 轴交于点 C(0,3)。求抛物线的解析式，并判断点 D(2,4) 是否在该抛物线上..."
+                        </p>
+</div>
+<div class="mt-6 flex gap-4">
+<div class="px-3 py-1 bg-white/80 border border-slate-100 rounded-full text-xs text-slate-500 shadow-sm">难度：中等偏难</div>
+<div class="px-3 py-1 bg-white/80 border border-slate-100 rounded-full text-xs text-slate-500 shadow-sm">知识点：解析几何</div>
+</div>
+</div>
+</div>
+</section>
+<section class="mb-10">
+<h2 class="text-slate-800 text-xl font-bold mb-8 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary/80">account_tree</span>
+                逻辑链路图
+            </h2>
+<div class="relative flex flex-col gap-12 px-4">
+<div class="relative flex items-center">
+<div class="z-10 w-10 h-10 rounded-full bg-soft-purple text-primary flex items-center justify-center font-bold text-base shadow-sm">1</div>
+<div class="ml-6 p-4 rounded-xl glass-card flex-1 flex items-center justify-between">
+<div>
+<h4 class="font-bold text-slate-800">确定解析式形式</h4>
+<p class="text-sm text-slate-500 mt-1">根据交点 A, B 选择两点式方程 y = a(x+1)(x-3)</p>
+</div>
+<span class="material-symbols-outlined text-green-500">check_circle</span>
+</div>
+<div class="absolute left-5 top-10 w-0.5 h-12 logic-connector"></div>
+</div>
+<div class="relative flex items-center">
+<div class="z-10 w-10 h-10 rounded-full bg-soft-purple text-primary flex items-center justify-center font-bold text-base shadow-sm">2</div>
+<div class="ml-6 p-4 rounded-xl glass-card flex-1 flex items-center justify-between">
+<div>
+<h4 class="font-bold text-slate-800">代入点 C 求系数</h4>
+<p class="text-sm text-slate-500 mt-1">代入 (0,3) 得到 3 = a(0+1)(0-3) → a = -1</p>
+</div>
+<span class="material-symbols-outlined text-green-500">check_circle</span>
+</div>
+<div class="absolute left-5 top-10 w-0.5 h-12 logic-connector opacity-50"></div>
+</div>
+<div class="relative flex items-center">
+<div class="z-10 w-10 h-10 rounded-full bg-red-100 text-red-500 border border-red-200 flex items-center justify-center font-bold text-base shadow-sm">3</div>
+<div class="ml-6 p-4 rounded-xl bg-red-50/50 border border-red-100 flex-1 flex items-center justify-between">
+<div>
+<h4 class="font-bold text-red-700">展开解析式 (逻辑偏移点)</h4>
+<p class="text-sm text-red-600/80 mt-1">错误展开为 y = -x² - 2x + 3 (应为 -x² + 2x + 3)</p>
+</div>
+<div class="flex items-center gap-2">
+<div class="text-[10px] font-bold text-red-600 bg-red-100 px-2 py-1 rounded">运算错误</div>
+<span class="material-symbols-outlined text-red-500">error</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<div class="bg-primary/5 border border-primary/10 rounded-xl p-6 mb-10 shadow-sm">
+<div class="flex items-center gap-3 mb-4">
+<span class="material-symbols-outlined text-primary">tips_and_updates</span>
+<h3 class="text-primary font-bold">逻辑修正建议</h3>
+</div>
+<p class="text-slate-600 text-sm leading-relaxed mb-4">
+                在第3步进行括号展开时，负号分配错误。建议在处理系数 <span class="text-primary font-bold">a = -1</span> 时，先展开括号内部，再整体乘以 -1。
+            </p>
+<div class="flex items-center gap-2 text-xs font-medium text-primary">
+<span class="w-2 h-2 rounded-full bg-primary"></span> 正确路径：y = -(x² - 2x - 3) = -x² + 2x + 3
+            </div>
+</div>
+<section class="mb-12">
+<h2 class="text-slate-800 text-xl font-bold mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary/80">hub</span>
+                智慧同步讲解
+            </h2>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+<div class="glass-card rounded-2xl p-6 border-l-4 border-l-primary relative overflow-hidden">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-primary text-xl">psychology</span>
+<h3 class="font-bold text-slate-800">AI 灵动解析</h3>
+<span class="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-bold">大白话版</span>
+</div>
+<div class="space-y-4">
+<div class="p-4 bg-white/50 rounded-xl border border-white/60">
+<p class="text-slate-600 text-sm leading-relaxed">
+<span class="font-bold text-primary">解题妙招：</span>想象括号前面那个负号是一个"收纳袋"，你在整理里面的包裹（多项式）时，要把每一个小快递都贴上"反转"的标签。你这次只给第一件衣服贴了标签，后面的小件都漏掉了哦！
+                            </p>
+</div>
+<div class="bg-orange-50/50 border border-orange-100 rounded-xl p-4">
+<h4 class="text-xs font-bold text-orange-600 flex items-center gap-1 mb-2 uppercase tracking-wider">
+<span class="material-symbols-outlined text-sm">shield</span> 关键避坑指南
+                            </h4>
+<ul class="text-xs text-orange-800 space-y-2">
+<li class="flex gap-2">
+<span class="text-orange-400">•</span>
+<span>二次函数解析式展开时，系数 a 必须在最后一步再分配进括号，防止多项式符号混乱。</span>
+</li>
+<li class="flex gap-2">
+<span class="text-orange-400">•</span>
+<span>两点式 y = a(x-x1)(x-x2) 的中间项符号是由 -(x1+x2)x 决定的，这里要注意 -1 和 3 的和是 2，变号后是 -2，但前面还有个 a。</span>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="glass-card rounded-2xl p-6 relative overflow-hidden group">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-primary text-xl">play_circle</span>
+<h3 class="font-bold text-slate-800">名师精讲视频</h3>
+<span class="ml-auto text-[10px] text-slate-400">时长 05:24</span>
+</div>
+<div class="relative rounded-xl overflow-hidden aspect-video bg-slate-900 cursor-pointer shadow-lg">
+<img alt="Teacher thumbnail" class="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500" src="/assets/wel-avatar/no-hat.png"/>
+<div class="absolute inset-0 flex items-center justify-center">
+<div class="size-14 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-white text-4xl fill-1">play_arrow</span>
+</div>
+</div>
+<div class="absolute bottom-0 inset-x-0 p-3 video-overlay">
+<p class="text-white text-xs font-medium">知识点专题：二次函数解析式的陷阱避坑 (由张老师主讲)</p>
+</div>
+</div>
+<div class="mt-4 flex gap-2">
+<div class="flex-1 p-2 rounded-lg bg-slate-50 border border-slate-100 flex items-center gap-2">
+<div class="size-6 rounded-full bg-soft-purple text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-xs">bookmark</span>
+</div>
+<span class="text-[10px] text-slate-500">点击 02:15 直达本题重点</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<div class="flex flex-col items-center gap-4 mt-auto py-10">
+<button class="group flex min-w-[320px] cursor-pointer items-center justify-center gap-3 rounded-2xl h-16 px-10 bg-primary text-white text-xl font-bold primary-glow hover:scale-[1.02] active:scale-[0.98] transition-all">
+<span class="material-symbols-outlined text-2xl">sync</span>
+<span>重新同步到练习本</span>
+</button>
+<p class="text-slate-400 text-sm">点击后将此类题型与 AI 笔记一并同步到错题库</p>
+</div>
+</main>
+<footer class="border-t border-slate-100 py-8 px-6 text-center text-slate-400 text-sm">
+<p>© 2024 wel 教育规划平台 - 讲解资源同步增强版</p>
+</footer>
+</div>
+
+</body></html>

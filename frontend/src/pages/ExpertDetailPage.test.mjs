@@ -83,3 +83,21 @@ test("guest detail public content links preserve Xiaowanzi return affordance", (
     "desktop public content links should route through the Xiaowanzi public-content page"
   );
 });
+
+test("guest detail authored books only link when metadata detail exists", () => {
+  assert.match(
+    source,
+    /return book\.hasMetadataDetail \? \(\s*<Link[\s\S]*to=\{`\/reading\/\$\{book\._id\}`\}/,
+    "authored books should link to reading detail only when detail metadata exists"
+  );
+  assert.match(
+    source,
+    /<div className="mt-1 text-\[10px\] font-black text-\[#7C3AED\]">查看详情<\/div>/,
+    "authored books with detail metadata should show a small detail marker"
+  );
+  assert.doesNotMatch(
+    source,
+    /<Link key=\{book\._id\}[\s\S]*>[\s\S]*未命名书籍[\s\S]*<\/Link>\s*\);\s*\}\)\}/,
+    "authored books should not become universally clickable"
+  );
+});

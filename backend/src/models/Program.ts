@@ -140,6 +140,27 @@ interface AgentProgramEnrichmentOutput {
   forceOverwrite?: boolean;
   suggestedGlossary?: ProgramTermGlossaryItem[];
   suggestedReadings?: CuratedReadingItem[];
+  readingVerificationReport?: {
+    checkedAt?: Date;
+    total?: number;
+    passedCount?: number;
+    failedCount?: number;
+    summary?: string;
+    items?: Array<{
+      title?: string;
+      subtitle?: string;
+      url?: string;
+      finalUrl?: string;
+      landingTitle?: string;
+      landingDescription?: string;
+      landingSite?: string;
+      landingContributors?: string[];
+      titleMatched?: boolean;
+      contributorMatched?: boolean;
+      passed?: boolean;
+      issues?: string[];
+    }>;
+  };
 }
 
 interface ProgramAgentOutputs {
@@ -328,6 +349,29 @@ const programSchema = new mongoose.Schema(
             url: { type: String, default: "" },
           },
         ],
+        readingVerificationReport: {
+          checkedAt: { type: Date, default: null },
+          total: { type: Number, default: 0 },
+          passedCount: { type: Number, default: 0 },
+          failedCount: { type: Number, default: 0 },
+          summary: { type: String, default: "" },
+          items: [
+            {
+              title: { type: String, default: "" },
+              subtitle: { type: String, default: "" },
+              url: { type: String, default: "" },
+              finalUrl: { type: String, default: "" },
+              landingTitle: { type: String, default: "" },
+              landingDescription: { type: String, default: "" },
+              landingSite: { type: String, default: "" },
+              landingContributors: [{ type: String }],
+              titleMatched: { type: Boolean, default: false },
+              contributorMatched: { type: Boolean, default: false },
+              passed: { type: Boolean, default: false },
+              issues: [{ type: String }],
+            },
+          ],
+        },
       },
     },
     status: {

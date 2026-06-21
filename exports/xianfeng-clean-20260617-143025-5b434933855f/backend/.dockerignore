@@ -1,0 +1,12 @@
+._*
+.DS_Store
+**/._*
+**/.DS_Store
+.env
+.env.*
+.git
+node_modules
+npm-cache
+.npm-cache
+uploads
+dist

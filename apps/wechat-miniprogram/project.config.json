@@ -1,11 +1,11 @@
 {
   "description": "家长先疯微信小程序",
-  "appid": "touristappid",
+  "appid": "wxc47be3bb0be842e8",
   "projectname": "xianfeng-wechat-miniprogram",
   "miniprogramRoot": "./",
   "compileType": "miniprogram",
   "setting": {
-    "urlCheck": true,
+    "urlCheck": false,
     "es6": true,
     "enhance": true,
     "postcss": true,
@@ -17,7 +17,63 @@
     "uglifyFileName": false,
     "checkInvalidKey": true,
     "checkSiteMap": true,
-    "uploadWithSourceMap": true
+    "uploadWithSourceMap": true,
+    "compileWorklet": false,
+    "packNpmManually": false,
+    "packNpmRelationList": [],
+    "minifyWXSS": true,
+    "minifyWXML": true,
+    "localPlugins": false,
+    "disableUseStrict": false,
+    "useCompilerPlugins": false,
+    "condition": true,
+    "swc": false,
+    "disableSWC": true,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    }
   },
-  "libVersion": "latest"
+  "libVersion": "latest",
+  "simulatorPluginLibVersion": {
+    "wxext14566970e7e9f62": "2.27.3"
+  },
+  "packOptions": {
+    "ignore": [],
+    "include": []
+  },
+  "editorSetting": {},
+  "condition": {
+    "miniprogram": {
+      "list": [
+        {
+          "name": "首页",
+          "pathName": "pages/home/index",
+          "query": ""
+        },
+        {
+          "name": "节目",
+          "pathName": "pages/programs/index",
+          "query": ""
+        },
+        {
+          "name": "小玩子",
+          "pathName": "pages/xiaowanzi/index",
+          "query": ""
+        },
+        {
+          "name": "Pro",
+          "pathName": "pages/pro/index",
+          "query": ""
+        },
+        {
+          "name": "我的",
+          "pathName": "pages/mine/index",
+          "query": ""
+        }
+      ]
+    }
+  },
+  "projectArchitecture": "multiPlatform"
 }

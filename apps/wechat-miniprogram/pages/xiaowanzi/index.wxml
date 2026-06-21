@@ -1,11 +1,1 @@
-<block wx:if="{{loggedIn}}">
-  <web-view src="{{src}}" />
-</block>
-<view wx:else class="page">
-  <view class="hero">
-    <text class="eyebrow">小玩子</text>
-    <text class="title">登录后开始专属对话</text>
-    <text class="subtitle">小程序会使用微信登录换取家长先疯账号，再进入小玩子聊天。</text>
-  </view>
-  <view class="button" bindtap="goLogin">微信登录</view>
-</view>
+<web-view src="{{src}}" />

@@ -1,0 +1,243 @@
+import React, { useEffect } from "react";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import GlobalPublicNav from "./components/GlobalPublicNav";
+import { LoginModalProvider } from "./components/LoginModalProvider";
+import ScreenPage from "./pages/ScreenPage";
+import AdminLoginPage from "./pages/admin/AdminLoginPage";
+import UserLoginPage from "./pages/UserLoginPage";
+import RequireAdmin from "./components/RequireAdmin";
+import AdminLayout from "./components/AdminLayout";
+import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
+import AdminProgramsPage from "./pages/admin/AdminProgramsPage";
+import AdminBooksPage from "./pages/admin/AdminBooksPage";
+import AdminMaterialsPage from "./pages/admin/AdminMaterialsPage";
+import AdminUsersPage from "./pages/admin/AdminUsersPage";
+import AdminUserPortraitPage from "./pages/admin/AdminUserPortraitPage";
+import AdminSystemPage from "./pages/admin/AdminSystemPage";
+import AdminMultiAgentsPage from "./pages/admin/AdminMultiAgentsPage";
+import AdminTopicsPage from "./pages/admin/AdminTopicsPage";
+import AdminDictionaryPage from "./pages/admin/AdminDictionaryPage";
+import AdminGuestsPage from "./pages/admin/AdminGuestsPage";
+import AdminAgentsPage from "./pages/admin/AdminAgentsPage";
+import AdminAgentsChatPage from "./pages/admin/AdminAgentsChatPage";
+import AdminInboxPage from "./pages/admin/AdminInboxPage";
+import AdminWorthBuyPage from "./pages/admin/AdminWorthBuyPage";
+import ProgramListPage from "./pages/ProgramListPage";
+import ExpertsPage from "./pages/ExpertsPage";
+import ExpertDetailPage from "./pages/ExpertDetailPage";
+import LandingPage from "./pages/LandingPage";
+import MaterialsPage from "./pages/MaterialsPage";
+import BooksPage from "./pages/BooksPage";
+import PublicContentPage from "./pages/PublicContentPage";
+import PlanningPage from "./pages/PlanningPage";
+import TopicHubPage from "./pages/TopicHubPage";
+import TopicDetailPage from "./pages/TopicDetailPage";
+import { XianfengSharePosterExample } from "./components/XianfengSharePoster";
+import WorthBuyPage from "./pages/WorthBuyPage";
+import WorthBuyDetailPage from "./pages/WorthBuyDetailPage";
+import SearchPage from "./pages/SearchPage";
+import ProPage from "./pages/ProPage";
+import WithLoginGate from "./components/WithLoginGate";
+import PageViewTracker from "./components/PageViewTracker";
+import XiaowanziWidget from "./wel/components/XiaowanziWidget";
+import { RootState } from "./store";
+import { fetchMe } from "./store/userSlice";
+
+const PublicScreenRouter: React.FC = () => {
+  const { pathname, search } = useLocation();
+  const navigate = useNavigate();
+  const normalizedPathname = pathname.startsWith("/v2/") ? pathname.slice(3) : pathname === "/v2" ? "/" : pathname;
+  const screenRev = "20260502-podcast-home-force-refresh-1";
+
+  if (normalizedPathname === "/") {
+    return <LandingPage />;
+  }
+
+  if (normalizedPathname === "/programs") {
+    return <Navigate to="/programs/list" replace />;
+  }
+
+  if (normalizedPathname === "/programs/list") {
+    return <ProgramListPage />;
+  }
+
+  if (/^\/programs\/[^/]+$/.test(normalizedPathname)) {
+    const xiaowanziLayer = new URLSearchParams(search).get("xw_layer") === "1";
+    const programId = normalizedPathname.split("/")[2] || "";
+    const src = `/screens/podcast-detail.html?programId=${encodeURIComponent(programId)}${xiaowanziLayer ? "&xw_layer=1" : ""}`;
+    if (xiaowanziLayer) {
+      return (
+        <div className="relative min-h-screen bg-[#f3f2f8]">
+          <button
+            type="button"
+            aria-label="返回小玩子"
+            onClick={() => {
+              if (window.history.length > 1) {
+                navigate(-1);
+                return;
+              }
+              navigate("/programs/list?xw_restore=xiaowanzi");
+            }}
+            className="fixed left-4 top-[calc(14px+env(safe-area-inset-top))] z-[120] inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-[#11143b] shadow-[0_10px_24px_rgba(70,73,132,0.14)]"
+          >
+            <span className="material-symbols-outlined text-[28px]">arrow_back</span>
+          </button>
+          <iframe src={src} style={{ width: "100%", height: "100vh", border: "none" }} title="节目详情" />
+        </div>
+      );
+    }
+
+    return (
+      <>
+        <GlobalPublicNav compactMobile />
+        <WithLoginGate backTo="/programs/list" title="登录后查看完整内容" description="登录后即可查看节目逐字稿、AI分析、嘉宾详情等完整内容。">
+          <iframe src={src} style={{ width: "100%", height: "calc(100vh - 64px)", border: "none", marginTop: 64 }} title="节目详情" />
+        </WithLoginGate>
+      </>
+    );
+  }
+
+  if (normalizedPathname === "/experts") {
+    return <ExpertsPage />;
+  }
+
+  if (/^\/experts\/[^/]+$/.test(normalizedPathname)) {
+    return (
+      <WithLoginGate backTo="/experts" title="登录后查看完整内容" description="登录后即可查看专家详细资料、论文著作、相关节目等完整信息。">
+        <ExpertDetailPage />
+      </WithLoginGate>
+    );
+  }
+
+  if (normalizedPathname === "/materials") {
+    return <MaterialsPage />;
+  }
+
+  if (normalizedPathname === "/books") {
+    return <Navigate to={`/reading${search}`} replace />;
+  }
+
+  if (normalizedPathname === "/reading") {
+    return <BooksPage />;
+  }
+
+  if (normalizedPathname === "/public-content") {
+    return <PublicContentPage />;
+  }
+
+  if (normalizedPathname === "/planning") {
+    return <PlanningPage />;
+  }
+
+  if (normalizedPathname === "/topics") {
+    return <TopicHubPage />;
+  }
+
+  if (normalizedPathname === "/topics/share-preview") {
+    return <XianfengSharePosterExample />;
+  }
+
+  if (/^\/topics\/[^/]+$/.test(normalizedPathname)) {
+    const slug = normalizedPathname.split("/")[2] || "";
+    return (
+      <WithLoginGate backTo="/topics" title="登录后查看完整内容" description="登录后即可查看完整知识树、深入话题内容，获得个性化学习推荐。">
+        <TopicDetailPage slug={slug} />
+      </WithLoginGate>
+    );
+  }
+
+  if (normalizedPathname === "/worthbuy") {
+    return <WorthBuyPage />;
+  }
+
+  if (normalizedPathname === "/search") {
+    return <SearchPage />;
+  }
+
+  if (normalizedPathname === "/pro" || normalizedPathname === "/pro/success") {
+    return <ProPage />;
+  }
+
+  if (/^\/worthbuy\/[^/]+$/.test(normalizedPathname)) {
+    return (
+      <WithLoginGate backTo="/worthbuy" title="登录后查看完整内容" description="登录后即可查看完整分析结果、品牌对比详情，获取个性化消费建议。">
+        <WorthBuyDetailPage />
+      </WithLoginGate>
+    );
+  }
+
+  const routeMap: Record<string, { src: string; title: string }> = {
+    "/articles": { src: "/screens/public-articles.html", title: "精选文稿" },
+    "/community": { src: "/screens/public-community.html", title: "学习社区" },
+  };
+
+  const match = routeMap[normalizedPathname];
+  if (!match) {
+    return <Navigate to="/programs/list" replace />;
+  }
+  const joiner = search ? "&" : "?";
+  const withQuery = `${search ? `${match.src}${search}` : match.src}${joiner}v=${screenRev}`;
+  return <ScreenPage src={withQuery} title={match.title} />;
+};
+
+const App: React.FC = () => {
+  const dispatch = useDispatch();
+  const { token, user } = useSelector((state: RootState) => state.user);
+  const { pathname, search } = useLocation();
+  const searchParams = new URLSearchParams(search);
+  const hideWidget = searchParams.get("hideWidget") === "1" || searchParams.get("widgetOnly") === "1";
+
+  const shouldRenderGlobalXiaowanzi =
+    pathname !== "/login" &&
+    !pathname.startsWith("/admin") &&
+    !pathname.startsWith("/planning") &&
+    !hideWidget;
+
+  useEffect(() => {
+    if (!token || user) return;
+    dispatch(fetchMe() as any);
+  }, [dispatch, token, user]);
+
+  return (
+    <LoginModalProvider>
+      <div id="app-shell">
+        <PageViewTracker />
+        <Routes>
+          <Route path="/login" element={<UserLoginPage />} />
+          <Route path="/admin/login" element={<AdminLoginPage />} />
+          <Route
+            path="/admin"
+            element={
+              <RequireAdmin>
+                <AdminLayout />
+              </RequireAdmin>
+            }
+          >
+            <Route index element={<AdminDashboardPage />} />
+            <Route path="programs" element={<AdminProgramsPage />} />
+            <Route path="dictionary" element={<AdminDictionaryPage />} />
+            <Route path="guests" element={<AdminGuestsPage />} />
+            <Route path="books" element={<AdminBooksPage />} />
+            <Route path="materials" element={<AdminMaterialsPage />} />
+            <Route path="users" element={<AdminUsersPage />} />
+            <Route path="user-portrait" element={<AdminUserPortraitPage />} />
+            <Route path="system" element={<AdminSystemPage />} />
+            <Route path="agents" element={<AdminAgentsPage />} />
+            <Route path="agents/:botId/chat" element={<AdminAgentsChatPage />} />
+            <Route path="multi-agents" element={<AdminMultiAgentsPage />} />
+            <Route path="topics" element={<AdminTopicsPage />} />
+            <Route path="worthbuy" element={<AdminWorthBuyPage />} />
+            <Route path="inbox" element={<AdminInboxPage />} />
+            <Route path="*" element={<Navigate to="/admin" replace />} />
+          </Route>
+
+          <Route path="*" element={<PublicScreenRouter />} />
+        </Routes>
+      </div>
+      {shouldRenderGlobalXiaowanzi ? <XiaowanziWidget hideLauncher={pathname === "/"} /> : null}
+    </LoginModalProvider>
+  );
+};
+
+export default App;

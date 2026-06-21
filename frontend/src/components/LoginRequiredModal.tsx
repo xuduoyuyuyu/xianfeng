@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "../store";
 import { loginByMobile } from "../store/userSlice";
 import { userApi } from "../services/api";
 import { clearLoginInviteCookie, readLoginInviteCookie, writeLoginInviteCookie } from "../utils/loginInviteCookie";
+import { isMiniProgramWebView, openMiniProgramNativeLogin } from "../utils/mpAuthBridge";
 
 const PHONE_REGEX = /^1\d{10}$/;
 
@@ -35,8 +35,8 @@ const LoginRequiredModal: React.FC<Props> = ({
   const [hint, setHint] = useState("");
 
   const dispatch = useDispatch();
-  const navigate = useNavigate();
   const { isLoading, error, user } = useSelector((state: RootState) => state.user);
+  const miniProgramWebView = isMiniProgramWebView();
 
   useEffect(() => {
     if (!user) return;
@@ -161,6 +161,15 @@ const LoginRequiredModal: React.FC<Props> = ({
       }
       setLocalError(message);
     }
+  };
+
+  const handleMiniProgramLogin = () => {
+    setLocalError("");
+    if (openMiniProgramNativeLogin()) {
+      onClose();
+      return;
+    }
+    setLocalError("请在微信小程序内使用微信登录。");
   };
 
   if (!open) return null;
@@ -443,6 +452,31 @@ const LoginRequiredModal: React.FC<Props> = ({
           text-decoration: none;
           border-bottom: 2px solid rgba(47,63,105,0.25);
         }
+        .xf-mini-login {
+          margin-top: 18px;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+        .xf-mini-login-btn {
+          width: 100%;
+          border: none;
+          border-radius: 14px;
+          background: linear-gradient(135deg, #5f3be0 0%, #8865f2 100%);
+          color: #fff;
+          font-size: 16px;
+          font-weight: 900;
+          padding: 12px 18px;
+          cursor: pointer;
+          box-shadow: 0 8px 18px rgba(101, 66, 204, 0.26);
+        }
+        .xf-mini-login-note {
+          color: #7d8aa7;
+          font-size: 12px;
+          font-weight: 750;
+          line-height: 1.55;
+          text-align: center;
+        }
 
         /* ===== 右侧：插画 ===== */
         .xf-hero {
@@ -606,78 +640,87 @@ const LoginRequiredModal: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* 登录表单：邀请码校准 + 手机号 + 验证码 + 提交 */}
-          <form className="xf-login-form-section" onSubmit={handleSubmit}>
-            {inviteReady ? (
-              <div className="xf-invite-ok">邀请码已校准</div>
-            ) : (
-              <>
-                <label>邀请码</label>
-                <div className="xf-field-row">
-                  <input
-                    className="xf-input"
-                    placeholder="请输入邀请码"
-                    value={inviteCode}
-                    onChange={(e) => setInviteCode(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    className="xf-code-btn"
-                    onClick={handleVerifyInvite}
-                    disabled={!inviteCode.trim() || isVerifyingInvite}
-                  >
-                    {isVerifyingInvite ? "校准中..." : "校准邀请码"}
-                  </button>
-                </div>
-              </>
-            )}
-
-            {inviteReady && (
-              <>
-                <label>手机号</label>
-                <div className="xf-field-row">
-                  <div className="xf-country-code">+86</div>
-                  <input
-                    className="xf-input"
-                    placeholder="请输入手机号"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 11))}
-                    disabled={!inviteReady}
-                  />
-                </div>
-
-                <label>验证码</label>
-                <div className="xf-field-row">
-                  <input
-                    className="xf-input"
-                    placeholder="请输入验证码"
-                    value={verifyCode}
-                    onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    disabled={!inviteReady}
-                  />
-                  <button
-                    type="button"
-                    className="xf-code-btn"
-                    onClick={handleGetCode}
-                    disabled={!canGetCode}
-                  >
-                    {isSendingCode ? "发送中..." : countdown > 0 ? `${countdown}s` : "获取验证码"}
-                  </button>
-                </div>
-              </>
-            )}
-
-            {localError ? <div className="xf-error-msg">{localError}</div> : null}
-            {!localError && (hint || error) ? <div className="xf-hint-msg">{hint || error}</div> : null}
-
-            <button className="xf-submit-btn" type="submit" disabled={isLoading || !inviteReady}>
-              {isLoading ? "登录中" : "登录/注册"}
-            </button>
-
-            <div className="xf-policy">
-              登录视为您已阅读并同意 <a href="#">服务条款</a> 和 <a href="#">隐私政策</a>
+          {miniProgramWebView ? (
+            <div className="xf-mini-login">
+              <button type="button" className="xf-mini-login-btn" onClick={handleMiniProgramLogin}>
+                微信一键登录
+              </button>
+              {localError ? <div className="xf-error-msg">{localError}</div> : null}
+              <div className="xf-mini-login-note">使用小程序微信身份登录，登录成功后回到当前内容。</div>
             </div>
-          </form>
+          ) : (
+            <form className="xf-login-form-section" onSubmit={handleSubmit}>
+              {inviteReady ? (
+                <div className="xf-invite-ok">邀请码已校准</div>
+              ) : (
+                <>
+                  <label>邀请码</label>
+                  <div className="xf-field-row">
+                    <input
+                      className="xf-input"
+                      placeholder="请输入邀请码"
+                      value={inviteCode}
+                      onChange={(e) => setInviteCode(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="xf-code-btn"
+                      onClick={handleVerifyInvite}
+                      disabled={!inviteCode.trim() || isVerifyingInvite}
+                    >
+                      {isVerifyingInvite ? "校准中..." : "校准邀请码"}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {inviteReady && (
+                <>
+                  <label>手机号</label>
+                  <div className="xf-field-row">
+                    <div className="xf-country-code">+86</div>
+                    <input
+                      className="xf-input"
+                      placeholder="请输入手机号"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 11))}
+                      disabled={!inviteReady}
+                    />
+                  </div>
+
+                  <label>验证码</label>
+                  <div className="xf-field-row">
+                    <input
+                      className="xf-input"
+                      placeholder="请输入验证码"
+                      value={verifyCode}
+                      onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      disabled={!inviteReady}
+                    />
+                    <button
+                      type="button"
+                      className="xf-code-btn"
+                      onClick={handleGetCode}
+                      disabled={!canGetCode}
+                    >
+                      {isSendingCode ? "发送中..." : countdown > 0 ? `${countdown}s` : "获取验证码"}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {localError ? <div className="xf-error-msg">{localError}</div> : null}
+              {!localError && (hint || error) ? <div className="xf-hint-msg">{hint || error}</div> : null}
+
+              <button className="xf-submit-btn" type="submit" disabled={isLoading || !inviteReady}>
+                {isLoading ? "登录中" : "登录/注册"}
+              </button>
+
+              <div className="xf-policy">
+                登录视为您已阅读并同意 <a href="#">服务条款</a> 和 <a href="#">隐私政策</a>
+              </div>
+            </form>
+          )}
         </div>
 
         {/* 右侧插画 */}

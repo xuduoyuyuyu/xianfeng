@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { RootState } from "../store";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import Pagination from "../components/Pagination";
 import { Book, publicApi } from "../services/api";
 import { useIsMobilePager } from "../hooks/useIsMobilePager";
+import { buildBookCoverImageSrc, getPreferredBookCover } from "../utils/bookCover";
 import { useXiaowanziEmbeddedLayer } from "../utils/xiaowanziLayer";
 
 const PAGE_SIZE = 24;
@@ -21,7 +22,10 @@ type EnrichedBook = Book & {
 
 type BookCardProps = {
   item: EnrichedBook;
+  imageIndex: number;
 };
+
+const PRIORITY_COVER_COUNT = 8;
 
 function normalizeText(value: unknown): string {
   return String(value || "").trim();
@@ -38,41 +42,60 @@ function getSourceGuestId(value: Book["sourceGuestId"]): string {
   return "";
 }
 
-function hasBookCover(item: Pick<Book, "coverImage">): boolean {
-  const url = normalizeText(item.coverImage);
-  if (!url) return false;
-  // 排除 placeholder 占位图
-  if (url.includes("via.placeholder.com")) return false;
-  if (url.includes("placeholder")) return false;
-  // 排除本地 uploads 文件（服务器上不存在）
-  if (url.includes("/uploads/images/")) return false;
-  return true;
+function getBookListCover(item: Pick<Book, "coverImage" | "metadataCover">): string {
+  return getPreferredBookCover(item, { cover: item.metadataCover });
+}
+
+function hasBookCover(item: Pick<Book, "coverImage" | "metadataCover">): boolean {
+  return Boolean(getBookListCover(item));
+}
+
+function getBookDisplayPriority(item: EnrichedBook): number {
+  if (hasBookCover(item) && item.hasMetadataDetail) return 3;
+  if (hasBookCover(item)) return 2;
+  return 1;
 }
 
 function uniq(values: string[]): string[] {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
-const BookCard: React.FC<BookCardProps> = ({ item }) => {
-  return (
-    <article className="group mb-3 break-inside-avoid overflow-hidden rounded-[1rem] border border-[#e2dcf0] bg-white shadow-[0_8px_18px_rgba(60,40,80,0.06)]">
-      {hasBookCover(item) ? (
+const BookCard: React.FC<BookCardProps> = ({ item, imageIndex }) => {
+  const coverUrl = getBookListCover(item);
+  const [coverLoaded, setCoverLoaded] = useState(false);
+  const isPriorityCover = imageIndex < PRIORITY_COVER_COUNT;
+  const coverLoading = isPriorityCover ? "eager" : "lazy";
+  const coverFetchPriority = isPriorityCover ? "high" : "auto";
+
+  useEffect(() => {
+    setCoverLoaded(false);
+  }, [coverUrl]);
+
+  const coverSrc = buildBookCoverImageSrc(coverUrl);
+
+  const cardContent = (
+    <>
+      {coverUrl ? (
         <div className="relative w-full p-2">
-          <div className="flex items-center justify-center overflow-hidden rounded-lg bg-white">
+          <div className="flex min-h-[180px] items-center justify-center overflow-hidden rounded-lg bg-[#f8f5ff] sm:min-h-[220px]">
             <img
-              src={`/api/books/proxy-image?url=${encodeURIComponent((item.coverImage || '').replace(/^http:\/\//i, 'https://'))}`}
+              src={coverSrc}
               alt={item.title || "书籍封面"}
-              className="w-full object-contain"
-              loading="lazy"
+              className={`w-full object-contain transition-opacity duration-200 ${coverLoaded ? "opacity-100" : "opacity-0"}`}
+              loading={coverLoading}
+              decoding={isPriorityCover ? "sync" : "async"}
+              fetchPriority={coverFetchPriority}
+              onLoad={() => setCoverLoaded(true)}
               onError={(e) => {
-                e.currentTarget.style.display = "none";
+                setCoverLoaded(false);
+                e.currentTarget.style.visibility = "hidden";
               }}
             />
           </div>
           {/* 购买功能暂隐藏 */}
         </div>
       ) : null}
-      <div className={`px-3 pb-3 ${hasBookCover(item) ? "pt-1" : "pt-3"}`}>
+      <div className={`px-3 pb-3 ${coverUrl ? "pt-1" : "pt-3"}`}>
         <h3 className="line-clamp-2 text-[22px] font-black leading-tight text-[#2b1a3a]">{item.title || "未命名书籍"}</h3>
         <p className="mt-2 text-sm text-[#6f62a4]">作者: {item.author || "未标注"}</p>
         {item.translator ? <p className="mt-1 text-sm text-[#6f62a4]">译者: {item.translator}</p> : null}
@@ -99,10 +122,31 @@ const BookCard: React.FC<BookCardProps> = ({ item }) => {
           ) : null}
         </div>
         <div className="mt-2 text-xs text-[#8b7dbc]">{item.publisher ? <span>出版社: {item.publisher}</span> : <span>出版社未标注</span>}</div>
-        {item.sourceName ? (
-          <div className="mt-1.5 border-t border-[#f0ebff] pt-2 text-xs text-[#a9a2d4]">《{item.sourceName}》</div>
-        ) : null}
+        <div className="mt-1.5 flex items-center justify-between gap-3 border-t border-[#f0ebff] pt-2 text-xs">
+          {item.sourceName ? (
+            <span className="min-w-0 truncate text-[#a9a2d4]">《{item.sourceName}》</span>
+          ) : (
+            <span />
+          )}
+          {item.hasMetadataDetail ? (
+            <span className="shrink-0 font-bold text-[#7C3AED]">查看详情</span>
+          ) : null}
+        </div>
       </div>
+    </>
+  );
+
+  return (
+    <article className="group mb-3 break-inside-avoid overflow-hidden rounded-[1rem] border border-[#e2dcf0] bg-white shadow-[0_8px_18px_rgba(60,40,80,0.06)]">
+      {item.hasMetadataDetail ? (
+        <Link to={`/reading/${item._id}`} className="block">
+          {cardContent}
+        </Link>
+      ) : (
+        <div className="block">
+          {cardContent}
+        </div>
+      )}
     </article>
   );
 };
@@ -121,6 +165,7 @@ const BooksPage: React.FC = () => {
 
   const initialGuestId = normalizeText(searchParams.get("sourceGuestId"));
   const initialGuestName = normalizeText(searchParams.get("guest"));
+  const initialSourceName = normalizeText(searchParams.get("sourceName"));
   const initialKeyword = normalizeText(searchParams.get("q"));
   const xwReturnParam = searchParams.get("xw_return") || "";
   const initialGrades = uniq(
@@ -131,13 +176,14 @@ const BooksPage: React.FC = () => {
 
   const [boundGuestId, setBoundGuestId] = useState(initialGuestId);
   const [boundGuestName, setBoundGuestName] = useState(initialGuestName);
+  const [boundSourceName, setBoundSourceName] = useState(initialSourceName);
   const [keyword, setKeyword] = useState(initialKeyword);
   const [selectedGrades, setSelectedGrades] = useState<string[]>(initialGrades);
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const [topicExpanded, setTopicExpanded] = useState(false);
   const [collapsedTopicLimit, setCollapsedTopicLimit] = useState(MOBILE_VISIBLE_TOPIC_FILTER_FALLBACK);
   const topicMeasureRef = useRef<HTMLDivElement | null>(null);
-  const fromGuestLink = Boolean(initialGuestId || initialGuestName);
+  const fromGuestLink = Boolean(initialGuestId || initialGuestName || initialSourceName);
 
   useEffect(() => {
     let alive = true;
@@ -169,10 +215,11 @@ const BooksPage: React.FC = () => {
     if (xwReturnParam) next.set("xw_return", xwReturnParam);
     if (boundGuestId) next.set("sourceGuestId", boundGuestId);
     if (boundGuestName) next.set("guest", boundGuestName);
+    if (boundSourceName) next.set("sourceName", boundSourceName);
     if (selectedGrades.length > 0) next.set("grade", selectedGrades.join(","));
     if (keyword) next.set("q", keyword);
     setSearchParams(next, { replace: true });
-  }, [boundGuestId, boundGuestName, selectedGrades, keyword, setSearchParams, superModePage, xwReturnParam]);
+  }, [boundGuestId, boundGuestName, boundSourceName, selectedGrades, keyword, setSearchParams, superModePage, xwReturnParam]);
 
   const enriched = useMemo<EnrichedBook[]>(() => {
     return books.map((item) => {
@@ -220,18 +267,20 @@ const BooksPage: React.FC = () => {
   const filtered = useMemo(() => {
     const q = keyword.toLowerCase();
     return guestBoundBase.filter((item) => {
+      const bySourceName = !boundSourceName || normalizeText(item.sourceName) === boundSourceName;
       const byGrade = selectedGrades.length === 0 || selectedGrades.includes(normalizeText(item.grade));
       const byTopic = selectedTopics.length === 0 || selectedTopics.includes(String(item.topic || "").trim());
       const haystack = `${item.title || ""} ${item.author || ""} ${item.publisher || ""} ${item.topic || ""} ${item.categoryLabel || ""} ${item.recommendedGuest || ""}`.toLowerCase();
       const byKeyword = !q || haystack.includes(q);
-      return byGrade && byTopic && byKeyword;
+      return bySourceName && byGrade && byTopic && byKeyword;
     });
-  }, [guestBoundBase, keyword, selectedGrades, selectedTopics]);
+  }, [boundSourceName, guestBoundBase, keyword, selectedGrades, selectedTopics]);
 
   const coverFirstFiltered = useMemo(() => {
     return [...filtered].sort((a, b) => {
-      const coverDelta = Number(hasBookCover(b)) - Number(hasBookCover(a));
-      return coverDelta;
+      const priorityDelta = getBookDisplayPriority(b) - getBookDisplayPriority(a);
+      if (priorityDelta !== 0) return priorityDelta;
+      return normalizeText(a.title).localeCompare(normalizeText(b.title), "zh-CN");
     });
   }, [filtered]);
 
@@ -246,8 +295,8 @@ const BooksPage: React.FC = () => {
       .map(([guest, items]) => ({
         guest,
         items: items.sort((a, b) => {
-          const coverDelta = Number(hasBookCover(b)) - Number(hasBookCover(a));
-          if (coverDelta !== 0) return coverDelta;
+          const priorityDelta = getBookDisplayPriority(b) - getBookDisplayPriority(a);
+          if (priorityDelta !== 0) return priorityDelta;
           return normalizeText(a.title).localeCompare(normalizeText(b.title), "zh-CN");
         }),
       }))
@@ -260,7 +309,7 @@ const BooksPage: React.FC = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [boundGuestId, boundGuestName, keyword, selectedGrades, selectedTopics]);
+  }, [boundGuestId, boundGuestName, boundSourceName, keyword, selectedGrades, selectedTopics]);
 
   useEffect(() => {
     if (safePage !== page) setPage(safePage);
@@ -290,6 +339,7 @@ const BooksPage: React.FC = () => {
   const clearFilters = () => {
     setBoundGuestId("");
     setBoundGuestName("");
+    setBoundSourceName("");
     setSelectedGrades([]);
     setSelectedTopics([]);
     setKeyword("");
@@ -633,8 +683,8 @@ const BooksPage: React.FC = () => {
                     </span>
                   </header>
                   <div className="columns-1 gap-4 md:columns-2 xl:columns-3">
-                    {group.items.map((item) => (
-                      <div key={item._id} className="books-mobile-card"><BookCard item={item} /></div>
+                    {group.items.map((item, index) => (
+                      <div key={item._id} className="books-mobile-card"><BookCard item={item} imageIndex={index} /></div>
                     ))}
                   </div>
                 </section>
@@ -644,8 +694,8 @@ const BooksPage: React.FC = () => {
           {!loading && !fromGuestLink ? (
             <section className="rounded-[1.5rem] border border-[#e2dcf0] bg-white p-5 shadow-[0_12px_40px_rgba(80,62,125,0.05)]">
               <div className="columns-1 gap-4 md:columns-2 xl:columns-3">
-                {pagedFlat.map((item) => (
-                  <div key={item._id} className="books-mobile-card"><BookCard item={item} /></div>
+                {pagedFlat.map((item, index) => (
+                  <div key={item._id} className="books-mobile-card"><BookCard item={item} imageIndex={index} /></div>
                 ))}
               </div>
             </section>

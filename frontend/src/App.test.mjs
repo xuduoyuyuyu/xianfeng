@@ -31,3 +31,17 @@ test("public content route is available for Xiaowanzi layer return navigation", 
   assert.match(source, /import PublicContentPage from "\.\/pages\/PublicContentPage";/, "App should import the public content handoff page");
   assert.match(source, /if \(normalizedPathname === "\/public-content"\) \{\s*return <PublicContentPage \/>;\s*\}/s, "App should route public content links through a page that can render the back button");
 });
+
+test("reading detail route is available for book detail pages", () => {
+  assert.match(source, /import BookDetailPage from "\.\/pages\/BookDetailPage";/, "App should import the reading detail page");
+  assert.match(
+    source,
+    /if \(normalizedPathname === "\/reading"\) \{\s*return <BooksPage \/>;\s*\}/s,
+    "App should keep the reading index route"
+  );
+  assert.match(
+    source,
+    /if \(\/\^\\\/reading\\\/\[\^\/\]\+\$\/\.test\(normalizedPathname\)\) \{\s*return <BookDetailPage \/>;\s*\}/s,
+    "App should route /reading/:id to the detail page"
+  );
+});

@@ -1,0 +1,19 @@
+<view class="page">
+  <view class="hero">
+    <text class="eyebrow">我的</text>
+    <text class="title">{{loggedIn ? (user.name || user.username || '家长先疯用户') : '微信登录'}}</text>
+    <text class="subtitle">{{loggedIn ? '账号已同步，可以继续使用小玩子和 Pro 权益。' : '登录后同步你的对话、资料和 Pro 状态。'}}</text>
+  </view>
+
+  <view wx:if="{{loggedIn}}" class="section">
+    <view class="card">
+      <text class="card-title">账号信息</text>
+      <text class="card-text">城市：{{user.city || '未填写'}}</text>
+      <text class="card-text">年级：{{user.grade || '未填写'}}</text>
+      <text class="card-text">Pro 点数：{{user.proPointBalance || 0}}</text>
+    </view>
+    <view class="button secondary" bindtap="logout">退出登录</view>
+  </view>
+
+  <view wx:else class="button" bindtap="goLogin">微信一键登录</view>
+</view>

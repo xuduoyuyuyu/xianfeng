@@ -1,25 +1,12 @@
-const { getToken, getUser, clearSession } = require("../../utils/session");
+const { WEB_ROUTES } = require("../../utils/config");
+const { webUrl } = require("../../utils/webview");
 
 Page({
   data: {
-    loggedIn: false,
-    user: null
+    src: ""
   },
 
   onShow() {
-    this.setData({
-      loggedIn: !!getToken(),
-      user: getUser()
-    });
-  },
-
-  goLogin() {
-    wx.navigateTo({ url: "/pages/login/index" });
-  },
-
-  logout() {
-    clearSession();
-    this.setData({ loggedIn: false, user: null });
-    wx.showToast({ title: "已退出", icon: "none" });
+    this.setData({ src: webUrl(WEB_ROUTES.mine) });
   }
 });

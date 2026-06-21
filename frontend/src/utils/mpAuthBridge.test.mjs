@@ -7,6 +7,7 @@ const main = fs.readFileSync(new URL("../main.tsx", import.meta.url), "utf8");
 
 test("mini program auth bridge stores token only for xf_mp web-view entries", () => {
   assert.match(source, /url\.searchParams\.get\("xf_mp"\) !== "1"/);
+  assert.match(source, /window\.sessionStorage\.setItem\("xf_mp_webview", "1"\)/);
   assert.match(source, /url\.searchParams\.get\("xf_token"\)/);
   assert.match(source, /window\.localStorage\.setItem\("token", token\)/);
 });

@@ -592,7 +592,7 @@ function mergeAiIntoPayload(payload: any, generated: any, transcript: any[]) {
 
   next.deepDive = {
     sectionTitle: mergePreferManualText(next.deepDive?.sectionTitle, generated?.deepDive?.sectionTitle),
-    curatedReading: mergePreferManualArray(next.deepDive?.curatedReading, generated?.deepDive?.curatedReading),
+    curatedReading: Array.isArray(next.deepDive?.curatedReading) ? next.deepDive.curatedReading : [],
     mindMap: next.deepDive?.mindMap && next.deepDive.mindMap.root && (next.deepDive.mindMap.root.title || (next.deepDive.mindMap.root.children && next.deepDive.mindMap.root.children.length > 0))
       ? next.deepDive.mindMap
       : undefined,
@@ -1290,6 +1290,11 @@ export class ProgramController {
           .map((x: any) => asText(x).toLowerCase())
           .filter(Boolean)
       );
+      const currentDictionaryEntryIds = new Set(
+        (Array.isArray((current as any)?.dictionaryEntryIds) ? (current as any).dictionaryEntryIds : [])
+          .map((x: any) => asObjectIdText(x))
+          .filter(Boolean)
+      );
       const currentTerms = new Set(
         (Array.isArray((current as any)?.termGlossary) ? (current as any).termGlossary : [])
           .map((x: any) => asText(x?.term).toLowerCase())
@@ -1311,6 +1316,15 @@ export class ProgramController {
       if (currentTags.size) {
         orFilters.push({ "summary.tags": { $in: Array.from(currentTags) } });
       }
+      if (currentDictionaryEntryIds.size) {
+        orFilters.push({
+          dictionaryEntryIds: {
+            $in: Array.from(currentDictionaryEntryIds)
+              .filter((x) => mongoose.Types.ObjectId.isValid(x))
+              .map((x) => new mongoose.Types.ObjectId(x)),
+          },
+        });
+      }
       const filter = orFilters.length ? { ...baseFilter, $or: orFilters } : baseFilter;
       const candidatesRaw = await Program.find(filter)
         .sort({ publishedAt: -1, updatedAt: -1 })
@@ -1330,6 +1344,11 @@ export class ProgramController {
               .map((x: any) => asText(x).toLowerCase())
               .filter(Boolean)
           );
+          const dictionaryEntryIds = new Set(
+            (Array.isArray(item?.dictionaryEntryIds) ? item.dictionaryEntryIds : [])
+              .map((x: any) => asObjectIdText(x))
+              .filter(Boolean)
+          );
           const termSet = new Set(
             (Array.isArray(item?.termGlossary) ? item.termGlossary : [])
               .map((x: any) => asText(x?.term).toLowerCase())
@@ -1337,13 +1356,15 @@ export class ProgramController {
           );
           const sameGuestCount = Array.from(guestIds).filter((x) => currentGuestIds.has(x)).length;
           const tagOverlap = Array.from(tagSet).filter((x) => currentTags.has(x)).length;
+          const dictionaryOverlap = Array.from(dictionaryEntryIds).filter((x) => currentDictionaryEntryIds.has(x)).length;
           const termOverlap = Array.from(termSet).filter((x) => currentTerms.has(x)).length;
 
           const reasons: string[] = [];
           if (sameGuestCount > 0) reasons.push("同嘉宾");
           if (tagOverlap > 0) reasons.push(`同标签${tagOverlap}项`);
+          if (dictionaryOverlap > 0) reasons.push(`同词条${dictionaryOverlap}项`);
           if (termOverlap > 0) reasons.push(`同词条${termOverlap}项`);
-          const score = sameGuestCount * 100 + tagOverlap * 10 + termOverlap * 3;
+          const score = sameGuestCount * 100 + dictionaryOverlap * 20 + tagOverlap * 10 + termOverlap * 3;
           return {
             _id: String(item._id),
             programCode: asText(item?.programCode),

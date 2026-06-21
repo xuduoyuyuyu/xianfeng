@@ -5,12 +5,14 @@ module.exports = {
   API_ORIGIN: WEB_ORIGIN,
   WEB_ROUTES: {
     home: "/",
-    programs: "/programs",
+    programs: "/programs/list",
     xiaowanzi: "/xiaowanzi",
     pro: "/pro",
     mine: "/profile",
     search: "/search",
     materials: "/materials",
-    books: "/books"
+    books: "/books",
+    reading: "/reading",
+    topics: "/topics"
   }
 };

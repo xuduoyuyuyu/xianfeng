@@ -1,0 +1,16 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const adminDictionary_1 = require("../controllers/adminDictionary");
+const router = (0, express_1.Router)();
+const controller = new adminDictionary_1.AdminDictionaryController();
+router.get("/", (req, res) => controller.getAll(req, res));
+router.get("/:id", (req, res) => controller.getById(req, res));
+router.post("/", (req, res) => controller.create(req, res));
+router.put("/:id", (req, res) => controller.update(req, res));
+router.patch("/:id/status", (req, res) => controller.updateStatus(req, res));
+router.post("/import-from-programs", (req, res) => controller.importFromPrograms(req, res));
+router.get("/:id/programs", (req, res) => controller.getPrograms(req, res));
+router.delete("/:id", (req, res) => controller.delete(req, res));
+router.post("/bulk-delete", (req, res) => controller.bulkDelete(req, res));
+exports.default = router;

@@ -2,6 +2,71 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import Book from "../models/Book";
 import GuestModel from "../models/Guest";
+import Program from "../models/Program";
+import {
+  findApprovedBookMetadataByBookId,
+  listApprovedBookMetadataByBookIds,
+  listBookMetadataByBookIds,
+  listBookMetadataForReview,
+  reviewBookMetadata,
+} from "../services/bookMetadataService";
+
+type BookCoverProxyCacheEntry = {
+  contentType: string;
+  buffer: Buffer;
+  expiresAt: number;
+  size: number;
+};
+
+const BOOK_COVER_PROXY_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
+const BOOK_COVER_PROXY_CACHE_MAX_BYTES = 80 * 1024 * 1024;
+const BOOK_COVER_BROWSER_CACHE_HEADER = "public, max-age=604800, stale-while-revalidate=86400";
+const bookCoverProxyCache = new Map<string, BookCoverProxyCacheEntry>();
+let bookCoverProxyCacheBytes = 0;
+
+function setBookCoverProxyCacheHeaders(res: Response, contentType: string, hit: boolean) {
+  res.setHeader("Content-Type", contentType);
+  res.setHeader("Cache-Control", BOOK_COVER_BROWSER_CACHE_HEADER);
+  res.setHeader("X-Book-Cover-Proxy-Cache", hit ? "HIT" : "MISS");
+}
+
+function deleteBookCoverProxyCacheEntry(key: string) {
+  const existing = bookCoverProxyCache.get(key);
+  if (!existing) return;
+  bookCoverProxyCacheBytes = Math.max(0, bookCoverProxyCacheBytes - existing.size);
+  bookCoverProxyCache.delete(key);
+}
+
+function getCachedBookCoverProxyResponse(key: string): BookCoverProxyCacheEntry | null {
+  const existing = bookCoverProxyCache.get(key);
+  if (!existing) return null;
+  if (existing.expiresAt <= Date.now()) {
+    deleteBookCoverProxyCacheEntry(key);
+    return null;
+  }
+  bookCoverProxyCache.delete(key);
+  bookCoverProxyCache.set(key, existing);
+  return existing;
+}
+
+function storeBookCoverProxyResponse(key: string, contentType: string, buffer: Buffer) {
+  if (buffer.length > BOOK_COVER_PROXY_CACHE_MAX_BYTES) return;
+  deleteBookCoverProxyCacheEntry(key);
+  const entry = {
+    contentType,
+    buffer,
+    expiresAt: Date.now() + BOOK_COVER_PROXY_CACHE_TTL_MS,
+    size: buffer.length,
+  };
+  bookCoverProxyCache.set(key, entry);
+  bookCoverProxyCacheBytes += entry.size;
+
+  while (bookCoverProxyCacheBytes > BOOK_COVER_PROXY_CACHE_MAX_BYTES) {
+    const oldestKey = bookCoverProxyCache.keys().next().value;
+    if (!oldestKey) break;
+    deleteBookCoverProxyCacheEntry(oldestKey);
+  }
+}
 
 function pick(row: any, keys: string[]): string {
   const record = row && typeof row === "object" ? row : {};
@@ -70,12 +135,71 @@ function statusUpdatePayload(status: "draft" | "published") {
   return { status, publishedAt: null };
 }
 
+function hasUsableBookCover(url: unknown): boolean {
+  const value = String(url || "").trim();
+  if (!value) return false;
+  if (value.includes("via.placeholder.com")) return false;
+  if (value.includes("placeholder")) return false;
+  if (value.includes("/uploads/images/")) return false;
+  return true;
+}
+
+function normalizeBookCoverUrl(url: unknown): string {
+  const value = String(url || "").trim();
+  if (!hasUsableBookCover(value)) return "";
+  if (!/(cdn\.weread\.qq\.com|rescdn\.qqmail\.com|wfqqreader-\d+\.image\.myqcloud\.com)\/(weread\/)?cover\//i.test(value)) {
+    return value;
+  }
+  return value.replace(/\/(?:s|m|b)_([^/?#]+)(?=([?#]|$))/i, "/t7_$1");
+}
+
+function pickPublicBookCover(bookCover: unknown, metadataCover: unknown): string {
+  const normalizedMetadataCover = normalizeBookCoverUrl(metadataCover);
+  if (normalizedMetadataCover) return normalizedMetadataCover;
+  return normalizeBookCoverUrl(bookCover);
+}
+
+async function formatPublicBookMetadata(metadata: any, book: any) {
+  const payload = {
+    bookId: String(metadata?.bookId || book?._id || ""),
+    title: String(metadata?.title || book?.title || ""),
+    author: String(metadata?.author || book?.author || ""),
+    publisher: String(metadata?.publisher || book?.publisher || ""),
+    isbn: String(metadata?.isbn || ""),
+    cover: String(metadata?.cover || book?.coverImage || ""),
+    description: String(metadata?.description || ""),
+    source: String(metadata?.source || ""),
+    sourceTitle: "",
+    sourceId: String(metadata?.sourceId || ""),
+    rating: metadata?.rating ?? null,
+    ratingCount: metadata?.ratingCount ?? null,
+    ratingLabel: String(metadata?.ratingLabel || ""),
+    matchScore: Number(metadata?.matchScore || 0),
+  };
+
+  const sourceProgram = metadata?.sourceId && mongoose.Types.ObjectId.isValid(String(metadata.sourceId))
+    ? await Program.findById(String(metadata.sourceId), { title: 1 }).lean()
+    : null;
+
+  if (sourceProgram) {
+    payload.sourceTitle = String((sourceProgram as any)?.title || "");
+  }
+
+  return payload;
+}
+
 export class BookController {
   async proxyImage(req: Request, res: Response): Promise<void> {
     try {
       const url = String(req.query.url || "").trim();
       if (!url || !/^https?:\/\//.test(url)) {
         res.status(400).json({ error: "缺少有效 url 参数" });
+        return;
+      }
+      const cached = getCachedBookCoverProxyResponse(url);
+      if (cached) {
+        setBookCoverProxyCacheHeaders(res, cached.contentType, true);
+        res.send(cached.buffer);
         return;
       }
       const MAX_SIZE = 10 * 1024 * 1024; // 10MB
@@ -97,8 +221,8 @@ export class BookController {
         res.status(413).json({ error: "图片过大" });
         return;
       }
-      res.setHeader("Content-Type", contentType);
-      res.setHeader("Cache-Control", "public, max-age=86400");
+      storeBookCoverProxyResponse(url, contentType, buf);
+      setBookCoverProxyCacheHeaders(res, contentType, false);
       res.send(buf);
     } catch (err: any) {
       if (err?.name === "AbortError" || err?.name === "TimeoutError") {
@@ -203,7 +327,20 @@ export class BookController {
       const books = await Book.find({ status: "published" }).sort({
         publishedAt: -1,
       });
-      res.status(200).json(books);
+      const metadataRows = await listApprovedBookMetadataByBookIds(books.map((book: any) => String(book?._id || "")));
+      const metadataByBookId = new Map(metadataRows.map((item: any) => [String(item?.bookId || ""), item]));
+      const enrichedBooks = books.map((book: any) => {
+        const plain = typeof book.toObject === "function" ? book.toObject() : book;
+        const metadata = metadataByBookId.get(String(plain?._id || ""));
+        const metadataCover = normalizeBookCoverUrl(metadata?.cover);
+        return {
+          ...plain,
+          coverImage: pickPublicBookCover(plain?.coverImage, metadataCover),
+          hasMetadataDetail: Boolean(metadata),
+          metadataCover,
+        };
+      });
+      res.status(200).json(enrichedBooks);
     } catch (error) {
       res.status(500).json({ message: "获取书单列表失败", error });
     }
@@ -217,9 +354,36 @@ export class BookController {
         res.status(404).json({ message: "书籍不存在或未上架" });
         return;
       }
-      res.status(200).json(book);
+      const plain = typeof book.toObject === "function" ? book.toObject() : book;
+      const metadata = await findApprovedBookMetadataByBookId(String(plain?._id || ""));
+      const metadataCover = normalizeBookCoverUrl(metadata?.cover);
+      res.status(200).json({
+        ...plain,
+        coverImage: pickPublicBookCover(plain?.coverImage, metadataCover),
+        hasMetadataDetail: Boolean(metadata),
+        metadataCover,
+      });
     } catch (error) {
       res.status(500).json({ message: "获取书籍失败", error });
+    }
+  }
+
+  async getMetadataPublic(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const book = await Book.findOne({ _id: id, status: "published" }).select({ _id: 1, title: 1, author: 1, publisher: 1 });
+      if (!book) {
+        res.status(404).json({ message: "书籍不存在或未上架" });
+        return;
+      }
+      const metadata = await findApprovedBookMetadataByBookId(String(book._id));
+      if (!metadata) {
+        res.status(404).json({ message: "暂无图书详情数据" });
+        return;
+      }
+      res.status(200).json(await formatPublicBookMetadata(metadata, book));
+    } catch (error) {
+      res.status(500).json({ message: "获取书籍详情元数据失败", error });
     }
   }
 
@@ -231,9 +395,44 @@ export class BookController {
       const books = await Book.find(filter)
         .populate("sourceGuestId", "name title")
         .sort({ updatedAt: -1 });
-      res.status(200).json(books);
+      const metadataRows = await listBookMetadataByBookIds(books.map((book: any) => String(book?._id || "")));
+      const metadataByBookId = new Map(metadataRows.map((item: any) => [String(item?.bookId || ""), item]));
+      const enrichedBooks = books.map((book: any) => {
+        const plain = typeof book.toObject === "function" ? book.toObject() : book;
+        const metadata = metadataByBookId.get(String(plain?._id || ""));
+        return {
+          ...plain,
+          hasMetadataDetail: metadata?.status === "auto_approved",
+          metadataStatus: metadata?.status || "",
+          metadataId: metadata?._id ? String(metadata._id) : "",
+        };
+      });
+      res.status(200).json(enrichedBooks);
     } catch (error) {
       res.status(500).json({ message: "获取管理书单失败", error });
+    }
+  }
+
+  async getMetadataAdmin(req: Request, res: Response): Promise<void> {
+    try {
+      const status = String(req.query.status || "");
+      const rows = await listBookMetadataForReview(status);
+      res.status(200).json(rows);
+    } catch (error) {
+      res.status(500).json({ message: "获取图书详情审核列表失败", error });
+    }
+  }
+
+  async reviewMetadataAdmin(req: Request, res: Response): Promise<void> {
+    try {
+      const metadata = await reviewBookMetadata(String(req.params.metadataId || ""), req.body || {});
+      if (!metadata) {
+        res.status(404).json({ message: "图书详情不存在" });
+        return;
+      }
+      res.status(200).json(metadata);
+    } catch (error) {
+      res.status(400).json({ message: "更新图书详情审核状态失败", error });
     }
   }
 

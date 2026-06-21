@@ -1,9 +1,27 @@
 const { request } = require("../../utils/request");
+const { WEB_ORIGIN } = require("../../utils/config");
+
+function buildRedirectUrl(rawUrl, token) {
+  if (!rawUrl || !token) return "";
+  try {
+    const url = new URL(rawUrl);
+    if (url.origin !== WEB_ORIGIN) return "";
+    url.searchParams.set("xf_mp", "1");
+    url.searchParams.set("xf_token", token);
+    return url.toString();
+  } catch (error) {
+    return "";
+  }
+}
 
 Page({
   data: {
     loading: false,
     error: ""
+  },
+
+  onLoad(options) {
+    this.redirectUrl = decodeURIComponent(options.redirect || "");
   },
 
   login() {
@@ -23,7 +41,16 @@ Page({
           .then((payload) => {
             getApp().setLoginSession(payload);
             wx.showToast({ title: "登录成功", icon: "success" });
-            setTimeout(() => wx.navigateBack({ delta: 1 }), 300);
+            setTimeout(() => {
+              const redirectUrl = buildRedirectUrl(this.redirectUrl, payload && payload.token);
+              if (redirectUrl) {
+                wx.redirectTo({
+                  url: `/pages/webview/index?url=${encodeURIComponent(redirectUrl)}&title=${encodeURIComponent("家长先疯")}`
+                });
+                return;
+              }
+              wx.navigateBack({ delta: 1 });
+            }, 300);
           })
           .catch((error) => {
             this.setData({ error: error.message || "登录失败" });

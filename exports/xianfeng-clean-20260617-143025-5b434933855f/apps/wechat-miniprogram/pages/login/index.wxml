@@ -1,0 +1,10 @@
+<view class="page">
+  <view class="hero">
+    <text class="eyebrow">微信登录</text>
+    <text class="title">进入家长先疯</text>
+    <text class="subtitle">使用微信身份创建或恢复家长先疯账号。</text>
+  </view>
+
+  <view class="button" bindtap="login">{{loading ? '登录中...' : '微信登录'}}</view>
+  <text wx:if="{{error}}" class="error">{{error}}</text>
+</view>

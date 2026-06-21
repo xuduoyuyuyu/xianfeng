@@ -88,6 +88,23 @@ test("podcast detail loads related content from the public related endpoint", ()
   assert.match(source, /fetch\("\/api\/programs\/" \+ encodeURIComponent\(relatedId\) \+ "\/related"\)/, "detail page should request backend related recommendations");
   assert.match(source, /recommendedPrograms/, "detail page should consume the backend related recommendation list");
   assert.match(source, /renderRelated\(program, relatedPrograms\)/, "backend related programs should drive the Related Content panel");
+  assert.match(source, /applyProgram\(program, lookupPrograms\);\s*const relatedPrograms = await fetchRelatedPrograms\(program\);\s*renderRelated\(program, relatedPrograms\);/, "detail page should always repaint related content from backend results, including empty results");
+  assert.doesNotMatch(source, /if \(relatedPrograms\.length\) renderRelated\(program, relatedPrograms\);/, "detail page should not keep stale fallback related items when backend returns no associations");
+});
+
+test("podcast detail curated reading renders as plain text without outbound links", () => {
+  const curatedRenderStart = source.indexOf('document.getElementById("curated-reading-list").innerHTML = reading.map');
+  const relatedRenderCall = source.indexOf("renderRelated(program, []);");
+  assert.notEqual(curatedRenderStart, -1, "curated reading renderer should exist");
+  assert.notEqual(relatedRenderCall, -1, "curated reading renderer should be located before related content rendering");
+  const curatedRenderSource = source.slice(curatedRenderStart, relatedRenderCall);
+
+  assert.match(curatedRenderSource, /return '<div class="block">/, "curated reading items should render as plain text blocks");
+  assert.match(curatedRenderSource, /<h4 class="text-xs font-bold text-on-surface/, "curated reading should keep the content title as the primary line");
+  assert.match(curatedRenderSource, /item\.subtitle \? '<p class="text-\[10px\] text-gray-400 mt-1 break-all">'/, "curated reading should keep the author or translator line when provided");
+  assert.doesNotMatch(curatedRenderSource, /<a/, "curated reading items should not render anchors");
+  assert.doesNotMatch(curatedRenderSource, /href=/, "curated reading items should not include outbound URLs");
+  assert.doesNotMatch(curatedRenderSource, /target="_blank"/, "curated reading items should not open new tabs");
 });
 
 test("podcast detail related links navigate the parent shell instead of nesting nav inside the iframe", () => {
