@@ -7,6 +7,25 @@ import { useXiaowanziEmbeddedLayer } from "../utils/xiaowanziLayer";
 type PlanId = "plus" | "pro";
 type PlanCatalogId = "free" | PlanId;
 
+const HIDDEN_USAGE_POLICY_KEYS = new Set(["ai_chat"]);
+const FALLBACK_USAGE_POLICY: PointUsagePolicyItem[] = [
+  { featureKey: "xiaowanzi", name: "小玩子对话", cost: 2, description: "每发送 1 次小玩子 AI 对话扣 2 点。" },
+  { featureKey: "guest_agent", name: "嘉宾 AI 分身", cost: 3, description: "每向嘉宾 AI 分身提问 1 次扣 3 点。" },
+  { featureKey: "topic_submit", name: "请教一下", cost: 5, description: "每次生成或提交深度话题扣 5 点。" },
+  { featureKey: "education_planning", name: "智能教育规划", cost: 5, description: "每次生成智能教育规划扣 5 点。" },
+  { featureKey: "worthbuy_analysis", name: "知物新分析", cost: 5, description: "每次发起新的商品/品牌 AI 分析扣 5 点。" },
+];
+
+function normalizeUsagePolicy(items?: PointUsagePolicyItem[]) {
+  const byKey = new Map<string, PointUsagePolicyItem>();
+  FALLBACK_USAGE_POLICY.forEach((item) => byKey.set(item.featureKey, item));
+  (Array.isArray(items) ? items : []).forEach((item) => {
+    const key = item?.featureKey || item?.name || "";
+    if (key) byKey.set(key, item);
+  });
+  return Array.from(byKey.values()).filter((item) => !HIDDEN_USAGE_POLICY_KEYS.has(item.featureKey));
+}
+
 function formatDate(value?: string | null) {
   if (!value) return "未开通";
   return new Date(value).toLocaleString("zh-CN", { hour12: false });
@@ -58,7 +77,7 @@ const ProPage: React.FC = () => {
         billingApi.getMe().catch(() => null),
       ]);
       setPlans(planRes.data.plans);
-      setUsagePolicy(Array.isArray(planRes.data.usagePolicy) ? planRes.data.usagePolicy : []);
+      setUsagePolicy(normalizeUsagePolicy(planRes.data.usagePolicy));
       if (meRes?.data) {
         setMembership(meRes.data.membership);
         setLatestOrder(meRes.data.latestOrder);
@@ -211,7 +230,7 @@ const ProPage: React.FC = () => {
             <div className="inline-flex rounded-full bg-[#6c27d6] px-3 py-1 text-[11px] font-black uppercase text-white">订阅计划</div>
             <h1 className={`${superModePage ? "mt-3 text-xl sm:text-2xl" : "mt-4 text-2xl sm:text-3xl"} font-black`}>订阅计划</h1>
             <p className={`${superModePage ? "mt-1 leading-6" : "mt-2 leading-7"} max-w-2xl text-sm font-bold text-slate-600`}>
-              基础浏览、详情页、历史内容和公开资料继续免费。订阅后将开启小玩子、嘉宾 AI 分身、知物新分析与兼容 AI 聊天，并按套餐兑换对应点数。
+              基础浏览、详情页、历史内容和公开资料继续免费。订阅后将开启小玩子、智能教育规划、嘉宾 AI 分身与知物新分析，并按套餐兑换对应点数。
             </p>
 
             <div className={`${blockTopClass} rounded-2xl border border-slate-100 bg-slate-50 ${compactPanelPadding}`}>
@@ -272,6 +291,7 @@ const ProPage: React.FC = () => {
             ) : null}
             <div className={`${blockTopClass} grid ${superModePage ? "gap-2 text-[13px] leading-5" : "gap-3 text-sm leading-6"} font-bold text-slate-700 md:grid-cols-3`}>
               <div className={`rounded-2xl bg-slate-50 ${compactPanelPadding}`}>小玩子对话</div>
+              <div className={`rounded-2xl bg-slate-50 ${compactPanelPadding}`}>智能教育规划</div>
               <div className={`rounded-2xl bg-slate-50 ${compactPanelPadding}`}>嘉宾 AI 分身提问</div>
               <div className={`rounded-2xl bg-slate-50 ${compactPanelPadding}`}>知物新分析</div>
             </div>

@@ -4655,6 +4655,19 @@ window.onload = function() {
         return res.json();
     }
 
+    async function consumeEducationPlanningPoints() {
+        const result = await authJsonPost('/api/billing/consume/education-planning', { source: 'education-planning' });
+        if (!result || result.ok !== true) {
+            const message = (result && (result.message || result.error)) || '当前可用点数不足，请先订阅或补充点数';
+            alert(message);
+            throw new Error(message);
+        }
+        try {
+            window.parent.postMessage({ type: 'XF_BILLING_BALANCE_CHANGED', featureKey: 'education_planning' }, '*');
+        } catch (_) {}
+        return result;
+    }
+
     async function ensureCurrentUserProfile() {
         try {
             if (window.ME && (window.ME.avatar_image || window.ME.avatar_initial || window.ME.name)) return window.ME;
@@ -6763,7 +6776,7 @@ window.onload = function() {
     }
     
     // 处理下一步
-    function handleNextStep() {
+    async function handleNextStep() {
         const currentStep = getCurrentStep();
         if (currentStep === 1) {
             // 验证学校组唯一性
@@ -6782,6 +6795,7 @@ window.onload = function() {
         } else if (currentStep === 3) {
             goToStep(4);
         } else if (currentStep === 4) {
+            await consumeEducationPlanningPoints();
             runPlanningSubmitAnimation(function() {
                 goToStep(5);
                 updateBasicPlanResult();
@@ -9120,7 +9134,7 @@ window.onload = function() {
     }
 
     // 处理选项点击
-    window.handleOptionClick = function(option) {
+    window.handleOptionClick = async function(option) {
         if (epChatState.mode === 'general') {
             addUserMessage(option);
             sendGeneralPlanningMessage(option);
@@ -9130,6 +9144,7 @@ window.onload = function() {
         
         if (currentScript?.isComplete) {
             if (option === '查看教育规划') {
+                await consumeEducationPlanningPoints();
                 fillFormFromChat();
                 closeEPChat();
                 goToStep(1);

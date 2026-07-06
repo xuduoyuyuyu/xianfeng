@@ -11,6 +11,7 @@ const SHARE_OPTIONS = {
 
 const LOGO_HEIGHT_RPX = 56;
 const PAYMENT_CONFIRMATION_POLL_DELAYS_MS = [0, 800, 1500, 2500, 4000];
+const HIDDEN_USAGE_POLICY_KEYS = { ai_chat: true };
 
 const FALLBACK_PLANS = {
   free: {
@@ -38,9 +39,9 @@ const FALLBACK_PLANS = {
 
 const FALLBACK_USAGE_POLICY = [
   { featureKey: "xiaowanzi", name: "小玩子对话", cost: 2, description: "每发送 1 次小玩子 AI 对话扣 2 点。" },
-  { featureKey: "ai_chat", name: "兼容 AI 聊天", cost: 1, description: "每次通用 AI 聊天请求扣 1 点。" },
   { featureKey: "guest_agent", name: "嘉宾 AI 分身", cost: 3, description: "每向嘉宾 AI 分身提问 1 次扣 3 点。" },
   { featureKey: "topic_submit", name: "请教一下", cost: 5, description: "每次生成或提交深度话题扣 5 点。" },
+  { featureKey: "education_planning", name: "智能教育规划", cost: 5, description: "每次生成智能教育规划扣 5 点。" },
   { featureKey: "worthbuy_analysis", name: "知物新分析", cost: 5, description: "每次发起新的商品/品牌 AI 分析扣 5 点。" }
 ];
 
@@ -119,8 +120,21 @@ function selectedPaidPlanId(state) {
 }
 
 function normalizeUsagePolicy(items) {
-  const source = Array.isArray(items) && items.length ? items : FALLBACK_USAGE_POLICY;
-  return source.map((item) => ({
+  const remoteItems = Array.isArray(items) ? items : [];
+  const byKey = {};
+  FALLBACK_USAGE_POLICY.forEach((item) => {
+    byKey[String(item.featureKey || item.name || "")] = item;
+  });
+  remoteItems.forEach((item) => {
+    const key = String(item && (item.featureKey || item.name) || "");
+    if (key) byKey[key] = item;
+  });
+  const orderedKeys = FALLBACK_USAGE_POLICY.map((item) => String(item.featureKey || item.name || ""));
+  remoteItems.forEach((item) => {
+    const key = String(item && (item.featureKey || item.name) || "");
+    if (key && !orderedKeys.includes(key)) orderedKeys.push(key);
+  });
+  return orderedKeys.map((key) => byKey[key]).filter((item) => !HIDDEN_USAGE_POLICY_KEYS[String(item && item.featureKey || "")]).map((item) => ({
     featureKey: String(item.featureKey || item.name || ""),
     name: String(item.name || ""),
     costText: `${formatPoints(item.cost)} 点/次`,

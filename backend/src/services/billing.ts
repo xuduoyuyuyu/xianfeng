@@ -60,6 +60,12 @@ export const POINT_USAGE_POLICY: Record<string, PointUsagePolicyItem> = {
     cost: 5,
     description: "每次生成或提交深度话题扣 5 点。",
   },
+  education_planning: {
+    featureKey: "education_planning",
+    name: "智能教育规划",
+    cost: 5,
+    description: "每次生成智能教育规划扣 5 点。",
+  },
   worthbuy_analysis: {
     featureKey: "worthbuy_analysis",
     name: "知物新分析",
@@ -67,6 +73,8 @@ export const POINT_USAGE_POLICY: Record<string, PointUsagePolicyItem> = {
     description: "每次发起新的商品/品牌 AI 分析扣 5 点。",
   },
 };
+
+export const PUBLIC_POINT_USAGE_POLICY = Object.values(POINT_USAGE_POLICY).filter((item) => item.featureKey !== "ai_chat");
 
 export const BILLING_PLANS: Record<BillingPlanId, BillingPlan> = {
   plus: {

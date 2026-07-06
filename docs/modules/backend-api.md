@@ -45,7 +45,8 @@
   including legacy free balances above the cap. `plus` costs ¥19.9 for 200
   points, `pro` costs ¥99 for 1200 points, and purchases add package points to
   the current balance. Legacy stored plan ids `monthly` and `yearly` are read
-  as Plus and Pro membership tiers.
+  as Plus and Pro membership tiers. The education-planning generation flow
+  consumes the `education_planning` point policy at 5 points per generated plan.
 - `WorthBuyAnalysis.status=deleted` is a logical deletion state for admin
   worthbuy records. Admin lists hide deleted records by default and can request
   them explicitly for recovery.

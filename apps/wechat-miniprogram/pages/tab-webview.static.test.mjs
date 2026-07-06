@@ -5991,6 +5991,8 @@ test("pro page renders native subscription content instead of a web-view wrapper
     assert.match(js, /formatYuan/);
     assert.match(js, /formatPoints/);
     assert.match(js, /membershipBadgeLabel/);
+    assert.match(js, /featureKey: "education_planning", name: "智能教育规划", cost: 5/);
+    assert.doesNotMatch(js, /name: "兼容 AI 聊天"/);
 
     await definition.onLoad.call(context);
     assert.equal(context.data.launchedFromSettings, false);
@@ -6001,6 +6003,8 @@ test("pro page renders native subscription content instead of a web-view wrapper
     assert.equal(context.data.statusLabel, "未开通订阅");
     assert.equal(context.data.memberBadgeLabel, "");
     assert.equal(context.data.usagePolicy[0].name, "小玩子对话");
+    assert.equal(context.data.usagePolicy.some((item) => item.featureKey === "education_planning" && item.name === "智能教育规划"), true);
+    assert.equal(context.data.usagePolicy.some((item) => item.featureKey === "ai_chat"), false);
     assert.equal(context.data.topbarHeight, 72);
     assert.equal(context.data.chromeHeight, 72);
     assert.equal(context.data.logoTop, 10);

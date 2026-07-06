@@ -21,3 +21,11 @@ test("planning quick popover raises the active card above sibling controls", () 
   assert.match(source, /wrap\.style\.zIndex = ACTIVE_POPOVER_Z_INDEX;/, "opening a popover should raise its wrapper above sibling controls");
   assert.match(source, /wrap\.style\.zIndex = '';/, "closing a popover should restore the wrapper z-index");
 });
+
+test("planning detail page consumes five membership points before showing generated plan", () => {
+  const detailSource = readFileSync(resolve(__dirname, "教育规划.html"), "utf8");
+
+  assert.match(detailSource, /async function consumeEducationPlanningPoints\(\)/);
+  assert.match(detailSource, /authJsonPost\('\/api\/billing\/consume\/education-planning'/);
+  assert.match(detailSource, /await consumeEducationPlanningPoints\(\);[\s\S]*runPlanningSubmitAnimation/);
+});

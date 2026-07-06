@@ -15,6 +15,7 @@ describe("billing routes", () => {
       { path: "/orders", methods: ["post"] },
       { path: "/orders/:id", methods: ["get"] },
       { path: "/orders/:id/mock-pay", methods: ["post"] },
+      { path: "/consume/education-planning", methods: ["post"] },
       { path: "/alipay/notify", methods: ["post"] },
       { path: "/wechat/notify", methods: ["post"] },
       { path: "/refunds", methods: ["post"] },

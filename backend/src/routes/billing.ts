@@ -1,10 +1,12 @@
 import { Router } from "express";
 import PaymentOrderModel from "../models/PaymentOrder";
 import { authenticate, AuthenticatedRequest } from "../middlewares/auth";
+import { requirePro } from "../middlewares/requirePro";
 import {
   BILLING_PLANS,
   FREE_BILLING_PLAN,
   POINT_USAGE_POLICY,
+  PUBLIC_POINT_USAGE_POLICY,
   canRefundOrder,
   calculatePointBasedRefund,
   createPaymentOrder,
@@ -97,7 +99,7 @@ router.get("/plans", (_req, res) => {
       alipay: { enabled: false, note: "支付宝暂不启用" },
       wechat: { enabled: true },
     },
-    usagePolicy: Object.values(POINT_USAGE_POLICY),
+    usagePolicy: PUBLIC_POINT_USAGE_POLICY,
   });
 });
 
@@ -185,6 +187,16 @@ router.post("/orders/:id/mock-pay", authenticate, async (req: AuthenticatedReque
   const user = await User.findById(currentUserId(req)).lean();
   res.json({
     order: serializeOrder(paidOrder),
+    membership: serializeBillingUser(user),
+  });
+});
+
+router.post("/consume/education-planning", authenticate, requirePro("education_planning"), async (req: AuthenticatedRequest, res) => {
+  const user = await User.findById(currentUserId(req)).lean();
+  res.json({
+    ok: true,
+    featureKey: "education_planning",
+    cost: POINT_USAGE_POLICY.education_planning.cost,
     membership: serializeBillingUser(user),
   });
 });
