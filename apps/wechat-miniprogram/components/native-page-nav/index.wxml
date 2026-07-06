@@ -1,0 +1,26 @@
+<cover-view class="xf-native-page-nav" style="height: {{topbarHeight}}px;">
+  <cover-view class="xf-native-page-nav__bar" style="height: {{topbarHeight}}px;">
+    <cover-view class="xf-native-page-nav__menu-toggle" style="top: {{logoTop}}px; height: {{logoHeight}}px;" bindtap="toggleMenu">
+      <cover-view class="xf-native-page-nav__menu-icon">
+        <cover-view class="xf-native-page-nav__menu-line is-short"></cover-view>
+        <cover-view class="xf-native-page-nav__menu-line"></cover-view>
+      </cover-view>
+    </cover-view>
+    <cover-view class="xf-native-page-nav__logo-button" style="top: {{logoTop}}px; height: {{logoHeight}}px;" bindtap="openHome">
+      <cover-image class="xf-native-page-nav__logo" src="/assets/nav/logo.png" />
+    </cover-view>
+  </cover-view>
+
+  <cover-view wx:if="{{menuOpen}}" class="xf-native-page-nav__menu-mask" bindtap="closeMenu"></cover-view>
+  <cover-view wx:if="{{menuOpen}}" class="xf-native-page-nav__menu-panel" style="top: {{topbarHeight}}px;">
+    <cover-view
+      wx:for="{{menuItems}}"
+      wx:key="text"
+      class="xf-native-page-nav__menu-item {{item.tabIndex === selected ? 'is-selected' : ''}}"
+      data-index="{{index}}"
+      bindtap="handleMenuItemTap"
+    >
+      {{item.text}}
+    </cover-view>
+  </cover-view>
+</cover-view>

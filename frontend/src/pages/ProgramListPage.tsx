@@ -41,7 +41,15 @@ function mergeById<T extends { _id: string }>(current: T[], next: T[]) {
 
 function isMiniProgramWebView() {
   if (typeof window === "undefined") return false;
-  return new URLSearchParams(window.location.search).get("xf_mp") === "1" || window.sessionStorage.getItem("xf_mp_webview") === "1";
+  const params = new URLSearchParams(window.location.search);
+  const wechatEnvironment = String((window as any).__wxjs_environment || "").toLowerCase();
+  const userAgent = window.navigator?.userAgent || "";
+  const detected = params.get("xf_mp") === "1" || params.has("xf_tab") || window.sessionStorage.getItem("xf_mp_webview") === "1" || wechatEnvironment === "miniprogram" || /miniprogram/i.test(userAgent);
+  if (detected) {
+    window.sessionStorage.setItem("xf_mp_webview", "1");
+    document.documentElement.classList.add("xf-mp-webview");
+  }
+  return detected;
 }
 
 const ProgramListPage: React.FC = () => {
@@ -124,6 +132,15 @@ const ProgramListPage: React.FC = () => {
         .xf-program-main { position: relative; z-index: 10; width: min(100% - 32px, 1280px); margin: 0 auto; padding-bottom: 64px; }
         .xf-program-main.with-nav { padding-top: 76px; }
         .xf-program-main.without-nav { padding-top: 24px; }
+        html.xf-mp-webview .xf-program-main {
+          --xf-mp-outer-gutter: clamp(8px, 2.4vw, 10px);
+          --xf-mp-inner-gutter: clamp(3px, 1vw, 4px);
+          width: calc(100% - var(--xf-mp-outer-gutter)) !important;
+          padding-left: var(--xf-mp-inner-gutter) !important;
+          padding-right: var(--xf-mp-inner-gutter) !important;
+          padding-top: 12px !important;
+          padding-bottom: 0 !important;
+        }
         .xf-program-hero { position: relative; overflow: hidden; border: 1px solid #d8d0ef; border-radius: 32px; background: radial-gradient(circle at 18% 0%, rgba(143,100,255,.14), transparent 36%), radial-gradient(circle at 76% 22%, rgba(124,58,237,.08), transparent 32%), linear-gradient(135deg,#f4f1fd 0%,#f9f7ff 45%,#f0ebff 100%); padding: 32px; box-shadow: 0 24px 80px rgba(80,62,125,.12); }
         .xf-program-eyebrow { display: inline-flex; border: 1px solid #cfc2ef; border-radius: 999px; background: #f3eefc; padding: 4px 16px; color: #5b3fa1; font-size: 11px; font-weight: 900; letter-spacing: .28em; text-transform: uppercase; }
         .xf-program-title { margin: 20px 0 0; max-width: 760px; color: #24180a; font-size: clamp(28px, 7vw, 48px); line-height: 1.14; font-weight: 900; letter-spacing: 0; }
@@ -156,11 +173,46 @@ const ProgramListPage: React.FC = () => {
         @media (max-width: 768px) {
           .xf-program-main { width: calc(100% - 24px); padding-bottom: 28px; }
           .xf-program-main.with-nav { padding-top: 68px; }
+          html.xf-mp-webview .xf-program-main {
+            --xf-mp-outer-gutter: clamp(8px, 2.4vw, 10px);
+            --xf-mp-inner-gutter: clamp(3px, 1vw, 4px);
+            width: calc(100% - var(--xf-mp-outer-gutter)) !important;
+            padding-left: var(--xf-mp-inner-gutter) !important;
+            padding-right: var(--xf-mp-inner-gutter) !important;
+            padding-top: 12px !important;
+            padding-bottom: 0 !important;
+          }
           .xf-program-hero { border-radius: 24px; padding: 22px 20px; }
           .xf-program-card { border-radius: 22px; padding: 16px; }
           .xf-program-cover { min-height: 150px; border-radius: 16px; }
           .xf-program-cover img { height: 174px; }
           .xf-program-card-title { font-size: 20px; }
+        }
+        html.xf-mp-webview .xf-program-list-page {
+          -webkit-text-size-adjust: 100%;
+          text-size-adjust: 100%;
+        }
+        html.xf-mp-webview .xf-program-pill {
+          font-size: 10px !important;
+          font-weight: 800 !important;
+        }
+        html.xf-mp-webview .xf-program-date {
+          font-size: 12px !important;
+          font-weight: 500 !important;
+        }
+        html.xf-mp-webview .xf-program-card-title {
+          font-size: 20px !important;
+          font-weight: 400 !important;
+          line-height: 1.2 !important;
+        }
+        html.xf-mp-webview .xf-program-desc {
+          font-size: 14px !important;
+          font-weight: 400 !important;
+          line-height: 1.85 !important;
+        }
+        html.xf-mp-webview .xf-program-tag {
+          font-size: 11px !important;
+          font-weight: 800 !important;
         }
         @keyframes progOrb1 {
           0%,100% { transform: translate3d(0,0,0) scale(1); opacity: .65; }

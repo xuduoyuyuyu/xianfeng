@@ -1,0 +1,33 @@
+<view class="xf-share-page {{fontSizeClass}}">
+  <view wx:if="{{conversationShare}}" class="xf-share-conversation">
+    <image class="xf-share-brand" src="/assets/xiaowanzi-icons/share-logo.png" mode="aspectFit" />
+    <view class="xf-share-messages">
+      <view
+        wx:for="{{conversationShare.messages}}"
+        wx:key="index"
+        class="xf-share-message is-{{item.role}}"
+      >
+        <text class="xf-share-message-text">{{item.content}}</text>
+      </view>
+    </view>
+    <text class="xf-share-ai-note">内容由AI生成</text>
+    <button class="xf-share-open-xiaowanzi" bindtap="openTarget">打开小玩子</button>
+  </view>
+  <view wx:elif="{{shareLoading}}" class="xf-share-card">
+    <image class="xf-share-logo" src="/assets/share/timeline-logo.png" mode="aspectFill" />
+    <text class="xf-share-title">正在打开分享内容</text>
+  </view>
+  <view wx:elif="{{shareError}}" class="xf-share-card">
+    <image class="xf-share-logo" src="/assets/share/timeline-logo.png" mode="aspectFill" />
+    <text class="xf-share-title">{{shareError}}</text>
+    <button class="xf-share-secondary" bindtap="goPrograms">先逛逛节目</button>
+  </view>
+  <view wx:else class="xf-share-card">
+    <image class="xf-share-logo" src="/assets/share/timeline-logo.png" mode="aspectFill" />
+    <text class="xf-share-kicker">家长先疯</text>
+    <text class="xf-share-title">{{title}}</text>
+    <text class="xf-share-subtitle">家长先疯把节目、书单、资料和请教内容放在一起，方便你随时回到正在关心的问题。</text>
+    <button class="xf-share-primary" bindtap="openTarget">打开分享内容</button>
+    <button class="xf-share-secondary" bindtap="goPrograms">先逛逛节目</button>
+  </view>
+</view>

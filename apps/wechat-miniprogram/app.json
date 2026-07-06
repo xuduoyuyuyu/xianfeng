@@ -3,26 +3,34 @@
     "pages/programs/index",
     "pages/reading/index",
     "pages/xiaowanzi/index",
+    "pages/xiaowanzi-exit/index",
     "pages/materials/index",
     "pages/topics/index",
+    "pages/search/index",
+    "pages/share/index",
+    "pages/welfare/index",
     "pages/home/index",
-    "pages/login/index",
     "pages/pro/index",
+    "pages/mama-resource-apply/index",
     "pages/mine/index",
+    "pages/mine/archive/index",
+    "pages/mine/memory/index",
+    "pages/mine/settings/index",
     "pages/webview/index"
   ],
   "window": {
-    "navigationBarTitleText": "家长先疯",
     "navigationBarBackgroundColor": "#ffffff",
     "navigationBarTextStyle": "black",
-    "backgroundColor": "#f7f4ed",
+    "navigationStyle": "custom",
+    "backgroundColor": "#ffffff",
     "backgroundTextStyle": "dark"
   },
   "tabBar": {
+    "custom": true,
     "color": "#667085",
     "selectedColor": "#6c27d6",
     "backgroundColor": "#ffffff",
-    "borderStyle": "black",
+    "borderStyle": "white",
     "list": [
       {
         "pagePath": "pages/programs/index",
@@ -38,7 +46,7 @@
       },
       {
         "pagePath": "pages/xiaowanzi/index",
-        "text": "小玩子",
+        "text": "",
         "iconPath": "assets/tabbar/xiaowanzi.png",
         "selectedIconPath": "assets/tabbar/xiaowanzi-active.png"
       },

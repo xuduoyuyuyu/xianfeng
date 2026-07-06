@@ -10,6 +10,7 @@ import {
   listBookMetadataForReview,
   reviewBookMetadata,
 } from "../services/bookMetadataService";
+import { getOrCreateExternalBookDescriptionTranslation } from "../services/externalBookDescriptionTranslation";
 
 type BookCoverProxyCacheEntry = {
   contentType: string;
@@ -18,9 +19,30 @@ type BookCoverProxyCacheEntry = {
   size: number;
 };
 
+type ExternalBookLibraryRecord = {
+  id: string;
+  title: string;
+  coverPic: string;
+  author: string;
+  publisher: string;
+  isbn: string;
+  pubDate: string;
+  pages: number | null;
+  words: string;
+  lexile: string;
+  ar: string;
+  tags: string;
+  category: string;
+  series: string;
+  fiction: string;
+  levelRange: string;
+  description: string;
+};
+
 const BOOK_COVER_PROXY_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const BOOK_COVER_PROXY_CACHE_MAX_BYTES = 80 * 1024 * 1024;
 const BOOK_COVER_BROWSER_CACHE_HEADER = "public, max-age=604800, stale-while-revalidate=86400";
+const READLY_BOOK_PAGE_URL = "https://api.shuyu.xin/readly/api/ma/book/page";
 const bookCoverProxyCache = new Map<string, BookCoverProxyCacheEntry>();
 let bookCoverProxyCacheBytes = 0;
 
@@ -81,6 +103,40 @@ function toStatus(v: string): "draft" | "published" {
   const s = (v || "").trim().toLowerCase();
   if (["published", "publish", "已发布", "发布", "上架"].includes(s)) return "published";
   return "draft";
+}
+
+function clampInteger(value: unknown, fallback: number, min: number, max: number): number {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.max(min, Math.min(max, Math.floor(numeric)));
+}
+
+function pickNumber(value: unknown): number | null {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return null;
+  return numeric;
+}
+
+function normalizeExternalBookLibraryRecord(record: any): ExternalBookLibraryRecord {
+  return {
+    id: pick(record, ["id"]),
+    title: pick(record, ["title"]),
+    coverPic: pick(record, ["coverPic"]),
+    author: pick(record, ["author"]),
+    publisher: pick(record, ["publisher"]),
+    isbn: pick(record, ["isbn"]),
+    pubDate: pick(record, ["pubDate"]),
+    pages: pickNumber(record?.pages),
+    words: pick(record, ["words"]),
+    lexile: pick(record, ["lexile"]),
+    ar: pick(record, ["ar"]),
+    tags: pick(record, ["tags"]),
+    category: pick(record, ["category"]),
+    series: pick(record, ["series"]),
+    fiction: pick(record, ["fiction"]),
+    levelRange: pick(record, ["levelRange"]),
+    description: pick(record, ["description"]),
+  };
 }
 
 /** 构造 _id 查询条件，兼容 string 和 ObjectId 类型 */
@@ -188,7 +244,101 @@ async function formatPublicBookMetadata(metadata: any, book: any) {
   return payload;
 }
 
+function formatAdminBookMetadata(metadata: any) {
+  if (!metadata) return null;
+  return {
+    _id: String(metadata?._id || ""),
+    bookId: String(metadata?.bookId || ""),
+    title: String(metadata?.title || ""),
+    author: String(metadata?.author || ""),
+    publisher: String(metadata?.publisher || ""),
+    isbn: String(metadata?.isbn || ""),
+    cover: String(metadata?.cover || ""),
+    description: String(metadata?.description || ""),
+    source: String(metadata?.source || ""),
+    sourceId: String(metadata?.sourceId || ""),
+    rating: metadata?.rating ?? null,
+    ratingCount: metadata?.ratingCount ?? null,
+    ratingLabel: String(metadata?.ratingLabel || ""),
+    matchScore: Number(metadata?.matchScore || 0),
+    matchReason: Array.isArray(metadata?.matchReason) ? metadata.matchReason : [],
+    status: String(metadata?.status || ""),
+    reviewNote: String(metadata?.reviewNote || ""),
+    reviewedAt: metadata?.reviewedAt || null,
+    createdAt: metadata?.createdAt || null,
+    updatedAt: metadata?.updatedAt || null,
+  };
+}
+
 export class BookController {
+  async getExternalLibraryPublic(req: Request, res: Response): Promise<void> {
+    try {
+      const safeCurrent = clampInteger(req.query.current, 1, 1, 100000);
+      const safeSize = clampInteger(req.query.size, 24, 1, 60);
+      const query = {
+        current: String(safeCurrent),
+        size: String(safeSize),
+      };
+      const upstreamUrl = new URL(READLY_BOOK_PAGE_URL);
+      upstreamUrl.searchParams.set("current", query.current);
+      upstreamUrl.searchParams.set("size", query.size);
+
+      const response = await fetch(upstreamUrl, {
+        headers: {
+          "Accept": "application/json",
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!response.ok) {
+        res.status(502).json({ message: `外部书库返回 ${response.status}` });
+        return;
+      }
+
+      const payload = await response.json();
+      const data = payload && typeof payload === "object" ? payload.data : null;
+      const records = Array.isArray(data?.records) ? data.records : [];
+      res.status(200).json({
+        records: records.map(normalizeExternalBookLibraryRecord),
+        total: Number(data?.total || 0),
+        size: Number(data?.size || safeSize),
+        current: Number(data?.current || safeCurrent),
+        pages: Number(data?.pages || 0),
+      });
+    } catch (error: any) {
+      if (error?.name === "AbortError" || error?.name === "TimeoutError") {
+        res.status(504).json({ message: "外部书库加载超时" });
+        return;
+      }
+      res.status(502).json({ message: "外部书库加载失败", error: error?.message || error });
+    }
+  }
+
+  async getExternalBookDescriptionTranslationPublic(req: Request, res: Response): Promise<void> {
+    try {
+      const externalBookId = String(req.params.id || "").trim();
+      const title = String(req.body?.title || "").trim();
+      const description = String(req.body?.description || "").trim();
+      if (!externalBookId) {
+        res.status(400).json({ message: "缺少外部图书 ID" });
+        return;
+      }
+      if (!description) {
+        res.status(400).json({ message: "缺少可翻译的简介" });
+        return;
+      }
+
+      const result = await getOrCreateExternalBookDescriptionTranslation({
+        externalBookId,
+        title,
+        description,
+      });
+      res.status(result.cached ? 200 : 201).json(result);
+    } catch (error: any) {
+      res.status(502).json({ message: error?.message || "简介翻译失败" });
+    }
+  }
+
   async proxyImage(req: Request, res: Response): Promise<void> {
     try {
       const url = String(req.query.url || "").trim();
@@ -349,21 +499,16 @@ export class BookController {
   async getByIdPublic(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      // 使用原生 collection 查询以避免 Mongoose 将字符串 _id 自动 cast 为 ObjectId 导致查不到
-      const col = (Book as any).collection.conn?.db?.collection?.("books") || (Book as any).collection;
-      const doc = await col.findOne(
-        { _id: id, status: "published" },
-        { projection: { title: 1, categoryLabel: 1, topic: 1, author: 1, translator: 1, publisher: 1, isbn: 1, publishedDate: 1, grade: 1, coverImage: 1, recommendedGuest: 1, wxProductId: 1, wxShopName: 1, wxShopAppid: 1, wxSalePrice: 1, wxMonthlySales: 1, wxShopScore: 1, wxHeadImgs: 1, wxQrcodeUrl: 1, wxSyncAt: 1, sourceName: 1, sourceGuestId: 1, status: 1, publishedAt: 1, createdAt: 1, updatedAt: 1 } }
-      );
-      if (!doc) {
+      const book = await Book.findOne({ ...idQuery(id), status: "published" }).lean();
+      if (!book) {
         res.status(404).json({ message: "书籍不存在或未上架" });
         return;
       }
-      const metadata = await findApprovedBookMetadataByBookId(String(doc._id || ""));
+      const metadata = await findApprovedBookMetadataByBookId(String((book as any)._id || ""));
       const metadataCover = normalizeBookCoverUrl(metadata?.cover);
       res.status(200).json({
-        ...doc,
-        coverImage: pickPublicBookCover(doc?.coverImage, metadataCover),
+        ...book,
+        coverImage: pickPublicBookCover((book as any)?.coverImage, metadataCover),
         hasMetadataDetail: Boolean(metadata),
         metadataCover,
       });
@@ -375,22 +520,19 @@ export class BookController {
   async getMetadataPublic(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      // 使用原生 collection 查询以避免 Mongoose 将字符串 _id 自动 cast 为 ObjectId 导致查不到
-      const col = (Book as any).collection.conn?.db?.collection?.("books") || (Book as any).collection;
-      const doc = await col.findOne(
-        { _id: id, status: "published" },
-        { projection: { _id: 1, title: 1, author: 1, publisher: 1 } }
-      );
-      if (!doc) {
+      const book = await Book.findOne({ ...idQuery(id), status: "published" })
+        .select({ _id: 1, title: 1, author: 1, publisher: 1 })
+        .lean();
+      if (!book) {
         res.status(404).json({ message: "书籍不存在或未上架" });
         return;
       }
-      const metadata = await findApprovedBookMetadataByBookId(String(doc._id));
+      const metadata = await findApprovedBookMetadataByBookId(String((book as any)._id));
       if (!metadata) {
         res.status(404).json({ message: "暂无图书详情数据" });
         return;
       }
-      res.status(200).json(await formatPublicBookMetadata(metadata, doc));
+      res.status(200).json(await formatPublicBookMetadata(metadata, book));
     } catch (error) {
       res.status(500).json({ message: "获取书籍详情元数据失败", error });
     }
@@ -409,11 +551,13 @@ export class BookController {
       const enrichedBooks = books.map((book: any) => {
         const plain = typeof book.toObject === "function" ? book.toObject() : book;
         const metadata = metadataByBookId.get(String(plain?._id || ""));
+        const metadataDetail = formatAdminBookMetadata(metadata);
         return {
           ...plain,
-          hasMetadataDetail: metadata?.status === "auto_approved",
-          metadataStatus: metadata?.status || "",
-          metadataId: metadata?._id ? String(metadata._id) : "",
+          hasMetadataDetail: metadataDetail?.status === "auto_approved",
+          metadataStatus: metadataDetail?.status || "",
+          metadataId: metadataDetail?._id || "",
+          metadataDetail,
         };
       });
       res.status(200).json(enrichedBooks);

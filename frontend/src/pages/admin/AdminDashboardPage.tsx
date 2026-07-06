@@ -160,6 +160,13 @@ const AdminDashboardPage: React.FC = () => {
             <span className="material-symbols-outlined">add</span>
             上传资料
           </Link>
+          <Link
+            to="/admin/mama-resources"
+            className="admin-pill-btn admin-pill-btn-secondary"
+          >
+            <img src="/assets/mama-hao-zhuan-icon.png" alt="" className="h-5 w-5 object-contain" />
+            妈妈好赚
+          </Link>
         </div>
       </div>
     </div>

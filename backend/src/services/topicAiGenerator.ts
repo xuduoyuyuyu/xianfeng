@@ -664,6 +664,7 @@ export async function generateKeywordFromLongText(text: string): Promise<string 
  */
 export async function validateTopicKeyword(keyword: string): Promise<ValidateResult> {
   const trimmed = keyword.trim();
+  const compact = trimmed.replace(/[\s\p{P}\p{S}]+/gu, "");
 
   // 仅拦截明显无效的输入：空、纯乱敲字符
   if (trimmed.length <= 1) {
@@ -678,6 +679,38 @@ export async function validateTopicKeyword(keyword: string): Promise<ValidateRes
   // 纯英文+数字短词可能是乱敲（排除大写缩写如 ADHD、PBL、RAZ）
   if (/^[a-zA-Z0-9]{1,8}$/.test(trimmed) && !/^[A-Z]{2,}/.test(trimmed)) {
     return { valid: false, reason: "请输入有意义的话题内容" };
+  }
+  const broadStageWords = new Set([
+    "幼儿园",
+    "幼儿",
+    "学前",
+    "托班",
+    "小班",
+    "中班",
+    "大班",
+    "小学",
+    "小学生",
+    "一年级",
+    "二年级",
+    "三年级",
+    "四年级",
+    "五年级",
+    "六年级",
+    "初中",
+    "初中生",
+    "初一",
+    "初二",
+    "初三",
+    "中学",
+    "中学生",
+    "高中",
+    "高中生",
+    "高一",
+    "高二",
+    "高三"
+  ]);
+  if (broadStageWords.has(compact)) {
+    return { valid: false, reason: "问题太空泛了，请补充具体困惑、场景或目标" };
   }
 
   // 其他所有输入直接放行

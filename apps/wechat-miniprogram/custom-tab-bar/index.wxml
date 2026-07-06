@@ -1,0 +1,25 @@
+<view wx:if="{{!hidden}}" class="xf-custom-tabbar-wrap" style="height: {{totalHeight}}px;">
+  <view class="xf-custom-tabbar">
+    <button
+      wx:for="{{list}}"
+      wx:key="pagePath"
+      class="xf-custom-tabbar__item {{selected === index && index !== 2 ? 'is-selected' : ''}} {{index === 2 ? 'is-xiaowanzi' : ''}}"
+      style="left: {{item.left}};"
+      data-index="{{index}}"
+      catchtap="switchTab"
+      hover-class="is-pressed"
+      aria-label="{{item.text || '小玩子'}}"
+    >
+      <view wx:if="{{index === 2}}" class="xf-custom-tabbar__xiaowanzi-core" data-index="{{index}}" catchtap="switchTab">
+        <view class="xf-custom-tabbar__orb" data-index="{{index}}" catchtap="switchTab">
+          <image class="xf-custom-tabbar__icon is-xiaowanzi-icon" src="{{item.iconPath}}" mode="aspectFit" data-index="{{index}}" catchtap="switchTab" />
+        </view>
+      </view>
+      <view wx:else class="xf-custom-tabbar__normal-core" data-index="{{index}}" catchtap="switchTab">
+        <image class="xf-custom-tabbar__icon" src="{{selected === index ? item.selectedIconPath : item.iconPath}}" mode="aspectFit" data-index="{{index}}" catchtap="switchTab" />
+        <view class="xf-custom-tabbar__text" style="color: {{selected === index ? selectedColor : color}}" data-index="{{index}}" catchtap="switchTab">{{item.text}}</view>
+      </view>
+    </button>
+  </view>
+  <view class="xf-custom-tabbar__safe" style="height: {{safeBottom}}px;"></view>
+</view>

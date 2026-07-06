@@ -24,6 +24,14 @@ git commit -m "feat: xxx"
 
 ### Step 2 — 版本冻结
 
+如果这次发布包含小程序 web-view / 移动端导航改动，先执行：
+
+```bash
+bash scripts/release/verify-mini-webview-ready.sh
+```
+
+这个检查会跑相关静态测试、前端构建，并确认 `frontend/dist` 已包含小程序 web-view 兼容层。
+
 ```bash
 bash scripts/release/freeze-current.sh
 ```
@@ -66,6 +74,28 @@ ssh root@14.103.106.216 "docker ps --format 'table {{.Names}}\t{{.Status}}'"
 ```bash
 git archive --format=tar HEAD | \
   ssh root@14.103.106.216 "cd /opt/xianfeng && tar -xf - && docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.production up -d --build --remove-orphans"
+```
+
+### Step 5 — 小程序 web-view 兼容验收
+
+如果这次发布包含小程序壳层或移动网页导航样式改动，部署后执行：
+
+```bash
+bash scripts/release/verify-mini-webview-live.sh
+```
+
+通过后再用微信开发者工具或手机预览确认：网页自己的移动底部菜单不显示，底部只保留小程序原生 tabBar。
+
+### Step 6 — 上传微信小程序
+
+如果这次包含小程序原生页、分享页或小程序码能力，使用上传包装脚本。脚本会先执行
+`verify-mini-webview-ready.sh`，确认 `pages/share/index`、小程序分享工具和后端
+`/api/wechat-mini/*qrcode` 契约测试通过后，再调用微信开发者工具上传。
+
+```bash
+VERSION=$(git rev-parse --short HEAD) \
+DESC="小玩子分享页和小程序码" \
+bash scripts/release/upload-wechat-miniprogram.sh
 ```
 
 ---
@@ -146,6 +176,10 @@ ssh root@14.103.106.216 "docker inspect xianfeng_backend --format '{{range .Conf
 |------|------|
 | `scripts/release/freeze-current.sh` | 版本冻结，记录当前 commit |
 | `scripts/release/verify-clean-structure.sh` | 部署前结构校验 |
+| `scripts/release/verify-mini-webview-build.mjs` | 检查网页构建是否包含小程序 web-view 兼容层 |
+| `scripts/release/verify-mini-webview-ready.sh` | 小程序 web-view / 移动导航 / 分享页和小程序码改动的部署前综合检查 |
+| `scripts/release/verify-mini-webview-live.sh` | 检查线上首页是否已发布小程序 web-view 兼容层 |
+| `scripts/release/upload-wechat-miniprogram.sh` | 上传微信小程序前先跑发布检查，再调用微信开发者工具上传 |
 | `scripts/deploy/deploy-direct-to-server.sh` | 直连 git archive 部署 |
 | `scripts/deploy/update-server.sh` | 服务器端 git pull + docker 重启 |
 | `scripts/deploy/bootstrap-server.sh` | 服务器首次初始化 |

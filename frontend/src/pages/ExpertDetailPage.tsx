@@ -379,6 +379,10 @@ const ExpertDetailPage: React.FC = () => {
           0%,100% { transform: translate3d(0,0,0) scale(.95); opacity: .45; }
           45% { transform: translate3d(2.5%,-1.5%,0) scale(1.18); opacity: .72; }
         }
+        html.xf-mp-webview .expert-detail-main {
+          padding-top: var(--xf-mp-nav-height, 88px) !important;
+          padding-bottom: 0 !important;
+        }
       `}</style>
       <div className="pointer-events-none absolute inset-0 opacity-35">
         <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at 28% 42%, rgba(118,83,205,0.07) 1.2px, transparent 1.2px)', backgroundSize: '36px 36px' }} />
@@ -404,7 +408,7 @@ const ExpertDetailPage: React.FC = () => {
           <span className="material-symbols-outlined text-[26px]">arrow_back</span>
         </button>
       ) : null}
-      <main className={`mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8 ${isGuestAgentLayer ? "pt-[52px]" : "pt-[76px]"}`}>
+      <main className={`expert-detail-main mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8 ${isGuestAgentLayer ? "pt-[52px]" : "pt-[76px]"}`}>
         {!isGuestAgentLayer ? (
           <div className="mb-5 flex items-center gap-2 text-sm text-[#8b7db6]">
             <Link to="/experts" className="font-bold text-[#5e17eb] hover:text-[#4a11d0]">

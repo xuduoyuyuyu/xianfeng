@@ -10,6 +10,7 @@ import { getTopicUserId } from "../utils/topicUserId";
 import { getAdminOrUserToken, hasAdminOrUserSession, isProRequiredPayload, showProUpgradeFromPayload } from "../utils/proGate";
 import { useIsMobilePager } from "../hooks/useIsMobilePager";
 import { useXiaowanziEmbeddedLayer } from "../utils/xiaowanziLayer";
+import { isMiniProgramWebView } from "../utils/mpAuthBridge";
 import { extractTopicSubmitError } from "../utils/topicSubmitError";
 
 // ===== 本地暂存话题保护机制 =====
@@ -86,12 +87,17 @@ function mergeBySlug<T extends { slug: string }>(current: T[], next: T[]) {
   return [...current, ...next.filter((item) => !seen.has(item.slug))];
 }
 
+function getTopicRouteId(topic: Pick<TopicItem, "slug" | "_id" | "id">): string {
+  return String(topic.slug || topic._id || topic.id || "").trim();
+}
+
 const TopicHubPage: React.FC = () => {
   // 获取登录用户的孩子年级
   const dispatch = useDispatch();
   const { user: currentUser, token } = useSelector((state: RootState) => state.user);
   const superModePage = useXiaowanziEmbeddedLayer();
   const isMobilePager = useIsMobilePager();
+  const miniProgramWebView = isMiniProgramWebView();
   const userGrade = currentUser?.childGrade || currentUser?.grade || "";
 
   const [topics, setTopics] = useState<TopicItem[]>([]);
@@ -119,6 +125,11 @@ const TopicHubPage: React.FC = () => {
   const [validating, setValidating] = useState(false);
   // 获取 userId：优先用登录用户手机号 > _id > 匿名随机 ID
   const getUserId = (): string => getTopicUserId(currentUser);
+  const buildTopicDetailPath = (topicOrSlug: TopicItem | string) => {
+    const routeId = typeof topicOrSlug === "string" ? topicOrSlug : getTopicRouteId(topicOrSlug);
+    const uid = getUserId();
+    return `/topics/${encodeURIComponent(routeId)}${uid ? `?userId=${encodeURIComponent(uid)}` : ""}`;
+  };
   const authHeaders = () => {
     const authToken = getAdminOrUserToken() || token || "";
     return { "Content-Type": "application/json", ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) };
@@ -280,7 +291,7 @@ const TopicHubPage: React.FC = () => {
     if (!kw) return;
     setSubmitMsg(null);
     setRefinedKeyword("");
-    doSearchAndSubmit(kw, false, true);
+    doSearchAndSubmit(kw, true, true);
   };
 
   // 用户修改提炼结果
@@ -528,18 +539,57 @@ const TopicHubPage: React.FC = () => {
   }, [progressPolling]);
 
   const [tagExpanded, setTagExpanded] = useState(false);
+  const [tagFilterOpen, setTagFilterOpen] = useState(false);
+  const [draftTag, setDraftTag] = useState("全部");
 
-  // 移动端默认展示3行标签，桌面端保留原来的大范围折叠。
+  // 小程序默认展示两行常用标签，长尾标签进入筛选面板；普通移动端保留原来的三行折叠。
   const DESKTOP_VISIBLE_TAGS = 48;
   const MOBILE_VISIBLE_TAGS = 18;
+  const MINI_PROGRAM_COMMON_TAGS = 6;
   const maxVisibleTags = isMobilePager ? MOBILE_VISIBLE_TAGS : DESKTOP_VISIBLE_TAGS;
-  const visibleTags = tagExpanded ? allTags : allTags.slice(0, maxVisibleTags);
-  const hasMoreTags = allTags.length > maxVisibleTags;
+  const getMiniProgramVisibleTags = () => {
+    const commonTags = allTags.slice(0, MINI_PROGRAM_COMMON_TAGS);
+    if (activeTag === "全部" || commonTags.includes(activeTag) || !allTags.includes(activeTag)) {
+      return commonTags;
+    }
+    return ["全部", activeTag, ...allTags.filter((tag) => tag !== "全部" && tag !== activeTag).slice(0, MINI_PROGRAM_COMMON_TAGS - 2)];
+  };
+  const visibleTags = miniProgramWebView
+    ? getMiniProgramVisibleTags()
+    : tagExpanded ? allTags : allTags.slice(0, maxVisibleTags);
+  const hasMoreTags = miniProgramWebView ? allTags.length > visibleTags.length : allTags.length > maxVisibleTags;
+
+  const ensureTagFilterAccess = () => {
+    const isLoggedIn = !!currentUser || hasAdminOrUserSession();
+    if (!isLoggedIn) {
+      document.dispatchEvent(new CustomEvent("xf-show-login-modal", { detail: { title: "登录后即可查看更多标签", description: "登录后可搜索话题、提交问题，获得AI生成的知识树。" } }));
+      return false;
+    }
+    return true;
+  };
+
+  const applyTagFilter = (tag: string) => {
+    if (!ensureTagFilterAccess()) return;
+    setActiveTag(tag);
+    setCurrentPage(1);
+    setTagFilterOpen(false);
+    if (tag === "全部") {
+      fetchTopics({});
+    }
+  };
+
+  const openTagFilter = () => {
+    if (!ensureTagFilterAccess()) return;
+    setDraftTag(activeTag);
+    setTagFilterOpen(true);
+  };
+
+  const getTopicsByTag = (tag: string) =>
+    tag === "全部" ? topics : topics.filter((t) => (t.tags as string[]).includes(tag));
 
   const filteredTopics =
-    activeTag === "全部"
-      ? topics
-      : topics.filter((t) => (t.tags as string[]).includes(activeTag));
+    getTopicsByTag(activeTag);
+  const draftFilteredCount = getTopicsByTag(draftTag).length;
 
   if (error) {
     return (
@@ -572,6 +622,22 @@ const TopicHubPage: React.FC = () => {
       .topic-card-wrapper:hover .topic-delete-btn {
         opacity: 1 !important;
       }
+      .topic-hub-eyebrow {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 9999px;
+        border: 1px solid #cfc2ef;
+        background: #f3eefc;
+        padding: 4px 16px;
+        color: #5b3fa1;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.22em;
+        line-height: 1.2;
+        white-space: nowrap;
+        word-break: keep-all;
+      }
       .topics-hero-search {
         border: 1px solid rgba(124, 77, 255, 0.22);
         background: rgba(255, 255, 255, 0.94);
@@ -589,12 +655,291 @@ const TopicHubPage: React.FC = () => {
         max-height: 56px;
         border-radius: 16px;
       }
+      .topic-hub-card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 20px;
+      }
+      .topic-hub-card {
+        min-height: 212px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        border: 1px solid #f3f0ff;
+        border-radius: 16px;
+        background: #fff;
+        padding: 20px;
+        color: #1e1b4b;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        cursor: pointer;
+      }
+      .topic-hub-card:not(.is-processing):hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.10);
+      }
+      .topic-hub-card.is-processing {
+        cursor: default;
+      }
+      .topic-hub-card-title-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 8px;
+      }
+      .topic-hub-card-title {
+        flex: 1;
+        min-width: 0;
+        margin: 0;
+        color: #1e1b4b;
+        font-size: 18px;
+        font-weight: 700;
+        line-height: 1.42;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .topic-hub-card-emoji {
+        flex: 0 0 auto;
+        font-size: 34px;
+        line-height: 1;
+      }
+      .topic-hub-card-subtitle {
+        margin: 0 0 8px;
+        color: #6b7280;
+        font-size: 13px;
+        line-height: 1.5;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .topic-hub-card-summary {
+        margin: 0 0 10px;
+        color: #6b7280;
+        font-size: 12px;
+        line-height: 1.6;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .topic-hub-card-empty-summary {
+        color: #adb5bd;
+        font-style: italic;
+      }
+      .topic-hub-card-tags {
+        margin-top: auto;
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        overflow: hidden;
+      }
+      .topic-hub-card-tag {
+        border-radius: 10px;
+        background: #f3eeff;
+        padding: 2px 10px;
+        color: #7c3aed;
+        font-size: 11px;
+        font-weight: 500;
+        line-height: 1.5;
+      }
+      .topic-tag-filter {
+        margin-bottom: 28px;
+      }
+      .topic-tag-row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      .topic-tag-chip,
+      .topic-tag-filter-trigger {
+        border: none;
+        border-radius: 20px;
+        padding: 6px 16px;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .topic-tag-chip {
+        background: #ede9fe;
+        color: #5b21b6;
+      }
+      .topic-tag-chip.is-active {
+        background: #7c3aed;
+        color: #fff;
+      }
+      .topic-tag-filter-trigger {
+        background: linear-gradient(135deg, #7c3aed, #5b21e8);
+        color: #fff;
+        font-weight: 700;
+      }
+      .topic-tag-expand {
+        margin-top: 10px;
+        text-align: center;
+      }
+      .topic-tag-expand-button {
+        border: none;
+        background: none;
+        padding: 0;
+        color: #7c3aed;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .topic-tag-sheet-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 80;
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        background: rgba(23, 19, 47, 0.36);
+      }
+      .topic-tag-sheet {
+        width: min(100%, 720px);
+        max-height: 78vh;
+        overflow: hidden;
+        border-radius: 28px 28px 0 0;
+        background: #fff;
+        box-shadow: 0 -18px 48px rgba(23, 19, 47, 0.2);
+        animation: slideUpIn 0.2s ease both;
+      }
+      .topic-tag-sheet-handle {
+        width: 56px;
+        height: 8px;
+        margin: 14px auto 8px;
+        border-radius: 999px;
+        background: #ddd3ff;
+      }
+      .topic-tag-sheet-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 18px;
+        padding: 4px 28px 18px;
+      }
+      .topic-tag-sheet-title {
+        margin: 0 0 4px;
+        color: #1e1b4b;
+        font-size: 22px;
+        font-weight: 800;
+      }
+      .topic-tag-sheet-close {
+        border: none;
+        background: none;
+        color: #7c3aed;
+        font-size: 26px;
+        line-height: 1;
+        cursor: pointer;
+      }
+      .topic-tag-sheet-body {
+        max-height: calc(78vh - 188px);
+        overflow: auto;
+        padding: 0 28px 22px;
+      }
+      .topic-tag-sheet-label {
+        margin: 14px 0 12px;
+        color: #6d5aa7;
+        font-size: 14px;
+        font-weight: 800;
+      }
+      .topic-tag-sheet-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .topic-tag-sheet-footer {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        border-top: 1px solid #f0ebff;
+        padding: 18px 28px calc(18px + env(safe-area-inset-bottom, 0px));
+      }
+      .topic-tag-reset {
+        flex: 0 0 auto;
+        border: none;
+        background: none;
+        color: #7c3aed;
+        font-size: 15px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      .topic-tag-apply {
+        flex: 1;
+        border: none;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #7c3aed, #5b21e8);
+        color: #fff;
+        min-height: 52px;
+        font-size: 16px;
+        font-weight: 900;
+        cursor: pointer;
+      }
+      html.xf-mp-webview .topic-hub-main {
+        --xf-mp-outer-gutter: clamp(16px, 4.8vw, 20px);
+        --xf-mp-inner-gutter: clamp(8px, 2.4vw, 10px);
+        width: calc(100% - var(--xf-mp-outer-gutter)) !important;
+        padding-left: var(--xf-mp-inner-gutter) !important;
+        padding-right: var(--xf-mp-inner-gutter) !important;
+        padding-top: var(--xf-mp-nav-height, 88px) !important;
+      }
+      html.xf-mp-webview .topic-hub-list {
+        --xf-mp-outer-gutter: clamp(16px, 4.8vw, 20px);
+        --xf-mp-inner-gutter: clamp(8px, 2.4vw, 10px);
+        width: calc(100% - var(--xf-mp-outer-gutter)) !important;
+        padding-left: var(--xf-mp-inner-gutter) !important;
+        padding-right: var(--xf-mp-inner-gutter) !important;
+        padding-bottom: calc(var(--xf-mp-tabbar-height, 64px) + 28px) !important;
+      }
+      html.xf-mp-webview .topic-hub-eyebrow {
+        letter-spacing: 0.18em;
+      }
+      html.xf-mp-webview .topic-hub-card-grid {
+        grid-template-columns: 1fr !important;
+        gap: 16px;
+      }
+      html.xf-mp-webview .topic-hub-card {
+        min-height: 214px;
+        border-radius: 24px;
+        padding: 22px 24px;
+        box-shadow: 0 10px 24px rgba(47,35,85,0.08);
+      }
+      html.xf-mp-webview .topic-hub-card:not(.is-processing):hover {
+        transform: none;
+        box-shadow: 0 10px 24px rgba(47,35,85,0.08);
+      }
+      html.xf-mp-webview .topic-hub-card-title {
+        font-size: 20px;
+        line-height: 1.36;
+      }
+      html.xf-mp-webview .topic-hub-card-emoji {
+        font-size: 32px;
+      }
+      html.xf-mp-webview .topic-tag-filter {
+        margin-bottom: 18px;
+      }
+      html.xf-mp-webview .topic-tag-row {
+        max-height: 84px;
+        overflow: hidden;
+        align-items: center;
+      }
+      html.xf-mp-webview .topic-tag-chip,
+      html.xf-mp-webview .topic-tag-filter-trigger {
+        padding: 8px 14px;
+        font-size: 14px;
+        font-weight: 800;
+      }
     `}</style>
     <div style={{ minHeight: "100vh", background: "#f8f6ff" }}>
       <GlobalPublicNav compactMobile showPlanningEntry={true} searchValue={searchText} onSearchChange={handleSearchInput} />
 
       {/* ===== Hero 区域 ===== */}
-      <main className={`mx-auto max-w-7xl px-4 pb-2 sm:px-6 lg:px-8 ${superModePage ? "pt-6" : "pt-[76px]"}`}>
+      <main className={`topic-hub-main mx-auto max-w-7xl px-4 pb-2 sm:px-6 lg:px-8 ${superModePage ? "pt-6" : "pt-[76px]"}`}>
         <section
           className="overflow-hidden rounded-[2rem] border border-[#d8d0ef] p-7 shadow-[0_24px_80px_rgba(80,62,125,0.1)] sm:p-9"
           style={{
@@ -604,21 +949,8 @@ const TopicHubPage: React.FC = () => {
         >
           <div className="max-w-3xl mx-auto text-center">
             <div
-              style={{
-                display: "inline-flex",
-                borderRadius: 9999,
-                border: "1px solid #cfc2ef",
-                background: "#f3eefc",
-                padding: "4px 16px",
-                fontSize: 11,
-                fontWeight: 900,
-                textTransform: "uppercase",
-                letterSpacing: "0.26em",
-                color: "#5b3fa1",
-              }}
-            >
-              Ask & Learn
-            </div>
+              className="topic-hub-eyebrow"
+            >ASK & LEARN</div>
             <h1 className="mt-4 text-3xl font-black leading-tight tracking-tight text-[#2b1a3a] sm:text-5xl">
               请教一下
             </h1>
@@ -809,23 +1141,23 @@ const TopicHubPage: React.FC = () => {
                     不匹配，继续请教 🙏
                   </button>
                 )}
-                {submitMsg.type === "existingMatch" && submitMsg.slug && (
-                  <Link
-                    to={`/topics/${encodeURIComponent(submitMsg.slug)}`}
-                    style={{
-                      padding: "6px 16px",
-                      borderRadius: 8,
-                      background: "linear-gradient(135deg, #7C3AED, #A855F7)",
-                      color: "#fff",
-                      fontSize: 12,
-                      fontWeight: 700,
-                      textDecoration: "none",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    👉 查看已有话题
-                  </Link>
-                )}
+                    {submitMsg.type === "existingMatch" && submitMsg.slug && (
+                      <Link
+                        to={buildTopicDetailPath(submitMsg.slug)}
+                        style={{
+                          padding: "6px 16px",
+                          borderRadius: 8,
+                          background: "linear-gradient(135deg, #7C3AED, #A855F7)",
+                          color: "#fff",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          textDecoration: "none",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        👉 查看已有话题
+                      </Link>
+                    )}
               </div>
             </div>
           )}
@@ -875,63 +1207,93 @@ const TopicHubPage: React.FC = () => {
       </main>
 
       {/* ===== 底部卡片列表（实时筛选 + 标签切换） ===== */}
-      <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 20px" }}>
+        <div className="topic-hub-list" style={{ maxWidth: 1280, margin: "0 auto", padding: "0 20px" }}>
         {allTags.length > 1 && (
-          <div style={{ marginBottom: 28 }}>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+          <div className="topic-tag-filter">
+            <div className="topic-tag-row">
               {visibleTags.map((tag) => {
-                const handleTagClick = () => {
-                  const isLoggedIn = !!currentUser || hasAdminOrUserSession();
-                  if (!isLoggedIn) {
-                    document.dispatchEvent(new CustomEvent("xf-show-login-modal", { detail: { title: "登录后即可筛选", description: "登录后可搜索话题、提交问题，获得AI生成的知识树。" } }));
-                    return;
-                  }
-                  setActiveTag(tag);
-                  setCurrentPage(1);
-                  // 「全部」重新请求后端（支持分页），其他标签纯前端过滤避免页面跳动
-                  if (tag === "全部") {
-                    fetchTopics({});
-                  }
-                };
                 return (
                 <button
                   key={tag}
-                  onClick={handleTagClick}
-                  style={{
-                    padding: "6px 16px",
-                    borderRadius: 20,
-                    border: "none",
-                    fontSize: 13,
-                    fontWeight: 500,
-                    cursor: "pointer",
-                    background: activeTag === tag ? "#7C3AED" : "#EDE9FE",
-                    color: activeTag === tag ? "#fff" : "#5B21B6",
-                    transition: "all 0.2s",
-                  }}
+                  onClick={() => applyTagFilter(tag)}
+                  className={`topic-tag-chip ${activeTag === tag ? "is-active" : ""}`}
                 >
                   {tag}
                 </button>
                 );
               })}
+              {miniProgramWebView && hasMoreTags && (
+                <button
+                  type="button"
+                  onClick={openTagFilter}
+                  className="topic-tag-filter-trigger"
+                >
+                  展开全部 ▼
+                </button>
+              )}
             </div>
-            {hasMoreTags && (
-              <div style={{ textAlign: "center", marginTop: 10 }}>
+            {!miniProgramWebView && hasMoreTags && (
+              <div className="topic-tag-expand">
                 <button
                   onClick={() => setTagExpanded((prev) => !prev)}
-                  style={{
-                    padding: 0,
-                    border: "none",
-                    background: "none",
-                    color: "#7C3AED",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
+                  className="topic-tag-expand-button"
                 >
                   {tagExpanded ? "收起 ▲" : "展开全部 ▼"}
                 </button>
               </div>
             )}
+          </div>
+        )}
+
+        {miniProgramWebView && tagFilterOpen && (
+          <div className="topic-tag-sheet-backdrop" onClick={() => setTagFilterOpen(false)}>
+            <div className="topic-tag-sheet" onClick={(event) => event.stopPropagation()}>
+              <div className="topic-tag-sheet-handle" />
+              <div className="topic-tag-sheet-header">
+                <div>
+                  <h2 className="topic-tag-sheet-title">更多标签</h2>
+                </div>
+                <button
+                  type="button"
+                  className="topic-tag-sheet-close"
+                  onClick={() => setTagFilterOpen(false)}
+                  aria-label="关闭更多标签"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="topic-tag-sheet-body">
+                <div className="topic-tag-sheet-label">话题标签</div>
+                <div className="topic-tag-sheet-grid">
+                  {allTags.map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setDraftTag(tag)}
+                      className={`topic-tag-chip ${draftTag === tag ? "is-active" : ""}`}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="topic-tag-sheet-footer">
+                <button
+                  type="button"
+                  className="topic-tag-reset"
+                  onClick={() => setDraftTag("全部")}
+                >
+                  重置
+                </button>
+                <button
+                  type="button"
+                  className="topic-tag-apply"
+                  onClick={() => applyTagFilter(draftTag)}
+                >
+                  查看 {draftFilteredCount} 个话题
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -957,7 +1319,7 @@ const TopicHubPage: React.FC = () => {
             )}
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 20 }}>
+          <div className="topic-hub-card-grid">
             {filteredTopics.map((topic) => {
               const prog = topic.generatingProgress;
               const isProcessing = prog && prog.status !== "done" && prog.status !== "error" && prog.done < prog.total;
@@ -968,39 +1330,17 @@ const TopicHubPage: React.FC = () => {
               return (
               <div key={topic.id || topic._id} className="topic-card-wrapper" style={{ position: "relative" }}>
                 <Link
-                  to={`/topics/${encodeURIComponent(topic.slug)}`}
+                  to={buildTopicDetailPath(topic)}
                   style={{ textDecoration: "none" }}
                   onClick={(e) => handleTopicClick(e, topic)}
                 >
-                <div
-                  style={{
-                    background: "#fff",
-                    borderRadius: 16,
-                    padding: 20,
-                    cursor: isProcessing ? "default" : "pointer",
-                    border: "1px solid #F3F0FF",
-                    boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
-                    transition: "all 0.2s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isProcessing) {
-                      e.currentTarget.style.transform = "translateY(-4px)";
-                      e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.10)";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isProcessing) {
-                      e.currentTarget.style.transform = "translateY(0)";
-                      e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.06)";
-                    }
-                  }}
-                >
+                <div className={`topic-hub-card ${isProcessing ? "is-processing" : ""}`}>
                   {/* 第一行: 标题 + emoji */}
-                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 6 }}>
-                    <h3 style={{ fontSize: 18, fontWeight: 700, color: "#1E1B4B", margin: 0, flex: 1, paddingRight: 12 }}>
+                  <div className="topic-hub-card-title-row">
+                    <h3 className="topic-hub-card-title">
                       {topic.title}
                     </h3>
-                    <span style={{ fontSize: 36, lineHeight: 1, flexShrink: 0 }}>{topic.coverEmoji || "💡"}</span>
+                    <span className="topic-hub-card-emoji">{topic.coverEmoji || "💡"}</span>
                   </div>
 
                   {/* 进度条 */}
@@ -1036,31 +1376,24 @@ const TopicHubPage: React.FC = () => {
                   )}
 
                   {/* 第二行: subtitle 副标题 */}
-                  <p style={{ fontSize: 13, color: "#6B7280", margin: "0 0 8px", lineHeight: 1.5 }}>
+                  <p className="topic-hub-card-subtitle">
                     {topic.subtitle}
                   </p>
 
                   {/* 第三行: shortSummary 概念总结（限制2行，30-50字） */}
                   {topic.shortSummary ? (
-                    <p style={{
-                      fontSize: 12, color: "#6B7280", margin: "0 0 10px", lineHeight: 1.6,
-                      display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
-                      overflow: "hidden",
-                    }}>
+                    <p className="topic-hub-card-summary">
                       {topic.shortSummary}
                     </p>
                   ) : (
-                    <p style={{ fontSize: 12, color: "#ADB5BD", margin: "0 0 10px", fontStyle: "italic" }}>暂无简介</p>
+                    <p className="topic-hub-card-summary topic-hub-card-empty-summary">暂无简介</p>
                   )}
 
                   {/* 第四行: 标签（最底部） */}
                   {safeTags(topic.tags).length > 0 && !isProcessing && (
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <div className="topic-hub-card-tags">
                       {safeTags(topic.tags).slice(0, 3).map((tag) => (
-                        <span key={tag} style={{
-                          fontSize: 11, padding: "2px 10px", borderRadius: 10,
-                          background: "#F3EEFF", color: "#7C3AED", fontWeight: 500,
-                        }}>
+                        <span key={tag} className="topic-hub-card-tag">
                           {tag}
                         </span>
                       ))}

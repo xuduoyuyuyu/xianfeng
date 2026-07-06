@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { buildTopicGuestSharePromptBlock } from "./topicAiGenerator";
+import { buildTopicGuestSharePromptBlock, validateTopicKeyword } from "./topicAiGenerator";
 
 describe("topicAiGenerator guest-share context", () => {
   it("promotes matched guest knowledge snippets above generic advice", () => {
@@ -23,5 +23,22 @@ describe("topicAiGenerator guest-share context", () => {
   it("stays empty when no guest knowledge snippets are available", () => {
     assert.equal(buildTopicGuestSharePromptBlock([]), "");
     assert.equal(buildTopicGuestSharePromptBlock([{ sourceTitle: "空资料", locator: "", text: "   " }]), "");
+  });
+});
+
+describe("validateTopicKeyword", () => {
+  it("rejects broad school-stage words without a concrete question direction", async () => {
+    for (const keyword of ["小学", "小学生", "中学", "幼儿园", "一年级"]) {
+      const result = await validateTopicKeyword(keyword);
+
+      assert.equal(result.valid, false, `${keyword} should be rejected as too broad`);
+      assert.match(result.reason, /具体/);
+    }
+  });
+
+  it("keeps concrete education questions valid", async () => {
+    const result = await validateTopicKeyword("小学数学怎么启蒙");
+
+    assert.equal(result.valid, true);
   });
 });

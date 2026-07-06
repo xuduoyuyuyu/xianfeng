@@ -27,6 +27,77 @@
 - `RELEASE_GUIDE.md`
 - `RELEASE_CLEAN_FLOW.md`
 
+## WeChat Mini Program Shell
+
+- The mini program is a hybrid shell: native bottom tabBar, native top
+  shortcuts, and WeChat-native actions,
+  with product content loaded from `https://xianfeng.xinzhi.info` through
+  `web-view`.
+- The Programs, Reading, Materials, and Topics tabs are native first-level lists for
+  faster initial paint. They fetch public APIs, cache the latest lists locally,
+  and open details through the shared `pages/webview` wrapper. Topic search,
+  creation, Pro/login states, and the full knowledge-tree experience remain
+  owned by the web frontend and are reached from the native Topics list.
+  The Baibaoxiang welfare shortcut opens native `pages/welfare/index` so the
+  page uses mini-program chrome and hides backend 404s as an empty welfare
+  state; `/welfare` webview support remains only for compatibility links.
+  Mine subpages such as archive, memory, and settings are thin `web-view`
+  shells that open the web mobile half-panel via `xf_panel`, so the original
+  web panel styling remains the source of truth.
+  The shell keeps a native bottom `tabBar` as the reliable primary navigation.
+  The web `GlobalPublicNav` hides its top nav and mobile bottom tab when
+  `xf_mp=1` is present. The shell passes `xf_tab` so the web frontend can
+  reserve space for native chrome; this requires the matching web build to be
+  deployed to `xianfeng.xinzhi.info`.
+- Run `bash scripts/release/verify-mini-webview-ready.sh` before deployment
+  when a change touches mini-program `web-view`, mobile navigation, native share
+  landing, or mini-program code behavior. This readiness script includes the
+  `pages/share/index` registration/helpers and backend `/api/wechat-mini`
+  QR-code contract tests.
+  After deployment, run `bash scripts/release/verify-mini-webview-live.sh` to
+  confirm the live site has the same compatibility layer.
+- The Xiaowanzi bottom tab keeps only the avatar icon. The top-nav Xiaowanzi
+  entry matches the website mobile menu: tap opens chat mode through
+  `xf_xw=chat`, long press opens super mode through `xf_xw=home`.
+- WeChat friend sharing uses `pages/share/index` as the branded landing page
+  with the local logo asset, then opens the encoded target page. Timeline
+  sharing keeps WeChat's page-query model and does not rely on a target path
+  override. Xiaowanzi generated share posters request a topic-specific
+  mini-program code when the selected reply contains a topic link; the code
+  lands on `pages/share/index` with a short topic scene and then opens the
+  matching topic detail. Xiaowanzi conversation posters save the selected
+  conversation round through `/api/wechat-mini/xiaowanzi-shares`, then request
+  `/api/wechat-mini/xiaowanzi-share-qrcode` so the generated mini-program code
+  lands on `pages/share/index` and loads that conversation directly.
+- Native mini-program login uses WeChat phone-number authorization in place.
+  Native settings, first-level menu account cards, and Mine login entry expose
+  `open-type="getPhoneNumber"` directly instead of routing through the
+  intermediate `pages/login` screen. The shell sends the `getPhoneNumber` code
+  with `wx.login` to the backend, then stores the returned JWT/user profile.
+- Native settings own local app preferences and maintenance actions. Font size
+  is stored as a mini-program preference, applied to native pages and settings
+  surfaces, and passed to `web-view` routes as `xf_font` so the web frontend can
+  apply the same small/standard/large scale in mini-program mode. Cache clearing
+  removes native list/search/form-draft caches while preserving login state,
+  child profiles, memory settings, and font preference.
+- `pages/mama-resource-apply/index` is a native mini-program form for the
+  Mama Haozhuan supply intake. It mirrors the public web form and uses
+  `wx.chooseMedia`/`wx.uploadFile` for Xiaohongshu profile screenshots.
+  Unsubmitted form values are kept as a local mini-program draft and cleared
+  only after a successful submission.
+- After the bound mobile matches an approved Mama resource profile, the same
+  native page switches from intake form to a task center. The task center reads
+  task assignments created from the admin task workspace, shows one horizontal
+  row per assigned project, opens a project detail page with
+  price/settlement/requirements, and lets the user submit proof link plus
+  completion screenshot for admin collection review.
+- If the bound mobile matches a submitted Mama resource profile that is still
+  pending, needs-info, or rejected, `pages/mama-resource-apply/index` shows a
+  dedicated review-status page instead of showing the intake form again. Only
+  approved profiles enter the task center.
+- Business routes, permissions, and content rendering remain owned by the web
+  frontend and backend API modules.
+
 ## Evolution
 
 ### Active

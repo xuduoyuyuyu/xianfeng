@@ -41,3 +41,5 @@ echo "连接服务器并执行更新: ${SERVER_HOST}:${SERVER_PATH}"
 ssh "${SERVER_HOST}" "cd '${SERVER_PATH}' && DEPLOY_BRANCH='${BRANCH}' ./scripts/deploy/update-server.sh"
 
 echo "部署完成"
+echo "如本次包含小程序 web-view / 移动端导航改动，请执行线上验收："
+echo "  bash scripts/release/verify-mini-webview-live.sh"

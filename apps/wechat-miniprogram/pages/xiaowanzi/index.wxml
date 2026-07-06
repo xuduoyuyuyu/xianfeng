@@ -1,1 +1,301 @@
-<web-view src="{{src}}" />
+<import src="../../templates/settings-profile-views.wxml" />
+
+<view class="xf-xiaowanzi-page">
+  <view class="xf-xiaowanzi-native-shell">
+    <view class="xf-xiaowanzi-topbar" style="height: {{topbarHeight}}px;">
+      <button class="xf-xiaowanzi-menu-entry" style="top: {{shellLogoTop}}px; height: {{shellLogoHeight}}px;" catchtap="openHistoryDrawer" aria-label="历史会话">
+        <image class="xf-xiaowanzi-menu-mark" src="/assets/xiaowanzi-icons/menu-dark.png" mode="aspectFit" />
+      </button>
+      <image class="xf-xiaowanzi-top-bot" style="top: {{shellAvatarTop}}px; height: {{shellAvatarHeight}}px;" src="{{topbarAvatarSrc}}" mode="aspectFit" catchtap="startNewConversation" aria-label="新话题" />
+      <button class="xf-xiaowanzi-knowledge-pill {{knowledgePillCollapsed ? 'is-collapsed' : ''}}" style="top: {{shellKnowledgeTop}}px; right: {{shellKnowledgeRight}}px; width: {{knowledgePillCollapsed ? shellKnowledgeHeight : shellKnowledgeWidth}}px; height: {{shellKnowledgeHeight}}px;" catchtap="openKnowledgeHub" aria-label="打开先疯智库">
+        <image class="xf-xiaowanzi-knowledge-logo" src="/assets/share/xianfeng-round-logo.png" mode="aspectFit" />
+        <image class="xf-xiaowanzi-knowledge-title" src="/assets/xiaowanzi-icons/knowledge-title.png" mode="aspectFit" aria-hidden="true" />
+      </button>
+    </view>
+    <text wx:if="{{childContextStatus}}" class="xf-xiaowanzi-child-boundary" style="top: {{childBoundaryTop}}px;">{{childContextStatus}}</text>
+  </view>
+
+  <button wx:if="{{xiaowanziLoginRequired}}" class="xf-xiaowanzi-login-gate {{bindingPhone ? 'is-binding' : ''}}" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone" catchtouchmove="noop" aria-label="{{bindingPhone ? '正在登录' : '授权手机号登录'}}">
+    <text class="xf-xiaowanzi-login-sr">{{bindingPhone ? '正在登录...' : '授权手机号登录'}}</text>
+  </button>
+
+  <scroll-view class="xf-xiaowanzi-chat-list {{homeMode ? 'is-home' : 'is-chat'}} {{attachmentMenuOpen ? 'has-attachment-menu' : ''}} {{shareSelectionMode ? 'has-share-selection' : ''}}" scroll-y="{{true}}" enhanced="{{true}}" show-scrollbar="{{false}}" scroll-into-view="{{scrollIntoView}}" bindscroll="handleKnowledgePillScroll" style="top: {{chatTop}}px;">
+    <view wx:if="{{homeMode}}" class="xf-xiaowanzi-home">
+      <view class="xf-xiaowanzi-hero">
+        <image class="xf-xiaowanzi-hero-bot" src="/assets/wel-avatar/no-hat.png" mode="aspectFit" />
+        <view class="xf-xiaowanzi-hero-copy">
+          <view class="xf-xiaowanzi-hello-row">
+            <text class="xf-xiaowanzi-hello">哈喽</text>
+            <text class="xf-xiaowanzi-spark"></text>
+          </view>
+          <view class="xf-xiaowanzi-hero-title" aria-label="想聊什么，直接问小玩子">
+            <view class="xf-xiaowanzi-hero-title-line">
+              <text class="xf-xiaowanzi-hero-title-char" style="animation-delay: 0.86s;">想</text>
+              <text class="xf-xiaowanzi-hero-title-char" style="animation-delay: 0.91s;">聊</text>
+              <text class="xf-xiaowanzi-hero-title-char" style="animation-delay: 0.96s;">什</text>
+              <text class="xf-xiaowanzi-hero-title-char" style="animation-delay: 1.01s;">么</text>
+              <text class="xf-xiaowanzi-hero-title-char" style="animation-delay: 1.06s;">，</text>
+              <text class="xf-xiaowanzi-hero-title-char" style="animation-delay: 1.11s;">直</text>
+              <text class="xf-xiaowanzi-hero-title-char" style="animation-delay: 1.16s;">接</text>
+            </view>
+            <view class="xf-xiaowanzi-hero-title-line">
+              <text class="xf-xiaowanzi-hero-title-char" style="animation-delay: 1.21s;">问</text>
+              <text class="xf-xiaowanzi-hero-title-char" style="animation-delay: 1.26s;">小</text>
+              <text class="xf-xiaowanzi-hero-title-char" style="animation-delay: 1.31s;">玩</text>
+              <text class="xf-xiaowanzi-hero-title-char" style="animation-delay: 1.36s;">子</text>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <view id="xiaowanziPromptPanel" class="xf-xiaowanzi-prompt-panel">
+        <view class="xf-xiaowanzi-prompt-heading">
+          <text class="xf-xiaowanzi-prompt-bar"></text>
+          <text>可以这样问</text>
+        </view>
+        <button class="xf-xiaowanzi-prompt-card {{item.compact ? 'is-compact' : ''}}" wx:for="{{quickPrompts}}" wx:key="prompt" data-value="{{item.prompt}}" catchtap="useQuickPrompt" aria-label="提交问题示例">
+          <text class="xf-xiaowanzi-prompt-mark"></text>
+          <text class="xf-xiaowanzi-prompt-text">{{item.label}}</text>
+          <text class="xf-xiaowanzi-prompt-arrow"></text>
+        </button>
+        <view wx:if="{{selectedHomePrompt}}" class="xf-xiaowanzi-home-user-preview is-selected">
+          <text>{{selectedHomePrompt}}</text>
+        </view>
+        <view wx:elif="{{homePromptPreview}}" class="xf-xiaowanzi-home-user-preview is-reference">
+          <text>{{homePromptPreview}}</text>
+        </view>
+
+        <view wx:if="{{homeConversationMessages.length}}" class="xf-xiaowanzi-home-thread">
+          <view class="xf-xiaowanzi-home-message {{item.role === 'user' ? 'is-user' : 'is-assistant'}} {{item.pending ? 'is-pending' : ''}} {{item.error ? 'is-error' : ''}} {{shareSelectionMode ? 'is-selecting' : ''}} {{selectedMessageMap[item.id] ? 'is-selected' : ''}}" wx:for="{{homeConversationMessages}}" wx:key="id" id="{{item.id}}" data-id="{{item.id}}" data-role="{{item.role}}" catchtap="handleMessageTap">
+            <button wx:if="{{shareSelectionMode}}" class="xf-xiaowanzi-share-check {{selectedMessageMap[item.id] ? 'is-checked' : ''}}" data-id="{{item.id}}" catchtap="toggleShareMessage" aria-label="{{selectedMessageMap[item.id] ? '取消选择对话' : '选择对话'}}">
+              <text wx:if="{{selectedMessageMap[item.id]}}" class="xf-xiaowanzi-share-check-mark"></text>
+            </button>
+            <view wx:if="{{item.role === 'user'}}" class="xf-xiaowanzi-user-bubble">
+              <text>{{item.content}}</text>
+            </view>
+            <view wx:else class="xf-xiaowanzi-home-assistant-wrap {{item.pending ? 'is-thinking' : ''}}">
+              <view wx:if="{{item.pending}}" class="xf-xiaowanzi-home-thinking" aria-label="小玩子思考中">
+                <text class="xf-xiaowanzi-thinking-dot"></text>
+                <text class="xf-xiaowanzi-thinking-dot"></text>
+                <text class="xf-xiaowanzi-thinking-dot is-strong"></text>
+                <text>小玩子思考中</text>
+              </view>
+              <view wx:else class="xf-xiaowanzi-home-assistant-card">
+                <block wx:for="{{item.contentParts}}" wx:for-item="part" wx:key="key">
+                  <view wx:if="{{part.type === 'md_heading'}}" class="xf-xiaowanzi-md-heading">{{part.text}}</view>
+                  <view wx:elif="{{part.type === 'md_list_item'}}" class="xf-xiaowanzi-md-list-item">
+                    <text class="xf-xiaowanzi-md-list-bullet">•</text>
+                    <text class="xf-xiaowanzi-md-list-text">{{part.text}}</text>
+                  </view>
+                  <view wx:elif="{{part.type === 'md_paragraph'}}" class="xf-xiaowanzi-md-paragraph">{{part.text}}</view>
+                  <text wx:elif="{{part.type !== 'link'}}">{{part.text}}</text>
+                  <button wx:else class="xf-xiaowanzi-message-link" data-url="{{part.url}}" data-title="{{part.text}}" catchtap="openMessageLink">
+                    <view class="xf-xiaowanzi-message-link-body">
+                      <text class="xf-xiaowanzi-message-link-text">{{part.text}}</text>
+                    </view>
+                    <text class="xf-xiaowanzi-message-link-arrow">↗</text>
+                  </button>
+                </block>
+              </view>
+              <button wx:if="{{!shareSelectionMode && !sending && item.shareable}}" class="xf-xiaowanzi-card-share is-home {{shareRevealMessageId === item.id ? 'is-visible' : ''}}" hover-class="is-pressed" data-id="{{item.id}}" catchtap="openShareSelectionFromMessage" aria-label="分享回答">
+                <image class="xf-xiaowanzi-share-icon" src="/assets/xiaowanzi-icons/share-purple.png" mode="aspectFit" />
+              </button>
+            </view>
+          </view>
+        </view>
+      </view>
+      <view id="xiaowanziChildHint" class="xf-xiaowanzi-child-hint">
+        <view class="xf-xiaowanzi-child-hint-line">
+          <text>{{childHintText}}</text>
+          <button class="xf-xiaowanzi-child-link" catchtap="openNativeChildPicker">{{childActionLabel}}</button>
+        </view>
+      </view>
+    </view>
+
+    <block wx:else>
+      <view class="xf-xiaowanzi-message {{item.role === 'user' ? 'is-user' : 'is-assistant'}} {{item.pending ? 'is-pending' : ''}} {{item.error ? 'is-error' : ''}} {{shareSelectionMode ? 'is-selecting' : ''}} {{selectedMessageMap[item.id] ? 'is-selected' : ''}}" wx:for="{{messages}}" wx:key="id" id="{{item.id}}" data-id="{{item.id}}" data-role="{{item.role}}" catchtap="handleMessageTap">
+        <button wx:if="{{shareSelectionMode}}" class="xf-xiaowanzi-share-check {{selectedMessageMap[item.id] ? 'is-checked' : ''}}" data-id="{{item.id}}" catchtap="toggleShareMessage" aria-label="{{selectedMessageMap[item.id] ? '取消选择对话' : '选择对话'}}">
+          <text wx:if="{{selectedMessageMap[item.id]}}" class="xf-xiaowanzi-share-check-mark"></text>
+        </button>
+        <view wx:if="{{item.role === 'user'}}" class="xf-xiaowanzi-user-bubble">
+          <text>{{item.content}}</text>
+        </view>
+        <view wx:else class="xf-xiaowanzi-assistant-panel {{item.pending ? 'is-thinking' : ''}}">
+          <view wx:if="{{item.pending}}" class="xf-xiaowanzi-home-thinking" aria-label="小玩子思考中">
+            <text class="xf-xiaowanzi-thinking-dot"></text>
+            <text class="xf-xiaowanzi-thinking-dot"></text>
+            <text class="xf-xiaowanzi-thinking-dot is-strong"></text>
+            <text>小玩子思考中</text>
+          </view>
+          <view wx:else class="xf-xiaowanzi-assistant-card">
+            <block wx:for="{{item.contentParts}}" wx:for-item="part" wx:key="key">
+              <view wx:if="{{part.type === 'md_heading'}}" class="xf-xiaowanzi-md-heading">{{part.text}}</view>
+              <view wx:elif="{{part.type === 'md_list_item'}}" class="xf-xiaowanzi-md-list-item">
+                <text class="xf-xiaowanzi-md-list-bullet">•</text>
+                <text class="xf-xiaowanzi-md-list-text">{{part.text}}</text>
+              </view>
+              <view wx:elif="{{part.type === 'md_paragraph'}}" class="xf-xiaowanzi-md-paragraph">{{part.text}}</view>
+              <text wx:elif="{{part.type !== 'link'}}">{{part.text}}</text>
+              <button wx:else class="xf-xiaowanzi-message-link" data-url="{{part.url}}" data-title="{{part.text}}" catchtap="openMessageLink">
+                <view class="xf-xiaowanzi-message-link-body">
+                  <text class="xf-xiaowanzi-message-link-text">{{part.text}}</text>
+                </view>
+                <text class="xf-xiaowanzi-message-link-arrow">↗</text>
+              </button>
+            </block>
+          </view>
+          <button wx:if="{{!shareSelectionMode && !sending && item.shareable}}" class="xf-xiaowanzi-card-share {{shareRevealMessageId === item.id ? 'is-visible' : ''}}" hover-class="is-pressed" data-id="{{item.id}}" catchtap="openShareSelectionFromMessage" aria-label="分享回答">
+            <image class="xf-xiaowanzi-share-icon" src="/assets/xiaowanzi-icons/share-purple.png" mode="aspectFit" />
+          </button>
+        </view>
+      </view>
+      <view id="xiaowanziChildHint" class="xf-xiaowanzi-child-hint">
+        <view class="xf-xiaowanzi-child-hint-line">
+          <text>{{childHintText}}</text>
+          <button class="xf-xiaowanzi-child-link" catchtap="openNativeChildPicker">{{childActionLabel}}</button>
+        </view>
+      </view>
+    </block>
+  </scroll-view>
+
+  <view class="xf-xiaowanzi-composer {{attachmentMenuOpen ? 'is-attach-open' : ''}}">
+    <view class="xf-xiaowanzi-composer-feather" aria-hidden="true"></view>
+    <view wx:if="{{errorText || actionLabel || attachmentPreviewText}}" class="xf-xiaowanzi-inline-status">
+      <text>{{errorText || attachmentPreviewText || statusText}}</text>
+      <button wx:if="{{actionLabel}}" class="xf-xiaowanzi-inline-action" catchtap="handleActionTap">{{actionLabel}}</button>
+    </view>
+    <view class="xf-xiaowanzi-input-row">
+      <view class="xf-xiaowanzi-input-shell {{inputReady ? 'can-send' : ''}} {{inputValue ? 'has-typed-input' : ''}} {{inputFocused ? 'is-input-focused' : ''}} {{!inputValue && !inputFocused ? 'is-placeholder' : ''}} {{sendPressing ? 'send-pressing' : ''}} {{sending ? 'is-sending' : ''}}">
+        <button class="xf-xiaowanzi-voice" hover-class="is-pressed" catchtap="toggleVoiceInput" aria-label="语音输入">
+          <image class="xf-xiaowanzi-voice-icon" src="/assets/xiaowanzi-icons/voice-dark.png" mode="aspectFit" />
+        </button>
+        <input class="xf-xiaowanzi-input" value="{{inputValue}}" placeholder="对话内容已开启隐私保护" placeholder-class="xf-xiaowanzi-input-placeholder" confirm-type="send" disabled="{{sending}}" bindinput="updateInput" bindfocus="handleInputFocus" bindblur="handleInputBlur" bindconfirm="handleSend" />
+        <button class="xf-xiaowanzi-send {{sending ? 'is-stop' : 'is-send'}} {{sendPressing ? 'is-pressing' : ''}}" hover-class="is-pressed" disabled="{{!sending && !inputReady}}" bindtouchstart="startSendPress" bindtouchend="endSendPress" bindtouchcancel="endSendPress" catchtap="handleSend" aria-label="{{sending ? '停止生成' : '发送'}}">
+          <image class="xf-xiaowanzi-send-mark" src="{{sending ? '/assets/xiaowanzi-icons/stop-white.png' : '/assets/xiaowanzi-icons/send-white.png'}}" mode="aspectFit" />
+        </button>
+      </view>
+      <button class="xf-xiaowanzi-plus {{attachmentMenuOpen ? 'is-open' : ''}}" catchtap="toggleAttachmentMenu" aria-label="{{attachmentMenuOpen ? '收起更多' : '更多'}}">
+        <image class="xf-xiaowanzi-plus-mark" src="{{attachmentMenuOpen ? '/assets/xiaowanzi-icons/close-purple.png' : '/assets/xiaowanzi-icons/add-dark.png'}}" mode="aspectFit" />
+      </button>
+    </view>
+  </view>
+  <view wx:if="{{attachmentMenuOpen}}" class="xf-xiaowanzi-attach-menu">
+    <button class="xf-xiaowanzi-attach-action" data-type="camera" catchtap="chooseAttachment">
+      <image class="xf-xiaowanzi-attach-icon" src="/assets/xiaowanzi-icons/camera-dark.png" mode="aspectFit" />
+      <text>拍照</text>
+    </button>
+    <button class="xf-xiaowanzi-attach-action" data-type="image" catchtap="chooseAttachment">
+      <image class="xf-xiaowanzi-attach-icon" src="/assets/xiaowanzi-icons/image-dark.png" mode="aspectFit" />
+      <text>上传图片</text>
+    </button>
+    <button class="xf-xiaowanzi-attach-action" data-type="file" catchtap="chooseAttachment">
+      <image class="xf-xiaowanzi-attach-icon" src="/assets/xiaowanzi-icons/upload-file-dark.png" mode="aspectFit" />
+      <text>上传文件</text>
+    </button>
+  </view>
+  <view wx:if="{{historyDrawerOpen}}" class="xf-xiaowanzi-history-mask" catchtap="closeHistoryDrawer" catchtouchmove="noop">
+    <view class="xf-xiaowanzi-history-drawer" style="padding-top: calc({{topbarHeight}}px + 40rpx);" catchtap="noop">
+      <view class="xf-xiaowanzi-history-head">
+        <button class="xf-xiaowanzi-history-new" catchtap="startNewConversation">
+          <text class="xf-xiaowanzi-history-new-mark"></text>
+          <text>新对话</text>
+        </button>
+      </view>
+      <text class="xf-xiaowanzi-history-title">历史会话</text>
+      <scroll-view class="xf-xiaowanzi-history-list" scroll-y enhanced enable-flex show-scrollbar="false">
+        <block wx:if="{{historyCards.length}}">
+          <view wx:for="{{historyCards}}" wx:key="id" class="xf-xiaowanzi-history-card" data-id="{{item.id}}" catchtap="openHistoryCard">
+            <text class="xf-xiaowanzi-history-card-title">{{item.title}}</text>
+            <text class="xf-xiaowanzi-history-card-time">{{item.sub}}</text>
+            <text wx:if="{{item.childTag}}" class="xf-xiaowanzi-history-card-child">{{item.childTag}}</text>
+          </view>
+        </block>
+        <view wx:else class="xf-xiaowanzi-history-empty">
+          <text class="xf-xiaowanzi-history-empty-title">暂无历史会话</text>
+          <text class="xf-xiaowanzi-history-empty-sub">提问后会自动保存在这里</text>
+        </view>
+      </scroll-view>
+      <button class="xf-xiaowanzi-history-exit" catchtap="returnToExternalPage" aria-label="退出小玩子">
+        <image class="xf-xiaowanzi-history-exit-mark" src="/assets/xiaowanzi-icons/logout-white.png" mode="aspectFit" />
+      </button>
+    </view>
+  </view>
+
+  <view wx:if="{{shareSelectionMode}}" class="xf-xiaowanzi-share-select-backdrop" catchtap="exitShareSelection" catchtouchmove="noop"></view>
+  <view wx:if="{{shareSelectionMode}}" class="xf-xiaowanzi-share-select-panel" catchtouchmove="noop">
+    <view class="xf-xiaowanzi-share-select-head">
+      <text>选择对话</text>
+      <button catchtap="exitShareSelection">取消</button>
+    </view>
+    <view class="xf-xiaowanzi-share-select-channels">
+      <text class="xf-xiaowanzi-share-count">将{{shareRoundCount}}轮对话分享至</text>
+      <view class="xf-xiaowanzi-share-channel-row">
+        <button class="xf-xiaowanzi-share-channel" hover-class="is-pressed" open-type="share" disabled="{{!selectedMessageIds.length}}">
+          <view class="xf-xiaowanzi-share-channel-icon is-wechat">
+            <image class="xf-xiaowanzi-share-channel-icon-img" src="/assets/xiaowanzi-icons/share-wechat-friend.svg" mode="aspectFit" />
+          </view>
+          <text class="xf-xiaowanzi-share-channel-label">微信好友</text>
+        </button>
+        <button class="xf-xiaowanzi-share-channel" hover-class="is-pressed" catchtap="generateShareImage" disabled="{{!selectedMessageIds.length || shareImageGenerating}}">
+          <view class="xf-xiaowanzi-share-channel-icon is-image">
+            <image class="xf-xiaowanzi-share-channel-icon-img" src="/assets/xiaowanzi-icons/share-image-card.svg" mode="aspectFit" />
+          </view>
+          <text class="xf-xiaowanzi-share-channel-label">{{shareImageGenerating ? '生成中' : '生成图片'}}</text>
+        </button>
+        <button class="xf-xiaowanzi-share-channel" hover-class="is-pressed" catchtap="copySelectedMessages" disabled="{{!selectedMessageIds.length}}">
+          <view class="xf-xiaowanzi-share-channel-icon is-copy">
+            <image class="xf-xiaowanzi-share-channel-icon-img" src="/assets/xiaowanzi-icons/share-copy-content.svg" mode="aspectFit" />
+          </view>
+          <text class="xf-xiaowanzi-share-channel-label">复制内容</text>
+        </button>
+      </view>
+    </view>
+    <view class="xf-xiaowanzi-share-privacy">
+      <text>⚙️ 分享内容已开启隐私保护</text>
+    </view>
+  </view>
+
+  <view wx:if="{{shareImagePreviewOpen}}" class="xf-xiaowanzi-share-preview-mask" catchtap="closeShareImagePreview" catchtouchmove="noop"></view>
+  <view wx:if="{{shareImagePreviewOpen}}" class="xf-xiaowanzi-share-preview-panel" style="top: {{sharePreviewTop}}px;">
+    <view class="xf-xiaowanzi-share-preview-head">
+      <text class="xf-xiaowanzi-share-preview-title">分享卡片预览</text>
+      <button class="xf-xiaowanzi-share-preview-close" catchtap="closeShareImagePreview" aria-label="关闭分享卡片预览">×</button>
+    </view>
+    <scroll-view class="xf-xiaowanzi-share-preview-scroll" scroll-y enhanced enable-flex>
+      <image class="xf-xiaowanzi-share-preview-image" src="{{shareImagePath}}" mode="widthFix" />
+    </scroll-view>
+    <view class="xf-xiaowanzi-share-preview-actions">
+      <text class="xf-xiaowanzi-share-preview-guide">长按预览图片，或点击下方按钮保存</text>
+      <button class="xf-xiaowanzi-share-preview-save" hover-class="is-pressed" catchtap="saveGeneratedShareImage">下载图片</button>
+    </view>
+  </view>
+
+  <view wx:if="{{childPickerOpen}}" class="xf-xiaowanzi-child-picker-mask" catchtap="closeChildPicker" catchtouchmove="noop"></view>
+  <view wx:if="{{childPickerOpen}}" class="xf-xiaowanzi-child-picker-sheet" catchtouchmove="noop">
+    <view class="xf-xiaowanzi-child-picker-title">选择咨询人</view>
+    <view wx:if="{{!childPickerCards.length}}" class="xf-xiaowanzi-child-picker-empty">暂无孩子档案，请先从侧边栏新增。</view>
+    <view wx:else class="xf-xiaowanzi-child-picker-list">
+      <view wx:for="{{childPickerCards}}" wx:key="id" class="xf-xiaowanzi-child-picker-card">
+        <view class="xf-xiaowanzi-child-picker-avatar">{{item.initial}}</view>
+        <view class="xf-xiaowanzi-child-picker-main">
+          <text class="xf-xiaowanzi-child-picker-name">{{item.displayName}}</text>
+          <text class="xf-xiaowanzi-child-picker-tag">{{item.tag}}</text>
+        </view>
+        <button class="xf-xiaowanzi-child-picker-select" data-id="{{item.id}}" catchtap="chooseChildFromPicker">{{item.selected ? '已选择' : '选择'}}</button>
+      </view>
+    </view>
+    <view class="xf-xiaowanzi-child-picker-actions">
+      <button class="xf-xiaowanzi-child-picker-cancel" catchtap="closeChildPicker">取消</button>
+      <button class="xf-xiaowanzi-child-picker-primary" catchtap="openChildCreateFromPicker">新增孩子</button>
+    </view>
+  </view>
+
+  <view wx:if="{{toastText}}" class="xf-xiaowanzi-toast">{{toastText}}</view>
+
+  <canvas wx:if="{{shareCanvasMounted}}" canvas-id="xiaowanziShareCanvas" class="xf-xiaowanzi-share-canvas" width="750" height="{{shareCanvasHeight}}" style="width: 750px; height: {{shareCanvasHeight}}px;"></canvas>
+
+  <view wx:if="{{settingsPanelOpen}}" class="xf-xiaowanzi-archive-scrim" catchtap="closeSettings" catchtouchmove="noop"></view>
+  <view wx:if="{{settingsPanelOpen}}" class="xf-xiaowanzi-archive-panel" catchtouchmove="noop">
+    <template wx:if="{{settingsPanelView === 'archive'}}" is="xfSettingsArchivePanel" data="{{profileHeaderHeight: profileHeaderHeight, archiveHasChildren: archiveHasChildren, archiveChildren: archiveChildren, archiveInsightGrade: archiveInsightGrade, archiveDraft: archiveDraft, archiveProfileStatus: archiveProfileStatus, archiveRelationOptions: archiveRelationOptions, archiveRegionOptions: archiveRegionOptions, archiveRegionIndex: archiveRegionIndex, archiveStageOptions: archiveStageOptions, archiveStageIndex: archiveStageIndex, archiveStage: archiveStage, archiveGradeOptions: archiveGradeOptions, archiveStageGradeColumns: archiveStageGradeColumns, archiveStageGradeValue: archiveStageGradeValue, archiveGradeSelectOptions: archiveGradeSelectOptions, archiveGradeName: archiveGradeName, archiveGradeDropdownOpen: archiveGradeDropdownOpen, archiveTagOptions: archiveTagOptions, profilePanelMessage: profilePanelMessage}}"></template>
+  </view>
+</view>

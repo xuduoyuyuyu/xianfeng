@@ -72,12 +72,14 @@ const AdminMaterialsPage: React.FC = () => {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ created: number; updated: number; failed: number } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchText, setSearchText] = useState('');
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     fileUrl: '',
     category: '',
-    status: 'draft' as 'draft' | 'published' | 'group-only',
+    status: 'draft' as 'draft' | 'published',
   });
 
   useEffect(() => {
@@ -87,7 +89,7 @@ const AdminMaterialsPage: React.FC = () => {
   const fetchMaterials = async () => {
     try {
       const status = filter === 'all' ? undefined : filter;
-      const response = await adminApi.getMaterials(status);
+      const response = await adminApi.getMaterials({ status });
       setMaterials(response.data);
       setCurrentPage(1);
     } catch (error) {
@@ -97,15 +99,33 @@ const AdminMaterialsPage: React.FC = () => {
     }
   };
 
-  const totalPages = Math.max(1, Math.ceil(materials.length / PAGE_SIZE));
+  const filteredMaterials = useMemo(() => {
+    const keyword = searchText.trim().toLowerCase();
+    if (!keyword) return materials;
+    return materials.filter((material) =>
+      [
+        material.title,
+        material.description,
+        material.category,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(keyword))
+    );
+  }, [materials, searchText]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredMaterials.length / PAGE_SIZE));
   const pagedMaterials = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
-    return materials.slice(start, start + PAGE_SIZE);
-  }, [materials, currentPage]);
+    return filteredMaterials.slice(start, start + PAGE_SIZE);
+  }, [filteredMaterials, currentPage]);
 
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchText]);
 
   const handleCreate = () => {
     setEditingMaterial(null);
@@ -127,17 +147,33 @@ const AdminMaterialsPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;
+    setSaving(true);
     try {
+      const payload = {
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        fileUrl: formData.fileUrl.trim(),
+        category: formData.category.trim(),
+        status: formData.status,
+      };
       if (editingMaterial) {
-        await adminApi.updateMaterial(editingMaterial._id, formData);
+        await adminApi.updateMaterial(editingMaterial._id, payload);
       } else {
-        await adminApi.createMaterial(formData);
+        await adminApi.createMaterial(payload);
       }
       setShowModal(false);
       fetchMaterials();
-    } catch (error) {
+    } catch (error: any) {
       console.error('保存失败:', error);
-      alert('保存失败，请重试');
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data?.error?.message ||
+        error?.message ||
+        '保存失败，请重试';
+      alert(message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -299,7 +335,7 @@ const AdminMaterialsPage: React.FC = () => {
       </div>
 
       {/* 筛选标签 */}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex bg-stone-100 p-1.5 rounded-2xl">
           {(['all', 'published', 'draft'] as const).map((f) => (
             <button
@@ -314,6 +350,26 @@ const AdminMaterialsPage: React.FC = () => {
               {f === 'all' ? '全部' : f === 'published' ? '已发布' : '草稿'}
             </button>
           ))}
+        </div>
+        <div className="relative w-full lg:w-96">
+          <input
+            type="search"
+            placeholder="搜索标题、描述、分类"
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            className="w-full rounded-2xl border border-stone-200 bg-white py-3 pl-4 pr-11 text-sm outline-none transition-colors focus:border-[#5e17eb] focus:ring-4 focus:ring-[#5e17eb]/5"
+          />
+          {searchText ? (
+            <button
+              type="button"
+              onClick={() => setSearchText('')}
+              className="absolute right-10 top-1/2 -translate-y-1/2 rounded-lg p-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
+              aria-label="清空搜索"
+            >
+              <span className="material-symbols-outlined text-base">close</span>
+            </button>
+          ) : null}
+          <span className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-base text-stone-400">search</span>
         </div>
       </div>
 
@@ -396,15 +452,15 @@ const AdminMaterialsPage: React.FC = () => {
                 ))}
               </tbody>
             </table>
-            {materials.length === 0 && (
+            {filteredMaterials.length === 0 && (
               <div className="text-center py-16 text-stone-400">
                 <span className="material-symbols-outlined text-6xl mb-4">inbox</span>
-                <p>暂无学习资料</p>
+                <p>{searchText.trim() ? '没有找到匹配的学习资料' : '暂无学习资料'}</p>
               </div>
             )}
-            {materials.length > 0 && (
+            {filteredMaterials.length > 0 && (
               <div className="flex items-center justify-between border-t border-stone-100 px-6 py-4 text-sm text-stone-500">
-                <div>第 {currentPage}/{totalPages} 页，每页 {PAGE_SIZE} 条，共 {materials.length} 条</div>
+                <div>第 {currentPage}/{totalPages} 页，每页 {PAGE_SIZE} 条，共 {filteredMaterials.length} 条{searchText.trim() ? `（搜索"${searchText.trim()}"）` : ''}</div>
                 <div className="flex gap-2">
                   <button
                     className="rounded-xl border border-stone-200 px-3 py-2 text-xs font-bold text-stone-700 disabled:cursor-not-allowed disabled:opacity-50"
@@ -502,7 +558,7 @@ const AdminMaterialsPage: React.FC = () => {
                   </label>
                   <select
                     value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as 'draft' | 'published' | 'group-only' })}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value as 'draft' | 'published' })}
                     className="w-full bg-stone-50 border border-stone-200 rounded-xl py-3 px-4 text-sm focus:ring-4 focus:ring-[#5e17eb]/5 focus:border-[#5e17eb] outline-none"
                   >
                     <option value="draft">草稿</option>
@@ -519,9 +575,10 @@ const AdminMaterialsPage: React.FC = () => {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-3 rounded-xl bg-[#5e17eb] text-white font-bold text-sm hover:bg-[#5e17eb]/90 transition-colors"
+                    disabled={saving}
+                    className="flex-1 py-3 rounded-xl bg-[#5e17eb] text-white font-bold text-sm hover:bg-[#5e17eb]/90 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    保存
+                    {saving ? '保存中...' : '保存'}
                   </button>
                 </div>
               </form>

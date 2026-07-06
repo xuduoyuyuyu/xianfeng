@@ -7,6 +7,7 @@ import Pagination from "../components/Pagination";
 import { publicApi, LearningMaterial } from "../services/api";
 import { useIsMobilePager } from "../hooks/useIsMobilePager";
 import { useXiaowanziEmbeddedLayer } from "../utils/xiaowanziLayer";
+import { isMiniProgramWebView } from "../utils/mpAuthBridge";
 
 type MaterialMeta = {
   stage: string;
@@ -268,6 +269,7 @@ function gradeRank(value: string): number {
 const MaterialsPage: React.FC = () => {
   const superModePage = useXiaowanziEmbeddedLayer();
   const isMobilePager = useIsMobilePager();
+  const miniProgramWebView = isMiniProgramWebView();
   const token = useSelector((state: RootState) => state.user.token);
   const [searchParams, setSearchParams] = useSearchParams();
   const initialKeyword = String(searchParams.get("q") || "").trim();
@@ -422,6 +424,30 @@ const MaterialsPage: React.FC = () => {
     }, 1800);
   };
 
+  async function copyMaterialLink(url: string) {
+    const text = String(url || "").trim();
+    if (!text) return;
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        showCopyToast();
+        return;
+      }
+    } catch (_error) {}
+
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "readonly");
+    textarea.style.position = "fixed";
+    textarea.style.left = "-9999px";
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    document.body.removeChild(textarea);
+    showCopyToast();
+  }
+
   const toggle = (value: string, selected: string[], setSelected: (next: string[]) => void) => {
     const isLoggedIn = !!token || !!localStorage.getItem("token");
     if (!isLoggedIn) {
@@ -499,7 +525,7 @@ const MaterialsPage: React.FC = () => {
   );
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#f3f2f8] text-[#1f1d1a]">
+    <div className="xf-materials-page relative min-h-screen overflow-hidden bg-[#f3f2f8] text-[#1f1d1a]">
       {/* MaterialsPage: thin crisscross lines + slow drift orbs */}
       <style>{`
         @keyframes matOrb1 {
@@ -548,13 +574,249 @@ const MaterialsPage: React.FC = () => {
           color: #9a8fc4;
           font-weight: 500;
         }
+        .xf-materials-page {
+          position: relative;
+          min-height: 100vh;
+          overflow: hidden;
+          background: #f3f2f8;
+          color: #1f1d1a;
+        }
+        .xf-materials-page .materials-mobile-main {
+          position: relative;
+          z-index: 1;
+          max-width: 1280px;
+          margin: 0 auto;
+          box-sizing: border-box;
+          padding: 76px 16px 64px;
+        }
+        html.xf-mp-webview .materials-mobile-main {
+          --xf-mp-outer-gutter: clamp(8px, 2.4vw, 10px);
+          --xf-mp-inner-gutter: clamp(3px, 1vw, 4px);
+          width: calc(100% - var(--xf-mp-outer-gutter)) !important;
+          padding-left: var(--xf-mp-inner-gutter) !important;
+          padding-right: var(--xf-mp-inner-gutter) !important;
+          padding-top: var(--xf-mp-nav-height, 88px) !important;
+          padding-bottom: 0 !important;
+        }
+        .xf-materials-page .materials-mobile-hero {
+          position: relative;
+          overflow: hidden;
+          border: 1px solid #d8d0ef;
+          border-radius: 32px;
+          background: radial-gradient(circle at 85% 15%, rgba(143,100,255,.1), transparent 38%), linear-gradient(135deg, #f4f1fd 0%, #faf8ff 48%, #f0ebff 100%);
+          padding: 28px;
+          box-shadow: 0 24px 80px rgba(80,62,125,.1);
+        }
+        .xf-materials-page .materials-mobile-hero > div:first-child > div:first-child {
+          display: inline-flex;
+          border: 1px solid #cfc2ef;
+          border-radius: 999px;
+          background: #f3eefc;
+          padding: 4px 16px;
+          color: #5b3fa1;
+          font-size: 11px;
+          font-weight: 900;
+          letter-spacing: .26em;
+          text-transform: uppercase;
+        }
+        .xf-materials-page .materials-mobile-hero h1 {
+          margin: 16px 0 0;
+          color: #2b1a3a;
+          font-size: 42px;
+          line-height: 1.08;
+          font-weight: 900;
+          letter-spacing: 0;
+        }
+        .xf-materials-page .materials-mobile-hero p {
+          margin: 12px 0 0;
+          max-width: 720px;
+          color: #6f62a3;
+          font-size: 16px;
+          line-height: 1.8;
+        }
+        .xf-materials-page .materials-mobile-hero > div:nth-child(2) {
+          display: flex;
+          gap: 12px;
+          margin-top: 24px;
+        }
+        .xf-materials-page .materials-hero-search {
+          display: inline-flex;
+          flex: 1 1 auto;
+          align-items: center;
+          gap: 8px;
+          box-sizing: border-box;
+          padding: 0 16px;
+        }
+        .xf-materials-page .materials-hero-control {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          box-sizing: border-box;
+          border-radius: 16px;
+        }
+        .xf-materials-page button.materials-hero-control {
+          flex: 0 0 auto;
+          border: 1px solid #cfc2ee;
+          background: #fff;
+          padding: 0 20px;
+          color: #654f88;
+          font-size: 14px;
+          font-weight: 800;
+        }
+        .xf-materials-page .materials-mobile-filter {
+          margin-top: 24px;
+          border: 1px solid #e0d9f2;
+          border-radius: 28px;
+          background: #fff;
+          padding: 20px;
+          box-shadow: 0 16px 50px rgba(80,62,125,.06);
+        }
+        .xf-materials-page .materials-mobile-filter .space-y-5 {
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+        }
+        .xf-materials-page .materials-mobile-filter .flex.flex-col.gap-3,
+        .xf-materials-page .materials-mobile-filter .md\\:flex-row {
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+        }
+        .xf-materials-page .materials-mobile-label {
+          flex: 0 0 72px;
+          width: 72px;
+          padding-top: 4px;
+          color: #6b5fa0;
+          font-size: 14px;
+          font-weight: 900;
+          letter-spacing: .1em;
+        }
+        .xf-materials-page .materials-mobile-filter .flex-1 {
+          flex: 1 1 auto;
+          min-width: 0;
+        }
+        .xf-materials-page .materials-mobile-filter .flex.flex-wrap {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+        .xf-materials-page .materials-filter-chip {
+          min-height: 42px;
+          border-radius: 999px;
+          border: 1px solid #d8c8ef;
+          background: #fff;
+          padding: 9px 18px;
+          color: #6b5fa0;
+          font-size: 15px;
+          font-weight: 400 !important;
+          line-height: 1.2;
+        }
+        .xf-materials-page .materials-filter-chip.border-\\[\\#5e17eb\\] {
+          border-color: #5e17eb;
+          background: #5e17eb;
+          color: #fff;
+        }
+        .xf-materials-page .materials-mobile-filter > div:last-child {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 8px;
+          margin-top: 20px;
+          color: #7b6bb8;
+          font-size: 14px;
+        }
+        .xf-materials-page .materials-mobile-filter > div:last-child span {
+          border-radius: 999px;
+          padding: 4px 10px;
+        }
+        .xf-materials-page .materials-mobile-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 16px;
+          margin-top: 24px;
+        }
+        .xf-materials-page .materials-mobile-grid > article {
+          box-sizing: border-box;
+          border: 1px solid #e2dcf0;
+          border-radius: 22px;
+          background: #fff;
+          padding: 20px;
+          box-shadow: 0 12px 40px rgba(80,62,125,.05);
+        }
+        .xf-materials-page .materials-mobile-grid > article h2 {
+          margin: 0;
+          display: -webkit-box;
+          overflow: hidden;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          color: #2b1a3a;
+          font-size: 18px;
+          line-height: 1.35;
+          font-weight: 900;
+        }
+        .xf-materials-page .materials-mobile-grid > article > div {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-top: 12px;
+        }
+        .xf-materials-page .materials-mobile-grid > article span {
+          border-radius: 999px;
+          padding: 4px 10px;
+          font-size: 11px;
+          font-weight: 800;
+        }
+        .xf-materials-page .materials-mobile-grid > article p {
+          display: -webkit-box;
+          overflow: hidden;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          margin: 16px 0 0;
+          color: #6f62a4;
+          font-size: 14px;
+          line-height: 1.7;
+        }
+        .xf-materials-page .materials-mobile-grid > article a {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          border-radius: 999px;
+          background: #5e17eb;
+          padding: 8px 16px;
+          color: #fff !important;
+          font-size: 12px;
+          font-weight: 900;
+          text-decoration: none;
+        }
         @media (max-width: 768px) {
+          .xf-materials-page .materials-mobile-main { padding-left: 16px !important; padding-right: 16px !important; }
           .materials-mobile-main { padding-top: 70px !important; padding-bottom: calc(120px + env(safe-area-inset-bottom)) !important; }
+          html.xf-mp-webview .materials-mobile-main {
+            --xf-mp-outer-gutter: clamp(8px, 2.4vw, 10px);
+            --xf-mp-inner-gutter: clamp(3px, 1vw, 4px);
+            width: calc(100% - var(--xf-mp-outer-gutter)) !important;
+            padding-left: var(--xf-mp-inner-gutter) !important;
+            padding-right: var(--xf-mp-inner-gutter) !important;
+            padding-top: var(--xf-mp-nav-height, 88px) !important;
+            padding-bottom: 0 !important;
+          }
           .materials-mobile-main.xw-layer-main { padding-top: 24px !important; }
           .materials-mobile-hero { padding: 16px !important; border-radius: 20px !important; }
+          .xf-materials-page .materials-mobile-hero h1 { font-size: 32px; }
+          .xf-materials-page .materials-mobile-hero p { font-size: 15px; line-height: 1.65; }
+          .xf-materials-page .materials-mobile-hero > div:nth-child(2) { flex-direction: column; }
           .materials-mobile-filter { padding: 12px !important; border-radius: 16px !important; }
-          .materials-mobile-label { width: 56px !important; font-size: 12px !important; }
-          .materials-filter-chip { padding: 6.5px 13px !important; font-size: 14.3px !important; line-height: 1.2 !important; }
+          .xf-materials-page .materials-mobile-filter .flex.flex-col.gap-3,
+          .xf-materials-page .materials-mobile-filter .md\\:flex-row { align-items: flex-start; gap: 10px; }
+          .materials-mobile-label {
+            flex: 0 0 auto !important;
+            width: auto !important;
+            padding-top: 0 !important;
+            font-size: 12px !important;
+            line-height: 1.2 !important;
+          }
+          .xf-materials-page .materials-filter-chip { min-height: 32px !important; padding: 6.5px 13px !important; font-size: 14.3px !important; font-weight: 400 !important; line-height: 1.2 !important; }
+          .xf-materials-page .materials-mobile-grid { grid-template-columns: 1fr; }
           .materials-mobile-grid { gap: 12px !important; }
         }
       `}</style>
@@ -704,8 +966,7 @@ const MaterialsPage: React.FC = () => {
                   onClick={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
-                    navigator.clipboard.writeText(item.fileUrl || "").catch(() => {});
-                    showCopyToast();
+                    void copyMaterialLink(item.fileUrl || "");
                   }}
                 >
                   <h2 className="line-clamp-2 text-lg font-black leading-snug text-[#2b1a3a]">{item.title}</h2>
@@ -741,10 +1002,18 @@ const MaterialsPage: React.FC = () => {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 rounded-full bg-[#5e17eb] px-4 py-2 text-xs font-black !text-white transition hover:bg-[#4c12c3] hover:!text-white"
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (miniProgramWebView) {
+                          e.preventDefault();
+                          void copyMaterialLink(item.fileUrl || "");
+                        }
+                      }}
                     >
-                      打开资料
-                      <span className="material-symbols-outlined !text-[15px] !font-light !text-white">open_in_new</span>
+                      {miniProgramWebView ? "复制链接" : "打开资料"}
+                      <span className="material-symbols-outlined !text-[15px] !font-light !text-white">
+                        {miniProgramWebView ? "content_copy" : "open_in_new"}
+                      </span>
                     </a>
                   </div>
                 </article>

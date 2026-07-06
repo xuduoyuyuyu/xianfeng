@@ -16,7 +16,7 @@ const ProUpgradeModal: React.FC<{
           {message || "订阅后可开启小玩子、嘉宾 AI 分身与知物新分析等高级能力。基础浏览、历史内容和公开资料不受影响。"}
         </p>
         <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm font-bold leading-6 text-slate-700">
-          订阅包月 ¥19.9，订阅年付 ¥99。支付成功后 3 天内可在订阅页自助申请全额退款。
+          Plus ¥19.9，Pro ¥99。退款按未使用点数折算，已使用点数对应费用不退。
         </div>
         <div className="mt-6 grid grid-cols-[1fr_auto] gap-3">
           <Link

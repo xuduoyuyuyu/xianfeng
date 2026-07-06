@@ -52,7 +52,7 @@ test("books page orders detailed cover books before cover-only and text-only boo
   assert.match(source, /const coverLoading = isPriorityCover \? "eager" : "lazy";/, "top covers should load eagerly while lower covers stay lazy");
   assert.match(source, /const coverFetchPriority = isPriorityCover \? "high" : "auto";/, "top covers should get a high browser fetch priority");
   assert.match(source, /loading=\{coverLoading\}/, "book cards should use per-card loading priority");
-  assert.match(source, /fetchPriority=\{coverFetchPriority\}/, "book cards should use the browser fetchPriority hint");
+  assert.match(source, /fetchpriority: coverFetchPriority/, "book cards should use the browser fetchpriority hint without React unknown-prop warnings");
   assert.match(source, /min-h-\[180px\][\s\S]*sm:min-h-\[220px\]/, "book cards with known covers should reserve image space while covers are loading");
   assert.match(source, /onLoad=\{\(\) => setCoverLoaded\(true\)\}/, "book cards should reveal cover images once the image finishes loading");
   assert.doesNotMatch(source, /&retry=\$\{coverRetry\}/, "book card retries must not append cache-busting query params to proxied image URLs");
@@ -74,4 +74,40 @@ test("books page supports filtering to one named source list from detail links",
   assert.match(source, /if \(boundSourceName\) next\.set\("sourceName", boundSourceName\);/, "books page should preserve sourceName in the URL");
   assert.match(source, /const bySourceName = !boundSourceName \|\| normalizeText\(item\.sourceName\) === boundSourceName;/, "books page should filter the current guest-bound list down to the exact source name");
   assert.match(source, /return bySourceName && byGrade && byTopic && byKeyword;/, "sourceName filtering should compose with the existing filters");
+});
+
+test("books page keeps styled layout in mini program web-view without relying on Tailwind utilities", () => {
+  assert.match(source, /xf-books-page/);
+  assert.match(source, /\.xf-books-page/);
+  assert.match(source, /\.books-mobile-main/);
+  assert.match(source, /\.books-mobile-hero/);
+  assert.match(source, /\.books-hero-logo/);
+  assert.match(source, /\.books-mobile-filter/);
+  assert.match(source, /\.books-filter-chip/);
+  assert.match(source, /\.books-mobile-card article/);
+  assert.match(source, /html\.xf-mp-webview \.books-mobile-main/);
+  assert.match(source, /html\.xf-mp-webview \.books-mobile-main \{[\s\S]*padding-top: var\(--xf-mp-nav-height, 88px\) !important;[\s\S]*padding-bottom: 0 !important;/);
+  assert.match(source, /\.books-mobile-label\s*\{[\s\S]*flex: 0 0 auto !important;[\s\S]*width: auto !important;[\s\S]*line-height: 1\.2 !important;/, "mobile filter labels should not keep the desktop 72px flex-basis as vertical height");
+  assert.match(source, /md\\\\:flex-row/);
+  assert.match(source, /border-\\\\\[\\\\#5e17eb\\\\\]/);
+});
+
+test("book cards expose stable classes for mini program fallback styling", () => {
+  assert.match(source, /book-card-article/);
+  assert.match(source, /book-card-cover-frame/);
+  assert.match(source, /book-card-cover-shell/);
+  assert.match(source, /book-card-cover-image/);
+  assert.match(source, /book-card-body/);
+  assert.match(source, /book-card-title/);
+  assert.match(source, /book-card-meta/);
+  assert.match(source, /book-card-tags/);
+  assert.match(source, /book-card-tag book-card-tag-guest/);
+  assert.match(source, /book-card-source-row/);
+  assert.match(source, /\.xf-books-page \.book-card-cover-frame/);
+  assert.match(source, /\.xf-books-page \.book-card-cover-shell/);
+  assert.match(source, /\.xf-books-page \.book-card-cover-image/);
+  assert.match(source, /\.xf-books-page \.book-card-body/);
+  assert.match(source, /\.xf-books-page \.book-card-tags/);
+  assert.match(source, /\.xf-books-page \.book-card-tag/);
+  assert.match(source, /\.xf-books-page \.book-card-source-row/);
 });

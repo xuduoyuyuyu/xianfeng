@@ -59,3 +59,9 @@ test("program detail gates mindmap quickview and transcript tabs by real data", 
   assert.doesNotMatch(source, /const description = program\.description \|\| "这期节目围绕家庭教育与成长展开讨论。";/, "program descriptions should not seed synthetic transcript rows");
   assert.doesNotMatch(source, /暂无脉络数据/, "empty mindmap data should hide the block instead of rendering a placeholder graph");
 });
+
+test("program detail uses native mini program chrome spacing when embedded", () => {
+  assert.match(source, /html\.xf-mp-webview \.program-detail-main/);
+  assert.match(source, /padding-top: var\(--xf-mp-nav-height, 88px\) !important;/);
+  assert.match(source, /padding-bottom: 0 !important;/);
+});

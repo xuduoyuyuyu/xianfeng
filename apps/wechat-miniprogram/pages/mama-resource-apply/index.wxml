@@ -1,0 +1,328 @@
+<import src="../../templates/settings-profile-views.wxml" />
+
+<view class="xf-mama-page {{fontSizeClass}}" style="padding-top: {{chromeHeight}}px;">
+  <view class="xf-native-topbar" style="height: {{topbarHeight}}px;">
+    <view class="xf-native-nav-row" style="height: {{topbarHeight}}px;">
+      <view wx:if="{{launchedFromSettings}}" class="xf-native-menu-button xf-native-back-button" style="top: {{backTop}}px; width: {{backSize}}px; height: {{backSize}}px;" catchtap="goBack" role="button" aria-label="返回">
+        <view class="xf-native-back-icon" aria-hidden="true"></view>
+      </view>
+      <view wx:else class="xf-native-menu-button" style="top: {{logoTop}}px; height: {{logoHeight}}px;" catchtap="openSettings" role="button" aria-label="打开设置">
+        <view class="xf-native-menu-icon" aria-hidden="true"></view>
+      </view>
+      <image class="xf-native-logo" style="top: {{logoTop}}px; height: {{logoHeight}}px;" src="/assets/nav/logo.png" mode="aspectFit" bindtap="goProgramsHome" aria-label="回到顶部" />
+      <button class="xf-native-welfare-button" style="top: {{logoTop}}px; right: {{welfareRight}}px; height: {{logoHeight}}px;" catchtap="openWelfare" aria-label="百宝箱">
+        <image class="xf-native-welfare-icon" src="/assets/menu/welfare-gift-icon.png" mode="aspectFit" aria-hidden="true" />
+      </button>
+    </view>
+  </view>
+
+  <view class="xf-mama-content">
+    <block wx:if="{{mamaResourceView === 'apply'}}">
+      <view class="xf-mama-intro-card">
+        <view class="xf-mama-head">
+          <image class="xf-mama-icon" src="/assets/menu/mama-hao-zhuan-icon.png" mode="aspectFit" />
+          <view>
+            <text class="xf-mama-title">妈妈好赚</text>
+          </view>
+        </view>
+        <text class="xf-mama-intro-text">如果你愿意用自己的小红书账号接亲子、教育、家庭消费相关发稿，可以先把基础资料提交给我们，通过审核，我们会联系您入群，进行后续任务派发。</text>
+        <view class="xf-mama-notes">
+          <text>小红书优先，收主页链接</text>
+          <text>不需要账号密码，不要求代登录</text>
+          <text>数据用于审核匹配，可联系运营更新或停用资料</text>
+        </view>
+      </view>
+
+      <view class="xf-mama-card">
+        <form class="xf-mama-form" bindsubmit="submit">
+          <view class="xf-mama-head">
+            <view>
+              <text class="xf-mama-title">资料提交</text>
+              <text class="xf-mama-subtitle">填写基础资料后进入待审核</text>
+            </view>
+          </view>
+
+          <view class="xf-mama-grid">
+            <label class="xf-mama-field">姓名/昵称<input name="displayName" value="{{formDraft.displayName}}" data-field="displayName" bindinput="updateDraftField" placeholder="例如：安安妈妈" placeholder-class="xf-mama-placeholder" /></label>
+            <label class="xf-mama-field">微信号<input name="contactWechat" value="{{formDraft.contactWechat}}" data-field="contactWechat" bindinput="updateDraftField" placeholder="优先通过微信添加" placeholder-class="xf-mama-placeholder" /></label>
+            <label class="xf-mama-field">手机号<input name="contactPhone" value="{{formDraft.contactPhone}}" data-field="contactPhone" bindinput="updateDraftField" placeholder="备用联系电话" placeholder-class="xf-mama-placeholder" /></label>
+            <label class="xf-mama-field">城市<input name="city" value="{{formDraft.city}}" data-field="city" bindinput="updateDraftField" placeholder="上海 / 杭州" placeholder-class="xf-mama-placeholder" /></label>
+          </view>
+
+          <label class="xf-mama-field">
+            孩子阶段
+            <picker mode="selector" range="{{childStages}}" value="{{childStageIndex}}" bindchange="selectChildStage">
+              <view class="xf-mama-picker">{{childStage || "请选择孩子阶段"}}</view>
+            </picker>
+          </label>
+
+          <label class="xf-mama-field">
+            孩子性别
+            <view class="xf-mama-gender-options">
+              <button
+                wx:for="{{childGenderOptions}}"
+                wx:key="value"
+                class="xf-mama-gender-chip {{childGender === item.value ? 'is-active' : ''}}"
+                data-value="{{item.value}}"
+                catchtap="toggleChildGender"
+                aria-label="选择孩子性别 {{item.label}}"
+              >{{item.label}}</button>
+            </view>
+          </label>
+
+          <label class="xf-mama-field">小红书主页链接<input name="xiaohongshuProfileUrl" value="{{formDraft.xiaohongshuProfileUrl}}" data-field="xiaohongshuProfileUrl" bindinput="updateDraftField" placeholder="https://www.xiaohongshu.com/user/profile/..." placeholder-class="xf-mama-placeholder" /></label>
+          <view class="xf-mama-field">
+            <text>小红书页面截图</text>
+            <button class="xf-mama-upload-button" type="button" loading="{{xiaohongshuScreenshotUploading}}" disabled="{{xiaohongshuScreenshotUploading}}" catchtap="chooseXiaohongshuScreenshot">
+              {{xiaohongshuScreenshotUrl ? "已上传，重新选择" : "上传小红书主页截图"}}
+            </button>
+            <text class="xf-mama-upload-hint">{{xiaohongshuScreenshotUploading ? "截图上传中..." : (xiaohongshuScreenshotUrl ? "已上传，可继续提交" : "调用手机相册或相机上传截图")}}</text>
+          </view>
+          <label class="xf-mama-field">粉丝数<input name="followerCount" type="number" value="{{formDraft.followerCount}}" data-field="followerCount" bindinput="updateDraftField" placeholder="例如：12800" placeholder-class="xf-mama-placeholder" /></label>
+          <label class="xf-mama-field">
+            是否实名认证
+            <view class="xf-mama-gender-options">
+              <button
+                wx:for="{{realNameVerifiedOptions}}"
+                wx:key="value"
+                class="xf-mama-gender-chip {{(item.value === 'yes' && realNameVerified === true) || (item.value === 'no' && realNameVerified === false) ? 'is-active' : ''}}"
+                data-value="{{item.value}}"
+                catchtap="toggleRealNameVerified"
+                aria-label="选择实名认证状态 {{item.label}}"
+              >{{item.label}}</button>
+            </view>
+          </label>
+          <label class="xf-mama-field">账号定位<textarea name="accountPositioning" value="{{formDraft.accountPositioning}}" data-field="accountPositioning" bindinput="updateDraftField" placeholder="例如：亲子阅读、学习规划、家居收纳、母婴好物" placeholder-class="xf-mama-textarea-placeholder"></textarea></label>
+
+          <view class="xf-mama-field">
+            <text>可发品类</text>
+            <view class="xf-mama-chips">
+              <button
+                wx:for="{{categories}}"
+                wx:key="label"
+                class="xf-mama-chip {{item.selected ? 'is-active' : ''}}"
+                data-category="{{item.label}}"
+                catchtap="toggleCategory"
+                aria-label="选择可发品类 {{item.label}}"
+              >{{item.label}}</button>
+            </view>
+          </view>
+
+          <view class="xf-mama-panel">
+            <label class="xf-mama-field is-nested">暂不接的品类<input name="blockedCategories" value="{{formDraft.blockedCategories}}" data-field="blockedCategories" bindinput="updateDraftField" placeholder="例如：医美、金融、成人用品" placeholder-class="xf-mama-placeholder" /></label>
+            <checkbox-group name="consentAccepted" bindchange="toggleConsentAccepted">
+              <label class="xf-mama-check"><checkbox class="xf-mama-check-circle" value="1" checked="{{formDraft.consentAccepted}}" />我同意家和万事团队为发稿资源匹配和运营联系使用以上资料</label>
+            </checkbox-group>
+          </view>
+
+          <view wx:if="{{message}}" class="xf-mama-message {{messageType}}">{{message}}</view>
+          <button form-type="submit" class="xf-mama-submit" disabled="{{submitting}}">{{submitting ? "提交中..." : "提交资料，进入待审核"}}</button>
+        </form>
+      </view>
+    </block>
+
+    <block wx:elif="{{mamaResourceView === 'reviewing'}}">
+      <view class="xf-mama-review-card {{mamaResourceProfile.status}}">
+        <view class="xf-mama-review-icon">{{mamaResourceProfile.status === "needs_info" ? "!" : (mamaResourceProfile.status === "rejected" ? "×" : "✓")}}</view>
+        <text class="xf-mama-review-title">{{mamaResourceProfile.statusText || "资料正在审核"}}</text>
+        <text wx:if="{{mamaResourceProfile.status === 'pending'}}" class="xf-mama-review-copy">你的妈妈好赚资料已经提交，运营会核对小红书主页、粉丝数、实名状态和可发品类。</text>
+        <text wx:elif="{{mamaResourceProfile.status === 'needs_info'}}" class="xf-mama-review-copy">运营需要你补充或修正部分资料。补充后我们会继续审核。</text>
+        <text wx:elif="{{mamaResourceProfile.status === 'rejected'}}" class="xf-mama-review-copy">当前资料暂未通过本期任务匹配。你可以按运营建议调整后重新提交。</text>
+        <text wx:else class="xf-mama-review-copy">资料状态已更新，请稍后刷新查看最新结果。</text>
+
+        <view class="xf-mama-review-info">
+          <view>
+            <text>提交账号</text>
+            <text>{{mamaResourceProfile.displayName || "未记录"}}</text>
+          </view>
+          <view>
+            <text>提交时间</text>
+            <text>{{mamaResourceProfile.submittedDateText || "刚刚提交"}}</text>
+          </view>
+          <view>
+            <text>可发品类</text>
+            <text>{{mamaResourceProfile.categoriesText || "待运营确认"}}</text>
+          </view>
+        </view>
+
+        <view wx:if="{{mamaResourceProfile.reviewMessage}}" class="xf-mama-review-note">
+          <text>运营备注</text>
+          <text>{{mamaResourceProfile.reviewMessage}}</text>
+        </view>
+
+        <view class="xf-mama-review-next">
+          <text>审核通过后会进入任务中心，任务会以项目列表展示，可进入详情提交链接和完成截图。</text>
+        </view>
+
+        <button wx:if="{{mamaResourceProfile.status === 'needs_info' || mamaResourceProfile.status === 'rejected'}}" class="xf-mama-review-action" catchtap="showApplyForm">
+          重新提交资料
+        </button>
+      </view>
+    </block>
+
+    <block wx:elif="{{mamaResourceView === 'tasks'}}">
+      <view class="xf-mama-task-hero">
+        <view>
+          <text class="xf-mama-task-kicker">账号已通过</text>
+          <text class="xf-mama-task-title">妈妈好赚任务中心</text>
+          <text class="xf-mama-task-subtitle">{{mamaResourceProfile.displayName || "已审核账号"}} · 可接：{{mamaResourceProfile.categoriesText || "亲子阅读、学习用品"}}</text>
+        </view>
+      </view>
+
+      <view class="xf-mama-task-tabs">
+        <text class="is-active">进行中</text>
+        <text>待审核</text>
+        <text>已收录</text>
+      </view>
+
+      <view wx:if="{{mamaTasksLoading}}" class="xf-mama-task-empty">任务加载中...</view>
+      <view wx:elif="{{mamaTasks.length === 0}}" class="xf-mama-task-empty">暂无已分配任务，运营分配后会显示在这里。</view>
+      <view wx:else class="xf-mama-task-list">
+        <view wx:for="{{mamaTasks}}" wx:key="_id" class="xf-mama-task-row" data-id="{{item._id}}" catchtap="openMamaTask">
+          <view class="xf-mama-task-logo">任</view>
+          <view class="xf-mama-task-main">
+            <view class="xf-mama-task-row-head">
+              <text class="xf-mama-task-name">{{item.title}}</text>
+              <text class="xf-mama-task-price">{{item.unitPriceText}}</text>
+            </view>
+            <text class="xf-mama-task-meta">{{item.category}} · {{item.dataCycle || "T+9"}} · {{item.statusText}}</text>
+            <text class="xf-mama-task-meta">正在推广：{{item.promotionCountText}}人 · 最新数据：{{item.latestDataDateText}}</text>
+          </view>
+          <text class="xf-mama-task-chevron">›</text>
+        </view>
+      </view>
+    </block>
+
+    <block wx:elif="{{mamaResourceView === 'detail'}}">
+      <view class="xf-mama-detail-shell">
+        <view class="xf-mama-detail-hero">
+          <view class="xf-mama-detail-back" catchtap="backToMamaTasks">‹</view>
+          <view class="xf-mama-detail-brand">
+            <view class="xf-mama-detail-logo">任</view>
+            <view>
+              <text class="xf-mama-detail-title">{{currentMamaTask.title || "任推邦（红薯）评论"}}</text>
+              <view class="xf-mama-detail-tags">
+                <text>{{currentMamaTask.difficulty || "简单"}}</text>
+                <text>{{currentMamaTask.phase || "测试期"}}</text>
+                <text>{{currentMamaTask.category || "小红书评论"}}</text>
+              </view>
+            </view>
+          </view>
+        </view>
+
+        <view class="xf-mama-notice-row">
+          <text class="xf-mama-notice-badge">公告</text>
+          <text>{{currentMamaTask.announcement || "项目重要通知"}}</text>
+          <text class="xf-mama-task-chevron">›</text>
+        </view>
+
+        <view class="xf-mama-project-card">
+          <view class="xf-mama-detail-tabs">
+            <text class="is-active">项目信息</text>
+            <text>推广流程</text>
+          </view>
+
+          <view class="xf-mama-section-title">项目价格</view>
+          <view class="xf-mama-price-table">
+            <view>任务</view>
+            <view>价格</view>
+            <view>数据周期</view>
+            <view>结算周期</view>
+            <view>{{currentMamaTask.category || "小红书评论"}}</view>
+            <view class="is-price">{{currentMamaTask.unitPriceText}}</view>
+            <view>{{currentMamaTask.dataCycle || "T+9"}}</view>
+            <view>{{currentMamaTask.settlementCycle || "T+9"}}</view>
+          </view>
+
+          <view class="xf-mama-fold-row">
+            <text>结算标准</text>
+            <text>{{currentMamaTask.settlementStandard || "按项目要求发布并保留，后台审核通过后结算。"}}</text>
+          </view>
+          <view class="xf-mama-fold-row">
+            <text>项目要求</text>
+            <text>{{currentMamaTask.requirement || "提交小红书笔记链接和完成截图，否则无法结算。"}}</text>
+          </view>
+
+          <view class="xf-mama-proof-card">
+            <text class="xf-mama-section-title">完成证明</text>
+            <label class="xf-mama-field">完成链接<input value="{{taskProofLink}}" bindinput="updateTaskProofLink" placeholder="粘贴小红书笔记链接" placeholder-class="xf-mama-placeholder" /></label>
+            <button class="xf-mama-upload-button" type="button" loading="{{taskProofScreenshotUploading}}" disabled="{{taskProofScreenshotUploading}}" catchtap="chooseTaskProofScreenshot">
+              {{taskProofScreenshotUrl ? "已上传，重新选择" : "上传完成截图"}}
+            </button>
+            <text class="xf-mama-upload-hint">{{taskProofScreenshotUploading ? "截图上传中..." : (taskProofScreenshotUrl ? "已上传，可提交回填" : "上传发布完成后的页面截图")}}</text>
+            <view wx:if="{{taskMessage}}" class="xf-mama-message {{taskMessageType}}">{{taskMessage}}</view>
+            <button class="xf-mama-submit" disabled="{{taskSubmitting}}" catchtap="submitTaskProof">{{taskSubmitting ? "提交中..." : "提交回填"}}</button>
+          </view>
+        </view>
+      </view>
+    </block>
+  </view>
+
+  <view wx:if="{{settingsPanelOpen}}" class="xf-native-settings-mask" style="height: {{settingsPanelHeight}}px;" catchtap="closeSettings" catchtouchmove="noop">
+    <scroll-view class="xf-native-settings-panel" style="height: {{settingsPanelHeight}}px; padding-top: {{profilePanelTop}}px;" scroll-y="true" enhanced show-scrollbar="false" catchtap="noop">
+      <view class="xf-native-settings-panel-inner">
+      <block wx:if="{{settingsPanelView === 'menu'}}">
+        <button wx:if="{{!isLoggedIn}}" class="xf-native-settings-account" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone">
+          <view class="xf-native-settings-avatar-wrap">
+            <image class="xf-native-settings-avatar" src="{{accountAvatar}}" mode="aspectFill" />
+          </view>
+          <view class="xf-native-settings-copy">
+            <view class="xf-native-settings-title-row">
+              <text class="xf-native-settings-title">{{accountTitle}}</text>
+            </view>
+            <view class="xf-native-settings-subtitle-row">
+              <text class="xf-native-settings-subtitle">{{accountSubtitle}}</text>
+            </view>
+          </view>
+          <text class="xf-native-settings-chevron">›</text>
+        </button>
+        <view wx:else class="xf-native-settings-account" catchtap="openSettingsItem" data-page="{{accountPage}}" data-title="{{accountTitle}}" data-panel-view="{{accountPanelView}}">
+          <view class="xf-native-settings-avatar-wrap">
+            <image class="xf-native-settings-avatar" src="{{accountAvatar}}" mode="aspectFill" />
+          </view>
+          <view class="xf-native-settings-copy">
+            <view class="xf-native-settings-title-row">
+              <text class="xf-native-settings-title">{{accountTitle}}</text>
+            </view>
+            <view class="xf-native-settings-subtitle-row">
+              <text class="xf-native-settings-subtitle">{{accountSubtitle}}</text>
+            </view>
+          </view>
+          <text class="xf-native-settings-chevron">›</text>
+        </view>
+
+        <view
+          wx:for="{{settingsSections}}"
+          wx:for-item="section"
+          wx:for-index="sectionIndex"
+          wx:key="key"
+          class="xf-native-settings-card"
+        >
+          <view
+            wx:for="{{section.items}}"
+            wx:for-item="item"
+            wx:for-index="itemIndex"
+            wx:key="key"
+            class="xf-native-settings-row"
+            catchtap="openSettingsItem"
+            data-section-index="{{sectionIndex}}"
+            data-item-index="{{itemIndex}}"
+          >
+            <image wx:if="{{item.iconType === 'image'}}" class="xf-native-settings-logo-icon" src="{{item.image}}" mode="aspectFit" />
+            <text wx:elif="{{item.iconType === 'emoji'}}" class="xf-native-settings-emoji-icon">{{item.emoji}}</text>
+            <text wx:else class="xf-native-settings-symbol material-symbols-rounded">{{item.icon}}</text>
+            <text class="xf-native-settings-label">{{item.title}}</text>
+            <text wx:if="{{item.key === 'pro' && settingsMemberBadgeLabel}}" class="xf-native-settings-member-badge">{{settingsMemberBadgeLabel}}</text>
+            <text class="xf-native-settings-chevron">›</text>
+          </view>
+        </view>
+      </block>
+      <template wx:elif="{{settingsPanelView === 'profile'}}" is="xfSettingsProfilePanel" data="{{profileHeaderHeight: profileHeaderHeight, profileDraft: profileDraft, profileAvatar: profileAvatar, profileGenderOptions: profileGenderOptions, profilePanelMessage: profilePanelMessage}}"></template>
+      <template wx:elif="{{settingsPanelView === 'archive'}}" is="xfSettingsArchivePanel" data="{{profileHeaderHeight: profileHeaderHeight, archiveHasChildren: archiveHasChildren, archiveChildren: archiveChildren, archiveInsightGrade: archiveInsightGrade, archiveDraft: archiveDraft, archiveProfileStatus: archiveProfileStatus, archiveRelationOptions: archiveRelationOptions, archiveRegionOptions: archiveRegionOptions, archiveRegionIndex: archiveRegionIndex, archiveStageOptions: archiveStageOptions, archiveStageIndex: archiveStageIndex, archiveStage: archiveStage, archiveGradeOptions: archiveGradeOptions, archiveStageGradeColumns: archiveStageGradeColumns, archiveStageGradeValue: archiveStageGradeValue, archiveGradeSelectOptions: archiveGradeSelectOptions, archiveGradeName: archiveGradeName, archiveGradeDropdownOpen: archiveGradeDropdownOpen, archiveTagOptions: archiveTagOptions, profilePanelMessage: profilePanelMessage}}"></template>
+      <template wx:elif="{{settingsPanelView === 'memory'}}" is="xfSettingsMemoryPanel" data="{{profileHeaderHeight: profileHeaderHeight, memoryEnabled: memoryEnabled}}"></template>
+      <template wx:elif="{{settingsPanelView === 'memoryManager'}}" is="xfSettingsMemoryManagerPanel" data="{{profileHeaderHeight: profileHeaderHeight, memorySearchQuery: memorySearchQuery, filteredMemoryItems: filteredMemoryItems, memoryPanelMessage: memoryPanelMessage}}"></template>
+      <template wx:elif="{{settingsPanelView === 'settings'}}" is="xfSettingsAppPanel" data="{{profileHeaderHeight: profileHeaderHeight, isLoggedIn: isLoggedIn, hasMobile: hasMobile, bindingPhone: bindingPhone, maskedMobile: maskedMobile, fontSizeClass: fontSizeClass, fontOptions: fontOptions, profilePanelMessage: profilePanelMessage}}"></template>
+      </view>
+    </scroll-view>
+  </view>
+</view>

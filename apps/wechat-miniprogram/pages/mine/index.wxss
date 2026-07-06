@@ -1,3 +1,277 @@
-page {
-  height: 100vh;
+@import "../../styles/native-list.wxss";
+@import "./profile-panel.wxss";
+
+@font-face {
+  font-family: "Material Symbols Rounded";
+  src: url("/assets/fonts/material-symbols-rounded.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+.material-symbols-rounded {
+  font-family: "Material Symbols Rounded";
+  font-weight: 400;
+  font-style: normal;
+  font-size: 1em;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+}
+
+.xf-mine-page {
+  min-height: 100vh;
+  box-sizing: border-box;
+  background-color: #f6f7fb;
+  color: #101335;
+  padding: 0 28rpx 56rpx;
+}
+
+.xf-mine-login::after,
+.xf-mine-action::after,
+.xf-mine-segment::after,
+.xf-mine-primary::after,
+.xf-mine-secondary::after {
+  border: 0;
+}
+
+.xf-mine-profile-card {
+  display: flex;
+  align-items: center;
+  gap: 22rpx;
+  min-height: 152rpx;
+  box-sizing: border-box;
+  padding: 28rpx;
+  border-radius: 28rpx;
+  background: #ffffff;
+  box-shadow: 0 18rpx 44rpx rgba(31, 20, 71, 0.08);
+}
+
+.xf-mine-avatar {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 28rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 96rpx;
+  background: linear-gradient(135deg, #7c3aed 0%, #ff2f8f 100%);
+  color: #ffffff;
+  font-size: 42rpx;
+  font-weight: 900;
+}
+
+.xf-mine-profile-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.xf-mine-name {
+  font-size: 34rpx;
+  font-weight: 900;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xf-mine-subtitle {
+  margin-top: 10rpx;
+  color: #8b96ad;
+  font-size: 24rpx;
+  font-weight: 750;
+  line-height: 1.3;
+}
+
+.xf-mine-login {
+  min-width: 104rpx;
+  height: 56rpx;
+  border: 0;
+  border-radius: 999rpx;
+  background: #6c27d6;
+  color: #ffffff;
+  font-size: 24rpx;
+  font-weight: 900;
+  line-height: 56rpx;
+  padding: 0 24rpx;
+}
+
+.xf-mine-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14rpx;
+  margin-top: 18rpx;
+}
+
+.xf-mine-stat {
+  min-height: 114rpx;
+  border-radius: 24rpx;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10rpx 26rpx rgba(31, 20, 71, 0.05);
+}
+
+.xf-mine-stat-value {
+  font-size: 30rpx;
+  font-weight: 900;
+  color: #101335;
+  line-height: 1.1;
+}
+
+.xf-mine-stat-label {
+  margin-top: 8rpx;
+  color: #8b96ad;
+  font-size: 21rpx;
+  font-weight: 800;
+}
+
+.xf-mine-actions {
+  overflow: hidden;
+  margin-top: 18rpx;
+  border-radius: 20rpx;
+  background: #ffffff;
+  border: 1rpx solid rgba(15, 23, 42, 0.06);
+}
+
+.xf-mine-action {
+  min-height: 88rpx;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: #ffffff;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 0 22rpx;
+  text-align: left;
+  border-bottom: 1rpx solid rgba(15, 23, 42, 0.06);
+}
+
+.xf-mine-action:last-child {
+  border-bottom: 0;
+}
+
+.xf-mine-action--pressed {
+  background: #f8fafc;
+}
+
+.xf-mine-action-icon {
+  width: 40rpx;
+  height: 40rpx;
+  flex: 0 0 40rpx;
+}
+
+.xf-mine-action-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.xf-mine-action-title {
+  color: #1f2937;
+  font-size: 27rpx;
+  font-weight: 800;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xf-mine-action-subtitle {
+  margin-top: 4rpx;
+  font-size: 22rpx;
+  color: #94a3b8;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xf-mine-chevron {
+  width: 28rpx;
+  flex: 0 0 28rpx;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 34rpx;
+  font-weight: 600;
+}
+
+.xf-mine-settings-panel {
+  width: 84vw;
+  max-width: 640rpx;
+  padding: 52rpx 34rpx 96rpx;
+  gap: 26rpx;
+  background: #f7f7f8;
+}
+
+.xf-mine-settings-account,
+.xf-mine-settings-card {
+  margin-bottom: 0;
+  background: #ffffff;
+}
+
+.xf-mine-settings-account {
+  min-height: 152rpx;
+  padding: 30rpx;
+}
+
+.xf-mine-settings-row {
+  min-height: 96rpx;
+  padding: 0 30rpx;
+}
+
+.xf-mine-settings-icon {
+  width: 34rpx;
+  height: 34rpx;
+}
+
+.xf-mine-settings-label {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: 34rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 28rpx;
+  font-weight: 800;
+  line-height: 34rpx;
+}
+
+.xf-mine-settings-chevron {
+  width: 28rpx;
+  text-align: right;
+}
+
+.xf-mine-settings-row .xf-mine-settings-chevron {
+  align-items: center;
+  height: 34rpx;
+  line-height: 34rpx;
+}
+
+.xf-mine-panel-view {
+  display: block;
+  min-height: 0;
+}
+
+.xf-mine-readonly {
+  min-height: 70rpx;
+  box-sizing: border-box;
+  border: 2rpx solid #dbe1ea;
+  border-radius: 22rpx;
+  background: #f8fafc;
+  color: #101335;
+  font-size: 25rpx;
+  font-weight: 850;
+  line-height: 70rpx;
+  padding: 0 24rpx;
 }

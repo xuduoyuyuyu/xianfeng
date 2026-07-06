@@ -66,6 +66,10 @@ function normalizeProgramCode(value: unknown): string {
   return raw.replace(/\s+/g, "").replace(/[^a-z0-9_-]/g, "");
 }
 
+function normalizeProgramShow(value: unknown): "xianfeng" | "zhiji" {
+  return asText(value) === "zhiji" ? "zhiji" : "xianfeng";
+}
+
 function normalizeGuestName(value: unknown): string {
   return asText(value).toLowerCase().replace(/\s+/g, " ").trim();
 }
@@ -459,6 +463,7 @@ function sanitizeProgramPayload(payload: any, requireEpisode: boolean) {
   if (cleaned.programCode !== undefined) {
     cleaned.programCode = normalizeProgramCode(cleaned.programCode);
   }
+  cleaned.programShow = normalizeProgramShow(cleaned.programShow);
 
   if (cleaned.summary) {
     cleaned.summary = {
@@ -1417,6 +1422,7 @@ export class ProgramController {
         .select({
           programCode: 1, title: 1, description: 1, coverImage: 1,
           publishedAt: 1, createdAt: 1, updatedAt: 1,
+          programShow: 1,
           summary: 1, episodes: 1, status: 1,
           dictionaryEntryIds: 1, guestBindings: 1,
         })
@@ -1529,7 +1535,7 @@ export class ProgramController {
       const listSelect = {
         programCode: 1, title: 1, description: 1, coverImage: 1,
         publishedAt: 1, createdAt: 1, updatedAt: 1,
-        "summary.tags": 1, status: 1, parseStatus: 1, parseProgress: 1, parseStage: 1,
+        "summary.tags": 1, status: 1, programShow: 1, parseStatus: 1, parseProgress: 1, parseStage: 1,
         "episodes.title": 1, "episodes.url": 1, "episodes.duration": 1,
         dictionaryEntryIds: 1, guestBindings: 1,
       };

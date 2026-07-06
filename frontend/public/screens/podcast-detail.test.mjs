@@ -60,10 +60,38 @@ test("podcast detail keeps the bottom scroll rebound from exposing parent gray",
   assert.match(source, /body\s*\{[\s\S]*overscroll-behavior-y:\s*none;/, "body should not chain vertical overscroll to the gray parent shell");
 });
 
+test("podcast detail proxies touch and wheel scrolling when embedded in an iframe", () => {
+  assert.match(source, /function installEmbeddedFrameScrollBridge\(\)/, "detail page should install an embedded-frame scroll bridge");
+  assert.match(source, /window\.self !== window\.top/, "scroll bridge should only run when the detail page is embedded");
+  assert.match(source, /window\.scrollBy\(\{ top: deltaY, left: 0, behavior: "auto" \}\)/, "scroll bridge should move the iframe document directly");
+  assert.match(source, /window\.addEventListener\("wheel"[\s\S]*\{ passive: false \}/, "wheel gestures should be captured in embedded mode");
+  assert.match(source, /window\.addEventListener\("touchmove"[\s\S]*\{ passive: false \}/, "touchmove gestures should be captured in embedded mode");
+  assert.match(source, /installEmbeddedFrameScrollBridge\(\);/, "scroll bridge should be installed during script initialization");
+});
+
+test("podcast detail reports embedded content height to the parent route", () => {
+  assert.match(source, /function postEmbeddedFrameHeight\(\)/, "detail page should expose an embedded height reporter");
+  assert.match(source, /window\.parent\.postMessage\(\{ type: "xianfeng:program-detail-height", height: height \}, window\.location\.origin\)/, "detail page should post content height to its same-origin parent");
+  assert.match(source, /function installEmbeddedFrameHeightSync\(\)/, "detail page should install height syncing in embedded mode");
+  assert.match(source, /new ResizeObserver\(scheduleEmbeddedFrameHeightPost\)/, "height sync should react to async content and layout changes");
+  assert.match(source, /installEmbeddedFrameHeightSync\(\);/, "height sync should be installed during script initialization");
+});
+
 test("podcast detail mobile floating player clears the public bottom tab bar", () => {
-  assert.match(source, /#mobile-player-dock\s*\{[\s\S]*right:\s*20px;[\s\S]*bottom:\s*calc\(128px \+ env\(safe-area-inset-bottom\)\);/, "mobile player FAB should sit above the public bottom tab bar with right-side breathing room");
-  assert.match(source, /#floating-back-to-top-btn\s*\{[\s\S]*right:\s*20px;[\s\S]*bottom:\s*calc\(194px \+ env\(safe-area-inset-bottom\)\);/, "back-to-top button should stay above the raised mobile player FAB");
-  assert.doesNotMatch(source, /#mobile-player-dock\s*\{[\s\S]*bottom:\s*calc\(84px \+ env\(safe-area-inset-bottom\)\);/, "mobile player should not keep the old bottom-tab-overlapping offset");
+  assert.match(source, /#mobile-player-dock\s*\{[\s\S]*right:\s*20px;[\s\S]*bottom:\s*calc\(30px \+ env\(safe-area-inset-bottom\)\);/, "mobile player FAB should sit 30px above the native bottom menu");
+  assert.match(source, /html\.xf-mp-webview\.xf-mp-tabbar-hidden #mobile-player-dock\s*\{[\s\S]*bottom:\s*calc\(20px \+ env\(safe-area-inset-bottom\)\);/, "immersive mini program player should not reserve space for a hidden bottom menu");
+  assert.match(source, /#floating-back-to-top-btn\s*\{[\s\S]*right:\s*20px;[\s\S]*bottom:\s*calc\(96px \+ env\(safe-area-inset-bottom\)\);/, "back-to-top button should move down with the mobile player while staying stacked above it");
+  assert.match(source, /html\.xf-mp-webview\.xf-mp-tabbar-hidden #floating-back-to-top-btn\s*\{[\s\S]*bottom:\s*calc\(86px \+ env\(safe-area-inset-bottom\)\);/, "immersive mini program back-to-top button should follow the lowered player");
+  assert.doesNotMatch(source, /#mobile-player-dock\s*\{[\s\S]*bottom:\s*calc\(128px \+ env\(safe-area-inset-bottom\)\);/, "mobile player should not keep the old high offset");
+  assert.doesNotMatch(source, /#floating-back-to-top-btn\s*\{[\s\S]*bottom:\s*calc\(194px \+ env\(safe-area-inset-bottom\)\);/, "back-to-top button should not keep the old high offset");
+});
+
+test("podcast detail mobile bottom area stays white instead of exposing a colored block", () => {
+  assert.match(source, /params\.get\("xf_mp"\) === "1" \|\| params\.has\("xf_tab"\)/, "detail iframe should detect mini program markers from its own URL");
+  assert.match(source, /document\.documentElement\.classList\.add\("xf-mp-webview"\)/, "detail iframe should expose a mini-program CSS hook");
+  assert.match(source, /document\.documentElement\.classList\.add\("xf-mp-tabbar-hidden"\)/, "detail iframe should expose a hidden-tabbar CSS hook");
+  assert.match(source, /@media \(max-width: 768px\)[\s\S]*html,\s*body\s*\{[\s\S]*background-color:\s*#ffffff;/, "mobile detail html and body should use a white bottom canvas");
+  assert.match(source, /@media \(max-width: 768px\)[\s\S]*body::before,\s*body::after\s*\{[\s\S]*display:\s*none;/, "mobile detail page should hide decorative fixed backgrounds near the native tab bar");
 });
 
 test("podcast detail hero omits the episode badge so meta fills the row", () => {

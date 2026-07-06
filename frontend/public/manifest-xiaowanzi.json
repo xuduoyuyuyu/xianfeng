@@ -8,8 +8,8 @@
   "theme_color": "#11143b",
   "icons": [
     {
-      "src": "/assets/xiaowanzi-nohat.png",
-      "sizes": "1024x1024",
+      "src": "/assets/wel-avatar/no-hat.png",
+      "sizes": "256x256",
       "type": "image/png",
       "purpose": "any maskable"
     }

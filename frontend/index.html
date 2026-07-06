@@ -18,6 +18,47 @@
         width: 100%;
         overflow-x: hidden;
       }
+      html.xf-mp-webview .mobile-tab,
+      html.xf-mp-webview body.xf-mobile-tab-enabled::after {
+        display: none !important;
+        content: none !important;
+        height: 0 !important;
+      }
+      html.xf-mp-webview .xf-web-detail-back,
+      html.xf-mp-webview .xf-web-detail-back * {
+        display: none !important;
+      }
+      html.xf-mp-webview body.xf-mobile-tab-enabled {
+        padding-bottom: var(--xf-mp-tabbar-height, 64px) !important;
+      }
+      html.xf-mp-webview body {
+        padding-top: var(--xf-mp-nav-height, 0px) !important;
+        padding-bottom: var(--xf-mp-tabbar-height, 64px) !important;
+      }
+      html.xf-mp-webview.xf-mp-tabbar-hidden,
+      html.xf-mp-webview.xf-mp-tabbar-hidden body,
+      html.xf-mp-webview.xf-mp-tabbar-hidden #root {
+        background: #ffffff !important;
+      }
+      html.xf-mp-webview.xf-mp-tabbar-hidden body {
+        padding-bottom: 0 !important;
+      }
+      @font-face {
+        font-family: 'Material Symbols Rounded';
+        font-style: normal;
+        font-weight: 400;
+        font-display: block;
+        src: url('/fonts/material-symbols-rounded.woff2') format('woff2');
+        font-feature-settings: 'liga';
+      }
+      @font-face {
+        font-family: 'Material Symbols Outlined';
+        font-style: normal;
+        font-weight: 300;
+        font-display: block;
+        src: url('/fonts/material-symbols-outlined.woff2') format('woff2');
+        font-feature-settings: 'liga';
+      }
       /* Preload critical fonts asynchronously */
       @font-face {
         font-family: 'DM Sans fallback';
@@ -30,8 +71,45 @@
       }
     </style>
     <script>
+      (function() {
+        var params = new URLSearchParams(window.location.search);
+        var wechatEnvironment = String(window.__wxjs_environment || '').toLowerCase();
+        var userAgent = String(window.navigator && window.navigator.userAgent || '');
+        var miniProgramWebView = params.get('xf_mp') === '1'
+          || params.has('xf_tab')
+          || window.sessionStorage.getItem('xf_mp_webview') === '1'
+          || wechatEnvironment === 'miniprogram'
+          || /miniprogram/i.test(userAgent);
+        if (!miniProgramWebView) return;
+        window.sessionStorage.setItem('xf_mp_webview', '1');
+        window.sessionStorage.setItem('xf_mp_nav_height', '0');
+        document.documentElement.classList.add('xf-mp-webview');
+        document.documentElement.style.setProperty('--xf-mp-nav-height', '0px');
+        var nativeTabbarHeight = Number(params.get('xf_tab') || window.sessionStorage.getItem('xf_mp_tabbar_height') || 0);
+        if (params.has('xf_tab') && nativeTabbarHeight === 0) {
+          document.documentElement.classList.add('xf-mp-tabbar-hidden');
+          window.sessionStorage.setItem('xf_mp_tabbar_height', '0');
+          document.documentElement.style.setProperty('--xf-mp-tabbar-height', '0px');
+        } else if (Number.isFinite(nativeTabbarHeight) && nativeTabbarHeight >= 48 && nativeTabbarHeight <= 120) {
+          document.documentElement.classList.remove('xf-mp-tabbar-hidden');
+          var tabbarHeight = Math.round(nativeTabbarHeight) + 'px';
+          window.sessionStorage.setItem('xf_mp_tabbar_height', String(Math.round(nativeTabbarHeight)));
+          document.documentElement.style.setProperty('--xf-mp-tabbar-height', tabbarHeight);
+        }
+      })();
+    </script>
+    <script>
       // Async load Google Fonts - non-blocking
       (function() {
+        var params = new URLSearchParams(window.location.search);
+        var wechatEnvironment = String(window.__wxjs_environment || '').toLowerCase();
+        var userAgent = String(window.navigator && window.navigator.userAgent || '');
+        var miniProgramWebView = params.get('xf_mp') === '1'
+          || params.has('xf_tab')
+          || window.sessionStorage.getItem('xf_mp_webview') === '1'
+          || wechatEnvironment === 'miniprogram'
+          || /miniprogram/i.test(userAgent);
+        if (miniProgramWebView) return;
         var link1 = document.createElement('link');
         link1.rel = 'stylesheet';
         link1.href = 'https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@48,400,0,0&display=block';

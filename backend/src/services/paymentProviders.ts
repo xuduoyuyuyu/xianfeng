@@ -1,26 +1,64 @@
 import crypto from "crypto";
 import fs from "fs";
+import path from "path";
 import PaymentOrderModel, { PaymentOrder } from "../models/PaymentOrder";
 import { createRefundRecord, isMockPaymentEnabled, markOrderPaid, markRefundSucceeded } from "./billing";
 
 export type PaymentCheckout = {
   provider: "alipay" | "wechat";
-  mode: "alipay_page" | "wechat_native" | "mock";
+  mode: "alipay_page" | "wechat_native" | "wechat_jsapi" | "mock";
   paymentUrl?: string;
   paymentForm?: string;
   codeUrl?: string;
+  paymentParams?: WechatMiniProgramPaymentParams;
   mockPayUrl?: string;
   message?: string;
 };
 
 type AlipaySdkInstance = any;
 
+export type WechatMiniProgramPaymentParams = {
+  timeStamp: string;
+  nonceStr: string;
+  package: string;
+  signType: "RSA";
+  paySign: string;
+};
+
 function readEnvOrFile(value?: string, filePath?: string): string {
   const direct = String(value || "").trim();
   if (direct) return direct.replace(/\\n/g, "\n");
-  const path = String(filePath || "").trim();
-  if (!path) return "";
-  return fs.readFileSync(path, "utf8");
+  const resolvedPath = resolveReadableSecretPath(filePath);
+  if (!resolvedPath) return "";
+  try {
+    return fs.readFileSync(resolvedPath, "utf8");
+  } catch (error: any) {
+    if (error?.code === "ENOENT") return "";
+    throw new Error("支付密钥文件读取失败，请检查服务端支付配置");
+  }
+}
+
+function hasEnvOrReadableFile(value?: string, filePath?: string): boolean {
+  if (String(value || "").trim()) return true;
+  return !!resolveReadableSecretPath(filePath);
+}
+
+function resolveReadableSecretPath(filePath?: string): string {
+  const rawPath = String(filePath || "").trim();
+  if (!rawPath) return "";
+  const basename = path.basename(rawPath);
+  const secretDir = String(process.env.PAYMENT_SECRET_DIR || process.env.SECRETS_DIR || "").trim();
+  const candidates = [
+    rawPath,
+    secretDir && basename ? path.join(secretDir, basename) : "",
+    basename ? path.join(process.cwd(), "secrets", basename) : "",
+    basename ? path.join("/app/secrets", basename) : "",
+  ].filter(Boolean);
+  try {
+    return candidates.find((candidate) => fs.existsSync(candidate) && fs.statSync(candidate).isFile()) || "";
+  } catch (_error) {
+    return "";
+  }
 }
 
 function getPublicBaseUrl(): string {
@@ -62,14 +100,16 @@ function loadAlipaySdk(): AlipaySdkInstance {
 }
 
 function hasAlipayConfig(): boolean {
-  return !!String(process.env.ALIPAY_APP_ID || "").trim() && !!(
-    String(process.env.ALIPAY_PRIVATE_KEY || "").trim() ||
-    String(process.env.ALIPAY_PRIVATE_KEY_PATH || "").trim()
-  );
+  return !!String(process.env.ALIPAY_APP_ID || "").trim()
+    && hasEnvOrReadableFile(process.env.ALIPAY_PRIVATE_KEY, process.env.ALIPAY_PRIVATE_KEY_PATH);
+}
+
+function amountText(cents: number): string {
+  return (cents / 100).toFixed(2);
 }
 
 function orderAmount(order: PaymentOrder): string {
-  return (order.amountCents / 100).toFixed(2);
+  return amountText(order.amountCents);
 }
 
 function getWechatGateway(): string {
@@ -82,6 +122,16 @@ function getWechatMchId(): string {
 
 function getWechatAppId(): string {
   return String(process.env.WECHAT_PAY_APP_ID || "").trim();
+}
+
+function getWechatMiniProgramAppId(): string {
+  return String(process.env.WECHAT_MINI_APP_ID || process.env.WECHAT_PAY_APP_ID || "").trim();
+}
+
+export function isWechatNotifyAppIdAllowed(appId: string): boolean {
+  const normalized = String(appId || "").trim();
+  if (!normalized) return false;
+  return [getWechatAppId(), getWechatMiniProgramAppId()].filter(Boolean).includes(normalized);
 }
 
 function getWechatApiV3Key(): string {
@@ -97,7 +147,7 @@ function hasWechatConfig(): boolean {
     && !!getWechatAppId()
     && !!String(process.env.WECHAT_PAY_SERIAL_NO || "").trim()
     && !!getWechatApiV3Key()
-    && !!(String(process.env.WECHAT_PAY_PRIVATE_KEY || "").trim() || String(process.env.WECHAT_PAY_PRIVATE_KEY_PATH || "").trim());
+    && hasEnvOrReadableFile(process.env.WECHAT_PAY_PRIVATE_KEY, process.env.WECHAT_PAY_PRIVATE_KEY_PATH);
 }
 
 function createNonce(): string {
@@ -110,6 +160,23 @@ function signWechatMessage(message: string): string {
   return crypto.createSign("RSA-SHA256").update(message).end().sign(privateKey, "base64");
 }
 
+export function buildWechatMiniProgramPaymentParams(prepayId: string, now = new Date(), appId = getWechatMiniProgramAppId()): WechatMiniProgramPaymentParams {
+  if (!appId) throw new Error("微信支付未配置：请设置 WECHAT_MINI_APP_ID");
+  const cleanPrepayId = String(prepayId || "").trim();
+  if (!cleanPrepayId) throw new Error("微信支付预支付单缺少 prepay_id");
+  const timeStamp = Math.floor(now.getTime() / 1000).toString();
+  const nonceStr = createNonce();
+  const packageValue = `prepay_id=${cleanPrepayId}`;
+  const paySign = signWechatMessage(`${appId}\n${timeStamp}\n${nonceStr}\n${packageValue}\n`);
+  return {
+    timeStamp,
+    nonceStr,
+    package: packageValue,
+    signType: "RSA",
+    paySign,
+  };
+}
+
 function buildWechatAuthorization(method: string, pathWithQuery: string, bodyText = ""): string {
   const mchid = getWechatMchId();
   const serialNo = String(process.env.WECHAT_PAY_SERIAL_NO || "").trim();
@@ -120,20 +187,20 @@ function buildWechatAuthorization(method: string, pathWithQuery: string, bodyTex
   return `WECHATPAY2-SHA256-RSA2048 mchid="${mchid}",nonce_str="${nonce}",signature="${signature}",timestamp="${timestamp}",serial_no="${serialNo}"`;
 }
 
-async function wechatRequest(method: "POST", path: string, body: Record<string, any>) {
+async function wechatRequest(method: "GET" | "POST", path: string, body?: Record<string, any>) {
   if (!hasWechatConfig()) {
     throw new Error("微信支付未配置：请设置商户号、AppID、API v3 密钥、证书序列号和商户私钥");
   }
-  const bodyText = JSON.stringify(body);
+  const bodyText = body ? JSON.stringify(body) : "";
   const response = await fetch(`${getWechatGateway()}${path}`, {
     method,
     headers: {
       Accept: "application/json",
       Authorization: buildWechatAuthorization(method, path, bodyText),
-      "Content-Type": "application/json",
+      ...(body ? { "Content-Type": "application/json" } : {}),
       "User-Agent": "xianfeng-billing/1.0",
     },
-    body: bodyText,
+    ...(body ? { body: bodyText } : {}),
   });
   const text = await response.text();
   const data = text ? JSON.parse(text) : {};
@@ -200,7 +267,7 @@ export function decryptWechatResource(resource: any, apiV3Key = getWechatApiV3Ke
 
 function assertWechatPaidOrderMatches(order: PaymentOrder, payload: any) {
   if (order.provider !== "wechat") throw new Error("微信通知订单 provider 不匹配");
-  if (payload?.appid && payload.appid !== getWechatAppId()) throw new Error("微信通知 appid 不匹配");
+  if (payload?.appid && !isWechatNotifyAppIdAllowed(payload.appid)) throw new Error("微信通知 appid 不匹配");
   if (payload?.mchid && payload.mchid !== getWechatMchId()) throw new Error("微信通知 mchid 不匹配");
   const total = Number(payload?.amount?.total);
   if (Number.isFinite(total) && total !== order.amountCents) throw new Error("微信通知金额不匹配");
@@ -260,16 +327,16 @@ export async function handleAlipayNotify(body: Record<string, any>) {
   });
 }
 
-export async function refundAlipayOrder(order: PaymentOrder, reason: string) {
+export async function refundAlipayOrder(order: PaymentOrder, reason: string, amountCents = order.amountCents, refundablePoints = 0) {
   const sdk = loadAlipaySdk();
-  const refund = await createRefundRecord(order, reason);
+  const refund = await createRefundRecord(order, reason, amountCents);
   try {
     const result = await sdk.exec("alipay.trade.refund", {
       bizContent: {
         out_trade_no: order.outTradeNo,
         trade_no: order.providerTradeNo || undefined,
-        refund_amount: orderAmount(order),
-        refund_reason: reason || "3天不满意全额退款",
+        refund_amount: amountText(amountCents),
+        refund_reason: reason || "按未使用点数折算退款",
         out_request_no: refund.outRequestNo,
       },
     });
@@ -282,7 +349,7 @@ export async function refundAlipayOrder(order: PaymentOrder, reason: string) {
       await refund.save();
       throw new Error(refund.errorMessage);
     }
-    return markRefundSucceeded(order, refund, result || {});
+    return markRefundSucceeded(order, refund, result || {}, { refundablePoints });
   } catch (error: any) {
     refund.status = "failed";
     refund.errorMessage = error?.message || "支付宝退款失败";
@@ -315,6 +382,41 @@ export async function createWechatCheckout(order: PaymentOrder): Promise<Payment
   return { provider: "wechat", mode: "wechat_native", codeUrl: data.code_url };
 }
 
+export async function createWechatMiniProgramCheckout(order: PaymentOrder, openid?: string): Promise<PaymentCheckout> {
+  if (!hasWechatConfig() && isMockPaymentEnabled()) {
+    return {
+      provider: "wechat",
+      mode: "mock",
+      mockPayUrl: `/api/billing/orders/${encodeURIComponent(String(order._id))}/mock-pay`,
+      message: "当前环境未配置微信支付，已启用本地模拟支付。",
+    };
+  }
+  const appId = getWechatMiniProgramAppId();
+  if (!appId) throw new Error("微信支付未配置：请设置 WECHAT_MINI_APP_ID");
+  const payerOpenid = String(openid || "").trim();
+  if (!payerOpenid) throw new Error("当前账号未绑定微信 openid，请先使用微信登录");
+  const data = await wechatRequest("POST", "/v3/pay/transactions/jsapi", {
+    appid: appId,
+    mchid: getWechatMchId(),
+    description: order.subject,
+    out_trade_no: order.outTradeNo,
+    notify_url: getWechatNotifyUrl(),
+    amount: {
+      total: order.amountCents,
+      currency: "CNY",
+    },
+    payer: {
+      openid: payerOpenid,
+    },
+  });
+  if (!data?.prepay_id) throw new Error("微信支付预支付单生成失败");
+  return {
+    provider: "wechat",
+    mode: "wechat_jsapi",
+    paymentParams: buildWechatMiniProgramPaymentParams(data.prepay_id, new Date(), appId),
+  };
+}
+
 export async function handleWechatNotify(body: Record<string, any>, headers: Record<string, any>, rawBody = JSON.stringify(body || {})) {
   const verified = verifyWechatNotifySignature(headers, rawBody);
   if (!verified) throw new Error("微信支付回调验签失败");
@@ -335,15 +437,36 @@ export async function handleWechatNotify(body: Record<string, any>, headers: Rec
   });
 }
 
-export async function refundWechatOrder(order: PaymentOrder, reason: string) {
-  const refund = await createRefundRecord(order, reason);
+export async function queryWechatOrderByOutTradeNo(outTradeNo: string) {
+  const normalizedOutTradeNo = String(outTradeNo || "").trim();
+  if (!normalizedOutTradeNo) throw new Error("微信查单缺少 out_trade_no");
+  const pathWithQuery = `/v3/pay/transactions/out-trade-no/${encodeURIComponent(normalizedOutTradeNo)}?mchid=${encodeURIComponent(getWechatMchId())}`;
+  return wechatRequest("GET", pathWithQuery);
+}
+
+export async function syncWechatPaidOrder(order: PaymentOrder) {
+  if (order.provider !== "wechat" || order.status !== "pending") return order;
+  const payload = await queryWechatOrderByOutTradeNo(order.outTradeNo);
+  if (String(payload?.trade_state || "").toUpperCase() !== "SUCCESS") return order;
+
+  assertWechatPaidOrderMatches(order, payload);
+  return markOrderPaid({
+    outTradeNo: order.outTradeNo,
+    providerTradeNo: String(payload?.transaction_id || ""),
+    paidAt: payload?.success_time ? new Date(String(payload.success_time)) : new Date(),
+    rawNotify: { ...payload, source: "wechat-query" },
+  });
+}
+
+export async function refundWechatOrder(order: PaymentOrder, reason: string, amountCents = order.amountCents, refundablePoints = 0) {
+  const refund = await createRefundRecord(order, reason, amountCents);
   try {
     const result = await wechatRequest("POST", "/v3/refund/domestic/refunds", {
       out_trade_no: order.outTradeNo,
       out_refund_no: refund.outRequestNo,
-      reason: reason || "3天不满意全额退款",
+      reason: reason || "按未使用点数折算退款",
       amount: {
-        refund: order.amountCents,
+        refund: amountCents,
         total: order.amountCents,
         currency: "CNY",
       },
@@ -356,10 +479,14 @@ export async function refundWechatOrder(order: PaymentOrder, reason: string) {
       await refund.save();
       throw new Error(refund.errorMessage);
     }
-    return markRefundSucceeded(order, refund, result || {});
+    return markRefundSucceeded(order, refund, result || {}, { refundablePoints });
   } catch (error: any) {
+    const message = error?.message || "微信退款失败";
+    if (/订单已全额退款|already.*refund/i.test(message)) {
+      return markRefundSucceeded(order, refund, { source: "wechat-refund-idempotent", message }, { refundablePoints });
+    }
     refund.status = "failed";
-    refund.errorMessage = error?.message || "微信退款失败";
+    refund.errorMessage = message;
     await refund.save();
     throw error;
   }

@@ -116,6 +116,9 @@ const PlanningPage: React.FC = () => {
           0%,100% { transform: translate3d(0,0,0) scale(.9); opacity: .45; }
           45% { transform: translate3d(-2%,1.5%,0) scale(1.15); opacity: .7; }
         }
+        html.xf-mp-webview .planning-frame-body {
+          padding-top: var(--xf-mp-nav-height, 88px) !important;
+        }
       `}</style>
       <div className="pointer-events-none fixed inset-0 opacity-35">
         <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(118,83,205,0.06)_0.8px,transparent_0.8px)] bg-[size:22px_22px]" />
@@ -136,7 +139,7 @@ const PlanningPage: React.FC = () => {
         showMaterialsEntry
       />
 
-      <div className="relative z-10 flex-1" style={{ overflow: "hidden", background: "transparent" }}>
+      <div className="planning-frame-body relative z-10 flex-1" style={{ overflow: "hidden", background: "transparent" }}>
         <iframe
           ref={iframeRef}
           src={src}

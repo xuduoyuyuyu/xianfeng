@@ -1,12 +1,13 @@
-const { WEB_ROUTES } = require("../../utils/config");
-const { webUrl } = require("../../utils/webview");
-
 Page({
-  data: {
-    src: ""
+  goPrograms() {
+    wx.switchTab({ url: "/pages/programs/index" });
+  },
+
+  onLoad() {
+    this.goPrograms();
   },
 
   onShow() {
-    this.setData({ src: webUrl(WEB_ROUTES.home) });
+    this.goPrograms();
   }
 });

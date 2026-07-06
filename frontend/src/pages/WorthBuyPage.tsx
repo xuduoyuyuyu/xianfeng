@@ -1668,6 +1668,10 @@ const WorthBuyPage: React.FC = () => {
           max-height: 56px;
           border-radius: 16px;
         }
+        html.xf-mp-webview .worthbuy-hero {
+          padding-top: var(--xf-mp-nav-height, 88px) !important;
+          padding-bottom: 0 !important;
+        }
         .worthbuy-hero-search input {
           font-size: 16px !important;
           line-height: 1.2;
@@ -1681,6 +1685,10 @@ const WorthBuyPage: React.FC = () => {
           font-weight: 500;
         }
         @media (max-width: 768px) {
+          html.xf-mp-webview .worthbuy-hero {
+            padding-top: var(--xf-mp-nav-height, 88px) !important;
+            padding-bottom: 0 !important;
+          }
           .worthbuy-page h1 { font-size: 22px !important; }
           .worthbuy-page [style*="fontSize: 28"] { font-size: 22px !important; }
           .worthbuy-page [style*="gridTemplateColumns: 1fr 1fr"] { grid-template-columns: 1fr !important; }

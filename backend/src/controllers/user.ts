@@ -8,7 +8,7 @@ import { AuthenticatedRequest } from "../middlewares/auth";
 import { sendMobileCodeByVolcengine } from "../services/smsVolcengine";
 import UserChildMemory from "../models/UserChildMemory";
 import { splitChildMemoryItems } from "../services/childMemory";
-import { grantFreeLoginPointsForUser } from "../services/billing";
+import { grantFreeLoginPointsForUser, serializeBillingUser } from "../services/billing";
 import {
   canAuthenticateWithMobileInvite,
   canSendMobileCodeWithInvite,
@@ -232,6 +232,7 @@ function normalizeMobile(input: unknown): string {
 
 function buildWelProfile(user: any) {
   const safeName = String(user.name || user.username || "用户");
+  const billing = serializeBillingUser(user);
   return {
     id: user._id,
     username: user.username,
@@ -248,7 +249,16 @@ function buildWelProfile(user: any) {
     avatar_image: user.avatar_image || "",
     gender: user.gender || "",
     parentRole: user.parentRole || "",
-    proPointBalance: Number(user.proPointBalance || 0),
+    proStatus: billing.proStatus,
+    proPlan: billing.proPlan,
+    membershipTier: billing.membershipTier,
+    membershipLabel: billing.membershipLabel,
+    proPointBalance: billing.proPointBalance,
+    proExpiresAt: billing.proExpiresAt,
+    proPurchasedAt: billing.proPurchasedAt,
+    proRefundEligibleUntil: billing.proRefundEligibleUntil,
+    proLatestOrderId: billing.proLatestOrderId,
+    isProActive: billing.isProActive,
   };
 }
 

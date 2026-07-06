@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { apiUrl } from "../../lib/api";
 import { LearningMaterial, Program, publicApi, PublicGuestDetail, PublicGuest } from "../../services/api";
+import { forceExitMiniProgramXiaowanzi, isMiniProgramWebView, openMiniProgramNativeArchiveCreate, openMiniProgramNativeArchivePicker } from "../../utils/mpAuthBridge";
 import { useXiaowanziEmbeddedLayer } from "../../utils/xiaowanziLayer";
 import { getAdminOrUserToken, hasAdminBypass, isProBillingEnabled, isProRequiredPayload, showProUpgradeFromPayload } from "../../utils/proGate";
 import {
@@ -407,7 +408,7 @@ function getSessionToken(): string {
 }
 
 const SHARE_CARD_SITE_URL = "https://xianfeng.xinzhi.info";
-const SHARE_CARD_LOGO_URL = "/assets/xiaowanzi-share-logo.png";
+const SHARE_CARD_LOGO_URL = "/assets/wel-avatar/no-hat.png";
 const SHARE_CARD_WIDTH = 750;
 const SHARE_CARD_LOGO_HEIGHT = 156;
 const SHARE_CARD_MAX_PIXELS = 5_400_000;
@@ -591,6 +592,10 @@ const LAST_CHILD_ID_KEY = "xiaowanzi_last_child_id_v1";
 const BROWSING_MEMORY_KEY = "xiaowanzi_browsing_memory_v1";
 const RETURN_TO_HOME_KEY = "xiaowanzi_return_home_v1";
 const HOME_ACTIVE_KEY = "xiaowanzi_home_active_v1";
+const MINI_PROGRAM_XIAOWANZI_RESET_QUERY_KEY = "xf_xw_reset";
+const MINI_PROGRAM_XIAOWANZI_ACTION_QUERY_KEY = "xf_xw_action";
+const MINI_PROGRAM_CHILD_PROFILES_QUERY_KEY = "xf_child_profiles";
+const MINI_PROGRAM_CHILD_ID_QUERY_KEY = "xf_child_id";
 const APP_MODE_KEY = "xiaowanzi_app_mode_v1";
 const HOME_DESKTOP_BREAKPOINT = 769;
 const PANEL_WIDTH = 360;
@@ -598,12 +603,75 @@ const DOCKED_WIDTH = 430;
 const DOCKED_TOP_OFFSET = 0;
 const PANEL_MAX_HEIGHT = 520;
 const PANEL_GAP = 14;
+
+function readMiniProgramXiaowanziEntryMode(): "chat" | "home" | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const url = new URL(window.location.href);
+    const raw = url.searchParams.get("xf_xw");
+    return raw === "home" ? "home" : raw === "chat" ? "chat" : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function shouldResetMiniProgramXiaowanziEntry(): boolean {
+  if (typeof window === "undefined" || !isMiniProgramWebView()) return false;
+  try {
+    const url = new URL(window.location.href);
+    return url.searchParams.get(MINI_PROGRAM_XIAOWANZI_RESET_QUERY_KEY) === "1";
+  } catch (_error) {
+    return false;
+  }
+}
+
+function clearMiniProgramXiaowanziResetParam() {
+  if (typeof window === "undefined") return;
+  try {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has(MINI_PROGRAM_XIAOWANZI_RESET_QUERY_KEY)) return;
+    url.searchParams.delete(MINI_PROGRAM_XIAOWANZI_RESET_QUERY_KEY);
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  } catch (_error) {}
+}
+
+function applyMiniProgramNativeCapsuleVars() {
+  if (typeof window === "undefined" || !isMiniProgramWebView()) return;
+  try {
+    const url = new URL(window.location.href);
+    const mappings = [
+      ["xf_native_capsule_top", "--xf-native-capsule-top"],
+      ["xf_native_action_top", "--xf-native-action-top"],
+      ["xf_native_capsule_height", "--xf-native-capsule-height"],
+      ["xf_native_capsule_right", "--xf-native-capsule-right"],
+      ["xf_native_topbar_height", "--xf-native-topbar-height"],
+      ["xf_native_webview_shift", "--xf-native-webview-shift"],
+    ] as const;
+    mappings.forEach(([param, cssVar]) => {
+      const value = Number(url.searchParams.get(param));
+      if (!Number.isFinite(value) || value <= 0) return;
+      document.documentElement.style.setProperty(cssVar, `${Math.round(value)}px`);
+    });
+  } catch (_error) {}
+}
+
 function shouldRestoreXiaowanziHome(): boolean {
   if (typeof window === "undefined") return false;
+  if (shouldResetMiniProgramXiaowanziEntry()) {
+    clearXiaowanziHomeActive();
+    clearMiniProgramXiaowanziResetParam();
+    return false;
+  }
   if (!canEnterXiaowanziSuperModeFromStorage()) {
     clearXiaowanziHomeActive();
     return false;
   }
+  const miniProgramEntryMode = readMiniProgramXiaowanziEntryMode();
+  if (miniProgramEntryMode === "chat") {
+    clearXiaowanziHomeActive();
+    return false;
+  }
+  if (miniProgramEntryMode === "home") return true;
   try {
     if (shouldSkipXiaowanziHomeIntro()) return true;
     return localStorage.getItem(HOME_ACTIVE_KEY) === "1";
@@ -622,6 +690,36 @@ function shouldSkipXiaowanziHomeIntro(): boolean {
     return new URLSearchParams(window.location.search).get("xw_restore") === "xiaowanzi";
   } catch (_error) {
     return false;
+  }
+}
+
+function takeMiniProgramXiaowanziEntryMode(): "chat" | "home" | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const url = new URL(window.location.href);
+    const mode = readMiniProgramXiaowanziEntryMode();
+    if (!mode) return null;
+    url.searchParams.delete("xf_xw");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    return mode;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function takeMiniProgramXiaowanziAction(): "history" | "new" | null {
+  if (typeof window === "undefined" || !isMiniProgramWebView()) return null;
+  try {
+    const url = new URL(window.location.href);
+    const raw = url.searchParams.get(MINI_PROGRAM_XIAOWANZI_ACTION_QUERY_KEY);
+    const action = raw === "history" ? "history" : raw === "new" ? "new" : null;
+    if (!action) return null;
+    url.searchParams.delete(MINI_PROGRAM_XIAOWANZI_ACTION_QUERY_KEY);
+    url.searchParams.delete("xf_xw_ts");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    return action;
+  } catch (_error) {
+    return null;
   }
 }
 
@@ -695,29 +793,95 @@ function isDeletedChildProfile(item: { id: string; createdAt?: string }, deletio
   return Boolean(removed) && childProfileTime(removed?.removedAt) >= childProfileTime(item.createdAt);
 }
 
+function normalizeChildProfileLite(item: any, index = 0): ChildProfileLite | null {
+  const displayName = normalizeChildProfileDisplayName(item?.displayName || item?.name || item?.title);
+  const id = String(item?.id || (displayName ? `child-${index}` : "")).trim();
+  if (!id || !displayName) return null;
+  return {
+    id,
+    relation: String(item?.relation || "").trim(),
+    displayName,
+    gender: item?.gender === "男" ? "男" : "女",
+    birthDate: String(item?.birthDate || "").trim(),
+    city: String(item?.city || "").trim(),
+    region: String(item?.region || "").trim(),
+    grade: String(item?.grade || "").trim(),
+    concernTags: Array.isArray(item?.concernTags) ? item.concernTags.map((v: any) => String(v || "").trim()).filter(Boolean) : [],
+    avatar: String(item?.avatar || AVATAR_FALLBACK_SRC).trim(),
+    createdAt: String(item?.createdAt || new Date().toISOString()),
+    draft: Boolean(item?.draft),
+  };
+}
+
+function normalizeChildProfileDisplayName(value: unknown): string {
+  return String(value || "").trim().replace(/\s+/g, " ");
+}
+
+function dedupeChildProfilesByDisplayName(items: ChildProfileLite[]): ChildProfileLite[] {
+  const byName = new Map<string, ChildProfileLite>();
+  items.forEach((item) => {
+    const nameKey = normalizeChildProfileDisplayName(item.displayName);
+    if (!nameKey) return;
+    byName.set(nameKey, { ...item, displayName: nameKey });
+  });
+  return Array.from(byName.values());
+}
+
+function applyMiniProgramChildProfileBridge(): ChildProfileLite[] | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const url = new URL(window.location.href);
+    const rawProfiles = url.searchParams.get(MINI_PROGRAM_CHILD_PROFILES_QUERY_KEY);
+    if (!rawProfiles) return null;
+    const parsed = JSON.parse(rawProfiles);
+    if (!Array.isArray(parsed)) return null;
+    const childProfileDeletions = loadChildProfileDeletions();
+    const profiles = dedupeChildProfilesByDisplayName(parsed
+      .map((item: any, index: number) => normalizeChildProfileLite(item, index))
+      .filter((item): item is ChildProfileLite => {
+        if (!item) return false;
+        return !item.draft && !isDeletedChildProfile(item, childProfileDeletions);
+      }));
+    localStorage.setItem(CHILD_PROFILES_KEY, JSON.stringify(profiles));
+    const preferredChildId = String(url.searchParams.get(MINI_PROGRAM_CHILD_ID_QUERY_KEY) || "").trim();
+    const picked = profiles.find((item) => item.id === preferredChildId) || profiles[0] || null;
+    if (picked) {
+      const nextContext: ChatSessionContext = {
+        sessionId: `session-${Date.now()}`,
+        childProfileId: picked.id,
+        isChildBound: true,
+        lastSwitchedAt: new Date().toISOString(),
+      };
+      localStorage.setItem(CHAT_CONTEXT_KEY, JSON.stringify(nextContext));
+      localStorage.setItem(LAST_CHILD_ID_KEY, picked.id);
+    } else {
+      localStorage.removeItem(CHAT_CONTEXT_KEY);
+      localStorage.removeItem(LAST_CHILD_ID_KEY);
+    }
+    url.searchParams.delete(MINI_PROGRAM_CHILD_PROFILES_QUERY_KEY);
+    url.searchParams.delete(MINI_PROGRAM_CHILD_ID_QUERY_KEY);
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    return profiles;
+  } catch (_error) {
+    return null;
+  }
+}
+
 function loadChildProfiles(): ChildProfileLite[] {
   if (typeof window === "undefined") return [];
   try {
+    const bridgedProfiles = applyMiniProgramChildProfileBridge();
+    if (bridgedProfiles) return bridgedProfiles;
     const childProfileDeletions = loadChildProfileDeletions();
     const raw = localStorage.getItem(CHILD_PROFILES_KEY) || "[]";
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed
-      .map((item: any): ChildProfileLite => ({
-        id: String(item?.id || "").trim(),
-        relation: String(item?.relation || "").trim(),
-        displayName: String(item?.displayName || "").trim(),
-        gender: item?.gender === "男" ? "男" : "女",
-        birthDate: String(item?.birthDate || "").trim(),
-        city: String(item?.city || "").trim(),
-        region: String(item?.region || "").trim(),
-        grade: String(item?.grade || "").trim(),
-        concernTags: Array.isArray(item?.concernTags) ? item.concernTags.map((v: any) => String(v || "").trim()).filter(Boolean) : [],
-        avatar: String(item?.avatar || AVATAR_FALLBACK_SRC).trim(),
-        createdAt: String(item?.createdAt || new Date().toISOString()),
-        draft: Boolean(item?.draft),
-      }))
-      .filter((item) => Boolean(item.id) && !item.draft && !isDeletedChildProfile(item, childProfileDeletions));
+    return dedupeChildProfilesByDisplayName(parsed
+      .map((item: any, index: number) => normalizeChildProfileLite(item, index))
+      .filter((item): item is ChildProfileLite => {
+        if (!item) return false;
+        return Boolean(item.id) && !item.draft && !isDeletedChildProfile(item, childProfileDeletions);
+      }));
   } catch (_error) {
     return [];
   }
@@ -726,7 +890,7 @@ function loadChildProfiles(): ChildProfileLite[] {
 function saveChildProfiles(items: ChildProfileLite[]) {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(CHILD_PROFILES_KEY, JSON.stringify(items));
+    localStorage.setItem(CHILD_PROFILES_KEY, JSON.stringify(dedupeChildProfilesByDisplayName(items)));
     scheduleXiaowanziAccountSync();
   } catch (_error) {}
 }
@@ -1427,6 +1591,46 @@ async function loadXiaowanziMentionLinks(): Promise<XiaowanziMentionLink[]> {
   return buildXiaowanziMentionLinks({ programs, topics, materials });
 }
 
+function scheduleXiaowanziContentWarmup(task: () => void): () => void {
+  if (typeof window === "undefined") {
+    task();
+    return () => {};
+  }
+  const idleWindow = window as Window & {
+    requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+    cancelIdleCallback?: (handle: number) => void;
+  };
+  let rafOne: number | null = null;
+  let rafTwo: number | null = null;
+  let idleHandle: number | null = null;
+  let timeoutHandle: number | null = null;
+
+  const scheduleIdle = () => {
+    if (idleWindow.requestIdleCallback) {
+      idleHandle = idleWindow.requestIdleCallback?.(task, { timeout: 2500 }) ?? null;
+      return;
+    }
+    timeoutHandle = window.setTimeout(task, 900);
+  };
+
+  if (typeof window.requestAnimationFrame === "function") {
+    rafOne = window.requestAnimationFrame(() => {
+      rafTwo = window.requestAnimationFrame(() => {
+        scheduleIdle();
+      });
+    });
+  } else {
+    timeoutHandle = window.setTimeout(task, 900);
+  }
+
+  return () => {
+    if (rafOne !== null) window.cancelAnimationFrame(rafOne);
+    if (rafTwo !== null) window.cancelAnimationFrame(rafTwo);
+    if (idleHandle !== null) idleWindow.cancelIdleCallback?.(idleHandle);
+    if (timeoutHandle !== null) window.clearTimeout(timeoutHandle);
+  };
+}
+
 const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, hideLauncher = false }) => {
   const { pathname } = useLocation();
   const [shouldOpenHomeOnMount] = useState(() => standalone ? true : shouldRestoreXiaowanziHome());
@@ -1712,6 +1916,11 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
   }
 
   function closePanel() {
+    if (homeActive && isMiniProgramWebView()) {
+      clearXiaowanziHomeActive();
+      void forceExitMiniProgramXiaowanzi();
+      return;
+    }
     clearXiaowanziHomeActive();
     setOpen(false);
     setHomeActive(false);
@@ -1725,12 +1934,20 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
   }
 
   function openHiddenEntry() {
+    if (isMiniProgramWebView()) {
+      void openMiniProgramNativeArchivePicker();
+      return;
+    }
     if (shouldBlockXiaowanziForAuth()) return;
     setOpen(true);
     setHiddenEntryOpen(true);
   }
 
   function openSidebarChildCreate() {
+    if (isMiniProgramWebView()) {
+      void openMiniProgramNativeArchiveCreate();
+      return;
+    }
     if (shouldBlockXiaowanziForAuth()) return;
     setHiddenEntryOpen(false);
     document.dispatchEvent(new CustomEvent("xf-open-child-profile-create"));
@@ -1800,6 +2017,10 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
   }, []);
 
   useEffect(() => {
+    applyMiniProgramNativeCapsuleVars();
+  }, []);
+
+  useEffect(() => {
     let alive = true;
     if (!getSessionToken()) return () => { alive = false; };
     void pullAndMergeXiaowanziAccountSync().then((changed) => {
@@ -1815,11 +2036,14 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
 
   useEffect(() => {
     let alive = true;
-    void loadXiaowanziMentionLinks().then((links) => {
-      if (alive) setXiaowanziMentionLinks(links);
+    const cancelWarmup = scheduleXiaowanziContentWarmup(() => {
+      void loadXiaowanziMentionLinks().then((links) => {
+        if (alive) setXiaowanziMentionLinks(links);
+      });
     });
     return () => {
       alive = false;
+      cancelWarmup();
     };
   }, []);
 
@@ -2217,6 +2441,28 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
     };
     document.addEventListener("xf-open-xiaowanzi", onOpenFromTab as EventListener);
     return () => document.removeEventListener("xf-open-xiaowanzi", onOpenFromTab as EventListener);
+  }, []);
+
+  useLayoutEffect(() => {
+    const mode = takeMiniProgramXiaowanziEntryMode();
+    const action = takeMiniProgramXiaowanziAction();
+    if (!mode && !action) return;
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    const nextIsHomeMode = mode !== "chat";
+    setPinned(false);
+    setMaximized(false);
+    setHomeActive(nextIsHomeMode);
+    setHomeBrowsingOpen(false);
+    setHomeBrowseTarget(null);
+    setOpen(true);
+    if (nextIsHomeMode) {
+      maybeStartNewConversationIfNeeded();
+      if (action === "new") {
+        window.setTimeout(() => openManualNewConversation(), 0);
+      } else if (action === "history") {
+        window.setTimeout(() => void openHomeHistoryMenu(), 0);
+      }
+    }
   }, []);
 
   useLayoutEffect(() => {
@@ -3031,7 +3277,51 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
     event.stopPropagation();
     exitShareSelectionMode();
   }
-
+  const renderHomeTop = () => (
+    <div className="xw-home-top">
+      <button
+        className="xw-home-menu"
+        type="button"
+        aria-label="历史记录"
+        onClick={() => void openHomeHistoryMenu()}
+      >
+        menu
+      </button>
+      <button className="xw-home-brand-button" type="button" aria-label="新对话" onClick={openManualNewConversation}>
+        <img key={displayAvatar} className="xw-home-brand-avatar" src={displayAvatar} alt="小玩子" draggable={false} loading="eager" decoding="async" onError={onAvatarError} />
+      </button>
+      <div className="xw-home-spacer" />
+      <button
+        className="xw-home-agent-entry"
+        type="button"
+        onClick={() => {
+          if (shouldBlockXiaowanziForAuth()) return;
+          setHomeBrowsingOpen(false);
+          setHomeBrowseTarget(null);
+          try {
+            sessionStorage.setItem(RETURN_TO_HOME_KEY, "1");
+          } catch (_error) {}
+          window.location.href = "/experts?xw_layer=1&xw_return=xiaowanzi";
+        }}
+      >
+        <img className="xw-home-agent-entry-icon" src="/assets/xianfeng-round-logo.webp" alt="" aria-hidden="true" draggable={false} loading="eager" decoding="async" />
+        <span>先疯智库</span>
+      </button>
+      {!standalone ? <div className="xw-home-more-wrap">
+        <button
+          className="xw-home-icon"
+          type="button"
+          aria-label="更多"
+          onClick={() => {
+            setHomeHistoryDrawerOpen(false);
+            document.dispatchEvent(new CustomEvent("xf-open-public-menu"));
+          }}
+        >
+          more_vert
+        </button>
+      </div> : null}
+    </div>
+  );
   return (
     <>
       <style>{`
@@ -3097,7 +3387,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
         .aip-msgs::-webkit-scrollbar{width:3px}
         .aip-msgs::-webkit-scrollbar-thumb{background:rgba(124,52,232,.18);border-radius:3px}
         .aip-msg{max-width:86%;font-size:13px;line-height:1.72;font-weight:500;padding:11px 13px;border-radius:12px;word-break:break-word;white-space:pre-wrap;position:relative}
-        .aip-msg.ai{background:#fff;color:#1f2937;border:1px solid rgba(124,52,232,.1);border-radius:8px 14px 14px 14px;align-self:flex-start;box-shadow:0 3px 10px rgba(15,23,42,.06)}
+        .aip-msg.ai{max-width:calc(86% + 10px);background:#fff;color:#1f2937;border:1px solid rgba(124,52,232,.1);border-radius:8px 14px 14px 14px;align-self:flex-start;box-shadow:0 3px 10px rgba(15,23,42,.06)}
         .xw-thinking-row{display:flex;align-items:center;gap:5px;padding:4px 0}
         .xw-tdot{width:7px;height:7px;border-radius:50%;background:#a78bfa;animation:xwTDot 1.4s ease-in-out infinite}
         .xw-tdot:nth-child(2){animation-delay:.2s}
@@ -3241,7 +3531,10 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
         @keyframes xwHomeStarPop{0%{opacity:0;transform:scale(.45) rotate(-24deg);filter:blur(4px) drop-shadow(0 7px 12px rgba(92,75,190,.16))}58%{opacity:1;transform:scale(1.18) rotate(8deg);filter:blur(0) drop-shadow(0 9px 15px rgba(92,75,190,.2))}100%{opacity:1;transform:scale(1) rotate(0);filter:drop-shadow(0 7px 12px rgba(92,75,190,.16))}}
         @keyframes xwHomeStarTwinkle{0%,100%{transform:scale(1);box-shadow:0 0 0 rgba(124,77,255,0)}50%{transform:scale(1.08);box-shadow:0 0 18px rgba(124,77,255,.22)}}
         .xw-home-top{position:relative;z-index:30;height:56px;padding:env(safe-area-inset-top) 12px 0;display:flex;align-items:center;gap:7px;flex-shrink:0;background:transparent!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+        html.xf-mp-webview .xw-home{background:#f2f1ff!important;padding-top:var(--xf-native-webview-shift,0px)!important;overflow:visible!important;transform:none!important;-webkit-transform:none!important;animation:none!important;will-change:auto!important}
+        html.xf-mp-webview .xw-home-top{display:none!important}
         .xw-home-icon{border:0;background:transparent;color:rgba(17,20,59,.78);box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+        .xw-home .ms,.xw-home-menu,.xw-home-icon,.xw-home-history-exit,.xw-home-history-new .ms,.xw-home-question .ms,.xw-home-browser-close,.xw-home-voice-cue,.xw-home-send,.xw-home-plus,.xw-home-attachment-file,.xw-home-attachment button,.xw-home-attach-action .ms{font-family:'Material Symbols Rounded'!important;font-weight:400;font-style:normal;line-height:1;letter-spacing:normal;text-transform:none;font-feature-settings:'liga' 1;font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;font-synthesis:none;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
         .xw-home-menu{width:38px;height:32px;border:0;background:transparent;box-shadow:none;color:rgba(17,20,59,.82);font-family:'Material Symbols Rounded';font-size:24px;font-weight:300;display:flex;align-items:center;justify-content:center;padding:0;opacity:.9}
         .xw-home-brand-button{width:36px;height:36px;border:0;border-radius:999px;background:transparent;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
         .xw-home-brand-button:focus-visible{outline:2px solid rgba(96,27,236,.38);outline-offset:2px}
@@ -3251,11 +3544,10 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
         .xw-home-agent-entry{height:38px;border:0;border-radius:999px;background:rgba(91,72,255,.06);box-shadow:none;border:1px solid rgba(124,77,255,.22);color:#4f5878;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 12px 0 9px;font-size:14px;font-weight:750;white-space:nowrap}
         .xw-home-agent-entry-icon{width:29px;height:29px;border-radius:999px;display:block;object-fit:contain;filter:drop-shadow(0 5px 10px rgba(92,75,190,.24));transform:translateY(-1px)}
         .xw-home-more-wrap{position:relative;z-index:40}
+        html.xf-mp-webview .xw-home-more-wrap{display:none!important}
         .xw-home-history-mask{position:fixed;inset:0;z-index:8072;background:rgba(15,23,42,.46);display:flex;justify-content:flex-start;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);animation:xwHistoryMaskIn .2s cubic-bezier(.2,.9,.22,1) both}
         .xw-home-history-drawer{position:relative;display:flex;flex-direction:column;width:min(360px,84vw);height:100dvh;box-sizing:border-box;background:#f7f7fb;box-shadow:18px 0 45px rgba(15,23,42,.2);padding:calc(20px + env(safe-area-inset-top)) 18px max(24px,calc(18px + env(safe-area-inset-bottom)));overflow:hidden;animation:xwHistoryDrawerIn .2s cubic-bezier(.2,.9,.22,1) both}
         .xw-home-history-drawer-head{height:46px;display:flex;align-items:center;justify-content:center;margin-bottom:18px}
-        .xw-home-history-exit{width:44px;height:44px;border:0;border-radius:50%;background:#601BEC;box-shadow:0 14px 30px rgba(96,27,236,.28);color:#fff;font-family:'Material Symbols Rounded';font-size:24px;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
-        .xw-home-history-exit-dock{position:absolute;right:18px;bottom:calc(22px + env(safe-area-inset-bottom));z-index:3}
         .xw-home-history-new{height:42px;width:min(280px,100%);min-width:0;border:0;border-radius:999px;background:#ededf0;color:#303445;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 14px;font-size:15px;font-weight:900;white-space:nowrap}
         .xw-home-history-new .ms{font-family:'Material Symbols Rounded';font-size:22px;font-weight:300;color:#11143b}
         .xw-home-history-drawer-title{display:block;margin:0 0 16px 6px;font-size:22px;font-weight:1000;color:#11143b}
@@ -3265,10 +3557,12 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
         .xw-home-history-list .aip-history-card-title{font-size:14px;font-weight:900;color:#1f254b}
         .xw-home-history-list .aip-history-card-sub,.xw-home-history-list .aip-history-card-tag{font-size:12px}
         .xw-home-history-list .aip-history-empty{padding:24px 8px;text-align:center}
+        .xw-home-history-exit{width:44px;height:44px;border:0;border-radius:50%;background:#601BEC;box-shadow:0 14px 30px rgba(96,27,236,.28);color:#fff;font-size:24px;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
+        .xw-home-history-exit-dock{position:absolute;right:18px;bottom:calc(22px + env(safe-area-inset-bottom));z-index:3}
         @keyframes xwHistoryMaskIn{from{opacity:0}to{opacity:1}}
         @keyframes xwHistoryDrawerIn{from{opacity:.72;transform:translateX(-100%)}to{opacity:1;transform:none}}
         @keyframes xwMoreIn{from{opacity:0;transform:translateY(-6px) scale(.96)}to{opacity:1;transform:none}}
-        .xw-home-scroll{position:relative;z-index:1;flex:1;min-height:0;overflow:auto;padding:6px 30px 113px;-webkit-overflow-scrolling:touch}
+        .xw-home-scroll{position:relative;z-index:1;flex:1;min-height:0;overflow:auto;padding:6px 15px 113px;-webkit-overflow-scrolling:touch}
         .xw-home-hero{position:relative;min-height:168px;display:grid;grid-template-columns:132px 1fr;align-items:center;gap:20px;margin:2px 0 8px}
         .xw-home-avatar-wrap{position:relative;width:132px;height:132px;filter:drop-shadow(0 16px 24px rgba(92,75,190,.2))}
         .xw-home-avatar{width:132px;height:132px;object-fit:contain;display:block}
@@ -3276,7 +3570,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
         .xw-home-hello{display:flex;align-items:center;gap:8px;width:max-content;max-width:100%;margin-bottom:8px;color:#151842;font-size:24px;font-weight:1000;letter-spacing:0;animation:xwHomeHelloIn .38s .58s cubic-bezier(.2,.9,.22,1) both}
         .xw-home-hello-star{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:999px;background:rgba(255,255,255,.78);color:#7c4dff;font-size:19px;filter:drop-shadow(0 7px 12px rgba(92,75,190,.16));animation:xwHomeStarPop .48s .74s cubic-bezier(.18,.92,.2,1) both,xwHomeStarTwinkle 1.8s 1.35s ease-in-out infinite}
         .xw-home-greet strong{display:block;color:#4f46e5;font-size:27px;margin-top:0;white-space:normal;max-width:100%;clip-path:inset(0 100% 0 0);animation:xwHomeTitleReveal .9s .86s steps(13,end) both}
-        .xw-home-card{border:1px solid rgba(255,255,255,.86);background:rgba(255,255,255,.54);box-shadow:0 18px 38px rgba(70,73,132,.08);border-radius:30px;padding:22px 20px;margin:0 0 18px;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+        .xw-home-card{border:1px solid rgba(255,255,255,.86);background:rgba(255,255,255,.54);box-shadow:0 18px 38px rgba(70,73,132,.08);border-radius:30px;padding:11px 10px;margin:0 0 18px;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
         .xw-home-card-title{display:flex;align-items:center;gap:10px;font-size:21px;font-weight:1000;margin-bottom:16px}
         .xw-home-card-title::before{content:"";width:7px;height:28px;border-radius:999px;background:linear-gradient(180deg,#7c5cff,#6f8cff)}
         .xw-home-card-title-text{flex:1}
@@ -3286,7 +3580,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
         .xw-home-question .ms{font-family:'Material Symbols Rounded';font-size:22px;color:#b8bfd9;flex-shrink:0}.xw-home-question span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .xw-home-answer-list{display:flex;flex-direction:column;gap:12px;margin-top:16px}
         .xw-home-msg{max-width:86%;border-radius:20px;padding:15px 17px;font-size:14.5px;font-weight:520;line-height:1.86;white-space:pre-wrap;word-break:break-word;position:relative}
-        .xw-home-msg.ai{align-self:flex-start;background:rgba(255,255,255,.9);border:1px solid rgba(122,103,238,.1);box-shadow:0 8px 18px rgba(72,75,132,.06);padding:18px 18px}
+        .xw-home-msg.ai{max-width:calc(86% + 10px);align-self:flex-start;background:rgba(255,255,255,.9);border:1px solid rgba(122,103,238,.1);box-shadow:0 8px 18px rgba(72,75,132,.06);padding:9px 9px}
         .xw-home-msg.user{align-self:flex-end;background:#601BEC;color:#fff;box-shadow:0 12px 24px rgba(96,27,236,.22)}
         .xw-msg-link{color:#5e17eb;font-weight:950;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;cursor:pointer}
         .xw-msg-link:hover{color:#7c34e8}
@@ -3305,6 +3599,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
         .xw-thinking-label{font-size:12px;color:#a78bfa;font-weight:600;margin-left:6px;animation:thinkingLabelPulse 2s ease-in-out infinite}
         .xw-home-history-chat{display:flex;flex-direction:column;gap:12px;padding-top:14px}
         .xw-home-history-chat .xw-home-msg{max-width:86%}
+        .xw-home-history-chat .xw-home-msg.ai{max-width:calc(86% + 10px)}
         .xw-home-optional{display:flex;align-items:center;justify-content:center;gap:8px;color:#7d86a5;font-size:13px;font-weight:850;margin:0 0 18px;padding:0 2px;text-align:center}
         .xw-home-optional button{min-height:32px;border:0;border-radius:0;background:transparent;box-shadow:none;color:#5b48ff;font-weight:950;padding:0 2px}
         .xw-home-bottom-dock{position:fixed;left:0;right:0;bottom:-36px;height:calc(115px + env(safe-area-inset-bottom));z-index:8062;background:#e8ecff;box-shadow:0 -18px 58px rgba(122,144,255,.1);overflow:visible;pointer-events:none;transform:translateZ(0)}
@@ -3354,7 +3649,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
         .xw-home-attach-action .ms{width:62px;height:62px;border-radius:22px;background:rgba(255,255,255,.92);box-shadow:0 10px 24px rgba(70,73,132,.1);font-family:'Material Symbols Rounded';font-size:30px;color:#10085f;display:flex;align-items:center;justify-content:center}
         @keyframes xwAttachIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
         @media (min-width:769px){.xw-home{--xw-home-x:-50%;left:50%;right:auto;width:min(430px,100vw)}.xw-home-inputbar{left:calc(50% - min(430px,100vw)/2 + 24px);right:calc(50% - min(430px,100vw)/2 + 24px)}.xw-home-attach-menu{left:calc(50% - min(430px,100vw)/2 + 24px);right:calc(50% - min(430px,100vw)/2 + 24px)}}
-        @media (max-width:380px){.xw-home-scroll{padding-left:22px;padding-right:22px}.xw-home-hero{grid-template-columns:112px 1fr}.xw-home-avatar-wrap,.xw-home-avatar{width:112px;height:112px}.xw-home-greet{font-size:24px}.xw-home-hello{font-size:24px;margin-bottom:7px}.xw-home-hello-star{width:25px;height:25px;font-size:17px}.xw-home-greet strong{font-size:27px}.xw-home-inputbar{left:22px;right:22px}.xw-home-attach-menu{left:22px;right:22px;gap:12px}.xw-home-attach-action .ms{width:58px;height:58px}}
+        @media (max-width:380px){.xw-home-scroll{padding-left:11px;padding-right:11px}.xw-home-hero{grid-template-columns:112px 1fr}.xw-home-avatar-wrap,.xw-home-avatar{width:112px;height:112px}.xw-home-greet{font-size:24px}.xw-home-hello{font-size:24px;margin-bottom:7px}.xw-home-hello-star{width:25px;height:25px;font-size:17px}.xw-home-greet strong{font-size:27px}.xw-home-inputbar{left:22px;right:22px}.xw-home-attach-menu{left:22px;right:22px;gap:12px}.xw-home-attach-action .ms{width:58px;height:58px}}
         @media (prefers-reduced-motion:reduce){.xw-home,.xw-home::before,.xw-home::after,.xw-home-top,.xw-home-scroll,.xw-home-inputbar,.xw-home-hello,.xw-home-hello-star,.xw-home-greet strong{animation:none!important;opacity:1!important;filter:none!important;clip-path:none!important}.xw-home{transform:translateX(var(--xw-home-x))!important}.xw-home-top,.xw-home-scroll,.xw-home-inputbar{transform:none!important}}
         /* ── 分享按钮 ── */
         .xw-share-btn{display:flex;align-items:center;justify-content:center;margin-top:2px;width:32px;height:32px;min-width:32px;min-height:32px;padding:0;border-radius:50%;border:none;background:#f3f0ff;color:#7C34E8;font-size:14px;cursor:pointer;opacity:0;pointer-events:none;transform:scale(.88);transition:opacity .15s,transform .15s,background .15s,color .15s;box-shadow:0 1px 4px rgba(124,52,232,0.1);overflow:hidden;flex-shrink:0;line-height:1}
@@ -3378,10 +3673,10 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
         .xw-share-channel{display:flex;flex-direction:column;align-items:center;gap:10px;min-width:90px;border:none;background:none;cursor:pointer;padding:16px 12px;border-radius:16px;transition:background .15s,transform .15s;flex-shrink:0}
         .xw-share-channel:hover:not(:disabled){background:#f5f3ff;transform:translateY(-2px)}
         .xw-share-channel:disabled{opacity:0.35}
-        .xw-share-ch-icon{width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background .15s,box-shadow .15s}
-        .xw-share-ch-icon svg{display:block}
-        .xw-share-channel:first-child .xw-share-ch-icon,.xw-share-channel:nth-child(2) .xw-share-ch-icon,.xw-share-channel:nth-child(3) .xw-share-ch-icon{background:#f3f0ff;color:#7C34E8;box-shadow:0 4px 12px rgba(124,52,232,0.12)}
-        .xw-share-channel:hover:not(:disabled) .xw-share-ch-icon{box-shadow:0 6px 16px rgba(0,0,0,0.12)}
+        .xw-share-ch-icon{width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background .15s,box-shadow .15s,transform .15s}
+        .xw-share-ch-icon img{display:block;width:30px;height:30px}
+        .xw-share-channel:first-child .xw-share-ch-icon,.xw-share-channel:nth-child(2) .xw-share-ch-icon,.xw-share-channel:nth-child(3) .xw-share-ch-icon{background:linear-gradient(180deg,#fbf9ff 0%,#f0eaff 100%);color:#7C34E8;box-shadow:0 3px 8px rgba(124,52,232,0.08)}
+        .xw-share-channel:hover:not(:disabled) .xw-share-ch-icon{box-shadow:0 5px 12px rgba(124,52,232,0.12);transform:scale(.98)}
         .wechat-icon{background:#07C160}
         .image-icon{background:#8B5CF6}
         .link-icon{background:#3B82F6}
@@ -3413,49 +3708,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
       <div className={`ai-panel-backdrop${open && maximized ? " show" : ""}`} onClick={() => setMaximized(false)} />
       {open && homeActive ? (
         <div key={`xw-home-${homePortalKey}`} className={`xw-home${skipHomeIntroOnMount ? " no-intro" : ""}${isDocked ? " docked" : ""}`} onClick={shareSelectionMode ? dismissShareSelectionBackdropEvent : undefined} onTouchStart={handleHomeSwipeStart} onTouchEnd={handleHomeSwipeEnd}>
-          <div className="xw-home-top">
-            <button
-              className="xw-home-menu"
-              type="button"
-              aria-label="历史记录"
-              onClick={() => void openHomeHistoryMenu()}
-            >
-              menu
-            </button>
-            <button className="xw-home-brand-button" type="button" aria-label="新对话" onClick={openManualNewConversation}>
-              <img key={displayAvatar} className="xw-home-brand-avatar" src={displayAvatar} alt="小玩子" draggable={false} loading="eager" decoding="async" fetchPriority="high" onError={onAvatarError} />
-            </button>
-            <div className="xw-home-spacer" />
-            <button
-              className="xw-home-agent-entry"
-              type="button"
-              onClick={() => {
-                if (shouldBlockXiaowanziForAuth()) return;
-                setHomeBrowsingOpen(false);
-                setHomeBrowseTarget(null);
-                try {
-                  sessionStorage.setItem(RETURN_TO_HOME_KEY, "1");
-                } catch (_error) {}
-                window.location.href = "/experts?xw_layer=1&xw_return=xiaowanzi";
-              }}
-            >
-              <img className="xw-home-agent-entry-icon" src="/assets/xianfeng-round-logo.webp" alt="" aria-hidden="true" draggable={false} loading="eager" decoding="async" />
-              <span>先疯智库</span>
-            </button>
-            {!standalone ? <div className="xw-home-more-wrap">
-              <button
-                className="xw-home-icon"
-                type="button"
-                aria-label="更多"
-                onClick={() => {
-                  setHomeHistoryDrawerOpen(false);
-                  document.dispatchEvent(new CustomEvent("xf-open-public-menu"));
-                }}
-              >
-                more_vert
-              </button>
-            </div> : null}
-          </div>
+          {renderHomeTop()}
           {homeHistoryDrawerOpen ? (
             <div className="xw-home-history-mask" onClick={() => setHomeHistoryDrawerOpen(false)}>
                 <div className="xw-home-history-drawer" onClick={(event) => event.stopPropagation()}>
@@ -3529,7 +3782,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
               <>
                 <div className="xw-home-hero">
                   <div className="xw-home-avatar-wrap" aria-hidden="true">
-                    <img className="xw-home-avatar" src="/assets/wel-avatar/optimized/no-hat.webp" alt="" draggable={false} loading="eager" decoding="async" fetchPriority="high" />
+                    <img className="xw-home-avatar" src="/assets/wel-avatar/optimized/no-hat.webp" alt="" draggable={false} loading="eager" decoding="async" />
                   </div>
                   <div className="xw-home-greet">
                     <div className="xw-home-hello">哈喽 <span className="xw-home-hello-star" aria-hidden="true">✦</span></div>
@@ -3606,7 +3859,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
                 </div>
                 <div className="xw-home-optional">
                   <span>{isChildBound && activeChild ? `已关联 ${activeChild.displayName} 档案，可获得更贴合的建议` : "可选：关联孩子档案后，回答会更个性化"}</span>
-                  <button type="button" onClick={() => { if (shouldBlockXiaowanziForAuth()) return; setHiddenEntryOpen(true); }}>{isChildBound ? "切换" : "关联"}</button>
+                  <button type="button" onClick={openHiddenEntry}>{isChildBound ? "切换" : "关联"}</button>
                 </div>
               </>
             )}
@@ -3679,7 +3932,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
           <div className="aip-head">
             <div className="aip-gem">
               <div className={`ai-avatar-wrapper ${avatarFxClassName}`.trim()}>
-                <img id="ai-panel-avatar-img" src={displayAvatar} alt="" draggable={false} loading="eager" decoding="async" fetchPriority="high" onError={onAvatarError} />
+                <img id="ai-panel-avatar-img" src={displayAvatar} alt="" draggable={false} loading="eager" decoding="async" onError={onAvatarError} />
                 <div className="ai-avatar-particles" aria-hidden="true">
                   {avatarParticles.map((particle) => (
                     <span
@@ -3747,7 +4000,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
           <div className="aip-child-row">
             <span className="aip-child-chip">{isChildBound && activeChild ? `为 ${activeChild.displayName} 咨询` : "未绑定孩子档案"}</span>
             {canSwitchChild ? (
-              <button className="aip-child-switch" type="button" onClick={() => { if (shouldBlockXiaowanziForAuth()) return; setHiddenEntryOpen(true); }}>
+              <button className="aip-child-switch" type="button" onClick={openHiddenEntry}>
                 {isChildBound ? "切换" : "去绑定"}
               </button>
             ) : (
@@ -3893,7 +4146,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
 	                    if (shouldBlockXiaowanziForAuth()) return;
 	                    if (childProfiles.length === 0) {
 	                      setStatusText("● 请先去绑定孩子档案");
-	                      setHiddenEntryOpen(true);
+	                      openHiddenEntry();
 	                      return;
 	                    }
 	                    setStatusText(
@@ -3977,7 +4230,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
           type="button"
         >
           <div id="ai-avatar-wrapper" className={`ai-avatar-wrapper ${avatarFxClassName}`.trim()}>
-            <img id="ai-avatar-img" src={displayAvatar} alt="" draggable={false} loading="eager" decoding="async" fetchPriority="high" onError={onAvatarError} />
+            <img id="ai-avatar-img" src={displayAvatar} alt="" draggable={false} loading="eager" decoding="async" onError={onAvatarError} />
             <div id="ai-avatar-particles" className="ai-avatar-particles" aria-hidden="true">
               {avatarParticles.map((particle) => (
                 <span
@@ -4013,7 +4266,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
               <span className="xw-share-count">将{selectedMessagesForShare.size > 0 ? Math.ceil(selectedMessagesForShare.size / 2) : 0}轮对话分享至</span>
               <div className="xw-share-channel-btns">
                 <button className="xw-share-channel" type="button" onClick={() => setShareToastMsg("即将上线")}>
-                  <span className="xw-share-ch-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7C34E8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></span>
+                  <span className="xw-share-ch-icon" aria-hidden="true"><img src="/assets/xiaowanzi-icons/share-wechat-friend.svg" alt="" draggable={false} /></span>
                   <span>微信好友</span>
                 </button>
                 <button className="xw-share-channel" type="button" disabled={shareGenerating || selectedMessagesForShare.size === 0} onClick={async () => {
@@ -4022,7 +4275,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
                   const firstUser = sorted.find((m) => m.role === "user");
                   await generateShareCard(firstUser ?? sorted[0], sorted);
                 }}>
-                  <span className="xw-share-ch-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7C34E8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
+                  <span className="xw-share-ch-icon" aria-hidden="true"><img src="/assets/xiaowanzi-icons/share-image-card.svg" alt="" draggable={false} /></span>
                   <span>{shareGenerating ? "生成中..." : "生成图片"}</span>
                 </button>
                 <button className="xw-share-channel" type="button" disabled={selectedMessagesForShare.size === 0} onClick={() => {
@@ -4030,7 +4283,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
                   const text = sorted.map((m) => `${m.role === "user" ? "👤" : "🤖"} ${m.content}`).join("\n\n");
                   navigator.clipboard.writeText(text).then(() => { setShareToastMsg("已复制到剪贴板"); setTimeout(() => setShareToastMsg(""), 2000); });
                 }}>
-                  <span className="xw-share-ch-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7C34E8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></span>
+                  <span className="xw-share-ch-icon" aria-hidden="true"><img src="/assets/xiaowanzi-icons/share-copy-content.svg" alt="" draggable={false} /></span>
                   <span>复制内容</span>
                 </button>
               </div>

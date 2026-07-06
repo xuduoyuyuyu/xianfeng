@@ -1,0 +1,108 @@
+.xf-native-page-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.98);
+  border-bottom: 1rpx solid rgba(17, 10, 8, 0.08);
+  box-shadow: 0 6rpx 24rpx rgba(15, 23, 42, 0.04);
+}
+
+.xf-native-page-nav__bar {
+  position: relative;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+  box-sizing: border-box;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.xf-native-page-nav__logo-button {
+  position: absolute;
+  left: 50%;
+  width: 142rpx;
+  transform: translateX(-50%);
+}
+
+.xf-native-page-nav__logo {
+  width: 142rpx;
+  height: 100%;
+}
+
+.xf-native-page-nav__menu-toggle {
+  position: absolute;
+  left: 26rpx;
+  width: 64rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999rpx;
+}
+
+.xf-native-page-nav__menu-toggle:active {
+  background: #f0eaff;
+}
+
+.xf-native-page-nav__menu-icon {
+  display: flex;
+  flex-direction: column;
+  gap: 9rpx;
+  width: 38rpx;
+}
+
+.xf-native-page-nav__menu-line {
+  width: 30rpx;
+  height: 4rpx;
+  border-radius: 999px;
+  background: #5f6b7a;
+}
+
+.xf-native-page-nav__menu-line.is-short {
+  width: 22rpx;
+}
+
+.xf-native-page-nav__menu-mask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 9998;
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.xf-native-page-nav__menu-panel {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  z-index: 10001;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  box-sizing: border-box;
+  padding: 12px;
+  border-radius: 0 0 16px 16px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 18rpx 48rpx rgba(32, 20, 66, 0.14);
+}
+
+.xf-native-page-nav__menu-item {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: #f8f5ff;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.xf-native-page-nav__menu-item.is-selected {
+  background: #f0eaff;
+  color: #6c27d6;
+}

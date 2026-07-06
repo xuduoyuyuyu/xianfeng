@@ -1,1 +1,143 @@
-<web-view src="{{src}}" />
+<import src="../../templates/settings-profile-views.wxml" />
+
+<view class="xf-mine-page {{fontSizeClass}}" style="padding-top: {{chromeHeight}}px;">
+  <view class="xf-native-topbar" style="height: {{topbarHeight}}px;">
+    <view class="xf-native-nav-row" style="height: {{topbarHeight}}px;">
+      <view class="xf-native-menu-button" style="top: {{logoTop}}px; height: {{logoHeight}}px;" catchtap="openSettings" role="button" aria-label="打开设置">
+        <view class="xf-native-menu-icon" aria-hidden="true"></view>
+      </view>
+      <image class="xf-native-logo" style="top: {{logoTop}}px; height: {{logoHeight}}px;" src="/assets/nav/logo.png" mode="aspectFit" bindtap="goProgramsHome" aria-label="回到顶部" />
+      <button class="xf-native-welfare-button" style="top: {{logoTop}}px; right: {{welfareRight}}px; height: {{logoHeight}}px;" catchtap="openWelfare" aria-label="百宝箱">
+        <image class="xf-native-welfare-icon" src="/assets/menu/welfare-gift-icon.png" mode="aspectFit" aria-hidden="true" />
+      </button>
+    </view>
+  </view>
+
+  <view class="xf-mine-profile-card">
+    <view class="xf-mine-avatar">{{avatarText}}</view>
+    <view class="xf-mine-profile-main">
+      <view class="xf-mine-name">{{displayName}}</view>
+      <view class="xf-mine-subtitle">{{isLoggedIn ? maskedMobile : '登录后同步档案和个性化推荐'}}</view>
+    </view>
+    <button wx:if="{{!isLoggedIn}}" class="xf-mine-login" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone">登录</button>
+  </view>
+
+  <view class="xf-mine-stats">
+    <view wx:for="{{stats}}" wx:key="label" class="xf-mine-stat">
+      <view class="xf-mine-stat-value">{{item.value}}</view>
+      <view class="xf-mine-stat-label">{{item.label}}</view>
+    </view>
+  </view>
+
+  <view class="xf-mine-actions">
+    <button
+      wx:for="{{quickActions}}"
+      wx:key="key"
+      class="xf-mine-action"
+      hover-class="xf-mine-action--pressed"
+      data-key="{{item.key}}"
+      bindtap="handleQuickAction"
+    >
+      <image class="xf-mine-action-icon" src="{{item.image}}" mode="aspectFit" />
+      <view class="xf-mine-action-main">
+        <view class="xf-mine-action-title">{{item.title}}</view>
+        <view class="xf-mine-action-subtitle">{{item.subtitle}}</view>
+      </view>
+      <text class="xf-mine-chevron" aria-hidden="true">›</text>
+    </button>
+  </view>
+
+  <view wx:if="{{settingsPanelOpen}}" class="xf-native-settings-mask xf-mine-settings-mask" style="height: {{settingsPanelHeight}}px;" catchtap="closeSettings" catchtouchmove="noop">
+    <scroll-view class="xf-native-settings-panel xf-mine-settings-panel" style="height: {{settingsPanelHeight}}px; padding-top: {{profilePanelTop}}px;" scroll-y="true" enhanced show-scrollbar="false" catchtap="noop">
+      <view class="xf-native-settings-panel-inner">
+      <block wx:if="{{settingsPanelView === 'menu'}}">
+        <button wx:if="{{!isLoggedIn}}" class="xf-native-settings-account xf-mine-settings-account" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone">
+          <view class="xf-native-settings-avatar-wrap">
+            <image class="xf-native-settings-avatar" src="{{accountAvatar}}" mode="aspectFill" />
+          </view>
+          <view class="xf-native-settings-copy">
+            <view class="xf-native-settings-title-row">
+              <text class="xf-native-settings-title">{{accountTitle}}</text>
+            </view>
+            <view class="xf-native-settings-subtitle-row">
+              <text class="xf-native-settings-subtitle">{{accountSubtitle}}</text>
+            </view>
+          </view>
+          <text class="xf-native-settings-chevron xf-mine-settings-chevron">›</text>
+        </button>
+        <view wx:else class="xf-native-settings-account xf-mine-settings-account" catchtap="openSettingsItem" data-page="{{accountPage}}" data-title="{{accountTitle}}" data-panel-view="{{accountPanelView}}">
+          <view class="xf-native-settings-avatar-wrap">
+            <image class="xf-native-settings-avatar" src="{{accountAvatar}}" mode="aspectFill" />
+          </view>
+          <view class="xf-native-settings-copy">
+            <view class="xf-native-settings-title-row">
+              <text class="xf-native-settings-title">{{accountTitle}}</text>
+            </view>
+            <view class="xf-native-settings-subtitle-row">
+              <text class="xf-native-settings-subtitle">{{accountSubtitle}}</text>
+            </view>
+          </view>
+          <text class="xf-native-settings-chevron xf-mine-settings-chevron">›</text>
+        </view>
+
+        <view
+          wx:for="{{settingsSections}}"
+          wx:for-item="section"
+          wx:for-index="sectionIndex"
+          wx:key="key"
+          class="xf-native-settings-card xf-mine-settings-card xf-mine-settings-card--{{section.key}}"
+        >
+          <view
+            wx:for="{{section.items}}"
+            wx:for-item="item"
+            wx:for-index="itemIndex"
+            wx:key="key"
+            class="xf-native-settings-row xf-mine-settings-row"
+            catchtap="openSettingsItem"
+            data-section-index="{{sectionIndex}}"
+            data-item-index="{{itemIndex}}"
+          >
+            <image wx:if="{{item.iconType === 'image'}}" class="xf-native-settings-logo-icon xf-mine-settings-icon" src="{{item.image}}" mode="aspectFit" />
+            <text wx:elif="{{item.iconType === 'emoji'}}" class="xf-native-settings-emoji-icon xf-mine-settings-icon">{{item.emoji}}</text>
+            <text wx:else class="xf-native-settings-symbol material-symbols-rounded">{{item.icon}}</text>
+            <text class="xf-native-settings-label xf-mine-settings-label">{{item.title}}</text>
+            <text wx:if="{{item.key === 'pro' && settingsMemberBadgeLabel}}" class="xf-native-settings-member-badge">{{settingsMemberBadgeLabel}}</text>
+            <text class="xf-native-settings-chevron xf-mine-settings-chevron">›</text>
+          </view>
+        </view>
+      </block>
+
+      <template wx:elif="{{settingsPanelView === 'profile'}}" is="xfSettingsProfilePanel" data="{{profileHeaderHeight: profileHeaderHeight, profileDraft: profileDraft, profileAvatar: profileAvatar, profileGenderOptions: profileGenderOptions, profilePanelMessage: profilePanelMessage}}"></template>
+      <template wx:elif="{{settingsPanelView === 'archive'}}" is="xfSettingsArchivePanel" data="{{profileHeaderHeight: profileHeaderHeight, archiveHasChildren: archiveHasChildren, archiveChildren: archiveChildren, archiveInsightGrade: archiveInsightGrade, archiveDraft: archiveDraft, archiveProfileStatus: archiveProfileStatus, archiveRelationOptions: archiveRelationOptions, archiveRegionOptions: archiveRegionOptions, archiveRegionIndex: archiveRegionIndex, archiveStageOptions: archiveStageOptions, archiveStageIndex: archiveStageIndex, archiveStage: archiveStage, archiveGradeOptions: archiveGradeOptions, archiveStageGradeColumns: archiveStageGradeColumns, archiveStageGradeValue: archiveStageGradeValue, archiveGradeSelectOptions: archiveGradeSelectOptions, archiveGradeName: archiveGradeName, archiveGradeDropdownOpen: archiveGradeDropdownOpen, archiveTagOptions: archiveTagOptions, profilePanelMessage: profilePanelMessage}}"></template>
+      <template wx:elif="{{settingsPanelView === 'memory'}}" is="xfSettingsMemoryPanel" data="{{profileHeaderHeight: profileHeaderHeight, memoryEnabled: memoryEnabled}}"></template>
+      <template wx:elif="{{settingsPanelView === 'memoryManager'}}" is="xfSettingsMemoryManagerPanel" data="{{profileHeaderHeight: profileHeaderHeight, memorySearchQuery: memorySearchQuery, filteredMemoryItems: filteredMemoryItems, memoryPanelMessage: memoryPanelMessage}}"></template>
+
+      <view wx:elif="{{settingsPanelView === 'settings'}}" class="xf-mine-panel-view xf-settings-panel {{fontSizeClass}}">
+        <view class="xf-profile-header" style="height: {{profileHeaderHeight}}px;">
+          <button class="xf-profile-back" bindtap="returnSettingsMenu">← 返回</button>
+          <view class="xf-profile-title">设置</view>
+          <view class="xf-profile-header-spacer"></view>
+        </view>
+        <view class="xf-profile-card xf-settings-card">
+          <button wx:if="{{isLoggedIn && !hasMobile}}" class="xf-setting-row xf-setting-button" open-type="getPhoneNumber" bindgetphonenumber="bindPhone">
+            <text>绑定手机</text>
+            <text class="xf-setting-value">{{bindingPhone ? '绑定中...' : '授权绑定 ›'}}</text>
+          </button>
+          <view wx:else class="xf-setting-row"><text>绑定手机</text><text class="xf-setting-value">{{isLoggedIn ? maskedMobile : '未登录'}}</text></view>
+          <view class="xf-setting-row">
+            <text>字体大小</text>
+            <view class="xf-setting-segment">
+              <button wx:for="{{fontOptions}}" wx:key="value" class="{{item.selected ? 'is-active' : ''}}" data-value="{{item.value}}" bindtap="chooseFontSize">{{item.label}}</button>
+            </view>
+          </view>
+          <button class="xf-setting-row xf-setting-button" bindtap="clearCache"><text>应用管理</text><text class="xf-setting-value">清理缓存 ›</text></button>
+        </view>
+        <button wx:if="{{isLoggedIn}}" class="xf-profile-secondary xf-settings-logout" bindtap="logout">退出登录</button>
+        <button wx:else class="xf-profile-secondary xf-settings-login" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone">登录</button>
+        <view class="xf-profile-message">{{profilePanelMessage}}</view>
+        <button wx:if="{{isLoggedIn}}" class="xf-profile-danger xf-settings-danger">注销账户</button>
+      </view>
+      </view>
+    </scroll-view>
+  </view>
+</view>

@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-export type BillingPlanId = "monthly" | "yearly";
+export type BillingPlanId = "plus" | "pro" | "monthly" | "yearly";
 export type PaymentProviderId = "alipay" | "wechat";
 export type PaymentOrderStatus = "pending" | "paid" | "closed" | "refunded" | "failed";
 
@@ -24,7 +24,7 @@ export interface PaymentOrder extends mongoose.Document {
 const paymentOrderSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
-    plan: { type: String, enum: ["monthly", "yearly"], required: true, index: true },
+    plan: { type: String, enum: ["plus", "pro", "monthly", "yearly"], required: true, index: true },
     provider: { type: String, enum: ["alipay", "wechat"], required: true, index: true },
     amountCents: { type: Number, required: true },
     currency: { type: String, enum: ["CNY"], default: "CNY" },

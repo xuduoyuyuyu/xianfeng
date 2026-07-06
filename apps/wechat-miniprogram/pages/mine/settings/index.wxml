@@ -1,0 +1,44 @@
+<view class="xf-profile-shell xf-settings-panel {{fontSizeClass}}">
+  <view class="xf-profile-scrim"></view>
+  <view class="xf-profile-panel xf-settings-native-panel">
+    <view class="xf-profile-header">
+      <button class="xf-profile-back" bindtap="goBack">← 返回</button>
+      <view class="xf-profile-title">{{title}}</view>
+      <view class="xf-profile-header-spacer"></view>
+    </view>
+
+    <view class="xf-profile-card xf-settings-card">
+      <button wx:if="{{isLoggedIn && !hasMobile}}" class="xf-setting-row xf-setting-button" open-type="getPhoneNumber" bindgetphonenumber="bindPhone">
+        <text>绑定手机</text>
+        <text class="xf-setting-value">{{bindingPhone ? '绑定中...' : '授权绑定 ›'}}</text>
+      </button>
+      <view wx:else class="xf-setting-row">
+        <text>绑定手机</text>
+        <text class="xf-setting-value">{{isLoggedIn ? maskedMobile : '未绑定'}}</text>
+      </view>
+      <view class="xf-setting-row">
+        <text>字体大小</text>
+        <view class="xf-setting-segment">
+          <button
+            wx:for="{{fontOptions}}"
+            wx:key="value"
+            class="{{item.selected ? 'is-active' : ''}}"
+            data-value="{{item.value}}"
+            bindtap="chooseFont"
+          >{{item.label}}</button>
+        </view>
+      </view>
+      <button class="xf-setting-row xf-setting-button" bindtap="clearCache">
+        <text>应用管理</text>
+        <text class="xf-setting-value">清理缓存 ›</text>
+      </button>
+    </view>
+
+    <button wx:if="{{isLoggedIn}}" class="xf-profile-secondary xf-settings-logout" bindtap="logout">退出登录</button>
+    <button wx:else class="xf-profile-secondary xf-settings-login" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone">{{bindingPhone ? '登录中...' : '登录'}}</button>
+    <view class="xf-profile-message">{{message}}</view>
+    <view class="xf-settings-bottom">
+      <button wx:if="{{isLoggedIn}}" class="xf-profile-danger xf-settings-danger" bindtap="deleteAccount">注销账户</button>
+    </view>
+  </view>
+</view>

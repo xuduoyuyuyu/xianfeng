@@ -76,15 +76,15 @@ const BookCard: React.FC<BookCardProps> = ({ item, imageIndex }) => {
   const cardContent = (
     <>
       {coverUrl ? (
-        <div className="relative w-full p-2">
-          <div className="flex min-h-[180px] items-center justify-center overflow-hidden rounded-lg bg-[#f8f5ff] sm:min-h-[220px]">
+        <div className="book-card-cover-frame relative w-full p-2">
+          <div className="book-card-cover-shell flex min-h-[180px] items-center justify-center overflow-hidden rounded-lg bg-[#f8f5ff] sm:min-h-[220px]">
             <img
               src={coverSrc}
               alt={item.title || "书籍封面"}
-              className={`w-full object-contain transition-opacity duration-200 ${coverLoaded ? "opacity-100" : "opacity-0"}`}
+              className={`book-card-cover-image w-full object-contain transition-opacity duration-200 ${coverLoaded ? "opacity-100" : "opacity-0"}`}
               loading={coverLoading}
               decoding={isPriorityCover ? "sync" : "async"}
-              fetchPriority={coverFetchPriority}
+              {...({ fetchpriority: coverFetchPriority } as React.ImgHTMLAttributes<HTMLImageElement> & { fetchpriority: typeof coverFetchPriority })}
               onLoad={() => setCoverLoaded(true)}
               onError={(e) => {
                 setCoverLoaded(false);
@@ -95,41 +95,41 @@ const BookCard: React.FC<BookCardProps> = ({ item, imageIndex }) => {
           {/* 购买功能暂隐藏 */}
         </div>
       ) : null}
-      <div className={`px-3 pb-3 ${coverUrl ? "pt-1" : "pt-3"}`}>
-        <h3 className="line-clamp-2 text-[22px] font-black leading-tight text-[#2b1a3a]">{item.title || "未命名书籍"}</h3>
-        <p className="mt-2 text-sm text-[#6f62a4]">作者: {item.author || "未标注"}</p>
-        {item.translator ? <p className="mt-1 text-sm text-[#6f62a4]">译者: {item.translator}</p> : null}
-        <div className="mt-2.5 flex flex-wrap gap-1.5">
+      <div className={`book-card-body px-3 pb-3 ${coverUrl ? "pt-1" : "pt-3"}`}>
+        <h3 className="book-card-title line-clamp-2 text-[22px] font-black leading-tight text-[#2b1a3a]">{item.title || "未命名书籍"}</h3>
+        <p className="book-card-meta mt-2 text-sm text-[#6f62a4]">作者: {item.author || "未标注"}</p>
+        {item.translator ? <p className="book-card-meta mt-1 text-sm text-[#6f62a4]">译者: {item.translator}</p> : null}
+        <div className="book-card-tags mt-2.5 flex flex-wrap gap-1.5">
           {item.recommendedGuest ? (
-            <span className="rounded-full border border-[#d5c8ff] bg-[#f6f0ff] px-2.5 py-1 text-[11px] font-bold text-[#5e17eb]">
+            <span className="book-card-tag book-card-tag-guest rounded-full border border-[#d5c8ff] bg-[#f6f0ff] px-2.5 py-1 text-[11px] font-bold text-[#5e17eb]">
               推荐人：{item.recommendedGuest}
             </span>
           ) : null}
           {item.grade ? (
-            <span className="rounded-full border border-[#d9d8ee] bg-[#f7f7ff] px-2.5 py-1 text-[11px] font-bold text-[#4e4c87]">
+            <span className="book-card-tag book-card-tag-grade rounded-full border border-[#d9d8ee] bg-[#f7f7ff] px-2.5 py-1 text-[11px] font-bold text-[#4e4c87]">
               {item.grade}
             </span>
           ) : null}
           {item.categoryLabel ? (
-            <span className="rounded-full border border-[#f1d9ee] bg-[#fff5ff] px-2.5 py-1 text-[11px] font-bold text-[#8a3daa]">
+            <span className="book-card-tag book-card-tag-category rounded-full border border-[#f1d9ee] bg-[#fff5ff] px-2.5 py-1 text-[11px] font-bold text-[#8a3daa]">
               {item.categoryLabel}
             </span>
           ) : null}
           {item.topic ? (
-            <span className="rounded-full border border-[#cde6ea] bg-[#f2fbfe] px-2.5 py-1 text-[11px] font-bold text-[#25678a]">
+            <span className="book-card-tag book-card-tag-topic rounded-full border border-[#cde6ea] bg-[#f2fbfe] px-2.5 py-1 text-[11px] font-bold text-[#25678a]">
               {item.topic}
             </span>
           ) : null}
         </div>
-        <div className="mt-2 text-xs text-[#8b7dbc]">{item.publisher ? <span>出版社: {item.publisher}</span> : <span>出版社未标注</span>}</div>
-        <div className="mt-1.5 flex items-center justify-between gap-3 border-t border-[#f0ebff] pt-2 text-xs">
+        <div className="book-card-publisher mt-2 text-xs text-[#8b7dbc]">{item.publisher ? <span>出版社: {item.publisher}</span> : <span>出版社未标注</span>}</div>
+        <div className="book-card-source-row mt-1.5 flex items-center justify-between gap-3 border-t border-[#f0ebff] pt-2 text-xs">
           {item.sourceName ? (
-            <span className="min-w-0 truncate text-[#a9a2d4]">《{item.sourceName}》</span>
+            <span className="book-card-source min-w-0 truncate text-[#a9a2d4]">《{item.sourceName}》</span>
           ) : (
             <span />
           )}
           {item.hasMetadataDetail ? (
-            <span className="shrink-0 font-bold text-[#7C3AED]">查看详情</span>
+            <span className="book-card-detail-link shrink-0 font-bold text-[#7C3AED]">查看详情</span>
           ) : null}
         </div>
       </div>
@@ -137,7 +137,7 @@ const BookCard: React.FC<BookCardProps> = ({ item, imageIndex }) => {
   );
 
   return (
-    <article className="group mb-3 break-inside-avoid overflow-hidden rounded-[1rem] border border-[#e2dcf0] bg-white shadow-[0_8px_18px_rgba(60,40,80,0.06)]">
+    <article className="book-card-article group mb-3 break-inside-avoid overflow-hidden rounded-[1rem] border border-[#e2dcf0] bg-white shadow-[0_8px_18px_rgba(60,40,80,0.06)]">
       {item.hasMetadataDetail ? (
         <Link to={`/reading/${item._id}`} className="block">
           {cardContent}
@@ -430,7 +430,7 @@ const BooksPage: React.FC = () => {
   const hasMoreTopicOptions = topicOptions.length > maxVisibleTopicFilters;
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#f3f2f8] text-[#1f1d1a]">
+    <div className="xf-books-page relative min-h-screen overflow-hidden bg-[#f3f2f8] text-[#1f1d1a]">
       {/* BooksPage: subtle dot grid + gentle floating orbs */}
       <style>{`
         @keyframes booksOrb1 {
@@ -473,14 +473,338 @@ const BooksPage: React.FC = () => {
           max-height: 56px;
           border-radius: 16px;
         }
+        .xf-books-page {
+          position: relative;
+          min-height: 100vh;
+          overflow: hidden;
+          background: #f3f2f8;
+          color: #1f1d1a;
+        }
+        .xf-books-page .books-mobile-main {
+          position: relative;
+          z-index: 1;
+          max-width: 1280px;
+          margin: 0 auto;
+          box-sizing: border-box;
+          padding: 76px 16px 64px;
+        }
+        html.xf-mp-webview .books-mobile-main {
+          --xf-mp-outer-gutter: clamp(8px, 2.4vw, 10px);
+          --xf-mp-inner-gutter: clamp(3px, 1vw, 4px);
+          width: calc(100% - var(--xf-mp-outer-gutter)) !important;
+          padding-left: var(--xf-mp-inner-gutter) !important;
+          padding-right: var(--xf-mp-inner-gutter) !important;
+          padding-top: var(--xf-mp-nav-height, 88px) !important;
+          padding-bottom: 0 !important;
+        }
+        .xf-books-page .books-mobile-hero {
+          position: relative;
+          overflow: hidden;
+          border: 1px solid #d8d0ef;
+          border-radius: 32px;
+          background: radial-gradient(circle at 10% 0%, rgba(143,100,255,.1), transparent 40%), linear-gradient(135deg, #f4f1fd 0%, #faf8ff 48%, #f0ebff 100%);
+          padding: 28px;
+          box-shadow: 0 24px 80px rgba(80,62,125,.1);
+        }
+        .xf-books-page .books-mobile-hero > div:first-child > div:first-child {
+          display: inline-flex;
+          border: 1px solid #cfc2ef;
+          border-radius: 999px;
+          background: #f3eefc;
+          padding: 4px 16px;
+          color: #5b3fa1;
+          font-size: 11px;
+          font-weight: 900;
+          letter-spacing: .26em;
+          text-transform: uppercase;
+        }
+        .xf-books-page .books-hero-logo {
+          display: block;
+          width: min(100%, 300px);
+          height: auto;
+          margin-top: 16px;
+          object-fit: contain;
+        }
+        .xf-books-page .books-mobile-hero p {
+          margin: 12px 0 0;
+          max-width: 720px;
+          color: #6f62a3;
+          font-size: 16px;
+          line-height: 1.8;
+        }
+        .xf-books-page .books-mobile-hero > div:nth-child(2) {
+          display: flex;
+          gap: 12px;
+          margin-top: 24px;
+        }
+        .xf-books-page .books-hero-search {
+          display: inline-flex;
+          flex: 1 1 auto;
+          align-items: center;
+          gap: 8px;
+          box-sizing: border-box;
+          padding: 0 16px;
+        }
+        .xf-books-page .books-hero-control {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          box-sizing: border-box;
+          border-radius: 16px;
+        }
+        .xf-books-page button.books-hero-control {
+          flex: 0 0 auto;
+          border: 1px solid #cfc2ee;
+          background: #fff;
+          padding: 0 20px;
+          color: #654f88;
+          font-size: 14px;
+          font-weight: 800;
+        }
+        .xf-books-page .books-mobile-filter {
+          margin-top: 24px;
+          border: 1px solid #e0d9f2;
+          border-radius: 28px;
+          background: #fff;
+          padding: 20px;
+          box-shadow: 0 16px 50px rgba(80,62,125,.06);
+        }
+        .xf-books-page .books-mobile-filter .flex.flex-col.gap-3,
+        .xf-books-page .books-mobile-filter .md\\:flex-row {
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+        }
+        .xf-books-page .books-mobile-label {
+          flex: 0 0 72px;
+          width: 72px;
+          padding-top: 4px;
+          color: #6b5fa0;
+          font-size: 14px;
+          font-weight: 900;
+          letter-spacing: .1em;
+        }
+        .xf-books-page .books-mobile-filter .flex-1 {
+          flex: 1 1 auto;
+          min-width: 0;
+        }
+        .xf-books-page .books-mobile-filter .flex.flex-wrap {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+        .xf-books-page .books-filter-chip {
+          min-height: 42px;
+          border-radius: 999px;
+          border: 1px solid #d8c8ef;
+          background: #fff;
+          padding: 9px 18px;
+          color: #6b5fa0;
+          font-size: 15px;
+          font-weight: 400 !important;
+          line-height: 1.2;
+        }
+        .xf-books-page .books-filter-chip.border-\\[\\#5e17eb\\] {
+          border-color: #5e17eb;
+          background: #5e17eb;
+          color: #fff;
+        }
+        .xf-books-page .books-mobile-filter > div:last-child {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 8px;
+          margin-top: 20px;
+          color: #7b6bb8;
+          font-size: 14px;
+        }
+        .xf-books-page .books-mobile-filter > div:last-child span {
+          border-radius: 999px;
+          padding: 4px 10px;
+        }
+        .xf-books-page .books-mobile-main > section.mt-6 {
+          display: block;
+          margin-top: 24px;
+        }
+        .xf-books-page .books-mobile-main > section.mt-6 > section,
+        .xf-books-page .books-mobile-main > section.mt-6 > div {
+          box-sizing: border-box;
+          border: 1px solid #e2dcf0;
+          border-radius: 24px;
+          background: #fff;
+          padding: 20px;
+          box-shadow: 0 12px 40px rgba(80,62,125,.05);
+        }
+        .xf-books-page .books-mobile-card {
+          display: block;
+          break-inside: avoid;
+          margin-bottom: 12px;
+        }
+        .xf-books-page .books-mobile-card article {
+          overflow: hidden;
+          border: 1px solid #e2dcf0;
+          border-radius: 16px;
+          background: #fff;
+          box-shadow: 0 8px 18px rgba(60,40,80,.06);
+        }
+        .xf-books-page .book-card-article {
+          overflow: hidden;
+          border: 1px solid #e2dcf0;
+          border-radius: 16px;
+          background: #fff;
+          box-shadow: 0 8px 18px rgba(60,40,80,.06);
+        }
+        .xf-books-page .books-mobile-card a,
+        .xf-books-page .books-mobile-card .block {
+          display: block;
+          color: inherit;
+          text-decoration: none;
+        }
+        .xf-books-page .books-mobile-card article > div,
+        .xf-books-page .books-mobile-card article > a > div:first-child {
+          box-sizing: border-box;
+        }
+        .xf-books-page .book-card-cover-frame {
+          box-sizing: border-box;
+          width: 100%;
+          padding: 8px;
+        }
+        .xf-books-page .book-card-cover-shell {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 180px;
+          overflow: hidden;
+          border-radius: 12px;
+          background: #f8f5ff;
+        }
+        .xf-books-page .books-mobile-card img {
+          display: block;
+          max-width: 100%;
+          height: auto;
+          object-fit: contain;
+        }
+        .xf-books-page .book-card-cover-image {
+          display: block;
+          width: 100%;
+          max-width: 100%;
+          max-height: 360px;
+          height: auto;
+          object-fit: contain;
+        }
+        .xf-books-page .book-card-body {
+          box-sizing: border-box;
+          padding: 4px 12px 12px;
+        }
+        .xf-books-page .book-card-title {
+          margin: 0;
+          display: -webkit-box;
+          overflow: hidden;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          color: #2b1a3a;
+          font-size: 22px;
+          line-height: 1.18;
+          font-weight: 900;
+        }
+        .xf-books-page .book-card-meta,
+        .xf-books-page .book-card-publisher {
+          margin: 8px 0 0;
+          color: #6f62a4;
+          font-size: 14px;
+        }
+        .xf-books-page .book-card-publisher {
+          color: #8b7dbc;
+          font-size: 12px;
+        }
+        .xf-books-page .book-card-tags {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-top: 10px;
+        }
+        .xf-books-page .book-card-tag {
+          display: inline-flex;
+          align-items: center;
+          max-width: 100%;
+          border-radius: 999px;
+          border: 1px solid #d5c8ff;
+          background: #f6f0ff;
+          padding: 4px 10px;
+          color: #5e17eb;
+          font-size: 11px;
+          font-weight: 800;
+          line-height: 1.25;
+        }
+        .xf-books-page .book-card-tag-grade {
+          border-color: #d9d8ee;
+          background: #f7f7ff;
+          color: #4e4c87;
+        }
+        .xf-books-page .book-card-tag-category {
+          border-color: #f1d9ee;
+          background: #fff5ff;
+          color: #8a3daa;
+        }
+        .xf-books-page .book-card-tag-topic {
+          border-color: #cde6ea;
+          background: #f2fbfe;
+          color: #25678a;
+        }
+        .xf-books-page .book-card-source-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          margin-top: 8px;
+          border-top: 1px solid #f0ebff;
+          padding-top: 8px;
+          color: #a9a2d4;
+          font-size: 12px;
+        }
+        .xf-books-page .book-card-source {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .xf-books-page .book-card-detail-link {
+          flex-shrink: 0;
+          color: #7C3AED;
+          font-weight: 800;
+        }
         @media (max-width: 768px) {
+          .xf-books-page .books-mobile-main { padding-left: 16px !important; padding-right: 16px !important; }
           .books-mobile-main { padding-top: 70px !important; padding-bottom: calc(120px + env(safe-area-inset-bottom)) !important; }
+          html.xf-mp-webview .books-mobile-main {
+            --xf-mp-outer-gutter: clamp(8px, 2.4vw, 10px);
+            --xf-mp-inner-gutter: clamp(3px, 1vw, 4px);
+            width: calc(100% - var(--xf-mp-outer-gutter)) !important;
+            padding-left: var(--xf-mp-inner-gutter) !important;
+            padding-right: var(--xf-mp-inner-gutter) !important;
+            padding-top: var(--xf-mp-nav-height, 88px) !important;
+            padding-bottom: 0 !important;
+          }
           .books-mobile-main.xw-layer-main { padding-top: 24px !important; }
           .books-mobile-hero { padding: 16px !important; border-radius: 20px !important; }
+          .xf-books-page .books-mobile-hero > div:nth-child(2) { flex-direction: column; }
+          .xf-books-page .books-hero-logo { width: min(100%, 236px); }
+          .xf-books-page .books-mobile-hero p { font-size: 15px; line-height: 1.65; }
           .books-mobile-filter { padding: 12px !important; border-radius: 16px !important; }
-          .books-mobile-label { width: 56px !important; font-size: 12px !important; }
-          .books-filter-chip { padding: 6.5px 13px !important; font-size: 14.3px !important; line-height: 1.2 !important; }
+          .xf-books-page .books-mobile-filter .flex.flex-col.gap-3,
+          .xf-books-page .books-mobile-filter .md\\:flex-row { align-items: flex-start; gap: 10px; }
+          .books-mobile-label {
+            flex: 0 0 auto !important;
+            width: auto !important;
+            padding-top: 0 !important;
+            font-size: 12px !important;
+            line-height: 1.2 !important;
+          }
+          .xf-books-page .books-filter-chip { min-height: 32px !important; padding: 6.5px 13px !important; font-size: 14.3px !important; font-weight: 400 !important; line-height: 1.2 !important; }
           .books-mobile-card h3 { font-size: 16px !important; }
+          .xf-books-page .book-card-title { font-size: 18px !important; }
+          .xf-books-page .book-card-cover-shell { min-height: 148px; }
+          .xf-books-page .book-card-cover-image { max-height: 280px; }
         }
       `}</style>
       <div className="pointer-events-none absolute inset-0 opacity-45">
@@ -509,7 +833,7 @@ const BooksPage: React.FC = () => {
               <img
                 src="/assets/jiyue-hero-logo.png"
                 alt="及阅 · 成长及阅读"
-                className="mt-4 block h-auto w-full max-w-[300px] object-contain sm:max-w-[360px]"
+                className="books-hero-logo mt-4 block h-auto w-full max-w-[300px] object-contain sm:max-w-[360px]"
               />
               <p className="mt-3 text-sm leading-7 text-[#6f62a3] sm:text-base">
                 基于节目实践沉淀的书籍清单。可先按推荐人聚合浏览，再结合年级和关键词快速筛选。

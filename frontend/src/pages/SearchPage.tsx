@@ -57,7 +57,7 @@ const tabIcons: Record<Exclude<SearchTab, "all">, string> = {
 };
 
 function includesQuery(text: string, query: string) {
-  if (!query) return true;
+  if (!query) return false;
   return text.toLowerCase().includes(query.toLowerCase());
 }
 
@@ -89,9 +89,16 @@ function readWorthBuyHistory(): SearchItem[] {
   }
 }
 
+function isMiniProgramSearchWebView() {
+  if (typeof window === "undefined") return false;
+  const params = new URLSearchParams(window.location.search);
+  return params.get("xf_mp") === "1" || window.sessionStorage.getItem("xf_mp_webview") === "1";
+}
+
 const SearchPage: React.FC = () => {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
+  const miniProgramWebView = isMiniProgramSearchWebView();
   const initialQuery = params.get("q") || "";
   const initialTab = (params.get("tab") || "all") as SearchTab;
   const [query, setQuery] = useState(initialQuery);
@@ -248,61 +255,91 @@ const SearchPage: React.FC = () => {
       .filter(([, list]) => list.length > 0);
   }, [activeTab, filteredItems]);
 
+  const persistentSearchParams = () => {
+    const preserved: Record<string, string> = {};
+    ["xf_mp", "xf_token", "xw_layer", "xw_return"].forEach((key) => {
+      const value = params.get(key);
+      if (value) preserved[key] = value;
+    });
+    return preserved;
+  };
+
   const submitSearch = () => {
     const q = query.trim();
-    setParams({ ...(q ? { q } : {}), ...(activeTab !== "all" ? { tab: activeTab } : {}), ...(exitTo ? { from: exitTo } : {}) });
+    setParams({ ...persistentSearchParams(), ...(q ? { q } : {}), ...(activeTab !== "all" ? { tab: activeTab } : {}), ...(exitTo ? { from: exitTo } : {}) });
   };
 
   return (
     <div className="xf-search-page">
       <style>{`
-        .xf-search-page{min-height:100vh;background:#f6f7fb;color:#14142b;font-family:'Noto Sans SC','Plus Jakarta Sans',sans-serif;padding-bottom:calc(104px + env(safe-area-inset-bottom))}
+        .xf-search-page{min-height:100vh;background-color:#f3f2f8;background-image:repeating-linear-gradient(45deg,rgba(118,83,205,.06) 0px,rgba(118,83,205,.06) 1px,transparent 1px,transparent 18px),repeating-linear-gradient(-45deg,rgba(118,83,205,.04) 0px,rgba(118,83,205,.04) 1px,transparent 1px,transparent 32px);color:#1f1d1a;font-family:'Noto Sans SC','Plus Jakarta Sans',sans-serif;padding-bottom:calc(104px + env(safe-area-inset-bottom))}
         .xf-search-main{max-width:980px;margin:0 auto;padding:82px 18px 36px}
+        html.xf-mp-webview .xf-search-page{padding-bottom:0!important}
+        html.xf-mp-webview .xf-search-main{padding-top:var(--xf-mp-nav-height,88px)!important;padding-bottom:0!important}
         .xf-search-head{display:grid;gap:12px}
         .xf-search-title{display:none}
         .xf-search-back{position:absolute;left:0;min-width:54px;height:36px;border:0;background:transparent;color:#7C3AED;font-family:'Noto Sans SC','Plus Jakarta Sans',sans-serif;font-size:12px;font-weight:400;text-align:left}
-        .xf-search-bar{display:flex;align-items:center;gap:10px}
-        .xf-search-input{height:48px;flex:1;border:0;border-radius:16px;background:#fff;padding:0 16px;font-size:13px;font-weight:400;color:#14142b;box-shadow:0 1px 0 rgba(15,23,42,.05)}
-        .xf-search-input::placeholder{color:#a0a4b6}
-        .xf-search-btn{height:48px;border:0;border-radius:16px;background:#5e17eb;color:#fff;padding:0 18px;font-size:12px;font-weight:400;box-shadow:0 12px 24px rgba(94,23,235,.18)}
+        .xf-search-bar{display:flex;align-items:center;gap:8px;height:40px;border:1px solid #dbe1ea;border-radius:999px;background:#fff;padding:0 5px 0 15px;box-sizing:border-box;box-shadow:0 8px 22px rgba(31,29,26,.04)}
+        .xf-search-query-wrap{display:flex;flex:1 1 auto;align-items:center;justify-content:flex-start;min-width:0}
+        .xf-search-bar.is-empty .xf-search-query-wrap{justify-content:center}
+        .xf-search-icon{position:relative;width:24px;height:24px;margin-right:10px;flex:0 0 24px}
+        .xf-search-icon-circle{position:absolute;top:4px;left:4px;box-sizing:border-box;width:14px;height:14px;border:3px solid #4b5563;border-radius:50%}
+        .xf-search-icon-line{position:absolute;right:4px;bottom:5px;width:10px;height:3px;border-radius:999px;background:#4b5563;transform:rotate(45deg);transform-origin:center}
+        .xf-search-input{height:38px;min-width:0;flex:1 1 auto;border:0;background:transparent;padding:0;font-size:15px;font-weight:400;color:#1f1d1a;outline:0;line-height:38px}
+        .xf-search-bar.is-empty .xf-search-input{flex:0 0 34px;width:34px;text-align:center}
+        .xf-search-input::placeholder{color:#8b8792}
+        .xf-search-btn{height:34px;min-width:64px;border:0;border-radius:999px;background:#5e17eb;color:#fff;padding:0 14px;font-size:14px;font-weight:900;box-shadow:0 8px 16px rgba(94,23,235,.16)}
+        html.xf-mp-webview .xf-search-main{width:calc(100% - 24px)!important;max-width:none!important;padding-left:0!important;padding-right:0!important}
+        html.xf-mp-webview .xf-search-bar{width:100%!important;height:40px!important;border:1px solid #dbe1ea!important;border-radius:999px!important;background:#fff!important;padding:0 5px 0 15px!important;gap:8px!important;box-shadow:0 8px 22px rgba(31,29,26,.04)!important}
+        html.xf-mp-webview .xf-search-query-wrap{display:flex!important;flex:1 1 auto!important;align-items:center!important;min-width:0!important}
+        html.xf-mp-webview .xf-search-icon{width:24px!important;height:24px!important;margin-right:10px!important;flex:0 0 24px!important}
+        html.xf-mp-webview .xf-search-input{height:38px!important;min-width:0!important;border:0!important;background:transparent!important;padding:0!important;color:#1f1d1a!important;font-size:15px!important;font-weight:400!important;line-height:38px!important;outline:0!important}
+        html.xf-mp-webview .xf-search-input::placeholder{color:#8b8792!important}
+        html.xf-mp-webview .xf-search-btn{display:flex!important;align-items:center!important;justify-content:center!important;height:34px!important;min-width:64px!important;margin:0!important;border:0!important;border-radius:999px!important;background:#5e17eb!important;color:#fff!important;padding:0 14px!important;font-size:14px!important;font-weight:900!important;line-height:34px!important;box-shadow:0 8px 16px rgba(94,23,235,.16)!important}
         .xf-search-tabs{display:flex;gap:20px;overflow-x:auto;border-bottom:1px solid rgba(15,23,42,.08);padding:2px 0 0;scrollbar-width:none}
         .xf-search-tabs::-webkit-scrollbar{display:none}
         .xf-search-tab{position:relative;min-height:42px;flex:0 0 auto;border:0;background:transparent;color:#969baa;font-size:12px;font-weight:400;white-space:nowrap}
         .xf-search-tab.on{color:#14142b}
         .xf-search-tab.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:3px;border-radius:999px;background:#5e17eb}
-        .xf-search-section{margin-top:14px;border-radius:22px;background:#fff;overflow:hidden;box-shadow:0 14px 38px rgba(28,20,54,.06)}
-        .xf-search-section-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid rgba(15,23,42,.06)}
-        .xf-search-section-title{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:400}
+        .xf-search-section{display:grid;gap:12px;margin-top:18px;border-radius:0;background:transparent;overflow:visible;box-shadow:none}
+        .xf-search-section-head{display:flex;align-items:center;justify-content:space-between;padding:0 8px;border-bottom:0}
+        .xf-search-section-title{display:flex;align-items:center;gap:8px;color:#24180a;font-size:13px;font-weight:900}
         .xf-search-section-title .ms{font-family:'Material Symbols Rounded';font-size:18px;color:#5e17eb}
-        .xf-search-section-count{font-size:10px;font-weight:400;color:#969baa}
-        .xf-search-result{display:flex;gap:14px;padding:15px 18px;border-bottom:1px solid rgba(15,23,42,.06);text-decoration:none;color:inherit}
-        .xf-search-result:last-child{border-bottom:0}
-        .xf-search-thumb{width:64px;height:64px;flex:0 0 64px;border-radius:16px;background:linear-gradient(135deg,#f2ecff,#fff);display:flex;align-items:center;justify-content:center;overflow:hidden;color:#5e17eb;font-family:'Material Symbols Rounded';font-size:28px}
+        .xf-search-section-count{font-size:10px;font-weight:800;color:#8b8177}
+        .xf-search-result{display:flex;gap:14px;padding:14px;border:1px solid #e1daf0;border-radius:22px;background:#fff;text-decoration:none;color:inherit;box-shadow:0 20px 60px rgba(63,38,112,.06)}
+        .xf-search-result:last-child{border-bottom:1px solid #e1daf0}
+        .xf-search-thumb{width:68px;height:68px;flex:0 0 68px;border-radius:16px;background:linear-gradient(135deg,#1f143a,#4b1db2 44%,#b79bff);display:flex;align-items:center;justify-content:center;overflow:hidden;color:#fff;font-family:'Material Symbols Rounded';font-size:28px}
         .xf-search-thumb img{width:100%;height:100%;object-fit:cover}
         .xf-search-result-body{min-width:0;flex:1;display:grid;gap:6px}
         .xf-search-result-top{display:flex;gap:8px;align-items:center}
-        .xf-search-result-title{font-size:13px;font-weight:400;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .xf-search-result-meta{font-size:10px;font-weight:400;color:#8f95aa;white-space:nowrap}
-        .xf-search-result-desc{font-size:11px;line-height:1.55;color:#656b7d;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+        .xf-search-result-title{color:#24180a;font-size:15px;font-weight:900;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .xf-search-result-meta{font-size:11px;font-weight:500;color:#8b8177;white-space:nowrap}
+        .xf-search-result-desc{font-size:12px;line-height:1.65;color:#6f665d;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
         .xf-search-tags{display:flex;flex-wrap:wrap;gap:6px}
-        .xf-search-tag{border-radius:999px;background:#f1ebff;color:#6c27d6;padding:3px 8px;font-size:9px;font-weight:400}
-        .xf-search-empty{margin-top:18px;border:1px dashed rgba(94,23,235,.24);border-radius:22px;background:#fff;padding:32px 20px;text-align:center;color:#7b8194;font-size:12px;font-weight:400}
-        @media (max-width:768px){.xf-search-main{padding-top:72px}.xf-search-page .tb-mobile-search-sheet{display:none!important}.xf-search-tabs{gap:18px}.xf-search-result{padding:14px 0;margin:0 18px}.xf-search-section{border-radius:20px}.xf-search-thumb{width:56px;height:56px;flex-basis:56px}.xf-search-result-title{font-size:13px}.xf-search-result-desc{font-size:11px}.xf-search-result-meta{display:none}}
+        .xf-search-tag{border:1px solid #d9c8ff;border-radius:999px;background:#f6f0ff;color:#5e17eb;padding:3px 9px;font-size:10px;font-weight:800}
+        .xf-search-empty{margin-top:18px;border:1px dashed #d2c5ee;border-radius:22px;background:#fff;padding:32px 20px;text-align:center;color:#8e81b3;font-size:12px;font-weight:400}
+        @media (max-width:768px){.xf-search-main{padding-top:72px}.xf-search-page .tb-mobile-search-sheet{display:none!important}.xf-search-tabs{gap:18px}.xf-search-section{gap:12px}.xf-search-result{padding:14px}.xf-search-thumb{width:64px;height:64px;flex-basis:64px}.xf-search-result-title{font-size:14px}.xf-search-result-desc{font-size:12px}.xf-search-result-meta{display:none}html.xf-mp-webview .xf-search-main{padding-top:var(--xf-mp-nav-height,88px)!important;padding-bottom:0!important}}
       `}</style>
-      <GlobalPublicNav compactMobile searchPlaceholder="搜索网站全部内容" searchValue={query} onSearchChange={setQuery} />
+      <GlobalPublicNav compactMobile headless={miniProgramWebView} searchPlaceholder="搜索网站全部内容" searchValue={query} onSearchChange={setQuery} />
       <main className="xf-search-main">
         <div className="xf-search-head">
-          <div className="xf-search-bar">
-            <input
-              className="xf-search-input"
-              value={query}
-              placeholder="搜索节目、话题、资料、书单、专家..."
-              onChange={(event) => setQuery(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") submitSearch();
-              }}
-            />
-            <button type="button" className="xf-search-btn" onClick={submitSearch}>搜索</button>
+          <div className={`xf-search-bar ${query.trim() ? "has-query" : "is-empty"}`}>
+            <div className="xf-search-query-wrap">
+              <span className="xf-search-icon" aria-hidden="true">
+                <span className="xf-search-icon-circle"></span>
+                <span className="xf-search-icon-line"></span>
+              </span>
+              <input
+                className="xf-search-input"
+                value={query}
+                placeholder="搜索"
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") submitSearch();
+                }}
+              />
+            </div>
+            {query.trim() ? <button type="button" className="xf-search-btn" onClick={submitSearch}>搜索</button> : null}
           </div>
           <div className="xf-search-tabs">
             {tabs.map((tab) => (
@@ -313,7 +350,7 @@ const SearchPage: React.FC = () => {
                 onClick={() => {
                   setActiveTab(tab.key);
                   const q = query.trim();
-                  setParams({ ...(q ? { q } : {}), ...(tab.key !== "all" ? { tab: tab.key } : {}) });
+                  setParams({ ...persistentSearchParams(), ...(q ? { q } : {}), ...(tab.key !== "all" ? { tab: tab.key } : {}), ...(exitTo ? { from: exitTo } : {}) });
                 }}
               >
                 {tab.label}{countByTab[tab.key] ? ` ${countByTab[tab.key]}` : ""}
@@ -325,7 +362,7 @@ const SearchPage: React.FC = () => {
         {loading ? <div className="xf-search-empty">正在聚合搜索内容...</div> : null}
         {loadError ? <div className="xf-search-empty">{loadError}</div> : null}
         {!loading && !loadError && groupedItems.length === 0 ? (
-          <div className="xf-search-empty">没有找到相关内容，可以换个关键词试试。</div>
+          <div className="xf-search-empty">{query.trim() ? "没有找到相关内容，可以换个关键词试试。" : "请输入关键词搜索。"}</div>
         ) : null}
 
         {!loading && !loadError

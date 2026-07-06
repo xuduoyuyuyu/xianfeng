@@ -51,6 +51,68 @@ function inferFromFirstStringColumns(row: ImportRow): { title: string; author: s
   };
 }
 
+type MetadataStatus = 'auto_approved' | 'needs_review' | 'rejected';
+
+type MetadataFormData = {
+  title: string;
+  author: string;
+  publisher: string;
+  isbn: string;
+  cover: string;
+  description: string;
+  source: string;
+  sourceId: string;
+  rating: string;
+  ratingCount: string;
+  ratingLabel: string;
+  status: MetadataStatus;
+  reviewNote: string;
+};
+
+function createEmptyMetadataForm(): MetadataFormData {
+  return {
+    title: '',
+    author: '',
+    publisher: '',
+    isbn: '',
+    cover: '',
+    description: '',
+    source: '',
+    sourceId: '',
+    rating: '',
+    ratingCount: '',
+    ratingLabel: '',
+    status: 'auto_approved',
+    reviewNote: '',
+  };
+}
+
+function toMetadataForm(book: Book | null): MetadataFormData {
+  const detail = book?.metadataDetail || null;
+  return {
+    title: detail?.title || book?.title || '',
+    author: detail?.author || book?.author || '',
+    publisher: detail?.publisher || book?.publisher || '',
+    isbn: detail?.isbn || book?.isbn || '',
+    cover: detail?.cover || book?.metadataCover || book?.coverImage || '',
+    description: detail?.description || '',
+    source: detail?.source || '',
+    sourceId: detail?.sourceId || '',
+    rating: detail?.rating === null || detail?.rating === undefined ? '' : String(detail.rating),
+    ratingCount: detail?.ratingCount === null || detail?.ratingCount === undefined ? '' : String(detail.ratingCount),
+    ratingLabel: detail?.ratingLabel || '',
+    status: detail?.status || 'auto_approved',
+    reviewNote: detail?.reviewNote || '',
+  };
+}
+
+function parseOptionalNumber(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 const AdminBooksPage: React.FC = () => {
   const [books, setBooks] = useState<Book[]>([]);
   const [guests, setGuests] = useState<Guest[]>([]);
@@ -94,6 +156,7 @@ const AdminBooksPage: React.FC = () => {
     wxQrcodeUrl: '',
     status: 'draft' as 'draft' | 'published' | 'group-only',
   });
+  const [metadataFormData, setMetadataFormData] = useState<MetadataFormData>(createEmptyMetadataForm);
 
   useEffect(() => {
     fetchBooks();
@@ -213,6 +276,7 @@ const AdminBooksPage: React.FC = () => {
       wxQrcodeUrl: '',
       status: 'draft',
     });
+    setMetadataFormData(createEmptyMetadataForm());
     setShowModal(true);
   };
 
@@ -242,6 +306,7 @@ const AdminBooksPage: React.FC = () => {
       wxQrcodeUrl: book.wxQrcodeUrl || '',
       status: book.status,
     });
+    setMetadataFormData(toMetadataForm(book));
     setShowModal(true);
   };
 
@@ -250,11 +315,29 @@ const AdminBooksPage: React.FC = () => {
     try {
       if (editingBook) {
         await adminApi.updateBook(editingBook._id, formData);
+        const metadataId = editingBook.metadataDetail?._id || editingBook.metadataId || '';
+        if (metadataId) {
+          await adminApi.reviewBookMetadata(metadataId, {
+            title: metadataFormData.title.trim() || formData.title,
+            author: metadataFormData.author.trim() || formData.author,
+            publisher: metadataFormData.publisher.trim() || formData.publisher,
+            isbn: metadataFormData.isbn.trim(),
+            cover: metadataFormData.cover.trim(),
+            description: metadataFormData.description.trim(),
+            source: metadataFormData.source.trim(),
+            sourceId: metadataFormData.sourceId.trim(),
+            rating: parseOptionalNumber(metadataFormData.rating),
+            ratingCount: parseOptionalNumber(metadataFormData.ratingCount),
+            ratingLabel: metadataFormData.ratingLabel.trim(),
+            status: metadataFormData.status,
+            reviewNote: metadataFormData.reviewNote.trim() || '后台编辑详情',
+          });
+        }
       } else {
         await adminApi.createBook(formData);
       }
       setShowModal(false);
-      fetchBooks();
+      await Promise.all([fetchBooks(), fetchMetadataRows()]);
     } catch (error) {
       console.error('保存失败:', error);
       alert('保存失败，请重试');
@@ -434,6 +517,8 @@ const AdminBooksPage: React.FC = () => {
     if (typeof v === 'string') return v;
     return v.name || v._id;
   };
+
+  const editingMetadataId = editingBook?.metadataDetail?._id || editingBook?.metadataId || '';
 
   return (
     <div className="space-y-8">
@@ -673,6 +758,21 @@ const AdminBooksPage: React.FC = () => {
                           <div className="text-xs text-stone-400 line-clamp-1 max-w-xs">
                             {(book.topic || '-')} / {(book.translator || '-')}
                           </div>
+                          <div className="mt-1 flex flex-wrap gap-1.5">
+                            {book.metadataStatus ? (
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
+                                book.metadataStatus === 'auto_approved'
+                                  ? 'bg-violet-50 text-[#5e17eb]'
+                                  : book.metadataStatus === 'needs_review'
+                                  ? 'bg-amber-50 text-amber-700'
+                                  : 'bg-stone-100 text-stone-500'
+                              }`}>
+                                详情 {book.metadataStatus === 'auto_approved' ? '已采纳' : book.metadataStatus === 'needs_review' ? '待审核' : '已忽略'}
+                              </span>
+                            ) : (
+                              <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-black text-stone-400">无详情</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -849,7 +949,7 @@ const AdminBooksPage: React.FC = () => {
 
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-3xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
             <div className="p-8">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-black text-stone-900">
@@ -1021,6 +1121,160 @@ const AdminBooksPage: React.FC = () => {
                     placeholder="如：6a0271567598bae86f44babc"
                   />
                 </div>
+                <div className="border-t border-violet-100 pt-4">
+                  <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#5e17eb] mb-2">
+                    图书详情内容
+                  </label>
+                  <p className="text-xs text-stone-400">
+                    这里维护前台图书详情页使用的简介、封面、评分和数据来源。
+                  </p>
+                </div>
+                {editingBook ? (
+                  editingMetadataId ? (
+                    <div className="space-y-4 rounded-2xl border border-violet-100 bg-violet-50/30 p-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[11px] font-medium text-stone-500 mb-1">详情标题</label>
+                          <input
+                            type="text"
+                            value={metadataFormData.title}
+                            onChange={(e) => setMetadataFormData({ ...metadataFormData, title: e.target.value })}
+                            className="w-full bg-white border border-stone-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[#5e17eb]/10 focus:border-[#5e17eb]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-medium text-stone-500 mb-1">详情作者</label>
+                          <input
+                            type="text"
+                            value={metadataFormData.author}
+                            onChange={(e) => setMetadataFormData({ ...metadataFormData, author: e.target.value })}
+                            className="w-full bg-white border border-stone-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[#5e17eb]/10 focus:border-[#5e17eb]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-medium text-stone-500 mb-1">详情出版社</label>
+                          <input
+                            type="text"
+                            value={metadataFormData.publisher}
+                            onChange={(e) => setMetadataFormData({ ...metadataFormData, publisher: e.target.value })}
+                            className="w-full bg-white border border-stone-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[#5e17eb]/10 focus:border-[#5e17eb]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-medium text-stone-500 mb-1">详情 ISBN</label>
+                          <input
+                            type="text"
+                            value={metadataFormData.isbn}
+                            onChange={(e) => setMetadataFormData({ ...metadataFormData, isbn: e.target.value })}
+                            className="w-full bg-white border border-stone-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[#5e17eb]/10 focus:border-[#5e17eb]"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-medium text-stone-500 mb-1">详情封面 URL</label>
+                        <input
+                          type="url"
+                          value={metadataFormData.cover}
+                          onChange={(e) => setMetadataFormData({ ...metadataFormData, cover: e.target.value })}
+                          className="w-full bg-white border border-stone-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[#5e17eb]/10 focus:border-[#5e17eb]"
+                          placeholder="https://..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-medium text-stone-500 mb-1">内容简介</label>
+                        <textarea
+                          value={metadataFormData.description}
+                          onChange={(e) => setMetadataFormData({ ...metadataFormData, description: e.target.value })}
+                          className="min-h-32 w-full resize-y bg-white border border-stone-200 rounded-xl py-2.5 px-3 text-sm leading-6 outline-none focus:ring-2 focus:ring-[#5e17eb]/10 focus:border-[#5e17eb]"
+                          placeholder="前台图书详情页展示的内容简介"
+                        />
+                      </div>
+                      <div className="grid grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-[11px] font-medium text-stone-500 mb-1">评分</label>
+                          <input
+                            type="number"
+                            value={metadataFormData.rating}
+                            onChange={(e) => setMetadataFormData({ ...metadataFormData, rating: e.target.value })}
+                            className="w-full bg-white border border-stone-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[#5e17eb]/10 focus:border-[#5e17eb]"
+                            placeholder="如：8.9"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-medium text-stone-500 mb-1">评价人数</label>
+                          <input
+                            type="number"
+                            value={metadataFormData.ratingCount}
+                            onChange={(e) => setMetadataFormData({ ...metadataFormData, ratingCount: e.target.value })}
+                            className="w-full bg-white border border-stone-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[#5e17eb]/10 focus:border-[#5e17eb]"
+                            placeholder="如：146"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-medium text-stone-500 mb-1">评分文案</label>
+                          <input
+                            type="text"
+                            value={metadataFormData.ratingLabel}
+                            onChange={(e) => setMetadataFormData({ ...metadataFormData, ratingLabel: e.target.value })}
+                            className="w-full bg-white border border-stone-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[#5e17eb]/10 focus:border-[#5e17eb]"
+                            placeholder="如：神作"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-[11px] font-medium text-stone-500 mb-1">数据来源</label>
+                          <input
+                            type="text"
+                            value={metadataFormData.source}
+                            onChange={(e) => setMetadataFormData({ ...metadataFormData, source: e.target.value })}
+                            className="w-full bg-white border border-stone-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[#5e17eb]/10 focus:border-[#5e17eb]"
+                            placeholder="如：weread_web"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-medium text-stone-500 mb-1">来源 ID</label>
+                          <input
+                            type="text"
+                            value={metadataFormData.sourceId}
+                            onChange={(e) => setMetadataFormData({ ...metadataFormData, sourceId: e.target.value })}
+                            className="w-full bg-white border border-stone-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[#5e17eb]/10 focus:border-[#5e17eb]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-medium text-stone-500 mb-1">详情状态</label>
+                          <select
+                            value={metadataFormData.status}
+                            onChange={(e) => setMetadataFormData({ ...metadataFormData, status: e.target.value as MetadataStatus })}
+                            className="w-full bg-white border border-stone-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[#5e17eb]/10 focus:border-[#5e17eb]"
+                          >
+                            <option value="auto_approved">已采纳</option>
+                            <option value="needs_review">待审核</option>
+                            <option value="rejected">已忽略</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-medium text-stone-500 mb-1">审核备注</label>
+                        <input
+                          type="text"
+                          value={metadataFormData.reviewNote}
+                          onChange={(e) => setMetadataFormData({ ...metadataFormData, reviewNote: e.target.value })}
+                          className="w-full bg-white border border-stone-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[#5e17eb]/10 focus:border-[#5e17eb]"
+                          placeholder="如：后台编辑详情"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-500">
+                      这本书暂无详情记录；当前弹窗只编辑基础书单字段。
+                    </div>
+                  )
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-500">
+                    新建书单后，详情内容会在匹配或导入后进入这里维护。
+                  </div>
+                )}
                 {/* ===== 微信小店字段 ===== */}
                 <div className="border-t border-[#fce4c8] pt-4">
                   <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#E88B2C] mb-3">

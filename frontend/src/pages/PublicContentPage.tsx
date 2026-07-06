@@ -29,11 +29,20 @@ const PublicContentPage: React.FC = () => {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#f3f2f8] text-[#241a3a]">
+      <style>{`
+        html.xf-mp-webview .public-content-main {
+          padding-top: var(--xf-mp-nav-height, 88px) !important;
+          padding-bottom: 0 !important;
+        }
+        html.xf-mp-webview .public-content-frame {
+          min-height: calc(100vh - var(--xf-mp-nav-height, 88px) - var(--xf-mp-tabbar-height, 64px) - 112px) !important;
+        }
+      `}</style>
       {backButton}
       <div className="pointer-events-none absolute inset-0 opacity-40">
         <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(118,83,205,0.08)_1px,transparent_1px)] bg-[size:28px_28px]" />
       </div>
-      <main className={`relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col px-4 pb-6 sm:px-6 ${superModePage ? "pt-[78px]" : "pt-6"}`}>
+      <main className={`public-content-main relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col px-4 pb-6 sm:px-6 ${superModePage ? "pt-[78px]" : "pt-6"}`}>
         <section className="mb-3 rounded-[1.6rem] border border-[#e4dcf4] bg-white/92 px-5 py-4 shadow-[0_14px_46px_rgba(80,62,125,0.08)]">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
@@ -58,7 +67,7 @@ const PublicContentPage: React.FC = () => {
             <iframe
               src={targetUrl}
               title={title || "公开内容"}
-              className="h-full min-h-[calc(100vh-178px)] w-full border-0 bg-white"
+              className="public-content-frame h-full min-h-[calc(100vh-178px)] w-full border-0 bg-white"
               sandbox="allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
             />
           ) : (

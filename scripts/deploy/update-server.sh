@@ -76,6 +76,10 @@ sync_backend_env
 
 echo "重建并启动容器（生产配置）"
 docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file "${ENV_FILE}" up -d --build --remove-orphans
+docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file "${ENV_FILE}" exec -T frontend chmod -R a+rX /usr/share/nginx/html
 
 echo "当前服务状态"
 docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file "${ENV_FILE}" ps
+
+echo "如本次包含小程序 web-view / 移动端导航改动，请执行线上验收："
+echo "  bash scripts/release/verify-mini-webview-live.sh"

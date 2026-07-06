@@ -123,12 +123,24 @@ const WorthBuyDetailPage: React.FC = () => {
 
   const displayTitle = resolveWorthBuyDisplayTitle(loadedQuery, loadedResult);
   const result = loadedResult;
+  const miniProgramChromeStyle = (
+    <style>{`
+      html.xf-mp-webview .worthbuy-detail-content {
+        padding-top: var(--xf-mp-nav-height, 88px) !important;
+        padding-bottom: 0 !important;
+      }
+      html.xf-mp-webview .worthbuy-detail-spacer {
+        display: none !important;
+      }
+    `}</style>
+  );
 
   if (!result && !remoteChecked) {
     return (
       <div className="worthbuy-detail-page" style={{ minHeight: "100vh", background: "#f8f6ff" }}>
+        {miniProgramChromeStyle}
         <GlobalPublicNav compactMobile showPlanningEntry={true} />
-        <div style={{ maxWidth: 720, margin: "80px auto", textAlign: "center", padding: "0 20px" }}>
+        <div className="worthbuy-detail-content" style={{ maxWidth: 720, margin: "0 auto", textAlign: "center", padding: "80px 20px 0" }}>
           <div style={{ fontSize: 42, marginBottom: 16 }}>⏳</div>
           <h2 style={{ color: "#1E1B4B", margin: "0 0 8px" }}>正在加载分析结果</h2>
         </div>
@@ -139,15 +151,17 @@ const WorthBuyDetailPage: React.FC = () => {
   if (!result) {
     return (
       <div className="worthbuy-detail-page" style={{ minHeight: "100vh", background: "#f8f6ff" }}>
+        {miniProgramChromeStyle}
         <GlobalPublicNav compactMobile showPlanningEntry={true} />
         
-        <div style={{ maxWidth: 720, margin: "80px auto", textAlign: "center", padding: "0 20px" }}>
+        <div className="worthbuy-detail-content" style={{ maxWidth: 720, margin: "0 auto", textAlign: "center", padding: "80px 20px 0" }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>📭</div>
           <h2 style={{ color: "#1E1B4B", margin: "0 0 8px" }}>分析结果丢失了</h2>
           <p style={{ color: "#9CA3AF", fontSize: 14, margin: "0 0 20px" }}>
             请回到什么值得买页面重新分析
           </p>
           <button
+            className="xf-web-detail-back"
             onClick={() => navigate("/worthbuy")}
             style={{
               padding: "10px 28px", borderRadius: 10, border: "none",
@@ -164,6 +178,7 @@ const WorthBuyDetailPage: React.FC = () => {
 
   return (
     <div className="worthbuy-detail-page" style={{ minHeight: "100vh", background: "#f8f6ff" }}>
+      {miniProgramChromeStyle}
       <GlobalPublicNav compactMobile showPlanningEntry={true} />
       
 
@@ -209,9 +224,10 @@ const WorthBuyDetailPage: React.FC = () => {
         }
       `}</style>
 
-      <div style={{ maxWidth: 800, margin: "0 auto", padding: "60px 20px 0" }}>
+      <div className="worthbuy-detail-content" style={{ maxWidth: 800, margin: "0 auto", padding: "60px 20px 0" }}>
         {/* 返回按钮 */}
         <button
+          className="xf-web-detail-back"
           onClick={() => navigate(-1)}
           style={{
             background: "none", border: "none", cursor: "pointer",
@@ -534,7 +550,7 @@ const WorthBuyDetailPage: React.FC = () => {
         )}
       </div>
 
-      <div style={{ height: 60 }} />
+      <div className="worthbuy-detail-spacer" style={{ height: 60 }} />
     </div>
   );
 };

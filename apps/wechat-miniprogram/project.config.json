@@ -40,7 +40,20 @@
     "wxext14566970e7e9f62": "2.27.3"
   },
   "packOptions": {
-    "ignore": [],
+    "ignore": [
+      {
+        "type": "file",
+        "value": "app.miniapp.json"
+      },
+      {
+        "type": "suffix",
+        "value": ".test.mjs"
+      },
+      {
+        "type": "folder",
+        "value": "miniapp"
+      }
+    ],
     "include": []
   },
   "editorSetting": {},
@@ -48,13 +61,13 @@
     "miniprogram": {
       "list": [
         {
-          "name": "首页",
-          "pathName": "pages/home/index",
+          "name": "节目",
+          "pathName": "pages/programs/index",
           "query": ""
         },
         {
-          "name": "节目",
-          "pathName": "pages/programs/index",
+          "name": "首页",
+          "pathName": "pages/home/index",
           "query": ""
         },
         {
@@ -74,6 +87,5 @@
         }
       ]
     }
-  },
-  "projectArchitecture": "multiPlatform"
+  }
 }

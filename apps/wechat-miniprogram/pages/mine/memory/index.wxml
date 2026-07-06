@@ -1,0 +1,36 @@
+<view class="xf-profile-shell xf-memory-panel {{fontSizeClass}}">
+  <view class="xf-profile-scrim"></view>
+  <scroll-view class="xf-profile-panel" scroll-y="true" enhanced="true" show-scrollbar="false">
+    <view class="xf-profile-header">
+      <button class="xf-profile-back" bindtap="goBack">← 返回</button>
+      <view class="xf-profile-title">{{title}}</view>
+      <view class="xf-profile-header-spacer"></view>
+    </view>
+
+    <view class="xf-profile-card">
+      <view class="xf-memory-row">
+        <view class="xf-memory-title">开启记忆功能</view>
+        <button class="xf-memory-switch {{enabled ? 'is-on' : ''}}" bindtap="toggleMemory" aria-pressed="{{enabled}}">
+          <text></text>
+        </button>
+      </view>
+    </view>
+
+    <view class="xf-profile-card xf-memory-copy-card">
+      <button class="xf-memory-manage-row" bindtap="manageMemory">
+        <text class="xf-memory-section-title">管理记忆</text>
+        <text class="xf-memory-chevron">›</text>
+      </button>
+      <view class="xf-memory-copy">
+        <view>小玩子会从与孩子相关的历史对话里记住重要信息。关闭记忆功能后，将不再读取或写入孩子记忆；你也可以随时通过“管理记忆”删除不希望小玩子记住的内容。</view>
+        <view>记忆写入策略不是“每隔多久汇总一次”，而是“每次小玩子完整回复后，满足条件就立刻合并一次记忆”。</view>
+        <view>具体规则：</view>
+        <view>触发时机：用户发问 → 小玩子回复完成 → 合并记忆。</view>
+        <view>记什么：会写入孩子档案，以及用户问题里被判断为“长期孩子事实”的内容，比如孩子性格、偏好、习惯、困难、最近状态、情绪、阅读、写作、数学、睡眠、社交等。</view>
+        <view>不记什么：页面浏览、路径、当前页面上下文、小玩子的回答内容都不会作为长期记忆保存。</view>
+      </view>
+    </view>
+
+    <view class="xf-profile-message">{{message}}</view>
+  </scroll-view>
+</view>

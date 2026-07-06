@@ -24,8 +24,8 @@ const CHAT_CONTEXT_KEY = "xiaowanzi_chat_context_v1";
 const LAST_CHILD_ID_KEY = "xiaowanzi_last_child_id_v1";
 const DEFAULT_MEMORY_CHILD_ID = "default";
 const DEFAULT_CHILD_AVATAR = "/assets/wel-avatar/optimized/no-hat.webp";
-const LOGGED_OUT_XIAOWANZI_AVATAR = "/assets/xiaowanzi-nohat.png";
-const PUBLIC_NAV_IMAGE_ASSETS = ["/assets/logo.png", "/assets/jiyue-logo.png", DEFAULT_CHILD_AVATAR, LOGGED_OUT_XIAOWANZI_AVATAR] as const;
+const LOGGED_OUT_XIAOWANZI_AVATAR = "/assets/wel-avatar/no-hat.png";
+const PUBLIC_NAV_IMAGE_ASSETS = ["/assets/logo.png", "/assets/jiyue-logo.png", "/assets/welfare-gift-icon.png", "/assets/mama-hao-zhuan-icon.png", DEFAULT_CHILD_AVATAR, LOGGED_OUT_XIAOWANZI_AVATAR] as const;
 const preloadedPublicNavImages = new Set<string>();
 const decodedPublicNavImages = new Map<string, HTMLImageElement>();
 const CHILD_RELATIONS = ["儿子", "女儿"] as const;
@@ -68,7 +68,31 @@ function parseGrade(raw:string): {stage:ChildStage; gradeName:string} { const t=
 function gradesFor(stage:ChildStage, city:string){ const wusi=WUSI_CITIES.some(v=>city.includes(v)); if(stage==="小学"&&wusi) return ["一年级","二年级","三年级","四年级","五年级"]; if(stage==="初中"&&wusi) return ["六年级（预初）","七年级","八年级","九年级"]; return CHILD_GRADES_BY_STAGE[stage]; }
 function formatGrade(stage:ChildStage, gradeName:string){ if(stage==="学前") return `学前${gradeName}`; if(stage==="小学") return `小学${gradeName}`; if(stage==="初中") return `初中${gradeName.replace("（预初）","")}`; return gradeName; }
 function childComplete(p:ChildProfileLite){ return !!p.relation && !!p.displayName && !!p.birthDate && !!p.grade; }
-function isMiniProgramWebView(){ return typeof window!=="undefined" && (new URLSearchParams(window.location.search).get("xf_mp")==="1" || window.sessionStorage.getItem("xf_mp_webview")==="1"); }
+function isMiniProgramWebView(){
+  if(typeof window==="undefined")return false;
+  const params=new URLSearchParams(window.location.search);
+  const wechatEnvironment=String((window as any).__wxjs_environment||"").toLowerCase();
+  const userAgent=window.navigator?.userAgent||"";
+  const detected=params.get("xf_mp")==="1"||params.has("xf_tab")||window.sessionStorage.getItem("xf_mp_webview")==="1"||wechatEnvironment==="miniprogram"||/miniprogram/i.test(userAgent);
+  if(detected){
+    window.sessionStorage.setItem("xf_mp_webview","1");
+    document.documentElement.classList.add("xf-mp-webview");
+  }
+  return detected;
+}
+function panelFromParam(value:string|null): Exclude<PanelMode,null>|null {
+  const panel = String(value || "").trim();
+  if (panel === "archive") return "children";
+  if (panel === "menu" || panel === "profile" || panel === "children" || panel === "memory" || panel === "memoryManage" || panel === "settings") return panel;
+  return null;
+}
+function membershipBadgeLabel(user:any): string {
+  if(!user||user.proStatus!=="active")return "";
+  const tier=String(user.membershipTier||user.proPlan||"").toLowerCase();
+  if(tier==="plus"||tier==="monthly")return "Plus";
+  if(tier==="pro"||tier==="yearly")return "Pro";
+  return "";
+}
 type ChildSelectOption = { value:string; label:string };
 function ChildSelect({id,value,options,placeholder="请选择",onChange}:{id:string;value:string;options:ChildSelectOption[];placeholder?:string;onChange:(value:string)=>void}){const [open,setOpen]=useState(false);const selected=options.find(x=>x.value===value);const choose=(next:string)=>{onChange(next);setOpen(false)};return <div className={`aip-profile-select ${open?"open":""}`} onBlur={()=>window.setTimeout(()=>setOpen(false),180)}><button id={id} type="button" className={`aip-profile-select-trigger ${selected?"":"placeholder"}`} onClick={()=>setOpen(v=>!v)} aria-haspopup="listbox" aria-expanded={open}><span>{selected?.label||placeholder}</span><span className="ms">expand_more</span></button>{open&&<div className="aip-profile-select-menu" role="listbox" aria-labelledby={id}>{options.map(option=><button key={option.value} type="button" className={`aip-profile-select-option ${option.value===value?"on":""}`} role="option" aria-selected={option.value===value} onPointerDown={e=>{e.preventDefault();e.stopPropagation();choose(option.value)}} onClick={()=>choose(option.value)}><span>{option.label}</span>{option.value===value&&<span className="ms">check</span>}</button>)}</div>}</div>}
 
@@ -76,9 +100,10 @@ function normalizeAvatarDataUrl(dataUrl:string):Promise<string>{return new Promi
 
 const CSS = `
 #tb{height:52px;flex-shrink:0;background:rgba(255,255,255,.92);backdrop-filter:blur(16px);border-bottom:1px solid rgba(17,10,8,.08);display:flex;align-items:center;z-index:100;padding:0 10px;gap:8px;overflow:visible}
-.tb-logo{flex-shrink:0;display:flex;align-items:center;gap:8px;padding:0 14px;cursor:pointer;transition:all .15s;height:calc(100% - 12px);border:1px solid transparent;border-radius:11px}
+.tb-logo{position:relative;flex-shrink:0;display:flex;align-items:center;gap:8px;padding:0 14px;cursor:pointer;transition:all .15s;height:calc(100% - 12px);border:1px solid transparent;border-radius:11px}
 .tb-logo:hover{background:rgba(108,39,214,.05);border-color:rgba(108,39,214,.16)}
 .tb-logo img{height:29px}
+.tb-logo-badge{position:absolute;right:-4px;top:3px;min-width:30px;height:16px;padding:0 6px;border-radius:999px;background:#111827;color:#fff;border:1px solid rgba(255,255,255,.9);box-shadow:0 4px 10px rgba(15,23,42,.18);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;line-height:1}
 .tb-nav{display:flex;align-items:center;gap:2px;flex:1;height:100%;padding:0 4px;overflow:visible}
 .tb-nav-btn{display:flex;align-items:center;gap:5px;height:100%;padding:0 12px;border:0;border-bottom:2px solid transparent;background:transparent;text-decoration:none;color:#6b7280;font-size:13px;font-weight:500;transition:all .15s;white-space:nowrap;position:relative}
 .tb-nav-btn:hover{color:#111118}
@@ -128,10 +153,11 @@ const CSS = `
 .panel.menu>.account>span:not(.uc-av):not(.chev){display:flex;min-width:0;flex-direction:column;align-items:flex-start;text-align:left}
 .panel.menu .link,.panel.menu .account{min-height:52px;padding:0 16px;gap:8px;font-size:14px;font-weight:850;line-height:1;color:#334155}
 .panel.menu>.account{min-height:84px;padding-top:18px;padding-bottom:18px}
-.panel.menu .link>span:not(.ms):not(.chev),.panel.menu .account strong{font-size:14px;font-weight:850;line-height:1;color:inherit}
+.panel.menu .link>span:not(.ms):not(.chev):not(.emoji-icon),.panel.menu .account strong{font-size:14px;font-weight:850;line-height:1;color:inherit}
 .panel.menu .account small{font-size:12px;font-weight:700;line-height:1.2;margin-top:4px;color:#94a3b8}
 .panel.menu .ms{font-family:'Material Symbols Rounded';font-size:19px;line-height:1;width:20px;flex:0 0 20px;display:inline-flex;align-items:center;justify-content:center}
 .panel.menu .jiyue-icon{width:20px;height:20px;flex:0 0 20px}
+.panel.menu .emoji-icon{width:20px;height:20px;flex:0 0 20px;display:inline-flex;align-items:center;justify-content:center;font-size:18px;line-height:1}
 .panel.menu .chev{font-size:20px;font-weight:700;color:#94a3b8}
 .head{height:44px;display:grid;grid-template-columns:72px 1fr 72px;align-items:center;margin-bottom:14px}
 .back{border:0;background:transparent;color:#7C3AED;font-size:14px;font-weight:600;text-align:left;line-height:1;padding:0;cursor:pointer}
@@ -262,17 +288,20 @@ const CSS = `
 
 const GlobalPublicNav: React.FC<GlobalPublicNavProps> = (props) => {
   const { showSearch=true, showLogout=true, compactMobile=false, showProgramList=true, showExpertsEntry=true, showBooksEntry=true, showMaterialsEntry=true, showPlanningEntry=true, searchPlaceholder="搜索节目标题/简介", searchValue, onSearchChange, headless=false } = props;
-  const { pathname } = useLocation(); const navigate = useNavigate(); const dispatch = useDispatch(); const { user, token } = useSelector((s:RootState)=>s.user);
-  const [panel,setPanel] = useState<PanelMode>(null); const [desktopMenu,setDesktopMenu]=useState(false); const [searchOpen,setSearchOpen]=useState(false); const [innerSearch,setInnerSearch]=useState(""); const [font,setFont]=useState(()=>Number(localStorage.getItem("xf_font_scale")||1)); const [leader,setLeader]=useState(false); const [xiaowanziHomeActive,setXiaowanziHomeActive]=useState(false); const id=useRef(`nav-${Math.random().toString(36).slice(2)}`);
+  const { pathname, search } = useLocation(); const navigate = useNavigate(); const dispatch = useDispatch(); const { user, token } = useSelector((s:RootState)=>s.user);
+  const [panel,setPanel] = useState<PanelMode>(()=>typeof window==="undefined"?null:panelFromParam(new URLSearchParams(window.location.search).get("xf_panel"))); const [desktopMenu,setDesktopMenu]=useState(false); const [searchOpen,setSearchOpen]=useState(false); const [innerSearch,setInnerSearch]=useState(""); const [font,setFont]=useState(()=>Number(localStorage.getItem("xf_font_scale")||1)); const [leader,setLeader]=useState(false); const [xiaowanziHomeActive,setXiaowanziHomeActive]=useState(false); const id=useRef(`nav-${Math.random().toString(36).slice(2)}`);
   const embeddedLayer = useXiaowanziEmbeddedLayer();
   const miniProgramWebView = isMiniProgramWebView();
-  const activePrograms=pathname.startsWith("/programs"), activeExperts=pathname.startsWith("/experts"), activeBooks=pathname.startsWith("/books")||pathname.startsWith("/reading"), activePlanning=pathname.startsWith("/planning"), activeTopics=pathname.startsWith("/topics"), activeMaterials=pathname.startsWith("/materials"), activeWorthBuy=pathname.startsWith("/worthbuy");
+  const memberBadge = user&&token ? membershipBadgeLabel(user) : "";
+  const activePrograms=pathname.startsWith("/programs"), activeExperts=pathname.startsWith("/experts"), activeBooks=pathname.startsWith("/books")||pathname.startsWith("/reading"), activePlanning=pathname.startsWith("/planning"), activeTopics=pathname.startsWith("/topics"), activeMaterials=pathname.startsWith("/materials"), activeWorthBuy=pathname.startsWith("/worthbuy"), activeWelfare=pathname.startsWith("/welfare"), activeMamaHaozhuan=pathname.startsWith("/mama-resources");
+  const suppressMobileTab=activePlanning||miniProgramWebView;
   const value=typeof searchValue==="string"?searchValue:innerSearch;
   useEffect(()=>{const k="__xf_global_public_nav_owner__", w=window as any; const elect=()=>{if(!w[k])w[k]=id.current; setLeader(w[k]===id.current)}; elect(); const t=window.setInterval(elect,300); return()=>{clearInterval(t); if(w[k]===id.current) delete w[k];};},[]);
   useEffect(()=>{if(xiaowanziHomeActive){setDesktopMenu(false);setSearchOpen(false);return}setPanel(null);setDesktopMenu(false);setSearchOpen(false)},[pathname,xiaowanziHomeActive]);
+  useEffect(()=>{const next=panelFromParam(new URLSearchParams(search).get("xf_panel"));if(!next)return;setDesktopMenu(false);setSearchOpen(false);setPanel(next)},[pathname,search]);
   useEffect(()=>{const open=()=>{setDesktopMenu(false);setPanel("children");window.setTimeout(()=>document.dispatchEvent(new CustomEvent("xf-child-profile-create")),0)};document.addEventListener("xf-open-child-profile-create",open);return()=>document.removeEventListener("xf-open-child-profile-create",open)},[]);
   useEffect(()=>{const open=()=>{setDesktopMenu(false);setPanel("children")};document.addEventListener("xf-open-child-profile",open);return()=>document.removeEventListener("xf-open-child-profile",open)},[]);
-  useEffect(()=>{document.body.classList.toggle("xf-mobile-tab-enabled",compactMobile&&!embeddedLayer&&!headless&&!miniProgramWebView); return()=>document.body.classList.remove("xf-mobile-tab-enabled")},[compactMobile,embeddedLayer,headless,miniProgramWebView]);
+  useEffect(()=>{document.body.classList.toggle("xf-mobile-tab-enabled",compactMobile&&!embeddedLayer&&!headless&&!suppressMobileTab); return()=>document.body.classList.remove("xf-mobile-tab-enabled")},[compactMobile,embeddedLayer,headless,suppressMobileTab]);
   useEffect(()=>{PUBLIC_NAV_IMAGE_ASSETS.forEach(preloadPublicNavImage);if(user?.avatar_image)preloadPublicNavImage(user.avatar_image)},[user?.avatar_image]);
   useEffect(()=>{const openMenu=()=>setPanel("menu");document.addEventListener("xf-open-public-menu",openMenu);return()=>document.removeEventListener("xf-open-public-menu",openMenu)},[]);
   useEffect(()=>{const closeMenu=()=>{setPanel(null);setDesktopMenu(false);setSearchOpen(false)};document.addEventListener("xf-close-public-menu",closeMenu);return()=>document.removeEventListener("xf-close-public-menu",closeMenu)},[]);
@@ -281,10 +310,11 @@ const GlobalPublicNav: React.FC<GlobalPublicNavProps> = (props) => {
   const input=(v:string)=>{setInnerSearch(v); onSearchChange?.(v)}; const submit=(v:string)=>{const q=String(v||"").trim(), from=encodeURIComponent(`${pathname}${window.location.search||""}`); navigate(q?`/search?q=${encodeURIComponent(q)}&from=${from}`:`/search?from=${from}`)}; const doLogout=()=>{dispatch(logout()); window.location.href="/"};
   if(embeddedLayer&&!headless) return <style>{CSS}</style>;
   if(!leader&&!headless) return null;
-  const navLinks=<>{showProgramList&&<NavLink to="/programs/list" active={activePrograms} icon="podcasts" label="节目列表"/>}{showExpertsEntry&&<NavLink to="/experts" active={activeExperts} icon="person" label="先疯智库"/>}{showBooksEntry&&<NavLink to="/reading" active={activeBooks} image="/assets/jiyue-logo.png" label="及阅"/>}{showMaterialsEntry&&<NavLink to="/materials" active={activeMaterials} icon="inventory_2" label="学习资料"/>}{showPlanningEntry&&<NavLink to="/planning" active={activePlanning} icon="route" label="教育规划"/>}<NavLink to="/topics" active={activeTopics} emoji="🙏🏻" label="请教一下"/><NavLink to="/worthbuy" active={activeWorthBuy} icon="verified" label="知物"/></>;
+  if(miniProgramWebView&&!headless) return <style>{CSS}</style>;
+  const navLinks=<>{showProgramList&&<NavLink to="/programs/list" active={activePrograms} icon="podcasts" label="节目列表"/>}{showExpertsEntry&&<NavLink to="/experts" active={activeExperts} icon="person" label="先疯智库"/>}{showBooksEntry&&<NavLink to="/reading" active={activeBooks} image="/assets/jiyue-logo.png" label="及阅"/>}{showMaterialsEntry&&<NavLink to="/materials" active={activeMaterials} icon="inventory_2" label="学习资料"/>}{showPlanningEntry&&<NavLink to="/planning" active={activePlanning} icon="route" label="教育规划"/>}<NavLink to="/topics" active={activeTopics} emoji="🙏🏻" label="请教一下"/><NavLink to="/worthbuy" active={activeWorthBuy} icon="verified" label="知物"/><NavLink to="/welfare" active={activeWelfare} image="/assets/welfare-gift-icon.png" label="小玩子百宝箱"/><NavLink to="/mama-resources/apply" active={activeMamaHaozhuan} image="/assets/mama-hao-zhuan-icon.png" label="妈妈好赚"/></>;
   const panelOverlay=panel&&<div className={`mask ${panel==="menu"?"desktop-menu":""} ${xiaowanziHomeActive?"xw-home-layer":""}`} onClick={()=>setPanel(null)}><div className={`panel ${panel==="menu"?"menu":""} ${panel==="children"?"children":""} ${panel==="settings"?"settings":""} ${panel==="memory"||panel==="memoryManage"?"memory-page":""}`} onClick={e=>e.stopPropagation()}>{panel==="menu"&&<MenuPanel navLinks={navLinks} setPanel={setPanel} xiaowanziHomeActive={xiaowanziHomeActive}/>} {panel==="profile"&&<ProfilePanel back={()=>setPanel("menu")} close={()=>setPanel(null)}/>} {panel==="children"&&<ChildPanel back={()=>setPanel("menu")} close={()=>setPanel(null)}/>} {panel==="memory"&&<MemoryPanel back={()=>setPanel("menu")} manage={()=>setPanel("memoryManage")}/>} {panel==="memoryManage"&&<MemoryManagePanel back={()=>setPanel("memory")}/>} {panel==="settings"&&<SettingsPanel back={()=>setPanel("menu")} font={font} setFont={setFont} logout={doLogout} showLogout={showLogout}/>}</div></div>;
   if(headless) return <><style>{CSS}</style>{panelOverlay}</>;
-  return <><style>{CSS}</style><nav className="fixed top-0 z-50 w-full"><div id="tb"><Link className="tb-logo" to="/programs/list"><img src="/assets/logo.png" alt="家长先疯" loading="eager" decoding="sync"/></Link><div className="tb-nav">{navLinks}</div><div className="tb-right">{showSearch&&<SearchBox value={value} placeholder={searchPlaceholder} onInput={input} onSubmit={submit}/>} {user&&token?<><div style={{position:"relative"}}><button className="uc" onClick={()=>setDesktopMenu(v=>!v)}><Avatar user={user}/><span className="uc-name">{user.name||user.username||"用户"}</span></button>{desktopMenu&&<DesktopMenu open={(m)=>{setPanel(m);setDesktopMenu(false)}}/>}</div>{showLogout&&<button className="ibtn" title="退出" type="button" onClick={doLogout}>logout</button>}</>:<button className="uc" onClick={()=>document.dispatchEvent(new CustomEvent("xf-show-login-modal"))}><LoggedOutAvatar/><span className="uc-name">登录/注册</span></button>}</div>{compactMobile&&<div className="mobile-actions">{showSearch&&pathname!=="/planning"&&<button className="mobile-search" onClick={()=>setSearchOpen(v=>!v)}>search</button>}<button className="mobile-toggle" onClick={()=>setPanel("menu")}>menu</button></div>}</div>{searchOpen&&<div className="search-sheet"><div><input value={value} placeholder={searchPlaceholder} onChange={e=>input(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")submit(e.currentTarget.value)}}/><button onClick={()=>submit(value)}>搜索</button></div></div>}</nav>{compactMobile&&!miniProgramWebView&&<MobileTab/>}{panelOverlay}</>;
+  return <><style>{CSS}</style><nav className="fixed top-0 z-50 w-full"><div id="tb"><Link className="tb-logo" to="/programs/list"><img src="/assets/logo.png" alt="家长先疯" loading="eager" decoding="sync"/>{memberBadge&&<span className="tb-logo-badge">{memberBadge}</span>}</Link><div className="tb-nav">{navLinks}</div><div className="tb-right">{showSearch&&<SearchBox value={value} placeholder={searchPlaceholder} onInput={input} onSubmit={submit}/>} {user&&token?<><div style={{position:"relative"}}><button className="uc" onClick={()=>setDesktopMenu(v=>!v)}><Avatar user={user}/><span className="uc-name">{user.name||user.username||"用户"}</span></button>{desktopMenu&&<DesktopMenu open={(m)=>{setPanel(m);setDesktopMenu(false)}}/>}</div>{showLogout&&<button className="ibtn" title="退出" type="button" onClick={doLogout}>logout</button>}</>:<button className="uc" onClick={()=>document.dispatchEvent(new CustomEvent("xf-show-login-modal"))}><LoggedOutAvatar/><span className="uc-name">登录/注册</span></button>}</div>{compactMobile&&<div className="mobile-actions">{showSearch&&pathname!=="/planning"&&<button className="mobile-search" onClick={()=>setSearchOpen(v=>!v)}>search</button>}<button className="mobile-toggle" onClick={()=>setPanel("menu")}>menu</button></div>}</div>{searchOpen&&<div className="search-sheet"><div><input value={value} placeholder={searchPlaceholder} onChange={e=>input(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")submit(e.currentTarget.value)}}/><button onClick={()=>submit(value)}>搜索</button></div></div>}</nav>{compactMobile&&!suppressMobileTab&&<MobileTab/>}{panelOverlay}</>;
 };
 function NavLink({to,active,icon,image,emoji,label}:{to:string;active:boolean;icon?:string;image?:string;emoji?:string;label:string}){return <Link to={to} className={`tb-nav-btn ${active?"on":""}`}>{icon&&<span className="material-symbols-outlined ms">{icon}</span>}{image&&<img className="jiyue-icon" src={image} alt={label} loading="eager" decoding="sync"/>}{emoji&&<span>{emoji}</span>}<span>{label}</span></Link>}
 function Avatar({user}:{user:any}){const src=user?.avatar_image||DEFAULT_CHILD_AVATAR;return <span className="uc-av has-image"><img src={src} alt={user?.name||user?.username||"用户"} loading="eager" decoding="sync" onError={(e)=>{e.currentTarget.src=DEFAULT_CHILD_AVATAR}}/></span>}
@@ -292,12 +322,13 @@ function LoggedOutAvatar(){return <span className="uc-av has-image"><img src={LO
 function SearchBox({value,placeholder,onInput,onSubmit}:{value:string;placeholder:string;onInput:(v:string)=>void;onSubmit:(v:string)=>void}){return <label className="search-wrap"><span className="material-symbols-outlined ms">search</span><input value={value} placeholder={placeholder} onChange={e=>onInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")onSubmit(e.currentTarget.value)}}/></label>}
 function DesktopMenu({open}:{open:(m:PanelMode)=>void}){return <div className="desktop-account-menu"><button className="link" onClick={()=>open("profile")}><span className="material-symbols-outlined ms">person</span><span>个人资料</span><span className="chev">›</span></button>{isProBillingEnabled()?<Link className="link" to="/pro"><span className="material-symbols-outlined ms">workspace_premium</span><span>订阅计划</span><span className="chev">›</span></Link>:null}<button className="link" onClick={()=>open("children")}><span className="material-symbols-outlined ms">badge</span><span>档案管理</span><span className="chev">›</span></button><button className="link" onClick={()=>open("memory")}><span className="material-symbols-outlined ms">psychology</span><span>记忆</span><span className="chev">›</span></button><button className="link" onClick={()=>open("settings")}><span className="material-symbols-outlined ms">settings</span><span>设置</span><span className="chev">›</span></button></div>}
 function MenuItem({ to, icon, image, emoji, label, active, superMode, onOpenLayer, directSuperModeUrl }: { to: string; icon?: string; image?: string; emoji?: string; label: string; active?: boolean; superMode?: boolean; onOpenLayer?: () => void; directSuperModeUrl?: string }) {
-  return <Link className={`link ${active ? "on" : ""}`} to={superMode && directSuperModeUrl ? directSuperModeUrl : to} onClick={(event)=>{if(!superMode)return;if(directSuperModeUrl){event.preventDefault();onOpenLayer?.();window.location.href=directSuperModeUrl;return;}event.preventDefault();onOpenLayer?.();window.setTimeout(()=>document.dispatchEvent(new CustomEvent("xf-xiaowanzi-browse-layer",{detail:{active:true,path:to,label}})),0)}}>{icon && <span className="material-symbols-outlined ms">{icon}</span>}{image && <img className="jiyue-icon" src={image} alt={label} loading="eager" decoding="sync" />}{emoji && <span>{emoji}</span>}<span>{label}</span><span className="chev">›</span></Link>;
+  return <Link className={`link ${active ? "on" : ""}`} to={superMode && directSuperModeUrl ? directSuperModeUrl : to} onClick={(event)=>{if(!superMode)return;if(directSuperModeUrl){event.preventDefault();onOpenLayer?.();window.location.href=directSuperModeUrl;return;}event.preventDefault();onOpenLayer?.();window.setTimeout(()=>document.dispatchEvent(new CustomEvent("xf-xiaowanzi-browse-layer",{detail:{active:true,path:to,label}})),0)}}>{icon && <span className="material-symbols-outlined ms">{icon}</span>}{image && <img className="jiyue-icon" src={image} alt={label} loading="eager" decoding="sync" />}{emoji && <span className="emoji-icon">{emoji}</span>}<span>{label}</span><span className="chev">›</span></Link>;
 }
 function MenuPanel({setPanel,xiaowanziHomeActive}:{navLinks:React.ReactNode;setPanel:(m:PanelMode)=>void;xiaowanziHomeActive?:boolean}){
   const {user,token}=useSelector((s:RootState)=>s.user);
   const {pathname}=useLocation();
   const isAuthed=!!user&&!!token;
+  const activeMamaHaozhuan=pathname.startsWith("/mama-resources");
   const openLogin=()=>{setPanel(null);window.setTimeout(()=>document.dispatchEvent(new CustomEvent("xf-show-login-modal",{detail:{title:"登录/注册后继续",description:"登录后可同步个人资料、孩子档案和个性化推荐。"}})),0)};
   const openLayer=()=>setPanel(null);
   const itemProps={superMode:xiaowanziHomeActive,onOpenLayer:openLayer};
@@ -317,7 +348,7 @@ function MenuPanel({setPanel,xiaowanziHomeActive}:{navLinks:React.ReactNode;setP
     </>}
     <div className="card"><MenuItem {...itemProps} to="/programs/list" icon="podcasts" label="播客节目" active={pathname.startsWith("/programs")}/><MenuItem {...itemProps} to="/experts" directSuperModeUrl="/experts?xw_layer=1&xw_return=xiaowanzi" icon="person" label="先疯智库" active={pathname.startsWith("/experts")}/></div>
     <div className="card"><MenuItem {...itemProps} to="/reading" image="/assets/jiyue-logo.png" label="及阅" active={pathname.startsWith("/reading")||pathname.startsWith("/books")}/><MenuItem {...itemProps} to="/materials" icon="inventory_2" label="学习资料" active={pathname.startsWith("/materials")}/><MenuItem {...itemProps} to="/planning" icon="route" label="教育规划" active={pathname.startsWith("/planning")}/></div>
-    <div className="card"><MenuItem {...itemProps} to="/topics" emoji="🙏🏻" label="请教一下" active={pathname.startsWith("/topics")}/><MenuItem {...itemProps} to="/worthbuy" icon="verified" label="知物" active={pathname.startsWith("/worthbuy")}/></div>
+    <div className="card"><MenuItem {...itemProps} to="/topics" emoji="🙏🏻" label="请教一下" active={pathname.startsWith("/topics")}/><MenuItem {...itemProps} to="/worthbuy" icon="verified" label="知物" active={pathname.startsWith("/worthbuy")}/><MenuItem {...itemProps} to="/welfare" image="/assets/welfare-gift-icon.png" label="小玩子百宝箱" active={pathname.startsWith("/welfare")}/><MenuItem {...itemProps} to="/mama-resources/apply" image="/assets/mama-hao-zhuan-icon.png" label="妈妈好赚" active={activeMamaHaozhuan}/></div>
     <div className="card"><button className="link" onClick={()=>isAuthed?setPanel("memory"):openLogin()}><span className="material-symbols-outlined ms">psychology</span><span>记忆</span><span className="chev">›</span></button></div>
     <div className="card"><button className="link" onClick={()=>setPanel("settings")}><span className="material-symbols-outlined ms">settings</span><span>设置</span><span className="chev">›</span></button></div>
   </>;

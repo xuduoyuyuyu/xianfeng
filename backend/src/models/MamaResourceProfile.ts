@@ -1,0 +1,133 @@
+import mongoose from "mongoose";
+
+export type MamaResourceStatus = "pending" | "approved" | "needs_info" | "rejected";
+export type MamaResourceDataSource = "pending" | "auto" | "manual" | "screenshot";
+export type MamaResourceCaptureStatus = "pending" | "captured" | "failed" | "manual_required";
+
+export interface MamaResourceContentCase {
+  url: string;
+  title?: string;
+  publishedAt?: Date | null;
+  likeCount?: number;
+  favoriteCount?: number;
+  commentCount?: number;
+  screenshotUrl?: string;
+  captureStatus: MamaResourceCaptureStatus;
+  lastCapturedAt?: Date | null;
+}
+
+export interface MamaResourceProfile extends mongoose.Document {
+  displayName: string;
+  contactPhone?: string;
+  contactWechat: string;
+  city?: string;
+  childStage?: string;
+  childGender?: string;
+  categories: string[];
+  status: MamaResourceStatus;
+  accountPositioning?: string;
+  consentAccepted: boolean;
+  socialAccount: {
+    platform: "xiaohongshu";
+    profileUrl: string;
+    normalizedProfileUrl: string;
+    nickname?: string;
+    followerCount?: number;
+    screenshotUrl?: string;
+    realNameVerified?: boolean | null;
+    dataSource: MamaResourceDataSource;
+    lastCapturedAt?: Date | null;
+  };
+  contentCases: MamaResourceContentCase[];
+  rateCard: {
+    rateRange?: string;
+    availability?: string;
+    acceptsGiftExchange?: boolean;
+    blockedCategories: string[];
+  };
+  reviewNote: {
+    note?: string;
+    suitableCategories: string[];
+    riskTags: string[];
+    nextFollowUpAt?: Date | null;
+    reviewedAt?: Date | null;
+  };
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const contentCaseSchema = new mongoose.Schema(
+  {
+    url: { type: String, required: true, trim: true },
+    title: { type: String, default: "", trim: true },
+    publishedAt: { type: Date, default: null },
+    likeCount: { type: Number, default: null },
+    favoriteCount: { type: Number, default: null },
+    commentCount: { type: Number, default: null },
+    screenshotUrl: { type: String, default: "", trim: true },
+    captureStatus: {
+      type: String,
+      enum: ["pending", "captured", "failed", "manual_required"],
+      default: "pending",
+    },
+    lastCapturedAt: { type: Date, default: null },
+  },
+  { _id: false }
+);
+
+const mamaResourceProfileSchema = new mongoose.Schema(
+  {
+    displayName: { type: String, required: true, trim: true },
+    contactPhone: { type: String, default: "", trim: true },
+    contactWechat: { type: String, default: "", trim: true },
+    city: { type: String, default: "", trim: true },
+    childStage: { type: String, default: "", trim: true },
+    childGender: { type: String, default: "", trim: true },
+    categories: { type: [String], default: [] },
+    status: {
+      type: String,
+      enum: ["pending", "approved", "needs_info", "rejected"],
+      default: "pending",
+      index: true,
+    },
+    accountPositioning: { type: String, default: "", trim: true },
+    consentAccepted: { type: Boolean, required: true },
+    socialAccount: {
+      platform: { type: String, enum: ["xiaohongshu"], default: "xiaohongshu" },
+      profileUrl: { type: String, required: true, trim: true },
+      normalizedProfileUrl: { type: String, required: true, trim: true, unique: true, index: true },
+      nickname: { type: String, default: "", trim: true },
+      followerCount: { type: Number, default: null },
+      screenshotUrl: { type: String, default: "", trim: true },
+      realNameVerified: { type: Boolean, default: null },
+      dataSource: {
+        type: String,
+        enum: ["pending", "auto", "manual", "screenshot"],
+        default: "pending",
+      },
+      lastCapturedAt: { type: Date, default: null },
+    },
+    contentCases: { type: [contentCaseSchema], default: [] },
+    rateCard: {
+      rateRange: { type: String, default: "", trim: true },
+      availability: { type: String, default: "", trim: true },
+      acceptsGiftExchange: { type: Boolean, default: false },
+      blockedCategories: { type: [String], default: [] },
+    },
+    reviewNote: {
+      note: { type: String, default: "", trim: true },
+      suitableCategories: { type: [String], default: [] },
+      riskTags: { type: [String], default: [] },
+      nextFollowUpAt: { type: Date, default: null },
+      reviewedAt: { type: Date, default: null },
+    },
+  },
+  { timestamps: true }
+);
+
+const MamaResourceProfile = mongoose.model<MamaResourceProfile>(
+  "MamaResourceProfile",
+  mamaResourceProfileSchema
+);
+
+export default MamaResourceProfile;

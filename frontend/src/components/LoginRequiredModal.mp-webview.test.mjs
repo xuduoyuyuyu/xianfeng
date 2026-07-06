@@ -13,10 +13,17 @@ test("login modal uses native mini program login inside xf_mp web-view", () => {
   assert.match(source, /使用小程序微信身份登录/);
 });
 
-test("mini program login bridge navigates to the native login page with current web URL", () => {
+test("mini program login bridge opens the current native webview auth gate with current web URL", () => {
   assert.match(bridge, /export function isMiniProgramWebView/);
-  assert.match(bridge, /export function openMiniProgramNativeLogin/);
+  assert.match(bridge, /export async function openMiniProgramNativeLogin/);
+  assert.match(bridge, /function loadWechatJssdk/);
+  assert.match(bridge, /https:\/\/res\.wx\.qq\.com\/open\/js\/jweixin-1\.6\.0\.js/);
+  assert.match(bridge, /await loadWechatJssdk\(\)/);
+  assert.match(bridge, /window\.wx\?\.miniProgram\?\.redirectTo/);
   assert.match(bridge, /window\.wx\?\.miniProgram\?\.navigateTo/);
-  assert.match(bridge, /\/pages\/login\/index\?redirect=/);
+  assert.match(bridge, /\/pages\/webview\/index\?url=\$\{encodeURIComponent\(window\.location\.href\)\}&title=\$\{encodeURIComponent\(document\.title \|\| "家长先疯"\)\}&login=1/);
+  assert.match(bridge, /isMiniProgramWebView\(\) && redirectTo/);
+  assert.match(bridge, /isMiniProgramWebView\(\)[\s\S]*\? currentWebviewLoginUrl[\s\S]*: `\/pages\/xiaowanzi\/index\?login=1&redirect=/);
+  assert.doesNotMatch(bridge, /\/pages\/login\/index/);
   assert.match(bridge, /encodeURIComponent\(window\.location\.href\)/);
 });

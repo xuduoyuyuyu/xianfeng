@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 
 type ContentStatus = "draft" | "published" | "group-only";
 type ParseStatus = "idle" | "parsing" | "success" | "failed";
+type ProgramShow = "xianfeng" | "zhiji";
 
 interface Episode {
   title: string;
@@ -173,6 +174,7 @@ interface Program extends mongoose.Document {
   title: string;
   description: string;
   coverImage: string;
+  programShow: ProgramShow;
   episodes: Episode[];
   summary?: ProgramSummary;
   transcript?: TranscriptSegment[];
@@ -209,6 +211,12 @@ const programSchema = new mongoose.Schema(
     title: { type: String, required: true, unique: true },
     description: { type: String, required: true },
     coverImage: { type: String, required: true },
+    programShow: {
+      type: String,
+      enum: ["xianfeng", "zhiji"],
+      default: "xianfeng",
+      index: true,
+    },
     episodes: [
       {
         title: { type: String, required: true },
@@ -399,4 +407,4 @@ const programSchema = new mongoose.Schema(
 const Program = mongoose.model<Program>("Program", programSchema);
 
 export default Program;
-export { Program, Episode, ContentStatus, ParseStatus };
+export { Program, Episode, ContentStatus, ParseStatus, ProgramShow };

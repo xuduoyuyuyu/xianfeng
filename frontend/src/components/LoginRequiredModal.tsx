@@ -163,9 +163,9 @@ const LoginRequiredModal: React.FC<Props> = ({
     }
   };
 
-  const handleMiniProgramLogin = () => {
+  const handleMiniProgramLogin = async () => {
     setLocalError("");
-    if (openMiniProgramNativeLogin()) {
+    if (await openMiniProgramNativeLogin()) {
       onClose();
       return;
     }

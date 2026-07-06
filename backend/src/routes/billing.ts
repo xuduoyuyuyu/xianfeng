@@ -6,6 +6,7 @@ import {
   FREE_BILLING_PLAN,
   POINT_USAGE_POLICY,
   canRefundOrder,
+  calculatePointBasedRefund,
   createPaymentOrder,
   grantFreeLoginPointsForUser,
   getLatestRefundableOrder,
@@ -15,7 +16,16 @@ import {
   serializeBillingUser,
   serializePlan,
 } from "../services/billing";
-import { createAlipayCheckout, createWechatCheckout, handleAlipayNotify, handleWechatNotify, refundAlipayOrder, refundWechatOrder } from "../services/paymentProviders";
+import {
+  createAlipayCheckout,
+  createWechatCheckout,
+  createWechatMiniProgramCheckout,
+  handleAlipayNotify,
+  handleWechatNotify,
+  refundAlipayOrder,
+  refundWechatOrder,
+  syncWechatPaidOrder,
+} from "../services/paymentProviders";
 import User from "../models/User";
 
 const router = Router();
@@ -48,16 +58,40 @@ async function findOwnedOrder(req: AuthenticatedRequest, orderId: string) {
   return null;
 }
 
+async function syncPendingWechatOrder(order: any) {
+  if (!order || order.provider !== "wechat" || order.status !== "pending") return order;
+  try {
+    return await syncWechatPaidOrder(order);
+  } catch (error) {
+    console.error("Wechat pay order sync failed:", error);
+    return order;
+  }
+}
+
+async function syncRecentPendingWechatOrders(userId: string) {
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const orders = await PaymentOrderModel.find({
+    userId,
+    provider: "wechat",
+    status: "pending",
+    createdAt: { $gte: cutoff },
+  }).sort({ createdAt: -1 }).limit(5);
+  for (const order of orders) {
+    await syncPendingWechatOrder(order);
+  }
+}
+
 router.get("/plans", (_req, res) => {
   res.json({
     plans: {
       free: serializePlan(FREE_BILLING_PLAN),
-      monthly: serializePlan(BILLING_PLANS.monthly),
-      yearly: serializePlan(BILLING_PLANS.yearly),
+      plus: serializePlan(BILLING_PLANS.plus),
+      pro: serializePlan(BILLING_PLANS.pro),
     },
     refundPolicy: {
-      fullRefundDays: 3,
-      description: "支付成功后3天内可在订阅页自助申请全额退款。",
+      fullRefundDays: 0,
+      mode: "points_prorated",
+      description: "退款按未使用点数折算，可退金额=订单金额×剩余可退点数/套餐点数；退款后对应点数扣回。",
     },
     providers: {
       alipay: { enabled: false, note: "支付宝暂不启用" },
@@ -68,16 +102,29 @@ router.get("/plans", (_req, res) => {
 });
 
 router.get("/me", authenticate, async (req: AuthenticatedRequest, res) => {
-  const user = await User.findById(currentUserId(req));
+  const userId = currentUserId(req);
+  const user = await User.findById(userId);
   if (!user) {
     res.status(404).json({ message: "用户不存在" });
     return;
   }
   await grantFreeLoginPointsForUser(user);
-  const latestOrder = await PaymentOrderModel.findOne({ userId: user._id }).sort({ createdAt: -1 }).lean();
+  await syncRecentPendingWechatOrders(userId);
+  const [freshUser, latestOrder, latestRefundableOrder] = await Promise.all([
+    User.findById(userId),
+    PaymentOrderModel.findOne({ userId: user._id }).sort({ createdAt: -1 }).lean(),
+    getLatestRefundableOrder(userId),
+  ]);
+  const membership = serializeBillingUser(freshUser || user);
+  membership.canRefundLatestOrder = !!(
+    membership.isProActive
+    && latestRefundableOrder
+    && calculatePointBasedRefund(latestRefundableOrder, freshUser || user).ok
+  );
   res.json({
-    membership: serializeBillingUser(user),
+    membership,
     latestOrder: latestOrder ? serializeOrder(latestOrder) : null,
+    latestRefundableOrder: latestRefundableOrder ? serializeOrder(latestRefundableOrder) : null,
   });
 });
 
@@ -90,7 +137,13 @@ router.post("/orders", authenticate, async (req: AuthenticatedRequest, res) => {
     }
     const provider = req.body?.provider === "alipay" ? "alipay" : "wechat";
     const order = await createPaymentOrder({ userId: currentUserId(req), plan, provider });
-    const checkout = provider === "wechat" ? await createWechatCheckout(order) : await createAlipayCheckout(order);
+    let checkout;
+    if (provider === "wechat" && req.body?.channel === "mini_program") {
+      const user = await User.findById(currentUserId(req)).lean();
+      checkout = await createWechatMiniProgramCheckout(order, user?.wechatMiniOpenid);
+    } else {
+      checkout = provider === "wechat" ? await createWechatCheckout(order) : await createAlipayCheckout(order);
+    }
     res.status(201).json({ order: serializeOrder(order), checkout });
   } catch (error: any) {
     res.status(500).json({ message: error?.message || "创建订单失败" });
@@ -98,11 +151,12 @@ router.post("/orders", authenticate, async (req: AuthenticatedRequest, res) => {
 });
 
 router.get("/orders/:id", authenticate, async (req: AuthenticatedRequest, res) => {
-  const order = await findOwnedOrder(req, String(req.params.id));
+  let order = await findOwnedOrder(req, String(req.params.id));
   if (!order) {
     res.status(404).json({ message: "订单不存在" });
     return;
   }
+  order = await syncPendingWechatOrder(order);
   res.json({ order: serializeOrder(order) });
 });
 
@@ -172,16 +226,26 @@ router.post("/refunds", authenticate, async (req: AuthenticatedRequest, res) => 
     res.status(400).json({ message: refundCheck.reason, refundDeadline: refundCheck.deadline?.toISOString() || null });
     return;
   }
+  const userForRefund = await User.findById(order.userId).lean();
+  const pointRefund = calculatePointBasedRefund(order, userForRefund);
+  if (!pointRefund.ok) {
+    res.status(400).json({ message: pointRefund.reason, refundablePoints: pointRefund.refundablePoints, amountCents: pointRefund.amountCents });
+    return;
+  }
+  const defaultReason = `按未使用点数折算退款，已用 ${pointRefund.usedPoints} 点`;
+  const refundReason = String(req.body?.reason || defaultReason);
   const refund = order.provider === "wechat"
-    ? await refundWechatOrder(order, String(req.body?.reason || "3天不满意全额退款"))
-    : await refundAlipayOrder(order, String(req.body?.reason || "3天不满意全额退款"));
-  const user = await User.findById(currentUserId(req)).lean();
+    ? await refundWechatOrder(order, refundReason, pointRefund.amountCents, pointRefund.refundablePoints)
+    : await refundAlipayOrder(order, refundReason, pointRefund.amountCents, pointRefund.refundablePoints);
+  const user = await User.findById(order.userId).lean();
   res.json({
     refund: {
       id: String(refund._id),
       orderId: String(refund.orderId),
       status: refund.status,
       amountCents: refund.amountCents,
+      refundablePoints: pointRefund.refundablePoints,
+      usedPoints: pointRefund.usedPoints,
       refundedAt: refund.refundedAt ? refund.refundedAt.toISOString() : null,
     },
     membership: serializeBillingUser(user),

@@ -1,0 +1,215 @@
+<template name="xfSettingsProfilePanel">
+  <view class="xf-settings-profile-view">
+    <view class="xf-profile-header" style="height: {{profileHeaderHeight}}px;">
+      <button class="xf-profile-back" bindtap="returnSettingsMenu">← 返回</button>
+      <view class="xf-profile-title">个人资料</view>
+      <view class="xf-profile-header-spacer"></view>
+    </view>
+    <view class="xf-profile-card xf-account-avatar-card">
+      <image class="xf-account-avatar-image" src="{{profileAvatar}}" mode="aspectFill" />
+      <view class="xf-account-avatar-body">
+        <view class="xf-account-avatar-actions">
+          <button bindtap="chooseProfileAvatar">上传头像</button>
+          <button bindtap="removeProfileAvatar">移除头像</button>
+        </view>
+        <text class="xf-account-avatar-copy">支持 JPG / PNG / WEBP，建议 1:1 方图</text>
+      </view>
+    </view>
+    <view class="xf-profile-card">
+      <view class="xf-profile-field">
+        <text class="xf-profile-label">昵称</text>
+        <input value="{{profileDraft.name}}" placeholder="请输入昵称" bindinput="updateProfileName" />
+      </view>
+      <view class="xf-profile-field">
+        <text class="xf-profile-label">性别</text>
+        <view class="xf-profile-chips">
+          <button wx:for="{{profileGenderOptions}}" wx:key="value" data-value="{{item.value}}" class="xf-profile-chip {{item.selected ? 'is-active' : ''}}" bindtap="chooseProfileGender">{{item.value}}</button>
+        </view>
+      </view>
+    </view>
+    <button class="xf-profile-primary xf-account-save" bindtap="saveProfilePanel">保存资料</button>
+    <view class="xf-profile-card xf-profile-shortcuts">
+      <view class="xf-profile-shortcut" catchtap="openSettingsItem" data-panel-view="archive">
+        <image class="xf-profile-shortcut-icon" src="/assets/menu/line-badge.png" mode="aspectFit" />
+        <view class="xf-profile-shortcut-copy">
+          <text class="xf-profile-shortcut-title">档案管理</text>
+          <text class="xf-profile-shortcut-subtitle">查看孩子档案摘要</text>
+        </view>
+        <text class="xf-native-settings-chevron">›</text>
+      </view>
+      <view class="xf-profile-shortcut" catchtap="openSettingsItem" data-panel-view="memory">
+        <image class="xf-profile-shortcut-icon" src="/assets/menu/line-psychology.png" mode="aspectFit" />
+        <view class="xf-profile-shortcut-copy">
+          <text class="xf-profile-shortcut-title">记忆</text>
+          <text class="xf-profile-shortcut-subtitle">管理小玩子长期记忆</text>
+        </view>
+        <text class="xf-native-settings-chevron">›</text>
+      </view>
+    </view>
+    <view class="xf-profile-message">{{profilePanelMessage}}</view>
+  </view>
+</template>
+
+<template name="xfSettingsArchivePanel">
+  <view class="xf-settings-profile-view">
+    <view class="xf-profile-header" style="height: {{profileHeaderHeight}}px;">
+      <button class="xf-profile-back" bindtap="returnSettingsMenu">← 返回</button>
+      <view class="xf-profile-title">档案管理</view>
+      <view class="xf-profile-header-spacer"></view>
+    </view>
+    <scroll-view class="xf-profile-tabs" scroll-x enhanced show-scrollbar="false">
+      <button wx:for="{{archiveChildren}}" wx:key="id" class="xf-profile-tab {{item.selected ? 'is-active' : ''}}" data-id="{{item.id}}" bindtap="selectArchiveChild">
+        <image src="{{item.avatar}}" mode="aspectFit" />
+        <text>{{item.title}}</text>
+      </button>
+      <button class="xf-profile-add-child" aria-label="添加孩子档案" bindtap="addArchiveChild">+</button>
+    </scroll-view>
+    <view class="xf-profile-insight">
+      <view class="xf-profile-insight-head">
+        <text>今日洞察</text>
+        <text>{{archiveInsightGrade}}</text>
+      </view>
+      <view class="xf-profile-insight-copy">{{archiveDraft.displayName || '孩子'}}的档案会同步给小玩子，用于生成更贴合年龄、年级和关注点的建议。</view>
+    </view>
+    <view class="xf-profile-card">
+      <view class="xf-profile-card-title">
+        <text>基本信息</text>
+        <text>{{archiveProfileStatus}}</text>
+      </view>
+      <view class="xf-profile-field">
+        <text class="xf-profile-label">称呼</text>
+        <input value="{{archiveDraft.displayName}}" placeholder="例如 小圆子" bindinput="updateArchiveName" />
+      </view>
+      <view class="xf-profile-field">
+        <text class="xf-profile-label">关系</text>
+        <view class="xf-profile-chips">
+          <button wx:for="{{archiveRelationOptions}}" wx:key="value" data-value="{{item.value}}" class="xf-profile-chip {{item.selected ? 'is-active' : ''}}" bindtap="chooseArchiveRelation">{{item.value}}</button>
+        </view>
+      </view>
+      <view class="xf-profile-field">
+        <text class="xf-profile-label">出生日期</text>
+        <picker mode="date" value="{{archiveDraft.birthDate}}" bindchange="chooseArchiveBirthDate">
+          <view class="xf-profile-input-like">{{archiveDraft.birthDate || '请选择出生日期'}}</view>
+        </picker>
+      </view>
+      <view class="xf-profile-grid">
+        <view class="xf-profile-field">
+          <text class="xf-profile-label">城市</text>
+          <input value="{{archiveDraft.city}}" placeholder="如：上海" bindinput="updateArchiveCity" />
+        </view>
+        <view class="xf-profile-field">
+          <text class="xf-profile-label">区域</text>
+          <picker wx:if="{{archiveRegionOptions.length}}" range="{{archiveRegionOptions}}" value="{{archiveRegionIndex}}" bindchange="chooseArchiveRegion">
+            <view class="xf-profile-input-like xf-profile-select-like">
+              <text>{{archiveDraft.region || '请选择区域'}}</text>
+              <text>⌄</text>
+            </view>
+          </picker>
+          <input wx:else value="{{archiveDraft.region}}" placeholder="{{archiveDraft.city ? '手动输入区域' : '先填城市'}}" bindinput="updateArchiveRegionInput" />
+        </view>
+        <view class="xf-profile-field xf-profile-grade-field">
+          <text class="xf-profile-label">学段 / 年级</text>
+          <picker mode="multiSelector" range="{{archiveStageGradeColumns}}" value="{{archiveStageGradeValue}}" bindcolumnchange="updateArchiveStageGradeColumn" bindchange="chooseArchiveStageGrade">
+            <view class="xf-profile-input-like xf-profile-select-like">
+              <text>{{archiveGradeDisplayText}}</text>
+              <text>⌄</text>
+            </view>
+          </picker>
+        </view>
+      </view>
+      <view class="xf-profile-actions">
+        <button class="xf-profile-primary" bindtap="saveArchivePanel">保存档案</button>
+        <button class="xf-profile-secondary" bindtap="findXiaowanzi">找小玩子</button>
+      </view>
+    </view>
+    <view class="xf-profile-message">{{profilePanelMessage}}</view>
+    <view class="xf-profile-delete-zone">
+      <button class="xf-profile-delete-child" bindtap="deleteArchiveChild">删除</button>
+    </view>
+  </view>
+</template>
+
+<template name="xfSettingsMemoryPanel">
+  <view class="xf-settings-profile-view xf-memory-panel">
+    <view class="xf-profile-header" style="height: {{profileHeaderHeight}}px;">
+      <button class="xf-profile-back" bindtap="returnSettingsMenu">← 返回</button>
+      <view class="xf-profile-title">个性化回答</view>
+      <view class="xf-profile-header-spacer"></view>
+    </view>
+    <view class="xf-profile-card">
+      <view class="xf-memory-row">
+        <view class="xf-memory-title">开启记忆功能</view>
+        <button class="xf-memory-switch {{memoryEnabled ? 'is-on' : ''}}" bindtap="toggleMemoryEnabled"><text></text></button>
+      </view>
+    </view>
+    <view class="xf-profile-card">
+      <view class="xf-memory-row" bindtap="openMemoryManager">
+        <view class="xf-memory-section-title">管理记忆</view>
+        <text class="xf-native-settings-chevron">›</text>
+      </view>
+      <view class="xf-memory-copy">
+        <view>小玩子会从与孩子相关的历史对话里记住重要信息。关闭记忆功能后，将不再读取或写入孩子记忆；你也可以随时通过“管理记忆”删除不希望小玩子记住的内容。</view>
+        <view>记忆写入策略不是“每隔多久汇总一次”，而是“每次小玩子完整回复后，满足条件就立刻合并一次记忆”。</view>
+        <view>具体规则：</view>
+        <view>触发时机：用户发问 → 小玩子回复完成 → 合并记忆。</view>
+        <view>记什么：会写入孩子档案，以及用户问题里被判断为“长期孩子事实”的内容，比如孩子性格、偏好、习惯、困难、最近状态、情绪、阅读、写作、数学、睡眠、社交等。</view>
+        <view>不记什么：页面浏览、路径、当前页面上下文、小玩子的回答内容都不会作为长期记忆保存。</view>
+      </view>
+    </view>
+  </view>
+</template>
+
+<template name="xfSettingsMemoryManagerPanel">
+  <view class="xf-settings-profile-view xf-memory-panel">
+    <view class="xf-profile-header" style="height: {{profileHeaderHeight}}px;">
+      <button class="xf-profile-back" bindtap="returnSettingsMenu">← 返回</button>
+      <view class="xf-profile-title">我的记忆</view>
+      <view class="xf-profile-header-spacer"></view>
+    </view>
+    <view class="xf-memory-search">
+      <text>⌕</text>
+      <input value="{{memorySearchQuery}}" placeholder="搜索记忆" bindinput="updateMemorySearch" />
+      <button>搜索</button>
+    </view>
+    <view class="xf-profile-card xf-memory-list-card">
+      <view wx:if="{{filteredMemoryItems.length}}" class="xf-memory-list">
+        <view wx:for="{{filteredMemoryItems}}" wx:key="id" class="xf-memory-item">
+          <text>{{item.text}}</text>
+          <button data-id="{{item.id}}" bindtap="deleteMemoryItem">×</button>
+        </view>
+      </view>
+      <view wx:else class="xf-memory-empty">暂无保存的孩子记忆。完成几次小玩子对话后，重要信息会整理到这里。</view>
+    </view>
+    <view class="xf-profile-message">{{memoryPanelMessage}}</view>
+  </view>
+</template>
+
+<template name="xfSettingsAppPanel">
+  <view class="xf-settings-profile-view xf-settings-panel {{fontSizeClass}}">
+    <view class="xf-profile-header" style="height: {{profileHeaderHeight}}px;">
+      <button class="xf-profile-back" bindtap="returnSettingsMenu">← 返回</button>
+      <view class="xf-profile-title">设置</view>
+      <view class="xf-profile-header-spacer"></view>
+    </view>
+    <view class="xf-profile-card xf-settings-card">
+      <button wx:if="{{isLoggedIn && !hasMobile}}" class="xf-setting-row xf-setting-button" open-type="getPhoneNumber" bindgetphonenumber="bindPhone">
+        <text>绑定手机</text>
+        <text class="xf-setting-value">{{bindingPhone ? '绑定中...' : '授权绑定 ›'}}</text>
+      </button>
+      <view wx:else class="xf-setting-row"><text>绑定手机</text><text class="xf-setting-value">{{isLoggedIn ? maskedMobile : '未登录'}}</text></view>
+      <view class="xf-setting-row">
+        <text>字体大小</text>
+        <view class="xf-setting-segment">
+          <button wx:for="{{fontOptions}}" wx:key="value" class="{{item.selected ? 'is-active' : ''}}" data-value="{{item.value}}" bindtap="chooseFontSize">{{item.label}}</button>
+        </view>
+      </view>
+      <button class="xf-setting-row xf-setting-button" bindtap="clearCache"><text>应用管理</text><text class="xf-setting-value">清理缓存 ›</text></button>
+    </view>
+    <button wx:if="{{isLoggedIn}}" class="xf-profile-secondary xf-settings-logout" bindtap="logout">退出登录</button>
+    <button wx:else class="xf-profile-secondary xf-settings-login" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone">登录</button>
+    <view class="xf-profile-message">{{profilePanelMessage}}</view>
+    <view class="xf-settings-bottom">
+      <button wx:if="{{isLoggedIn}}" class="xf-profile-danger xf-settings-danger">注销账户</button>
+    </view>
+  </view>
+</template>

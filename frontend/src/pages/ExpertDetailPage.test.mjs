@@ -101,3 +101,16 @@ test("guest detail authored books only link when metadata detail exists", () => 
     "authored books should not become universally clickable"
   );
 });
+
+test("guest detail page uses native mini program chrome spacing when embedded", () => {
+  assert.match(
+    source,
+    /html\.xf-mp-webview \.expert-detail-main \{[\s\S]*padding-top: var\(--xf-mp-nav-height, 88px\) !important;[\s\S]*padding-bottom: 0 !important;/,
+    "mini program web-view should use the native topbar height and remove web bottom padding"
+  );
+  assert.match(
+    source,
+    /<main className=\{`expert-detail-main mx-auto max-w-7xl/,
+    "guest detail main wrapper should expose the mini-program spacing hook"
+  );
+});

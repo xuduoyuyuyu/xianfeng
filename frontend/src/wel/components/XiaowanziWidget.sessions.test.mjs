@@ -181,6 +181,8 @@ test("assistant history replies preserve readable paragraph and list formatting"
   assert.match(source, /className=\{`xw-msg-line \$\{isNumberedMessageLine\(line\) \? "numbered" : ""\}`\.trim\(\)\}/, "numbered lines should get a readable block style");
   assert.match(source, /\.xw-msg-block \+ \.xw-msg-block\{[^}]*margin-top:14px/s, "assistant answer paragraphs should use markdown block spacing");
   assert.match(source, /\.xw-home-msg\{[^}]*font-weight:520[^}]*line-height:1\.86/s, "home assistant replies should use lighter text and looser line height");
+  assert.match(source, /\.xw-home-msg\.ai\{[^}]*max-width:calc\(86% \+ 10px\)[^}]*padding:9px 9px/s, "home assistant reply cards should be 10px wider with half-size inner padding");
+  assert.match(source, /\.aip-msg\.ai\{[^}]*max-width:calc\(86% \+ 10px\)/s, "floating assistant reply cards should match the 10px wider reply width");
   assert.match(source, /\.xw-msg-line\.numbered\{[^}]*margin-top:0/s, "numbered answer lines should rely on paragraph spacing, not extra per-line decoration");
   assert.doesNotMatch(
     source,
@@ -228,6 +230,132 @@ test("home top Xiaowanzi avatar quickly starts a new conversation", () => {
   );
 });
 
+test("mini program Xiaowanzi hides web top actions without reserving a native nav row", () => {
+  assert.doesNotMatch(
+    source,
+    /xw-mp-home-top/,
+    "mini program super mode should not render duplicate top actions inside the web-view"
+  );
+  assert.match(
+    source,
+    /html\.xf-mp-webview \.xw-home-more-wrap\{display:none!important\}/,
+    "mini program super mode should still let the native WeChat capsule own the right overflow area"
+  );
+  assert.match(
+    source,
+    /html\.xf-mp-webview \.xw-home-top\{display:none!important\}/,
+    "mini program super mode should hide the web top actions"
+  );
+  assert.doesNotMatch(
+    source,
+    /html\.xf-mp-webview \.xw-home-scroll\{padding-top:calc\(var\(--xf-native-topbar-height,88px\) \+ 16px\)!important\}/,
+    "mini program super mode must not reserve a white native navigation row above the content"
+  );
+  assert.match(
+    source,
+    /html\.xf-mp-webview \.xw-home\{background:#f2f1ff!important;padding-top:var\(--xf-native-webview-shift,0px\)!important;overflow:visible!important;transform:none!important;-webkit-transform:none!important;animation:none!important;will-change:auto!important\}/,
+    "mini program super mode should not reserve a second web-rendered navigation row"
+  );
+  assert.match(
+    source,
+    /document\.documentElement\.style\.setProperty\(cssVar, `\$\{Math\.round\(value\)\}px`\);/,
+    "mini program native capsule URL metrics should be applied as CSS variables"
+  );
+  assert.match(
+    source,
+    /const renderHomeTop = \(\) => \([\s\S]*<div className="xw-home-top">[\s\S]*className="xw-home-menu"[\s\S]*className="xw-home-agent-entry"/,
+    "browser Xiaowanzi super mode should keep its own menu, avatar, and knowledge entry"
+  );
+  assert.match(
+    source,
+    /\{renderHomeTop\(\)\}/,
+    "browser top actions should stay behind renderHomeTop while mini-program CSS hides the row"
+  );
+  assert.doesNotMatch(
+    source,
+    /className="xw-home-hard-exit"/,
+    "mini program super mode should not render a page-level exit button"
+  );
+  assert.doesNotMatch(
+    source,
+    /\.xw-home-hard-exit\{/,
+    "mini program super mode should keep exit styling scoped to the history drawer"
+  );
+});
+
+test("mini program Xiaowanzi add-child opens native archive create panel", () => {
+  assert.match(
+    source,
+    /import \{[^}]*forceExitMiniProgramXiaowanzi[^}]*isMiniProgramWebView[^}]*openMiniProgramNativeArchiveCreate[^}]*openMiniProgramNativeArchivePicker[^}]*\} from "\.\.\/\.\.\/utils\/mpAuthBridge";/,
+    "Xiaowanzi needs the native archive bridge"
+  );
+  assert.match(
+    source,
+    /function openSidebarChildCreate\(\) \{[\s\S]*if \(isMiniProgramWebView\(\)\) \{[\s\S]*void openMiniProgramNativeArchiveCreate\(\);[\s\S]*return;[\s\S]*if \(shouldBlockXiaowanziForAuth\(\)\) return;[\s\S]*document\.dispatchEvent\(new CustomEvent\("xf-open-child-profile-create"\)\);[\s\S]*\}/,
+    "mini-program add child should use native archive while web keeps the web event"
+  );
+  const createFunction = source.match(/function openSidebarChildCreate\(\) \{[\s\S]*?\n  \}/);
+  assert.ok(createFunction, "mini-program add-child function should exist");
+  const miniProgramBranch = createFunction[0].match(/if \(isMiniProgramWebView\(\)\) \{[\s\S]*?return;\n    \}/);
+  assert.ok(miniProgramBranch, "mini-program add-child branch should exist");
+  assert.doesNotMatch(
+    miniProgramBranch[0],
+    /xf-open-child-profile-create/,
+    "mini-program add child must not fall back to the web archive event"
+  );
+  assert.doesNotMatch(
+    miniProgramBranch[0],
+    /shouldBlockXiaowanziForAuth/,
+    "mini-program add child must not be blocked by the web auth gate before opening native archive"
+  );
+});
+
+test("mini program Xiaowanzi child switch opens native archive picker without refreshing", () => {
+  assert.match(
+    source,
+    /openMiniProgramNativeArchivePicker/,
+    "mini-program child switch should call the native archive picker"
+  );
+  assert.match(
+    source,
+    /function openHiddenEntry\(\) \{[\s\S]*if \(isMiniProgramWebView\(\)\) \{[\s\S]*void openMiniProgramNativeArchivePicker\(\);[\s\S]*return;[\s\S]*if \(shouldBlockXiaowanziForAuth\(\)\) return;[\s\S]*setHiddenEntryOpen\(true\);[\s\S]*\}/,
+    "mini-program child switch should use the native archive picker before web auth gating"
+  );
+  const switchFunction = source.match(/function openHiddenEntry\(\) \{[\s\S]*?\n  \}/);
+  assert.ok(switchFunction, "mini-program child switch function should exist");
+  const miniProgramBranch = switchFunction[0].match(/if \(isMiniProgramWebView\(\)\) \{[\s\S]*?return;\n    \}/);
+  assert.ok(miniProgramBranch, "mini-program child switch branch should exist");
+  assert.doesNotMatch(
+    miniProgramBranch[0],
+    /shouldBlockXiaowanziForAuth/,
+    "mini-program child switch must not be blocked by the web auth gate before opening the picker"
+  );
+  assert.doesNotMatch(
+    miniProgramBranch[0],
+    /setOpen\(true\)|setHomeActive\(true\)|setHiddenEntryOpen\(true\)|loadChildProfiles\(\)/,
+    "mini-program child switch must not open the web child picker"
+  );
+});
+
+test("Xiaowanzi child profile list dedupes repeated child names", () => {
+  assert.match(source, /function dedupeChildProfilesByDisplayName\(items: ChildProfileLite\[\]\): ChildProfileLite\[\]/);
+  assert.match(
+    source,
+    /const profiles = dedupeChildProfilesByDisplayName\([\s\S]*parsed[\s\S]*normalizeChildProfileLite[\s\S]*isDeletedChildProfile[\s\S]*\);/,
+    "mini-program bridged child profiles should be deduped before rendering"
+  );
+  assert.match(
+    source,
+    /return dedupeChildProfilesByDisplayName\([\s\S]*parsed[\s\S]*normalizeChildProfileLite[\s\S]*isDeletedChildProfile[\s\S]*\);/,
+    "stored web child profiles should be deduped before rendering"
+  );
+  assert.match(
+    source,
+    /localStorage\.setItem\(CHILD_PROFILES_KEY, JSON\.stringify\(dedupeChildProfilesByDisplayName\(items\)\)\)/,
+    "saving child profiles should not persist duplicate names"
+  );
+});
+
 test("xiaowanzi send buttons do not render Pro corner badges", () => {
   assert.doesNotMatch(source, /xw-pro-badge/, "Xiaowanzi surfaces should not show Pro corner badges");
 });
@@ -250,6 +378,17 @@ test("xiaowanzi assistant replies turn mentioned site programs and materials int
     source,
     /renderDisplayMessage\(message,\s*xiaowanziMentionLinks,\s*openXiaowanziMentionLink\)/,
     "message rendering should receive the mention link index and layer opener"
+  );
+});
+
+test("xiaowanzi mention link prefetch waits until after first paint idle time", () => {
+  assert.match(source, /function scheduleXiaowanziContentWarmup\(task: \(\) => void\): \(\) => void/);
+  assert.match(source, /requestAnimationFrame\(\(\) => \{/);
+  assert.match(source, /requestIdleCallback\?\.\(task, \{ timeout: 2500 \}\)/);
+  assert.match(
+    source,
+    /useEffect\(\(\) => \{[\s\S]*scheduleXiaowanziContentWarmup\(\(\) => \{[\s\S]*loadXiaowanziMentionLinks\(\)[\s\S]*setXiaowanziMentionLinks\(links\)[\s\S]*cancelWarmup\(\);/s,
+    "heavy site-index prefetch should not run synchronously during Xiaowanzi first paint"
   );
 });
 
@@ -324,6 +463,24 @@ test("home top chrome uses tighter symmetric side gutters", () => {
     /\.xw-home-top\{[^}]*padding:env\(safe-area-inset-top\) 12px 0/s,
     "home top bar should move both left and right controls outward with equal side gutters"
   );
+  assert.doesNotMatch(
+    source,
+    /\.xw-mp-home-top/,
+    "mini-program home mode should leave the visible top row to native cover-view chrome"
+  );
+  assert.doesNotMatch(
+    source,
+    /html\.xf-mp-webview \.xw-home-scroll\{padding-top:calc\(var\(--xf-native-topbar-height,88px\) \+ 16px\)!important\}/,
+    "mini-program home content should not sit below a separate native top navigation"
+  );
+});
+
+test("home mode icon ligatures use the local Material Symbols font", () => {
+  assert.match(
+    source,
+    /\.xw-home \.ms,\s*\.xw-home-menu,\s*\.xw-home-icon,[\s\S]*\.xw-home-send,[\s\S]*\.xw-home-plus,[\s\S]*\.xw-home-attach-action \.ms\{[\s\S]*font-family:'Material Symbols Rounded'!important[\s\S]*font-feature-settings:'liga' 1[\s\S]*font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24/s,
+    "home mode icon text such as menu/send/close/photo_camera must render as local Material Symbols ligatures"
+  );
 });
 
 test("home avatars use optimized eager image assets", () => {
@@ -334,12 +491,12 @@ test("home avatars use optimized eager image assets", () => {
   assert.match(avatarListMatch[0], /\/assets\/wel-avatar\/optimized\/no-hat\.webp/, "default avatar should be the optimized no-hat asset");
   assert.match(
     source,
-    /<img key=\{displayAvatar\} className="xw-home-brand-avatar" src=\{displayAvatar\}[^>]*loading="eager"[^>]*decoding="async"[^>]*fetchPriority="high"/,
-    "top Xiaowanzi avatar should be prioritized"
+    /<img key=\{displayAvatar\} className="xw-home-brand-avatar" src=\{displayAvatar\}[^>]*loading="eager"[^>]*decoding="async"/,
+    "top Xiaowanzi avatar should stay eager-decoded"
   );
   assert.match(
     source,
-    /<img className="xw-home-avatar" src="\/assets\/wel-avatar\/optimized\/no-hat\.webp"[^>]*loading="eager"[^>]*decoding="async"[^>]*fetchPriority="high"/,
+    /<img className="xw-home-avatar" src="\/assets\/wel-avatar\/optimized\/no-hat\.webp"[^>]*loading="eager"[^>]*decoding="async"/,
     "large Xiaowanzi hero avatar should use the optimized eager asset"
   );
   assert.match(
@@ -437,8 +594,8 @@ test("home composer covers the browser gap while the mobile keyboard is open", (
   );
   assert.match(
     source,
-    /\.xw-home-scroll\{[^}]*padding:6px 30px 113px/s,
-    "message scroll padding should shrink with the lowered bottom dock"
+    /\.xw-home-scroll\{[^}]*padding:6px 15px 113px/s,
+    "message scroll padding should keep the requested tighter page card margin"
   );
   assert.match(
     source,
@@ -641,10 +798,18 @@ test("xiaowanzi account sync mirrors local profiles browsing memory and sessions
   assert.match(source, /function applyXiaowanziSyncPayload\(remote: XiaowanziSyncPayload \| null \| undefined\) \{[\s\S]*const childProfileDeletions = mergeByLatest\([\s\S]*remote\.childProfileDeletions[\s\S]*localStorage\.setItem\(CHILD_PROFILE_DELETIONS_KEY, JSON\.stringify\(childProfileDeletions\)\);[\s\S]*const childProfiles = mergeByLatest\([\s\S]*filter\(\(item\) => !isDeletedChildProfile\(item, childProfileDeletions\)\)/s, "account sync merge should keep deletion tombstones and filter deleted child profiles before writing local state");
 });
 
+test("mini program Xiaowanzi child bridge seeds local child profiles and default binding", () => {
+  assert.match(source, /const MINI_PROGRAM_CHILD_PROFILES_QUERY_KEY = "xf_child_profiles";/, "mini program should pass saved native children through the web-view url");
+  assert.match(source, /const MINI_PROGRAM_CHILD_ID_QUERY_KEY = "xf_child_id";/, "mini program should pass the preferred active child id");
+  assert.match(source, /function applyMiniProgramChildProfileBridge\(\): ChildProfileLite\[\] \| null \{[\s\S]*url\.searchParams\.get\(MINI_PROGRAM_CHILD_PROFILES_QUERY_KEY\)[\s\S]*normalizeChildProfileLite[\s\S]*localStorage\.setItem\(CHILD_PROFILES_KEY, JSON\.stringify\(profiles\)\)[\s\S]*childProfileId: picked\.id[\s\S]*isChildBound: true[\s\S]*localStorage\.setItem\(CHAT_CONTEXT_KEY, JSON\.stringify\(nextContext\)\)/s, "web-view startup should mirror native profiles and bind the selected or first child");
+  assert.match(source, /url\.searchParams\.delete\(MINI_PROGRAM_CHILD_PROFILES_QUERY_KEY\)[\s\S]*url\.searchParams\.delete\(MINI_PROGRAM_CHILD_ID_QUERY_KEY\)/s, "bridge query params should be consumed after startup");
+  assert.match(source, /function loadChildProfiles\(\): ChildProfileLite\[\] \{[\s\S]*const bridgedProfiles = applyMiniProgramChildProfileBridge\(\);[\s\S]*if \(bridgedProfiles\) return bridgedProfiles;/s, "initial child profile state should prefer the native web-view bridge before localStorage");
+});
+
 test("xiaowanzi ignores draft child profiles before they are saved", () => {
   assert.match(
     source,
-    /const childProfileDeletions = loadChildProfileDeletions\(\);[\s\S]*\.filter\(\(item\) => Boolean\(item\.id\) && !item\.draft && !isDeletedChildProfile\(item, childProfileDeletions\)\)/,
+    /const childProfileDeletions = loadChildProfileDeletions\(\);[\s\S]*\.filter\(\(item\): item is ChildProfileLite => \{[\s\S]*if \(!item\) return false;[\s\S]*return Boolean\(item\.id\) && !item\.draft && !isDeletedChildProfile\(item, childProfileDeletions\);[\s\S]*\}\)/,
     "newly created draft child profiles or deleted ids should not become selectable or synced before save"
   );
 });

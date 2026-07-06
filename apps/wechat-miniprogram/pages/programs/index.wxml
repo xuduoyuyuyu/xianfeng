@@ -1,1 +1,223 @@
-<web-view src="{{src}}" />
+<import src="../../templates/settings-profile-views.wxml" />
+
+<view class="xf-program-page {{fontSizeClass}} {{compactMode ? 'is-compact' : 'is-feature'}}" style="padding-top: {{chromeHeight}}px;">
+  <view class="xf-program-topbar" style="height: {{topbarHeight}}px;">
+    <view class="xf-program-nav-row" style="height: {{topbarHeight}}px;">
+      <view class="xf-program-menu-button" style="top: {{logoTop}}px; height: {{logoHeight}}px;" catchtap="openSettings" role="button" aria-label="打开设置">
+        <view class="xf-program-menu-icon" aria-hidden="true"></view>
+      </view>
+      <image class="xf-program-logo" style="top: {{logoTop}}px; height: {{logoHeight}}px;" src="/assets/nav/logo.png" mode="aspectFit" bindtap="goProgramsHome" aria-label="回到顶部" />
+      <button class="xf-program-welfare-button" style="top: {{logoTop}}px; right: {{welfareRight}}px; height: {{logoHeight}}px;" catchtap="openWelfare" aria-label="百宝箱">
+        <image class="xf-program-welfare-icon" src="/assets/menu/welfare-gift-icon.png" mode="aspectFit" aria-hidden="true" />
+      </button>
+    </view>
+  </view>
+
+  <view class="xf-native-search-panel has-view-toggle" aria-label="搜索">
+    <view class="xf-native-search-field has-filter" bindtap="openSearch" role="button">
+      <view class="xf-native-search-icon" aria-hidden="true">
+        <view class="xf-native-search-circle"></view>
+        <view class="xf-native-search-line"></view>
+      </view>
+      <text class="xf-native-search-text">{{searchPrompt}}</text>
+      <button class="xf-native-search-filter" catchtap="openFilterDrawer" aria-label="打开节目筛选">
+        <image class="xf-native-search-filter-icon" src="/assets/nav/filter-sliders.png" mode="aspectFit" aria-hidden="true" />
+      </button>
+    </view>
+    <button class="xf-program-view-toggle" bindtap="switchProgramViewMode" aria-label="切换节目展示样式">
+      <image wx:if="{{compactMode}}" class="xf-program-view-icon" src="/assets/nav/view-grid.png" mode="aspectFit" aria-hidden="true" />
+      <image wx:else class="xf-program-view-icon" src="/assets/nav/view-list.png" mode="aspectFit" aria-hidden="true" />
+    </button>
+  </view>
+
+  <view wx:if="{{activeProgramTagLabel}}" class="xf-native-filter-bar">
+    <text class="xf-native-filter-text">正在筛选：{{activeProgramTagLabel}}</text>
+    <button class="xf-native-filter-clear" catchtap="clearProgramTagFilter" aria-label="清除筛选">×</button>
+  </view>
+
+  <view wx:if="{{loading}}" class="xf-program-state">
+    <view class="xf-program-skeleton"></view>
+    <view class="xf-program-skeleton is-short"></view>
+    <view class="xf-program-skeleton"></view>
+  </view>
+
+  <view wx:if="{{!loading && programs.length}}" class="xf-program-list">
+    <view
+      wx:for="{{programs}}"
+      wx:key="id"
+      class="xf-program-card"
+      data-index="{{index}}"
+      bindtap="openProgram"
+    >
+      <view class="xf-program-cover-wrap">
+        <image wx:if="{{item.coverImage}}" class="xf-program-cover" src="{{item.coverImage}}" mode="aspectFill" />
+        <view wx:else class="xf-program-cover xf-program-cover--empty">家长先疯</view>
+      </view>
+      <view class="xf-program-body">
+        <text class="xf-program-card-title">{{item.title}}</text>
+        <text class="xf-program-description">{{item.description}}</text>
+        <view wx:if="{{item.statusLabel || item.displayTags.length}}" class="xf-program-tags">
+          <text wx:if="{{item.statusLabel}}" class="xf-program-status-tag {{item.status}}">{{item.statusLabel}}</text>
+          <text
+            wx:for="{{item.displayTags}}"
+            wx:for-item="tag"
+            wx:key="*this"
+            class="xf-program-tag {{activeProgramTag === tag ? 'is-active' : ''}}"
+            data-tag="{{tag}}"
+            catchtap="onProgramTagTap"
+          >{{tag}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{!loading && !programs.length}}" class="xf-program-state">
+    <text>{{error || "暂时没有可展示的节目"}}</text>
+    <button class="xf-program-retry" bindtap="retryLoad">重试</button>
+  </view>
+
+  <view wx:if="{{hasCache}}" class="xf-program-cache-tip">已先显示上次缓存，正在同步最新内容</view>
+
+  <view wx:if="{{filterDrawerOpen}}" class="xf-native-filter-mask" catchtap="closeFilterDrawer" catchtouchmove="noop">
+    <view
+      class="xf-native-filter-drawer"
+      style="height: {{filterDrawerHeight}}px;"
+      data-drag-mode="drawer"
+      catchtap="noop"
+      bindtouchstart="onFilterDrawerTouchStart"
+      bindtouchmove="onFilterDrawerTouchMove"
+      bindtouchend="onFilterDrawerTouchEnd"
+      bindtouchcancel="onFilterDrawerTouchEnd"
+    >
+      <view
+        class="xf-native-filter-handle"
+        data-drag-mode="handle"
+        catchtouchstart="onFilterDrawerTouchStart"
+        catchtouchmove="onFilterDrawerTouchMove"
+        catchtouchend="onFilterDrawerTouchEnd"
+        catchtouchcancel="onFilterDrawerTouchEnd"
+      ></view>
+      <view class="xf-native-filter-head">
+        <view>
+          <text class="xf-native-filter-title">节目筛选</text>
+          <text class="xf-native-filter-subtitle">筛选全部节目内容</text>
+        </view>
+        <button class="xf-native-filter-close" catchtap="closeFilterDrawer" aria-label="关闭筛选">×</button>
+      </view>
+
+      <scroll-view class="xf-native-filter-scroll" scroll-y="{{filterDrawerExpanded}}" enhanced show-scrollbar="false">
+        <view class="xf-native-filter-section">
+          <text class="xf-native-filter-section-title">节目分类</text>
+          <view class="xf-native-filter-chip-group">
+            <button class="xf-native-filter-chip {{isProgramShowAllSelected ? 'is-active' : ''}}" catchtap="resetProgramShowDraft">全部</button>
+            <button
+              wx:for="{{programShowOptions}}"
+              wx:key="value"
+              class="xf-native-filter-chip {{draftProgramShow === item.value ? 'is-active' : ''}}"
+              data-show="{{item.value}}"
+              catchtap="onDrawerProgramShowTap"
+            >{{item.label}}</button>
+          </view>
+        </view>
+        <view class="xf-native-filter-section">
+          <text class="xf-native-filter-section-title">发布范围</text>
+          <view class="xf-native-filter-chip-group">
+            <button class="xf-native-filter-chip {{isProgramStatusAllSelected ? 'is-active' : ''}}" catchtap="resetProgramStatusDraft">全部</button>
+            <button
+              wx:for="{{programStatusOptions}}"
+              wx:key="value"
+              class="xf-native-filter-chip {{draftProgramStatus === item.value ? 'is-active' : ''}}"
+              data-status="{{item.value}}"
+              catchtap="onDrawerProgramStatusTap"
+            >{{item.label}}</button>
+          </view>
+        </view>
+        <view class="xf-native-filter-section">
+          <text class="xf-native-filter-section-title">节目标签</text>
+          <view class="xf-native-filter-chip-group">
+            <button class="xf-native-filter-chip {{isProgramFilterAllSelected ? 'is-active' : ''}}" catchtap="resetProgramFilterDraft">全部</button>
+            <button
+              wx:for="{{programFilterTags}}"
+              wx:key="value"
+              class="xf-native-filter-chip {{item.selected ? 'is-active' : ''}}"
+              data-tag="{{item.value}}"
+              catchtap="onDrawerProgramTagTap"
+            >{{item.label}}</button>
+          </view>
+        </view>
+      </scroll-view>
+      <view class="xf-native-filter-actions">
+        <button class="xf-native-filter-reset" catchtap="resetProgramFilterDraft">重置</button>
+        <button class="xf-native-filter-submit" catchtap="applyProgramFilterDraft">查看 {{programFilterPreviewCount}} 个节目</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{settingsPanelOpen}}" class="xf-program-settings-mask" style="height: {{settingsPanelHeight}}px;" catchtap="closeSettings" catchtouchmove="noop">
+    <scroll-view class="xf-program-settings-panel" style="height: {{settingsPanelHeight}}px; padding-top: {{profilePanelTop}}px;" scroll-y="true" enhanced show-scrollbar="false" catchtap="noop">
+      <view class="xf-program-settings-panel-inner">
+      <block wx:if="{{settingsPanelView === 'menu'}}">
+        <button wx:if="{{!isLoggedIn}}" class="xf-program-settings-account" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone">
+          <view class="xf-program-settings-avatar-wrap">
+            <image class="xf-program-settings-avatar" src="{{accountAvatar}}" mode="aspectFill" />
+          </view>
+          <view class="xf-program-settings-copy">
+            <view class="xf-program-settings-title-row">
+              <text class="xf-program-settings-title">{{accountTitle}}</text>
+            </view>
+            <view class="xf-program-settings-subtitle-row">
+              <text class="xf-program-settings-subtitle">{{accountSubtitle}}</text>
+            </view>
+          </view>
+          <text class="xf-program-settings-chevron">›</text>
+        </button>
+        <view wx:else class="xf-program-settings-account" catchtap="openSettingsItem" data-page="{{accountPage}}" data-title="{{accountTitle}}" data-panel-view="{{accountPanelView}}">
+          <view class="xf-program-settings-avatar-wrap">
+            <image class="xf-program-settings-avatar" src="{{accountAvatar}}" mode="aspectFill" />
+          </view>
+          <view class="xf-program-settings-copy">
+            <view class="xf-program-settings-title-row">
+              <text class="xf-program-settings-title">{{accountTitle}}</text>
+            </view>
+            <view class="xf-program-settings-subtitle-row">
+              <text class="xf-program-settings-subtitle">{{accountSubtitle}}</text>
+            </view>
+          </view>
+          <text class="xf-program-settings-chevron">›</text>
+        </view>
+
+        <view
+          wx:for="{{settingsSections}}"
+          wx:for-item="section"
+          wx:for-index="sectionIndex"
+          wx:key="key"
+          class="xf-program-settings-card"
+        >
+          <view
+            wx:for="{{section.items}}"
+            wx:for-item="item"
+            wx:for-index="itemIndex"
+            wx:key="key"
+            class="xf-program-settings-row"
+            catchtap="openSettingsItem"
+            data-section-index="{{sectionIndex}}"
+            data-item-index="{{itemIndex}}"
+          >
+            <image wx:if="{{item.iconType === 'image'}}" class="xf-program-settings-logo-icon" src="{{item.image}}" mode="aspectFit" />
+            <text wx:elif="{{item.iconType === 'emoji'}}" class="xf-program-settings-emoji-icon">{{item.emoji}}</text>
+            <text wx:else class="xf-program-settings-symbol material-symbols-rounded">{{item.icon}}</text>
+            <text class="xf-program-settings-label">{{item.title}}</text>
+            <text wx:if="{{item.key === 'pro' && settingsMemberBadgeLabel}}" class="xf-program-settings-member-badge">{{settingsMemberBadgeLabel}}</text>
+            <text class="xf-program-settings-chevron">›</text>
+          </view>
+        </view>
+      </block>
+      <template wx:elif="{{settingsPanelView === 'profile'}}" is="xfSettingsProfilePanel" data="{{profileHeaderHeight: profileHeaderHeight, profileDraft: profileDraft, profileAvatar: profileAvatar, profileGenderOptions: profileGenderOptions, profilePanelMessage: profilePanelMessage}}"></template>
+      <template wx:elif="{{settingsPanelView === 'archive'}}" is="xfSettingsArchivePanel" data="{{profileHeaderHeight: profileHeaderHeight, archiveHasChildren: archiveHasChildren, archiveChildren: archiveChildren, archiveInsightGrade: archiveInsightGrade, archiveDraft: archiveDraft, archiveProfileStatus: archiveProfileStatus, archiveRelationOptions: archiveRelationOptions, archiveRegionOptions: archiveRegionOptions, archiveRegionIndex: archiveRegionIndex, archiveStageOptions: archiveStageOptions, archiveStageIndex: archiveStageIndex, archiveStage: archiveStage, archiveGradeOptions: archiveGradeOptions, archiveStageGradeColumns: archiveStageGradeColumns, archiveStageGradeValue: archiveStageGradeValue, archiveGradeSelectOptions: archiveGradeSelectOptions, archiveGradeName: archiveGradeName, archiveGradeDropdownOpen: archiveGradeDropdownOpen, archiveTagOptions: archiveTagOptions, profilePanelMessage: profilePanelMessage}}"></template>
+      <template wx:elif="{{settingsPanelView === 'memory'}}" is="xfSettingsMemoryPanel" data="{{profileHeaderHeight: profileHeaderHeight, memoryEnabled: memoryEnabled}}"></template>
+      <template wx:elif="{{settingsPanelView === 'memoryManager'}}" is="xfSettingsMemoryManagerPanel" data="{{profileHeaderHeight: profileHeaderHeight, memorySearchQuery: memorySearchQuery, filteredMemoryItems: filteredMemoryItems, memoryPanelMessage: memoryPanelMessage}}"></template>
+      <template wx:elif="{{settingsPanelView === 'settings'}}" is="xfSettingsAppPanel" data="{{profileHeaderHeight: profileHeaderHeight, isLoggedIn: isLoggedIn, hasMobile: hasMobile, bindingPhone: bindingPhone, maskedMobile: maskedMobile, fontSizeClass: fontSizeClass, fontOptions: fontOptions, profilePanelMessage: profilePanelMessage}}"></template>
+      </view>
+    </scroll-view>
+  </view>
+</view>

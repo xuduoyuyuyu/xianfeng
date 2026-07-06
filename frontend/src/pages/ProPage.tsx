@@ -4,7 +4,7 @@ import GlobalPublicNav from "../components/GlobalPublicNav";
 import { BillingMembership, BillingOrder, BillingPlan, PointUsagePolicyItem, billingApi, userApi } from "../services/api";
 import { useXiaowanziEmbeddedLayer } from "../utils/xiaowanziLayer";
 
-type PlanId = "monthly" | "yearly";
+type PlanId = "plus" | "pro";
 type PlanCatalogId = "free" | PlanId;
 
 function formatDate(value?: string | null) {
@@ -23,9 +23,15 @@ function formatPoints(value?: number) {
 }
 
 function planLabel(planId: PlanCatalogId) {
-  if (planId === "free") return "免费账户";
-  if (planId === "monthly") return "月订阅";
-  return "年订阅";
+  if (planId === "free") return "Free";
+  if (planId === "plus") return "Plus";
+  return "Pro";
+}
+
+function normalizePlanId(planId?: string | null): PlanCatalogId {
+  if (planId === "plus" || planId === "monthly") return "plus";
+  if (planId === "pro" || planId === "yearly") return "pro";
+  return "free";
 }
 
 const ProPage: React.FC = () => {
@@ -34,7 +40,7 @@ const ProPage: React.FC = () => {
   const [usagePolicy, setUsagePolicy] = useState<PointUsagePolicyItem[]>([]);
   const [membership, setMembership] = useState<BillingMembership | null>(null);
   const [latestOrder, setLatestOrder] = useState<BillingOrder | null>(null);
-  const [selected, setSelected] = useState<PlanId>("yearly");
+  const [selected, setSelected] = useState<PlanId>("pro");
   const [loading, setLoading] = useState(true);
   const [ordering, setOrdering] = useState(false);
   const [refunding, setRefunding] = useState(false);
@@ -64,6 +70,8 @@ const ProPage: React.FC = () => {
             proPointBalance: profile.proPointBalance,
             proStatus: profile.proStatus || "none",
             proPlan: profile.proPlan || "",
+            membershipTier: profile.membershipTier || normalizePlanId(profile.proPlan),
+            membershipLabel: profile.membershipLabel || planLabel(normalizePlanId(profile.proPlan)),
             proExpiresAt: profile.proExpiresAt || null,
             proPurchasedAt: profile.proPurchasedAt || null,
             proRefundEligibleUntil: profile.proRefundEligibleUntil || null,
@@ -175,7 +183,7 @@ const ProPage: React.FC = () => {
 
   const activePlan = plans?.[selected];
   const freePlan = plans?.free;
-  const catalogPlanIds: PlanCatalogId[] = ["free", "monthly", "yearly"];
+  const catalogPlanIds: PlanCatalogId[] = ["free", "plus", "pro"];
   const mainTopPadding = superModePage ? "pt-4 sm:pt-5" : "pt-[84px]";
   const primaryPanelPadding = superModePage ? "p-4 shadow-sm lg:p-5" : "p-5 shadow-sm lg:p-6";
   const blockTopClass = superModePage ? "mt-4" : "mt-5";
@@ -190,8 +198,14 @@ const ProPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#f6f7fb] text-slate-950">
+      <style>{`
+        html.xf-mp-webview .pro-page-main {
+          padding-top: var(--xf-mp-nav-height, 88px) !important;
+          padding-bottom: 0 !important;
+        }
+      `}</style>
       {!superModePage ? <GlobalPublicNav compactMobile /> : null}
-      <main className={`mx-auto max-w-[1240px] px-4 pb-14 ${mainTopPadding} sm:px-6 lg:px-8`}>
+      <main className={`pro-page-main mx-auto max-w-[1240px] px-4 pb-14 ${mainTopPadding} sm:px-6 lg:px-8`}>
         <div className={`grid items-start ${superModePage ? "gap-4" : "gap-5"} lg:grid-cols-[minmax(0,1fr)_320px]`}>
           <section className={`rounded-2xl border border-slate-200 bg-white ${primaryPanelPadding}`}>
             <div className="inline-flex rounded-full bg-[#6c27d6] px-3 py-1 text-[11px] font-black uppercase text-white">订阅计划</div>
@@ -205,18 +219,18 @@ const ProPage: React.FC = () => {
               <div className={`mt-1 ${superModePage ? "text-2xl" : "text-3xl"} font-black text-slate-950`}>{pointsText}</div>
               <div className="mt-1 text-xs font-bold text-slate-500">
                 {membership?.isProActive
-                  ? `当前为${planLabel((membership?.proPlan as PlanId) || "free")}，对应点数权益已生效。`
-                  : "免费账户每天登录可获取100点数，每日重置，每月上限1000点数"}
+                  ? `当前为${membership.membershipLabel || planLabel(normalizePlanId(membership?.proPlan))}，可用点数可继续补充。`
+                  : "免费账户每天登录可获取10点，每月上限30点"}
               </div>
             </div>
 
             <div className={`${blockTopClass} grid ${superModePage ? "gap-2" : "gap-3"} md:grid-cols-3`}>
               {catalogPlanIds.map((planId) => {
                 const plan = plans?.[planId] as BillingPlan;
-                const paidPlan = planId === "monthly" || planId === "yearly";
+                const paidPlan = planId === "plus" || planId === "pro";
                 const on = paidPlan && selected === planId;
-                const label = plan?.name || (planId === "free" ? "免费账户" : planId === "monthly" ? "月订阅" : "年订阅");
-                const fallbackAmount = planId === "free" ? "0" : planId === "monthly" ? "19.9" : "99";
+                const label = plan?.name || planLabel(planId);
+                const fallbackAmount = planId === "free" ? "0" : planId === "plus" ? "19.9" : "99";
                 return (
                   <button
                     key={planId}
@@ -232,7 +246,7 @@ const ProPage: React.FC = () => {
                   >
                     <div className="flex items-center justify-between">
                       <div className="text-lg font-black">{label}</div>
-                      {planId === "yearly" ? <span className="rounded-full bg-[#f8d375] px-2 py-1 text-[11px] font-black text-slate-950">推荐</span> : null}
+                      {planId === "pro" ? <span className="rounded-full bg-[#f8d375] px-2 py-1 text-[11px] font-black text-slate-950">推荐</span> : null}
                     </div>
                     <div className={`${superModePage ? "mt-3 text-2xl" : "mt-4 text-3xl"} font-black`}>¥{formatYuan(plan?.amountYuan, fallbackAmount)}</div>
                     <div className={`mt-2 text-xs font-bold ${on ? "text-slate-200" : "text-slate-500"}`}>{plan?.description}</div>
@@ -247,7 +261,7 @@ const ProPage: React.FC = () => {
               onClick={createOrder}
               className={`${blockTopClass} ${superModePage ? "h-11" : "h-12"} w-full rounded-full bg-[#6c27d6] text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300`}
             >
-              {ordering ? "正在创建微信订单..." : `微信支付 ¥${formatYuan(activePlan?.amountYuan)}`}
+              {ordering ? "正在创建微信订单..." : `立即订阅 ¥${formatYuan(activePlan?.amountYuan)}`}
             </button>
             {wechatQr ? (
               <div className={`${blockTopClass} rounded-2xl border border-[#d8ccff] bg-[#f7f4ff] ${compactPanelPadding} text-center`}>
@@ -287,13 +301,13 @@ const ProPage: React.FC = () => {
               <div className="mt-4 space-y-3 text-sm font-bold text-slate-700">
                 <div className="rounded-2xl bg-slate-50 p-4">
                   <div className="text-xs text-slate-500">当前状态</div>
-                  <div className="mt-1 text-xl font-black text-slate-950">{membership?.isProActive ? "订阅已生效" : membership?.proStatus === "refunded" ? "已退款，订阅已关闭" : "未开通订阅"}</div>
+                  <div className="mt-1 text-xl font-black text-slate-950">{membership?.isProActive ? `${membership.membershipLabel || planLabel(normalizePlanId(membership?.proPlan))} 会员` : membership?.proStatus === "refunded" ? "已退款，订阅已关闭" : "未开通订阅"}</div>
                 </div>
-                <div>套餐：{membership?.isProActive ? planLabel((membership.proPlan as PlanId) || "free") : "免费账户"}</div>
+                <div>会员：{membership?.isProActive ? membership.membershipLabel || planLabel(normalizePlanId(membership.proPlan)) : "Free"}</div>
                 <div>到期：{formatDate(membership?.proExpiresAt)}</div>
-                <div>退款截止：{formatDate(membership?.proRefundEligibleUntil)}</div>
+                <div>退款方式：{membership?.isProActive ? "按未使用点数折算" : "未开通"}</div>
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
-                  支付成功后 3 天内可自助申请全额退款；退款成功后高级 AI 调用立即不可用，点数会回到基础额度。
+                  退款按未使用点数折算，已使用点数对应费用不退；退款成功后高级 AI 调用立即不可用。
                 </div>
                 {membership?.canRefundLatestOrder && latestOrder?.status === "paid" ? (
                   <button
@@ -302,7 +316,7 @@ const ProPage: React.FC = () => {
                     onClick={requestRefund}
                     className="h-11 w-full rounded-full border border-red-200 bg-white text-sm font-black text-red-600 disabled:opacity-50"
                   >
-                    {refunding ? "退款处理中..." : "申请全额退款"}
+                    {refunding ? "退款处理中..." : "申请退款"}
                   </button>
                 ) : null}
               </div>

@@ -2967,7 +2967,7 @@ const LandingPage: React.FC = () => {
         <div className="heo-topbar-inner">
           <button className="heo-nav-brand" type="button" aria-label="打开节目列表" onClick={() => { window.location.href = "/programs/list"; }}>
             <span className="heo-nav-avatar">
-              <img src="/assets/xiaowanzi-nohat.png" alt="" aria-hidden="true" />
+              <img src="/assets/wel-avatar/no-hat.png" alt="" aria-hidden="true" />
             </span>
           </button>
           <nav
@@ -3154,7 +3154,7 @@ const LandingPage: React.FC = () => {
                         <img className="heo-product-logo reading" src="/assets/jiyue-logo.png" alt="" loading="lazy" decoding="async" />
                       ) : null}
                       {item.visual === "assistant" ? (
-                        <img className="heo-product-logo assistant" src="/assets/xiaowanzi-nohat.png" alt="" loading="lazy" decoding="async" />
+                        <img className="heo-product-logo assistant" src="/assets/wel-avatar/no-hat.png" alt="" loading="lazy" decoding="async" />
                       ) : null}
                       {item.visual === "experts" ? (
                         <>

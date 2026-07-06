@@ -1,1 +1,1 @@
-<web-view src="{{src}}" />
+<view class="xf-home-redirect"></view>

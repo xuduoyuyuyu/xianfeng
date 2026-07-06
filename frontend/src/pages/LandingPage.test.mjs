@@ -63,7 +63,7 @@ test("landing first screen loosens the vertical rhythm around the hero", () => {
 
 test("landing topbar Xiaowanzi avatar opens Xiaowanzi home instead of a dropdown menu", () => {
   assert.match(source, /const openXiaowanziHome = \(\) => \{[\s\S]*new CustomEvent\("xf-open-xiaowanzi", \{[\s\S]*detail: \{ source: "landing-topbar", mode: "home" \},[\s\S]*\}/, "topbar Xiaowanzi action should open the shared Xiaowanzi home mode");
-  assert.match(source, /<button className="heo-nav-brand" type="button" aria-label="打开小玩子首页" onClick=\{openXiaowanziHome\}>[\s\S]*<img src="\/assets\/xiaowanzi-nohat\.png" alt="" aria-hidden="true" \/>/, "left brand slot should become the Xiaowanzi avatar button");
+  assert.match(source, /<button className="heo-nav-brand" type="button" aria-label="打开小玩子首页" onClick=\{openXiaowanziHome\}>[\s\S]*<img src="\/assets\/wel-avatar\/no-hat\.png" alt="" aria-hidden="true" \/>/, "left brand slot should become the Xiaowanzi avatar button");
   assert.doesNotMatch(source, /heo-xiaowanzi-trigger/, "topbar should not keep a second Xiaowanzi button on the right");
   assert.doesNotMatch(source, /menuOpen|setMenuOpen|toggleHomeMenu|activeMenuGroup|setActiveMenuGroup|activateHomeMenuGroup/, "homepage should not keep dropdown menu state");
   assert.doesNotMatch(source, /heo-menu-backdrop|heo-menu-panel|heo-menu-tab|heo-menu-feature|heo-chat-icon/, "homepage should not render the old dropdown menu surface or chat bubble icon");
@@ -103,7 +103,7 @@ test("landing desktop topbar is a centered compact capsule island", () => {
 
 test("landing topbar uses the zhheo-like dark capsule and hover chrome", () => {
   assert.match(source, /\.heo-topbar-inner \{[\s\S]*background: rgba\(25, 27, 39, 0\.88\);[\s\S]*border: 1px solid rgba\(255, 255, 255, 0\.12\);/, "topbar should use the dark floating capsule surface from the reference");
-  assert.match(source, /<button className="heo-nav-brand" type="button" aria-label="打开小玩子首页" onClick=\{openXiaowanziHome\}>[\s\S]*<span className="heo-nav-avatar">\s*<img src="\/assets\/xiaowanzi-nohat\.png" alt="" aria-hidden="true" \/>\s*<\/span>/, "left brand slot should render Xiaowanzi as the single assistant entry");
+  assert.match(source, /<button className="heo-nav-brand" type="button" aria-label="打开小玩子首页" onClick=\{openXiaowanziHome\}>[\s\S]*<span className="heo-nav-avatar">\s*<img src="\/assets\/wel-avatar\/no-hat\.png" alt="" aria-hidden="true" \/>\s*<\/span>/, "left brand slot should render Xiaowanzi as the single assistant entry");
   assert.match(source, /\.heo-nav-avatar \{[\s\S]*width: 46px;[\s\S]*height: 46px;[\s\S]*border-radius: 999px;/, "brand icon should use the same circular scale as the reference");
   assert.match(source, /\.heo-nav-link \{[\s\S]*color: rgba\(255, 255, 255, 0\.86\);[\s\S]*font-size: 20px;/, "desktop nav labels should become large white text buttons");
   assert.match(source, /\.heo-nav-link \{[\s\S]*transform-origin: center;[\s\S]*will-change: transform;/, "nav links should be ready for the reference-style scale hover");
@@ -204,7 +204,7 @@ test("landing product recommendations use solid illustration cards like the refe
   assert.match(source, /<div className="heo-product-list" ref=\{productRailRef\}>[\s\S]*featureCards\.map/, "product recommendations should render as a horizontal carousel rail");
   assert.match(source, /className=\{`heo-product-card tone-\$\{item\.tone\} \$\{isHomepageXiaowanziEntry\(item\.href\) \? "is-xiaowanzi-entry" : ""\}`\}/, "each product entry should use a solid-color illustration card with Xiaowanzi entry support");
   assert.match(source, /item\.visual === "reading" \? \([\s\S]*<img className="heo-jiyue-bird-art" src="\/assets\/jiyue-logo\.png" alt="" loading="lazy" decoding="async" \/>/, "Jiyue card should render the Jiyue bird logo as its illustration");
-  assert.match(source, /item\.visual === "assistant" \? \([\s\S]*<img className="heo-xiaowanzi-art" src="\/assets\/xiaowanzi-nohat\.png" alt="" loading="lazy" decoding="async" \/>/, "Xiaowanzi card should render the nohat Xiaowanzi logo as its illustration");
+  assert.match(source, /item\.visual === "assistant" \? \([\s\S]*<img className="heo-xiaowanzi-art" src="\/assets\/wel-avatar\/no-hat\.png" alt="" loading="lazy" decoding="async" \/>/, "Xiaowanzi card should render the original Xiaowanzi avatar as its illustration");
   assert.match(source, /<span className="heo-visual-scene">[\s\S]*<span className="heo-scene-panel" \/>[\s\S]*<span className="heo-scene-line three" \/>[\s\S]*<\/span>/, "other product cards should render content-specific CSS scenes instead of a shared logo stack");
   assert.match(source, /<span className="heo-product-status">\{item\.status\}<\/span>/, "product rows should render status labels from data");
   assert.match(source, /<span className="heo-product-action">\{item\.action\}<\/span>/, "product rows should render a clear action label");

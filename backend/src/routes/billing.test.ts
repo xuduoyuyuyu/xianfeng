@@ -24,14 +24,16 @@ describe("billing routes", () => {
   it("serializes public plan data without exposing payment secrets", () => {
     const data = {
       free: serializePlan(FREE_BILLING_PLAN),
-      monthly: serializePlan(BILLING_PLANS.monthly),
-      yearly: serializePlan(BILLING_PLANS.yearly),
+      plus: serializePlan(BILLING_PLANS.plus),
+      pro: serializePlan(BILLING_PLANS.pro),
     };
 
-    assert.equal(data.monthly.amountCents, 1990);
-    assert.equal(data.yearly.amountCents, 9900);
+    assert.equal(data.plus.amountCents, 1990);
+    assert.equal(data.pro.amountCents, 9900);
     assert.equal(data.free.amountCents, 0);
-    assert.equal(data.monthly.amountYuan, "19.90");
+    assert.equal(data.plus.amountYuan, "19.90");
+    assert.equal(data.plus.pointsPerCycle, 200);
+    assert.equal(data.pro.pointsPerCycle, 1200);
     assert.equal(JSON.stringify(data).includes("PRIVATE_KEY"), false);
   });
 });

@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import { Book, BookMetadataDetail, publicApi } from "../services/api";
 import { buildBookCoverImageSrc, getPreferredBookCover, hasUsableBookCover } from "../utils/bookCover";
+import { isMiniProgramWebView } from "../utils/mpAuthBridge";
 
 type PathChip = {
   label: string;
@@ -18,6 +19,13 @@ type BookDetailLocationState = {
 
 function isPathChip(item: PathChip | null): item is PathChip {
   return Boolean(item);
+}
+
+function formatReadableValue(value: unknown): string {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) return "";
+  if (["none", "null", "undefined", "n/a", "na", "-"].includes(normalized.toLowerCase())) return "";
+  return normalized;
 }
 
 function unwrapBookResponse(value: unknown): Book | null {
@@ -35,21 +43,21 @@ function getBookIdFromPath(pathname: string): string {
 
 function getSourceGuestId(value: Book["sourceGuestId"]): string {
   if (!value) return "";
-  if (typeof value === "string") return value.trim();
+  if (typeof value === "string") return formatReadableValue(value);
   return String(value._id || "").trim();
 }
 
 function buildSourceLine(book: Book): string {
-  const sourceName = String(book.sourceName || "").trim();
-  const guest = String(book.recommendedGuest || "").trim();
+  const sourceName = formatReadableValue(book.sourceName);
+  const guest = formatReadableValue(book.recommendedGuest);
   if (sourceName) return `来自《${sourceName}》`;
   if (guest) return `${guest}推荐`;
   return "";
 }
 
 function buildSourceReadingHref(book: Book, sourceGuestId: string): string {
-  const guest = String(book.recommendedGuest || "").trim();
-  const sourceName = String(book.sourceName || "").trim();
+  const guest = formatReadableValue(book.recommendedGuest);
+  const sourceName = formatReadableValue(book.sourceName);
   if (!sourceGuestId && !sourceName) {
     return `/reading?q=${encodeURIComponent(book.topic || book.categoryLabel || book.title)}`;
   }
@@ -67,8 +75,8 @@ function buildNextStepChips(
   guestCardHref: string,
   stageLabel: string
 ): PathChip[] {
-  const guest = String(book.recommendedGuest || "").trim();
-  const sourceName = String(book.sourceName || "").trim();
+  const guest = formatReadableValue(book.recommendedGuest);
+  const sourceName = formatReadableValue(book.sourceName);
 
   const chips: Array<PathChip | null> = [
     sourceName
@@ -218,15 +226,15 @@ const BookDetailPage: React.FC = () => {
   const heroImage = book ? getPreferredBookCover(book, metadata) : "";
   const relatedBookCandidates = useMemo(() => {
     if (!book) return [];
-    const sourceName = String(book.sourceName || "").trim();
+    const sourceName = formatReadableValue(book.sourceName);
     const sourceGuestId = getSourceGuestId(book.sourceGuestId);
-    const guest = String(book.recommendedGuest || "").trim();
+    const guest = formatReadableValue(book.recommendedGuest);
 
     return allBooks.filter((item) => {
       if (!item || String(item._id || "") === String(book._id || "")) return false;
       const itemSourceGuestId = getSourceGuestId(item.sourceGuestId);
-      const itemSourceName = String(item.sourceName || "").trim();
-      const itemGuest = String(item.recommendedGuest || "").trim();
+      const itemSourceName = formatReadableValue(item.sourceName);
+      const itemGuest = formatReadableValue(item.recommendedGuest);
       if (sourceGuestId && itemSourceGuestId === sourceGuestId) return true;
       if (sourceName && itemSourceName === sourceName) return true;
       return !sourceGuestId && !sourceName && guest && itemGuest === guest;
@@ -282,6 +290,7 @@ const BookDetailPage: React.FC = () => {
   const previousReadingDetailPath = locationState?.fromReadingDetail || "";
   const shouldReturnToPreviousDetail = previousReadingDetailPath.startsWith("/reading/");
   const backLinkTarget = shouldReturnToPreviousDetail ? previousReadingDetailPath : "/reading";
+  const miniProgramWebView = isMiniProgramWebView();
 
   function handleBackClick(event: React.MouseEvent<HTMLAnchorElement>) {
     if (!shouldReturnToPreviousDetail) return;
@@ -291,17 +300,25 @@ const BookDetailPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#f3f2f8] text-[#1f1736]">
+      <style>{`
+        html.xf-mp-webview .book-detail-main {
+          padding-top: var(--xf-mp-nav-height, 88px) !important;
+          padding-bottom: 0 !important;
+        }
+      `}</style>
       <GlobalPublicNav compactMobile showProgramEntry showExpertsEntry />
-      <main className="mx-auto max-w-6xl px-4 pb-16 pt-[88px] sm:px-6 lg:px-8">
-        <div className="mb-5">
-          <Link
-            to={backLinkTarget}
-            onClick={handleBackClick}
-            className="inline-flex items-center gap-1.5 p-0 text-sm font-semibold !text-[#7C3AED] visited:!text-[#7C3AED] hover:!text-[#6D28D9]"
-          >
-            ← 返回
-          </Link>
-        </div>
+      <main className="book-detail-main mx-auto max-w-6xl px-4 pb-16 pt-[88px] sm:px-6 lg:px-8">
+        {!miniProgramWebView ? (
+          <div className="mb-5">
+            <Link
+              to={backLinkTarget}
+              onClick={handleBackClick}
+              className="xf-web-detail-back inline-flex items-center gap-1.5 p-0 text-sm font-semibold !text-[#7C3AED] visited:!text-[#7C3AED] hover:!text-[#6D28D9]"
+            >
+              ← 返回
+            </Link>
+          </div>
+        ) : null}
 
         {loading ? (
           <section className="rounded-[2rem] border border-[#ded7f3] bg-white p-8 shadow-[0_18px_60px_rgba(80,62,125,0.08)]">
@@ -327,7 +344,7 @@ const BookDetailPage: React.FC = () => {
         ) : null}
 
         {!loading && !error && book ? (() => {
-          const sourceName = String(book.sourceName || "").trim();
+          const sourceName = formatReadableValue(book.sourceName);
           const sourceLine = buildSourceLine(book);
           const sourceGuestId = getSourceGuestId(book.sourceGuestId);
           const sourceLineHref = sourceName ? buildSourceReadingHref(book, sourceGuestId) : "";
@@ -340,7 +357,7 @@ const BookDetailPage: React.FC = () => {
           const hasRating = Boolean(ratingSummary);
           const intro = metadata?.description || "";
           const introParagraphs = buildIntroParagraphs(intro);
-          const stageLabel = String(book.grade || "").trim();
+          const stageLabel = formatReadableValue(book.grade);
           const guestCardHref = sourceGuestId ? `/experts/${sourceGuestId}` : "";
           const nextStepChips = buildNextStepChips(
             book,

@@ -13,6 +13,8 @@ test("PlanningPage keeps iframe src stable so browser cache can work", () => {
   assert.doesNotMatch(source, /Date\.now\(\)\.toString\(36\)/);
   assert.match(source, /src = "\/wel\/Planning\/教育规划首页\.html"/);
   assert.doesNotMatch(source, /\?v=\$\{CACHE_BUST\}/);
+  assert.match(source, /html\.xf-mp-webview \.planning-frame-body/);
+  assert.match(source, /padding-top: var\(--xf-mp-nav-height, 88px\) !important;/);
 });
 
 test("planning landing page does not depend on Google Fonts at runtime", () => {

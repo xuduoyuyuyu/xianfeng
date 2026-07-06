@@ -44,5 +44,8 @@ git archive --format=tar HEAD | ssh "${SERVER_HOST}" "mkdir -p '${SERVER_PATH}' 
 
 echo "在服务器上重建并启动容器（生产配置）"
 ssh "${SERVER_HOST}" "cd '${SERVER_PATH}' && docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.production up -d --build --remove-orphans"
+ssh "${SERVER_HOST}" "cd '${SERVER_PATH}' && docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.production exec -T frontend chmod -R a+rX /usr/share/nginx/html"
 
 echo "部署完成"
+echo "如本次包含小程序 web-view / 移动端导航改动，请执行线上验收："
+echo "  bash scripts/release/verify-mini-webview-live.sh"

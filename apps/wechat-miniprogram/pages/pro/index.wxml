@@ -1,1 +1,206 @@
-<web-view src="{{src}}" />
+<import src="../../templates/settings-profile-views.wxml" />
+
+<view class="xf-pro-page {{fontSizeClass}}" style="padding-top: {{chromeHeight}}px;">
+  <view class="xf-native-topbar" style="height: {{topbarHeight}}px;">
+    <view class="xf-native-nav-row" style="height: {{topbarHeight}}px;">
+      <view wx:if="{{launchedFromSettings}}" class="xf-native-menu-button xf-native-back-button" style="top: {{backTop}}px; width: {{backSize}}px; height: {{backSize}}px;" catchtap="goBack" role="button" aria-label="返回">
+        <view class="xf-native-back-icon" aria-hidden="true"></view>
+      </view>
+      <view wx:else class="xf-native-menu-button" style="top: {{logoTop}}px; height: {{logoHeight}}px;" catchtap="openSettings" role="button" aria-label="打开设置">
+        <view class="xf-native-menu-icon" aria-hidden="true"></view>
+      </view>
+      <image class="xf-native-logo" style="top: {{logoTop}}px; height: {{logoHeight}}px;" src="/assets/nav/logo.png" mode="aspectFit" bindtap="goProgramsHome" aria-label="回到顶部" />
+      <button class="xf-native-welfare-button" style="top: {{logoTop}}px; right: {{welfareRight}}px; height: {{logoHeight}}px;" catchtap="openWelfare" aria-label="百宝箱">
+        <image class="xf-native-welfare-icon" src="/assets/menu/welfare-gift-icon.png" mode="aspectFit" aria-hidden="true" />
+      </button>
+    </view>
+  </view>
+
+  <view class="xf-pro-main {{membership && membership.isProActive ? 'is-complete' : ''}}">
+    <view class="xf-pro-primary-card">
+      <block wx:if="{{membership && membership.isProActive}}">
+        <view class="xf-pro-complete-hero">
+          <text class="xf-pro-complete-kicker">订阅已完成</text>
+          <text class="xf-pro-complete-title">{{memberBadgeLabel}} 会员</text>
+          <text class="xf-pro-complete-copy">点数已到账，可继续用于小玩子、嘉宾 AI、知物分析等功能。</text>
+        </view>
+
+        <view class="xf-pro-complete-summary">
+          <view class="xf-pro-complete-metric">
+            <text class="xf-pro-small-label">当前可用点数</text>
+            <text class="xf-pro-points">{{pointsText}}</text>
+          </view>
+          <view class="xf-pro-complete-metric">
+            <text class="xf-pro-small-label">当前套餐</text>
+            <text class="xf-pro-complete-plan">{{memberBadgeLabel}}</text>
+          </view>
+        </view>
+
+        <view class="xf-pro-topup-section">
+          <text class="xf-pro-topup-title">继续补充点数</text>
+          <text class="xf-pro-topup-copy">可按 Plus 或 Pro 再次购买，点数会累加到当前账户。</text>
+          <view class="xf-pro-plan-list is-topup">
+            <block wx:for="{{planCards}}" wx:key="id">
+              <view
+                wx:if="{{item.paid}}"
+                class="xf-pro-plan-card {{item.selected ? 'is-selected' : ''}}"
+                data-plan="{{item.id}}"
+                bindtap="selectPlan"
+              >
+                <view class="xf-pro-plan-head">
+                  <text class="xf-pro-plan-name">{{item.name}}</text>
+                  <text wx:if="{{item.recommended}}" class="xf-pro-recommend">推荐</text>
+                </view>
+                <text class="xf-pro-plan-price">¥{{item.amountYuan}}</text>
+                <text class="xf-pro-plan-desc">{{item.description}}</text>
+                <text class="xf-pro-plan-points">可用点数：{{item.pointsText}}</text>
+              </view>
+            </block>
+          </view>
+        </view>
+      </block>
+
+      <block wx:else>
+        <text class="xf-pro-eyebrow">订阅</text>
+        <text class="xf-pro-title">选择套餐</text>
+        <text class="xf-pro-copy">订阅后可补充点数，用于小玩子、嘉宾 AI、知物分析等功能。</text>
+
+        <view class="xf-pro-points-card">
+          <text class="xf-pro-small-label">当前可用点数</text>
+          <text class="xf-pro-points">{{pointsText}}</text>
+          <text class="xf-pro-points-note">免费账户每天登录可获取10点，每月上限30点</text>
+        </view>
+
+        <view class="xf-pro-plan-list">
+          <view
+            wx:for="{{planCards}}"
+            wx:key="id"
+            class="xf-pro-plan-card {{item.selected ? 'is-selected' : ''}} {{item.paid ? '' : 'is-free'}}"
+            data-plan="{{item.id}}"
+            bindtap="selectPlan"
+          >
+            <view class="xf-pro-plan-head">
+              <text class="xf-pro-plan-name">{{item.name}}</text>
+              <text wx:if="{{item.recommended}}" class="xf-pro-recommend">推荐</text>
+            </view>
+            <text class="xf-pro-plan-price">¥{{item.amountYuan}}</text>
+            <text class="xf-pro-plan-desc">{{item.description}}</text>
+            <text class="xf-pro-plan-points">可用点数：{{item.pointsText}}</text>
+          </view>
+        </view>
+      </block>
+
+      <view wx:if="{{message}}" class="xf-pro-message">{{message}}</view>
+    </view>
+
+    <view class="xf-pro-policy-card">
+      <text class="xf-pro-section-title">点数消耗策略</text>
+      <view class="xf-pro-policy-list">
+        <view wx:for="{{usagePolicy}}" wx:key="featureKey" class="xf-pro-policy-row">
+          <view class="xf-pro-policy-copy">
+            <text class="xf-pro-policy-name">{{item.name}}</text>
+            <text class="xf-pro-policy-desc">{{item.description}}</text>
+          </view>
+          <text class="xf-pro-policy-cost">{{item.costText}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="xf-pro-status-card">
+      <text class="xf-pro-section-title">订阅状态</text>
+      <view class="xf-pro-status-block">
+        <text class="xf-pro-small-label">当前状态</text>
+        <text class="xf-pro-status-label">{{loading ? "读取中..." : statusLabel}}</text>
+      </view>
+      <view class="xf-pro-status-list">
+        <view wx:for="{{statusRows}}" wx:key="label" class="xf-pro-status-row">
+          <text>{{item.label}}</text>
+          <text>{{item.value}}</text>
+        </view>
+      </view>
+      <view class="xf-pro-refund-note">退款按未使用点数折算，已使用点数对应费用不退；若无剩余有效套餐，高级 AI 调用将关闭。</view>
+      <button
+        wx:if="{{membership && membership.canRefundLatestOrder && latestRefundableOrder && latestRefundableOrder.status === 'paid'}}"
+        class="xf-pro-refund-button"
+        bindtap="requestRefund"
+        disabled="{{refunding}}"
+      >
+        {{refunding ? "退款申请中..." : "申请退款"}}
+      </button>
+    </view>
+  </view>
+
+  <view class="xf-pro-pay-dock">
+    <button class="xf-pro-pay-button" bindtap="createOrder" disabled="{{ordering || loading}}">
+      {{ordering ? "正在拉起微信支付..." : (membership && membership.isProActive ? "补充点数" : "立即订阅")}}
+    </button>
+  </view>
+
+  <view wx:if="{{settingsPanelOpen}}" class="xf-native-settings-mask" style="height: {{settingsPanelHeight}}px;" catchtap="closeSettings" catchtouchmove="noop">
+    <scroll-view class="xf-native-settings-panel" style="height: {{settingsPanelHeight}}px; padding-top: {{profilePanelTop}}px;" scroll-y="true" enhanced show-scrollbar="false" catchtap="noop">
+      <view class="xf-native-settings-panel-inner">
+      <block wx:if="{{settingsPanelView === 'menu'}}">
+        <button wx:if="{{!isLoggedIn}}" class="xf-native-settings-account" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone">
+          <view class="xf-native-settings-avatar-wrap">
+            <image class="xf-native-settings-avatar" src="{{accountAvatar}}" mode="aspectFill" />
+          </view>
+          <view class="xf-native-settings-copy">
+            <view class="xf-native-settings-title-row">
+              <text class="xf-native-settings-title">{{accountTitle}}</text>
+            </view>
+            <view class="xf-native-settings-subtitle-row">
+              <text class="xf-native-settings-subtitle">{{accountSubtitle}}</text>
+            </view>
+          </view>
+          <text class="xf-native-settings-chevron">›</text>
+        </button>
+        <view wx:else class="xf-native-settings-account" catchtap="openSettingsItem" data-page="{{accountPage}}" data-title="{{accountTitle}}" data-panel-view="{{accountPanelView}}">
+          <view class="xf-native-settings-avatar-wrap">
+            <image class="xf-native-settings-avatar" src="{{accountAvatar}}" mode="aspectFill" />
+          </view>
+          <view class="xf-native-settings-copy">
+            <view class="xf-native-settings-title-row">
+              <text class="xf-native-settings-title">{{accountTitle}}</text>
+            </view>
+            <view class="xf-native-settings-subtitle-row">
+              <text class="xf-native-settings-subtitle">{{accountSubtitle}}</text>
+            </view>
+          </view>
+          <text class="xf-native-settings-chevron">›</text>
+        </view>
+
+        <view
+          wx:for="{{settingsSections}}"
+          wx:for-item="section"
+          wx:for-index="sectionIndex"
+          wx:key="key"
+          class="xf-native-settings-card"
+        >
+          <view
+            wx:for="{{section.items}}"
+            wx:for-item="item"
+            wx:for-index="itemIndex"
+            wx:key="key"
+            class="xf-native-settings-row"
+            catchtap="openSettingsItem"
+            data-section-index="{{sectionIndex}}"
+            data-item-index="{{itemIndex}}"
+          >
+            <image wx:if="{{item.iconType === 'image'}}" class="xf-native-settings-logo-icon" src="{{item.image}}" mode="aspectFit" />
+            <text wx:elif="{{item.iconType === 'emoji'}}" class="xf-native-settings-emoji-icon">{{item.emoji}}</text>
+            <text wx:else class="xf-native-settings-symbol material-symbols-rounded">{{item.icon}}</text>
+            <text class="xf-native-settings-label">{{item.title}}</text>
+            <text wx:if="{{item.key === 'pro' && settingsMemberBadgeLabel}}" class="xf-native-settings-member-badge">{{settingsMemberBadgeLabel}}</text>
+            <text class="xf-native-settings-chevron">›</text>
+          </view>
+        </view>
+      </block>
+      <template wx:elif="{{settingsPanelView === 'profile'}}" is="xfSettingsProfilePanel" data="{{profileHeaderHeight: profileHeaderHeight, profileDraft: profileDraft, profileAvatar: profileAvatar, profileGenderOptions: profileGenderOptions, profilePanelMessage: profilePanelMessage}}"></template>
+      <template wx:elif="{{settingsPanelView === 'archive'}}" is="xfSettingsArchivePanel" data="{{profileHeaderHeight: profileHeaderHeight, archiveHasChildren: archiveHasChildren, archiveChildren: archiveChildren, archiveInsightGrade: archiveInsightGrade, archiveDraft: archiveDraft, archiveProfileStatus: archiveProfileStatus, archiveRelationOptions: archiveRelationOptions, archiveRegionOptions: archiveRegionOptions, archiveRegionIndex: archiveRegionIndex, archiveStageOptions: archiveStageOptions, archiveStageIndex: archiveStageIndex, archiveStage: archiveStage, archiveGradeOptions: archiveGradeOptions, archiveStageGradeColumns: archiveStageGradeColumns, archiveStageGradeValue: archiveStageGradeValue, archiveGradeSelectOptions: archiveGradeSelectOptions, archiveGradeName: archiveGradeName, archiveGradeDropdownOpen: archiveGradeDropdownOpen, archiveTagOptions: archiveTagOptions, profilePanelMessage: profilePanelMessage}}"></template>
+      <template wx:elif="{{settingsPanelView === 'memory'}}" is="xfSettingsMemoryPanel" data="{{profileHeaderHeight: profileHeaderHeight, memoryEnabled: memoryEnabled}}"></template>
+      <template wx:elif="{{settingsPanelView === 'memoryManager'}}" is="xfSettingsMemoryManagerPanel" data="{{profileHeaderHeight: profileHeaderHeight, memorySearchQuery: memorySearchQuery, filteredMemoryItems: filteredMemoryItems, memoryPanelMessage: memoryPanelMessage}}"></template>
+      <template wx:elif="{{settingsPanelView === 'settings'}}" is="xfSettingsAppPanel" data="{{profileHeaderHeight: profileHeaderHeight, isLoggedIn: isLoggedIn, hasMobile: hasMobile, bindingPhone: bindingPhone, maskedMobile: maskedMobile, fontSizeClass: fontSizeClass, fontOptions: fontOptions, profilePanelMessage: profilePanelMessage}}"></template>
+      </view>
+    </scroll-view>
+  </view>
+</view>

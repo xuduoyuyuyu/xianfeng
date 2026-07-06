@@ -3,11 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
-    <title>小玩子</title>
-    <link rel="icon" type="image/png" href="/assets/xiaowanzi-nohat.png" />
-    <link rel="shortcut icon" href="/assets/xiaowanzi-nohat.png" />
-    <link rel="apple-touch-icon" href="/assets/xiaowanzi-nohat.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/assets/xiaowanzi-nohat.png" />
+    <title></title>
+    <link rel="icon" type="image/png" href="/assets/wel-avatar/no-hat.png" />
+    <link rel="shortcut icon" href="/assets/wel-avatar/no-hat.png" />
+    <link rel="apple-touch-icon" href="/assets/wel-avatar/no-hat.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/wel-avatar/no-hat.png" />
+    <link rel="preload" href="/fonts/material-symbols-rounded.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/material-symbols-outlined.woff2" as="font" type="font/woff2" crossorigin />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="小玩子" />
@@ -15,13 +17,80 @@
     <meta name="theme-color" content="#f2f1ff" />
     <link rel="manifest" href="/manifest-xiaowanzi.json" />
     <style>
+      @font-face {
+        font-family: 'Material Symbols Rounded';
+        font-style: normal;
+        font-weight: 400;
+        font-display: block;
+        src: url('/fonts/material-symbols-rounded.woff2') format('woff2');
+        font-feature-settings: 'liga';
+      }
+      @font-face {
+        font-family: 'Material Symbols Outlined';
+        font-style: normal;
+        font-weight: 300;
+        font-display: block;
+        src: url('/fonts/material-symbols-outlined.woff2') format('woff2');
+        font-feature-settings: 'liga';
+      }
       html, body, #root {
         background: #f2f1ff;
         position: relative;
         width: 100%;
         overflow-x: hidden;
       }
+      html.xf-mp-webview body {
+        padding-top: var(--xf-mp-nav-height, 0px) !important;
+        padding-bottom: var(--xf-mp-tabbar-height, 0px) !important;
+      }
+      html.xf-xiaowanzi-super-webview,
+      html.xf-xiaowanzi-super-webview body,
+      html.xf-xiaowanzi-super-webview #root {
+        width: 100%;
+        height: 100%;
+        min-height: 100%;
+        overflow: hidden !important;
+      }
+      html.xf-xiaowanzi-super-webview .mobile-tab,
+      html.xf-xiaowanzi-super-webview body.xf-mobile-tab-enabled::after,
+      html.xf-mp-webview .mobile-tab,
+      html.xf-mp-webview body.xf-mobile-tab-enabled::after {
+        display: none !important;
+      }
     </style>
+    <script>
+      (function() {
+        var params = new URLSearchParams(window.location.search);
+        var wechatEnvironment = String(window.__wxjs_environment || '').toLowerCase();
+        var userAgent = String(window.navigator && window.navigator.userAgent || '');
+        var miniProgramWebView = params.get('xf_mp') === '1'
+          || params.has('xf_tab')
+          || window.sessionStorage.getItem('xf_mp_webview') === '1'
+          || wechatEnvironment === 'miniprogram'
+          || /miniprogram/i.test(userAgent);
+        if (!miniProgramWebView) return;
+        window.sessionStorage.setItem('xf_mp_webview', '1');
+        window.sessionStorage.setItem('xf_mp_nav_height', '0');
+        window.sessionStorage.setItem('xf_mp_tabbar_height', '0');
+        document.documentElement.classList.add('xf-mp-webview', 'xf-xiaowanzi-super-webview');
+        document.documentElement.style.setProperty('--xf-mp-nav-height', '0px');
+        document.documentElement.style.setProperty('--xf-mp-tabbar-height', '0px');
+        [
+          ['xf_xw_nav_offset', '--xf-xw-nav-offset'],
+          ['xf_native_capsule_top', '--xf-native-capsule-top'],
+          ['xf_native_action_top', '--xf-native-action-top'],
+          ['xf_native_capsule_height', '--xf-native-capsule-height'],
+          ['xf_native_capsule_right', '--xf-native-capsule-right'],
+          ['xf_native_topbar_height', '--xf-native-topbar-height'],
+          ['xf_native_webview_shift', '--xf-native-webview-shift']
+        ].forEach(function(pair) {
+          var raw = params.get(pair[0]);
+          var value = Number(raw);
+          if (!Number.isFinite(value) || value < 0) return;
+          document.documentElement.style.setProperty(pair[1], Math.round(value) + 'px');
+        });
+      })();
+    </script>
 </head>
 <body class="xw-standalone-shell">
     <div id="root" class="xw-standalone-root"></div>

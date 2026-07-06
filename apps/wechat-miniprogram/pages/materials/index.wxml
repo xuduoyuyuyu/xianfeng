@@ -1,1 +1,201 @@
-<web-view src="{{src}}" />
+<import src="../../templates/settings-profile-views.wxml" />
+
+<view class="xf-native-page xf-materials-page {{fontSizeClass}}" style="padding-top: {{chromeHeight}}px;">
+  <view class="xf-native-topbar" style="height: {{topbarHeight}}px;">
+    <view class="xf-native-nav-row" style="height: {{topbarHeight}}px;">
+      <view class="xf-native-menu-button" style="top: {{logoTop}}px; height: {{logoHeight}}px;" catchtap="openSettings" role="button" aria-label="打开设置">
+        <view class="xf-native-menu-icon" aria-hidden="true"></view>
+      </view>
+      <image class="xf-native-logo" style="top: {{logoTop}}px; height: {{logoHeight}}px;" src="/assets/nav/logo.png" mode="aspectFit" bindtap="goProgramsHome" aria-label="回到顶部" />
+      <button class="xf-native-welfare-button" style="top: {{logoTop}}px; right: {{welfareRight}}px; height: {{logoHeight}}px;" catchtap="openWelfare" aria-label="百宝箱">
+        <image class="xf-native-welfare-icon" src="/assets/menu/welfare-gift-icon.png" mode="aspectFit" aria-hidden="true" />
+      </button>
+    </view>
+  </view>
+
+  <view class="xf-native-search-panel" aria-label="搜索">
+    <view class="xf-native-search-field has-filter" bindtap="openSearch" role="button">
+      <view class="xf-native-search-icon" aria-hidden="true">
+        <view class="xf-native-search-circle"></view>
+        <view class="xf-native-search-line"></view>
+      </view>
+      <text class="xf-native-search-text">{{searchPrompt}}</text>
+      <button class="xf-native-search-filter" catchtap="openFilterDrawer" aria-label="打开资料筛选">
+        <image class="xf-native-search-filter-icon" src="/assets/nav/filter-sliders.png" mode="aspectFit" aria-hidden="true" />
+      </button>
+    </view>
+  </view>
+
+  <view wx:if="{{activeMaterialTagLabel}}" class="xf-native-filter-bar">
+    <text class="xf-native-filter-text">正在筛选：{{activeMaterialTagLabel}}</text>
+    <button class="xf-native-filter-clear" catchtap="clearMaterialTagFilter" aria-label="清除筛选">×</button>
+  </view>
+
+  <view wx:if="{{loading}}" class="xf-native-state">
+    <view class="xf-native-skeleton"></view>
+    <view class="xf-native-skeleton is-short"></view>
+    <view class="xf-native-skeleton"></view>
+  </view>
+
+  <view wx:if="{{!loading && materials.length}}" class="xf-native-list xf-materials-list">
+    <view
+      wx:for="{{materials}}"
+      wx:key="id"
+      class="xf-native-card xf-materials-card"
+      data-index="{{index}}"
+      data-url="{{item.fileUrl}}"
+      bindtap="copyMaterialLink"
+    >
+      <view class="xf-native-body">
+        <text class="xf-native-card-title">{{item.title}}</text>
+        <view wx:if="{{item.fieldTags.length}}" class="xf-materials-field-tags">
+          <text
+            wx:for="{{item.fieldTags}}"
+            wx:key="text"
+            class="xf-materials-field-tag {{item.tone}}"
+          >{{item.text}}</text>
+        </view>
+        <text class="xf-native-description">{{item.description}}</text>
+        <view class="xf-materials-footer">
+          <text class="xf-materials-host">{{item.sourceHost || "外部资料"}}</text>
+          <button
+            class="xf-materials-copy-button"
+            data-index="{{index}}"
+            data-url="{{item.fileUrl}}"
+            catchtap="copyMaterialLink"
+          >复制链接</button>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{!loading && !materials.length}}" class="xf-native-state">
+    <text>{{error || "暂时没有可展示的资料"}}</text>
+    <button class="xf-native-retry" bindtap="retryLoad">重试</button>
+  </view>
+
+  <view wx:if="{{hasCache}}" class="xf-native-cache-tip">已先显示上次缓存，正在同步最新内容</view>
+
+  <view wx:if="{{filterDrawerOpen}}" class="xf-native-filter-mask" catchtap="closeFilterDrawer" catchtouchmove="noop">
+    <view
+      class="xf-native-filter-drawer"
+      style="height: {{filterDrawerHeight}}px;"
+      data-drag-mode="drawer"
+      catchtap="noop"
+      bindtouchstart="onFilterDrawerTouchStart"
+      bindtouchmove="onFilterDrawerTouchMove"
+      bindtouchend="onFilterDrawerTouchEnd"
+      bindtouchcancel="onFilterDrawerTouchEnd"
+    >
+      <view
+        class="xf-native-filter-handle"
+        data-drag-mode="handle"
+        catchtouchstart="onFilterDrawerTouchStart"
+        catchtouchmove="onFilterDrawerTouchMove"
+        catchtouchend="onFilterDrawerTouchEnd"
+        catchtouchcancel="onFilterDrawerTouchEnd"
+      ></view>
+      <view class="xf-native-filter-head">
+        <view>
+          <text class="xf-native-filter-title">资料筛选</text>
+          <text class="xf-native-filter-subtitle">只筛选当前资料列表</text>
+        </view>
+        <button class="xf-native-filter-close" catchtap="closeFilterDrawer" aria-label="关闭筛选">×</button>
+      </view>
+
+      <scroll-view class="xf-native-filter-scroll" scroll-y="{{filterDrawerExpanded}}" enhanced show-scrollbar="false">
+        <view
+          wx:for="{{materialFilterGroups}}"
+          wx:for-item="group"
+          wx:key="key"
+          wx:if="{{group.options.length}}"
+          class="xf-native-filter-section"
+        >
+          <text class="xf-native-filter-section-title">{{group.title}}</text>
+          <view class="xf-native-filter-chip-group">
+            <button
+              wx:for="{{group.options}}"
+              wx:for-item="option"
+              wx:key="value"
+              class="xf-native-filter-chip {{option.selected ? 'is-active' : ''}}"
+              data-tag="{{option.value}}"
+              catchtap="onDrawerMaterialTagTap"
+            >{{option.label}}</button>
+          </view>
+        </view>
+      </scroll-view>
+      <view class="xf-native-filter-actions">
+        <button class="xf-native-filter-reset" catchtap="resetMaterialFilterDraft">重置</button>
+        <button class="xf-native-filter-submit" catchtap="applyMaterialFilterDraft">查看 {{materialFilterPreviewCount}} 个资料</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{settingsPanelOpen}}" class="xf-native-settings-mask" style="height: {{settingsPanelHeight}}px;" catchtap="closeSettings" catchtouchmove="noop">
+    <scroll-view class="xf-native-settings-panel" style="height: {{settingsPanelHeight}}px; padding-top: {{profilePanelTop}}px;" scroll-y="true" enhanced show-scrollbar="false" catchtap="noop">
+      <view class="xf-native-settings-panel-inner">
+      <block wx:if="{{settingsPanelView === 'menu'}}">
+        <button wx:if="{{!isLoggedIn}}" class="xf-native-settings-account" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone">
+          <view class="xf-native-settings-avatar-wrap">
+            <image class="xf-native-settings-avatar" src="{{accountAvatar}}" mode="aspectFill" />
+          </view>
+          <view class="xf-native-settings-copy">
+            <view class="xf-native-settings-title-row">
+              <text class="xf-native-settings-title">{{accountTitle}}</text>
+            </view>
+            <view class="xf-native-settings-subtitle-row">
+              <text class="xf-native-settings-subtitle">{{accountSubtitle}}</text>
+            </view>
+          </view>
+          <text class="xf-native-settings-chevron">›</text>
+        </button>
+        <view wx:else class="xf-native-settings-account" catchtap="openSettingsItem" data-page="{{accountPage}}" data-title="{{accountTitle}}" data-panel-view="{{accountPanelView}}">
+          <view class="xf-native-settings-avatar-wrap">
+            <image class="xf-native-settings-avatar" src="{{accountAvatar}}" mode="aspectFill" />
+          </view>
+          <view class="xf-native-settings-copy">
+            <view class="xf-native-settings-title-row">
+              <text class="xf-native-settings-title">{{accountTitle}}</text>
+            </view>
+            <view class="xf-native-settings-subtitle-row">
+              <text class="xf-native-settings-subtitle">{{accountSubtitle}}</text>
+            </view>
+          </view>
+          <text class="xf-native-settings-chevron">›</text>
+        </view>
+
+        <view
+          wx:for="{{settingsSections}}"
+          wx:for-item="section"
+          wx:for-index="sectionIndex"
+          wx:key="key"
+          class="xf-native-settings-card"
+        >
+          <view
+            wx:for="{{section.items}}"
+            wx:for-item="item"
+            wx:for-index="itemIndex"
+            wx:key="key"
+            class="xf-native-settings-row"
+            catchtap="openSettingsItem"
+            data-section-index="{{sectionIndex}}"
+            data-item-index="{{itemIndex}}"
+          >
+            <image wx:if="{{item.iconType === 'image'}}" class="xf-native-settings-logo-icon" src="{{item.image}}" mode="aspectFit" />
+            <text wx:elif="{{item.iconType === 'emoji'}}" class="xf-native-settings-emoji-icon">{{item.emoji}}</text>
+            <text wx:else class="xf-native-settings-symbol material-symbols-rounded">{{item.icon}}</text>
+            <text class="xf-native-settings-label">{{item.title}}</text>
+            <text wx:if="{{item.key === 'pro' && settingsMemberBadgeLabel}}" class="xf-native-settings-member-badge">{{settingsMemberBadgeLabel}}</text>
+            <text class="xf-native-settings-chevron">›</text>
+          </view>
+        </view>
+      </block>
+      <template wx:elif="{{settingsPanelView === 'profile'}}" is="xfSettingsProfilePanel" data="{{profileHeaderHeight: profileHeaderHeight, profileDraft: profileDraft, profileAvatar: profileAvatar, profileGenderOptions: profileGenderOptions, profilePanelMessage: profilePanelMessage}}"></template>
+      <template wx:elif="{{settingsPanelView === 'archive'}}" is="xfSettingsArchivePanel" data="{{profileHeaderHeight: profileHeaderHeight, archiveHasChildren: archiveHasChildren, archiveChildren: archiveChildren, archiveInsightGrade: archiveInsightGrade, archiveDraft: archiveDraft, archiveProfileStatus: archiveProfileStatus, archiveRelationOptions: archiveRelationOptions, archiveRegionOptions: archiveRegionOptions, archiveRegionIndex: archiveRegionIndex, archiveStageOptions: archiveStageOptions, archiveStageIndex: archiveStageIndex, archiveStage: archiveStage, archiveGradeOptions: archiveGradeOptions, archiveStageGradeColumns: archiveStageGradeColumns, archiveStageGradeValue: archiveStageGradeValue, archiveGradeSelectOptions: archiveGradeSelectOptions, archiveGradeName: archiveGradeName, archiveGradeDropdownOpen: archiveGradeDropdownOpen, archiveTagOptions: archiveTagOptions, profilePanelMessage: profilePanelMessage}}"></template>
+      <template wx:elif="{{settingsPanelView === 'memory'}}" is="xfSettingsMemoryPanel" data="{{profileHeaderHeight: profileHeaderHeight, memoryEnabled: memoryEnabled}}"></template>
+      <template wx:elif="{{settingsPanelView === 'memoryManager'}}" is="xfSettingsMemoryManagerPanel" data="{{profileHeaderHeight: profileHeaderHeight, memorySearchQuery: memorySearchQuery, filteredMemoryItems: filteredMemoryItems, memoryPanelMessage: memoryPanelMessage}}"></template>
+      <template wx:elif="{{settingsPanelView === 'settings'}}" is="xfSettingsAppPanel" data="{{profileHeaderHeight: profileHeaderHeight, isLoggedIn: isLoggedIn, hasMobile: hasMobile, bindingPhone: bindingPhone, maskedMobile: maskedMobile, fontSizeClass: fontSizeClass, fontOptions: fontOptions, profilePanelMessage: profilePanelMessage}}"></template>
+      </view>
+    </scroll-view>
+  </view>
+</view>

@@ -1,7 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@700&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:wght,FILL@100..700,0..1&display=swap");
-
 @import "tailwindcss";
 @source "./**/*.{ts,tsx}";
 
@@ -62,6 +58,54 @@ textarea {
   font: inherit;
 }
 
+html.xf-mp-webview .mobile-tab,
+html.xf-mp-webview body.xf-mobile-tab-enabled::after {
+  display: none !important;
+}
+
+html.xf-mp-webview .xf-web-detail-back,
+html.xf-mp-webview .xf-web-detail-back * {
+  display: none !important;
+}
+
+html.xf-mp-webview body.xf-mobile-tab-enabled {
+  padding-bottom: var(--xf-mp-tabbar-height, 64px) !important;
+}
+
+html.xf-mp-webview body {
+  padding-top: var(--xf-mp-nav-height, 0px) !important;
+  padding-bottom: var(--xf-mp-tabbar-height, 64px) !important;
+  font-size: calc(16px * var(--xf-user-font-scale, 1));
+}
+
+html.xf-mp-webview.xf-mp-tabbar-hidden,
+html.xf-mp-webview.xf-mp-tabbar-hidden body,
+html.xf-mp-webview.xf-mp-tabbar-hidden #root {
+  background: #ffffff !important;
+}
+
+html.xf-mp-webview.xf-mp-tabbar-hidden body {
+  padding-bottom: 0 !important;
+}
+
+html.xf-mp-webview.xf-mp-font-small {
+  --xf-user-font-scale: 0.95;
+  -webkit-text-size-adjust: 95%;
+  text-size-adjust: 95%;
+}
+
+html.xf-mp-webview.xf-mp-font-standard {
+  --xf-user-font-scale: 1;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+html.xf-mp-webview.xf-mp-font-large {
+  --xf-user-font-scale: 1.1;
+  -webkit-text-size-adjust: 110%;
+  text-size-adjust: 110%;
+}
+
 .materials-search-input,
 .materials-search-input:focus,
 .materials-search-input:focus-visible {
@@ -73,6 +117,33 @@ textarea {
 }
 
 .material-symbols-outlined {
+  font-family: "Material Symbols Outlined";
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "liga" 1;
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+  vertical-align: middle;
+}
+
+.material-symbols-rounded {
+  font-family: "Material Symbols Rounded";
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "liga" 1;
   font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
   vertical-align: middle;
 }
@@ -90,6 +161,7 @@ textarea {
   word-wrap: normal;
   direction: ltr;
   -webkit-font-smoothing: antialiased;
+  font-feature-settings: "liga" 1;
   font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 20;
   vertical-align: middle;
 }

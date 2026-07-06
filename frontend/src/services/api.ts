@@ -391,6 +391,7 @@ export interface ProgramContentPack {
 export interface Program {
   _id: string;
   programCode?: string;
+  programShow?: "xianfeng" | "zhiji";
   title: string;
   description: string;
   coverImage: string;
@@ -474,6 +475,7 @@ export interface Book {
   metadataCover?: string;
   metadataStatus?: 'auto_approved' | 'needs_review' | 'rejected' | '';
   metadataId?: string;
+  metadataDetail?: AdminBookMetadata | null;
 }
 
 export interface BookMetadataDetail {
@@ -491,6 +493,40 @@ export interface BookMetadataDetail {
   ratingCount?: number | null;
   ratingLabel?: string;
   matchScore?: number;
+}
+
+export interface ExternalBookLibraryRecord {
+  id: string;
+  title: string;
+  coverPic: string;
+  author: string;
+  publisher: string;
+  isbn: string;
+  pubDate: string;
+  pages: number | null;
+  words: string;
+  lexile: string;
+  ar: string;
+  tags: string;
+  category: string;
+  series: string;
+  fiction: string;
+  levelRange: string;
+  description: string;
+}
+
+export interface ExternalBookLibraryResponse {
+  records: ExternalBookLibraryRecord[];
+  total: number;
+  size: number;
+  current: number;
+  pages: number;
+}
+
+export interface ExternalBookDescriptionTranslationResponse {
+  translatedDescription: string;
+  model: string;
+  cached: boolean;
 }
 
 export interface AdminBookMetadata extends Omit<BookMetadataDetail, 'bookId'> {
@@ -516,10 +552,234 @@ export interface LearningMaterial {
   description: string;
   fileUrl: string;
   category: string;
-  status: 'draft' | 'published' | 'group-only';
+  status: 'draft' | 'published';
   publishedAt?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export type MamaResourceStatus = 'pending' | 'approved' | 'needs_info' | 'rejected';
+export type MamaResourceCaptureStatus = 'pending' | 'captured' | 'failed' | 'manual_required';
+export type MamaResourceTaskStatus = 'listed' | 'paused' | 'archived';
+export type MamaResourceTaskAssignmentStatus = 'assigned' | 'submitted' | 'collected' | 'rejected';
+
+export interface MamaResourceContentCase {
+  url: string;
+  title?: string;
+  publishedAt?: string | null;
+  likeCount?: number | null;
+  favoriteCount?: number | null;
+  commentCount?: number | null;
+  screenshotUrl?: string;
+  captureStatus: MamaResourceCaptureStatus;
+  lastCapturedAt?: string | null;
+}
+
+export interface MamaResourceProfile {
+  _id: string;
+  displayName: string;
+  contactPhone?: string;
+  contactWechat: string;
+  city?: string;
+  childStage?: string;
+  childGender?: string;
+  categories: string[];
+  status: MamaResourceStatus;
+  accountPositioning?: string;
+  consentAccepted: boolean;
+  socialAccount: {
+    platform: 'xiaohongshu';
+    profileUrl: string;
+    normalizedProfileUrl: string;
+    nickname?: string;
+    followerCount?: number | null;
+    screenshotUrl?: string;
+    realNameVerified?: boolean | null;
+    dataSource: 'pending' | 'auto' | 'manual' | 'screenshot';
+    lastCapturedAt?: string | null;
+  };
+  contentCases: MamaResourceContentCase[];
+  rateCard: {
+    rateRange?: string;
+    availability?: string;
+    acceptsGiftExchange?: boolean;
+    blockedCategories: string[];
+  };
+  reviewNote: {
+    note?: string;
+    suitableCategories: string[];
+    riskTags: string[];
+    nextFollowUpAt?: string | null;
+    reviewedAt?: string | null;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MamaResourceApplicationInput {
+  displayName: string;
+  contactPhone?: string;
+  contactWechat: string;
+  city?: string;
+  childStage?: string;
+  childGender?: string;
+  xiaohongshuProfileUrl: string;
+  xiaohongshuScreenshotUrl?: string;
+  followerCount?: number | string;
+  realNameVerified?: boolean | null;
+  accountPositioning?: string;
+  categories?: string[] | string;
+  acceptsGiftExchange?: boolean;
+  blockedCategories?: string[] | string;
+  consentAccepted: boolean;
+}
+
+export interface MamaResourceQuery {
+  status?: MamaResourceStatus | 'all';
+  category?: string;
+  minFollowers?: number | string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface MamaResourceListResponse {
+  items: MamaResourceProfile[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface MamaResourceReviewInput {
+  status: MamaResourceStatus;
+  note?: string;
+  suitableCategories?: string[] | string;
+  riskTags?: string[] | string;
+  nextFollowUpAt?: string | null;
+}
+
+export interface MamaResourceTask {
+  _id: string;
+  taskId?: string;
+  profileId?: string;
+  title: string;
+  platform: 'xiaohongshu';
+  category?: string;
+  matchCategories?: string[];
+  matchRiskTags?: string[];
+  minFollowerCount?: number | null;
+  difficulty?: string;
+  phase?: string;
+  unitPriceCents: number;
+  dataCycle?: string;
+  settlementCycle?: string;
+  promotionCount?: number | null;
+  latestDataDate?: string | null;
+  announcement?: string;
+  settlementStandard?: string;
+  requirement?: string;
+  externalUrl?: string;
+  exampleImageUrls?: string[];
+  status: MamaResourceTaskStatus | MamaResourceTaskAssignmentStatus;
+  proofLink?: string;
+  proofScreenshotUrl?: string;
+  submittedAt?: string | null;
+  reviewedAt?: string | null;
+  reviewNote?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MamaResourceTaskAssignment {
+  _id: string;
+  taskId: string;
+  profileId: string;
+  task?: MamaResourceTask;
+  profile?: MamaResourceProfile;
+  status: MamaResourceTaskAssignmentStatus;
+  proofLink?: string;
+  proofScreenshotUrl?: string;
+  submittedAt?: string | null;
+  reviewedAt?: string | null;
+  reviewNote?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MamaResourceTaskCandidate extends MamaResourceProfile {
+  assignmentId?: string;
+  assignmentStatus?: MamaResourceTaskAssignmentStatus | '';
+}
+
+export interface MamaResourceTaskInput {
+  title: string;
+  category?: string;
+  matchCategories?: string[] | string;
+  matchRiskTags?: string[] | string;
+  minFollowerCount?: number | string | null;
+  difficulty?: string;
+  phase?: string;
+  unitPriceCents?: number;
+  dataCycle?: string;
+  settlementCycle?: string;
+  promotionCount?: number | null;
+  latestDataDate?: string | null;
+  announcement?: string;
+  settlementStandard?: string;
+  requirement?: string;
+  externalUrl?: string;
+  exampleImageUrls?: string[];
+  autoAssign?: boolean;
+}
+
+export type WelfareAvailability = "draft" | "hidden" | "archived" | "upcoming" | "active" | "expired" | "sold_out";
+export type WelfareCampaignStatus = "draft" | "published" | "hidden" | "archived";
+
+export interface WelfareCampaign {
+  _id: string;
+  title: string;
+  subtitle?: string;
+  description?: string;
+  coverImageUrl?: string;
+  claimInstructions?: string;
+  externalUrl?: string;
+  claimButtonText?: string;
+  totalStock: number;
+  claimedCount: number;
+  remainingStock: number;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  status: WelfareCampaignStatus;
+  availability: WelfareAvailability;
+  sortOrder?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface WelfareClaim {
+  _id: string;
+  campaignId: string;
+  userId: string;
+  status: "claimed" | "cancelled";
+  claimedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface WelfareCampaignInput {
+  title: string;
+  subtitle?: string;
+  description?: string;
+  coverImageUrl?: string;
+  claimInstructions?: string;
+  externalUrl?: string;
+  claimButtonText?: string;
+  totalStock?: number | string;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  status?: WelfareCampaignStatus;
+  sortOrder?: number | string;
 }
 
 export interface KnowledgeSource {
@@ -570,7 +830,9 @@ export interface User {
   mobile?: string;
   role: 'admin' | 'user';
   proStatus?: 'none' | 'active' | 'expired' | 'refunded';
-  proPlan?: 'monthly' | 'yearly' | '';
+  proPlan?: 'plus' | 'pro' | 'monthly' | 'yearly' | '';
+  membershipTier?: 'free' | 'plus' | 'pro';
+  membershipLabel?: string;
   proExpiresAt?: string | null;
   proPurchasedAt?: string | null;
   proRefundEligibleUntil?: string | null;
@@ -608,7 +870,7 @@ export interface User {
 }
 
 export interface BillingPlan {
-  id: 'free' | 'monthly' | 'yearly';
+  id: 'free' | 'plus' | 'pro';
   name: string;
   amountCents: number;
   amountYuan: string;
@@ -619,7 +881,9 @@ export interface BillingPlan {
 
 export interface BillingMembership {
   proStatus: 'none' | 'active' | 'expired' | 'refunded';
-  proPlan: 'monthly' | 'yearly' | '';
+  proPlan: 'plus' | 'pro' | 'monthly' | 'yearly' | '';
+  membershipTier?: 'free' | 'plus' | 'pro';
+  membershipLabel?: string;
   proPointBalance: number;
   proExpiresAt: string | null;
   proPurchasedAt: string | null;
@@ -638,7 +902,7 @@ export interface PointUsagePolicyItem {
 
 export interface BillingOrder {
   id: string;
-  plan: 'monthly' | 'yearly';
+  plan: 'plus' | 'pro' | 'monthly' | 'yearly';
   provider: 'alipay' | 'wechat';
   amountCents: number;
   currency: 'CNY';
@@ -853,18 +1117,18 @@ export interface MobileCodeSendResponse {
 
 export const billingApi = {
   getPlans: () => api.get<{
-    plans: Record<'free' | 'monthly' | 'yearly', BillingPlan>;
-    refundPolicy: { fullRefundDays: number; description: string };
+    plans: Record<'free' | 'plus' | 'pro', BillingPlan>;
+    refundPolicy: { fullRefundDays: number; mode?: string; description: string };
     providers: Record<string, { enabled: boolean; note?: string }>;
     usagePolicy: PointUsagePolicyItem[];
   }>('/billing/plans'),
   getMe: () => api.get<{ membership: BillingMembership; latestOrder: BillingOrder | null }>('/billing/me'),
-  createOrder: (plan: 'monthly' | 'yearly', provider: 'alipay' | 'wechat' = 'wechat') =>
-    api.post<{ order: BillingOrder; checkout: { provider: 'alipay' | 'wechat'; mode?: 'alipay_page' | 'wechat_native' | 'mock'; paymentUrl?: string; paymentForm?: string; codeUrl?: string; mockPayUrl?: string; message?: string } }>('/billing/orders', { plan, provider }),
+  createOrder: (plan: 'plus' | 'pro', provider: 'alipay' | 'wechat' = 'wechat') =>
+    api.post<{ order: BillingOrder; checkout: { provider: 'alipay' | 'wechat'; mode?: 'alipay_page' | 'wechat_native' | 'wechat_jsapi' | 'mock'; paymentUrl?: string; paymentForm?: string; codeUrl?: string; paymentParams?: Record<string, string>; mockPayUrl?: string; message?: string } }>('/billing/orders', { plan, provider }),
   getOrder: (id: string) => api.get<{ order: BillingOrder }>(`/billing/orders/${id}`),
   completeMockPayment: (id: string) => api.post<{ order: BillingOrder; membership: BillingMembership }>(`/billing/orders/${id}/mock-pay`),
-  requestRefund: (orderId?: string, reason = '3天不满意全额退款') =>
-    api.post<{ refund: { id: string; status: string; amountCents: number; refundedAt?: string | null }; membership: BillingMembership }>('/billing/refunds', { orderId, reason }),
+  requestRefund: (orderId?: string, reason = '按未使用点数折算退款') =>
+    api.post<{ refund: { id: string; status: string; amountCents: number; refundablePoints?: number; usedPoints?: number; refundedAt?: string | null }; membership: BillingMembership }>('/billing/refunds', { orderId, reason }),
 };
 
 // 公开 API
@@ -882,12 +1146,35 @@ export const publicApi = {
   
   // 书单
   getBooks: () => api.get<Book[]>('/books'),
+  getExternalBooks: (params: { current: number; size: number }) => api.get<ExternalBookLibraryResponse>('/books/external', { params }),
+  translateExternalBookDescription: (id: string, data: { title: string; description: string }) =>
+    api.post<ExternalBookDescriptionTranslationResponse>(`/books/external/${encodeURIComponent(id)}/description-translation`, data),
   getBook: (id: string) => api.get<Book>(`/books/${id}`),
   getBookMetadata: (id: string) => api.get<BookMetadataDetail>(`/books/${id}/metadata`),
   
   // 学习资料
   getMaterials: () => api.get<LearningMaterial[]>('/learning-materials'),
   getMaterial: (id: string) => api.get<LearningMaterial>(`/learning-materials/${id}`),
+  uploadMamaResourceScreenshot: (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return api.post<{ url: string; filename: string }>('/mama-resources/uploads', formData, {
+      timeout: 60 * 1000,
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+  },
+  submitMamaResourceApplication: (data: MamaResourceApplicationInput) =>
+    api.post<{ profile: MamaResourceProfile }>('/mama-resources/applications', data),
+  getMyMamaResourceTasks: () =>
+    api.get<{ profile: MamaResourceProfile | null; tasks: MamaResourceTask[] }>('/mama-resources/me/tasks'),
+  getMyMamaResourceTask: (id: string) =>
+    api.get<{ profile: MamaResourceProfile; task: MamaResourceTask }>(`/mama-resources/me/tasks/${id}`),
+  submitMamaResourceTaskProof: (id: string, data: { proofLink: string; proofScreenshotUrl: string }) =>
+    api.post<{ task: MamaResourceTask }>(`/mama-resources/me/tasks/${id}/submissions`, data),
+  getWelfareCampaigns: () =>
+    api.get<{ active: WelfareCampaign[]; history: WelfareCampaign[]; upcoming: WelfareCampaign[] }>('/welfare/campaigns'),
+  claimWelfareCampaign: (id: string) =>
+    api.post<{ claim: WelfareClaim; campaign: WelfareCampaign }>(`/welfare/campaigns/${id}/claims`, {}),
 };
 
 // 管理员 API
@@ -941,6 +1228,14 @@ export const adminApi = {
         },
       }
     );
+  },
+  uploadAdminImage: (imageFile: File) => {
+    const formData = new FormData();
+    formData.append("file", imageFile);
+    return api.post<{ url: string; filename: string }>("/admin/upload", formData, {
+      timeout: 60 * 1000,
+      headers: { "Content-Type": "multipart/form-data" },
+    });
   },
   createProgramFromAudio: (uploadedAudioUrl: string, sourceFileName?: string) =>
     api.post<ProgramParseTask>("/admin/programs/create-from-audio", { uploadedAudioUrl, sourceFileName }),
@@ -1055,13 +1350,42 @@ export const adminApi = {
     api.patch<AdminBookMetadata>(`/admin/books/metadata/${id}`, data),
   
   // 学习资料管理
-  getMaterials: (status?: string) => api.get<LearningMaterial[]>('/admin/learning-materials', { params: { status } }),
+  getMaterials: (params?: { status?: string; search?: string }) => api.get<LearningMaterial[]>('/admin/learning-materials', { params }),
   getMaterial: (id: string) => api.get<LearningMaterial>(`/admin/learning-materials/${id}`),
   createMaterial: (data: Partial<LearningMaterial>) => api.post<LearningMaterial>('/admin/learning-materials', data),
   updateMaterial: (id: string, data: Partial<LearningMaterial>) => api.put<LearningMaterial>(`/admin/learning-materials/${id}`, data),
   deleteMaterial: (id: string) => api.delete(`/admin/learning-materials/${id}`),
   updateMaterialStatus: (id: string, status: 'draft' | 'published') => 
     api.patch<LearningMaterial>(`/admin/learning-materials/${id}/status`, { status }),
+
+  getMamaResources: (params?: MamaResourceQuery) =>
+    api.get<MamaResourceListResponse>('/admin/mama-resources', { params }),
+  getMamaResource: (id: string) =>
+    api.get<{ profile: MamaResourceProfile }>(`/admin/mama-resources/${id}`),
+  updateMamaResource: (id: string, data: Partial<MamaResourceProfile>) =>
+    api.put<{ profile: MamaResourceProfile }>(`/admin/mama-resources/${id}`, data),
+  reviewMamaResource: (id: string, data: MamaResourceReviewInput) =>
+    api.patch<{ profile: MamaResourceProfile }>(`/admin/mama-resources/${id}/review`, data),
+  getMamaResourceTasks: () =>
+    api.get<{ tasks: MamaResourceTask[] }>('/admin/mama-resources/tasks'),
+  createMamaResourceTask: (data: MamaResourceTaskInput) =>
+    api.post<{ task: MamaResourceTask; assignments?: MamaResourceTaskAssignment[] }>('/admin/mama-resources/tasks', data),
+  getMamaResourceTaskCandidates: (id: string, params?: MamaResourceQuery & { riskTag?: string }) =>
+    api.get<{ items: MamaResourceTaskCandidate[] }>(`/admin/mama-resources/tasks/${id}/candidates`, { params }),
+  getMamaResourceTaskAssignments: (id: string) =>
+    api.get<{ assignments: MamaResourceTaskAssignment[] }>(`/admin/mama-resources/tasks/${id}/assignments`),
+  assignMamaResourceTaskProfiles: (id: string, profileIds: string[]) =>
+    api.post<{ assignments: MamaResourceTaskAssignment[] }>(`/admin/mama-resources/tasks/${id}/assignments`, { profileIds }),
+  reviewMamaResourceTaskAssignment: (id: string, data: { status: MamaResourceTaskAssignmentStatus; reviewNote?: string }) =>
+    api.patch<{ task: MamaResourceTaskAssignment; assignment: MamaResourceTaskAssignment }>(`/admin/mama-resources/tasks/assignments/${id}/review`, data),
+  getAdminWelfareCampaigns: () =>
+    api.get<{ items: WelfareCampaign[] }>('/admin/welfare'),
+  createWelfareCampaign: (data: WelfareCampaignInput) =>
+    api.post<{ campaign: WelfareCampaign }>('/admin/welfare', data),
+  updateWelfareCampaign: (id: string, data: WelfareCampaignInput) =>
+    api.put<{ campaign: WelfareCampaign }>(`/admin/welfare/${id}`, data),
+  getAdminWelfareClaims: (id: string) =>
+    api.get<{ claims: WelfareClaim[] }>(`/admin/welfare/${id}/claims`),
 
   getUsers: () => api.get<User[]>('/users'),
   getUserPortrait: (params?: { role?: string; city?: string; grade?: string }) =>

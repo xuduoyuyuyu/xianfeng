@@ -7,6 +7,17 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;family=JetBrains+Mono:wght@700&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/markmap-autoloader@0.17.0"></script>
+<script>
+  (function () {
+    var params = new URLSearchParams(window.location.search);
+    var miniProgramWebView = params.get("xf_mp") === "1" || params.has("xf_tab");
+    if (!miniProgramWebView) return;
+    document.documentElement.classList.add("xf-mp-webview");
+    if (params.has("xf_tab") && Number(params.get("xf_tab") || 0) === 0) {
+      document.documentElement.classList.add("xf-mp-tabbar-hidden");
+    }
+  })();
+</script>
 <style>
         :root {
             --flat-border: rgba(17, 10, 8, 0.1);
@@ -393,8 +404,14 @@
         }
 
         @media (max-width: 768px) {
+            html,
             body {
                 overflow-x: hidden;
+                background-color: #ffffff;
+            }
+            body::before,
+            body::after {
+                display: none;
             }
             .duotone-hero {
                 height: auto;
@@ -474,7 +491,7 @@
             }
             #floating-back-to-top-btn {
                 right: 20px;
-                bottom: calc(194px + env(safe-area-inset-bottom));
+                bottom: calc(96px + env(safe-area-inset-bottom));
                 width: 52px;
                 height: 52px;
                 border-radius: 9999px;
@@ -506,7 +523,7 @@
                 gap: 8px;
                 position: fixed;
                 right: 20px;
-                bottom: calc(128px + env(safe-area-inset-bottom));
+                bottom: calc(30px + env(safe-area-inset-bottom));
             }
             #mobile-player-quick-actions {
                 position: absolute;
@@ -573,6 +590,12 @@
             }
             #mobile-player-shell.is-open .capsule-player {
                 display: flex;
+            }
+            html.xf-mp-webview.xf-mp-tabbar-hidden #mobile-player-dock {
+                bottom: calc(20px + env(safe-area-inset-bottom));
+            }
+            html.xf-mp-webview.xf-mp-tabbar-hidden #floating-back-to-top-btn {
+                bottom: calc(86px + env(safe-area-inset-bottom));
             }
             #mobile-player-fab:hover {
                 background: #4f12cb;
@@ -956,6 +979,98 @@
   const LOCAL_DEV_HOST_RE = /^(localhost|127\.0\.0\.1|\[::1\])$/i;
   const audio = new Audio();
   audio.preload = "metadata";
+
+  function isEmbeddedInParentFrame() {
+    try {
+      return window.self !== window.top;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  function shouldSkipEmbeddedScrollBridge(target) {
+    if (!target || !target.closest) return false;
+    return Boolean(target.closest("#player-progress-track, button, a, input, textarea, select, audio, video"));
+  }
+
+  function postEmbeddedFrameHeight() {
+    if (!isEmbeddedInParentFrame() || !window.parent || !window.parent.postMessage) return;
+    var height = Math.max(
+      document.documentElement ? document.documentElement.scrollHeight : 0,
+      document.body ? document.body.scrollHeight : 0,
+      window.innerHeight || 0
+    );
+    if (!Number.isFinite(height) || height <= 0) return;
+    window.parent.postMessage({ type: "xianfeng:program-detail-height", height: height }, window.location.origin);
+  }
+
+  function scheduleEmbeddedFrameHeightPost() {
+    if (!isEmbeddedInParentFrame()) return;
+    requestAnimationFrame(postEmbeddedFrameHeight);
+    setTimeout(postEmbeddedFrameHeight, 120);
+    setTimeout(postEmbeddedFrameHeight, 360);
+    setTimeout(postEmbeddedFrameHeight, 1000);
+  }
+
+  function installEmbeddedFrameHeightSync() {
+    if (!isEmbeddedInParentFrame()) return;
+    scheduleEmbeddedFrameHeightPost();
+    window.addEventListener("load", scheduleEmbeddedFrameHeightPost);
+    window.addEventListener("resize", scheduleEmbeddedFrameHeightPost);
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(scheduleEmbeddedFrameHeightPost).catch(function() {});
+    }
+    if (window.ResizeObserver && document.body) {
+      var heightObserver = new ResizeObserver(scheduleEmbeddedFrameHeightPost);
+      heightObserver.observe(document.body);
+    }
+  }
+
+  function installEmbeddedFrameScrollBridge() {
+    if (!isEmbeddedInParentFrame()) return;
+    var lastTouchY = null;
+    var scrollByDelta = function(deltaY) {
+      if (!Number.isFinite(deltaY) || Math.abs(deltaY) < 1) return;
+      window.scrollBy({ top: deltaY, left: 0, behavior: "auto" });
+    };
+
+    window.addEventListener("wheel", function(event) {
+      if (!event || !Number.isFinite(event.deltaY)) return;
+      if (shouldSkipEmbeddedScrollBridge(event.target)) return;
+      scrollByDelta(event.deltaY);
+      if (event.cancelable) event.preventDefault();
+    }, { passive: false });
+
+    window.addEventListener("touchstart", function(event) {
+      if (!event.touches || event.touches.length !== 1 || shouldSkipEmbeddedScrollBridge(event.target)) {
+        lastTouchY = null;
+        return;
+      }
+      lastTouchY = event.touches[0].clientY;
+    }, { passive: true });
+
+    window.addEventListener("touchmove", function(event) {
+      if (!event.touches || event.touches.length !== 1 || lastTouchY === null || shouldSkipEmbeddedScrollBridge(event.target)) {
+        return;
+      }
+      var nextTouchY = event.touches[0].clientY;
+      var deltaY = lastTouchY - nextTouchY;
+      if (Math.abs(deltaY) < 2) return;
+      lastTouchY = nextTouchY;
+      scrollByDelta(deltaY);
+      if (event.cancelable) event.preventDefault();
+    }, { passive: false });
+
+    window.addEventListener("touchend", function() {
+      lastTouchY = null;
+    }, { passive: true });
+    window.addEventListener("touchcancel", function() {
+      lastTouchY = null;
+    }, { passive: true });
+  }
+
+  installEmbeddedFrameHeightSync();
+  installEmbeddedFrameScrollBridge();
 
   function normalizeGuestAvatar(url) {
     var clean = String(url || "").trim();

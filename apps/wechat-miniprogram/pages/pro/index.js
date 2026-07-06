@@ -1,12 +1,472 @@
-const { WEB_ROUTES } = require("../../utils/config");
-const { webUrl } = require("../../utils/webview");
+const { request } = require("../../utils/request");
+const { getNativeTopbarMetrics } = require("../../utils/nativeChrome");
+const { createPageShare, enableShareMenu } = require("../../utils/share");
+const { goProgramsHome: navigateProgramsHome } = require("../../utils/nativePageNav");
+const { SETTINGS_SECTIONS, createNativeSettingsMethods } = require("../../utils/nativeSettings");
+
+const SHARE_OPTIONS = {
+  title: "家长先疯 Pro",
+  path: "/pages/pro/index"
+};
+
+const LOGO_HEIGHT_RPX = 56;
+const PAYMENT_CONFIRMATION_POLL_DELAYS_MS = [0, 800, 1500, 2500, 4000];
+
+const FALLBACK_PLANS = {
+  free: {
+    id: "free",
+    name: "Free",
+    amountYuan: "0.00",
+    description: "免费账户每天登录可获取10点，每月上限30点",
+    pointsPerCycle: 10
+  },
+  plus: {
+    id: "plus",
+    name: "Plus",
+    amountYuan: "19.90",
+    description: "Plus 兑换 200 点，用完可继续补充。",
+    pointsPerCycle: 200
+  },
+  pro: {
+    id: "pro",
+    name: "Pro",
+    amountYuan: "99.00",
+    description: "Pro 兑换 1,200 点，适合长期使用。",
+    pointsPerCycle: 1200
+  }
+};
+
+const FALLBACK_USAGE_POLICY = [
+  { featureKey: "xiaowanzi", name: "小玩子对话", cost: 2, description: "每发送 1 次小玩子 AI 对话扣 2 点。" },
+  { featureKey: "ai_chat", name: "兼容 AI 聊天", cost: 1, description: "每次通用 AI 聊天请求扣 1 点。" },
+  { featureKey: "guest_agent", name: "嘉宾 AI 分身", cost: 3, description: "每向嘉宾 AI 分身提问 1 次扣 3 点。" },
+  { featureKey: "topic_submit", name: "请教一下", cost: 5, description: "每次生成或提交深度话题扣 5 点。" },
+  { featureKey: "worthbuy_analysis", name: "知物新分析", cost: 5, description: "每次发起新的商品/品牌 AI 分析扣 5 点。" }
+];
+
+function formatYuan(value, fallback) {
+  const source = String(value || fallback || "").trim();
+  if (!source) return "";
+  return source.replace(/\.00$/, "").replace(/(\.\d)0$/, "$1");
+}
+
+function formatPoints(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "0";
+  if (Number.isInteger(numeric)) return String(numeric);
+  return numeric.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+function formatDate(value) {
+  if (!value) return "未开通";
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return "未开通";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  return `${year}/${month}/${day} ${hour}:${minute}`;
+}
+
+function planLabel(planId) {
+  const normalized = normalizePlanId(planId);
+  if (normalized === "plus") return "Plus";
+  if (normalized === "pro") return "Pro";
+  return "Free";
+}
+
+function normalizePlanId(planId) {
+  if (planId === "plus" || planId === "monthly") return "plus";
+  if (planId === "pro" || planId === "yearly") return "pro";
+  return "free";
+}
+
+function normalizePlan(plan, id) {
+  const fallback = FALLBACK_PLANS[id] || FALLBACK_PLANS.free;
+  const item = plan || {};
+  return {
+    id,
+    name: item.name || fallback.name,
+    amountYuan: formatYuan(item.amountYuan, fallback.amountYuan),
+    description: item.description || fallback.description,
+    pointsPerCycle: Number.isFinite(Number(item.pointsPerCycle)) ? Number(item.pointsPerCycle) : fallback.pointsPerCycle,
+    pointsText: formatPoints(Number.isFinite(Number(item.pointsPerCycle)) ? Number(item.pointsPerCycle) : fallback.pointsPerCycle)
+  };
+}
+
+function buildPlanCards(plans, selectedPlan) {
+  const normalizedSelectedPlan = normalizePlanId(selectedPlan);
+  return ["free", "plus", "pro"].map((id) => {
+    const plan = normalizePlan(plans && plans[id], id);
+    const paid = id === "plus" || id === "pro";
+    return {
+      ...plan,
+      paid,
+      selected: paid && normalizedSelectedPlan === id,
+      recommended: id === "pro"
+    };
+  });
+}
+
+function selectedPaidPlanId(state) {
+  const selectedCard = (state.planCards || []).find((item) => item && item.paid && item.selected);
+  const cardPlan = normalizePlanId(selectedCard && selectedCard.id);
+  if (cardPlan === "plus" || cardPlan === "pro") return cardPlan;
+  const dataPlan = normalizePlanId(state.selectedPlan);
+  if (dataPlan === "plus" || dataPlan === "pro") return dataPlan;
+  return "";
+}
+
+function normalizeUsagePolicy(items) {
+  const source = Array.isArray(items) && items.length ? items : FALLBACK_USAGE_POLICY;
+  return source.map((item) => ({
+    featureKey: String(item.featureKey || item.name || ""),
+    name: String(item.name || ""),
+    costText: `${formatPoints(item.cost)} 点/次`,
+    description: String(item.description || "")
+  })).filter((item) => item.name);
+}
+
+function statusLabel(membership) {
+  if (membership && membership.isProActive) return `${membershipBadgeLabel(membership)} 会员`;
+  if (membership && membership.proStatus === "refunded") return "已退款，订阅已关闭";
+  return "未开通订阅";
+}
+
+function membershipBadgeLabel(membership) {
+  if (!membership || !membership.isProActive) return "";
+  const normalized = normalizePlanId(membership.membershipTier || membership.proPlan);
+  if (normalized === "plus") return "Plus";
+  if (normalized === "pro") return "Pro";
+  return "";
+}
+
+function buildStatusRows(membership) {
+  const activePlan = membership && membership.isProActive ? planLabel(membership.proPlan) : "Free";
+  return [
+    { label: "套餐", value: activePlan },
+    { label: "到期", value: formatDate(membership && membership.proExpiresAt) },
+    { label: "退款方式", value: membership && membership.isProActive ? "按未使用点数折算" : "未开通" }
+  ];
+}
+
+function requestWechatPayment(paymentParams) {
+  const params = paymentParams || {};
+  const packageValue = String(params.package || "");
+  if (!params.timeStamp || !params.nonceStr || !packageValue || !params.paySign) {
+    return Promise.reject(new Error("微信支付参数缺失，请稍后重试"));
+  }
+  if (typeof wx.requestPayment !== "function") {
+    return Promise.reject(new Error("当前环境不支持微信支付"));
+  }
+  return new Promise((resolve, reject) => {
+    wx.requestPayment({
+      timeStamp: String(params.timeStamp),
+      nonceStr: String(params.nonceStr),
+      package: packageValue,
+      signType: String(params.signType || "RSA"),
+      paySign: String(params.paySign),
+      success: resolve,
+      fail(error) {
+        reject(error);
+      }
+    });
+  });
+}
+
+function paymentErrorMessage(error) {
+  const raw = String(error && (error.message || error.errMsg) || "");
+  if (/cancel/i.test(raw)) return "已取消微信支付";
+  const url = String(error && error.url || "").trim();
+  if (url) return `${raw || "请求失败"}（${url}）`;
+  return raw || "微信支付未完成，请稍后重试";
+}
+
+function confirmRefundRequest() {
+  if (!wx.showModal) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    wx.showModal({
+      title: "申请退款",
+      content: "退款金额会按未使用点数折算，已使用点数对应费用不退；退款成功后会员权益和高级 AI 调用将立即关闭。",
+      confirmText: "申请退款",
+      confirmColor: "#b45309",
+      cancelText: "再想想",
+      success(result) {
+        resolve(!!result.confirm);
+      },
+      fail() {
+        resolve(false);
+      }
+    });
+  });
+}
 
 Page({
   data: {
-    src: ""
+    settingsSections: SETTINGS_SECTIONS,
+    topbarHeight: 88,
+    chromeHeight: 88,
+    profilePanelTop: 30,
+    profileHeaderHeight: 32,
+    logoTop: 10,
+    logoHeight: 28,
+    welfareRight: 101,
+    backTop: 8,
+    backSize: 32,
+    settingsPanelOpen: false,
+    settingsPanelView: "menu",
+    settingsProfilePanelSupported: true,
+    launchedFromSettings: false,
+    accountTitle: "登录/注册",
+    accountSubtitle: "登录后同步档案和个性化推荐",
+    accountPage: "",
+    loading: true,
+    ordering: false,
+    refunding: false,
+    selectedPlan: "pro",
+    plans: FALLBACK_PLANS,
+    planCards: buildPlanCards(FALLBACK_PLANS, "pro"),
+    usagePolicy: normalizeUsagePolicy(FALLBACK_USAGE_POLICY),
+    membership: null,
+    latestOrder: null,
+    latestRefundableOrder: null,
+    pointsText: "-",
+    memberBadgeLabel: "",
+    statusLabel: "未开通订阅",
+    statusRows: buildStatusRows(null),
+    message: ""
+  },
+
+  onLoad(options = {}) {
+    enableShareMenu();
+    this._billingLoaded = false;
+    this.setData({ launchedFromSettings: String(options.from || "") === "settings" });
+    this.syncTopbarMetrics();
+    this.syncAccountEntry();
+    return this.loadBilling().then((result) => {
+      this._billingLoaded = true;
+      return result;
+    });
   },
 
   onShow() {
-    this.setData({ src: webUrl(WEB_ROUTES.pro) });
+    enableShareMenu();
+    this.syncTopbarMetrics();
+    this.syncAccountEntry();
+    if (this._billingLoaded) {
+      return this.refreshBillingMembership().catch(() => null);
+    }
+    return undefined;
+  },
+
+  syncTopbarMetrics() {
+    try {
+      const metrics = getNativeTopbarMetrics();
+      const topbarHeight = Math.max(72, Math.round(metrics.topbarHeight || 88));
+      const windowWidth = Math.max(320, Number(metrics.windowWidth || 375));
+      const logoHeight = Math.round((LOGO_HEIGHT_RPX * windowWidth) / 750);
+      const capsuleHeight = Math.max(28, Math.round(metrics.capsuleHeight || 32));
+      const searchButtonTop = Math.max(8, Math.round(metrics.searchButtonTop || 8));
+      const backSize = Math.max(32, Math.round(capsuleHeight));
+      const welfareRight = Math.max(72, Math.round(metrics.capsuleRight || 96) + 5);
+      this.setData({
+        topbarHeight,
+        chromeHeight: topbarHeight,
+        profilePanelTop: searchButtonTop,
+        profileHeaderHeight: capsuleHeight,
+        logoHeight,
+        logoTop: Math.max(0, Math.round(searchButtonTop + capsuleHeight / 2 - logoHeight / 2)),
+        backTop: Math.max(0, Math.round(searchButtonTop + capsuleHeight / 2 - backSize / 2)),
+        backSize,
+        welfareRight
+      });
+    } catch (_error) {}
+  },
+
+  goProgramsHome() {
+    navigateProgramsHome();
+  },
+
+  goBack() {
+    wx.navigateBack({ delta: 1 });
+  },
+
+  ...createNativeSettingsMethods(),
+
+  loadBilling() {
+    this.setData({ loading: true, message: "" });
+    return request({ url: "/api/billing/plans" })
+      .then((plansResponse) => {
+        const plans = plansResponse && plansResponse.plans ? plansResponse.plans : FALLBACK_PLANS;
+        const usagePolicy = normalizeUsagePolicy(plansResponse && plansResponse.usagePolicy);
+        this.setData({
+          plans,
+          planCards: buildPlanCards(plans, this.data.selectedPlan),
+          usagePolicy
+        });
+        return request({ url: "/api/billing/me" }).catch(() => null);
+      })
+      .then((meResponse) => {
+        this.applyBillingResponse(meResponse);
+        this.setData({ loading: false });
+        return meResponse;
+      })
+      .catch((error) => {
+        this.setData({
+          planCards: buildPlanCards(FALLBACK_PLANS, this.data.selectedPlan),
+          usagePolicy: normalizeUsagePolicy(FALLBACK_USAGE_POLICY),
+          loading: false,
+          message: error && error.message ? error.message : "订阅信息加载失败，请稍后重试"
+        });
+      });
+  },
+
+  applyBillingResponse(meResponse) {
+    const membership = meResponse && meResponse.membership ? meResponse.membership : null;
+    this.setData({
+      membership,
+      latestOrder: meResponse && meResponse.latestOrder ? meResponse.latestOrder : null,
+      latestRefundableOrder: meResponse && meResponse.latestRefundableOrder ? meResponse.latestRefundableOrder : null,
+      pointsText: membership && typeof membership.proPointBalance === "number" ? `${formatPoints(membership.proPointBalance)} 点` : "-",
+      memberBadgeLabel: membershipBadgeLabel(membership),
+      statusLabel: statusLabel(membership),
+      statusRows: buildStatusRows(membership)
+    });
+  },
+
+  refreshBillingMembership() {
+    return request({ url: "/api/billing/me" }).then((meResponse) => {
+      this.applyBillingResponse(meResponse);
+      return meResponse;
+    });
+  },
+
+  waitForWechatPaymentConfirmation(attempt = 0) {
+    return this.refreshBillingMembership()
+      .then((meResponse) => {
+        const membership = meResponse && meResponse.membership ? meResponse.membership : null;
+        const latestOrder = meResponse && meResponse.latestOrder ? meResponse.latestOrder : null;
+        if (membership && membership.isProActive && latestOrder && latestOrder.status === "paid") {
+          return meResponse;
+        }
+        if (attempt >= PAYMENT_CONFIRMATION_POLL_DELAYS_MS.length - 1) {
+          return meResponse;
+        }
+        this.setData({ message: "支付已完成，正在确认订阅权益..." });
+        return new Promise((resolve) => {
+          setTimeout(resolve, PAYMENT_CONFIRMATION_POLL_DELAYS_MS[attempt + 1]);
+        }).then(() => this.waitForWechatPaymentConfirmation(attempt + 1));
+      });
+  },
+
+  selectPlan(event) {
+    const plan = normalizePlanId(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.plan);
+    if (plan !== "plus" && plan !== "pro") return;
+    this.setData({
+      selectedPlan: plan,
+      planCards: buildPlanCards(this.data.plans, plan)
+    });
+  },
+
+  createOrder() {
+    if (this.data.ordering) return Promise.resolve();
+    const plan = selectedPaidPlanId(this.data);
+    if (!plan) {
+      this.setData({ message: "请选择 Plus 或 Pro 套餐" });
+      return Promise.resolve();
+    }
+    this.setData({ ordering: true, message: "" });
+    return request({
+      method: "POST",
+      url: "/api/billing/orders",
+      data: { plan, provider: "wechat", channel: "mini_program" }
+    })
+      .then((response) => {
+        const order = response && response.order ? response.order : null;
+        const checkout = response && response.checkout ? response.checkout : {};
+        if (checkout.mode === "mock" && checkout.mockPayUrl) {
+          return request({ method: "POST", url: checkout.mockPayUrl }).then((mockResponse) => {
+            const membership = mockResponse && mockResponse.membership ? mockResponse.membership : null;
+            this.setData({
+              membership,
+              latestOrder: mockResponse && mockResponse.order ? mockResponse.order : order,
+              pointsText: membership && typeof membership.proPointBalance === "number" ? `${formatPoints(membership.proPointBalance)} 点` : this.data.pointsText,
+              memberBadgeLabel: membershipBadgeLabel(membership),
+              statusLabel: statusLabel(membership),
+              statusRows: buildStatusRows(membership),
+              ordering: false,
+              message: "支付已完成，订阅权益已生效。"
+            });
+            return mockResponse;
+          });
+        }
+        if (checkout.mode === "wechat_jsapi") {
+          return requestWechatPayment(checkout.paymentParams)
+            .then(() => this.waitForWechatPaymentConfirmation())
+            .then((meResponse) => {
+              const membership = meResponse && meResponse.membership ? meResponse.membership : null;
+              this.setData({
+                ordering: false,
+                message: membership && membership.isProActive
+                  ? "支付已完成，订阅权益已生效。"
+                  : "支付已完成，正在等待微信确认订阅权益。"
+              });
+              return response;
+            });
+        }
+        this.setData({
+          latestOrder: order,
+          ordering: false,
+          message: checkout.message || "微信订单已创建，但当前小程序无法直接拉起支付。"
+        });
+        return response;
+      })
+      .catch((error) => {
+        this.setData({
+          ordering: false,
+          message: paymentErrorMessage(error)
+        });
+      });
+  },
+
+  requestRefund() {
+    if (this.data.refunding) return Promise.resolve();
+    const refundOrder = this.data.latestRefundableOrder || this.data.latestOrder;
+    const orderId = refundOrder && refundOrder.id;
+    if (!orderId) {
+      this.setData({ message: "没有可申请退款的订单" });
+      return Promise.resolve();
+    }
+    return confirmRefundRequest().then((confirmed) => {
+      if (!confirmed) return null;
+      this.setData({ refunding: true, message: "" });
+      return request({
+        method: "POST",
+        url: "/api/billing/refunds",
+        data: { orderId, reason: "按未使用点数折算退款" }
+      })
+        .then((response) => this.loadBilling().then(() => {
+          this.setData({
+            refunding: false,
+            message: "退款申请已提交，订阅状态已更新。"
+          });
+          return response;
+        }))
+        .catch((error) => {
+          this.setData({
+            refunding: false,
+            message: error && error.message ? error.message : "退款申请失败，请稍后重试"
+          });
+        });
+    });
+  },
+
+  onShareAppMessage() {
+    return createPageShare(SHARE_OPTIONS).onShareAppMessage();
+  },
+
+  onShareTimeline() {
+    return createPageShare(SHARE_OPTIONS).onShareTimeline();
   }
 });

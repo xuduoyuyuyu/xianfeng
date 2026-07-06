@@ -7,6 +7,7 @@ type StatusFilter = "all" | "published" | "draft" | "group-only";
 type ParseEditorTab = "quickview" | "transcript" | "mindmap";
 type FormState = {
   programCode: string;
+  programShow: "xianfeng" | "zhiji";
   title: string;
   description: string;
   coverImage: string;
@@ -74,6 +75,7 @@ type EditableGuestBinding = {
 
 const EMPTY_FORM: FormState = {
   programCode: "",
+  programShow: "xianfeng",
   title: "",
   description: "",
   coverImage: "",
@@ -108,6 +110,11 @@ const STATUS_COLOR: Record<Program["status"], string> = {
   draft: "bg-amber-50 text-amber-700",
   published: "bg-emerald-50 text-emerald-700",
   "group-only": "bg-orange-50 text-orange-700",
+};
+
+const PROGRAM_SHOW_LABEL: Record<NonNullable<Program["programShow"]>, string> = {
+  xianfeng: "家长先疯",
+  zhiji: "中年知己",
 };
 
 const UPLOAD_PROGRESS_START = 6;
@@ -630,6 +637,7 @@ function serializeTranscriptRows(rows: TranscriptEditorRow[]): string {
 function buildProgramPayload(form: FormState, guestBindings: Array<{ guestId: string; order: number; role: string }> = []) {
   return {
     programCode: form.programCode.trim(),
+    programShow: form.programShow,
     title: form.title,
     description: (form.description || "").slice(0, 120),
     coverImage: form.coverImage,
@@ -954,6 +962,7 @@ const AdminProgramsPage: React.FC = () => {
     setEditingProgram(program);
     setForm({
       programCode: program.programCode || "",
+      programShow: program.programShow || "xianfeng",
       title: program.title,
       description: program.description,
       coverImage: program.coverImage,
@@ -1008,6 +1017,7 @@ const AdminProgramsPage: React.FC = () => {
     setEditingProgram(program);
     setForm({
       programCode: program.programCode || "",
+      programShow: program.programShow || "xianfeng",
       title: program.title,
       description: program.description,
       coverImage: program.coverImage,
@@ -1776,14 +1786,14 @@ const AdminProgramsPage: React.FC = () => {
 
         <section className="pearl-card overflow-hidden rounded-[2.5rem] border-stone-200/60">
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            <table className="w-full min-w-[1280px] text-left">
               <thead className="bg-stone-50/50 text-[10px] font-bold tracking-[0.08em] text-[#8A847E]">
                 <tr>
                   <th className="min-w-[420px] px-10 py-5">资源名称与标识</th>
-                  <th className="px-10 py-5 text-center">关联标签</th>
-                  <th className="px-10 py-5 text-center">当前状态</th>
-                  <th className="px-10 py-5 text-center">上传日期</th>
-                  <th className="min-w-[460px] px-10 py-5 text-center">操作</th>
+                  <th className="w-[230px] min-w-[230px] px-6 py-5 text-center">关联标签</th>
+                  <th className="w-[150px] min-w-[150px] px-6 py-5 text-center">当前状态</th>
+                  <th className="w-[150px] min-w-[150px] px-6 py-5 text-center">上传日期</th>
+                  <th className="w-[340px] min-w-[340px] px-6 py-5 text-center">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[rgba(148,163,184,0.16)]">
@@ -1857,25 +1867,28 @@ const AdminProgramsPage: React.FC = () => {
                                     <div className="text-[11px] font-medium tracking-[0.08em] text-[#7A746E] whitespace-nowrap">
                                       编号: {(row.programCode || row._id.slice(-8)).toUpperCase()}
                                     </div>
+                                    <span className="rounded-full bg-[#f7f3ff] px-2.5 py-0.5 text-[10px] font-bold text-[#5e17eb]">
+                                      {PROGRAM_SHOW_LABEL[row.programShow || "xianfeng"]}
+                                    </span>
                                   </div>
                                   <div className="text-[15px] font-bold leading-[1.25] text-stone-900">{row.title}</div>
                                 </div>
                               </div>
                             </td>
-                            <td className="px-10 py-6 text-center">
-                              <div className="flex items-center justify-center gap-0">
+                            <td className="w-[230px] min-w-[230px] px-6 py-6 text-center">
+                              <div className="inline-flex max-w-full items-center justify-center gap-2 whitespace-nowrap">
                                 <span
-                                  className={`inline-flex h-7 min-w-9 items-center justify-center rounded-full px-3 text-[10px] font-bold ${STATUS_COLOR[row.status] || STATUS_COLOR.draft}`}
+                                  className={`inline-flex h-7 shrink-0 items-center justify-center whitespace-nowrap rounded-full px-3 text-[10px] font-bold ${STATUS_COLOR[row.status] || STATUS_COLOR.draft}`}
                                 >
                                   {STATUS_LABEL[row.status] || row.status}
                                 </span>
-                                <div className="-ml-px text-xs text-stone-500 whitespace-nowrap">
+                                <div className="shrink-0 text-xs text-stone-500 whitespace-nowrap">
                                   {(row.dictionaryEntries || []).length > 0 ? (
-                                    <span className="inline-flex items-center rounded-full bg-[#f7f3ff] px-3 py-1 text-[11px] font-semibold text-[#5e17eb]">
+                                    <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[#f7f3ff] px-3 py-1 text-[11px] font-semibold text-[#5e17eb]">
                                       {(row.dictionaryEntries || []).length} 个词条
                                     </span>
                                   ) : (
-                                    <span className="text-[11px] text-stone-400">待导入词条</span>
+                                    <span className="shrink-0 whitespace-nowrap text-[11px] text-stone-400">待导入词条</span>
                                   )}
                                 </div>
                               </div>
@@ -1997,6 +2010,17 @@ const AdminProgramsPage: React.FC = () => {
             <form className="grid grid-cols-1 gap-4 md:grid-cols-2" onSubmit={handleSave}>
               <input className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-input" placeholder="节目标题" required value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} />
               <input className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-input" placeholder="节目编号（如 ep1）" required value={form.programCode} onChange={(event) => setForm((prev) => ({ ...prev, programCode: event.target.value.toLowerCase().replace(/\s+/g, "") }))} />
+              <label className="flex flex-col gap-2 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm md:col-span-2">
+                <span className="text-[11px] font-black uppercase tracking-widest text-[#7A746E]">分类节目</span>
+                <select
+                  className="bg-transparent text-sm font-bold text-stone-800 outline-none admin-form-select"
+                  value={form.programShow}
+                  onChange={(event) => setForm((prev) => ({ ...prev, programShow: event.target.value as "xianfeng" | "zhiji" }))}
+                >
+                  <option value="xianfeng">家长先疯</option>
+                  <option value="zhiji">中年知己</option>
+                </select>
+              </label>
               <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm md:col-span-2">
                 <input className="w-full bg-transparent text-sm outline-none admin-form-input" placeholder="封面图片 URL" required value={form.coverImage} onChange={(event) => setForm((prev) => ({ ...prev, coverImage: event.target.value }))} />
                 <div className="mt-2 flex items-center justify-between">

@@ -20,10 +20,26 @@ test("member center is hidden behind the Pro billing feature flag", () => {
   );
 });
 
+test("active Plus and Pro users show a logo membership badge", () => {
+  assert.match(source, /function membershipBadgeLabel\(user:any\): string/);
+  assert.match(source, /tier==="plus"\|\|tier==="monthly"\)return "Plus"/);
+  assert.match(source, /tier==="pro"\|\|tier==="yearly"\)return "Pro"/);
+  assert.match(source, /const memberBadge = user&&token \? membershipBadgeLabel\(user\) : ""/);
+  assert.match(source, /<span className="tb-logo-badge">\{memberBadge\}<\/span>/);
+});
+
 test("mobile hamburger menu stays a right-side partial drawer", () => {
   assert.match(source, /@media\(max-width:768px\)[\s\S]*\.panel\{width:min\(360px,88vw\)/, "mobile drawer should stop before the left edge");
   assert.match(source, /@media\(max-width:768px\)[\s\S]*\.panel\.menu\{width:min\(360px,88vw\)/, "mobile menu panel should remain a partial drawer");
   assert.doesNotMatch(source, /@media\(max-width:768px\)[\s\S]*\.panel\{width:100vw/, "mobile drawer must not become full screen");
+});
+
+test("mobile account panels can open directly from mini program web-view params", () => {
+  assert.match(source, /function panelFromParam\(value:string\|null\): Exclude<PanelMode,null>\|null/);
+  assert.match(source, /if \(panel === "archive"\) return "children";/);
+  assert.match(source, /useState<PanelMode>\(\(\)=>typeof window==="undefined"\?null:panelFromParam\(new URLSearchParams\(window\.location\.search\)\.get\("xf_panel"\)\)\)/);
+  assert.match(source, /new URLSearchParams\(search\)\.get\("xf_panel"\)/);
+  assert.match(source, /setPanel\(next\)/);
 });
 
 test("mobile menu cards keep natural height and let the panel scroll", () => {
@@ -32,6 +48,29 @@ test("mobile menu cards keep natural height and let the panel scroll", () => {
     /\.panel\.menu>\.card,\.panel\.menu>\.account\{flex:0 0 auto\}/,
     "menu cards must not shrink and clip rows inside the mobile drawer"
   );
+});
+
+test("public menu shows Xiaowanzi treasure box between Worthbuy and Mama Haozhuan", () => {
+  assert.match(
+    source,
+    /to="\/worthbuy" active=\{activeWorthBuy\} icon="verified" label="知物"[\s\S]*to="\/welfare" active=\{activeWelfare\} image="\/assets\/welfare-gift-icon\.png" label="小玩子百宝箱"[\s\S]*to="\/mama-resources\/apply" active=\{activeMamaHaozhuan\} image="\/assets\/mama-hao-zhuan-icon\.png" label="妈妈好赚"/,
+    "小玩子百宝箱 should use the gift asset and sit between 知物 and 妈妈好赚 in the public menu"
+  );
+});
+
+test("mobile menu icons keep the online reading drawer icon set", () => {
+  assert.match(source, /to="\/pro" icon="workspace_premium" label="订阅计划"/, "subscription menu entry should use the online workspace premium icon");
+  assert.match(source, /<span className="material-symbols-outlined ms">badge<\/span><span>档案管理<\/span>/, "archive menu entry should use the online badge icon");
+  assert.match(source, /to="\/experts"[\s\S]*icon="person" label="先疯智库"/, "expert menu entry should use the online person icon");
+  assert.match(source, /to="\/planning" icon="route" label="教育规划"/, "planning menu entry should use the online route icon");
+  assert.match(source, /to="\/topics" emoji="🙏🏻" label="请教一下"/, "topics menu entry should keep the online folded-hands icon");
+  assert.match(source, /<span className="material-symbols-outlined ms">psychology<\/span><span>记忆<\/span>/, "memory menu entry should use the online psychology icon");
+  assert.match(source, /<span className="material-symbols-outlined ms">settings<\/span><span>设置<\/span>/, "settings menu entry should use the online gear icon");
+  assert.doesNotMatch(source, /iconClassName=/, "menu icons should not add custom color classes over the online icon set");
+  assert.doesNotMatch(source, /business_center|front_hand|check_box|icon-subscribe|icon-archive|icon-worthbuy/, "menu should not keep the replaced icon guesses");
+  assert.doesNotMatch(source, /to="\/worthbuy" emoji=/, "worthbuy menu entry should not use the emoji icon");
+  assert.doesNotMatch(source, /to="\/welfare" emoji=/, "Xiaowanzi treasure box menu entry should not use the emoji icon");
+  assert.doesNotMatch(source, /to="\/mama-resources\/apply" emoji=/, "Mama Haozhuan menu entry should not use the emoji icon");
 });
 
 test("right drawer uses shared sidebar entrance timing", () => {
@@ -52,13 +91,31 @@ test("logged-out mobile menu still shows subscription and archive entries", () =
 test("mobile tab bar is mounted outside the fixed top nav so it stays viewport-bottom while scrolling", () => {
   assert.match(
     source,
-    /<\/nav>\{compactMobile&&<MobileTab\/>\}\{panelOverlay\}/,
+    /<\/nav>\{compactMobile&&!suppressMobileTab&&<MobileTab\/>\}\{panelOverlay\}/,
     "mobile bottom tab bar should be a sibling of the top fixed nav, not a nested fixed child"
   );
   assert.doesNotMatch(
     source,
-    /\{compactMobile&&<MobileTab\/>\}<\/nav>/,
+    /\{compactMobile&&!suppressMobileTab&&<MobileTab\/>\}<\/nav>/,
     "mobile bottom tab bar must not be rendered inside the fixed top nav"
+  );
+});
+
+test("planning page suppresses the mobile bottom tab even if mini program detection is unavailable", () => {
+  assert.match(
+    source,
+    /const suppressMobileTab=activePlanning\|\|miniProgramWebView/,
+    "planning should opt out of the mobile bottom tab independently from mini-program query detection"
+  );
+  assert.match(
+    source,
+    /document\.body\.classList\.toggle\("xf-mobile-tab-enabled",compactMobile&&!embeddedLayer&&!headless&&!suppressMobileTab\)/,
+    "planning should not reserve body padding for the mobile bottom tab"
+  );
+  assert.match(
+    source,
+    /\{compactMobile&&!suppressMobileTab&&<MobileTab\/>\}/,
+    "planning should not mount the mobile bottom tab"
   );
 });
 
@@ -97,7 +154,7 @@ test("mobile Xiaowanzi tab avatar uses the existing optimized image asset", () =
 test("mobile navigation images are preloaded and decoded before route transitions repaint", () => {
   assert.match(
     source,
-    /const LOGGED_OUT_XIAOWANZI_AVATAR = "\/assets\/xiaowanzi-nohat\.png";[\s\S]*const PUBLIC_NAV_IMAGE_ASSETS = \["\/assets\/logo\.png", "\/assets\/jiyue-logo\.png", DEFAULT_CHILD_AVATAR, LOGGED_OUT_XIAOWANZI_AVATAR\] as const;/,
+    /const LOGGED_OUT_XIAOWANZI_AVATAR = "\/assets\/wel-avatar\/no-hat\.png";[\s\S]*const PUBLIC_NAV_IMAGE_ASSETS = \["\/assets\/logo\.png", "\/assets\/jiyue-logo\.png", "\/assets\/welfare-gift-icon\.png", "\/assets\/mama-hao-zhuan-icon\.png", DEFAULT_CHILD_AVATAR, LOGGED_OUT_XIAOWANZI_AVATAR\] as const;/,
     "public nav should preload the logged-out Xiaowanzi avatar together with its static chrome images"
   );
   assert.match(

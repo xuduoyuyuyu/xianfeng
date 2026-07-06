@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>上哪学 x 房外房联合入口</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #f6f1ee;
+      color: #241817;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .page {
+      width: 390px;
+      min-height: 100vh;
+      margin: 0 auto;
+      background: linear-gradient(180deg, #fd3d43 0%, #f24649 34%, #fff4ee 34%, #fff4ee 100%);
+      overflow: hidden;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: relative;
+      height: 52px;
+      padding: 0 18px;
+      color: #fff;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .back {
+      width: 28px;
+      height: 28px;
+      border: 0;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .2);
+      color: #fff;
+      font-size: 20px;
+      line-height: 28px;
+    }
+
+    .topbar-title {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    .top-logo-badge {
+      position: absolute;
+      right: 12px;
+      top: 11px;
+      width: 112px;
+      height: 30px;
+      padding: 5px 7px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .top-logo {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .hero {
+      padding: 18px 22px 28px;
+      color: #fff;
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: 31px;
+      line-height: 1.12;
+      letter-spacing: 0;
+    }
+
+    .hero p {
+      margin: 12px 0 0;
+      font-size: 15px;
+      line-height: 1.6;
+      opacity: .92;
+    }
+
+    .form-card {
+      margin: -12px 14px 0;
+      padding: 20px 18px 18px;
+      border-radius: 20px;
+      background: #fff;
+      box-shadow: 0 18px 38px rgba(135, 42, 35, .18);
+    }
+
+    .form-title {
+      margin: 0 0 16px;
+      font-size: 20px;
+      line-height: 1.35;
+      color: #2d1d1c;
+      text-align: center;
+    }
+
+    .field {
+      display: block;
+      margin-bottom: 13px;
+    }
+
+    .field span {
+      display: block;
+      margin-bottom: 7px;
+      color: #7e5b56;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .input,
+    .select {
+      width: 100%;
+      min-height: 46px;
+      border: 1px solid #f1d7d1;
+      border-radius: 12px;
+      background: #fffaf8;
+      color: #2b1d1b;
+      font-size: 15px;
+      padding: 12px 14px;
+    }
+
+    .select {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .select::after {
+      content: ">";
+      color: #c87065;
+      font-weight: 800;
+      transform: rotate(90deg);
+    }
+
+    .chips {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .chip {
+      min-height: 38px;
+      border: 1px solid #f1d7d1;
+      border-radius: 999px;
+      background: #fffaf8;
+      color: #7a4f49;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .chip.active {
+      border-color: #ff4b51;
+      background: #fff0f0;
+      color: #f03942;
+    }
+
+    .budget-note {
+      margin-top: 8px;
+      color: #bf625b;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .auth {
+      margin: 14px 0 15px;
+      color: #8a706c;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .auth label {
+      display: flex;
+      align-items: flex-start;
+      gap: 7px;
+    }
+
+    .auth input {
+      width: 14px;
+      height: 14px;
+      margin-top: 2px;
+      accent-color: #ff3c44;
+    }
+
+    .auth-team {
+      margin: 6px 0 0 21px;
+      color: #6f5450;
+    }
+
+    .submit {
+      width: 100%;
+      height: 48px;
+      border: 0;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #ff2e3d, #ff6b4c);
+      color: #fff;
+      font-size: 17px;
+      font-weight: 800;
+      box-shadow: 0 10px 22px rgba(255, 65, 68, .28);
+    }
+
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="topbar">
+      <button class="back" aria-label="返回">‹</button>
+      <div class="topbar-title">升学规划</div>
+      <div class="top-logo-badge" aria-label="上哪学与房外房联合入口">
+        <img class="top-logo" src="../assets/fangwaifang-joint-logo.png" alt="上哪学与房外房联合 logo">
+      </div>
+    </header>
+
+    <section class="hero">
+      <h1>报名获取<br>学区房升学规划</h1>
+      <p>快速填写信息，由专业学区房咨询师为您匹配学校、片区与购房预算建议。</p>
+    </section>
+
+    <section class="form-card" aria-label="联合入口报名表">
+      <h2 class="form-title">留下信息，顾问为你定制方案</h2>
+
+      <label class="field">
+        <span>手机号</span>
+        <input class="input" type="tel" placeholder="请输入手机号">
+      </label>
+
+      <label class="field">
+        <span>在读年级</span>
+        <div class="select">未出生</div>
+      </label>
+
+      <label class="field">
+        <span>意向区域</span>
+        <div class="select">请选择关注区域</div>
+      </label>
+
+      <div class="field">
+        <span>购房预算</span>
+        <div class="chips" role="group" aria-label="购房预算">
+          <button class="chip">300万以内</button>
+          <button class="chip active">300-500万</button>
+          <button class="chip">500-800万</button>
+          <button class="chip">800万以上</button>
+        </div>
+        <p class="budget-note">根据预算匹配可关注学区房与升学路径。</p>
+      </div>
+
+      <div class="auth">
+        <label>
+          <input type="checkbox" checked>
+          <span>我已阅读并同意授权信息及隐私保护说明。</span>
+        </label>
+        <p class="auth-team">同意上哪学与房外房团队为提供服务使用以上资料</p>
+      </div>
+
+      <button class="submit">立即获取规划方案</button>
+    </section>
+  </main>
+</body>
+</html>

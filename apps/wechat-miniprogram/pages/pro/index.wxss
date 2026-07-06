@@ -1,3 +1,462 @@
+@import "../../styles/native-list.wxss";
+
 page {
-  height: 100vh;
+  background: #f6f7fb;
+  color: #0f172a;
+}
+
+.xf-pro-page {
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding-bottom: 180rpx;
+  background-color: #f6f7fb;
+}
+
+.xf-pro-main {
+  display: flex;
+  flex-direction: column;
+  gap: 22rpx;
+  box-sizing: border-box;
+  padding: 22rpx 24rpx 200rpx;
+}
+
+.xf-pro-main.is-complete {
+  padding-bottom: 200rpx;
+}
+
+.xf-pro-primary-card,
+.xf-pro-status-card,
+.xf-pro-policy-card {
+  box-sizing: border-box;
+  border: 2rpx solid #e2e8f0;
+  border-radius: 28rpx;
+  background: #ffffff;
+  box-shadow: 0 18rpx 54rpx rgba(15, 23, 42, 0.055);
+}
+
+.xf-pro-primary-card {
+  padding: 28rpx 24rpx;
+}
+
+.xf-pro-status-card,
+.xf-pro-policy-card {
+  padding: 26rpx;
+}
+
+.xf-pro-eyebrow {
+  display: inline-flex;
+  width: fit-content;
+  padding: 8rpx 20rpx;
+  border-radius: 999rpx;
+  background: #6c27d6;
+  color: #ffffff;
+  font-size: 22rpx;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.xf-pro-title,
+.xf-pro-section-title,
+.xf-pro-points,
+.xf-pro-status-label,
+.xf-pro-plan-name,
+.xf-pro-policy-name {
+  display: block;
+  color: #0f172a;
+  font-weight: 900;
+}
+
+.xf-pro-title {
+  margin-top: 20rpx;
+  font-size: 42rpx;
+  line-height: 1.16;
+}
+
+.xf-pro-copy {
+  display: block;
+  margin-top: 12rpx;
+  color: #475569;
+  font-size: 25rpx;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.xf-pro-points-card,
+.xf-pro-status-block {
+  box-sizing: border-box;
+  margin-top: 22rpx;
+  padding: 22rpx;
+  border-radius: 26rpx;
+  background: #f8fafc;
+}
+
+.xf-pro-small-label {
+  display: block;
+  color: #64748b;
+  font-size: 23rpx;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.xf-pro-points {
+  margin-top: 8rpx;
+  font-size: 48rpx;
+  line-height: 1.1;
+}
+
+.xf-pro-points-note {
+  display: block;
+  margin-top: 10rpx;
+  color: #64748b;
+  font-size: 24rpx;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.xf-pro-complete-hero {
+  box-sizing: border-box;
+  padding: 28rpx;
+  border-radius: 28rpx;
+  background: #0b0f19;
+  color: #f8d375;
+}
+
+.xf-pro-complete-kicker,
+.xf-pro-complete-title,
+.xf-pro-complete-copy,
+.xf-pro-complete-plan {
+  display: block;
+}
+
+.xf-pro-complete-kicker {
+  width: fit-content;
+  padding: 8rpx 18rpx;
+  border-radius: 999rpx;
+  background: rgba(248, 211, 117, 0.14);
+  color: #f8d375;
+  font-size: 22rpx;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.xf-pro-complete-title {
+  margin-top: 24rpx;
+  color: #f8d375;
+  font-size: 42rpx;
+  font-weight: 900;
+  line-height: 1.18;
+}
+
+.xf-pro-complete-copy {
+  margin-top: 14rpx;
+  color: rgba(248, 211, 117, 0.82);
+  font-size: 25rpx;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.xf-pro-complete-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16rpx;
+  margin-top: 18rpx;
+}
+
+.xf-pro-complete-metric {
+  box-sizing: border-box;
+  min-height: 154rpx;
+  padding: 22rpx;
+  border-radius: 26rpx;
+  background: #f8fafc;
+}
+
+.xf-pro-complete-plan {
+  margin-top: 14rpx;
+  color: #0f172a;
+  font-size: 40rpx;
+  font-weight: 900;
+  line-height: 1.12;
+}
+
+.xf-pro-topup-section {
+  margin-top: 18rpx;
+  padding: 18rpx 20rpx;
+  border-radius: 24rpx;
+  background: #f8fafc;
+}
+
+.xf-pro-topup-title,
+.xf-pro-topup-copy {
+  display: block;
+}
+
+.xf-pro-topup-title {
+  color: #0f172a;
+  font-size: 28rpx;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.xf-pro-topup-copy {
+  margin-top: 8rpx;
+  color: #475569;
+  font-size: 24rpx;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.xf-pro-plan-list.is-topup {
+  margin-top: 16rpx;
+}
+
+.xf-pro-plan-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  margin-top: 22rpx;
+}
+
+.xf-pro-plan-card {
+  box-sizing: border-box;
+  min-height: 168rpx;
+  padding: 22rpx;
+  border: 2rpx solid #e2e8f0;
+  border-radius: 28rpx;
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.xf-pro-plan-card.is-selected {
+  border-color: #6c27d6;
+  background: #6c27d6;
+  color: #ffffff;
+}
+
+.xf-pro-plan-card.is-selected .xf-pro-plan-name,
+.xf-pro-plan-card.is-selected .xf-pro-plan-price {
+  color: #ffffff;
+}
+
+.xf-pro-plan-card.is-selected .xf-pro-plan-desc,
+.xf-pro-plan-card.is-selected .xf-pro-plan-points {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.xf-pro-plan-card.is-free {
+  opacity: 0.92;
+}
+
+.xf-pro-plan-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.xf-pro-plan-name {
+  font-size: 31rpx;
+  line-height: 1.2;
+}
+
+.xf-pro-recommend {
+  flex: 0 0 auto;
+  padding: 8rpx 16rpx;
+  border-radius: 999rpx;
+  background: #f8d375;
+  color: #0f172a;
+  font-size: 20rpx;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.xf-pro-plan-price {
+  display: block;
+  margin-top: 18rpx;
+  color: #0f172a;
+  font-size: 44rpx;
+  font-weight: 900;
+  line-height: 1.05;
+}
+
+.xf-pro-plan-desc,
+.xf-pro-plan-points,
+.xf-pro-policy-desc,
+.xf-pro-refund-note {
+  display: block;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.xf-pro-plan-desc {
+  margin-top: 12rpx;
+  font-size: 23rpx;
+  line-height: 1.45;
+}
+
+.xf-pro-plan-points {
+  margin-top: 10rpx;
+  font-size: 22rpx;
+}
+
+.xf-pro-pay-dock {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 60;
+  box-sizing: border-box;
+  padding: 18rpx 52rpx calc(18rpx + env(safe-area-inset-bottom));
+  background: rgba(246, 247, 251, 0.94);
+  box-shadow: 0 -18rpx 42rpx rgba(15, 23, 42, 0.08);
+}
+
+.xf-pro-pay-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 92rpx;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999rpx;
+  background: #6c27d6;
+  color: #ffffff;
+  font-size: 28rpx;
+  font-weight: 900;
+  line-height: 92rpx;
+}
+
+.xf-pro-pay-button::after {
+  border: 0;
+}
+
+.xf-pro-pay-button[disabled] {
+  background: #cbd5e1;
+  color: #ffffff;
+}
+
+.xf-pro-message {
+  margin-top: 22rpx;
+  padding: 22rpx;
+  border-radius: 24rpx;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 25rpx;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.xf-pro-section-title {
+  font-size: 32rpx;
+  line-height: 1.2;
+}
+
+.xf-pro-policy-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+  margin-top: 20rpx;
+}
+
+.xf-pro-policy-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 18rpx;
+  box-sizing: border-box;
+  min-height: 104rpx;
+  padding: 18rpx 20rpx;
+  border-radius: 24rpx;
+  background: #f8fafc;
+}
+
+.xf-pro-policy-name {
+  font-size: 26rpx;
+}
+
+.xf-pro-policy-desc {
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  line-height: 1.45;
+}
+
+.xf-pro-policy-cost {
+  padding: 8rpx 16rpx;
+  border-radius: 999rpx;
+  background: #f8fafc;
+  color: #6c27d6;
+  font-size: 22rpx;
+  font-weight: 900;
+}
+
+.xf-pro-status-block {
+  margin-top: 20rpx;
+}
+
+.xf-pro-status-label {
+  margin-top: 8rpx;
+  font-size: 34rpx;
+  line-height: 1.22;
+}
+
+.xf-pro-status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  margin-top: 18rpx;
+}
+
+.xf-pro-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  color: #334155;
+  font-size: 26rpx;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.xf-pro-status-row text:last-child {
+  color: #64748b;
+  text-align: right;
+}
+
+.xf-pro-refund-note {
+  margin-top: 18rpx;
+  padding: 18rpx;
+  border: 2rpx solid #fde68a;
+  border-radius: 24rpx;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 22rpx;
+  line-height: 1.55;
+}
+
+.xf-pro-refund-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 84rpx;
+  width: 100%;
+  margin: 18rpx 0 0;
+  padding: 0;
+  border: 2rpx solid #f59e0b;
+  border-radius: 999rpx;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 26rpx;
+  font-weight: 900;
+  line-height: 84rpx;
+}
+
+.xf-pro-refund-button::after {
+  border: 0;
+}
+
+.xf-pro-refund-button[disabled] {
+  border-color: #fed7aa;
+  background: #fffbeb;
+  color: #cbd5e1;
 }

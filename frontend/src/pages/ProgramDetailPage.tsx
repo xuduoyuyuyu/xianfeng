@@ -562,9 +562,17 @@ const ProgramDetailPage: React.FC = () => {
           letter-spacing: -0.02em;
           color: #5e17eb;
         }
+        html.xf-mp-webview .program-detail-main {
+          padding-top: var(--xf-mp-nav-height, 88px) !important;
+          padding-bottom: 0 !important;
+        }
         @media (max-width: 768px) {
           .program-detail-main {
             padding-bottom: calc(112px + env(safe-area-inset-bottom)) !important;
+          }
+          html.xf-mp-webview .program-detail-main {
+            padding-top: var(--xf-mp-nav-height, 88px) !important;
+            padding-bottom: 0 !important;
           }
           .program-detail-player {
             right: 24px !important;

@@ -1,0 +1,399 @@
+@font-face {
+  font-family: "Material Symbols Rounded";
+  src: url("/assets/fonts/material-symbols-rounded.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+page {
+  background: #f6f7fb;
+}
+
+.material-symbols-rounded {
+  font-family: "Material Symbols Rounded";
+  font-weight: 400;
+  font-style: normal;
+  font-size: 1em;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+}
+
+.xf-profile-page {
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 108rpx 28rpx 56rpx;
+  color: #101335;
+  background: #f6f7fb;
+}
+
+.xf-profile-head {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  height: 96rpx;
+  box-sizing: border-box;
+  padding: 30rpx 28rpx 0;
+  display: grid;
+  grid-template-columns: 150rpx 1fr 150rpx;
+  align-items: center;
+  background: rgba(246, 247, 251, 0.94);
+  backdrop-filter: blur(18rpx);
+}
+
+.xf-profile-back,
+.xf-profile-action,
+.xf-profile-chip,
+.xf-profile-button,
+.xf-profile-link,
+.xf-memory-switch,
+.xf-setting-seg button {
+  border: 0;
+  padding: 0;
+}
+
+.xf-profile-back::after,
+.xf-profile-action::after,
+.xf-profile-chip::after,
+.xf-profile-button::after,
+.xf-profile-link::after,
+.xf-memory-switch::after,
+.xf-setting-seg button::after {
+  border: 0;
+}
+
+.xf-profile-back {
+  color: #6c27d6;
+  background: transparent;
+  font-size: 25rpx;
+  font-weight: 850;
+  line-height: 60rpx;
+  text-align: left;
+}
+
+.xf-profile-title {
+  text-align: center;
+  color: #101335;
+  font-size: 30rpx;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.xf-profile-tabs {
+  display: flex;
+  gap: 14rpx;
+  overflow-x: auto;
+  padding: 4rpx 2rpx 18rpx;
+}
+
+.xf-profile-tab,
+.xf-profile-add {
+  min-width: 128rpx;
+  height: 106rpx;
+  border-radius: 28rpx;
+  background: #ffffff;
+  box-shadow: 0 14rpx 36rpx rgba(31, 20, 71, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.xf-profile-tab {
+  flex-direction: column;
+  gap: 9rpx;
+  padding: 0 18rpx;
+}
+
+.xf-profile-tab.is-active {
+  background: #f0e9ff;
+  color: #6c27d6;
+}
+
+.xf-profile-tab-avatar {
+  width: 50rpx;
+  height: 50rpx;
+  border-radius: 18rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  background: linear-gradient(135deg, #7c3aed 0%, #ff2f8f 100%);
+  font-size: 24rpx;
+  font-weight: 900;
+}
+
+.xf-profile-tab-name {
+  max-width: 110rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 22rpx;
+  font-weight: 850;
+}
+
+.xf-profile-add {
+  color: #6c27d6;
+  font-size: 44rpx;
+  font-weight: 500;
+}
+
+.xf-profile-insight {
+  margin-bottom: 20rpx;
+  border-radius: 28rpx;
+  padding: 26rpx;
+  background: #ffffff;
+  box-shadow: 0 14rpx 36rpx rgba(31, 20, 71, 0.06);
+}
+
+.xf-profile-insight-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.xf-profile-insight-title {
+  font-size: 28rpx;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.xf-profile-insight-meta {
+  color: #7c3aed;
+  font-size: 22rpx;
+  font-weight: 850;
+}
+
+.xf-profile-insight-text,
+.xf-profile-empty-text,
+.xf-memory-sub,
+.xf-profile-msg,
+.xf-setting-note {
+  color: #7d86a5;
+  font-size: 24rpx;
+  font-weight: 760;
+  line-height: 1.58;
+}
+
+.xf-profile-insight-text {
+  margin-top: 12rpx;
+}
+
+.xf-profile-card {
+  border-radius: 28rpx;
+  background: #ffffff;
+  box-shadow: 0 14rpx 36rpx rgba(31, 20, 71, 0.06);
+  overflow: hidden;
+}
+
+.xf-profile-section {
+  padding: 30rpx;
+}
+
+.xf-profile-section-title,
+.xf-memory-title {
+  color: #101335;
+  font-size: 30rpx;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.xf-profile-section-status {
+  float: right;
+  color: #7c3aed;
+  font-size: 22rpx;
+  font-weight: 850;
+}
+
+.xf-profile-field {
+  margin-top: 22rpx;
+}
+
+.xf-profile-label {
+  display: block;
+  margin-bottom: 12rpx;
+  color: #7d86a5;
+  font-size: 22rpx;
+  font-weight: 850;
+}
+
+.xf-profile-value {
+  min-height: 72rpx;
+  box-sizing: border-box;
+  border-radius: 18rpx;
+  background: #f6f7fb;
+  padding: 18rpx 20rpx;
+  color: #101335;
+  font-size: 26rpx;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.xf-profile-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.xf-profile-chip {
+  min-height: 56rpx;
+  border-radius: 999rpx;
+  background: #f0e9ff;
+  color: #6c27d6;
+  font-size: 23rpx;
+  font-weight: 850;
+  line-height: 56rpx;
+  padding: 0 20rpx;
+}
+
+.xf-profile-empty {
+  padding: 30rpx;
+}
+
+.xf-profile-empty-title {
+  color: #101335;
+  font-size: 30rpx;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.xf-profile-empty-text,
+.xf-profile-msg {
+  margin-top: 12rpx;
+}
+
+.xf-profile-button {
+  width: 100%;
+  min-height: 84rpx;
+  margin-top: 24rpx;
+  border-radius: 24rpx;
+  background: #ffffff;
+  color: #101335;
+  box-shadow: 0 12rpx 32rpx rgba(31, 20, 71, 0.06);
+  font-size: 27rpx;
+  font-weight: 900;
+  line-height: 84rpx;
+}
+
+.xf-profile-button.is-primary {
+  color: #ffffff;
+  background: #6c27d6;
+}
+
+.xf-memory-card {
+  padding: 30rpx;
+}
+
+.xf-memory-switch-row,
+.xf-profile-link,
+.xf-setting-row {
+  min-height: 96rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+
+.xf-memory-switch-row {
+  min-height: 76rpx;
+}
+
+.xf-memory-switch {
+  width: 98rpx;
+  height: 56rpx;
+  border-radius: 999rpx;
+  background: #d8dee9;
+  padding: 6rpx;
+  display: flex;
+  align-items: center;
+}
+
+.xf-memory-switch.on {
+  justify-content: flex-end;
+  background: #6c27d6;
+}
+
+.xf-memory-switch-knob {
+  width: 44rpx;
+  height: 44rpx;
+  border-radius: 999rpx;
+  background: #ffffff;
+  box-shadow: 0 6rpx 14rpx rgba(15, 23, 42, 0.16);
+}
+
+.xf-profile-link,
+.xf-setting-row {
+  width: 100%;
+  box-sizing: border-box;
+  border-bottom: 1rpx solid rgba(15, 23, 42, 0.06);
+  background: #ffffff;
+  color: #101335;
+  font-size: 27rpx;
+  font-weight: 850;
+  text-align: left;
+}
+
+.xf-profile-link {
+  padding: 0 30rpx;
+}
+
+.xf-profile-link:last-child,
+.xf-setting-row:last-child {
+  border-bottom: 0;
+}
+
+.xf-profile-chevron {
+  color: #94a3b8;
+  font-size: 42rpx;
+  font-weight: 800;
+}
+
+.xf-memory-sub {
+  padding: 26rpx 30rpx 30rpx;
+}
+
+.xf-memory-sub text {
+  display: block;
+  margin-top: 12rpx;
+}
+
+.xf-setting-row {
+  padding: 0 30rpx;
+}
+
+.xf-setting-value {
+  color: #8b96ad;
+  font-size: 24rpx;
+  font-weight: 760;
+}
+
+.xf-setting-seg {
+  display: flex;
+  gap: 8rpx;
+  padding: 6rpx;
+  border-radius: 999rpx;
+  background: #eef1f7;
+}
+
+.xf-setting-seg button {
+  min-width: 72rpx;
+  height: 48rpx;
+  border-radius: 999rpx;
+  background: transparent;
+  color: #7d86a5;
+  font-size: 22rpx;
+  font-weight: 850;
+  line-height: 48rpx;
+}
+
+.xf-setting-seg button.is-active {
+  background: #ffffff;
+  color: #101335;
+  box-shadow: 0 4rpx 14rpx rgba(15, 23, 42, 0.08);
+}

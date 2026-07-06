@@ -1,0 +1,23 @@
+@import "../profile-panel.wxss";
+
+.xf-settings-native-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.xf-settings-logout {
+  width: 100%;
+  margin-top: 40rpx;
+  color: #101335;
+}
+
+.xf-settings-danger {
+  margin-top: 0;
+}
+
+.xf-settings-bottom {
+  margin-top: auto;
+  padding-top: 120rpx;
+  padding-bottom: 86rpx;
+}

@@ -41,7 +41,7 @@ test("visible expert avatars load eagerly and fallback uses optimized asset", ()
   assert.match(source, /const avatarLoading(?::[^=]+)? = index < 6 \? "eager" : "lazy";/, "first visible expert avatars should not be lazy-loaded");
   assert.match(source, /const avatarFetchPriority(?::[^=]+)? = index < 6 \? "high" : "auto";/, "first visible expert avatars should request higher priority");
   assert.match(source, /loading=\{avatarLoading\}/, "expert avatar loading must use the priority helper");
-  assert.match(source, /fetchPriority=\{avatarFetchPriority\}/, "expert avatar fetch priority must use the priority helper");
+  assert.match(source, /fetchpriority: avatarFetchPriority/, "expert avatar fetch priority must use the priority helper without React unknown-prop warnings");
   assert.match(avatarSource, /XIANFENG_UPLOAD_HOST_RE/, "production upload URLs should be recognized");
   assert.match(avatarSource, /\/uploads\/images\/\$\{fileName\}\$\{suffix\}/, "local development should use the proxied upload path instead of remote production uploads");
 });
@@ -76,4 +76,16 @@ test("super-mode expert header matches Xiaowanzi home nav height", () => {
   assert.doesNotMatch(source, /<header className="[^"]*h-\[72px\]/, "super-mode expert header should not keep the taller old 72px height");
   assert.doesNotMatch(source, /top-\[72px\]/, "super-mode floating search should not keep the old 72px header offset");
   assert.doesNotMatch(source, /pt-\[84px\]/, "super-mode content should not keep the old 72px header spacing");
+});
+
+test("experts page uses native mini program chrome spacing when embedded", () => {
+  assert.match(source, /html\.xf-mp-webview \.experts-mobile-main/);
+  assert.match(source, /padding-top: var\(--xf-mp-nav-height, 88px\) !important;/);
+  assert.match(source, /padding-bottom: 0 !important;/);
+});
+
+test("mini program super-mode experts page hides its internal title nav", () => {
+  assert.match(source, /className=\{`experts-super-nav fixed left-0 right-0 top-0/);
+  assert.match(source, /html\.xf-mp-webview \.experts-super-nav \{ display: none !important; \}/);
+  assert.match(source, /html\.xf-mp-webview \.experts-super-main \{ padding-top: 12px !important; \}/);
 });

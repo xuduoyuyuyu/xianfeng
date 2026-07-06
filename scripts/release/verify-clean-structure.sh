@@ -31,6 +31,38 @@ if [[ ${#violations[@]} -gt 0 ]]; then
   exit 1
 fi
 
+required_release_paths=(
+  "scripts/release/verify-mini-webview-ready.sh"
+  "scripts/release/upload-wechat-miniprogram.sh"
+  "scripts/release/verify-mini-release-chain.test.mjs"
+  "apps/wechat-miniprogram/app.json"
+  "apps/wechat-miniprogram/pages/share/index.js"
+  "apps/wechat-miniprogram/pages/share/index.json"
+  "apps/wechat-miniprogram/pages/share/index.wxml"
+  "apps/wechat-miniprogram/pages/share/index.wxss"
+  "apps/wechat-miniprogram/utils/share.js"
+  "apps/wechat-miniprogram/utils/share.static.test.mjs"
+  "backend/src/models/XiaowanziShare.ts"
+  "backend/src/routes/wechatMini.ts"
+  "backend/src/routes/wechatMini.static.test.mjs"
+  "backend/src/services/wechatMiniAuth.ts"
+  "backend/src/services/wechatMiniAuth.test.ts"
+)
+
+missing_release_paths=()
+for p in "${required_release_paths[@]}"; do
+  if ! git ls-files --error-unmatch "${p}" >/dev/null 2>&1; then
+    missing_release_paths+=("${p}")
+  fi
+done
+
+if [[ ${#missing_release_paths[@]} -gt 0 ]]; then
+  echo "检测到小程序分享/小程序码发布关键文件尚未纳入 Git，已阻断部署："
+  printf ' - %s\n' "${missing_release_paths[@]}"
+  echo "请先 git add 这些文件并提交，避免 git archive/生产发布漏包。"
+  exit 1
+fi
+
 if [[ ! -f ".release/current.lock" ]]; then
   echo "缺少 .release/current.lock（未锁定最终版），已阻断部署。"
   echo "先执行: scripts/release/freeze-current.sh"

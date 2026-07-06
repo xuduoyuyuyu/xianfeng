@@ -33,3 +33,9 @@ test("failed WorthBuy analysis gives actionable submission guidance", () => {
   assert.match(source, /复制电商分享文案/);
   assert.match(source, /商品链接 \+ 商品名称/);
 });
+
+test("worthbuy page uses native mini program chrome spacing when embedded", () => {
+  assert.match(source, /html\.xf-mp-webview \.worthbuy-hero/);
+  assert.match(source, /padding-top: var\(--xf-mp-nav-height, 88px\) !important;/);
+  assert.match(source, /padding-bottom: 0 !important;/);
+});

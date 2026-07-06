@@ -1,8 +1,0 @@
-.error {
-  display: block;
-  margin-top: 24rpx;
-  color: #b42318;
-  font-size: 26rpx;
-  line-height: 1.5;
-  white-space: pre-wrap;
-}

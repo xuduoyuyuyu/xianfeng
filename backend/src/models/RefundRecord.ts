@@ -24,7 +24,7 @@ const refundRecordSchema = new mongoose.Schema(
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
     provider: { type: String, enum: ["alipay", "wechat"], required: true, index: true },
     amountCents: { type: Number, required: true },
-    reason: { type: String, default: "3天不满意全额退款" },
+    reason: { type: String, default: "按未使用点数折算退款" },
     outRequestNo: { type: String, required: true, unique: true, index: true },
     providerRefundId: { type: String, default: "" },
     status: { type: String, enum: ["pending", "succeeded", "failed"], default: "pending", index: true },

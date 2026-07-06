@@ -95,6 +95,9 @@ const LAYER_NAMES: Record<string, string> = {
   layer5: "行动篇",
 };
 
+const NEXT_NODE_PULL_THRESHOLD = 72;
+const NEXT_NODE_PULL_MAX = 104;
+
 /** 把后端 layers（layer1/layer2/...）转成前端 tree 结构 */
 function transformLayersToTree(layers: LayersInput): BranchNode[] {
   const branchKeys = Object.keys(layers).sort();
@@ -162,6 +165,65 @@ function pickShareOverview(topic: TopicInfo, tree: BranchNode[]): string {
   return longCandidate || "本专题系统讲解关键概念、常见误区、评估方法与实践路径。";
 }
 
+function getTopicDetailUserId(currentUser: RootState["user"]["user"] | null): string {
+  let urlUserId = "";
+  if (typeof window !== "undefined") {
+    try {
+      const url = new URL(window.location.href);
+      urlUserId = (url.searchParams.get("userId") || "").trim();
+    } catch {
+      urlUserId = "";
+    }
+  }
+  return urlUserId || getTopicUserId(currentUser);
+}
+
+function isMiniProgramTopicDetailView() {
+  if (typeof window === "undefined") return false;
+  const params = new URLSearchParams(window.location.search);
+  const wechatEnvironment = String((window as any).__wxjs_environment || "").toLowerCase();
+  const userAgent = window.navigator?.userAgent || "";
+  return (
+    params.get("xf_mp") === "1" ||
+    params.has("xf_tab") ||
+    window.sessionStorage.getItem("xf_mp_webview") === "1" ||
+    wechatEnvironment === "miniprogram" ||
+    /miniprogram/i.test(userAgent)
+  );
+}
+
+function resetTopicDetailScrollTop() {
+  if (typeof window === "undefined") return;
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    const documentElement = window.document?.documentElement;
+    const body = window.document?.body;
+    if (documentElement && typeof documentElement.scrollTo === "function") {
+      documentElement.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    }
+    if (body && typeof body.scrollTo === "function") {
+      body.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    }
+  };
+  scrollToTop();
+  if (typeof window.requestAnimationFrame === "function") {
+    window.requestAnimationFrame(scrollToTop);
+  }
+  window.setTimeout(scrollToTop, 0);
+  window.setTimeout(scrollToTop, 80);
+  window.setTimeout(scrollToTop, 180);
+}
+
+function getFlatTopicLeafNodes(tree: BranchNode[]): LeafNode[] {
+  return tree.flatMap((branch) => branch.children || []);
+}
+
+function getNextTopicLeafNode(tree: BranchNode[], currentNodeKey: string): LeafNode | null {
+  const nodes = getFlatTopicLeafNodes(tree);
+  const index = nodes.findIndex((node) => node.nodeKey === currentNodeKey);
+  if (index < 0 || index >= nodes.length - 1) return null;
+  return nodes[index + 1];
+}
 
 const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
   const currentUser = useSelector((state: RootState) => state.user.user);
@@ -182,6 +244,13 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
   const [shareImageUrl, setShareImageUrl] = useState<string | null>(null);
   const sharePosterRef = useRef<HTMLDivElement | null>(null);
   const detailTopRef = React.useRef<HTMLDivElement | null>(null);
+  const detailContentRef = React.useRef<HTMLDivElement | null>(null);
+  const nextNodePullStartYRef = React.useRef<number | null>(null);
+  const nextNodePullDistanceRef = React.useRef(0);
+  const nextNodeSwitchingRef = React.useRef(false);
+  const [nextNodePullDistance, setNextNodePullDistance] = useState(0);
+  const [nextNodePullState, setNextNodePullState] = useState<"idle" | "pulling" | "ready" | "loading">("idle");
+  const miniProgramTopicDetail = isMiniProgramTopicDetailView();
 
   // 展开讲讲
   const [expanding, setExpanding] = useState(false);
@@ -219,6 +288,7 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
       footerRight: "家长先疯 · 先疯智库出品",
     };
   }, [topic, tree]);
+  const nextAutoNode = selectedNode ? getNextTopicLeafNode(tree, selectedNode.nodeKey) : null;
 
   const captureSharePoster = async () => {
     if (!sharePosterRef.current) return;
@@ -259,6 +329,16 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
   React.useEffect(() => {
     return () => { if (typewriterRef.current) clearInterval(typewriterRef.current); };
   }, []);
+
+  useEffect(() => {
+    if (!isMiniProgramTopicDetailView()) return;
+    if ("scrollRestoration" in window.history) {
+      window.history.scrollRestoration = "manual";
+    }
+    resetTopicDetailScrollTop();
+    const restoreTimer = window.setTimeout(resetTopicDetailScrollTop, 120);
+    return () => window.clearTimeout(restoreTimer);
+  }, [slug]);
 
   // ── 分享图生成 ──
   const generateShareImage = async () => {
@@ -497,7 +577,7 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
 
   const fetchTopic = async () => {
     try {
-      const uid = getTopicUserId(currentUser);
+      const uid = getTopicDetailUserId(currentUser);
       const res = await fetch(`/api/topic-hub/${slug}${uid ? `?userId=${uid}` : ""}`);
       const data = await res.json();
       if (data.topic) {
@@ -510,7 +590,7 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
         if (flatTree.length > 0) {
           const firstBranch = flatTree[0];
           if (firstBranch.children && firstBranch.children.length > 0) {
-            selectNode(firstBranch.children[0]);
+            selectNode(firstBranch.children[0], { scrollIntoView: false, resetTopAfterLoad: true });
           }
         }
       }
@@ -521,18 +601,25 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
     }
   };
 
-  const selectNode = async (node: LeafNode) => {
+  const selectNode = async (
+    node: LeafNode,
+    options: { scrollIntoView?: boolean; resetTopAfterLoad?: boolean; resetDetailScroll?: boolean } = {}
+  ) => {
     // 终止旧的深度展开打字机
     if (deepExpandRef.current !== null) {
       window.clearTimeout(deepExpandRef.current);
       deepExpandRef.current = null;
     }
     setSelectedNode(node);
-    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+    const shouldScrollIntoView = options.scrollIntoView !== false;
+    const isMobileViewport = typeof window !== "undefined" && window.innerWidth < 1024;
+    if (isMobileViewport) {
       setMobileView("detail");
-      window.setTimeout(() => {
-        detailTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 10);
+      if (shouldScrollIntoView) {
+        window.setTimeout(() => {
+          detailTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 10);
+      }
     }
     setNodeLoading(true);
     setExpandedContent(null);
@@ -540,7 +627,7 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
     setExpanding(false);
     setTypewriterText("");
     try {
-      const uid = getTopicUserId(currentUser);
+      const uid = getTopicDetailUserId(currentUser);
       const res = await fetch(`/api/topic-hub/${slug}/nodes/${node.nodeKey}${uid ? `?userId=${uid}` : ""}`);
       const data = await res.json();
       setNodeDetail(data.node || null);
@@ -550,7 +637,76 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
       console.error("Failed to load node", e);
     } finally {
       setNodeLoading(false);
+      nextNodePullStartYRef.current = null;
+      nextNodePullDistanceRef.current = 0;
+      nextNodeSwitchingRef.current = false;
+      setNextNodePullDistance(0);
+      setNextNodePullState("idle");
+      if (options.resetDetailScroll !== false) {
+        detailContentRef.current?.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      }
+      if (options.resetTopAfterLoad && isMiniProgramTopicDetailView()) resetTopicDetailScrollTop();
     }
+  };
+
+  const resetNextNodePull = () => {
+    nextNodePullStartYRef.current = null;
+    nextNodePullDistanceRef.current = 0;
+    setNextNodePullDistance(0);
+    setNextNodePullState("idle");
+  };
+
+  const enterNextNode = () => {
+    if (!miniProgramTopicDetail || !nextAutoNode || nodeLoading || expanding || nextNodePullState === "loading" || nextNodeSwitchingRef.current) return;
+    nextNodeSwitchingRef.current = true;
+    nextNodePullStartYRef.current = null;
+    nextNodePullDistanceRef.current = 0;
+    setNextNodePullDistance(NEXT_NODE_PULL_THRESHOLD);
+    setNextNodePullState("loading");
+    void selectNode(nextAutoNode, { scrollIntoView: true, resetDetailScroll: true, resetTopAfterLoad: true });
+  };
+
+  const handleNextNodeClick = () => {
+    enterNextNode();
+  };
+
+  const handleNextNodePullStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (!miniProgramTopicDetail || !nextAutoNode || nodeLoading || expanding || nextNodePullState === "loading") return;
+    nextNodePullStartYRef.current = event.touches[0]?.clientY ?? null;
+    nextNodePullDistanceRef.current = 0;
+    setNextNodePullDistance(0);
+    setNextNodePullState("pulling");
+  };
+
+  const handleNextNodePullMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (!miniProgramTopicDetail || !nextAutoNode || nextNodePullStartYRef.current === null || nextNodePullState === "loading") return;
+    const touchY = event.touches[0]?.clientY;
+    if (touchY === undefined) return;
+    const rawDistance = nextNodePullStartYRef.current - touchY;
+    if (rawDistance <= 0) {
+      resetNextNodePull();
+      return;
+    }
+
+    if (rawDistance > 8) event.preventDefault();
+    const pullDistance = Math.min(rawDistance, NEXT_NODE_PULL_MAX);
+    nextNodePullDistanceRef.current = pullDistance;
+    setNextNodePullDistance(pullDistance);
+    if (pullDistance >= NEXT_NODE_PULL_THRESHOLD) {
+      setNextNodePullState("ready");
+    } else {
+      setNextNodePullState("pulling");
+    }
+  };
+
+  const handleNextNodePullEnd = () => {
+    if (!miniProgramTopicDetail || !nextAutoNode || nextNodePullStartYRef.current === null || nextNodePullState === "loading") return;
+    nextNodePullStartYRef.current = null;
+    if (nextNodePullDistanceRef.current >= NEXT_NODE_PULL_THRESHOLD) {
+      enterNextNode();
+      return;
+    }
+    resetNextNodePull();
   };
 
   // 展开讲讲
@@ -675,8 +831,17 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
   if (loading) {
     return (
       <div style={{ minHeight: "100vh", background: "#f8f6ff" }}>
+        <style>{`
+          html.xf-mp-webview .xf-web-detail-back {
+            display: none !important;
+          }
+          html.xf-mp-webview .topic-detail-frame {
+            padding-top: var(--xf-mp-nav-height, 88px) !important;
+            padding-bottom: 0 !important;
+          }
+        `}</style>
         <GlobalPublicNav compactMobile showPlanningEntry={true} />
-        <div style={{ textAlign: "center", padding: 100, color: "#9CA3AF" }}>加载中…</div>
+        <div className="topic-detail-frame" style={{ textAlign: "center", padding: 100, color: "#9CA3AF" }}>加载中…</div>
       </div>
     );
   }
@@ -684,10 +849,19 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
   if (!topic) {
     return (
       <div style={{ minHeight: "100vh", background: "#f8f6ff" }}>
+        <style>{`
+          html.xf-mp-webview .xf-web-detail-back {
+            display: none !important;
+          }
+          html.xf-mp-webview .topic-detail-frame {
+            padding-top: var(--xf-mp-nav-height, 88px) !important;
+            padding-bottom: 0 !important;
+          }
+        `}</style>
         <GlobalPublicNav compactMobile showPlanningEntry={true} />
-        <div style={{ textAlign: "center", padding: 100 }}>
+        <div className="topic-detail-frame" style={{ textAlign: "center", padding: 100 }}>
           <p style={{ color: "#9CA3AF", marginBottom: 16 }}>话题不存在</p>
-          <Link to="/topics" style={{ color: "#7C3AED" }}>
+          <Link to="/topics" className="xf-web-detail-back" style={{ color: "#7C3AED" }}>
             ← 返回
           </Link>
         </div>
@@ -706,13 +880,135 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
   const sharePosterHeight = sharePosterData ? getSharePosterHeight(sharePosterData) : SHARE_POSTER_HEIGHT;
   const sharePreviewScale = sharePreviewWidth / SHARE_POSTER_WIDTH;
   const sharePreviewHeight = Math.round(sharePosterHeight * sharePreviewScale);
+  const nextNodePullProgress = Math.min(1, nextNodePullDistance / NEXT_NODE_PULL_THRESHOLD);
+  const nextNodePullTitle =
+    nextNodePullState === "loading"
+      ? "正在进入下一个知识点"
+      : nextNodePullState === "ready"
+        ? "松开进入下一个知识点"
+        : "上滑进入下一个知识点";
+  const nextNodePullMeta =
+    nextNodePullState === "ready"
+      ? "松手后自动切换"
+      : nextNodePullState === "loading"
+        ? "正在切换，请稍候"
+        : "";
 
   return (
     <>
       <style>{`
         @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+        @keyframes topicPullPulse { 0%,100%{transform:translateY(0);opacity:.62} 50%{transform:translateY(-3px);opacity:1} }
+        html.xf-mp-webview .topic-mobile-safe {
+          padding-bottom: 0 !important;
+        }
+        html.xf-mp-webview .topic-detail-frame {
+          padding-top: var(--xf-mp-nav-height, 88px) !important;
+          padding-bottom: 0 !important;
+        }
+        html.xf-mp-webview .xf-web-detail-back {
+          display: none !important;
+        }
+        .topic-next-pull-card {
+          margin-top: 10px;
+          border-radius: 16px;
+          border: 1px solid #e9ddff;
+          background:
+            linear-gradient(135deg, rgba(255,255,255,.95) 0%, rgba(247,242,255,.95) 100%),
+            linear-gradient(90deg, rgba(124,58,237,.16) calc(var(--pull-progress, 0) * 100%), transparent 0);
+          padding: 12px 14px;
+          color: #1e1b4b;
+          box-shadow: 0 10px 24px rgba(93, 55, 168, 0.08);
+          touch-action: none;
+          user-select: none;
+          transition: transform .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease;
+        }
+        .topic-next-pull-card--pulling {
+          transform: translateY(calc(var(--pull-progress, 0) * -8px));
+        }
+        .topic-next-pull-card--ready {
+          border-color: #7c3aed;
+          transform: translateY(-10px) scale(1.01);
+          box-shadow: 0 16px 32px rgba(124, 58, 237, 0.18);
+        }
+        .topic-next-pull-card--loading {
+          border-color: #7c3aed;
+          opacity: .9;
+        }
+        .topic-next-pull-card--done {
+          border-style: dashed;
+          background: linear-gradient(135deg, #faf8ff 0%, #ffffff 100%);
+          box-shadow: none;
+          touch-action: auto;
+        }
+        .topic-next-pull-card-head {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .topic-next-pull-icon {
+          width: 30px;
+          height: 30px;
+          border-radius: 999px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          background: #ede9fe;
+          color: #7c3aed;
+          font-size: 18px;
+          font-weight: 900;
+          animation: topicPullPulse 1.1s ease-in-out infinite;
+          flex: 0 0 auto;
+        }
+        .topic-next-pull-card--ready .topic-next-pull-icon,
+        .topic-next-pull-card--loading .topic-next-pull-icon {
+          background: #7c3aed;
+          color: #fff;
+        }
+        .topic-next-pull-title {
+          display: block;
+          font-size: 15px;
+          font-weight: 800;
+          line-height: 1.35;
+        }
+        .topic-next-pull-meta {
+          display: block;
+          margin-top: 2px;
+          color: #7c3aed;
+          font-size: 12px;
+          font-weight: 700;
+        }
+        .topic-next-pull-track {
+          margin-top: 10px;
+          height: 4px;
+          border-radius: 999px;
+          background: #ede9fe;
+          overflow: hidden;
+        }
+        .topic-next-pull-fill {
+          height: 100%;
+          width: calc(var(--pull-progress, 0) * 100%);
+          border-radius: inherit;
+          background: linear-gradient(90deg, #8b5cf6, #6d28d9);
+          transition: width .08s linear;
+        }
+        .topic-expand-button-icon {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 18px;
+          height: 18px;
+          flex: 0 0 18px;
+          font-size: 18px;
+          line-height: 1;
+        }
         @media (max-width: 768px) {
           .topic-mobile-safe { padding-bottom: calc(120px + env(safe-area-inset-bottom)); }
+          html.xf-mp-webview .topic-mobile-safe { padding-bottom: 0 !important; }
+          html.xf-mp-webview .topic-detail-frame {
+            padding-top: var(--xf-mp-nav-height, 88px) !important;
+            padding-bottom: 0 !important;
+          }
           .topic-mobile-title { font-size: 22px !important; line-height: 1.25 !important; }
           .topic-mobile-card { border-radius: 12px !important; }
           .topic-mobile-pad { padding: 14px !important; }
@@ -723,6 +1019,7 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
 
       {/* 顶栏 */}
       <div
+        className="topic-detail-frame"
         style={{
           maxWidth: 1200,
           margin: "0 auto",
@@ -731,6 +1028,7 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
       >
         <Link
           to="/topics"
+          className="xf-web-detail-back"
           style={{
             color: "#7C3AED",
             textDecoration: "none",
@@ -1086,7 +1384,10 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
               </div>
 
               {/* 内容区 */}
-              <div style={{ padding: "20px 24px", maxHeight: isMobile ? "none" : "calc(100vh - 240px)", overflowY: isMobile ? "visible" : "auto" }}>
+              <div
+                ref={detailContentRef}
+                style={{ padding: "20px 24px", maxHeight: isMobile ? "none" : "calc(100vh - 240px)", overflowY: isMobile ? "visible" : "auto" }}
+              >
                 {/* 核心观点 */}
                 {nodeDetail?.keyPoints && nodeDetail.keyPoints.length > 0 && (
                   <div
@@ -1188,8 +1489,12 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
                   gap: 8,
                 }}
               >
-                <span style={{ fontFamily: "'Material Symbols Rounded'", fontSize: 18 }}>auto_awesome</span>
-                {expanding ? "正在深度解析~" : "展开讲讲"}
+                {miniProgramTopicDetail ? (
+                  <span className="topic-expand-button-icon" aria-hidden="true">✦</span>
+                ) : (
+                  <span style={{ fontFamily: "'Material Symbols Rounded'", fontSize: 18 }}>auto_awesome</span>
+                )}
+                <span>{expanding ? "正在深度解析~" : "展开讲讲"}</span>
               </div>
               {expandMsg && (
                 <div style={{
@@ -1201,6 +1506,42 @@ const TopicDetailPage: React.FC<{ slug: string }> = ({ slug }) => {
                 }}>
                   {typewriterText || expandMsg}
                   {expanding && <span style={{ animation: "blink 0.8s infinite", marginLeft: 2 }}>▊</span>}
+                </div>
+              )}
+              {miniProgramTopicDetail && nextAutoNode && (
+                <div
+                  className={`topic-next-pull-card topic-next-pull-card--${nextNodePullState}`}
+                  onClick={handleNextNodeClick}
+                  onTouchStart={handleNextNodePullStart}
+                  onTouchMove={handleNextNodePullMove}
+                  onTouchEnd={handleNextNodePullEnd}
+                  onTouchCancel={resetNextNodePull}
+                  title="点击进入下一个知识点"
+                  style={{ "--pull-progress": nextNodePullProgress } as React.CSSProperties}
+                >
+                  <div className="topic-next-pull-card-head">
+                    <span className="topic-next-pull-icon">↑</span>
+                    <div style={{ minWidth: 0 }}>
+                      <span className="topic-next-pull-title">{nextNodePullTitle}</span>
+                      <span className="topic-next-pull-meta">
+                        {nextNodePullMeta ? `${nextNodePullMeta} · ` : ""}下一个：{nextAutoNode.title}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="topic-next-pull-track">
+                    <div className="topic-next-pull-fill" />
+                  </div>
+                </div>
+              )}
+              {miniProgramTopicDetail && !nextAutoNode && (
+                <div className="topic-next-pull-card topic-next-pull-card--done">
+                  <div className="topic-next-pull-card-head">
+                    <span className="topic-next-pull-icon">✓</span>
+                    <div style={{ minWidth: 0 }}>
+                      <span className="topic-next-pull-title">已读完当前话题</span>
+                      <span className="topic-next-pull-meta">当前是最后一个知识节点，可以返回知识目录继续浏览</span>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

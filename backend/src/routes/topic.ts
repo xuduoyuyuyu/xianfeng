@@ -48,6 +48,29 @@ async function findTopicBySlugOrId(param: string | string[]) {
   return Topic.findOne({ slug: p }).lean();
 }
 
+function topicIdentityFilter(param: string | string[]) {
+  const p = Array.isArray(param) ? param[0] : String(param || "");
+  if (/^[a-f0-9]{24}$/i.test(p)) {
+    return { $or: [{ slug: p }, { _id: p }] };
+  }
+  return { slug: p };
+}
+
+function topicVisibilityFilter(validUserId: string) {
+  return {
+    $or: validUserId
+      ? [
+          { status: "published", hiddenForUsers: { $ne: validUserId } },
+          { status: "pending", createdBy: validUserId, hiddenForUsers: { $ne: validUserId } },
+          { status: "pending", source: "user", hiddenForUsers: { $ne: validUserId } },
+        ]
+      : [
+          { status: "published" },
+          { status: "pending", source: "user" },
+        ],
+  };
+}
+
 /** 计算 layers 中所有节点总数 */
 function countLayerNodes(layers: any): number {
   if (!layers) return 20;
@@ -133,10 +156,11 @@ publicRouter.get("/", async (req: Request, res: Response) => {
       $or: [{ status: "published" }],
     };
 
-    // 如果提供了 userId，也返回该用户未隐藏的 pending 话题。
-    // 公开话题不受 hiddenForUsers 影响，避免登录后把公共列表筛空。
-    if (userId && userId.trim()) {
-      filter.$or.push({ status: "pending", createdBy: userId, hiddenForUsers: { $ne: userId } });
+    // 如果提供了 userId，排除该用户隐藏过的 published，并返回该用户未隐藏的 pending。
+    const validUserId = userId && userId.trim();
+    if (validUserId) {
+      filter.$or = [{ status: "published", hiddenForUsers: { $ne: validUserId } }];
+      filter.$or.push({ status: "pending", createdBy: validUserId, hiddenForUsers: { $ne: validUserId } });
     }
 
     if (tag) {
@@ -229,15 +253,11 @@ publicRouter.get("/", async (req: Request, res: Response) => {
 publicRouter.get("/:slug", async (req: Request, res: Response) => {
   try {
     const { userId } = req.query as Record<string, string>;
+    const validUserId = userId && userId.trim();
 
-    // 查 published 或当前用户的 pending
     const filter: Record<string, any> = {
-      slug: req.params.slug,
-      $or: [{ status: "published" }],
+      $and: [topicIdentityFilter(req.params.slug), topicVisibilityFilter(validUserId)],
     };
-    if (userId && userId.trim()) {
-      filter.$or.push({ status: "pending", createdBy: userId });
-    }
 
     const topic = await Topic.findOne(filter).lean();
 
@@ -642,14 +662,11 @@ publicRouter.get("/:slug/nodes/:nodeKey", async (req: Request, res: Response) =>
     const { slug, nodeKey } = req.params;
 
     const { userId } = req.query as Record<string, string>;
+    const validUserId = userId && userId.trim();
 
     const filter: Record<string, any> = {
-      slug,
-      $or: [{ status: "published" }],
+      $and: [topicIdentityFilter(slug), topicVisibilityFilter(validUserId)],
     };
-    if (userId && userId.trim()) {
-      filter.$or.push({ status: "pending", createdBy: userId });
-    }
 
     const topic = await Topic.findOne(filter).lean();
     if (!topic) {

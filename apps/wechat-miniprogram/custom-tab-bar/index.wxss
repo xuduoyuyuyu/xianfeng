@@ -1,0 +1,106 @@
+.xf-custom-tabbar-wrap {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+  background: #fff;
+  overflow: visible;
+}
+
+.xf-custom-tabbar {
+  width: 100%;
+  height: 56px;
+  position: relative;
+  background: #fff;
+}
+
+.xf-custom-tabbar__item {
+  position: absolute;
+  top: 2px;
+  width: 20%;
+  height: 46px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: transparent;
+  line-height: 1;
+}
+
+.xf-custom-tabbar__item::after {
+  border: 0;
+}
+
+.xf-custom-tabbar__item.is-pressed {
+  opacity: 0.78;
+}
+
+.xf-custom-tabbar__item.is-xiaowanzi.is-pressed {
+  opacity: 1;
+}
+
+.xf-custom-tabbar__item.is-xiaowanzi {
+  top: 2px;
+  height: 46px;
+}
+
+.xf-custom-tabbar__item.is-xiaowanzi.is-pressed .xf-custom-tabbar__orb {
+  transform: scale(1.16);
+}
+
+.xf-custom-tabbar__normal-core,
+.xf-custom-tabbar__xiaowanzi-core {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  box-sizing: border-box;
+  padding-top: 4px;
+}
+
+.xf-custom-tabbar__icon {
+  width: 22px;
+  height: 22px;
+}
+
+.xf-custom-tabbar__icon.is-xiaowanzi-icon {
+  width: 42px;
+  height: 42px;
+}
+
+.xf-custom-tabbar__orb {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  box-shadow: none;
+}
+
+.xf-custom-tabbar__text {
+  max-width: 90%;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  margin-top: 2px;
+}
+
+.xf-custom-tabbar__text.is-xiaowanzi-text {
+  margin-top: 2px;
+  color: #667085;
+  font-weight: 800;
+}
+
+.xf-custom-tabbar__safe {
+  width: 100%;
+  background: #fff;
+}

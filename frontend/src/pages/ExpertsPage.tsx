@@ -245,11 +245,14 @@ const ExpertsPage: React.FC = () => {
         }
         @media (max-width: 768px) {
           .experts-mobile-main { padding-top: 70px !important; padding-bottom: calc(120px + env(safe-area-inset-bottom)) !important; }
+          html.xf-mp-webview .experts-mobile-main { padding-top: var(--xf-mp-nav-height, 88px) !important; padding-bottom: 0 !important; }
           .experts-mobile-hero { padding: 16px !important; border-radius: 20px !important; }
           .experts-mobile-title { font-size: 30px !important; line-height: 1.15 !important; }
           .experts-mobile-grid { gap: 12px !important; }
           .experts-mobile-card { padding: 12px !important; border-radius: 16px !important; }
         }
+        html.xf-mp-webview .experts-super-nav { display: none !important; }
+        html.xf-mp-webview .experts-super-main { padding-top: 12px !important; }
         .experts-super-main {
           width: min(calc(100vw - 24px), 560px);
           max-width: 100%;
@@ -300,7 +303,7 @@ const ExpertsPage: React.FC = () => {
         />
       ) : null}
       {superModePage ? (
-        <header className={`fixed left-0 right-0 top-0 z-[70] flex ${XIAOWANZI_HOME_NAV_HEIGHT_CLASS} items-center justify-center bg-[#f7f5ff]/95 px-5 pt-[env(safe-area-inset-top)] backdrop-blur`}>
+        <header className={`experts-super-nav fixed left-0 right-0 top-0 z-[70] flex ${XIAOWANZI_HOME_NAV_HEIGHT_CLASS} items-center justify-center bg-[#f7f5ff]/95 px-5 pt-[env(safe-area-inset-top)] backdrop-blur`}>
           <button
             type="button"
             aria-label="返回小玩子"
@@ -435,7 +438,7 @@ const ExpertsPage: React.FC = () => {
                           alt={guest.name || "嘉宾头像"}
                           loading={avatarLoading}
                           decoding="async"
-                          fetchPriority={avatarFetchPriority}
+                          {...({ fetchpriority: avatarFetchPriority } as React.ImgHTMLAttributes<HTMLImageElement> & { fetchpriority: typeof avatarFetchPriority })}
                           className={isFallbackAvatar ? GUEST_FALLBACK_AVATAR_CARD_IMG_CLASS : GUEST_REAL_AVATAR_CARD_IMG_CLASS}
                           onError={(event) => {
                             event.currentTarget.src = GUEST_FALLBACK_AVATAR_SRC;
@@ -487,7 +490,7 @@ const ExpertsPage: React.FC = () => {
                     alt={guest.name || "嘉宾头像"}
                     loading={avatarLoading}
                     decoding="async"
-                    fetchPriority={avatarFetchPriority}
+                    {...({ fetchpriority: avatarFetchPriority } as React.ImgHTMLAttributes<HTMLImageElement> & { fetchpriority: typeof avatarFetchPriority })}
                     className={isFallbackAvatar ? GUEST_FALLBACK_AVATAR_ARCHIVE_IMG_CLASS : GUEST_REAL_AVATAR_ARCHIVE_IMG_CLASS}
                     style={{ contentVisibility: 'auto' }}
                     onError={(event) => {

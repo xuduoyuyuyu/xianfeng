@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
 import LoginRequiredModal from "./LoginRequiredModal";
 import ProUpgradeModal from "./ProUpgradeModal";
+import { isMiniProgramWebView, openMiniProgramNativeLogin } from "../utils/mpAuthBridge";
 
 interface LoginModalContextType {
   showLoginModal: (title?: string, description?: string) => void;
@@ -35,6 +36,12 @@ export const LoginModalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail || {};
+      if (isMiniProgramWebView()) {
+        openMiniProgramNativeLogin().then((opened) => {
+          if (!opened) showLoginModal(detail.title, detail.description);
+        });
+        return;
+      }
       showLoginModal(detail.title, detail.description);
     };
     document.addEventListener("xf-show-login-modal", handler);

@@ -65,14 +65,18 @@ test("book detail page renders metadata-rich fields when available", () => {
 
 test("book detail page uses a path-first reading layout", () => {
   assert.match(pageSource, /useNavigate/, "detail page should use router navigation for contextual back behavior");
+  assert.match(pageSource, /import \{ isMiniProgramWebView \} from "\.\.\/utils\/mpAuthBridge";/, "detail page should detect mini program web-view mode");
   assert.match(pageSource, /type BookDetailLocationState = \{[\s\S]*fromReadingDetail\?: string;/, "detail page should type the related-detail return state");
   assert.match(pageSource, /const navigate = useNavigate\(\);/, "detail page should initialize router navigation");
   assert.match(pageSource, /const previousReadingDetailPath = locationState\?\.fromReadingDetail \|\| "";/, "detail page should read the previous detail path from location state");
   assert.match(pageSource, /const shouldReturnToPreviousDetail = previousReadingDetailPath\.startsWith\("\/reading\/"\);/, "detail page should only trust reading detail paths as contextual back targets");
+  assert.match(pageSource, /const miniProgramWebView = isMiniProgramWebView\(\);/, "detail page should compute mini-program web-view mode before rendering the web back link");
   assert.match(pageSource, /function handleBackClick\(event: React\.MouseEvent<HTMLAnchorElement>\)/, "detail page should intercept the back link when it came from another detail page");
   assert.match(pageSource, /navigate\(-1\);/, "contextual back should use browser history to restore the previous detail page");
+  assert.match(pageSource, /\{!miniProgramWebView \? \(\s*<div className="mb-5">[\s\S]*className="xf-web-detail-back /, "top back link should not render inside mini program web-view");
   assert.match(pageSource, /to=\{backLinkTarget\}/, "top back link should use the computed fallback or previous detail target");
   assert.match(pageSource, /onClick=\{handleBackClick\}/, "top back link should wire contextual back handling");
+  assert.match(pageSource, /className="xf-web-detail-back /, "top back link should be hideable inside mini program web-view");
   assert.match(pageSource, /!text-\[#7C3AED\][\s\S]*visited:!text-\[#7C3AED\][\s\S]*hover:!text-\[#6D28D9\]/, "return-to-reading link should keep the same purple treatment as worthbuy detail back links");
   assert.match(pageSource, /← 返回/, "top back link should use the shorter label");
   assert.match(pageSource, /buildSourceLine/, "detail page should derive a short source line from the available source fields");
@@ -119,6 +123,17 @@ test("book detail page keeps only compact next-step chips under the hero block",
   assert.doesNotMatch(pageSource, /把阅读线索接回问题现场/, "next-step section should drop the old large heading");
 });
 
+test("book detail page treats placeholder card values as missing", () => {
+  assert.match(pageSource, /function formatReadableValue\(value: unknown\): string \{/, "detail page should centralize placeholder normalization");
+  assert.match(pageSource, /\["none", "null", "undefined", "n\/a", "na", "-"\]\.includes\(normalized\.toLowerCase\(\)\)/, "detail page should treat NONE-like values as missing");
+  assert.match(pageSource, /const sourceName = formatReadableValue\(book\.sourceName\);/, "source booklist cards should use normalized source names");
+  assert.match(pageSource, /const guest = formatReadableValue\(book\.recommendedGuest\);/, "guest cards should use normalized recommender values");
+  assert.match(pageSource, /const stageLabel = formatReadableValue\(book\.grade\);/, "recommended-reading cards should use normalized grade values");
+  assert.doesNotMatch(pageSource, /String\(book\.sourceName \|\| ""\)\.trim\(\)/, "source cards should not treat raw placeholder source values as real content");
+  assert.doesNotMatch(pageSource, /String\(book\.recommendedGuest \|\| ""\)\.trim\(\)/, "guest cards should not treat raw placeholder recommender values as real content");
+  assert.doesNotMatch(pageSource, /String\(book\.grade \|\| ""\)\.trim\(\)/, "stage cards should not treat raw placeholder grade values as real content");
+});
+
 test("book detail page hides unavailable path actions instead of rendering empty placeholders", () => {
   assert.match(pageSource, /const hasRating = Boolean\(ratingSummary\);/, "detail page should compute rating visibility from the normalized rating summary");
   assert.match(pageSource, /const ratingSourceLabel = getMetadataSourceLabel\(metadata\?\.source\);/, "detail page should derive a readable rating-source label from metadata");
@@ -153,4 +168,17 @@ test("book detail page hides unavailable path actions instead of rendering empty
   assert.match(pageSource, /state=\{\{ fromReadingDetail: `\$\{location\.pathname\}\$\{location\.search\}` \}\}/, "related book detail links should preserve the current detail page as their return target");
   assert.doesNotMatch(pageSource, /当前只有基础图书信息，详细介绍仍在补充。/, "missing metadata should not render generated placeholder copy");
   assert.doesNotMatch(pageSource, /mt-6 flex flex-col gap-3 sm:flex-row/, "hero block should no longer render the old return button row");
+});
+
+test("book detail page uses native mini program chrome spacing when embedded", () => {
+  assert.match(
+    pageSource,
+    /html\.xf-mp-webview \.book-detail-main \{[\s\S]*padding-top: var\(--xf-mp-nav-height, 88px\) !important;[\s\S]*padding-bottom: 0 !important;/,
+    "mini program web-view should use the native topbar height and remove web bottom padding"
+  );
+  assert.match(
+    pageSource,
+    /<main className="book-detail-main mx-auto max-w-6xl/,
+    "book detail main wrapper should expose the mini-program spacing hook"
+  );
 });

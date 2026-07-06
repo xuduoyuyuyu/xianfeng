@@ -17,7 +17,7 @@ interface User extends mongoose.Document {
   wechatUnionid?: string;
   role: "admin" | "user";
   proStatus?: "none" | "active" | "expired" | "refunded";
-  proPlan?: "monthly" | "yearly" | "";
+  proPlan?: "plus" | "pro" | "monthly" | "yearly" | "";
   proExpiresAt?: Date | null;
   proPurchasedAt?: Date | null;
   proRefundEligibleUntil?: Date | null;
@@ -61,7 +61,7 @@ const userSchema = new mongoose.Schema(
     wechatUnionid: { type: String, default: "", index: true },
     role: { type: String, enum: ["admin", "user"], default: "user" },
     proStatus: { type: String, enum: ["none", "active", "expired", "refunded"], default: "none", index: true },
-    proPlan: { type: String, enum: ["monthly", "yearly", ""], default: "" },
+    proPlan: { type: String, enum: ["plus", "pro", "monthly", "yearly", ""], default: "" },
     proExpiresAt: { type: Date, default: null, index: true },
     proPurchasedAt: { type: Date, default: null },
     proRefundEligibleUntil: { type: Date, default: null },

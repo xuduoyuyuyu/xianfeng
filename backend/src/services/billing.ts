@@ -6,8 +6,9 @@ import User from "../models/User";
 
 export type ProStatus = "none" | "active" | "expired" | "refunded";
 
-export type BillingPlanId = "monthly" | "yearly";
-export type BillingPlanCatalogId = BillingPlanId | "free";
+export type BillingPlanId = "plus" | "pro";
+export type LegacyBillingPlanId = "monthly" | "yearly";
+export type BillingPlanCatalogId = BillingPlanId | LegacyBillingPlanId | "free";
 
 export type BillingPlan = {
   id: BillingPlanCatalogId;
@@ -31,8 +32,8 @@ export type PointUsagePolicyItem = {
   description: string;
 };
 
-export const FREE_DAILY_LOGIN_GRANT_POINTS = 100;
-export const FREE_MONTHLY_LOGIN_GRANT_CAP_POINTS = 1000;
+export const FREE_DAILY_LOGIN_GRANT_POINTS = 10;
+export const FREE_MONTHLY_LOGIN_GRANT_CAP_POINTS = 30;
 
 export const POINT_USAGE_POLICY: Record<string, PointUsagePolicyItem> = {
   xiaowanzi: {
@@ -68,38 +69,45 @@ export const POINT_USAGE_POLICY: Record<string, PointUsagePolicyItem> = {
 };
 
 export const BILLING_PLANS: Record<BillingPlanId, BillingPlan> = {
-  monthly: {
-    id: "monthly",
-    name: "月套餐",
+  plus: {
+    id: "plus",
+    name: "Plus",
     amountCents: 1990,
     durationMonths: 1,
-    pointsPerCycle: 8800,
-    description: "月付兑换 8,800 点，按使用行为扣减。",
+    pointsPerCycle: 200,
+    description: "Plus 兑换 200 点，用完可继续补充。",
   },
-  yearly: {
-    id: "yearly",
-    name: "年套餐",
+  pro: {
+    id: "pro",
+    name: "Pro",
     amountCents: 9900,
     durationMonths: 12,
-    pointsPerCycle: 105600,
-    description: "年付兑换 105,600 点，适合长期使用。",
+    pointsPerCycle: 1200,
+    description: "Pro 兑换 1,200 点，适合长期使用。",
   },
 };
 
 export const FREE_BILLING_PLAN: BillingPlan = {
   id: "free",
-  name: "免费",
+  name: "Free",
   amountCents: 0,
   durationMonths: 0,
   pointsPerCycle: FREE_DAILY_LOGIN_GRANT_POINTS,
-  description: "免费账户每天登录可获取100点数，每日重置，每月上限1000点数",
+  description: "免费账户每天登录可获取10点，每月上限30点",
 };
-
-const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
 
 type OrderLike = {
   status?: string;
   paidAt?: Date | string | null;
+};
+
+type RefundOrderLike = OrderLike & {
+  plan?: unknown;
+  amountCents?: unknown;
+};
+
+type RefundUserLike = {
+  proPointBalance?: unknown;
 };
 
 type UserProLike = {
@@ -134,6 +142,19 @@ function defaultPointBalanceForPlan(planId: BillingPlanCatalogId): number {
   return planId === "free" ? 0 : planPoints(planId);
 }
 
+function normalizeStoredBillingPlan(value: unknown): BillingPlanId | null {
+  if (value === "plus" || value === "monthly") return "plus";
+  if (value === "pro" || value === "yearly") return "pro";
+  return null;
+}
+
+function membershipLabel(planId: BillingPlanCatalogId): string {
+  const normalized = normalizeStoredBillingPlan(planId);
+  if (normalized === "plus") return "Plus";
+  if (normalized === "pro") return "Pro";
+  return "Free";
+}
+
 function chinaDateParts(now: Date): { dateKey: string; monthKey: string } {
   const shifted = new Date(now.getTime() + 8 * 60 * 60 * 1000);
   const year = shifted.getUTCFullYear();
@@ -156,7 +177,7 @@ export function calculateFreeLoginPointGrant(input: {
   const grantedThisMonth = String(input.grantMonth || "") === monthKey
     ? Math.min(FREE_MONTHLY_LOGIN_GRANT_CAP_POINTS, safePointBalance(input.grantedThisMonth, 0))
     : 0;
-  const currentBalance = Math.min(FREE_DAILY_LOGIN_GRANT_POINTS, safePointBalance(input.balance, 0));
+  const currentBalance = Math.min(FREE_MONTHLY_LOGIN_GRANT_CAP_POINTS, safePointBalance(input.balance, 0));
 
   if (String(input.grantDate || "") === dateKey) {
     return {
@@ -164,7 +185,7 @@ export function calculateFreeLoginPointGrant(input: {
       pointBalance: currentBalance,
       grantDate: dateKey,
       grantMonth: monthKey,
-      grantedThisMonth: grantedThisMonth || Math.min(FREE_DAILY_LOGIN_GRANT_POINTS, FREE_MONTHLY_LOGIN_GRANT_CAP_POINTS),
+      grantedThisMonth,
     };
   }
 
@@ -173,7 +194,7 @@ export function calculateFreeLoginPointGrant(input: {
 
   return {
     grantedPoints,
-    pointBalance: grantedPoints,
+    pointBalance: Math.min(FREE_MONTHLY_LOGIN_GRANT_CAP_POINTS, currentBalance + grantedPoints),
     grantDate: dateKey,
     grantMonth: monthKey,
     grantedThisMonth: grantedThisMonth + grantedPoints,
@@ -181,11 +202,12 @@ export function calculateFreeLoginPointGrant(input: {
 }
 
 export function normalizeBillingPlan(value: unknown): BillingPlanId | null {
-  return value === "monthly" || value === "yearly" ? value : null;
+  return normalizeStoredBillingPlan(value);
 }
 
 export function getCatalogPlanById(planId: BillingPlanCatalogId): BillingPlan {
-  return planId === "free" ? FREE_BILLING_PLAN : BILLING_PLANS[planId];
+  const normalized = normalizeStoredBillingPlan(planId);
+  return normalized ? BILLING_PLANS[normalized] : FREE_BILLING_PLAN;
 }
 
 function planPoints(planId: BillingPlanCatalogId): number {
@@ -222,11 +244,13 @@ export function addPlanDuration(planId: BillingPlanId, now = new Date(), existin
     return expiry && expiry.getTime() > now.getTime() ? new Date(expiry) : new Date(now);
   })();
   const next = new Date(base);
-  next.setMonth(next.getMonth() + BILLING_PLANS[planId].durationMonths);
+  const normalizedPlan = normalizeBillingPlan(planId);
+  if (!normalizedPlan) throw new Error("请选择有效套餐");
+  next.setMonth(next.getMonth() + BILLING_PLANS[normalizedPlan].durationMonths);
   return next;
 }
 
-export function canRefundOrder(order: OrderLike, now = new Date()): { ok: boolean; reason?: string; deadline?: Date } {
+export function canRefundOrder(order: OrderLike, _now = new Date()): { ok: boolean; reason?: string; deadline?: Date } {
   if (order.status !== "paid") {
     return { ok: false, reason: "订单未支付或已退款，无法申请退款" };
   }
@@ -234,11 +258,43 @@ export function canRefundOrder(order: OrderLike, now = new Date()): { ok: boolea
   if (!paidAt) {
     return { ok: false, reason: "订单缺少支付时间，无法申请退款" };
   }
-  const deadline = new Date(paidAt.getTime() + THREE_DAYS_MS);
-  if (deadline.getTime() < now.getTime()) {
-    return { ok: false, reason: "已超过3天全额退款期限", deadline };
+  return { ok: true };
+}
+
+export function calculatePointBasedRefund(order: RefundOrderLike, user: RefundUserLike | null | undefined) {
+  const baseCheck = canRefundOrder(order);
+  const plan = normalizeStoredBillingPlan(order.plan);
+  const amountCents = Math.max(0, Math.floor(Number(order.amountCents) || 0));
+  const totalPoints = plan ? planPoints(plan) : 0;
+  if (!baseCheck.ok) {
+    return { ok: false, reason: baseCheck.reason, amountCents: 0, totalPoints, refundablePoints: 0, usedPoints: 0 };
   }
-  return { ok: true, deadline };
+  if (!plan || totalPoints <= 0 || amountCents <= 0) {
+    return { ok: false, reason: "订单套餐信息异常，无法申请退款", amountCents: 0, totalPoints, refundablePoints: 0, usedPoints: 0 };
+  }
+
+  const currentBalance = safePointBalance(user?.proPointBalance, 0);
+  const refundablePoints = Math.min(totalPoints, currentBalance);
+  const usedPoints = Math.max(0, totalPoints - refundablePoints);
+  const refundableAmountCents = Math.floor((amountCents * refundablePoints) / totalPoints);
+  if (refundablePoints <= 0 || refundableAmountCents <= 0) {
+    return {
+      ok: false,
+      reason: "当前套餐点数已用完，无可退金额",
+      amountCents: 0,
+      totalPoints,
+      refundablePoints,
+      usedPoints,
+    };
+  }
+
+  return {
+    ok: true,
+    amountCents: refundableAmountCents,
+    totalPoints,
+    refundablePoints,
+    usedPoints,
+  };
 }
 
 function amountText(cents: number): string {
@@ -263,20 +319,25 @@ export function serializePlan(plan: BillingPlan) {
 export function serializeBillingUser(user: any, now = new Date()) {
   const active = isProActive(user, now);
   const expiresAt = asDate(user?.proExpiresAt);
-  const refundUntil = asDate(user?.proRefundEligibleUntil);
-  const currentPlan: BillingPlanCatalogId = active && (user?.proPlan === "monthly" || user?.proPlan === "yearly") ? user.proPlan : "free";
+  const activePlan = active ? normalizeStoredBillingPlan(user?.proPlan) : null;
+  const currentPlan: BillingPlanCatalogId = activePlan || "free";
   const rawBalance = Number(user?.proPointBalance);
-  const pointBalance = Number.isFinite(rawBalance) ? Math.max(0, rawBalance) : defaultPointBalanceForPlan(currentPlan);
+  const pointBalance = Number.isFinite(rawBalance)
+    ? Math.max(0, activePlan ? rawBalance : Math.min(rawBalance, FREE_MONTHLY_LOGIN_GRANT_CAP_POINTS))
+    : defaultPointBalanceForPlan(currentPlan);
+  const tier = activePlan || "free";
   return {
     proPointBalance: pointBalance,
     proStatus: active ? "active" : user?.proStatus === "refunded" ? "refunded" : expiresAt && expiresAt <= now ? "expired" : user?.proStatus || "none",
-    proPlan: user?.proPlan || "",
+    proPlan: activePlan || "",
+    membershipTier: tier,
+    membershipLabel: membershipLabel(tier),
     proExpiresAt: expiresAt ? expiresAt.toISOString() : null,
     proPurchasedAt: asDate(user?.proPurchasedAt)?.toISOString() || null,
-    proRefundEligibleUntil: refundUntil ? refundUntil.toISOString() : null,
+    proRefundEligibleUntil: null,
     proLatestOrderId: user?.proLatestOrderId ? String(user.proLatestOrderId) : "",
     isProActive: active,
-    canRefundLatestOrder: active && !!refundUntil && refundUntil.getTime() >= now.getTime(),
+    canRefundLatestOrder: active && !!user?.proLatestOrderId,
   };
 }
 
@@ -298,23 +359,26 @@ export async function grantFreeLoginPointsForUser(user: any, now = new Date()) {
 }
 
 export async function resetFreeAccountPointGrants(now = new Date()) {
-  const result = await User.updateMany(
-    {
-      $or: [
-        { proStatus: { $ne: "active" } },
-        { proExpiresAt: { $exists: false } },
-        { proExpiresAt: null },
-        { proExpiresAt: { $lte: now } },
-      ],
-    },
-    {
-      $set: {
-        proPointBalance: 0,
-        proFreeGrantDate: "",
-        proFreeGrantMonth: "",
-        proFreeGrantedThisMonth: 0,
+  const filter = {
+    $or: [
+      { proStatus: { $ne: "active" } },
+      { proExpiresAt: { $exists: false } },
+      { proExpiresAt: null },
+      { proExpiresAt: { $lte: now } },
+    ],
+  };
+  const result = await User.collection.updateMany(
+    filter,
+    [
+      {
+        $set: {
+          proPointBalance: { $min: ["$proPointBalance", FREE_MONTHLY_LOGIN_GRANT_CAP_POINTS] },
+          proFreeGrantDate: "",
+          proFreeGrantMonth: "",
+          proFreeGrantedThisMonth: 0,
+        },
       },
-    }
+    ]
   );
 
   return {
@@ -338,7 +402,7 @@ export async function createPaymentOrder(input: {
     provider: input.provider || "alipay",
     amountCents: plan.amountCents,
     currency: "CNY",
-    subject: `订阅 ${plan.id === "monthly" ? "月付" : "年付"}`,
+    subject: `订阅 ${plan.name}`,
     outTradeNo: createTradeNo(),
     status: "pending",
   });
@@ -377,9 +441,7 @@ export async function consumeProPoints(input: SpendPointsInput): Promise<ProPoin
   }
 
   const active = isProActive(user, now);
-  const currentPlan: BillingPlanCatalogId = active && (user?.proPlan === "monthly" || user?.proPlan === "yearly")
-    ? user.proPlan
-    : "free";
+  const currentPlan: BillingPlanCatalogId = active ? normalizeStoredBillingPlan(user?.proPlan) || "free" : "free";
 
   const pointsToSpend = Number(input.points);
   const spend = Number.isFinite(pointsToSpend) && pointsToSpend > 0 ? Math.round(pointsToSpend * 100) / 100 : 1;
@@ -416,13 +478,15 @@ export async function consumeProPoints(input: SpendPointsInput): Promise<ProPoin
 export async function grantProForOrder(order: PaymentOrder, paidAt = new Date()) {
   const user = await User.findById(order.userId);
   if (!user) throw new Error("用户不存在");
-  const expiresAt = addPlanDuration(order.plan, paidAt, (user as any).proExpiresAt);
+  const plan = normalizeBillingPlan(order.plan);
+  if (!plan) throw new Error("请选择有效套餐");
+  const expiresAt = addPlanDuration(plan, paidAt, (user as any).proExpiresAt);
   (user as any).proStatus = "active";
-  (user as any).proPlan = order.plan;
+  (user as any).proPlan = plan;
   (user as any).proPurchasedAt = paidAt;
-  (user as any).proPointBalance = planPoints(order.plan);
+  (user as any).proPointBalance = safePointBalance((user as any).proPointBalance, 0) + planPoints(plan);
   (user as any).proExpiresAt = expiresAt;
-  (user as any).proRefundEligibleUntil = new Date(paidAt.getTime() + THREE_DAYS_MS);
+  (user as any).proRefundEligibleUntil = null;
   (user as any).proLatestOrderId = order._id;
   await user.save();
   return user;
@@ -438,7 +502,9 @@ export async function recomputeUserProFromOrders(userId: string) {
   let latest: PaymentOrder | null = null;
   for (const order of paidOrders) {
     const paidAt = asDate(order.paidAt) || asDate(order.createdAt) || new Date();
-    expiry = addPlanDuration(order.plan, paidAt, expiry);
+    const plan = normalizeBillingPlan(order.plan);
+    if (!plan) continue;
+    expiry = addPlanDuration(plan, paidAt, expiry);
     latest = order;
   }
 
@@ -448,39 +514,49 @@ export async function recomputeUserProFromOrders(userId: string) {
     (user as any).proExpiresAt = expiry;
     (user as any).proRefundEligibleUntil = null;
     (user as any).proLatestOrderId = latest?._id || null;
-    (user as any).proPointBalance = Math.min(safePointBalance((user as any).proPointBalance, 0), FREE_DAILY_LOGIN_GRANT_POINTS);
+    (user as any).proPointBalance = Math.min(safePointBalance((user as any).proPointBalance, 0), FREE_MONTHLY_LOGIN_GRANT_CAP_POINTS);
   } else {
+    const latestPlan = normalizeBillingPlan(latest?.plan);
     (user as any).proStatus = "active";
-    (user as any).proPlan = latest?.plan || "";
+    (user as any).proPlan = latestPlan || "";
     (user as any).proExpiresAt = expiry;
     (user as any).proPurchasedAt = latest?.paidAt || latest?.createdAt || null;
-    (user as any).proRefundEligibleUntil = latest?.paidAt ? new Date(new Date(latest.paidAt).getTime() + THREE_DAYS_MS) : null;
+    (user as any).proRefundEligibleUntil = null;
     (user as any).proLatestOrderId = latest?._id || null;
-    (user as any).proPointBalance = latest?.plan ? planPoints(latest.plan) : safePointBalance((user as any).proPointBalance, 0);
+    (user as any).proPointBalance = safePointBalance((user as any).proPointBalance, 0);
   }
 
   await user.save();
   return user;
 }
 
-export async function createRefundRecord(order: PaymentOrder, reason: string) {
+export async function createRefundRecord(order: PaymentOrder, reason: string, amountCents = order.amountCents) {
   return RefundRecordModel.create({
     orderId: order._id,
     userId: order.userId,
     provider: order.provider,
-    amountCents: order.amountCents,
-    reason: reason || "3天不满意全额退款",
+    amountCents,
+    reason: reason || "按未使用点数折算退款",
     outRequestNo: createRefundNo(),
     status: "pending",
   });
 }
 
-export async function markRefundSucceeded(order: PaymentOrder, refund: any, rawResult: Record<string, any> = {}) {
+export async function markRefundSucceeded(order: PaymentOrder, refund: any, rawResult: Record<string, any> = {}, options: { refundablePoints?: number } = {}) {
   refund.status = "succeeded";
   refund.refundedAt = new Date();
   refund.rawResult = rawResult;
   refund.providerRefundId = String(rawResult?.trade_no || rawResult?.refund_id || rawResult?.out_request_no || "");
   await refund.save();
+
+  const refundablePoints = safePointBalance(options.refundablePoints, 0);
+  if (refundablePoints > 0) {
+    const user = await User.findById(order.userId);
+    if (user) {
+      (user as any).proPointBalance = Math.max(0, safePointBalance((user as any).proPointBalance, 0) - refundablePoints);
+      await user.save();
+    }
+  }
 
   order.status = "refunded";
   order.refundedAt = refund.refundedAt;

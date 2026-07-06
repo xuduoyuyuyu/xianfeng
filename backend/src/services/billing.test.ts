@@ -3,33 +3,40 @@ import { after, before, describe, it } from "node:test";
 import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import User from "../models/User";
+import PaymentOrderModel from "../models/PaymentOrder";
 import {
   BILLING_PLANS,
   FREE_BILLING_PLAN,
   POINT_USAGE_POLICY,
   addPlanDuration,
   canRefundOrder,
+  calculatePointBasedRefund,
   calculateFreeLoginPointGrant,
   consumeProPoints,
   getPointCostForFeature,
+  getLatestRefundableOrder,
+  grantProForOrder,
   isProActive,
   isMockPaymentEnabled,
   normalizeBillingPlan,
   resetFreeAccountPointGrants,
+  serializeBillingUser,
 } from "./billing";
 
 describe("billing rules", () => {
-  it("exposes monthly and yearly plans and default free points", () => {
-    assert.equal(BILLING_PLANS.monthly.amountCents, 1990);
-    assert.equal(BILLING_PLANS.yearly.amountCents, 9900);
-    assert.equal(BILLING_PLANS.monthly.pointsPerCycle, 8800);
-    assert.equal(BILLING_PLANS.yearly.pointsPerCycle, 105600);
-    assert.equal(FREE_BILLING_PLAN.pointsPerCycle, 100);
-    assert.match(FREE_BILLING_PLAN.description, /每月上限1000点数/);
-    assert.match(BILLING_PLANS.monthly.description, /点/);
-    assert.match(BILLING_PLANS.yearly.description, /点/);
-    assert.equal(normalizeBillingPlan("monthly"), "monthly");
-    assert.equal(normalizeBillingPlan("yearly"), "yearly");
+  it("exposes Plus and Pro plans, free 10 point login grants, and legacy plan aliases", () => {
+    assert.equal(BILLING_PLANS.plus.amountCents, 1990);
+    assert.equal(BILLING_PLANS.pro.amountCents, 9900);
+    assert.equal(BILLING_PLANS.plus.pointsPerCycle, 200);
+    assert.equal(BILLING_PLANS.pro.pointsPerCycle, 1200);
+    assert.equal(FREE_BILLING_PLAN.pointsPerCycle, 10);
+    assert.match(FREE_BILLING_PLAN.description, /每月上限30点/);
+    assert.match(BILLING_PLANS.plus.description, /200 点/);
+    assert.match(BILLING_PLANS.pro.description, /1,200 点/);
+    assert.equal(normalizeBillingPlan("plus"), "plus");
+    assert.equal(normalizeBillingPlan("pro"), "pro");
+    assert.equal(normalizeBillingPlan("monthly"), "plus");
+    assert.equal(normalizeBillingPlan("yearly"), "pro");
     assert.equal(normalizeBillingPlan("bad-value"), null);
   });
 
@@ -37,15 +44,15 @@ describe("billing rules", () => {
     const now = new Date("2026-06-05T00:00:00.000Z");
     const currentExpiry = new Date("2026-06-20T00:00:00.000Z");
 
-    assert.equal(addPlanDuration("monthly", now, currentExpiry).toISOString(), "2026-07-20T00:00:00.000Z");
-    assert.equal(addPlanDuration("yearly", now, currentExpiry).toISOString(), "2027-06-20T00:00:00.000Z");
+    assert.equal(addPlanDuration("plus", now, currentExpiry).toISOString(), "2026-07-20T00:00:00.000Z");
+    assert.equal(addPlanDuration("pro", now, currentExpiry).toISOString(), "2027-06-20T00:00:00.000Z");
   });
 
   it("starts a new plan from now when the existing Pro is expired", () => {
     const now = new Date("2026-06-05T00:00:00.000Z");
     const expired = new Date("2026-06-01T00:00:00.000Z");
 
-    assert.equal(addPlanDuration("monthly", now, expired).toISOString(), "2026-07-05T00:00:00.000Z");
+    assert.equal(addPlanDuration("plus", now, expired).toISOString(), "2026-07-05T00:00:00.000Z");
   });
 
   it("treats refunded and expired accounts as non-Pro", () => {
@@ -56,12 +63,28 @@ describe("billing rules", () => {
     assert.equal(isProActive({ proStatus: "refunded", proExpiresAt: "2026-06-06T00:00:00.000Z" }, now), false);
   });
 
-  it("allows full refund only within three days of payment", () => {
+  it("refunds by unused points instead of payment age", () => {
     const paidAt = new Date("2026-06-05T00:00:00.000Z");
+    const oldPaidOrder = {
+      status: "paid",
+      plan: "pro",
+      amountCents: 9900,
+      paidAt,
+    };
 
-    assert.equal(canRefundOrder({ status: "paid", paidAt }, new Date("2026-06-07T23:59:59.000Z")).ok, true);
-    assert.equal(canRefundOrder({ status: "paid", paidAt }, new Date("2026-06-08T00:00:01.000Z")).ok, false);
-    assert.equal(canRefundOrder({ status: "pending", paidAt }, new Date("2026-06-06T00:00:00.000Z")).ok, false);
+    assert.equal(canRefundOrder(oldPaidOrder, new Date("2026-07-08T00:00:01.000Z")).ok, true);
+    assert.equal(canRefundOrder({ ...oldPaidOrder, status: "pending" }, new Date("2026-06-06T00:00:00.000Z")).ok, false);
+
+    const refund = calculatePointBasedRefund(oldPaidOrder, { proPointBalance: 900 });
+    assert.equal(refund.ok, true);
+    assert.equal(refund.totalPoints, 1200);
+    assert.equal(refund.refundablePoints, 900);
+    assert.equal(refund.usedPoints, 300);
+    assert.equal(refund.amountCents, 7425);
+
+    const empty = calculatePointBasedRefund(oldPaidOrder, { proPointBalance: 0 });
+    assert.equal(empty.ok, false);
+    assert.equal(empty.amountCents, 0);
   });
 
   it("keeps mock payment disabled in production unless explicitly enabled", () => {
@@ -93,7 +116,7 @@ describe("billing rules", () => {
     }
   });
 
-  it("resets free users to 100 daily points without accumulating grants", () => {
+  it("adds free login points up to the 30 point monthly cap and immediately caps old balances", () => {
     const first = calculateFreeLoginPointGrant({
       balance: 0,
       grantDate: "",
@@ -102,11 +125,11 @@ describe("billing rules", () => {
       now: new Date("2026-06-05T01:00:00.000Z"),
     });
 
-    assert.equal(first.grantedPoints, 100);
-    assert.equal(first.pointBalance, 100);
+    assert.equal(first.grantedPoints, 10);
+    assert.equal(first.pointBalance, 10);
     assert.equal(first.grantDate, "2026-06-05");
     assert.equal(first.grantMonth, "2026-06");
-    assert.equal(first.grantedThisMonth, 100);
+    assert.equal(first.grantedThisMonth, 10);
 
     const sameDay = calculateFreeLoginPointGrant({
       balance: first.pointBalance,
@@ -117,10 +140,10 @@ describe("billing rules", () => {
     });
 
     assert.equal(sameDay.grantedPoints, 0);
-    assert.equal(sameDay.pointBalance, 100);
+    assert.equal(sameDay.pointBalance, 10);
 
     const sameDayAfterSpend = calculateFreeLoginPointGrant({
-      balance: 23.5,
+      balance: 43.5,
       grantDate: first.grantDate,
       grantMonth: first.grantMonth,
       grantedThisMonth: first.grantedThisMonth,
@@ -128,57 +151,80 @@ describe("billing rules", () => {
     });
 
     assert.equal(sameDayAfterSpend.grantedPoints, 0);
-    assert.equal(sameDayAfterSpend.pointBalance, 23.5);
+    assert.equal(sameDayAfterSpend.pointBalance, 30);
 
     const nextDay = calculateFreeLoginPointGrant({
-      balance: 591.5,
+      balance: 10,
       grantDate: "2026-06-04",
       grantMonth: "2026-06",
-      grantedThisMonth: 100,
+      grantedThisMonth: 10,
       now: new Date("2026-06-06T01:00:00.000Z"),
     });
 
-    assert.equal(nextDay.grantedPoints, 100);
-    assert.equal(nextDay.pointBalance, 100);
-    assert.equal(nextDay.grantedThisMonth, 200);
+    assert.equal(nextDay.grantedPoints, 10);
+    assert.equal(nextDay.pointBalance, 20);
+    assert.equal(nextDay.grantedThisMonth, 20);
   });
 
-  it("stops free daily login grants at the 1000 point monthly cap", () => {
+  it("stops free daily login grants at the 30 point monthly cap", () => {
     const partialCap = calculateFreeLoginPointGrant({
-      balance: 0,
+      balance: 20,
       grantDate: "2026-06-09",
       grantMonth: "2026-06",
-      grantedThisMonth: 950,
+      grantedThisMonth: 25,
       now: new Date("2026-06-10T01:00:00.000Z"),
     });
 
-    assert.equal(partialCap.grantedPoints, 50);
-    assert.equal(partialCap.pointBalance, 50);
-    assert.equal(partialCap.grantedThisMonth, 1000);
+    assert.equal(partialCap.grantedPoints, 5);
+    assert.equal(partialCap.pointBalance, 25);
+    assert.equal(partialCap.grantedThisMonth, 30);
 
     const exhausted = calculateFreeLoginPointGrant({
       balance: 0,
       grantDate: "2026-06-10",
       grantMonth: "2026-06",
-      grantedThisMonth: 1000,
+      grantedThisMonth: 30,
       now: new Date("2026-06-11T01:00:00.000Z"),
     });
 
     assert.equal(exhausted.grantedPoints, 0);
     assert.equal(exhausted.pointBalance, 0);
-    assert.equal(exhausted.grantedThisMonth, 1000);
+    assert.equal(exhausted.grantedThisMonth, 30);
 
     const nextMonth = calculateFreeLoginPointGrant({
       balance: 0,
       grantDate: "2026-06-30",
       grantMonth: "2026-06",
-      grantedThisMonth: 1000,
+      grantedThisMonth: 30,
       now: new Date("2026-07-01T01:00:00.000Z"),
     });
 
-    assert.equal(nextMonth.grantedPoints, 100);
-    assert.equal(nextMonth.pointBalance, 100);
-    assert.equal(nextMonth.grantedThisMonth, 100);
+    assert.equal(nextMonth.grantedPoints, 10);
+    assert.equal(nextMonth.pointBalance, 10);
+    assert.equal(nextMonth.grantedThisMonth, 10);
+  });
+
+  it("serializes legacy paid plan ids as Plus and Pro membership tiers", () => {
+    const now = new Date("2026-06-05T00:00:00.000Z");
+    const plus = serializeBillingUser({
+      proStatus: "active",
+      proPlan: "plus",
+      proExpiresAt: "2026-07-05T00:00:00.000Z",
+      proPointBalance: 12,
+    }, now);
+    const pro = serializeBillingUser({
+      proStatus: "active",
+      proPlan: "yearly",
+      proExpiresAt: "2027-06-05T00:00:00.000Z",
+      proPointBalance: 99,
+    }, now);
+
+    assert.equal(plus.proPlan, "plus");
+    assert.equal(plus.membershipTier, "plus");
+    assert.equal(plus.membershipLabel, "Plus");
+    assert.equal(pro.proPlan, "pro");
+    assert.equal(pro.membershipTier, "pro");
+    assert.equal(pro.membershipLabel, "Pro");
   });
 
   it("exposes a point consumption policy for gated AI behavior", () => {
@@ -251,7 +297,7 @@ describe("billing point consumption", () => {
       username: "expired-reset-user",
       password: "hashed",
       proStatus: "active",
-      proPlan: "monthly",
+      proPlan: "plus",
       proExpiresAt: new Date("2026-06-01T00:00:00.000Z"),
       proPointBalance: 80,
       proFreeGrantDate: "2026-06-12",
@@ -264,7 +310,7 @@ describe("billing point consumption", () => {
       proStatus: "active",
       proPlan: "monthly",
       proExpiresAt: new Date("2026-07-12T00:00:00.000Z"),
-      proPointBalance: 8800,
+      proPointBalance: 200,
       proFreeGrantDate: "2026-06-12",
       proFreeGrantMonth: "2026-06",
       proFreeGrantedThisMonth: 100,
@@ -276,21 +322,88 @@ describe("billing point consumption", () => {
     assert.equal(result.modifiedCount, 2);
 
     const savedFree = await User.findById(freeUser._id).lean();
-    assert.equal(savedFree?.proPointBalance, 0);
+    assert.equal(savedFree?.proPointBalance, 30);
     assert.equal(savedFree?.proFreeGrantDate, "");
     assert.equal(savedFree?.proFreeGrantMonth, "");
     assert.equal(savedFree?.proFreeGrantedThisMonth, 0);
 
     const savedExpired = await User.findById(expiredUser._id).lean();
-    assert.equal(savedExpired?.proPointBalance, 0);
+    assert.equal(savedExpired?.proPointBalance, 30);
     assert.equal(savedExpired?.proFreeGrantDate, "");
     assert.equal(savedExpired?.proFreeGrantMonth, "");
     assert.equal(savedExpired?.proFreeGrantedThisMonth, 0);
 
     const savedActive = await User.findById(activeUser._id).lean();
-    assert.equal(savedActive?.proPointBalance, 8800);
+    assert.equal(savedActive?.proPointBalance, 200);
     assert.equal(savedActive?.proFreeGrantDate, "2026-06-12");
     assert.equal(savedActive?.proFreeGrantMonth, "2026-06");
     assert.equal(savedActive?.proFreeGrantedThisMonth, 100);
+  });
+
+  it("adds purchased package points to existing balances and stores the current membership tier", async () => {
+    await User.deleteMany({});
+
+    const user = await User.create({
+      username: "top-up-user",
+      password: "hashed",
+      proStatus: "active",
+      proPlan: "plus",
+      proExpiresAt: new Date("2026-06-20T00:00:00.000Z"),
+      proPointBalance: 15,
+    });
+
+    await grantProForOrder({
+      _id: new mongoose.Types.ObjectId(),
+      userId: user._id,
+      plan: "pro",
+    } as any, new Date("2026-06-05T00:00:00.000Z"));
+
+    const saved = await User.findById(user._id).lean();
+    assert.equal(saved?.proStatus, "active");
+    assert.equal(saved?.proPlan, "pro");
+    assert.equal(saved?.proPointBalance, 1215);
+  });
+
+  it("returns the newest still-paid order as the next refundable order", async () => {
+    await User.deleteMany({});
+    await PaymentOrderModel.deleteMany({});
+
+    const user = await User.create({
+      username: "multi-refund-user",
+      password: "hashed",
+      proStatus: "active",
+      proPlan: "plus",
+      proExpiresAt: new Date("2026-08-06T00:00:00.000Z"),
+      proPointBalance: 400,
+    });
+
+    const firstPaidOrder = await PaymentOrderModel.create({
+      userId: user._id,
+      plan: "plus",
+      provider: "wechat",
+      amountCents: 1990,
+      currency: "CNY",
+      subject: "订阅 Plus",
+      outTradeNo: "XFPROREFUNDORDER1",
+      status: "paid",
+      paidAt: new Date("2026-07-06T09:00:00.000Z"),
+    });
+    await PaymentOrderModel.create({
+      userId: user._id,
+      plan: "plus",
+      provider: "wechat",
+      amountCents: 1990,
+      currency: "CNY",
+      subject: "订阅 Plus",
+      outTradeNo: "XFPROREFUNDORDER2",
+      status: "refunded",
+      paidAt: new Date("2026-07-06T10:00:00.000Z"),
+      refundedAt: new Date("2026-07-06T10:10:00.000Z"),
+    });
+
+    const refundableOrder = await getLatestRefundableOrder(String(user._id));
+
+    assert.equal(String(refundableOrder?._id), String(firstPaidOrder._id));
+    assert.equal(refundableOrder?.status, "paid");
   });
 });
