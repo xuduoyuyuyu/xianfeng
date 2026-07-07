@@ -2606,7 +2606,7 @@ test("Xiaowanzi child picker links selection and shared archive creation", () =>
 
     assert.equal(context.data.childPickerOpen, true);
     assert.equal(context.data.settingsPanelOpen, false);
-    assert.equal(context.data.attachmentMenuOpen, true);
+    assert.equal(context.data.attachmentMenuOpen, false);
     assert.equal(context.data.historyDrawerOpen, false);
     assert.equal(context.data.shareSelectionMode, false);
     assert.equal(context.data.shareRevealMessageId, "");
@@ -3775,7 +3775,7 @@ test("Xiaowanzi share selection opens from a message, pairs the current round, a
     });
 
     assert.equal(context.data.shareSelectionMode, true);
-    assert.equal(context.data.attachmentMenuOpen, true);
+    assert.equal(context.data.attachmentMenuOpen, false);
     assert.equal(context.data.historyDrawerOpen, false);
     assert.equal(context.data.shareRevealMessageId, "");
     assert.deepEqual(context.data.selectedMessageIds, ["assistant-2", "user-2"]);
@@ -4684,7 +4684,7 @@ test("native first-level content tabs fetch API data and open detail wrapper rou
   assert.doesNotMatch(xiaowanzi.wxss, /\.xf-xiaowanzi-history-drawer \{[\s\S]*max\(48rpx, calc\(36rpx \+ env\(safe-area-inset-bottom\)\)\)/);
   assert.match(xiaowanzi.wxss, /\.xf-xiaowanzi-history-list \{[\s\S]*gap: 0;[\s\S]*padding-bottom: 0;/);
   assert.doesNotMatch(xiaowanzi.wxss.match(/\.xf-xiaowanzi-history-list \{[^}]*\}/)?.[0] || "", /calc\(126rpx \+ env\(safe-area-inset-bottom\)\)|env\(safe-area-inset-bottom\)/);
-  assert.match(xiaowanzi.wxml, /<view wx:for="\{\{historyCards\}\}" wx:key="id" class="xf-xiaowanzi-history-card" data-id="\{\{item\.id\}\}" catchtap="openHistoryCard">/);
+  assert.match(xiaowanzi.wxml, /<view wx:for="\{\{historyCards\}\}" wx:key="id" class="xf-xiaowanzi-history-card \{\{historyDeleteCardId === item\.id \? 'is-delete-visible' : ''\}\}" data-id="\{\{item\.id\}\}" catchtap="openHistoryCard" catchlongpress="showHistoryDeleteButton">/);
   assert.doesNotMatch(xiaowanzi.wxml, /<button wx:for="\{\{historyCards\}}"[\s\S]*class="xf-xiaowanzi-history-card"/);
   assert.match(xiaowanzi.wxss, /\.xf-xiaowanzi-history-card \{[\s\S]*flex-shrink: 0;[\s\S]*height: 80px;[\s\S]*margin-bottom: 10px;[\s\S]*padding: 10px 14px;[\s\S]*overflow: hidden;/);
   assert.match(xiaowanzi.wxss, /\.xf-xiaowanzi-history-card-title \{[\s\S]*font-size: 14px;[\s\S]*line-height: 20px;[\s\S]*overflow: hidden;[\s\S]*text-overflow: ellipsis;[\s\S]*white-space: nowrap;[\s\S]*word-break: normal;/);
