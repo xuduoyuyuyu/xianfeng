@@ -72,5 +72,7 @@ export function serializeWelfareClaim(claim: any) {
     _id: String(source._id),
     campaignId: String(source.campaignId?._id || source.campaignId),
     userId: String(source.userId?._id || source.userId),
+    activationCodeId: source.activationCodeId ? String(source.activationCodeId?._id || source.activationCodeId) : "",
+    activationCode: asText(source.activationCode),
   };
 }

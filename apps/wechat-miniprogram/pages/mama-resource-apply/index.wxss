@@ -574,11 +574,34 @@ page {
   white-space: nowrap;
 }
 
-.xf-mama-task-price {
+.xf-mama-task-price-group {
+  display: flex;
   flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4rpx;
+  max-width: 190rpx;
+}
+
+.xf-mama-task-price {
   color: #f04438;
   font-size: 31rpx;
   font-weight: 900;
+  line-height: 1.1;
+}
+
+.xf-mama-task-traffic {
+  max-width: 100%;
+  padding: 4rpx 10rpx;
+  border-radius: 999rpx;
+  background: #fff7ed;
+  color: #c2410c;
+  font-size: 18rpx;
+  font-weight: 900;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .xf-mama-task-meta {
@@ -777,9 +800,9 @@ page {
 }
 
 .xf-mama-example-image {
+  display: block;
   width: 100%;
   border-radius: 20rpx;
-  background: #f4f5f7;
 }
 
 .xf-mama-proof-card {

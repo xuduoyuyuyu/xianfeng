@@ -175,7 +175,10 @@
           <view class="xf-mama-task-main">
             <view class="xf-mama-task-row-head">
               <text class="xf-mama-task-name">{{item.title}}</text>
-              <text class="xf-mama-task-price">{{item.unitPriceText}}</text>
+              <view class="xf-mama-task-price-group">
+                <text class="xf-mama-task-price">{{item.unitPriceText}}</text>
+                <text wx:if="{{item.hasTrafficFee}}" class="xf-mama-task-traffic">额外 {{item.trafficFeeText}} 投流</text>
+              </view>
             </view>
             <text class="xf-mama-task-meta">{{item.category}} · {{item.dataCycle || "T+9"}} · {{item.statusText}}</text>
             <text class="xf-mama-task-meta">正在推广：{{item.promotionCountText}}人 · 最新数据：{{item.latestDataDateText}}</text>

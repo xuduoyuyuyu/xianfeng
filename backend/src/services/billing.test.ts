@@ -229,9 +229,9 @@ describe("billing rules", () => {
   });
 
   it("exposes a point consumption policy for gated AI behavior", () => {
-    assert.equal(POINT_USAGE_POLICY.xiaowanzi.cost, 2);
+    assert.equal(POINT_USAGE_POLICY.xiaowanzi.cost, 1);
     assert.equal(POINT_USAGE_POLICY.xiaowanzi_file.name, "小玩子图片文件处理");
-    assert.equal(POINT_USAGE_POLICY.xiaowanzi_file.cost, 10);
+    assert.equal(POINT_USAGE_POLICY.xiaowanzi_file.cost, 1);
     assert.equal(POINT_USAGE_POLICY.ai_chat.cost, 1);
     assert.equal(POINT_USAGE_POLICY.guest_agent.cost, 3);
     assert.equal(POINT_USAGE_POLICY.education_planning.name, "智能教育规划");

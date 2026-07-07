@@ -90,6 +90,10 @@ function renderCoverPreview(value: string, className = "h-14 w-14") {
   return <img src={source || "/assets/welfare-gift-icon.png"} alt="" className={`${className} shrink-0 rounded-2xl bg-[#f1ecff] object-contain p-1`} />;
 }
 
+function safeFileName(value: string) {
+  return (String(value || "").replace(/[\\/:*?"<>|]+/g, "_").trim().slice(0, 60) || "福利领取记录");
+}
+
 const AdminWelfarePage: React.FC = () => {
   const [items, setItems] = useState<WelfareCampaign[]>([]);
   const [form, setForm] = useState<WelfareForm>(emptyForm);
@@ -100,6 +104,9 @@ const AdminWelfarePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [importingCodes, setImportingCodes] = useState(false);
+  const [exportingClaims, setExportingClaims] = useState(false);
+  const [activationCodeText, setActivationCodeText] = useState("");
   const [message, setMessage] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -129,6 +136,7 @@ const AdminWelfarePage: React.FC = () => {
   const openCreate = () => {
     setEditing(null);
     setForm(emptyForm);
+    setActivationCodeText("");
     setMessage("");
     setFormModalOpen(true);
   };
@@ -136,15 +144,17 @@ const AdminWelfarePage: React.FC = () => {
   const openEdit = (campaign: WelfareCampaign) => {
     setEditing(campaign);
     setForm(toForm(campaign));
+    setActivationCodeText("");
     setMessage("");
     setFormModalOpen(true);
   };
 
   const closeFormModal = () => {
-    if (saving || uploading) return;
+    if (saving || uploading || importingCodes) return;
     setFormModalOpen(false);
     setEditing(null);
     setForm(emptyForm);
+    setActivationCodeText("");
   };
 
   const uploadCoverImage = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -192,6 +202,24 @@ const AdminWelfarePage: React.FC = () => {
     }
   };
 
+  const importActivationCodes = async () => {
+    if (!editing || importingCodes) return;
+    setImportingCodes(true);
+    setMessage("");
+    try {
+      const response = await adminApi.importWelfareActivationCodes(editing._id, { codesText: activationCodeText });
+      setActivationCodeText("");
+      setEditing(response.data.campaign);
+      await loadItems();
+      const skippedText = response.data.skippedCount ? `，跳过 ${response.data.skippedCount} 个重复码` : "";
+      setMessage(`已导入 ${response.data.importedCount} 个激活码${skippedText}。`);
+    } catch (error: any) {
+      setMessage(error?.response?.data?.message || error?.message || "激活码导入失败");
+    } finally {
+      setImportingCodes(false);
+    }
+  };
+
   const openClaims = async (campaign: WelfareCampaign) => {
     setClaimCampaign(campaign);
     setClaims([]);
@@ -200,6 +228,28 @@ const AdminWelfarePage: React.FC = () => {
       setClaims(response.data.claims || []);
     } catch (error: any) {
       setMessage(error?.response?.data?.message || error?.message || "领取记录加载失败");
+    }
+  };
+
+  const exportClaims = async () => {
+    if (!claimCampaign || exportingClaims) return;
+    setExportingClaims(true);
+    setMessage("");
+    try {
+      const response = await adminApi.exportAdminWelfareClaims(claimCampaign._id);
+      const blob = response.data instanceof Blob ? response.data : new Blob([response.data], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${safeFileName(claimCampaign.title)}-领取对账.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error: any) {
+      setMessage(error?.response?.data?.message || error?.message || "领取记录导出失败");
+    } finally {
+      setExportingClaims(false);
     }
   };
 
@@ -240,6 +290,7 @@ const AdminWelfarePage: React.FC = () => {
                       <p className="mt-1 text-sm font-medium text-stone-500">{item.subtitle || "未填写副标题"}</p>
                       <p className="mt-2 text-xs font-bold text-stone-500">
                         库存 {item.remainingStock}/{item.totalStock} · 已领取 {item.claimedCount}
+                        {item.activationCodeCount ? ` · 激活码 ${item.activationCodeRemainingCount}/${item.activationCodeCount}` : ""}
                       </p>
                     </div>
                     <div className="flex shrink-0 gap-2">
@@ -298,6 +349,36 @@ const AdminWelfarePage: React.FC = () => {
                     <input className="mt-1 h-10 w-full rounded-xl border border-stone-200 px-3 text-sm" inputMode="numeric" value={form.sortOrder} onChange={(event) => updateField("sortOrder", event.target.value)} />
                   </label>
                 </div>
+                <section className="rounded-2xl border border-[#e6ddff] bg-[#fbf9ff] p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-black text-[#171321]">激活码</h3>
+                      <p className="mt-1 text-xs font-bold text-stone-500">
+                        {editing
+                          ? `已导入 ${editing.activationCodeCount || 0} 个 · 已绑定 ${editing.activationCodeClaimedCount || 0} 个 · 剩余 ${editing.activationCodeRemainingCount || 0} 个`
+                          : "保存福利后可导入激活码。"}
+                      </p>
+                    </div>
+                    {editing ? (
+                      <button
+                        type="button"
+                        onClick={importActivationCodes}
+                        disabled={importingCodes || !activationCodeText.trim()}
+                        className="rounded-xl bg-[#5e17eb] px-3 py-2 text-xs font-black text-white disabled:opacity-50"
+                      >
+                        {importingCodes ? "导入中..." : "导入激活码"}
+                      </button>
+                    ) : null}
+                  </div>
+                  {editing ? (
+                    <textarea
+                      className="mt-3 min-h-[92px] w-full rounded-xl border border-[#d8ccff] bg-white px-3 py-2 text-sm"
+                      value={activationCodeText}
+                      onChange={(event) => setActivationCodeText(event.target.value)}
+                      placeholder="每行一个激活码，也支持逗号分隔；重复码会自动跳过"
+                    />
+                  ) : null}
+                </section>
                 <div className="grid grid-cols-2 gap-3">
                   <label className="text-xs font-black text-stone-600">
                     开始时间
@@ -359,7 +440,12 @@ const AdminWelfarePage: React.FC = () => {
                 <h2 className="text-xl font-black text-[#171321]">领取记录</h2>
                 <p className="text-sm font-medium text-stone-500">{claimCampaign.title}</p>
               </div>
-              <button type="button" onClick={() => setClaimCampaign(null)} className="rounded-full border border-stone-200 px-3 py-1 text-sm font-black text-stone-600">关闭</button>
+              <div className="flex shrink-0 gap-2">
+                <button type="button" onClick={exportClaims} disabled={exportingClaims} className="rounded-full border border-[#5e17eb]/20 bg-[#f7f2ff] px-3 py-1 text-sm font-black text-[#5e17eb] disabled:opacity-50">
+                  {exportingClaims ? "导出中..." : "导出对账"}
+                </button>
+                <button type="button" onClick={() => setClaimCampaign(null)} className="rounded-full border border-stone-200 px-3 py-1 text-sm font-black text-stone-600">关闭</button>
+              </div>
             </div>
             <div className="grid gap-2">
               {claims.length === 0 ? (
@@ -374,6 +460,7 @@ const AdminWelfarePage: React.FC = () => {
                     <div className="mt-1 text-xs font-bold text-stone-500">
                       手机 {claim.user?.mobile || "未绑定"} · 状态 {claim.status} · {claim.claimedAt || claim.createdAt || "未记录时间"}
                     </div>
+                    <div className="mt-1 text-xs font-black text-[#5e17eb]">激活码 {claim.activationCode || "未绑定"}</div>
                     {claim.children?.length ? (
                       <div className="mt-2 flex flex-wrap gap-2">
                         {claim.children.map((child) => (

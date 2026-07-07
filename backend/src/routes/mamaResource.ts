@@ -96,9 +96,33 @@ function publicProfilePayload(profile: any) {
   };
 }
 
-function publicTaskPayload(assignment: any) {
+const activePromotionStatuses = ["assigned", "submitted"];
+
+function assignmentTaskId(assignment: any) {
+  const source = typeof assignment?.toObject === "function" ? assignment.toObject() : assignment;
+  const task = source?.taskId && typeof source.taskId === "object" ? source.taskId : null;
+  return task?._id || source?.taskId || null;
+}
+
+async function getActivePromotionCounts(assignments: any[]) {
+  const taskIds = assignments.map(assignmentTaskId).filter(Boolean);
+  if (!taskIds.length) return new Map<string, number>();
+  const rows = await MamaResourceTaskAssignment.aggregate([
+    {
+      $match: {
+        taskId: { $in: taskIds },
+        status: { $in: activePromotionStatuses },
+      },
+    },
+    { $group: { _id: "$taskId", count: { $sum: 1 } } },
+  ]);
+  return new Map(rows.map((row) => [String(row._id), Number(row.count || 0)]));
+}
+
+function publicTaskPayload(assignment: any, activePromotionCounts?: Map<string, number>) {
   const source = typeof assignment.toObject === "function" ? assignment.toObject() : assignment;
   const task = source.taskId && typeof source.taskId === "object" ? source.taskId : {};
+  const taskId = String(task._id || source.taskId);
   return {
     ...task,
     status: source.status,
@@ -108,8 +132,9 @@ function publicTaskPayload(assignment: any) {
     reviewedAt: source.reviewedAt,
     reviewNote: source.reviewNote,
     _id: String(source._id),
-    taskId: String(task._id || source.taskId),
+    taskId,
     profileId: String(source.profileId),
+    activePromotionCount: activePromotionCounts?.get(taskId) || 0,
   };
 }
 
@@ -140,9 +165,10 @@ router.get("/me/tasks", authenticate, async (req: AuthenticatedRequest, res: Res
       .populate("taskId")
       .sort({ updatedAt: -1 })
       .lean();
+    const activePromotionCounts = await getActivePromotionCounts(tasks);
     res.json({
       profile: publicProfilePayload(profile),
-      tasks: tasks.map(publicTaskPayload),
+      tasks: tasks.map((task) => publicTaskPayload(task, activePromotionCounts)),
     });
   } catch (error: any) {
     res.status(500).json({ message: error?.message || "获取妈妈好赚任务失败" });
@@ -161,7 +187,8 @@ router.get("/me/tasks/:taskId", authenticate, async (req: AuthenticatedRequest, 
       res.status(404).json({ message: "任务不存在" });
       return;
     }
-    res.json({ profile: publicProfilePayload(profile), task: publicTaskPayload(task) });
+    const activePromotionCounts = await getActivePromotionCounts([task]);
+    res.json({ profile: publicProfilePayload(profile), task: publicTaskPayload(task, activePromotionCounts) });
   } catch (error: any) {
     res.status(500).json({ message: error?.message || "获取任务详情失败" });
   }

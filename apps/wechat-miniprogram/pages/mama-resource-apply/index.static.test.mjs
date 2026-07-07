@@ -58,6 +58,22 @@ test("approved mama resource account can view assigned tasks and submit proof", 
   assert.match(wxmlSource, /上传完成截图/);
 });
 
+test("mama resource task example images use native-loadable URLs without a fixed background frame", () => {
+  assert.match(jsSource, /function normalizeMamaResourceImageUrl\(value\)/);
+  assert.match(jsSource, /source\.startsWith\("\/uploads\/"\)[\s\S]*buildUrl\(source\)/);
+  assert.ok(jsSource.includes("xianfeng\\.xinzhi\\.info"));
+  assert.ok(jsSource.includes('source.replace(/^http:/i, "https:")'));
+  assert.match(jsSource, /exampleImageUrls: Array\.isArray\(source\.exampleImageUrls\) \? source\.exampleImageUrls\.map\(normalizeMamaResourceImageUrl\)\.filter\(Boolean\) : \[\]/);
+
+  assert.match(wxmlSource, /class="xf-mama-example-image"[^>]*mode="widthFix"/);
+  assert.doesNotMatch(wxmlSource, /class="xf-mama-example-image"[^>]*mode="aspectFit"/);
+  const imageStyle = wxssSource.match(/\.xf-mama-example-image \{[\s\S]*?\n\}/)?.[0] || "";
+  assert.match(imageStyle, /display: block;/);
+  assert.match(imageStyle, /width: 100%;/);
+  assert.doesNotMatch(imageStyle, /height:/);
+  assert.doesNotMatch(imageStyle, /background:/);
+});
+
 test("non-approved mama resource account stays on the application form", () => {
   assert.match(jsSource, /profile\.status !== "approved"/);
   assert.match(jsSource, /mamaResourceView: "apply"/);

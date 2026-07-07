@@ -718,7 +718,7 @@ page {
   padding: 52rpx 34rpx 96rpx;
   overflow-y: auto;
   overflow-x: hidden;
-  background: linear-gradient(180deg, #f7f7f8 0, #f7f7f8 calc(100% - 192rpx), transparent calc(100% - 192rpx), transparent 100%);
+  background: #f7f7f8;
   box-shadow: -36rpx 0 90rpx rgba(15, 23, 42, 0.2);
 }
 

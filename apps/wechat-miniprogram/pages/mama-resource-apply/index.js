@@ -125,6 +125,15 @@ function formatCount(value) {
   return count > 0 ? String(count) : "待补";
 }
 
+function formatActivePromotionCount(task) {
+  const source = task && typeof task === "object" ? task : {};
+  if (source.activePromotionCount !== undefined && source.activePromotionCount !== null) {
+    const count = Number(source.activePromotionCount);
+    return Number.isFinite(count) && count >= 0 ? String(Math.floor(count)) : "待补";
+  }
+  return formatCount(source.promotionCount);
+}
+
 function formatDateText(value) {
   const text = asText(value).trim();
   if (!text) return "";
@@ -140,6 +149,14 @@ function taskStatusText(status) {
   return "进行中";
 }
 
+function normalizeMamaResourceImageUrl(value) {
+  const source = asText(value).trim();
+  if (!source) return "";
+  if (source.startsWith("/uploads/")) return buildUrl(source);
+  if (/^http:\/\/xianfeng\.xinzhi\.info\//i.test(source)) return source.replace(/^http:/i, "https:");
+  return source;
+}
+
 function buildTaskView(task) {
   const source = task && typeof task === "object" ? task : {};
   const trafficFeeCents = Number(source.trafficFeeCents || 0);
@@ -149,12 +166,12 @@ function buildTaskView(task) {
     unitPriceText: formatMoneyFromCents(source.unitPriceCents),
     trafficFeeText: formatMoneyFromCents(source.trafficFeeCents),
     hasTrafficFee: trafficFeeCents > 0,
-    promotionCountText: formatCount(source.promotionCount),
+    promotionCountText: formatActivePromotionCount(source),
     latestDataDateText: source.latestDataDate || "待同步",
     announcement: asText(source.announcement).trim(),
     proofLink: asText(source.proofLink).trim(),
     proofScreenshotUrl: asText(source.proofScreenshotUrl).trim(),
-    exampleImageUrls: Array.isArray(source.exampleImageUrls) ? source.exampleImageUrls.map(asText).filter(Boolean) : []
+    exampleImageUrls: Array.isArray(source.exampleImageUrls) ? source.exampleImageUrls.map(normalizeMamaResourceImageUrl).filter(Boolean) : []
   };
 }
 

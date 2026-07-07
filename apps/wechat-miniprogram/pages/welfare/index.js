@@ -1,4 +1,5 @@
 const { request } = require("../../utils/request");
+const { API_ORIGIN } = require("../../utils/config");
 const { getNativeTopbarMetrics } = require("../../utils/nativeChrome");
 const { createPageShare, enableShareMenu } = require("../../utils/share");
 const { ensureBackStackForBackButtonPage, goProgramsHome: navigateProgramsHome, smartBackHome } = require("../../utils/nativePageNav");
@@ -26,6 +27,8 @@ function isNotFoundError(error) {
 function normalizeImage(value) {
   const source = String(value || "").trim();
   if (source.startsWith("emoji:")) return "";
+  if (source.startsWith("/uploads/")) return `${API_ORIGIN}${source}`;
+  if (/^http:\/\/xianfeng\.xinzhi\.info\//i.test(source)) return source.replace(/^http:/i, "https:");
   return source || "/assets/menu/welfare-gift-icon.png";
 }
 
@@ -43,10 +46,14 @@ function dateText(value) {
 
 function normalizeCampaign(item) {
   const availability = String(item && item.availability || "active");
+  const claimedByMe = Boolean(item && item.claimedByMe);
   const totalStock = Number(item && item.totalStock || 0);
   const remainingStock = Number(item && item.remainingStock || 0);
-  const unavailable = availability === "expired" || availability === "sold_out" || availability === "upcoming";
-  const actionText = availability === "expired"
+  const lifecycleUnavailable = availability === "expired" || availability === "sold_out" || availability === "upcoming";
+  const unavailable = claimedByMe || lifecycleUnavailable;
+  const actionText = claimedByMe
+    ? "已领取"
+    : availability === "expired"
     ? "已过期"
     : availability === "sold_out"
       ? "已抢完"
@@ -61,13 +68,32 @@ function normalizeCampaign(item) {
     coverImageUrl: normalizeImage(item && item.coverImageUrl),
     coverEmoji: normalizeEmoji(item && item.coverImageUrl),
     availability,
+    claimedByMe,
     statusText: STATUS_TEXT[availability] || "福利",
-    stockText: unavailable ? dateText(item && item.endsAt) : `剩余 ${remainingStock} / ${totalStock} 份`,
+    stockText: lifecycleUnavailable ? dateText(item && item.endsAt) : `剩余 ${remainingStock} / ${totalStock} 份`,
     actionText,
     unavailable,
+    claimDisabled: lifecycleUnavailable,
     claimInstructions: String(item && item.claimInstructions || ""),
-    externalUrl: String(item && item.externalUrl || "")
+    externalUrl: String(item && item.externalUrl || ""),
+    activationCode: String(item && item.activationCode || "")
   };
+}
+
+function sortClaimableCampaigns(campaigns) {
+  return campaigns.slice().sort((left, right) => Number(left.claimedByMe) - Number(right.claimedByMe));
+}
+
+function markCampaignClaimed(campaigns, id, campaign) {
+  return sortClaimableCampaigns(campaigns.map((item) => {
+    if (item._id !== id) return item;
+    return normalizeCampaign({
+      ...item,
+      ...(campaign || {}),
+      _id: id,
+      claimedByMe: true
+    });
+  }));
 }
 
 function friendlyError(error, fallback) {
@@ -93,7 +119,8 @@ Page({
     claimDialogVisible: false,
     claimDialogTitle: "",
     claimDialogInstructions: "",
-    claimDialogExternalUrl: ""
+    claimDialogExternalUrl: "",
+    claimDialogActivationCode: ""
   },
 
   onLoad(options = {}) {
@@ -132,7 +159,7 @@ Page({
     request({ url: "/api/welfare/campaigns" })
       .then((response) => {
         this.setData({
-          activeCampaigns: (response.active || []).map(normalizeCampaign),
+          activeCampaigns: sortClaimableCampaigns((response.active || []).map(normalizeCampaign)),
           historyCampaigns: (response.history || []).map(normalizeCampaign),
           loading: false
         });
@@ -150,17 +177,29 @@ Page({
     const id = event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.id;
     if (!id) return;
     const selected = this.data.activeCampaigns.find((campaign) => campaign._id === id);
+    if (selected && selected.claimedByMe) {
+      this.setData({
+        claimDialogVisible: true,
+        claimDialogTitle: selected.title || "已领取",
+        claimDialogInstructions: selected.claimInstructions || "领取成功，运营会根据福利说明联系你。",
+        claimDialogExternalUrl: selected.externalUrl || "",
+        claimDialogActivationCode: selected.activationCode || ""
+      });
+      return;
+    }
     this.setData({ claimingId: id, message: "" });
     request({ url: `/api/welfare/campaigns/${id}/claims`, method: "POST" })
       .then((response) => {
         const campaign = response && response.campaign || {};
+        const claim = response && response.claim || {};
         this.setData({
+          activeCampaigns: markCampaignClaimed(this.data.activeCampaigns, id, { ...campaign, activationCode: claim.activationCode }),
           claimDialogVisible: true,
           claimDialogTitle: campaign.title || (selected && selected.title) || "领取成功",
           claimDialogInstructions: campaign.claimInstructions || (selected && selected.claimInstructions) || "领取成功，运营会根据福利说明联系你。",
-          claimDialogExternalUrl: campaign.externalUrl || (selected && selected.externalUrl) || ""
+          claimDialogExternalUrl: campaign.externalUrl || (selected && selected.externalUrl) || "",
+          claimDialogActivationCode: String(claim.activationCode || campaign.activationCode || "")
         });
-        this.loadCampaigns();
       })
       .catch((error) => {
         this.setData({
@@ -177,7 +216,8 @@ Page({
       claimDialogVisible: false,
       claimDialogTitle: "",
       claimDialogInstructions: "",
-      claimDialogExternalUrl: ""
+      claimDialogExternalUrl: "",
+      claimDialogActivationCode: ""
     });
   },
 
@@ -188,6 +228,17 @@ Page({
       data: url,
       success() {
         wx.showToast({ title: "链接已复制", icon: "none" });
+      }
+    });
+  },
+
+  copyActivationCode() {
+    const code = String(this.data.claimDialogActivationCode || "").trim();
+    if (!code) return;
+    wx.setClipboardData({
+      data: code,
+      success() {
+        wx.showToast({ title: "激活码已复制", icon: "none" });
       }
     });
   },

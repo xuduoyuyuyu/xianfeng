@@ -751,6 +751,9 @@ export interface WelfareCampaign {
   totalStock: number;
   claimedCount: number;
   remainingStock: number;
+  activationCodeCount?: number;
+  activationCodeClaimedCount?: number;
+  activationCodeRemainingCount?: number;
   startsAt?: string | null;
   endsAt?: string | null;
   status: WelfareCampaignStatus;
@@ -764,6 +767,8 @@ export interface WelfareClaim {
   _id: string;
   campaignId: string;
   userId: string;
+  activationCodeId?: string;
+  activationCode?: string;
   user?: {
     _id: string;
     username?: string;
@@ -1406,8 +1411,12 @@ export const adminApi = {
     api.post<{ campaign: WelfareCampaign }>('/admin/welfare', data),
   updateWelfareCampaign: (id: string, data: WelfareCampaignInput) =>
     api.put<{ campaign: WelfareCampaign }>(`/admin/welfare/${id}`, data),
+  importWelfareActivationCodes: (id: string, data: { codesText?: string; codes?: string[] }) =>
+    api.post<{ importedCount: number; skippedCount: number; campaign: WelfareCampaign }>(`/admin/welfare/${id}/activation-codes`, data),
   getAdminWelfareClaims: (id: string) =>
     api.get<{ claims: WelfareClaim[] }>(`/admin/welfare/${id}/claims`),
+  exportAdminWelfareClaims: (id: string) =>
+    api.get<Blob>(`/admin/welfare/${id}/claims/export`, { responseType: "blob" }),
 
   getUsers: () => api.get<User[]>('/users'),
   getUserPortrait: (params?: { role?: string; city?: string; grade?: string }) =>

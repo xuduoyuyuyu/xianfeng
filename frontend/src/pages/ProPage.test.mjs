@@ -19,6 +19,13 @@ test("subscription balance refreshes after billed AI usage", () => {
   assert.match(source, /window\.addEventListener\("focus", refreshBilling\)/, "returning to the subscription page should refresh the balance");
 });
 
+test("subscription usage policy pins Xiaowanzi costs to the current one-point rules", () => {
+  assert.match(source, /USAGE_POLICY_OVERRIDES/, "stale remote usage policy should be normalized on the client");
+  assert.match(source, /featureKey: "xiaowanzi", name: "小玩子对话", cost: 1/);
+  assert.match(source, /featureKey: "xiaowanzi_file", name: "小玩子图片文件处理", cost: 1/);
+  assert.match(source, /USAGE_POLICY_OVERRIDES\.forEach\(\(item, key\) => byKey\.set\(key, item\)\)/);
+});
+
 test("subscription page uses native mini program chrome spacing when embedded", () => {
   assert.match(source, /html\.xf-mp-webview \.pro-page-main/);
   assert.match(source, /className=\{`pro-page-main/);

@@ -734,6 +734,14 @@ function writeNativeSessionIndex(items) {
   } catch (_error) {}
 }
 
+function removeStorageKey(key) {
+  if (!key) return;
+  try {
+    if (wx.removeStorageSync) wx.removeStorageSync(key);
+    else wx.setStorageSync(key, "");
+  } catch (_error) {}
+}
+
 function readNativeSessionMessages(sessionId) {
   if (!sessionId) return [];
   try {
@@ -766,6 +774,10 @@ function saveCachedHistory(childId, messages) {
   try {
     wx.setStorageSync(historyCacheKey(childId), sanitizeHistoryMessages(messages).slice(-80));
   } catch (_error) {}
+}
+
+function removeCachedHistory(childId) {
+  removeStorageKey(historyCacheKey(childId));
 }
 
 function formatHistoryTime(value) {
@@ -872,6 +884,18 @@ function saveNativeSession(childId, childName, messages) {
   wx.setStorageSync(NATIVE_ACTIVE_SESSION_KEY, sessionId);
   saveCachedHistory(childId, sanitized);
   return sessionId;
+}
+
+function removeNativeSession(sessionId) {
+  const id = String(sessionId || "").trim();
+  if (!id) return false;
+  const remaining = readNativeSessionIndex().filter((item) => item.id !== id);
+  writeNativeSessionIndex(remaining);
+  removeStorageKey(sessionMessagesKey(id));
+  const activeSessionId = String(wx.getStorageSync(NATIVE_ACTIVE_SESSION_KEY) || "").trim();
+  const wasActive = activeSessionId === id;
+  if (wasActive) removeStorageKey(NATIVE_ACTIVE_SESSION_KEY);
+  return wasActive;
 }
 
 function selectedMessageMapFromIds(ids) {
@@ -1971,6 +1995,7 @@ Page({
     sendPressing: false,
     historyDrawerOpen: false,
     historyCards: [],
+    historyDeleteCardId: "",
     childPickerOpen: false,
     childPickerCards: [],
     attachmentMenuOpen: false,
@@ -2104,8 +2129,13 @@ Page({
     syncNativeSessionChildTags();
     const childName = this.data.activeChildReady ? this.data.activeChildName : "";
     const sessionCards = buildSessionHistoryCards(childName);
+    const historyCards = sessionCards.length ? sessionCards : buildHistoryCards(messages, childName);
+    const payload = { historyCards };
+    if (this.data.historyDeleteCardId && !historyCards.some((item) => item.id === this.data.historyDeleteCardId)) {
+      payload.historyDeleteCardId = "";
+    }
     this.setData({
-      historyCards: sessionCards.length ? sessionCards : buildHistoryCards(messages, childName)
+      ...payload
     });
   },
 
@@ -2464,17 +2494,18 @@ Page({
   openHistoryDrawer() {
     this.refreshHistoryCards();
     this.clearShareRevealTimer();
-    this.setData({ historyDrawerOpen: true, childPickerOpen: false, attachmentMenuOpen: false, shareRevealMessageId: "", shareSelectionMode: false });
+    this.setData({ historyDrawerOpen: true, historyDeleteCardId: "", childPickerOpen: false, attachmentMenuOpen: false, shareRevealMessageId: "", shareSelectionMode: false });
   },
 
   closeHistoryDrawer() {
-    this.setData({ historyDrawerOpen: false });
+    this.setData({ historyDrawerOpen: false, historyDeleteCardId: "" });
   },
 
   returnToExternalPage() {
     this.clearShareRevealTimer();
     this.setData({
       historyDrawerOpen: false,
+      historyDeleteCardId: "",
       childPickerOpen: false,
       attachmentMenuOpen: false,
       shareRevealMessageId: "",
@@ -2514,6 +2545,7 @@ Page({
     wx.setStorageSync(NATIVE_ACTIVE_SESSION_KEY, createNativeSessionId());
     this.setData({
       historyDrawerOpen: false,
+      historyDeleteCardId: "",
       childPickerOpen: false,
       homeMode: true,
       messages: [DEFAULT_ASSISTANT_MESSAGE],
@@ -2536,6 +2568,11 @@ Page({
   openHistoryCard(event) {
     this.clearShareRevealTimer();
     const id = String(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.id || "");
+    const deleteCardId = String(this.data.historyDeleteCardId || "");
+    if (deleteCardId) {
+      this.setData({ historyDeleteCardId: "" });
+      if (deleteCardId === id) return;
+    }
     const card = (this.data.historyCards || []).find((item) => item.id === id);
     if (!card) return;
     const sessionId = String(card.sessionId || card.id || "");
@@ -2544,6 +2581,7 @@ Page({
       wx.setStorageSync(NATIVE_ACTIVE_SESSION_KEY, sessionId);
       this.setData({
         historyDrawerOpen: false,
+        historyDeleteCardId: "",
         childPickerOpen: false,
         homeMode: false,
         homeConversationMessages: [],
@@ -2557,6 +2595,7 @@ Page({
     }
     this.setData({
       historyDrawerOpen: false,
+      historyDeleteCardId: "",
       childPickerOpen: false,
       homeMode: false,
       homeConversationMessages: [],
@@ -2564,6 +2603,37 @@ Page({
       scrollIntoView: card.targetId || id,
       knowledgePillCollapsed: true
     });
+  },
+
+  showHistoryDeleteButton(event) {
+    const id = String(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.id || "");
+    if (!id) return;
+    this.setData({ historyDeleteCardId: id });
+  },
+
+  deleteHistoryCard(event) {
+    const id = String(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.id || "");
+    if (!id) return;
+    const card = (this.data.historyCards || []).find((item) => item.id === id);
+    if (!card) {
+      this.setData({ historyDeleteCardId: "" });
+      return;
+    }
+    const activeChild = activeChildProfile();
+    const deletedActiveSession = card.sessionId ? removeNativeSession(card.sessionId) : false;
+    const deletedVisibleCachedHistory = !card.sessionId && (this.data.messages || []).some((message) => String(message && message.id || "") === String(card.targetId || id));
+    if (!card.sessionId) removeCachedHistory(activeChild && activeChild.id);
+    const shouldResetConversation = deletedActiveSession || deletedVisibleCachedHistory;
+    const messages = shouldResetConversation ? [DEFAULT_ASSISTANT_MESSAGE] : this.data.messages;
+    this.setData({
+      historyDeleteCardId: "",
+      homeMode: shouldResetConversation ? true : this.data.homeMode,
+      messages,
+      homeConversationMessages: shouldResetConversation ? [] : this.data.homeConversationMessages,
+      scrollIntoView: shouldResetConversation ? "" : this.data.scrollIntoView,
+      knowledgePillCollapsed: shouldResetConversation ? false : this.data.knowledgePillCollapsed
+    });
+    this.refreshHistoryCards(messages);
   },
 
   toggleAttachmentMenu() {

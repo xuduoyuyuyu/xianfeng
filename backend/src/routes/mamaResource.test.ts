@@ -389,6 +389,95 @@ describe("mama resource pool routes", () => {
     assert.equal(reviewed.task.reviewNote, "已收录");
   });
 
+  it("reports the active promotion count from live task assignments", async () => {
+    const user = await User.create({
+      username: "u13800138004",
+      password: "hash",
+      mobile: "13800138004",
+      role: "user",
+    });
+    const token = jwt.sign({ id: String(user._id), role: "user" }, process.env.JWT_SECRET || "your-secret-key");
+    const [currentProfile, submittedProfile, collectedProfile, rejectedProfile] = await MamaResourceProfile.create([
+      {
+        displayName: "当前妈妈",
+        contactPhone: "13800138004",
+        contactWechat: "current-mom",
+        status: "approved",
+        consentAccepted: true,
+        categories: ["亲子阅读"],
+        socialAccount: {
+          platform: "xiaohongshu",
+          profileUrl: "https://www.xiaohongshu.com/user/profile/current",
+          normalizedProfileUrl: "xiaohongshu:user/profile/current",
+        },
+      },
+      {
+        displayName: "已提交妈妈",
+        contactPhone: "13800138005",
+        contactWechat: "submitted-mom",
+        status: "approved",
+        consentAccepted: true,
+        categories: ["亲子阅读"],
+        socialAccount: {
+          platform: "xiaohongshu",
+          profileUrl: "https://www.xiaohongshu.com/user/profile/submitted",
+          normalizedProfileUrl: "xiaohongshu:user/profile/submitted",
+        },
+      },
+      {
+        displayName: "已收录妈妈",
+        contactPhone: "13800138006",
+        contactWechat: "collected-mom",
+        status: "approved",
+        consentAccepted: true,
+        categories: ["亲子阅读"],
+        socialAccount: {
+          platform: "xiaohongshu",
+          profileUrl: "https://www.xiaohongshu.com/user/profile/collected",
+          normalizedProfileUrl: "xiaohongshu:user/profile/collected",
+        },
+      },
+      {
+        displayName: "已驳回妈妈",
+        contactPhone: "13800138007",
+        contactWechat: "rejected-mom",
+        status: "approved",
+        consentAccepted: true,
+        categories: ["亲子阅读"],
+        socialAccount: {
+          platform: "xiaohongshu",
+          profileUrl: "https://www.xiaohongshu.com/user/profile/rejected",
+          normalizedProfileUrl: "xiaohongshu:user/profile/rejected",
+        },
+      },
+    ]);
+    const task = await MamaResourceTask.create({
+      title: "迪桑娜评论",
+      category: "小红书评论",
+      unitPriceCents: 3000,
+      trafficFeeCents: 1200,
+      promotionCount: 42527,
+      latestDataDate: "2026-06-29T00:00:00.000Z",
+    });
+    await MamaResourceTaskAssignment.create([
+      { taskId: task._id, profileId: currentProfile._id, status: "assigned" },
+      { taskId: task._id, profileId: submittedProfile._id, status: "submitted" },
+      { taskId: task._id, profileId: collectedProfile._id, status: "collected" },
+      { taskId: task._id, profileId: rejectedProfile._id, status: "rejected" },
+    ]);
+
+    const response = await fetch(`${server.publicUrl}/me/tasks`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.tasks.length, 1);
+    assert.equal(data.tasks[0].promotionCount, 42527);
+    assert.equal(data.tasks[0].activePromotionCount, 2);
+    assert.equal(data.tasks[0].trafficFeeCents, 1200);
+  });
+
   it("auto-assigns approved profiles that match task creation criteria", async () => {
     const [readingProfile, toyProfile] = await MamaResourceProfile.create([
       {

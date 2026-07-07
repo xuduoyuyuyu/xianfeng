@@ -51,7 +51,7 @@
     >
       <view class="xf-native-book-cover-wrap">
         <image wx:if="{{item.coverImage}}" class="xf-native-book-cover" src="{{item.coverImage}}" mode="aspectFit" />
-        <view wx:else class="xf-native-book-cover-empty">及阅</view>
+        <image wx:else class="xf-native-book-cover-logo" src="/assets/menu/jiyue-logo.png" mode="aspectFit" />
       </view>
       <view class="xf-native-body">
         <text class="xf-native-card-title">{{item.title}}</text>
@@ -129,7 +129,7 @@
       </scroll-view>
       <view class="xf-native-filter-actions">
         <button class="xf-native-filter-reset" catchtap="resetReadingFilterDraft">重置</button>
-        <button class="xf-native-filter-submit" catchtap="applyReadingFilterDraft">查看 {{readingFilterPreviewCount}} 个书单</button>
+        <button class="xf-native-filter-submit" catchtap="applyReadingFilterDraft">查看 {{readingFilterPreviewCount}} 本图书</button>
       </view>
     </view>
   </view>

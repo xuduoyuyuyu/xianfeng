@@ -1,8 +1,9 @@
 import { Router, Response } from "express";
 import mongoose from "mongoose";
+import WelfareActivationCode from "../models/WelfareActivationCode";
 import WelfareCampaign from "../models/WelfareCampaign";
 import WelfareClaim from "../models/WelfareClaim";
-import { authenticate, AuthenticatedRequest } from "../middlewares/auth";
+import { authenticate, AuthenticatedRequest, optionalAuthenticate } from "../middlewares/auth";
 import {
   asText,
   idQuery,
@@ -14,11 +15,20 @@ import {
 
 const router = Router();
 
-router.get("/campaigns", async (req, res: Response) => {
+router.get("/campaigns", optionalAuthenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const now = resolveNow(req.query.now);
     const campaigns = await WelfareCampaign.find({ status: "published" }).sort({ sortOrder: -1, createdAt: -1 }).lean();
-    const serialized = campaigns.map((campaign) => serializeWelfareCampaign(campaign, now));
+    const userId = asText(req.user?.id);
+    const userClaims = userId
+      ? await WelfareClaim.find({ userId, status: "claimed", campaignId: { $in: campaigns.map((campaign) => campaign._id) } }).select("campaignId activationCode").lean()
+      : [];
+    const claimsByCampaignId = new Map(userClaims.map((claim: any) => [asText(claim.campaignId), claim]));
+    const serialized = campaigns.map((campaign) => ({
+      ...serializeWelfareCampaign(campaign, now),
+      claimedByMe: claimsByCampaignId.has(asText(campaign._id)),
+      activationCode: asText(claimsByCampaignId.get(asText(campaign._id))?.activationCode),
+    }));
     res.json({
       active: serialized.filter((campaign) => campaign.availability === "active"),
       history: serialized.filter((campaign) => campaign.availability === "expired" || campaign.availability === "sold_out"),
@@ -64,6 +74,56 @@ router.post("/campaigns/:id/claims", authenticate, async (req: AuthenticatedRequ
     }
     if (availability !== "active") {
       res.status(400).json({ message: "这个福利暂时不可领取" });
+      return;
+    }
+
+    const activationCodeCount = await WelfareActivationCode.countDocuments({ campaignId: campaign._id });
+
+    if (activationCodeCount > 0) {
+      const claimId = new mongoose.Types.ObjectId();
+      const activationCode = await WelfareActivationCode.findOneAndUpdate(
+        { campaignId: campaign._id, claimId: null },
+        { $set: { claimId, claimedByUserId: userId, claimedAt: now } },
+        { sort: { importIndex: 1, _id: 1 }, returnDocument: "after" }
+      );
+      if (!activationCode) {
+        res.status(409).json({ message: "这个福利已经被抢完" });
+        return;
+      }
+      try {
+        const claim = await WelfareClaim.create({
+          _id: claimId,
+          campaignId: campaign._id,
+          userId,
+          activationCodeId: activationCode._id,
+          activationCode: activationCode.code,
+          claimedAt: now,
+        });
+        const updated = await WelfareCampaign.findOneAndUpdate(
+          { _id: campaign._id },
+          { $inc: { claimedCount: 1 } },
+          { returnDocument: "after" }
+        );
+        res.status(201).json({
+          claim: serializeWelfareClaim(claim),
+          campaign: serializeWelfareCampaign(updated || campaign, now),
+        });
+      } catch (error: any) {
+        await WelfareActivationCode.updateOne(
+          { _id: activationCode._id, claimId },
+          { $set: { claimId: null, claimedByUserId: null, claimedAt: null } }
+        );
+        if (error?.code === 11000) {
+          const claim = await WelfareClaim.findOne({ campaignId, userId, status: "claimed" }).lean();
+          const current = await WelfareCampaign.findOne(idQuery(campaignId)).lean();
+          res.json({
+            claim: claim ? serializeWelfareClaim(claim) : null,
+            campaign: current ? serializeWelfareCampaign(current, now) : null,
+          });
+          return;
+        }
+        throw error;
+      }
       return;
     }
 

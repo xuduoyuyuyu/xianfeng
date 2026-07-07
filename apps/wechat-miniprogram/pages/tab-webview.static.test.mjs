@@ -369,11 +369,14 @@ test("welfare opens as a native mini program page and hides backend 404 noise", 
   assert.match(page.wxml, /class="xf-welfare-mascot" src="\/assets\/wel-avatar\/wizard\.png"/);
   assert.match(page.wxml, /今天没有新的福利，过几天再来看看。/);
   assert.match(page.wxml, /claimDialogVisible/);
+  assert.match(page.wxml, /claimDialogActivationCode/);
+  assert.match(page.wxml, /copyActivationCode/);
   assert.match(page.wxml, /复制链接/);
   assert.doesNotMatch(page.wxml, /xf-welfare-item-status/);
   assert.doesNotMatch(page.wxml, /Request failed with status code 404/);
   assert.match(page.js, /request\(\{ url: "\/api\/welfare\/campaigns" \}\)/);
   assert.match(page.js, /claimDialogInstructions/);
+  assert.match(page.js, /copyActivationCode\(\)/);
   assert.match(page.js, /copyClaimLink\(\)/);
   assert.match(page.js, /smartBackHome/);
   assert.match(page.js, /goBack\(\)\s*\{[\s\S]*smartBackHome\(\);[\s\S]*\}/);
@@ -428,6 +431,289 @@ test("welfare opens as a native mini program page and hides backend 404 noise", 
   }
 });
 
+test("welfare normalizes uploaded campaign covers for native image loading", async () => {
+  const definition = loadPageDefinition("welfare");
+  const originalWx = global.wx;
+  const state = { ...definition.data };
+  const { API_ORIGIN } = require("../utils/config");
+
+  try {
+    global.wx = {
+      showShareMenu() {},
+      getStorageSync() {
+        return "";
+      },
+      getWindowInfo() {
+        return { statusBarHeight: 20, windowWidth: 375 };
+      },
+      getMenuButtonBoundingClientRect() {
+        return { top: 28, height: 32, left: 280 };
+      },
+      request(options) {
+        options.success({
+          statusCode: 200,
+          data: {
+            active: [
+              {
+                _id: "campaign-upload",
+                title: "上传封面福利",
+                coverImageUrl: "/uploads/images/welfare-cover.png",
+                totalStock: 10,
+                remainingStock: 7
+              },
+              {
+                _id: "campaign-local",
+                title: "本地封面福利",
+                coverImageUrl: "/assets/menu/welfare-gift-icon.png",
+                totalStock: 1,
+                remainingStock: 1
+              },
+              {
+                _id: "campaign-http",
+                title: "历史 HTTP 封面福利",
+                coverImageUrl: "http://xianfeng.xinzhi.info/uploads/images/legacy-cover.png",
+                totalStock: 1,
+                remainingStock: 1
+              }
+            ],
+            history: []
+          }
+        });
+      }
+    };
+
+    definition.onLoad.call({
+      ...definition,
+      data: state,
+      setData(patch) {
+        Object.assign(state, patch);
+      }
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.equal(state.activeCampaigns[0].coverImageUrl, `${API_ORIGIN}/uploads/images/welfare-cover.png`);
+    assert.equal(state.activeCampaigns[1].coverImageUrl, "/assets/menu/welfare-gift-icon.png");
+    assert.equal(state.activeCampaigns[2].coverImageUrl, "https://xianfeng.xinzhi.info/uploads/images/legacy-cover.png");
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
+test("welfare pushes claimed campaigns below unclaimed campaigns", async () => {
+  const definition = loadPageDefinition("welfare");
+  const originalWx = global.wx;
+  const state = { ...definition.data };
+
+  try {
+    global.wx = {
+      showShareMenu() {},
+      getStorageSync() {
+        return "";
+      },
+      getWindowInfo() {
+        return { statusBarHeight: 20, windowWidth: 375 };
+      },
+      getMenuButtonBoundingClientRect() {
+        return { top: 28, height: 32, left: 280 };
+      },
+      request(options) {
+        options.success({
+          statusCode: 200,
+          data: {
+            active: [
+              {
+                _id: "campaign-claimed",
+                title: "已领福利",
+                claimedByMe: true,
+                totalStock: 10,
+                remainingStock: 7,
+                activationCode: "CLAIMED-CODE"
+              },
+              {
+                _id: "campaign-open",
+                title: "未领福利",
+                claimedByMe: false,
+                totalStock: 10,
+                remainingStock: 7
+              }
+            ],
+            history: []
+          }
+        });
+      }
+    };
+
+    definition.onLoad.call({
+      ...definition,
+      data: state,
+      setData(patch) {
+        Object.assign(state, patch);
+      }
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.deepEqual(state.activeCampaigns.map((item) => item.title), ["未领福利", "已领福利"]);
+    assert.equal(state.activeCampaigns[0].actionText, "立即领取");
+    assert.equal(state.activeCampaigns[0].unavailable, false);
+    assert.equal(state.activeCampaigns[1].actionText, "已领取");
+    assert.equal(state.activeCampaigns[1].activationCode, "CLAIMED-CODE");
+    assert.equal(state.activeCampaigns[1].unavailable, true);
+    assert.equal(state.activeCampaigns[1].stockText, "剩余 7 / 10 份");
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
+test("welfare marks a successfully claimed campaign immediately", async () => {
+  const definition = loadPageDefinition("welfare");
+  const originalWx = global.wx;
+  const state = { ...definition.data };
+  const requests = [];
+
+  try {
+    global.wx = {
+      showShareMenu() {},
+      getStorageSync() {
+        return "";
+      },
+      getWindowInfo() {
+        return { statusBarHeight: 20, windowWidth: 375 };
+      },
+      getMenuButtonBoundingClientRect() {
+        return { top: 28, height: 32, left: 280 };
+      },
+      request(options) {
+        requests.push(options);
+        if (options.method === "POST") {
+          options.success({
+            statusCode: 201,
+            data: {
+              campaign: {
+                _id: "campaign-open",
+                title: "刚领福利",
+                totalStock: 10,
+                remainingStock: 6,
+                claimInstructions: "按说明领取"
+              },
+              claim: {
+                activationCode: "CODE-001"
+              }
+            }
+          });
+          return;
+        }
+        options.success({
+          statusCode: 200,
+          data: {
+            active: [
+              {
+                _id: "campaign-open",
+                title: "刚领福利",
+                totalStock: 10,
+                remainingStock: 7,
+                claimedByMe: false
+              },
+              {
+                _id: "campaign-other",
+                title: "未领福利",
+                totalStock: 10,
+                remainingStock: 5,
+                claimedByMe: false
+              }
+            ],
+            history: []
+          }
+        });
+      }
+    };
+
+    const page = {
+      ...definition,
+      data: state,
+      setData(patch) {
+        Object.assign(state, patch);
+      }
+    };
+    definition.onLoad.call(page);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    definition.claimWelfare.call(page, { currentTarget: { dataset: { id: "campaign-open" } } });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.equal(state.claimDialogVisible, true);
+    assert.deepEqual(state.activeCampaigns.map((item) => item.title), ["未领福利", "刚领福利"]);
+    assert.equal(state.activeCampaigns[1].claimedByMe, true);
+    assert.equal(state.activeCampaigns[1].actionText, "已领取");
+    assert.equal(state.activeCampaigns[1].activationCode, "CODE-001");
+    assert.equal(state.activeCampaigns[1].unavailable, true);
+    assert.equal(state.activeCampaigns[1].stockText, "剩余 6 / 10 份");
+    assert.equal(state.claimDialogActivationCode, "CODE-001");
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
+test("welfare lets claimed campaigns reopen claim instructions without another claim", async () => {
+  const definition = loadPageDefinition("welfare");
+  const pageSource = readPage("welfare");
+  const originalWx = global.wx;
+  const state = {
+    ...definition.data,
+    activeCampaigns: [
+      {
+        _id: "campaign-claimed",
+        title: "已领福利",
+        claimInstructions: "这里是领取说明",
+        externalUrl: "https://example.com/claim",
+        activationCode: "CLAIMED-CODE",
+        claimedByMe: true,
+        unavailable: true,
+        claimDisabled: false,
+        actionText: "已领取"
+      }
+    ]
+  };
+  let postCount = 0;
+
+  assert.match(pageSource.wxml, /disabled="\{\{item\.claimDisabled \|\| claimingId === item\._id\}\}"/);
+  assert.doesNotMatch(pageSource.wxml, /disabled="\{\{item\.unavailable \|\| claimingId === item\._id\}\}"/);
+  assert.match(pageSource.wxml, /wx:for="\{\{activeCampaigns\}\}" wx:key="_id" class="xf-welfare-item" data-id="\{\{item\._id\}\}" bindtap="claimWelfare"/);
+  assert.doesNotMatch(pageSource.wxml, /class="xf-welfare-claim[^"]*"[^>]*data-id="\{\{item\._id\}\}"[^>]*bindtap="claimWelfare"/);
+
+  try {
+    global.wx = {
+      request(options) {
+        if (options.method === "POST") postCount += 1;
+        options.fail({ errMsg: "unexpected post" });
+      }
+    };
+
+    const page = {
+      ...definition,
+      data: state,
+      setData(patch) {
+        Object.assign(state, patch);
+      }
+    };
+
+    definition.claimWelfare.call(page, { currentTarget: { dataset: { id: "campaign-claimed" } } });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.equal(postCount, 0);
+    assert.equal(state.claimDialogVisible, true);
+    assert.equal(state.claimDialogTitle, "已领福利");
+    assert.equal(state.claimDialogInstructions, "这里是领取说明");
+    assert.equal(state.claimDialogExternalUrl, "https://example.com/claim");
+    assert.equal(state.claimDialogActivationCode, "CLAIMED-CODE");
+    assert.equal(state.claimingId, "");
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
 test("native search page replaces the webview global search entry", () => {
   const appJson = JSON.parse(
     fs.readFileSync(new URL("../app.json", import.meta.url), "utf8")
@@ -442,12 +728,14 @@ test("native search page replaces the webview global search entry", () => {
   assert.equal(wxml.includes("<web-view"), false);
   assert.match(wxml, /class="xf-native-search-field \{\{searchInput \? 'has-query' : 'is-empty'\}\}" bindtap="focusSearchInput"/);
   assert.match(wxml, /class="xf-native-topbar" style="height: \{\{topbarHeight\}\}px;"/);
-  assert.match(wxml, /class="xf-native-menu-button" style="top: \{\{logoTop\}\}px; height: \{\{logoHeight\}\}px;" catchtap="openSettings" role="button" aria-label="打开设置"/);
+  assert.match(wxml, /class="xf-native-menu-button xf-native-back-button" style="top: \{\{logoTop\}\}px; height: \{\{logoHeight\}\}px;" catchtap="goBack" role="button" aria-label="返回"/);
+  assert.match(wxml, /class="xf-native-back-icon" aria-hidden="true"/);
   assert.match(wxml, /class="xf-native-logo" style="top: \{\{logoTop\}\}px; height: \{\{logoHeight\}\}px;" src="\/assets\/nav\/logo\.png" mode="aspectFit" bindtap="goProgramsHome" aria-label="回到顶部"/);
-  assert.doesNotMatch(wxml, /xf-native-search-topbar|xf-native-search-back|xf-native-search-logo/);
+  assert.doesNotMatch(wxml, /xf-native-search-topbar|xf-native-search-logo/);
   assert.match(wxml, /placeholder="\{\{searchPrompt\}\}"/);
   assert.match(wxml, /bindblur="onSearchBlur"/);
-  assert.match(wxml, /wx:if="\{\{searchInput\}\}" class="xf-native-search-submit" bindtap="submitSearch"/);
+  assert.match(wxml, /wx:if="\{\{searchInput\}\}" class="xf-native-search-close" catchtap="closeSearchInput" aria-label="退出搜索框"/);
+  assert.doesNotMatch(wxml, /class="xf-native-search-submit"/);
   assert.match(wxml, /wx:if="\{\{!submittedQuery\}\}"/);
   assert.match(wxml, /wx:for="\{\{suggestions\}\}"/);
   assert.match(wxml, /wx:for="\{\{recentKeywords\}\}"/);
@@ -481,6 +769,7 @@ test("native search page replaces the webview global search entry", () => {
   assert.match(js, /stopSearchPromptRotation\(this\)/);
   assert.match(js, /const BASE_TABS = \[/);
   assert.match(js, /topics: \{ label: "请教", icon: "🙏🏻" \}/);
+  assert.match(js, /books: \{ label: "及阅", icon: "书", iconImage: "\/assets\/menu\/jiyue-logo\.png" \}/);
   assert.match(js, /materials: \{ label: "资料", icon: "资", iconImage: "\/assets\/tabbar\/materials\.png" \}/);
   assert.match(js, /icon: item\.icon \|\| meta\.icon/);
   assert.match(js, /iconImage: item\.iconImage \|\| meta\.iconImage \|\| ""/);
@@ -503,6 +792,11 @@ test("native search page replaces the webview global search entry", () => {
   assert.match(js, /function resultMatches\(result, keyword\)/);
   assert.match(js, /saveHistory\(query\)/);
   assert.match(js, /focusSearchInput\(\)/);
+  assert.match(js, /onSearchInput\(event\)\s*\{[\s\S]*this\.applySearch\(query\);[\s\S]*\}/);
+  assert.match(js, /closeSearchInput\(\)\s*\{[\s\S]*searchInput: "",[\s\S]*inputFocus: false[\s\S]*this\.resetSearchResults\(\);[\s\S]*\}/);
+  assert.match(js, /resetSearchResults\(\)/);
+  assert.match(js, /smartBackHome/);
+  assert.match(js, /goBack\(\)\s*\{[\s\S]*smartBackHome\(\);[\s\S]*\}/);
   assert.match(js, /goProgramsHome: navigateProgramsHome/);
   assert.match(js, /goProgramsHome\(\)\s*\{[\s\S]*navigateProgramsHome\(\);[\s\S]*\}/);
   assert.match(js, /onSearchBlur\(\)/);
@@ -524,7 +818,8 @@ test("native search page replaces the webview global search entry", () => {
   assert.doesNotMatch(wxss, /\.xf-native-search-field\.is-empty \.xf-native-search-main \{[\s\S]*justify-content: center;/);
   assert.match(wxss, /\.xf-native-search-field\.is-empty \.xf-native-search-input \{[\s\S]*flex: 0 1 220rpx;[\s\S]*width: 220rpx;/);
   assert.doesNotMatch(wxss, /\.xf-native-search-field\.is-empty \.xf-native-search-input \{[\s\S]*text-align: center;/);
-  assert.match(wxss, /\.xf-native-search-submit \{[\s\S]*width: 112rpx;[\s\S]*height: 58rpx;[\s\S]*background: #5e17eb;/);
+  assert.match(wxss, /\.xf-native-search-close \{[\s\S]*width: 44rpx;[\s\S]*height: 44rpx;[\s\S]*border-radius: 999rpx;[\s\S]*background: #f3edff;[\s\S]*color: #5e17eb;[\s\S]*font-size: 30rpx;[\s\S]*font-weight: 400;[\s\S]*line-height: 1;/);
+  assert.doesNotMatch(wxss, /\.xf-native-search-submit/);
   assert.match(wxss, /\.xf-native-search-card \{[\s\S]*border: 0;[\s\S]*border-radius: 0;[\s\S]*background: transparent;/);
   assert.match(wxss, /\.xf-native-search-chip \{[\s\S]*font-size: 24rpx;[\s\S]*font-weight: 400;/);
   assert.match(wxss, /\.xf-native-search-section-head \{[\s\S]*justify-content: space-between;/);
@@ -653,6 +948,56 @@ test("openNativeSearch passes the keyword into the native search page", () => {
   } finally {
     global.wx.navigateTo = originalNavigateTo;
   }
+});
+
+test("native search page filters while typing and clears from the close button", () => {
+  const definition = loadPageDefinition("search");
+  const context = {
+    ...definition,
+    data: {
+      ...definition.data,
+      activeTab: "all",
+      allResults: [
+        {
+          id: "program-1",
+          type: "programs",
+          title: "动画启蒙",
+          searchText: "动画启蒙 儿童动画"
+        },
+        {
+          id: "program-2",
+          type: "programs",
+          title: "动画化表达",
+          searchText: "动画化表达 叙事"
+        },
+        {
+          id: "book-1",
+          type: "books",
+          title: "阅读指南",
+          searchText: "阅读 指南"
+        }
+      ]
+    },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+
+  definition.onSearchInput.call(context, { detail: { value: "动" } });
+  assert.equal(context.data.submittedQuery, "动");
+  assert.deepEqual(context.data.visibleResults.map((item) => item.title), ["动画启蒙", "动画化表达"]);
+  assert.equal(context.data.tabs.find((item) => item.key === "programs").count, 2);
+
+  definition.onSearchInput.call(context, { detail: { value: "动画化" } });
+  assert.equal(context.data.submittedQuery, "动画化");
+  assert.deepEqual(context.data.visibleResults.map((item) => item.title), ["动画化表达"]);
+
+  definition.closeSearchInput.call(context);
+  assert.equal(context.data.searchInput, "");
+  assert.equal(context.data.inputFocus, false);
+  assert.equal(context.data.submittedQuery, "");
+  assert.deepEqual(context.data.visibleResults, []);
+  assert.deepEqual(context.data.filteredResults, []);
 });
 
 test("native search page clears recent search history", () => {
@@ -881,7 +1226,7 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assertAssetUnder("../assets/wel-avatar/avatar-1.png", 200 * 1024);
     assertAssetUnder("../assets/wel-avatar/avatar-2.png", 200 * 1024);
     assert.match(wxml, /class="xf-xiaowanzi-knowledge-pill \{\{knowledgePillCollapsed \? 'is-collapsed' : ''\}\}"[\s\S]*top: \{\{shellKnowledgeTop\}\}px; right: \{\{shellKnowledgeRight\}\}px; width: \{\{knowledgePillCollapsed \? shellKnowledgeHeight : shellKnowledgeWidth\}\}px; height: \{\{shellKnowledgeHeight\}\}px;[\s\S]*catchtap="openKnowledgeHub"/);
-    assert.match(wxml, /class="xf-xiaowanzi-knowledge-logo"[^>]*src="\/assets\/share\/xianfeng-round-logo\.png"/);
+    assert.match(wxml, /class="xf-xiaowanzi-knowledge-logo"[^>]*src="\/assets\/xiaowanzi-icons\/knowledge-round-logo\.png"/);
     assert.match(wxml, /class="xf-xiaowanzi-knowledge-title" src="\/assets\/xiaowanzi-icons\/knowledge-title\.png" mode="aspectFit"/);
     assert.match(wxss, /\.xf-xiaowanzi-menu-entry \{[\s\S]*left: 24rpx;[\s\S]*width: 76rpx;/);
     assert.match(wxss, /\.xf-xiaowanzi-top-bot \{[\s\S]*left: 104rpx;[\s\S]*width: 39\.6px;[\s\S]*transform: translate\(-8rpx, -4rpx\);/);
@@ -897,7 +1242,7 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.match(js, /sharePreviewTop: Math\.max\(topbarHeight \+ 12, shellControlTop \+ capsuleHeight \+ 16\)/);
     assert.match(wxss, /\.xf-xiaowanzi-knowledge-logo \{[\s\S]*width: 27\.9px;[\s\S]*height: 27\.9px;[\s\S]*transform: none;/);
     assert.match(wxss, /\.xf-xiaowanzi-knowledge-pill\.is-collapsed \.xf-xiaowanzi-knowledge-logo \{[\s\S]*transform: translateX\(0\);/);
-    assertPngSize("../assets/share/xianfeng-round-logo.png", 500, 500);
+    assertPngSize("../assets/xiaowanzi-icons/knowledge-round-logo.png", 500, 500);
     assertPngSize("../assets/xiaowanzi-icons/share-logo.png", 560, 180);
     assertAssetUnder("../assets/xiaowanzi-icons/share-logo.png", 120 * 1024);
     assert.equal(fs.existsSync(new URL("../assets/xiaowanzi-share-logo.png", import.meta.url)), false);
@@ -969,15 +1314,21 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.doesNotMatch(wxml, /<text>＋<\/text>/);
     assert.match(wxml, /class="xf-xiaowanzi-history-title"[\s\S]*历史会话/);
     assert.match(wxml, /class="xf-xiaowanzi-history-list" scroll-y enhanced enable-flex show-scrollbar="false"/);
-    assert.match(wxml, /<view wx:for="\{\{historyCards\}\}" wx:key="id" class="xf-xiaowanzi-history-card" data-id="\{\{item\.id\}\}" catchtap="openHistoryCard">/);
+    assert.match(wxml, /<view wx:for="\{\{historyCards\}\}" wx:key="id" class="xf-xiaowanzi-history-card \{\{historyDeleteCardId === item\.id \? 'is-delete-visible' : ''\}\}" data-id="\{\{item\.id\}\}" catchtap="openHistoryCard" catchlongpress="showHistoryDeleteButton">/);
     assert.doesNotMatch(wxml, /<button wx:for="\{\{historyCards\}}"[\s\S]*class="xf-xiaowanzi-history-card"/);
     assert.match(wxml, /class="xf-xiaowanzi-history-card-title">\{\{item\.title\}\}<\/text>/);
     assert.match(wxml, /class="xf-xiaowanzi-history-card-time">\{\{item\.sub\}\}<\/text>/);
     assert.match(wxml, /wx:if="\{\{item\.childTag\}\}" class="xf-xiaowanzi-history-card-child">\{\{item\.childTag\}\}<\/text>/);
+    assert.match(wxml, /wx:if="\{\{historyDeleteCardId === item\.id\}\}" class="xf-xiaowanzi-history-delete" data-id="\{\{item\.id\}\}" catchtap="deleteHistoryCard" aria-label="删除历史会话">×<\/button>/);
     assert.match(wxml, /wx:else class="xf-xiaowanzi-history-empty"[\s\S]*class="xf-xiaowanzi-history-empty-title"[\s\S]*暂无历史会话[\s\S]*class="xf-xiaowanzi-history-empty-sub"[\s\S]*提问后会自动保存在这里/);
     assert.match(wxml, /class="xf-xiaowanzi-history-exit"[\s\S]*catchtap="returnToExternalPage"[\s\S]*aria-label="退出小玩子"[\s\S]*class="xf-xiaowanzi-history-exit-mark" src="\/assets\/xiaowanzi-icons\/logout-white\.png" mode="aspectFit"/);
     assert.doesNotMatch(wxml, /class="xf-xiaowanzi-history-exit-mark[^"]*material-symbols-rounded|>\{\{historyExitIcon\}\}<\/text>|>logout<\/text>|&#xe9ba;/);
     assert.doesNotMatch(js, /MATERIAL_SYMBOL_LOGOUT|historyExitIcon/);
+    assert.match(js, /historyDeleteCardId: ""/);
+    assert.match(js, /showHistoryDeleteButton\(event\)/);
+    assert.match(js, /deleteHistoryCard\(event\)/);
+    assert.match(js, /removeNativeSession\(card\.sessionId\)/);
+    assert.match(js, /removeCachedHistory\(activeChild && activeChild\.id\)/);
     assert.doesNotMatch(wxml, /↪/);
     assert.match(wxml, /class="xf-xiaowanzi-share-select-panel"/);
     assert.match(wxml, /class="xf-xiaowanzi-share-select-head"[\s\S]*选择对话[\s\S]*取消/);
@@ -1065,7 +1416,10 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.match(wxss, /\.xf-xiaowanzi-prompt-arrow::after \{[\s\S]*width: 12px;[\s\S]*height: 12px;[\s\S]*border-top: 2px solid currentColor;[\s\S]*border-right: 2px solid currentColor;[\s\S]*transform: rotate\(45deg\);/);
     assert.match(wxss, /\.xf-xiaowanzi-home-user-preview \{[\s\S]*justify-content: flex-end;/);
     assert.match(wxss, /\.xf-xiaowanzi-prompt-card \+ \.xf-xiaowanzi-home-user-preview \{[\s\S]*margin-top: 42rpx;/);
-    assert.match(wxss, /\.xf-xiaowanzi-home-user-preview text \{[\s\S]*min-width: 404rpx;[\s\S]*max-width: 600rpx;[\s\S]*padding: 28rpx 42rpx 30rpx;[\s\S]*border-radius: 34rpx 8rpx 34rpx 34rpx;[\s\S]*background: linear-gradient\(108deg, #5368ff 0%, #6847ff 56%, #601bec 100%\);[\s\S]*font-size: 30rpx;[\s\S]*font-weight: 500;[\s\S]*line-height: 1\.42;[\s\S]*text-align: left;[\s\S]*box-shadow: 0 18rpx 42rpx rgba\(96, 27, 236, 0\.22\);/);
+    const homePreviewTextStyle = wxss.match(/\.xf-xiaowanzi-home-user-preview text \{[\s\S]*?\n\}/)?.[0] || "";
+    assert.notEqual(homePreviewTextStyle, "");
+    assert.doesNotMatch(homePreviewTextStyle, /min-width:\s*404rpx;|min-width:/);
+    assert.match(homePreviewTextStyle, /max-width: 600rpx;[\s\S]*padding: 28rpx 42rpx 30rpx;[\s\S]*border-radius: 34rpx 8rpx 34rpx 34rpx;[\s\S]*background: linear-gradient\(108deg, #5368ff 0%, #6847ff 56%, #601bec 100%\);[\s\S]*font-size: 30rpx;[\s\S]*font-weight: 500;[\s\S]*line-height: 1\.42;[\s\S]*text-align: left;[\s\S]*box-shadow: 0 18rpx 42rpx rgba\(96, 27, 236, 0\.22\);/);
     assert.match(wxss, /\.xf-xiaowanzi-home-thread \{[\s\S]*gap: 24rpx;[\s\S]*margin-top: 24rpx;/);
     assert.match(wxss, /\.xf-xiaowanzi-prompt-card \+ \.xf-xiaowanzi-home-thread \{[\s\S]*margin-top: 42rpx;/);
     assert.match(wxss, /\.xf-xiaowanzi-home-assistant-wrap\.is-thinking \{[\s\S]*padding-bottom: 0;/);
@@ -1083,7 +1437,10 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.match(wxss, /\.xf-xiaowanzi-message-attachments \{[\s\S]*display: block;[\s\S]*max-width: 386rpx;[\s\S]*white-space: nowrap;/);
     assert.match(wxss, /\.xf-xiaowanzi-message-attachment-row \{[\s\S]*display: inline-flex;[\s\S]*gap: 12rpx;/);
     assert.match(wxss, /\.xf-xiaowanzi-message-image \{[\s\S]*flex: 0 0 auto;[\s\S]*width: 72px;[\s\S]*height: 72px;[\s\S]*border-radius: 22rpx;/);
-    assert.match(wxss, /\.xf-xiaowanzi-home-message \.xf-xiaowanzi-user-bubble \{[\s\S]*min-width: 404rpx;[\s\S]*max-width: 600rpx;[\s\S]*padding: 28rpx 42rpx 30rpx;[\s\S]*font-size: 30rpx;[\s\S]*font-weight: 500;[\s\S]*line-height: 1\.42;[\s\S]*text-align: left;[\s\S]*box-shadow: 0 18rpx 42rpx rgba\(96, 27, 236, 0\.22\);/);
+    const homeUserBubbleStyle = wxss.match(/\.xf-xiaowanzi-home-message \.xf-xiaowanzi-user-bubble \{[\s\S]*?\n\}/)?.[0] || "";
+    assert.notEqual(homeUserBubbleStyle, "");
+    assert.doesNotMatch(homeUserBubbleStyle, /min-width:\s*404rpx;|min-width:/);
+    assert.match(homeUserBubbleStyle, /max-width: 600rpx;[\s\S]*padding: 28rpx 42rpx 30rpx;[\s\S]*font-size: 30rpx;[\s\S]*font-weight: 500;[\s\S]*line-height: 1\.42;[\s\S]*text-align: left;[\s\S]*box-shadow: 0 18rpx 42rpx rgba\(96, 27, 236, 0\.22\);/);
     assert.doesNotMatch(wxss, /\.xf-xiaowanzi-(?:home-user-preview text|user-bubble) \{[\s\S]*linear-gradient\(90deg, rgba\(255, 255, 255, 0\.22\)/);
     assert.match(wxss, /\.xf-xiaowanzi-home-assistant-wrap \{[\s\S]*flex: 1 1 auto;[\s\S]*min-width: 0;[\s\S]*padding-bottom: 0;/);
     assert.doesNotMatch(wxss, /\.xf-xiaowanzi-home-assistant-wrap \{[\s\S]*margin-right: 96rpx;/);
@@ -1175,13 +1532,15 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.match(wxss, /\.xf-xiaowanzi-history-title \{[\s\S]*font-size: 44rpx;[\s\S]*font-weight: 700;/);
     assert.match(wxss, /\.xf-xiaowanzi-history-list \{[\s\S]*display: flex;[\s\S]*flex-direction: column;[\s\S]*gap: 0;[\s\S]*padding-bottom: 0;/);
     assert.doesNotMatch(wxss.match(/\.xf-xiaowanzi-history-list \{[^}]*\}/)?.[0] || "", /calc\(126rpx \+ env\(safe-area-inset-bottom\)\)|env\(safe-area-inset-bottom\)/);
-    assert.match(wxss, /\.xf-xiaowanzi-history-card \{[\s\S]*flex-direction: column;[\s\S]*flex-shrink: 0;[\s\S]*align-items: flex-start;[\s\S]*height: 80px;[\s\S]*margin-bottom: 10px;[\s\S]*padding: 10px 14px;[\s\S]*border-radius: 16px;[\s\S]*overflow: hidden;/);
+    assert.match(wxss, /\.xf-xiaowanzi-history-card \{[\s\S]*position: relative;[\s\S]*flex-direction: column;[\s\S]*flex-shrink: 0;[\s\S]*align-items: flex-start;[\s\S]*height: 80px;[\s\S]*margin-bottom: 10px;[\s\S]*padding: 10px 14px;[\s\S]*border-radius: 16px;[\s\S]*overflow: hidden;/);
+    assert.match(wxss, /\.xf-xiaowanzi-history-delete \{[\s\S]*width: 44rpx;[\s\S]*height: 44rpx;[\s\S]*border-radius: 999rpx;[\s\S]*background: #f3edff;[\s\S]*color: #5e17eb;[\s\S]*font-size: 30rpx;[\s\S]*font-weight: 400;[\s\S]*line-height: 1;/);
+    assert.match(wxss, /\.xf-xiaowanzi-history-delete::after \{[\s\S]*border: 0;/);
     assert.match(wxss, /\.xf-xiaowanzi-history-card:last-child \{[\s\S]*margin-bottom: 0;/);
     assert.doesNotMatch(wxss, /\.xf-xiaowanzi-history-card \{[^}]*margin-bottom: 20rpx;/);
     assert.match(wxss, /\.xf-xiaowanzi-history-card-title \{[\s\S]*display: block;[\s\S]*width: 100%;[\s\S]*font-size: 14px;[\s\S]*line-height: 20px;[\s\S]*overflow: hidden;[\s\S]*text-overflow: ellipsis;[\s\S]*white-space: nowrap;[\s\S]*word-break: normal;/);
     assert.match(wxss, /\.xf-xiaowanzi-history-card-time \{[\s\S]*margin-top: 3px;[\s\S]*color: #9eb0cf;[\s\S]*font-size: 12px;[\s\S]*line-height: 14px;/);
     assert.match(wxss, /\.xf-xiaowanzi-history-card-child \{[\s\S]*margin-top: 4px;[\s\S]*color: #5c47ff;[\s\S]*font-size: 13px;[\s\S]*line-height: 16px;/);
-    assert.match(wxml, /<view wx:for="\{\{historyCards\}\}"[\s\S]*class="xf-xiaowanzi-history-card"[\s\S]*class="xf-xiaowanzi-history-card-title">\{\{item\.title\}\}<\/text>[\s\S]*class="xf-xiaowanzi-history-card-time">\{\{item\.sub\}\}<\/text>[\s\S]*wx:if="\{\{item\.childTag\}\}" class="xf-xiaowanzi-history-card-child">\{\{item\.childTag\}\}<\/text>[\s\S]*<\/view>/);
+    assert.match(wxml, /<view wx:for="\{\{historyCards\}\}"[\s\S]*class="xf-xiaowanzi-history-card[\s\S]*class="xf-xiaowanzi-history-card-title">\{\{item\.title\}\}<\/text>[\s\S]*class="xf-xiaowanzi-history-card-time">\{\{item\.sub\}\}<\/text>[\s\S]*wx:if="\{\{item\.childTag\}\}" class="xf-xiaowanzi-history-card-child">\{\{item\.childTag\}\}<\/text>[\s\S]*class="xf-xiaowanzi-history-delete"[\s\S]*<\/view>/);
     assert.match(wxss, /\.xf-xiaowanzi-history-empty \{[\s\S]*align-items: center;[\s\S]*min-height: 0;[\s\S]*padding: 48rpx 16rpx;[\s\S]*border-radius: 32rpx;[\s\S]*background: #ffffff;[\s\S]*text-align: center;/);
     assert.match(wxss, /\.xf-xiaowanzi-history-empty-title \{[\s\S]*font-size: 28rpx;[\s\S]*font-weight: 400;/);
     assert.match(wxss, /\.xf-xiaowanzi-history-empty-sub \{[\s\S]*color: #94a3b8;[\s\S]*font-size: 24rpx;/);
@@ -1621,7 +1980,8 @@ test("Xiaowanzi super-mode design doc maps mobile assets to native mini-program 
   assert.match(designDoc, /explicit Xiaowanzi entry marker/);
   assert.match(designDoc, /topbar avatar itself is tapped/);
   assert.match(designDoc, /only after 5 triggers/);
-  assert.match(designDoc, /apps\/wechat-miniprogram\/assets\/share\/xianfeng-round-logo\.png/);
+  assert.match(designDoc, /apps\/wechat-miniprogram\/assets\/xiaowanzi-icons\/knowledge-round-logo\.png/);
+  assert.match(designDoc, /apps\/wechat-miniprogram\/assets\/xiaowanzi-icons\/knowledge-title\.png/);
   assert.match(designDoc, /https:\/\/xianfeng\.xinzhi\.info\/experts\?xw_layer=1&xw_return=xiaowanzi/);
   assert.match(designDoc, /apps\/wechat-miniprogram\/assets\/xiaowanzi-icons\/share-logo\.png/);
   assert.match(designDoc, /generated canvas/);
@@ -1634,6 +1994,83 @@ test("Xiaowanzi super-mode design doc maps mobile assets to native mini-program 
   assert.match(designDoc, /Child profile: remains a secondary context action in the home content flow below the prompt or answer card/);
   assert.match(designDoc, /scrolls with the last card instead of staying fixed in the composer/);
   assert.match(designDoc, /The hamburger slot is reserved for history; the detached plus slot is reserved for attachments/);
+});
+
+test("Xiaowanzi history cards reveal and delete local sessions", () => {
+  const definition = loadPageDefinition("xiaowanzi");
+  const originalWx = global.wx;
+  const storage = new Map();
+  const removedKeys = [];
+  const sessionMessages = [
+    { id: "history-user", role: "user", content: "帮我解读下图片内容", ts: "2026-07-08T06:31:00.000Z" },
+    { id: "history-assistant", role: "assistant", content: "图片里有一段对话", ts: "2026-07-08T06:32:00.000Z" }
+  ];
+  storage.set("xiaowanzi_native_session_index_v1", [{
+    id: "session-history",
+    title: "帮我解读下图片内容",
+    sub: "7/8 06:31",
+    childTag: "",
+    childId: "",
+    targetId: "history-user",
+    updatedAt: "2026-07-08T06:32:00.000Z"
+  }]);
+  storage.set("xiaowanzi_native_session_messages_v1:session-history", sessionMessages);
+  storage.set("xiaowanzi_native_active_session_id_v1", "session-history");
+
+  try {
+    global.wx = {
+      getStorageSync(key) {
+        return storage.get(key) || "";
+      },
+      setStorageSync(key, value) {
+        storage.set(key, value);
+      },
+      removeStorageSync(key) {
+        removedKeys.push(key);
+        storage.delete(key);
+      }
+    };
+
+    const context = {
+      data: {
+        ...definition.data,
+        homeMode: false,
+        messages: sessionMessages,
+        historyDrawerOpen: true
+      },
+      clearShareRevealTimer() {},
+      refreshHistoryCards: definition.refreshHistoryCards,
+      setData(patch) {
+        this.data = { ...this.data, ...patch };
+      }
+    };
+
+    definition.refreshHistoryCards.call(context);
+    assert.equal(context.data.historyCards.length, 1);
+    assert.equal(context.data.historyCards[0].id, "session-history");
+
+    definition.showHistoryDeleteButton.call(context, { currentTarget: { dataset: { id: "session-history" } } });
+    assert.equal(context.data.historyDeleteCardId, "session-history");
+
+    definition.openHistoryCard.call(context, { currentTarget: { dataset: { id: "session-history" } } });
+    assert.equal(context.data.historyDeleteCardId, "");
+    assert.equal(context.data.historyDrawerOpen, true, "tap should only close the revealed delete affordance");
+
+    definition.showHistoryDeleteButton.call(context, { currentTarget: { dataset: { id: "session-history" } } });
+    definition.deleteHistoryCard.call(context, { currentTarget: { dataset: { id: "session-history" } } });
+
+    assert.deepEqual(storage.get("xiaowanzi_native_session_index_v1"), []);
+    assert.equal(storage.has("xiaowanzi_native_session_messages_v1:session-history"), false);
+    assert.equal(storage.has("xiaowanzi_native_active_session_id_v1"), false);
+    assert.deepEqual(removedKeys, ["xiaowanzi_native_session_messages_v1:session-history", "xiaowanzi_native_active_session_id_v1"]);
+    assert.equal(context.data.historyDeleteCardId, "");
+    assert.deepEqual(context.data.historyCards, []);
+    assert.equal(context.data.homeMode, true);
+    assert.equal(context.data.messages.length, 1);
+    assert.equal(context.data.messages[0].role, "assistant");
+  } finally {
+    global.wx = originalWx;
+  }
 });
 
 test("Xiaowanzi topbar avatar follows the mobile five-open rotation rule", () => {
@@ -3854,7 +4291,8 @@ test("native first-level content tabs fetch API data and open detail wrapper rou
     assert.match(nativeSettingsMaskStyle, /z-index: 2147483647;/);
     assert.match(nativeSettingsMaskStyle, /padding-bottom: 96rpx;/);
     const nativeListWxss = fs.readFileSync(new URL("../styles/native-list.wxss", import.meta.url), "utf8");
-    assert.match(nativeListWxss, /\.xf-native-settings-panel \{[\s\S]*width: 84vw;[\s\S]*max-width: 640rpx;[\s\S]*height: calc\(100vh \+ 96rpx\);[\s\S]*padding: 52rpx 34rpx 96rpx;[\s\S]*background: linear-gradient\(180deg, #f7f7f8 0, #f7f7f8 calc\(100% - 192rpx\), transparent calc\(100% - 192rpx\), transparent 100%\);[\s\S]*box-shadow: -36rpx 0 90rpx rgba\(15, 23, 42, 0\.2\);/);
+    assert.match(nativeListWxss, /\.xf-native-settings-panel \{[\s\S]*width: 84vw;[\s\S]*max-width: 640rpx;[\s\S]*height: calc\(100vh \+ 96rpx\);[\s\S]*padding: 52rpx 34rpx 96rpx;[\s\S]*background: #f7f7f8;[\s\S]*box-shadow: -36rpx 0 90rpx rgba\(15, 23, 42, 0\.2\);/);
+    assert.doesNotMatch(nativeListWxss.match(/\.xf-native-settings-panel \{[\s\S]*?\n\}/)?.[0] || "", /transparent calc\(100% - 192rpx\)/);
     assert.match(nativeListWxss, /\.xf-native-settings-panel-inner \{[\s\S]*display: flex;[\s\S]*flex-direction: column;[\s\S]*gap: 26rpx;[\s\S]*min-height: 0;/);
     assert.match(nativeListWxss, /\.xf-native-settings-account,[\s\S]*\.xf-native-settings-card \{[\s\S]*margin-bottom: 0;[\s\S]*background: #ffffff;/);
     assert.match(nativeListWxss, /\.xf-native-settings-account \{[\s\S]*justify-content: center;[\s\S]*gap: 15rpx;[\s\S]*margin: 0;[\s\S]*min-height: 152rpx;[\s\S]*padding: 32rpx 30rpx;[\s\S]*border: 0;[\s\S]*border-radius: 32rpx;/);
@@ -3902,6 +4340,8 @@ test("native first-level content tabs fetch API data and open detail wrapper rou
   assert.equal(reading.wxml.includes("switchReadingViewMode"), false);
   assert.match(reading.wxml, /class="xf-native-book-cover-wrap"/);
   assert.match(reading.wxml, /class="xf-native-book-cover" src="\{\{item\.coverImage\}\}" mode="aspectFit"/);
+  assert.match(reading.wxml, /<image wx:else class="xf-native-book-cover-logo" src="\/assets\/menu\/jiyue-logo\.png" mode="aspectFit" \/>/);
+  assert.equal(reading.wxml.includes("xf-native-book-cover-empty"), false);
   assert.doesNotMatch(reading.wxml, /wx:if="\{\{item\.date\}\}"/);
   assert.doesNotMatch(reading.wxml, /class="xf-native-meta"[\s\S]*item\.date/);
   assert.equal(reading.wxml.includes("xf-native-book-cover-fill"), false);
@@ -3939,7 +4379,7 @@ test("native first-level content tabs fetch API data and open detail wrapper rou
   assert.match(reading.wxml, /<text class="xf-native-filter-section-title">\{\{group\.title\}\}<\/text>/);
   assert.match(reading.wxml, /wx:for="\{\{group\.options\}\}"[\s\S]*wx:for-item="option"[\s\S]*class="xf-native-filter-chip \{\{option\.selected \? 'is-active' : ''\}\}"[\s\S]*data-tag="\{\{option\.value\}\}"[\s\S]*catchtap="onDrawerReadingTagTap"/);
   assert.match(reading.wxml, /catchtap="resetReadingFilterDraft"/);
-  assert.match(reading.wxml, /catchtap="applyReadingFilterDraft"[\s\S]*查看 \{\{readingFilterPreviewCount\}\} 个书单/);
+  assert.match(reading.wxml, /catchtap="applyReadingFilterDraft"[\s\S]*查看 \{\{readingFilterPreviewCount\}\} 本图书/);
   assert.doesNotMatch(reading.wxml, />书单标签<\/text>/);
   assert.equal(reading.wxml.includes("可看详情"), false);
   assert.equal(reading.wxml.includes("书单条目"), false);
@@ -3957,6 +4397,7 @@ test("native first-level content tabs fetch API data and open detail wrapper rou
   assert.equal(reading.wxss.includes("xf-native-view"), false);
   assert.match(reading.wxss, /\.xf-reading-page \.xf-native-book-cover-wrap \{[\s\S]*background: #ffffff;/);
   assert.match(reading.wxss, /\.xf-reading-page \.xf-native-book-cover \{[\s\S]*background: transparent;/);
+  assert.match(reading.wxss, /\.xf-reading-page \.xf-native-book-cover-logo \{[\s\S]*display: block;[\s\S]*width: 108rpx;[\s\S]*height: 108rpx;/);
   assert.match(reading.wxss, /\.xf-reading-tags \{[\s\S]*align-items: center;[\s\S]*flex-wrap: wrap;[\s\S]*min-height: 32rpx;[\s\S]*overflow: visible;[\s\S]*white-space: normal;/);
   assert.match(reading.wxss, /\.xf-reading-recommender-tag \{[\s\S]*min-height: 32rpx;[\s\S]*border: 2rpx solid #d9c8ff;[\s\S]*background: #f6f0ff;[\s\S]*font-size: 18rpx;[\s\S]*font-weight: 400;[\s\S]*overflow-wrap: anywhere;[\s\S]*word-break: break-all;[\s\S]*word-wrap: break-word;[\s\S]*white-space: normal;/);
   const readingTopicTagStyle = reading.wxss.match(/\.xf-reading-topic-tag \{[\s\S]*?\n\}/)?.[0] || "";
@@ -4201,7 +4642,7 @@ test("native first-level content tabs fetch API data and open detail wrapper rou
   assert.match(xiaowanzi.wxml, /wx:if="\{\{!shareSelectionMode && !sending && item\.shareable\}\}" class="xf-xiaowanzi-card-share \{\{shareRevealMessageId === item\.id \? 'is-visible' : ''\}\}"[\s\S]*catchtap="openShareSelectionFromMessage"/);
   assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-share-select-panel"/);
   assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-knowledge-pill \{\{knowledgePillCollapsed \? 'is-collapsed' : ''\}\}"[\s\S]*top: \{\{shellKnowledgeTop\}\}px; right: \{\{shellKnowledgeRight\}\}px; width: \{\{knowledgePillCollapsed \? shellKnowledgeHeight : shellKnowledgeWidth\}\}px; height: \{\{shellKnowledgeHeight\}\}px;[\s\S]*catchtap="openKnowledgeHub"/);
-  assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-knowledge-logo"[^>]*src="\/assets\/share\/xianfeng-round-logo\.png"/);
+  assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-knowledge-logo"[^>]*src="\/assets\/xiaowanzi-icons\/knowledge-round-logo\.png"/);
   assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-knowledge-title" src="\/assets\/xiaowanzi-icons\/knowledge-title\.png" mode="aspectFit"/);
   assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-top-bot"[\s\S]*top: \{\{shellAvatarTop\}\}px; height: \{\{shellAvatarHeight\}\}px;[\s\S]*src="\{\{topbarAvatarSrc\}\}"[\s\S]*catchtap="startNewConversation"[\s\S]*aria-label="新话题"/);
   assert.doesNotMatch(xiaowanzi.wxml, /xf-xiaowanzi-top-more|openTopbarMore|shellMoreRight/);
@@ -4394,7 +4835,7 @@ test("native first-level pages keep filter drawers page-local inside the search 
       if (groupedMode === "reading") {
         assert.match(js, /buildReadingFilterGroups\(allBooks, activeReadingTags\)/);
         assert.match(wxml, /catchtap="resetReadingFilterDraft"/);
-        assert.match(wxml, /catchtap="applyReadingFilterDraft"[\s\S]*查看 \{\{readingFilterPreviewCount\}\} 个书单/);
+        assert.match(wxml, /catchtap="applyReadingFilterDraft"[\s\S]*查看 \{\{readingFilterPreviewCount\}\} 本图书/);
       } else {
         assert.match(js, /buildMaterialFilterGroups\(allMaterials, activeMaterialTags\)/);
         assert.match(wxml, /catchtap="resetMaterialFilterDraft"/);
@@ -6407,7 +6848,8 @@ test("pro page renders native subscription content instead of a web-view wrapper
                 pro: { id: "pro", name: "Pro", amountYuan: "99.00", description: "Pro 兑换 1,200 点，适合长期使用。", pointsPerCycle: 1200 }
               },
               usagePolicy: [
-                { featureKey: "xiaowanzi", name: "小玩子对话", cost: 2, description: "每发送 1 次小玩子 AI 对话扣 2 点。" }
+                { featureKey: "xiaowanzi", name: "小玩子对话", cost: 2, description: "每发送 1 次小玩子 AI 对话扣 2 点。" },
+                { featureKey: "xiaowanzi_file", name: "小玩子图片文件处理", cost: 10, description: "每处理 1 张小玩子图片或文件扣 10 点。" }
               ]
             }
           });
@@ -6530,8 +6972,9 @@ test("pro page renders native subscription content instead of a web-view wrapper
     assert.match(js, /formatYuan/);
     assert.match(js, /formatPoints/);
     assert.match(js, /membershipBadgeLabel/);
+    assert.match(js, /USAGE_POLICY_OVERRIDES/);
     assert.match(js, /featureKey: "education_planning", name: "智能教育规划", cost: 5/);
-    assert.match(js, /featureKey: "xiaowanzi_file", name: "小玩子图片文件处理", cost: 10/);
+    assert.match(js, /featureKey: "xiaowanzi_file", name: "小玩子图片文件处理", cost: 1/);
     assert.doesNotMatch(js, /name: "兼容 AI 聊天"/);
 
     await definition.onLoad.call(context);
@@ -6543,7 +6986,8 @@ test("pro page renders native subscription content instead of a web-view wrapper
     assert.equal(context.data.statusLabel, "未开通订阅");
     assert.equal(context.data.memberBadgeLabel, "");
     assert.equal(context.data.usagePolicy[0].name, "小玩子对话");
-    assert.equal(context.data.usagePolicy.some((item) => item.featureKey === "xiaowanzi_file" && item.costText === "10 点/次"), true);
+    assert.equal(context.data.usagePolicy.some((item) => item.featureKey === "xiaowanzi" && item.costText === "1 点/次" && item.description.includes("扣 1 点")), true);
+    assert.equal(context.data.usagePolicy.some((item) => item.featureKey === "xiaowanzi_file" && item.costText === "1 点/次"), true);
     assert.equal(context.data.usagePolicy.some((item) => item.featureKey === "education_planning" && item.name === "智能教育规划"), true);
     assert.equal(context.data.usagePolicy.some((item) => item.featureKey === "ai_chat"), false);
     assert.equal(context.data.topbarHeight, 72);
@@ -8570,6 +9014,67 @@ test("mama haozhuan keeps an existing screenshot without showing a red upload fa
     assert.equal(context.data.xiaohongshuScreenshotUrl, "/uploads/images/old-profile.png");
     assert.equal(context.data.message, "");
     assert.equal(context.data.messageType, "");
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
+test("mama haozhuan task list shows traffic fee and live promotion count", async () => {
+  const definition = loadPageDefinition("mama-resource-apply");
+  const page = readPage("mama-resource-apply");
+  const originalWx = global.wx;
+
+  assert.match(page.wxml, /xf-mama-task-price-group[\s\S]*\{\{item\.unitPriceText\}\}[\s\S]*wx:if="\{\{item\.hasTrafficFee\}\}"[\s\S]*额外 \{\{item\.trafficFeeText\}\} 投流/);
+  assert.match(page.wxml, /正在推广：\{\{item\.promotionCountText\}\}人/);
+  assert.match(page.js, /activePromotionCount/);
+
+  try {
+    global.wx = {
+      loadFontFace() {},
+      getStorageSync() {
+        return "";
+      },
+      request(options) {
+        options.success({
+          statusCode: 200,
+          data: {
+            profile: {
+              status: "approved",
+              displayName: "安安妈妈",
+              categories: ["亲子阅读"],
+            },
+            tasks: [
+              {
+                _id: "assignment-1",
+                taskId: "task-1",
+                title: "迪桑娜评论",
+                category: "小红书评论",
+                status: "assigned",
+                unitPriceCents: 3000,
+                trafficFeeCents: 1200,
+                promotionCount: 42527,
+                activePromotionCount: 2,
+                latestDataDate: "2026-06-29T00:00:00.000Z",
+              }
+            ]
+          }
+        });
+      }
+    };
+    const context = {
+      data: { ...definition.data },
+      setData(payload) {
+        this.data = { ...this.data, ...payload };
+      }
+    };
+
+    await definition.loadMamaTasks.call(context);
+
+    assert.equal(context.data.mamaResourceView, "tasks");
+    assert.equal(context.data.mamaTasks[0].unitPriceText, "¥30.00");
+    assert.equal(context.data.mamaTasks[0].trafficFeeText, "¥12.00");
+    assert.equal(context.data.mamaTasks[0].hasTrafficFee, true);
+    assert.equal(context.data.mamaTasks[0].promotionCountText, "2");
   } finally {
     global.wx = originalWx;
   }

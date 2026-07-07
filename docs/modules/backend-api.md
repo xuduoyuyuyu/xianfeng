@@ -52,7 +52,7 @@
   the normal chat send. It calls Volcengine Ark with endpoint id
   `ep-m-20260510222218-mv5t9` by default, expects the key in
   `XIAOWANZI_VOLCENGINE_API_KEY` or `ARK_API_KEY`, and consumes the
-  `xiaowanzi_file` policy at 10 points per successful image processing request.
+  `xiaowanzi_file` policy at 1 point per successful image processing request.
   WeChat mini-program native uploads use
   `/api/wechat-mini/xiaowanzi/attachments/recognize` with the same service and
   point policy so they do not depend on tutorbot admin-route fallthrough.
@@ -98,7 +98,9 @@
   campaign is published, in-window, and in stock. Admin `/api/admin/welfare`
   creates/updates campaigns and `/api/admin/welfare/:id/claims` lists claim
   history with user contact fields plus synced child profile summaries when
-  available.
+  available. When a campaign has imported activation codes, the backend owns
+  ordered code assignment, stores the bound code on `WelfareClaim`, and exposes
+  CSV claim export for reconciliation.
 
 ### Active
 

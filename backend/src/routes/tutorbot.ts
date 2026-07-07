@@ -12,6 +12,7 @@ import LearningMaterial from "../models/LearningMaterial";
 import { buildRagContext } from "../services/ragContextService";
 import { buildXiaowanziContextPayload, type XiaowanziSiteCard } from "../services/xiaowanziContextService";
 import { recognizeXiaowanziImageDataUrl } from "../services/xiaowanziAttachmentRecognition";
+import { extractSearchTerms, extractUserQuestion } from "../services/xiaowanziSiteSearch";
 
 const router = express.Router();
 const FRONTEND_BOT_ID = "xiaowanzi_debug_bot";
@@ -22,24 +23,6 @@ function isFrontendBot(botId: string): boolean {
 
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function extractUserQuestion(content: string): string {
-  const match = content.match(/\[用户问题\]\s*([\s\S]+)$/);
-  return String(match?.[1] || content || "").trim();
-}
-
-function extractSearchTerms(content: string): string[] {
-  const question = extractUserQuestion(content)
-    .replace(/\[[^\]]+\]/g, " ")
-    .replace(/[，。！？、,.!?;；:："'“”‘’（）()【】]/g, " ");
-  const terms = question
-    .split(/\s+/)
-    .map((item) => item.trim())
-    .filter((item) => item.length >= 2 && item.length <= 18 && !/^(请问|帮我|一下|怎么|如何|什么|哪些|可以|能不能|有没有)$/.test(item));
-  const compact = question.replace(/\s+/g, "");
-  const phraseTerms = Array.from(compact.matchAll(/[\u4e00-\u9fff]{2,8}/g)).map((item) => item[0]);
-  return Array.from(new Set([...terms, ...phraseTerms])).slice(0, 8);
 }
 
 function compactText(value: any, limit = 140): string {

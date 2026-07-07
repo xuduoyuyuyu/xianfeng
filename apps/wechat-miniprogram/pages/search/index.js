@@ -2,7 +2,7 @@ const { DEFAULT_WEB_ORIGIN } = require("../../utils/config");
 const { request } = require("../../utils/request");
 const { getNativeTopbarMetrics } = require("../../utils/nativeChrome");
 const { createPageShare, enableShareMenu } = require("../../utils/share");
-const { goProgramsHome: navigateProgramsHome } = require("../../utils/nativePageNav");
+const { goProgramsHome: navigateProgramsHome, smartBackHome } = require("../../utils/nativePageNav");
 const { openWeb } = require("../../utils/webview");
 const { SETTINGS_SECTIONS, createNativeSettingsMethods } = require("../../utils/nativeSettings");
 const { DEFAULT_SEARCH_PROMPTS, getInitialSearchPrompt, startSearchPromptRotation, stopSearchPromptRotation } = require("../../utils/searchPrompts");
@@ -31,7 +31,7 @@ const BASE_TABS = [
 const TYPE_META = {
   programs: { label: "节目", icon: "节" },
   topics: { label: "请教", icon: "🙏🏻" },
-  books: { label: "及阅", icon: "书" },
+  books: { label: "及阅", icon: "书", iconImage: "/assets/menu/jiyue-logo.png" },
   materials: { label: "资料", icon: "资", iconImage: "/assets/tabbar/materials.png" },
   experts: { label: "智库", icon: "人" }
 };
@@ -396,9 +396,25 @@ Page({
     });
   },
 
+  resetSearchResults() {
+    this.setData({
+      submittedQuery: "",
+      activeTab: "all",
+      filteredResults: [],
+      visibleResults: [],
+      tabs: buildTabs([])
+    });
+  },
+
   onSearchInput(event) {
     const value = String(event && event.detail && event.detail.value || "");
-    this.setData({ searchInput: value });
+    const query = value.trim();
+    this.setData({ searchInput: value, activeTab: "all" });
+    if (!query) {
+      this.resetSearchResults();
+      return;
+    }
+    this.applySearch(query);
   },
 
   focusSearchInput() {
@@ -413,12 +429,7 @@ Page({
   submitSearch() {
     const query = String(this.data.searchInput || "").trim();
     if (!query) {
-      this.setData({
-        submittedQuery: "",
-        filteredResults: [],
-        visibleResults: [],
-        tabs: buildTabs([])
-      });
+      this.resetSearchResults();
       return;
     }
     const recentKeywords = saveHistory(query);
@@ -427,6 +438,14 @@ Page({
       recentKeywords
     });
     this.applySearch(query);
+  },
+
+  closeSearchInput() {
+    this.setData({
+      searchInput: "",
+      inputFocus: false
+    });
+    this.resetSearchResults();
   },
 
   pickKeyword(event) {
@@ -508,6 +527,10 @@ Page({
 
   reloadData() {
     this.loadData();
+  },
+
+  goBack() {
+    smartBackHome();
   },
 
   goProgramsHome() {

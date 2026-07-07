@@ -63,9 +63,10 @@
   background: transparent;
 }
 
-.xf-reading-page .xf-native-book-cover-empty {
-  background: #ffffff;
-  color: #5e17eb;
+.xf-reading-page .xf-native-book-cover-logo {
+  display: block;
+  width: 108rpx;
+  height: 108rpx;
 }
 
 .xf-reading-page.is-feature .xf-reading-list {
@@ -87,14 +88,14 @@
   background: #ffffff;
 }
 
-.xf-reading-page.is-feature .xf-native-book-cover,
-.xf-reading-page.is-feature .xf-native-book-cover-empty {
+.xf-reading-page.is-feature .xf-native-book-cover {
   width: 100%;
   height: 378rpx;
 }
 
-.xf-reading-page.is-feature .xf-native-book-cover-empty {
-  font-size: 42rpx;
+.xf-reading-page.is-feature .xf-native-book-cover-logo {
+  width: 144rpx;
+  height: 144rpx;
 }
 
 .xf-reading-page.is-feature .xf-native-body {

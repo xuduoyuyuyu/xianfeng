@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, it } from "node:test";
+import { extractSearchTerms } from "../services/xiaowanziSiteSearch";
 
 describe("tutorbot RAG wiring", () => {
   it("uses the shared RAG context service for frontend 小玩子 messages", () => {
@@ -60,5 +61,12 @@ describe("tutorbot RAG wiring", () => {
     assert.match(source, /推荐时必须列出下方条目的标题和链接/);
     assert.doesNotMatch(source, /说不定能找到对应的节目/);
     assert.doesNotMatch(source, /可以先去搜一下/);
+  });
+
+  it("keeps named teacher terms searchable when the user asks for a core viewpoint", () => {
+    const terms = extractSearchTerms("我想问夏老师核心观点");
+
+    assert.ok(terms.includes("夏老师"));
+    assert.ok(!terms.includes("我想问夏老师"));
   });
 });

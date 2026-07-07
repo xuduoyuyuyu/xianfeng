@@ -6,6 +6,7 @@ import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import welfareRoutes from "./welfare";
 import adminWelfareRoutes from "./adminWelfare";
+import WelfareActivationCode from "../models/WelfareActivationCode";
 import WelfareCampaign from "../models/WelfareCampaign";
 import WelfareClaim from "../models/WelfareClaim";
 import User from "../models/User";
@@ -66,6 +67,7 @@ describe("welfare campaign routes", () => {
 
   beforeEach(async () => {
     await WelfareCampaign.deleteMany({});
+    await WelfareActivationCode.deleteMany({});
     await WelfareClaim.deleteMany({});
     await User.deleteMany({});
     await UserXiaowanziSync.deleteMany({});
@@ -206,6 +208,182 @@ describe("welfare campaign routes", () => {
     assert.equal(expiredResponse.status, 410);
     const expiredData = await expiredResponse.json();
     assert.match(expiredData.message, /已过期/);
+  });
+
+  it("imports activation codes, assigns them in order, and exports claim reconciliation data", async () => {
+    const now = new Date("2026-07-02T08:00:00.000Z");
+    const firstUser = await User.create({
+      username: "first-code-user",
+      password: "hash",
+      mobile: "13800138003",
+      name: "用户一",
+      role: "user",
+    });
+    const secondUser = await User.create({
+      username: "second-code-user",
+      password: "hash",
+      mobile: "13800138004",
+      name: "用户二",
+      role: "user",
+    });
+    const thirdUser = await User.create({
+      username: "third-code-user",
+      password: "hash",
+      mobile: "13800138005",
+      role: "user",
+    });
+    const createResponse = await fetch(`${server.adminUrl}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "奇奇学会员",
+        totalStock: 0,
+        startsAt: "2026-07-01T00:00:00.000Z",
+        endsAt: "2026-07-08T00:00:00.000Z",
+        status: "published",
+      }),
+    });
+    assert.equal(createResponse.status, 201);
+    const createData = await createResponse.json();
+
+    const importResponse = await fetch(`${server.adminUrl}/${createData.campaign._id}/activation-codes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ codesText: "QIQI-A\nQIQI-B\nQIQI-A" }),
+    });
+    assert.equal(importResponse.status, 200);
+    const importData = await importResponse.json();
+    assert.equal(importData.importedCount, 2);
+    assert.equal(importData.skippedCount, 1);
+    assert.equal(importData.campaign.totalStock, 2);
+    assert.equal(importData.campaign.activationCodeCount, 2);
+    assert.equal(importData.campaign.activationCodeRemainingCount, 2);
+
+    const firstClaimResponse = await fetch(`${server.publicUrl}/campaigns/${createData.campaign._id}/claims`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${userToken(String(firstUser._id))}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ now: now.toISOString() }),
+    });
+    assert.equal(firstClaimResponse.status, 201);
+    const firstClaim = await firstClaimResponse.json();
+    assert.equal(firstClaim.claim.activationCode, "QIQI-A");
+
+    const duplicateResponse = await fetch(`${server.publicUrl}/campaigns/${createData.campaign._id}/claims`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${userToken(String(firstUser._id))}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ now: now.toISOString() }),
+    });
+    assert.equal(duplicateResponse.status, 200);
+    const duplicateData = await duplicateResponse.json();
+    assert.equal(duplicateData.claim.activationCode, "QIQI-A");
+
+    const listResponse = await fetch(`${server.publicUrl}/campaigns?now=${encodeURIComponent(now.toISOString())}`, {
+      headers: { Authorization: `Bearer ${userToken(String(firstUser._id))}` },
+    });
+    assert.equal(listResponse.status, 200);
+    const listData = await listResponse.json();
+    assert.equal(listData.active[0].claimedByMe, true);
+    assert.equal(listData.active[0].activationCode, "QIQI-A");
+
+    const secondClaimResponse = await fetch(`${server.publicUrl}/campaigns/${createData.campaign._id}/claims`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${userToken(String(secondUser._id))}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ now: now.toISOString() }),
+    });
+    assert.equal(secondClaimResponse.status, 201);
+    const secondClaim = await secondClaimResponse.json();
+    assert.equal(secondClaim.claim.activationCode, "QIQI-B");
+
+    const soldOutResponse = await fetch(`${server.publicUrl}/campaigns/${createData.campaign._id}/claims`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${userToken(String(thirdUser._id))}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ now: now.toISOString() }),
+    });
+    assert.equal(soldOutResponse.status, 409);
+
+    const claimsResponse = await fetch(`${server.adminUrl}/${createData.campaign._id}/claims`);
+    assert.equal(claimsResponse.status, 200);
+    const claimsData = await claimsResponse.json();
+    assert.deepEqual(
+      claimsData.claims.map((claim: any) => claim.activationCode).sort(),
+      ["QIQI-A", "QIQI-B"]
+    );
+
+    const exportResponse = await fetch(`${server.adminUrl}/${createData.campaign._id}/claims/export`);
+    assert.equal(exportResponse.status, 200);
+    assert.match(exportResponse.headers.get("content-type") || "", /text\/csv/);
+    const csv = await exportResponse.text();
+    assert.match(csv, /福利标题,领取时间,状态,用户ID,昵称,用户名,手机号,城市,地区,孩子档案,激活码/);
+    assert.match(csv, /QIQI-A/);
+    assert.match(csv, /QIQI-B/);
+  });
+
+  it("marks campaigns already claimed by the current user on the public list", async () => {
+    const now = new Date("2026-07-02T08:00:00.000Z");
+    const user = await User.create({
+      username: "claimed-user",
+      password: "hash",
+      mobile: "13800138001",
+      role: "user",
+    });
+    const otherUser = await User.create({
+      username: "other-user",
+      password: "hash",
+      mobile: "13800138002",
+      role: "user",
+    });
+    const claimed = await WelfareCampaign.create({
+      title: "已领福利",
+      totalStock: 10,
+      claimedCount: 1,
+      startsAt: new Date("2026-07-01T00:00:00.000Z"),
+      endsAt: new Date("2026-07-08T00:00:00.000Z"),
+      status: "published",
+      sortOrder: 2,
+    });
+    const unclaimed = await WelfareCampaign.create({
+      title: "未领福利",
+      totalStock: 10,
+      startsAt: new Date("2026-07-01T00:00:00.000Z"),
+      endsAt: new Date("2026-07-08T00:00:00.000Z"),
+      status: "published",
+      sortOrder: 1,
+    });
+    await WelfareClaim.create({
+      campaignId: claimed._id,
+      userId: user._id,
+      claimedAt: now,
+    });
+    await WelfareClaim.create({
+      campaignId: unclaimed._id,
+      userId: otherUser._id,
+      claimedAt: now,
+    });
+
+    const anonymousResponse = await fetch(`${server.publicUrl}/campaigns?now=${encodeURIComponent(now.toISOString())}`);
+    assert.equal(anonymousResponse.status, 200);
+    const anonymousData = await anonymousResponse.json();
+    assert.equal(anonymousData.active.find((item: any) => item.title === "已领福利").claimedByMe, false);
+
+    const authenticatedResponse = await fetch(`${server.publicUrl}/campaigns?now=${encodeURIComponent(now.toISOString())}`, {
+      headers: { Authorization: `Bearer ${userToken(String(user._id))}` },
+    });
+    assert.equal(authenticatedResponse.status, 200);
+    const authenticatedData = await authenticatedResponse.json();
+    assert.equal(authenticatedData.active.find((item: any) => item.title === "已领福利").claimedByMe, true);
+    assert.equal(authenticatedData.active.find((item: any) => item.title === "未领福利").claimedByMe, false);
   });
 
   it("returns user and child profile details in admin claim history", async () => {

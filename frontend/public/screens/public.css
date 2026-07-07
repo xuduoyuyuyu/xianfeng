@@ -1937,6 +1937,9 @@
   .min-h-\[90px\] {
     min-height: 90px;
   }
+  .min-h-\[92px\] {
+    min-height: 92px;
+  }
   .min-h-\[96px\] {
     min-height: 96px;
   }
@@ -3929,6 +3932,9 @@
   }
   .border-\[\#e6d7ff\] {
     border-color: #e6d7ff;
+  }
+  .border-\[\#e6ddff\] {
+    border-color: #e6ddff;
   }
   .border-\[\#e6def6\] {
     border-color: #e6def6;

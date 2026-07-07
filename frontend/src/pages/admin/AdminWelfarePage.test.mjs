@@ -41,7 +41,14 @@ test("admin welfare page configures campaigns, inventory, dates, upload image, a
   assert.match(source, /\{formModalOpen \? \(/);
   assert.doesNotMatch(source, /xl:grid-cols-\[420px_1fr\]/);
   assert.match(source, /getAdminWelfareClaims/);
+  assert.match(source, /importActivationCodes/);
+  assert.match(source, /activationCodeText/);
+  assert.match(source, /导入激活码/);
+  assert.match(source, /activationCodeRemainingCount/);
   assert.match(source, /领取记录/);
+  assert.match(source, /导出对账/);
+  assert.match(source, /exportClaims/);
+  assert.match(source, /claim\.activationCode/);
   assert.match(source, /claim\.user\?\.nickname/);
   assert.match(source, /claim\.children\?\.length/);
   assert.match(source, /已过期|过期/);
@@ -52,8 +59,12 @@ test("admin welfare api supports CRUD list and claim history", () => {
   assert.match(apiSource, /getAdminWelfareCampaigns/);
   assert.match(apiSource, /createWelfareCampaign/);
   assert.match(apiSource, /updateWelfareCampaign/);
+  assert.match(apiSource, /importWelfareActivationCodes/);
   assert.match(apiSource, /getAdminWelfareClaims/);
+  assert.match(apiSource, /exportAdminWelfareClaims/);
   assert.match(apiSource, /uploadAdminImage/);
   assert.match(apiSource, /\/admin\/welfare/);
+  assert.match(apiSource, /\/admin\/welfare\/\$\{id\}\/activation-codes/);
   assert.match(apiSource, /\/admin\/welfare\/\$\{id\}\/claims/);
+  assert.match(apiSource, /\/admin\/welfare\/\$\{id\}\/claims\/export/);
 });

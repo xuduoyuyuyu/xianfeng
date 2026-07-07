@@ -581,7 +581,6 @@ page {
 
 .xf-xiaowanzi-home-user-preview text {
   display: block;
-  min-width: 404rpx;
   max-width: 600rpx;
   box-sizing: border-box;
   padding: 28rpx 42rpx 30rpx;
@@ -927,7 +926,6 @@ page {
 }
 
 .xf-xiaowanzi-home-message .xf-xiaowanzi-user-bubble {
-  min-width: 404rpx;
   max-width: 600rpx;
   padding: 28rpx 42rpx 30rpx;
   font-size: 30rpx;
@@ -1556,6 +1554,7 @@ page {
 }
 
 .xf-xiaowanzi-history-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -1571,6 +1570,34 @@ page {
   box-shadow: 0 2px 8px rgba(35, 37, 71, 0.035);
   overflow: hidden;
   text-align: left;
+}
+
+.xf-xiaowanzi-history-card.is-delete-visible .xf-xiaowanzi-history-card-title {
+  max-width: calc(100% - 36px);
+}
+
+.xf-xiaowanzi-history-delete {
+  position: absolute;
+  top: 16rpx;
+  right: 16rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44rpx;
+  height: 44rpx;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999rpx;
+  background: #f3edff;
+  color: #5e17eb;
+  font-size: 30rpx;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.xf-xiaowanzi-history-delete::after {
+  border: 0;
 }
 
 .xf-xiaowanzi-history-card:last-child {

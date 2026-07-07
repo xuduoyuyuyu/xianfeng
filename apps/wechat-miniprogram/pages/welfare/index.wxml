@@ -32,7 +32,7 @@
       <view wx:if="{{loading}}" class="xf-welfare-state">正在打开百宝箱...</view>
       <view wx:elif="{{activeCampaigns.length === 0}}" class="xf-welfare-state">今天没有新的福利，过几天再来看看。</view>
       <view wx:else class="xf-welfare-list">
-        <view wx:for="{{activeCampaigns}}" wx:key="_id" class="xf-welfare-item">
+        <view wx:for="{{activeCampaigns}}" wx:key="_id" class="xf-welfare-item" data-id="{{item._id}}" bindtap="claimWelfare">
           <view class="xf-welfare-item-cover">
             <text wx:if="{{item.coverEmoji}}" class="xf-welfare-item-emoji">{{item.coverEmoji}}</text>
             <image wx:else src="{{item.coverImageUrl}}" mode="aspectFit" />
@@ -44,7 +44,7 @@
             <text class="xf-welfare-item-desc">{{item.subtitle}}</text>
             <text class="xf-welfare-item-stock">{{item.stockText}}</text>
           </view>
-          <button class="xf-welfare-claim {{item.unavailable ? 'is-disabled' : ''}}" disabled="{{item.unavailable || claimingId === item._id}}" data-id="{{item._id}}" bindtap="claimWelfare">{{claimingId === item._id ? "领取中" : item.actionText}}</button>
+          <button class="xf-welfare-claim {{item.unavailable ? 'is-disabled' : ''}}" disabled="{{item.claimDisabled || claimingId === item._id}}">{{claimingId === item._id ? "领取中" : item.actionText}}</button>
         </view>
       </view>
     </view>
@@ -78,6 +78,13 @@
         <text class="xf-welfare-dialog-title">{{claimDialogTitle}}</text>
       </view>
       <text class="xf-welfare-dialog-body">{{claimDialogInstructions}}</text>
+      <view wx:if="{{claimDialogActivationCode}}" class="xf-welfare-dialog-code">
+        <view>
+          <text>激活码</text>
+          <text>{{claimDialogActivationCode}}</text>
+        </view>
+        <button bindtap="copyActivationCode">复制</button>
+      </view>
       <view wx:if="{{claimDialogExternalUrl}}" class="xf-welfare-dialog-link">
         <text>{{claimDialogExternalUrl}}</text>
         <button bindtap="copyClaimLink">复制链接</button>

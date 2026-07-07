@@ -312,6 +312,39 @@ page {
   background: #f5f2ff;
 }
 
+.xf-welfare-dialog-code {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin-top: 24rpx;
+  padding: 20rpx;
+  border-radius: 24rpx;
+  background: #15123f;
+}
+
+.xf-welfare-dialog-code view {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.xf-welfare-dialog-code text:first-child {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 22rpx;
+  font-weight: 800;
+}
+
+.xf-welfare-dialog-code text:last-child {
+  overflow: hidden;
+  color: #ffffff;
+  font-size: 30rpx;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .xf-welfare-dialog-link text {
   flex: 1 1 auto;
   min-width: 0;
@@ -323,6 +356,7 @@ page {
   white-space: nowrap;
 }
 
+.xf-welfare-dialog-code button,
 .xf-welfare-dialog-link button,
 .xf-welfare-dialog-close {
   margin: 0;
@@ -331,6 +365,7 @@ page {
   font-weight: 950;
 }
 
+.xf-welfare-dialog-code button,
 .xf-welfare-dialog-link button {
   flex: 0 0 auto;
   height: 58rpx;
@@ -341,6 +376,13 @@ page {
   line-height: 58rpx;
 }
 
+.xf-welfare-dialog-code button {
+  background: #ffffff;
+  color: #15123f;
+  font-size: 24rpx;
+}
+
+.xf-welfare-dialog-code button::after,
 .xf-welfare-dialog-link button::after,
 .xf-welfare-dialog-close::after {
   border: 0;
