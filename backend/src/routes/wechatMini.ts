@@ -5,10 +5,23 @@ import User from "../models/User";
 import Topic from "../models/Topic";
 import XiaowanziShare from "../models/XiaowanziShare";
 import { authenticate, AuthenticatedRequest } from "../middlewares/auth";
+import { requirePro } from "../middlewares/requirePro";
 import { grantFreeLoginPointsForUser } from "../services/billing";
 import { fetchWechatMiniPhoneNumber, fetchWechatMiniSession, fetchWechatMiniUnlimitedQRCode, signUserJwt } from "../services/wechatMiniAuth";
+import { recognizeXiaowanziImageDataUrl } from "../services/xiaowanziAttachmentRecognition";
+import { makeQrPngWhitePixelsTransparent } from "../services/pngTransparency";
 
 const router = express.Router();
+const WECHAT_MINI_ENV_VERSIONS = new Set(["release", "trial", "develop"]);
+
+function requestedMiniEnvVersion(value: unknown): string | undefined {
+  const envVersion = String(value || "").trim();
+  return WECHAT_MINI_ENV_VERSIONS.has(envVersion) ? envVersion : undefined;
+}
+
+function shouldCheckMiniPagePath(envVersion: string | undefined): boolean {
+  return !envVersion || envVersion === "release";
+}
 
 function buildMiniProfile(user: any) {
   const safeName = String(user.name || user.username || "微信用户");
@@ -65,11 +78,20 @@ function normalizeShareText(value: unknown, limit: number) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, limit);
 }
 
+function normalizeShareContentText(value: unknown, limit: number) {
+  return String(value || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+    .slice(0, limit);
+}
+
 function sanitizeXiaowanziShareMessages(messages: unknown) {
   return (Array.isArray(messages) ? messages : [])
     .map((message: any) => {
       const role = message?.role === "user" ? "user" : "assistant";
-      const content = normalizeShareText(message?.content, 4000);
+      const content = normalizeShareContentText(message?.content, 4000);
       return content ? { role, content } : null;
     })
     .filter(Boolean)
@@ -205,6 +227,18 @@ router.post("/bind-phone", authenticate, async (req: AuthenticatedRequest, res) 
   }
 });
 
+router.post("/xiaowanzi/attachments/recognize", authenticate, requirePro("xiaowanzi_file"), async (req, res) => {
+  try {
+    const result = await recognizeXiaowanziImageDataUrl({
+      dataUrl: req.body?.dataUrl,
+      prompt: req.body?.prompt,
+    });
+    res.json(result);
+  } catch (error: any) {
+    res.status(Number(error?.statusCode || 502)).json({ message: error?.message || "图片识别失败" });
+  }
+});
+
 router.get("/topic-qrcode", async (req, res) => {
   try {
     const topicId = String(req.query.topicId || req.query.slug || "").trim();
@@ -225,10 +259,13 @@ router.get("/topic-qrcode", async (req, res) => {
       return;
     }
 
+    const envVersion = requestedMiniEnvVersion(req.query.envVersion);
     const code = await fetchWechatMiniUnlimitedQRCode({
       scene: `t=${String((topic as any)._id)}`,
       page: "pages/share/index",
       width: 280,
+      envVersion,
+      checkPath: shouldCheckMiniPagePath(envVersion),
     });
     res.setHeader("content-type", "image/png");
     res.setHeader("cache-control", "public, max-age=3600");
@@ -294,14 +331,18 @@ router.get("/xiaowanzi-share-qrcode", async (req, res) => {
       return;
     }
 
+    const envVersion = requestedMiniEnvVersion(req.query.envVersion);
     const code = await fetchWechatMiniUnlimitedQRCode({
       scene: `s=${String(share._id)}`,
       page: "pages/share/index",
       width: 280,
+      envVersion,
+      checkPath: shouldCheckMiniPagePath(envVersion),
+      isHyaline: true,
     });
     res.setHeader("content-type", "image/png");
-    res.setHeader("cache-control", "public, max-age=3600");
-    res.send(code);
+    res.setHeader("cache-control", "no-store");
+    res.send(makeQrPngWhitePixelsTransparent(code));
   } catch (error: any) {
     res.status(500).json({ error: error?.message || "生成小程序码失败" });
   }

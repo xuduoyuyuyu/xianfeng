@@ -159,7 +159,7 @@ function buildArchiveView(children, activeId, draft, message) {
       ...item,
       selected: draft.concernTags.includes(item.value)
     })),
-    archiveInsightGrade: selectedGrade.replace(/^学前/, "") || "未填年级",
+    archiveInsightGrade: selectedGrade.replace(/^学前/, ""),
     archiveProfileStatus: profileComplete({ ...draft, grade: selectedGrade }) ? "可绑定" : "待补全",
     profilePanelMessage: message || ""
   };
@@ -208,7 +208,7 @@ Page({
     archiveStageOptions: STAGES,
     archiveStageIndex: 0,
     archiveTagOptions: optionList(TAGS, ""),
-    archiveInsightGrade: "未填年级",
+    archiveInsightGrade: "",
     archiveProfileStatus: "待补全",
     profilePanelMessage: "",
     memoryEnabled: true,

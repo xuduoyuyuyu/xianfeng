@@ -527,7 +527,7 @@
       "name": "deepseek-v4-flash",
       "provider": "Deepseek",
       "model_name": "deepseek-v4-flash",
-      "api_key": "sk-5861237803ed495e913fc97001f1a214",
+      "api_key": "",
       "base_url": "https://api.deepseek.com",
       "enabled": true,
       "capabilities": [
@@ -543,7 +543,7 @@
       "name": "deepseek-v4-pro",
       "provider": "Deepseek",
       "model_name": "deepseek-v4-pro",
-      "api_key": "sk-5861237803ed495e913fc97001f1a214",
+      "api_key": "",
       "base_url": "https://api.deepseek.com",
       "enabled": true,
       "capabilities": [

@@ -1,7 +1,7 @@
 const { getNativeTopbarMetrics } = require("../../utils/nativeChrome");
 const { request, buildUrl } = require("../../utils/request");
 const { createPageShare, enableShareMenu } = require("../../utils/share");
-const { goProgramsHome: navigateProgramsHome } = require("../../utils/nativePageNav");
+const { ensureBackStackForBackButtonPage, goProgramsHome: navigateProgramsHome, smartBackHome } = require("../../utils/nativePageNav");
 const { SETTINGS_SECTIONS, createNativeSettingsMethods } = require("../../utils/nativeSettings");
 const { getUser } = require("../../utils/session");
 
@@ -17,6 +17,7 @@ const REAL_NAME_VERIFIED_OPTIONS = [
 ];
 const LOGO_HEIGHT_RPX = 56;
 const MAMA_RESOURCE_APPLY_DRAFT_KEY = "xf_mama_resource_apply_draft_v1";
+const MAMA_RESOURCE_SHARE_COVER_IMAGE = "/assets/share/mama-hao-zhuan-cover.png";
 
 const EMPTY_APPLY_DRAFT = {
   displayName: "",
@@ -141,14 +142,19 @@ function taskStatusText(status) {
 
 function buildTaskView(task) {
   const source = task && typeof task === "object" ? task : {};
+  const trafficFeeCents = Number(source.trafficFeeCents || 0);
   return {
     ...source,
     statusText: taskStatusText(source.status),
     unitPriceText: formatMoneyFromCents(source.unitPriceCents),
+    trafficFeeText: formatMoneyFromCents(source.trafficFeeCents),
+    hasTrafficFee: trafficFeeCents > 0,
     promotionCountText: formatCount(source.promotionCount),
     latestDataDateText: source.latestDataDate || "待同步",
+    announcement: asText(source.announcement).trim(),
     proofLink: asText(source.proofLink).trim(),
-    proofScreenshotUrl: asText(source.proofScreenshotUrl).trim()
+    proofScreenshotUrl: asText(source.proofScreenshotUrl).trim(),
+    exampleImageUrls: Array.isArray(source.exampleImageUrls) ? source.exampleImageUrls.map(asText).filter(Boolean) : []
   };
 }
 
@@ -240,6 +246,7 @@ Page({
     taskProofScreenshotUrl: "",
     taskProofScreenshotUploading: false,
     taskSubmitting: false,
+    taskAnnouncementOpen: false,
     taskMessage: "",
     taskMessageType: "",
     realNameVerified: null,
@@ -249,6 +256,7 @@ Page({
   },
 
   onLoad(options = {}) {
+    if (ensureBackStackForBackButtonPage(options)) return;
     const storedDraft = loadApplyDraft();
     const userMobile = readStoredUserMobile();
     const formDraft = normalizeApplyDraft({
@@ -303,7 +311,7 @@ Page({
   },
 
   goBack() {
-    wx.navigateBack({ delta: 1 });
+    smartBackHome();
   },
 
   updateApplyDraft(patch) {
@@ -321,10 +329,39 @@ Page({
         const tasks = buildTaskList(data && data.tasks);
         if (data && data.profile) {
           const profile = buildProfileView(data.profile);
+          if (profile.status !== "approved") {
+            const account = profile.socialAccount || {};
+            updatePageApplyDraft(this, {
+              displayName: profile.displayName || "",
+              contactWechat: profile.contactWechat || "",
+              contactPhone: profile.contactPhone || readStoredUserMobile(),
+              city: profile.city || "",
+              childStage: profile.childStage || "",
+              childGender: profile.childGender || "",
+              xiaohongshuProfileUrl: account.profileUrl || "",
+              xiaohongshuScreenshotUrl: account.screenshotUrl || "",
+              followerCount: account.followerCount ? String(account.followerCount) : "",
+              realNameVerified: account.realNameVerified === true ? true : account.realNameVerified === false ? false : null,
+              accountPositioning: profile.accountPositioning || "",
+              selectedCategories: Array.isArray(profile.categories) ? profile.categories : []
+            });
+            this.setData({
+              mamaResourceView: "apply",
+              mamaResourceProfile: profile,
+              mamaTasks: [],
+              currentMamaTask: null,
+              taskProofLink: "",
+              taskProofScreenshotUrl: "",
+              mamaTasksLoading: false,
+              message: profile.reviewMessage || "",
+              messageType: profile.reviewMessage ? "error" : ""
+            });
+            return;
+          }
           const currentId = this.data.currentMamaTask && this.data.currentMamaTask._id;
           const currentMamaTask = currentId ? tasks.find((task) => task._id === currentId) || this.data.currentMamaTask : null;
           this.setData({
-            mamaResourceView: this.data.mamaResourceView === "detail" && profile.status === "approved" ? "detail" : (profile.status === "approved" ? "tasks" : "reviewing"),
+            mamaResourceView: this.data.mamaResourceView === "detail" ? "detail" : "tasks",
             mamaResourceProfile: profile,
             mamaTasks: tasks,
             currentMamaTask,
@@ -352,6 +389,11 @@ Page({
   },
 
   openMamaTask(event) {
+    const profile = this.data.mamaResourceProfile || {};
+    if (profile.status !== "approved") {
+      this.setData({ mamaResourceView: "apply", currentMamaTask: null, mamaTasks: [] });
+      return;
+    }
     const taskId = String(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.id || "");
     const task = this.data.mamaTasks.find((item) => item._id === taskId);
     if (!task) return;
@@ -366,11 +408,31 @@ Page({
   },
 
   backToMamaTasks() {
+    const profile = this.data.mamaResourceProfile || {};
     this.setData({
-      mamaResourceView: "tasks",
+      mamaResourceView: profile.status === "approved" ? "tasks" : "apply",
       currentMamaTask: null,
       taskMessage: "",
       taskMessageType: ""
+    });
+  },
+
+  openTaskAnnouncement() {
+    if (!this.data.currentMamaTask || !this.data.currentMamaTask.announcement) return;
+    this.setData({ taskAnnouncementOpen: true });
+  },
+
+  closeTaskAnnouncement() {
+    this.setData({ taskAnnouncementOpen: false });
+  },
+
+  previewTaskExampleImage(event) {
+    const urls = (this.data.currentMamaTask && this.data.currentMamaTask.exampleImageUrls) || [];
+    if (!urls.length || !wx.previewImage) return;
+    const index = Number(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.index || 0);
+    wx.previewImage({
+      urls,
+      current: urls[index] || urls[0]
     });
   },
 
@@ -686,15 +748,17 @@ Page({
 
   onShareAppMessage() {
     return createPageShare({
-      title: "妈妈好赚资料提交",
-      path: "/pages/mama-resource-apply/index"
+      title: "妈妈好赚",
+      path: "/pages/mama-resource-apply/index",
+      imageUrl: MAMA_RESOURCE_SHARE_COVER_IMAGE
     }).onShareAppMessage();
   },
 
   onShareTimeline() {
     return createPageShare({
-      title: "妈妈好赚资料提交",
-      path: "/pages/mama-resource-apply/index"
+      title: "妈妈好赚",
+      path: "/pages/mama-resource-apply/index",
+      imageUrl: MAMA_RESOURCE_SHARE_COVER_IMAGE
     }).onShareTimeline();
   },
 

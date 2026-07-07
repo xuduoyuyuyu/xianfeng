@@ -1095,6 +1095,9 @@
   .-mx-3 {
     margin-inline: calc(var(--spacing) * -3);
   }
+  .-mx-5 {
+    margin-inline: calc(var(--spacing) * -5);
+  }
   .mx-1 {
     margin-inline: calc(var(--spacing) * 1);
   }
@@ -1867,6 +1870,9 @@
   }
   .max-h-\[calc\(100vh-178px\)\] {
     max-height: calc(100vh - 178px);
+  }
+  .max-h-\[calc\(100vh-180px\)\] {
+    max-height: calc(100vh - 180px);
   }
   .min-h-0 {
     min-height: calc(var(--spacing) * 0);
@@ -2911,6 +2917,9 @@
   }
   .grid-cols-\[minmax\(0\,1fr\)_120px_120px_auto\] {
     grid-template-columns: minmax(0,1fr) 120px 120px auto;
+  }
+  .grid-cols-\[minmax\(0\,1fr\)_auto\] {
+    grid-template-columns: minmax(0,1fr) auto;
   }
   .grid-rows-3 {
     grid-template-rows: repeat(3, minmax(0, 1fr));
@@ -4290,6 +4299,9 @@
   .bg-\[\#7C3AED\] {
     background-color: #7C3AED;
   }
+  .bg-\[\#120e25\]\/35 {
+    background-color: color-mix(in oklab, #120e25 35%, transparent);
+  }
   .bg-\[\#635bff\] {
     background-color: #635bff;
   }
@@ -4394,6 +4406,9 @@
   }
   .bg-\[\#f5efff\] {
     background-color: #f5efff;
+  }
+  .bg-\[\#f5f2ff\] {
+    background-color: #f5f2ff;
   }
   .bg-\[\#f5f3ff\] {
     background-color: #f5f3ff;
@@ -6455,6 +6470,9 @@
   }
   .text-\[\#5e57ff\] {
     color: #5e57ff;
+  }
+  .text-\[\#5f5a72\] {
+    color: #5f5a72;
   }
   .text-\[\#5f50eb\] {
     color: #5f50eb;
@@ -11044,11 +11062,6 @@
   .xl\:grid-cols-\[320px_1fr\] {
     @media (width >= 80rem) {
       grid-template-columns: 320px 1fr;
-    }
-  }
-  .xl\:grid-cols-\[420px_1fr\] {
-    @media (width >= 80rem) {
-      grid-template-columns: 420px 1fr;
     }
   }
   .xl\:grid-cols-\[minmax\(0\,1fr\)_360px\] {

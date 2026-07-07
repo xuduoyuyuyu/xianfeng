@@ -1,6 +1,6 @@
 const { request, buildUrl } = require("../../utils/request");
 const { getToken, getUser, setSession, clearSession } = require("../../utils/session");
-const { createPageShare, enableShareMenu, SHARE_PAGE_PATH } = require("../../utils/share");
+const { createPageShare, enableShareMenu } = require("../../utils/share");
 const { setSelectedTab } = require("../../utils/tabbar");
 const { CHILD_PROFILES_KEY, WEB_CHILD_PROFILES_KEY, mergeChildProfileRecords, parseStoredValue } = require("../../utils/profileState");
 const { getNativeTopbarMetrics } = require("../../utils/nativeChrome");
@@ -21,6 +21,7 @@ const XIAOWANZI_ENTRY_MODE_KEY = "xf_xiaowanzi_entry_mode";
 const LEGACY_AVATAR_INDEX_KEY = "wel_avatar_index";
 const LEGACY_AVATAR_CLICK_COUNT_KEY = "wel_avatar_click_count";
 const XIAOWANZI_AVATAR_IMAGE = "/assets/wel-avatar/no-hat.png";
+const XIAOWANZI_SHARE_COVER_IMAGE = "/assets/share/xiaowanzi-nohat-cover.png";
 const XIAOWANZI_TOPBAR_AVATARS = [
   XIAOWANZI_AVATAR_IMAGE,
   "/assets/wel-avatar/img-0640.png",
@@ -58,12 +59,73 @@ const WECHAT_SHARE_TITLE_LIMIT = 28;
 const SHARE_CANVAS_ID = "xiaowanziShareCanvas";
 const SHARE_CANVAS_WIDTH = 750;
 const SHARE_CANVAS_MIN_HEIGHT = 1200;
-const SHARE_CANVAS_CONTENT_LEFT = 20;
+const SHARE_CANVAS_CONTENT_LEFT = 28;
 const SHARE_CARD_LOGO_IMAGE = "/assets/xiaowanzi-icons/share-logo.png";
-const SHARE_CARD_QR_FILE_PREFIX = "xiaowanzi-conversation-qrcode";
+const SHARE_CARD_QR_FILE_PREFIX = "xiaowanzi-conversation-qrcode-transparent-v2";
+const SHARE_CARD_QR_CACHE_VERSION = "transparent-v2";
 const shareQrImageCache = {};
 const SHARE_REVEAL_HIDE_DELAY_MS = 5000;
 const KNOWLEDGE_PILL_COLLAPSE_SCROLL_TOP = 24;
+const SHARE_CANVAS_CHAT_STYLE = {
+  pageTopColor: "#f2f1ff",
+  pageBottomColor: "#e9edff",
+  pageTextColor: "#101433",
+  contentLeft: SHARE_CANVAS_CONTENT_LEFT,
+  messageTop: 292,
+  messageGap: 26,
+  topbar: {
+    logoX: 265,
+    logoY: 138,
+    logoWidth: 220,
+    logoHeight: 71
+  },
+  user: {
+    maxWidth: 584,
+    padX: 30,
+    padTop: 22,
+    padBottom: 26,
+    radius: 34,
+    fontSize: 28,
+    lineHeight: 49,
+    textColor: "#ffffff",
+    gradientStart: "#5368ff",
+    gradientMiddle: "#6847ff",
+    gradientEnd: "#601bec"
+  },
+  assistant: {
+    padX: 30,
+    padTop: 30,
+    padBottom: 32,
+    radius: 32,
+    fontSize: 28,
+    lineHeight: 51,
+    background: "#ffffff",
+    textColor: "#11143b"
+  },
+  linkColor: "#6d28f2",
+  reference: {
+    fontSize: 24,
+    lineHeight: 34,
+    gap: 16
+  },
+  siteCard: {
+    minHeight: 88,
+    paddingX: 22,
+    paddingY: 20,
+    radius: 30,
+    borderColor: "rgba(126, 95, 255, 0.22)",
+    backgroundStart: "rgba(255, 255, 255, 0.82)",
+    backgroundEnd: "rgba(247, 243, 255, 0.98)",
+    textColor: "#2a2350",
+    arrowColor: "#6a42e8",
+    arrowFontSize: 34,
+    arrowGap: 18,
+    lineHeight: 38,
+    maxLines: 2,
+    marginY: 3
+  },
+  qrTextColor: "#475569"
+};
 
 const AI_RESPONSE_RULES = [
   "你是小玩子，一个可爱活泼的助手，风格软萌、热情、会撒娇。",
@@ -121,13 +183,13 @@ function buildChildPickerCards(activeId) {
     .map((item) => {
       const displayName = String(item.displayName || "孩子").trim() || "孩子";
       const relation = String(item.relation || "孩子").trim() || "孩子";
-      const grade = String(item.grade || "未填年级").trim() || "未填年级";
+      const grade = String(item.grade || "").trim();
       return {
         id: item.id,
         displayName,
         relation,
         grade,
-        tag: `${relation} · ${grade}`,
+        tag: [relation, grade].filter(Boolean).join(" · "),
         initial: displayName.slice(0, 1) || "孩",
         selected: item.id === selectedId
       };
@@ -294,9 +356,23 @@ function buildMarkdownDocumentContentParts(content) {
   const paragraphLines = [];
 
   const pushParagraph = () => {
-    const text = paragraphLines.map(stripMarkdownInline).filter(Boolean).join("\n");
-    if (text) {
-      parts.push({ type: "md_paragraph", text });
+    const rawText = paragraphLines.join("\n").trim();
+    if (rawText) {
+      const inlineParts = buildInlineMessageContentParts(rawText);
+      const hasLink = inlineParts.some((part) => part.type === "link");
+      if (hasLink) {
+        inlineParts.forEach((part) => {
+          if (part.type === "link") {
+            parts.push(part);
+            return;
+          }
+          const text = stripMarkdownInline(part.text);
+          if (text) parts.push({ type: "md_paragraph", text });
+        });
+      } else {
+        const text = paragraphLines.map(stripMarkdownInline).filter(Boolean).join("\n");
+        if (text) parts.push({ type: "md_paragraph", text });
+      }
     }
     paragraphLines.length = 0;
   };
@@ -334,10 +410,10 @@ function buildMarkdownDocumentContentParts(content) {
   return parts
     .map((part, index) => ({
       key: `${part.type || "text"}-${index}`,
-      type: part.type || "md_paragraph",
+      type: part.type === "link" ? "link" : part.type || "md_paragraph",
       level: part.level || 0,
       text: String(part.text || ""),
-      url: ""
+      url: part.type === "link" ? String(part.url || "") : ""
     }))
     .filter((part) => part.text);
 }
@@ -585,9 +661,29 @@ function normalizeMessage(item, index) {
     role,
     content,
     contentParts: buildMessageContentParts(content),
+    attachments: normalizeMessageAttachments(item && item.attachments),
     shareable: isShareableAssistantMessageValue(role, content, item && item.pending, item && item.error),
     ts: String(item && item.ts || new Date().toISOString())
   };
+}
+
+function normalizeMessageAttachments(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map((item, index) => {
+    const source = item || {};
+    const path = String(source.path || source.tempFilePath || "").trim();
+    const mediaType = String(source.mediaType || source.mimeType || source.type || "").trim();
+    if (!path || (mediaType && !/^image\//i.test(mediaType))) return null;
+    const name = String(source.name || source.fileName || path.split("/").pop() || `图片${index + 1}`).trim();
+    return {
+      key: String(source.key || `${path}-${index}`),
+      type: String(source.type || "image").trim() || "image",
+      label: String(source.label || "图片").trim() || "图片",
+      name,
+      path,
+      mediaType: mediaType || "image/jpeg"
+    };
+  }).filter(Boolean);
 }
 
 function historyCacheKey(childId) {
@@ -865,6 +961,14 @@ function normalizeShareMessageContent(text) {
     .trim();
 }
 
+function normalizeStoredShareMessageContent(text) {
+  return String(text || "")
+    .replace(/`{1,3}([^`]*)`{1,3}/g, "$1")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function normalizeShareCanvasText(text) {
   return String(text || "")
     .replace(/\*\*(.+?)\*\*/g, "$1")
@@ -953,16 +1057,63 @@ function shareQrFilePath(shareId) {
   return userDataPath && safeShareId ? `${userDataPath}/${SHARE_CARD_QR_FILE_PREFIX}-${safeShareId}.png` : "";
 }
 
+function currentMiniProgramEnvVersion() {
+  if (typeof wx === "undefined" || typeof wx.getAccountInfoSync !== "function") return "";
+  try {
+    const info = wx.getAccountInfoSync();
+    const envVersion = String(info && info.miniProgram && info.miniProgram.envVersion || "").trim();
+    return ["develop", "trial", "release"].includes(envVersion) ? envVersion : "";
+  } catch (_error) {
+    return "";
+  }
+}
+
+function xiaowanziShareQrUrl(shareId) {
+  const params = [`shareId=${encodeURIComponent(shareId)}`, "transparent=1", "v=2"];
+  const envVersion = currentMiniProgramEnvVersion();
+  if (envVersion && envVersion !== "release") params.push(`envVersion=${encodeURIComponent(envVersion)}`);
+  return buildUrl(`/api/wechat-mini/xiaowanzi-share-qrcode?${params.join("&")}`);
+}
+
+function decodeArrayBufferUtf8(value) {
+  const bytes = new Uint8Array(value);
+  if (typeof TextDecoder !== "undefined") {
+    try {
+      return new TextDecoder("utf-8").decode(bytes);
+    } catch (_error) {}
+  }
+  try {
+    let encoded = "";
+    bytes.forEach((byte) => {
+      encoded += `%${byte.toString(16).padStart(2, "0")}`;
+    });
+    return decodeURIComponent(encoded);
+  } catch (_error) {
+    return String.fromCharCode.apply(null, Array.from(bytes));
+  }
+}
+
+function arrayBufferJsonMessage(value) {
+  if (!value || typeof ArrayBuffer === "undefined" || !(value instanceof ArrayBuffer)) return "";
+  try {
+    const text = decodeArrayBufferUtf8(value);
+    const data = JSON.parse(text);
+    return String(data && (data.error || data.message) || "").trim();
+  } catch (_error) {
+    return "";
+  }
+}
+
 function createXiaowanziConversationShare(messages) {
   const items = (Array.isArray(messages) ? messages : [])
     .map((message) => ({
       role: message && message.role === "user" ? "user" : "assistant",
-      content: normalizeShareMessageContent(message && message.content)
+      content: normalizeStoredShareMessageContent(message && message.content)
     }))
     .filter((message) => message.content);
   if (!items.length) return Promise.reject(new Error("当前内容没有可分享的对话"));
   const userQuestion = items.find((message) => message.role === "user") || items[0];
-  const title = `小玩子：${truncateWechatShareTitle(userQuestion.content)}`;
+  const title = `小玩子：${truncateWechatShareTitle(normalizeShareMessageContent(userQuestion.content))}`;
   return request({
     method: "POST",
     url: "/api/wechat-mini/xiaowanzi-shares",
@@ -982,7 +1133,8 @@ function loadShareQrImagePath(messages) {
     return Promise.reject(new Error("当前环境暂不支持生成小程序码"));
   }
   return createXiaowanziConversationShare(messages).then((shareId) => {
-    if (shareQrImageCache[shareId]) return shareQrImageCache[shareId];
+    const cacheKey = `${shareId}:${SHARE_CARD_QR_CACHE_VERSION}`;
+    if (shareQrImageCache[cacheKey]) return shareQrImageCache[cacheKey];
     const filePath = shareQrFilePath(shareId);
     if (!filePath) throw new Error("小程序码保存失败，请重试");
     const fs = wx.getFileSystemManager();
@@ -994,19 +1146,19 @@ function loadShareQrImagePath(messages) {
       const token = getToken();
       const header = token ? { Authorization: `Bearer ${token}` } : {};
       wx.request({
-        url: buildUrl(`/api/wechat-mini/xiaowanzi-share-qrcode?shareId=${encodeURIComponent(shareId)}`),
+        url: xiaowanziShareQrUrl(shareId),
         header,
         responseType: "arraybuffer",
         success(res) {
           if (Number(res && res.statusCode) !== 200 || !res || !res.data) {
-            reject(new Error("小程序码生成失败，请重试"));
+            reject(new Error(arrayBufferJsonMessage(res && res.data) || "小程序码生成失败，请重试"));
             return;
           }
           fs.writeFile({
             filePath,
             data: res.data,
             success() {
-              shareQrImageCache[shareId] = filePath;
+              shareQrImageCache[cacheKey] = filePath;
               resolve(filePath);
             },
             fail() {
@@ -1054,7 +1206,7 @@ function selectedMessagesForIds(messages, ids) {
     .filter((message) => selected[message.id])
     .map((message) => ({
       role: message.role === "user" ? "user" : "assistant",
-      content: normalizeShareMessageContent(message.content),
+      content: normalizeStoredShareMessageContent(message.content),
       contentParts: buildShareCanvasContentParts(message.content, message.contentParts),
       references: extractShareReferences(message.content)
     }))
@@ -1074,18 +1226,22 @@ function truncateWechatShareTitle(text) {
   return `${value.slice(0, WECHAT_SHARE_TITLE_LIMIT - 1)}…`;
 }
 
-function buildSelectedWechatShare(messages, ids) {
+function selectedShareKeyFromIds(ids) {
+  return (ids || []).join("|");
+}
+
+function buildSelectedWechatShare(messages, ids, shareId) {
+  const safeShareId = String(shareId || "").trim();
+  if (!safeShareId) return null;
   const selected = selectedMessagesForIds(messages, ids);
   if (!selected.length) return null;
   const userQuestion = selected.find((message) => message.role === "user") || selected[0];
-  const title = `小玩子：${truncateWechatShareTitle(userQuestion.content)}`;
+  const title = `小玩子：${truncateWechatShareTitle(normalizeShareMessageContent(userQuestion.content))}`;
   return createPageShare({
     title,
-    path: SHARE_PAGE_PATH,
-    query: {
-      target: SHARE_OPTIONS.path,
-      title
-    }
+    imageUrl: XIAOWANZI_SHARE_COVER_IMAGE,
+    path: "/pages/share/index",
+    query: { sid: safeShareId }
   }).onShareAppMessage();
 }
 
@@ -1125,6 +1281,33 @@ function drawRoundRect(ctx, x, y, width, height, radius) {
     return;
   }
   if (typeof ctx.fillRect === "function") ctx.fillRect(x, y, width, height);
+}
+
+function createShareCanvasLinearGradient(ctx, x0, y0, x1, y1, stops, fallback) {
+  if (ctx && typeof ctx.createLinearGradient === "function") {
+    try {
+      const gradient = ctx.createLinearGradient(x0, y0, x1, y1);
+      if (gradient && typeof gradient.addColorStop === "function") {
+        (stops || []).forEach((stop) => gradient.addColorStop(stop.offset, stop.color));
+        return gradient;
+      }
+    } catch (_error) {}
+  }
+  return fallback;
+}
+
+function drawShareCanvasPageBackground(ctx, canvasHeight) {
+  const style = SHARE_CANVAS_CHAT_STYLE;
+  ctx.setFillStyle(createShareCanvasLinearGradient(ctx, 0, 0, 0, canvasHeight, [
+    { offset: 0, color: style.pageTopColor },
+    { offset: 1, color: style.pageBottomColor }
+  ], style.pageBottomColor));
+  ctx.fillRect(0, 0, SHARE_CANVAS_WIDTH, canvasHeight);
+}
+
+function drawShareCanvasTopbar(ctx) {
+  const topbar = SHARE_CANVAS_CHAT_STYLE.topbar;
+  ctx.drawImage(SHARE_CARD_LOGO_IMAGE, topbar.logoX, topbar.logoY, topbar.logoWidth, topbar.logoHeight);
 }
 
 function wrapCanvasTextLines(ctx, text, maxWidth, fontSize, maxLines) {
@@ -1184,24 +1367,26 @@ function richLineText(line) {
   return richLineRuns(line).map((run) => run.text).join("");
 }
 
-function shareCanvasLinkMetrics(ctx, text, fontSize) {
-  const markSize = Math.round(fontSize * 0.9);
-  const markGap = Math.round(fontSize * 0.24);
-  const paddingX = Math.round(fontSize * 0.44);
-  const textWidth = canvasTextWidth(ctx, text, fontSize);
+function richLineLinkMetrics(line) {
+  return line && typeof line === "object" ? line.linkMetrics : null;
+}
+
+function shareCanvasLinkMetrics(ctx, text, fontSize, maxWidth) {
+  const siteCard = SHARE_CANVAS_CHAT_STYLE.siteCard;
+  const cardWidth = Math.max(0, Number(maxWidth) || 0);
+  const textMaxWidth = Math.max(0, cardWidth - siteCard.paddingX * 2 - siteCard.arrowFontSize - siteCard.arrowGap);
+  const textLines = wrapCanvasTextLines(ctx, text, textMaxWidth, fontSize, siteCard.maxLines);
+  const textHeight = Math.max(siteCard.lineHeight, textLines.length * siteCard.lineHeight);
   return {
-    width: Math.ceil(textWidth + paddingX * 2 + markSize + markGap),
-    height: Math.ceil(fontSize * 1.42),
-    markSize,
-    markGap,
-    paddingX,
-    textWidth
+    width: cardWidth,
+    height: Math.ceil(Math.max(siteCard.minHeight, siteCard.paddingY * 2 + textHeight)),
+    textLines
   };
 }
 
 function richRunWidth(ctx, run, fontSize) {
   const text = String((run && run.text) || "");
-  if (String((run && run.type) || "") === "link") return shareCanvasLinkMetrics(ctx, text, fontSize).width;
+  if (String((run && run.type) || "") === "link") return canvasTextWidth(ctx, text, fontSize);
   return canvasTextWidth(ctx, text, fontSize);
 }
 
@@ -1240,11 +1425,9 @@ function wrapCanvasRichTextLines(ctx, parts, maxWidth, fontSize) {
   const appendLink = (text) => {
     const value = String(text || "").trim();
     if (!value) return;
-    const linkWidth = shareCanvasLinkMetrics(ctx, value, fontSize).width;
-    if (line.length && lineWidth + linkWidth > maxWidth) pushLine();
-    lineType = lineType || "link";
-    line.push({ type: "link", text: value });
-    lineWidth += linkWidth;
+    pushLine();
+    const linkMetrics = shareCanvasLinkMetrics(ctx, value, fontSize, maxWidth);
+    lines.push({ runs: [{ type: "link", text: value }], type: "link", linkMetrics });
   };
   (parts || []).forEach((part) => {
     const rawType = String((part && part.type) || "");
@@ -1276,49 +1459,95 @@ function shareCanvasLineTopGap(lines, index) {
   const previousType = richLineType(lines[index - 1]);
   if (type === "md_heading") return previousType ? 24 : 0;
   if (type === "link" && previousType === "md_heading") return 12;
+  if (type === "link") return 14;
   if (type === "md_paragraph" && previousType === "md_heading") return 12;
   if (type === "md_paragraph") return 20;
   if (type === "md_list_item") return 12;
   return 0;
 }
 
-function shareCanvasRichTextHeight(lines, lineHeight) {
-  return (lines || []).reduce((total, line, index) => total + shareCanvasLineTopGap(lines, index) + lineHeight, 0);
+function shareCanvasSiteCardBottomGap(lines, index) {
+  const siteCardMarginY = SHARE_CANVAS_CHAT_STYLE.siteCard.marginY;
+  if (richLineType(lines[index]) !== "link") return 0;
+  return Math.max(siteCardMarginY, shareCanvasLineTopGap(lines, index));
+}
+
+function shareCanvasRichTextHeight(lines, lineHeight, fontSize) {
+  const currentFontSize = Number(fontSize) || SHARE_CANVAS_CHAT_STYLE.assistant.fontSize;
+  return (lines || []).reduce((total, line, index) => {
+    const metrics = richLineType(line) === "link" ? richLineLinkMetrics(line) : null;
+    const itemHeight = metrics ? metrics.height + shareCanvasSiteCardBottomGap(lines, index) + lineHeight - currentFontSize : lineHeight;
+    return total + shareCanvasLineTopGap(lines, index) + itemHeight;
+  }, 0);
+}
+
+function drawShareCanvasSiteCard(ctx, line, x, y, width, fontSize) {
+  const siteCard = SHARE_CANVAS_CHAT_STYLE.siteCard;
+  const metrics = richLineLinkMetrics(line) || shareCanvasLinkMetrics(ctx, richLineText(line), fontSize, width);
+  const cardWidth = Math.max(0, Math.min(width, metrics.width || width));
+  const cardHeight = metrics.height;
+  ctx.setFillStyle(siteCard.borderColor);
+  drawRoundRect(ctx, x, y, cardWidth, cardHeight, siteCard.radius);
+  ctx.setFillStyle(createShareCanvasLinearGradient(ctx, x, y, x + cardWidth, y + cardHeight, [
+    { offset: 0, color: siteCard.backgroundStart },
+    { offset: 1, color: siteCard.backgroundEnd }
+  ], siteCard.backgroundEnd));
+  drawRoundRect(ctx, x + 1, y + 1, Math.max(0, cardWidth - 2), Math.max(0, cardHeight - 2), siteCard.radius - 1);
+  const textX = x + siteCard.paddingX;
+  const textY = y + siteCard.paddingY + fontSize;
+  const arrowX = x + cardWidth - siteCard.paddingX - siteCard.arrowFontSize;
+  const textMaxWidth = Math.max(0, arrowX - siteCard.arrowGap - textX);
+  const textLines = metrics.textLines && metrics.textLines.length
+    ? metrics.textLines
+    : wrapCanvasTextLines(ctx, richLineText(line), textMaxWidth, fontSize, siteCard.maxLines);
+  setShareCanvasFontSize(ctx, fontSize);
+  ctx.setFillStyle(siteCard.textColor);
+  drawCanvasTextLines(ctx, textLines, textX, textY, siteCard.lineHeight);
+  drawShareCanvasSiteCardArrow(ctx, arrowX, y + Math.round((cardHeight - siteCard.arrowFontSize) / 2), siteCard.arrowFontSize);
+  setShareCanvasFontSize(ctx, fontSize);
+}
+
+function drawShareCanvasSiteCardArrow(ctx, x, y, size) {
+  const arrow = Math.max(18, Number(size) || SHARE_CANVAS_CHAT_STYLE.siteCard.arrowFontSize);
+  const inset = Math.round(arrow * 0.25);
+  const end = arrow - inset;
+  const start = Math.round(arrow * 0.72);
+  if (!ctx || typeof ctx.beginPath !== "function" || typeof ctx.moveTo !== "function" || typeof ctx.lineTo !== "function" || typeof ctx.stroke !== "function") return;
+  if (typeof ctx.setStrokeStyle === "function") ctx.setStrokeStyle(SHARE_CANVAS_CHAT_STYLE.siteCard.arrowColor);
+  if (typeof ctx.setLineWidth === "function") ctx.setLineWidth(4);
+  if (typeof ctx.setLineCap === "function") ctx.setLineCap("round");
+  if (typeof ctx.setLineJoin === "function") ctx.setLineJoin("round");
+  ctx.beginPath();
+  ctx.moveTo(x + inset, y + end);
+  ctx.lineTo(x + end, y + inset);
+  ctx.moveTo(x + start, y + inset);
+  ctx.lineTo(x + end, y + inset);
+  ctx.lineTo(x + end, y + Math.round(arrow * 0.48));
+  ctx.stroke();
 }
 
 function drawCanvasRichTextLines(ctx, lines, x, y, lineHeight, options) {
   const defaultFillStyle = options && options.defaultFillStyle || "#121735";
   const linkFillStyle = options && options.linkFillStyle || "#6d28f2";
   const fontSize = Number(options && options.fontSize) || 28;
+  const maxWidth = Math.max(0, Number(options && options.maxWidth) || 0);
   let baselineY = y;
   setShareCanvasTextAlign(ctx, "left");
   (lines || []).forEach((line, lineIndex) => {
     baselineY += shareCanvasLineTopGap(lines, lineIndex);
+    if (richLineType(line) === "link") {
+      const metrics = richLineLinkMetrics(line) || shareCanvasLinkMetrics(ctx, richLineText(line), fontSize, maxWidth);
+      const cardY = baselineY - fontSize + SHARE_CANVAS_CHAT_STYLE.siteCard.marginY;
+      drawShareCanvasSiteCard(ctx, line, x, cardY, maxWidth, fontSize);
+      baselineY = cardY + metrics.height + shareCanvasSiteCardBottomGap(lines, lineIndex) + lineHeight - fontSize;
+      return;
+    }
     let cursorX = x;
     richLineRuns(line).forEach((run) => {
       const runType = String((run && run.type) || "");
       const fillStyle = runType === "link" || runType === "md_bullet"
         ? linkFillStyle
         : defaultFillStyle;
-      if (runType === "link") {
-        const metrics = shareCanvasLinkMetrics(ctx, run.text, fontSize);
-        const pillY = baselineY - fontSize - Math.round((metrics.height - fontSize) / 2);
-        ctx.setFillStyle("rgba(116, 88, 255, 0.12)");
-        drawRoundRect(ctx, cursorX, pillY, metrics.width, metrics.height, Math.round(metrics.height / 2));
-        const markX = cursorX + metrics.paddingX;
-        const markY = pillY + Math.round((metrics.height - metrics.markSize) / 2);
-        ctx.setFillStyle("rgba(105, 74, 232, 0.14)");
-        drawRoundRect(ctx, markX, markY, metrics.markSize, metrics.markSize, Math.round(metrics.markSize / 2));
-        ctx.setFillStyle("#5d39dc");
-        const markFontSize = Math.max(16, Math.round(fontSize * 0.64));
-        setShareCanvasFontSize(ctx, markFontSize);
-        ctx.fillText("↗", markX + Math.round(metrics.markSize * 0.18), markY + Math.round(metrics.markSize * 0.74));
-        setShareCanvasFontSize(ctx, fontSize);
-        ctx.setFillStyle(fillStyle);
-        ctx.fillText(run.text, markX + metrics.markSize + metrics.markGap, baselineY);
-        cursorX += metrics.width;
-        return;
-      }
       ctx.setFillStyle(fillStyle);
       ctx.fillText(run.text, cursorX, baselineY);
       cursorX += richRunWidth(ctx, run, fontSize);
@@ -1329,28 +1558,29 @@ function drawCanvasRichTextLines(ctx, lines, x, y, lineHeight, options) {
 
 function getCenteredUserBubbleTextOffset(message) {
   if (!message || !message.isUser) return Number(message && message.bubblePadTop) || 0;
-  const textHeight = Math.max(message.fontSize, shareCanvasRichTextHeight(message.lines, message.lineHeight) - (message.lineHeight - message.fontSize));
+  const textHeight = Math.max(message.fontSize, shareCanvasRichTextHeight(message.lines, message.lineHeight, message.fontSize) - (message.lineHeight - message.fontSize));
   return Math.max(0, (message.bubbleHeight - textHeight) / 2);
 }
 
 function buildShareImageCanvasSections(ctx, messages) {
-  const contentLeft = SHARE_CANVAS_CONTENT_LEFT;
+  const contentLeft = SHARE_CANVAS_CHAT_STYLE.contentLeft;
   const contentWidth = SHARE_CANVAS_WIDTH - contentLeft * 2;
-  const userFontSize = 28;
-  const assistantFontSize = 28;
-  const referenceFontSize = 24;
-  const userLineHeight = 49;
-  const assistantLineHeight = 51;
-  const referenceLineHeight = 34;
-  const userPadX = 30;
-  const userPadTop = 22;
-  const userPadBottom = 26;
-  const assistantPadX = 30;
-  const assistantPadTop = 30;
-  const assistantPadBottom = 32;
-  const referenceGap = 16;
+  const style = SHARE_CANVAS_CHAT_STYLE;
+  const userFontSize = style.user.fontSize;
+  const assistantFontSize = style.assistant.fontSize;
+  const referenceFontSize = style.reference.fontSize;
+  const userLineHeight = style.user.lineHeight;
+  const assistantLineHeight = style.assistant.lineHeight;
+  const referenceLineHeight = style.reference.lineHeight;
+  const userPadX = style.user.padX;
+  const userPadTop = style.user.padTop;
+  const userPadBottom = style.user.padBottom;
+  const assistantPadX = style.assistant.padX;
+  const assistantPadTop = style.assistant.padTop;
+  const assistantPadBottom = style.assistant.padBottom;
+  const referenceGap = style.reference.gap;
   const referenceBottomPadding = assistantPadTop;
-  const userMaxWidth = 584;
+  const userMaxWidth = style.user.maxWidth;
   const assistantMaxWidth = contentWidth;
 
   return (messages || []).map((message) => {
@@ -1371,14 +1601,16 @@ function buildShareImageCanvasSections(ctx, messages) {
     setShareCanvasFontSize(ctx, referenceFontSize);
     const referenceLines = buildShareReferenceLines(ctx, references, maxTextWidth, referenceFontSize);
     setShareCanvasFontSize(ctx, fontSize);
-    const measuredWidth = Math.max(0, ...lines.map((line) => richLineWidth(ctx, line, fontSize)));
+    const measuredWidth = Math.max(0, ...lines.map((line) => richLineType(line) === "link" ? maxTextWidth : richLineWidth(ctx, line, fontSize)));
     setShareCanvasFontSize(ctx, referenceFontSize);
     const measuredReferenceWidth = Math.max(0, ...referenceLines.map((line) => canvasTextWidth(ctx, line, referenceFontSize)));
-    const bubbleWidth = Math.max(120, Math.min(Math.max(measuredWidth, measuredReferenceWidth) + bubblePadX * 2, maxBubbleWidth));
+    const bubbleWidth = isUser
+      ? Math.max(120, Math.min(Math.max(measuredWidth, measuredReferenceWidth) + bubblePadX * 2, maxBubbleWidth))
+      : maxBubbleWidth;
     const referenceHeight = referenceLines.length
       ? referenceGap + referenceLines.length * referenceLineHeight + referenceBottomPadding
       : 0;
-    const textHeight = shareCanvasRichTextHeight(lines, lineHeight);
+    const textHeight = shareCanvasRichTextHeight(lines, lineHeight, fontSize);
     const bubbleHeight = Math.max(88, bubblePadTop + textHeight + referenceHeight + bubblePadBottom);
     return {
       isUser,
@@ -1400,48 +1632,54 @@ function buildShareImageCanvasSections(ctx, messages) {
 
 function measureShareImageCanvasHeight(ctx, messages) {
   const visibleMessages = buildShareImageCanvasSections(ctx, messages);
-  const messageBlockHeight = visibleMessages.reduce((total, message) => total + message.bubbleHeight + 24, 0);
-  return Math.ceil(Math.max(SHARE_CANVAS_MIN_HEIGHT, 232 + messageBlockHeight + 460));
+  const messageBlockHeight = visibleMessages.reduce((total, message) => total + message.bubbleHeight + SHARE_CANVAS_CHAT_STYLE.messageGap, 0);
+  return Math.ceil(Math.max(SHARE_CANVAS_MIN_HEIGHT, SHARE_CANVAS_CHAT_STYLE.messageTop + messageBlockHeight + 420));
 }
 
 function drawShareImageCanvas(ctx, messages, canvasHeight, qrImagePath) {
   if (!ctx) return;
-  const contentLeft = SHARE_CANVAS_CONTENT_LEFT;
+  const style = SHARE_CANVAS_CHAT_STYLE;
+  const contentLeft = style.contentLeft;
   const contentWidth = SHARE_CANVAS_WIDTH - contentLeft * 2;
   const qrPanelY = canvasHeight - 392;
   const qrY = qrPanelY + 28;
   const visibleMessages = buildShareImageCanvasSections(ctx, messages);
 
-  ctx.setFillStyle("#f8f7fc");
-  ctx.fillRect(0, 0, SHARE_CANVAS_WIDTH, canvasHeight);
+  drawShareCanvasPageBackground(ctx, canvasHeight);
+  drawShareCanvasTopbar(ctx);
 
-  ctx.drawImage(SHARE_CARD_LOGO_IMAGE, 265, 74, 220, 71);
-
-  let y = 232;
+  let y = style.messageTop;
   visibleMessages.forEach((message) => {
     const x = message.isUser ? contentLeft + contentWidth - message.bubbleWidth : contentLeft;
-    ctx.setFillStyle(message.isUser ? "#6d3ff2" : "#ffffff");
-    drawRoundRect(ctx, x, y, message.bubbleWidth, message.bubbleHeight, message.isUser ? 34 : 30);
+    ctx.setFillStyle(message.isUser
+      ? createShareCanvasLinearGradient(ctx, x, y, x + message.bubbleWidth, y + message.bubbleHeight, [
+          { offset: 0, color: style.user.gradientStart },
+          { offset: 0.56, color: style.user.gradientMiddle },
+          { offset: 1, color: style.user.gradientEnd }
+        ], style.user.gradientMiddle)
+      : style.assistant.background);
+    drawRoundRect(ctx, x, y, message.bubbleWidth, message.bubbleHeight, message.isUser ? style.user.radius : style.assistant.radius);
     setShareCanvasFontSize(ctx, message.fontSize);
     const textX = x + message.bubblePadX;
     const textY = y + getCenteredUserBubbleTextOffset(message) + message.fontSize;
     drawCanvasRichTextLines(ctx, message.lines, textX, textY, message.lineHeight, {
-      defaultFillStyle: message.isUser ? "#ffffff" : "#121735",
-      linkFillStyle: message.isUser ? "#ffffff" : "#6d28f2",
-      fontSize: message.fontSize
+      defaultFillStyle: message.isUser ? style.user.textColor : style.assistant.textColor,
+      linkFillStyle: message.isUser ? style.user.textColor : style.linkColor,
+      fontSize: message.fontSize,
+      maxWidth: Math.max(0, message.bubbleWidth - message.bubblePadX * 2)
     });
     if (message.referenceLines.length) {
-      ctx.setFillStyle("#6d28f2");
+      ctx.setFillStyle(style.linkColor);
       setShareCanvasFontSize(ctx, message.referenceFontSize);
       const referenceY = textY + message.textHeight + message.referenceGap + message.referenceFontSize;
       drawCanvasTextLines(ctx, message.referenceLines, textX, referenceY, message.referenceLineHeight);
     }
-    y += message.bubbleHeight + 24;
+    y += message.bubbleHeight + style.messageGap;
   });
 
   ctx.drawImage(qrImagePath, SHARE_CANVAS_WIDTH / 2 - 70, qrY, 140, 140);
   if (typeof ctx.setTextAlign === "function") ctx.setTextAlign("center");
-  ctx.setFillStyle("#475569");
+  ctx.setFillStyle(style.qrTextColor);
   setShareCanvasFontSize(ctx, 22);
   ctx.fillText("扫描二维码，和小玩子继续聊", SHARE_CANVAS_WIDTH / 2, qrPanelY + 196);
   if (typeof ctx.setTextAlign === "function") ctx.setTextAlign("left");
@@ -1457,6 +1695,16 @@ function getRequestMessage(error, fallback) {
   if (/^request\.fail$/i.test(message)) return fallback || "网络连接失败，请稍后重试。";
   if (/^Request failed with status code \d+$/i.test(message)) return fallback || "请求失败";
   return message || fallback || "请求失败";
+}
+
+function getAttachmentRequestMessage(error, fallback) {
+  const message = getRequestMessage(error, fallback);
+  const statusCode = Number(error && error.statusCode || 0);
+  const url = String(error && error.url || "").trim();
+  const path = url.replace(/^https?:\/\/[^/]+/i, "");
+  if (statusCode && path) return `${message}（${statusCode} ${path}）`;
+  if (statusCode) return `${message}（${statusCode}）`;
+  return message;
 }
 
 function isProRequiredError(error) {
@@ -1485,26 +1733,177 @@ function attachmentKindLabel(type) {
   return "附件";
 }
 
-function buildAttachmentState(type, file) {
+function inferAttachmentMediaType(file, type) {
+  const source = file || {};
+  const rawType = String(source.mimeType || source.type || "").trim().toLowerCase();
+  if (rawType.indexOf("/") > 0) return rawType;
+  const path = String(source.name || source.fileName || source.tempFilePath || source.path || "").toLowerCase();
+  if (/\.png(?:$|\?)/.test(path)) return "image/png";
+  if (/\.webp(?:$|\?)/.test(path)) return "image/webp";
+  if (/\.gif(?:$|\?)/.test(path)) return "image/gif";
+  if (/\.jpe?g(?:$|\?)/.test(path)) return "image/jpeg";
+  if (type === "camera" || type === "image" || rawType === "image") return "image/jpeg";
+  return "application/octet-stream";
+}
+
+function selectedAttachmentPath(file) {
+  return String((file && (file.tempFilePath || file.path)) || "").trim();
+}
+
+function readAttachmentDataUrl(file, type) {
+  const path = selectedAttachmentPath(file);
+  const mediaType = inferAttachmentMediaType(file, type);
+  if (!path) return Promise.reject(new Error("没有读取到附件路径，请重新选择"));
+  if (!/^image\//i.test(mediaType)) return Promise.reject(new Error("当前仅支持图片或图片文件解析"));
+  if (!wx.getFileSystemManager) return Promise.reject(new Error("当前微信版本不支持读取附件"));
+  return new Promise((resolve, reject) => {
+    wx.getFileSystemManager().readFile({
+      filePath: path,
+      encoding: "base64",
+      success(result) {
+        const base64 = String(result && result.data || "").replace(/\s+/g, "");
+        if (!base64) {
+          reject(new Error("附件读取为空，请重新选择"));
+          return;
+        }
+        resolve(`data:${mediaType};base64,${base64}`);
+      },
+      fail(error) {
+        reject(new Error(getRequestMessage(error, "附件读取失败，请重试")));
+      }
+    });
+  });
+}
+
+function chooseNativeAttachment(type) {
+  return new Promise((resolve, reject) => {
+    if (type === "camera" || type === "image") {
+      const sourceType = type === "camera" ? ["camera"] : ["album"];
+      if (wx.chooseMedia) {
+        wx.chooseMedia({
+          count: 1,
+          mediaType: ["image"],
+          sourceType,
+          success(result) {
+            const file = result && Array.isArray(result.tempFiles) && result.tempFiles[0];
+            file ? resolve(file) : reject(new Error("没有选择图片"));
+          },
+          fail: reject
+        });
+        return;
+      }
+      if (wx.chooseImage) {
+        wx.chooseImage({
+          count: 1,
+          sourceType,
+          success(result) {
+            const file = result && Array.isArray(result.tempFiles) && result.tempFiles[0]
+              ? result.tempFiles[0]
+              : { tempFilePath: result && Array.isArray(result.tempFilePaths) && result.tempFilePaths[0] };
+            file && selectedAttachmentPath(file) ? resolve(file) : reject(new Error("没有选择图片"));
+          },
+          fail: reject
+        });
+        return;
+      }
+      reject(new Error("当前微信版本不支持选择图片"));
+      return;
+    }
+    if (type === "file" && wx.chooseMessageFile) {
+      wx.chooseMessageFile({
+        count: 1,
+        type: "file",
+        success(result) {
+          const file = result && Array.isArray(result.tempFiles) && result.tempFiles[0];
+          file ? resolve(file) : reject(new Error("没有选择文件"));
+        },
+        fail: reject
+      });
+      return;
+    }
+    reject(new Error("当前微信版本不支持选择文件"));
+  });
+}
+
+function recognizeNativeAttachment(type, file) {
+  const dataUrl = String(file && file.dataUrl || "").trim();
+  const dataUrlPromise = dataUrl ? Promise.resolve(dataUrl) : readAttachmentDataUrl(file, type);
+  return dataUrlPromise.then((resolvedDataUrl) => request({
+    method: "POST",
+    url: "/api/wechat-mini/xiaowanzi/attachments/recognize",
+    data: {
+      dataUrl: resolvedDataUrl,
+      fileName: attachmentName(file, attachmentKindLabel(type)),
+      prompt: "请识别这张图片里的文字、场景和关键信息，方便小玩子继续回答。"
+    }
+  }).then((payload) => ({
+    dataUrl: resolvedDataUrl,
+    content: String(payload && (payload.content || payload.message || payload.detail) || "").trim()
+  })));
+}
+
+function buildAttachmentState(type, file, recognition) {
   const label = attachmentKindLabel(type);
   const name = attachmentName(file, label);
   const size = formatFileSize(file && file.size);
   const path = String((file && (file.tempFilePath || file.path)) || "").trim();
   const suffix = size ? ` · ${size}` : "";
+  const recognizedContent = String(recognition || "").trim();
   return {
-    attachmentPreviewText: `已添加${label}：${name}${suffix}`,
+    attachmentPreviewText: `已解析${label}：${name}${suffix}`,
     attachmentContextText: [
-      `用户在小程序端选择了${label}附件。`,
+      `用户在小程序端选择并解析了${label}附件。`,
       `附件名称：${name}。`,
       size ? `附件大小：${size}。` : "",
       path ? `本地临时路径：${path}。` : "",
-      "当前聊天接口尚未接入附件内容解析；如果回答需要附件细节，请先让用户补充图片或文件中的关键信息。"
+      recognizedContent ? `图片识别结果：${recognizedContent}` : ""
     ].filter(Boolean).join("")
   };
 }
 
+function buildPendingAttachment(type, file, dataUrl) {
+  const label = attachmentKindLabel(type);
+  const name = attachmentName(file, label);
+  const size = formatFileSize(file && file.size);
+  const path = selectedAttachmentPath(file);
+  return {
+    type,
+    label,
+    name,
+    size,
+    path,
+    dataUrl,
+    mediaType: inferAttachmentMediaType(file, type),
+    previewText: `已上传${label}：${name}${size ? ` · ${size}` : ""}`
+  };
+}
+
+function normalizePendingAttachments(value) {
+  if (!Array.isArray(value)) return value ? [value] : [];
+  return value.filter((item) => item && typeof item === "object");
+}
+
+function buildPendingAttachmentPreviewText(attachments) {
+  const items = normalizePendingAttachments(attachments);
+  if (!items.length) return "";
+  if (items.length === 1) return items[0].previewText || `已上传${items[0].label || "附件"}：${items[0].name || "附件"}`;
+  return `已上传 ${items.length} 个附件`;
+}
+
+function recognizePendingAttachments(attachments) {
+  const items = normalizePendingAttachments(attachments);
+  return Promise.all(items.map((attachment) => recognizeNativeAttachment(attachment.type, attachment)
+    .then((result) => buildAttachmentState(attachment.type, attachment, result && result.content).attachmentContextText)))
+    .then((parts) => parts.filter(Boolean).join("\n\n"));
+}
+
 function hasComposerContent(data) {
-  return Boolean(String(data && (data.inputValue || data.selectedHomePrompt) || "").trim() || String(data && data.attachmentContextText || "").trim());
+  return Boolean(
+    String(data && (data.inputValue || data.selectedHomePrompt) || "").trim()
+    || String(data && data.attachmentContextText || "").trim()
+    || normalizePendingAttachments(data && data.pendingAttachments).length
+    || data && data.pendingAttachment
+  );
 }
 
 function buildComposerContent(text, attachmentContextText) {
@@ -1580,6 +1979,10 @@ Page({
     selectedMessageIds: [],
     selectedMessageMap: {},
     shareRoundCount: 0,
+    selectedConversationShareId: "",
+    selectedSharePreparing: false,
+    selectedShareError: "",
+    selectedShareKey: "",
     shareImageGenerating: false,
     shareCanvasMounted: false,
     shareCanvasHeight: SHARE_CANVAS_MIN_HEIGHT,
@@ -1588,6 +1991,7 @@ Page({
     toastText: "",
     voiceListening: false,
     voiceHolding: false,
+    pendingAttachments: [],
     attachmentPreviewText: "",
     attachmentContextText: "",
     canUseBot: true,
@@ -1606,7 +2010,7 @@ Page({
     archiveChildren: [],
     archiveHasChildren: false,
     archiveDraft: {},
-    archiveInsightGrade: "小班",
+    archiveInsightGrade: "",
     archiveProfileStatus: "待补全",
     archiveRelationOptions: [],
     archiveRegionOptions: [],
@@ -1890,8 +2294,9 @@ Page({
     const visibleContent = String(this.data.inputValue || this.data.selectedHomePrompt || "").trim();
     const attachmentPreviewText = this.data.attachmentPreviewText;
     const attachmentContextText = this.data.attachmentContextText;
-    const content = buildComposerContent(visibleContent, attachmentContextText);
-    if (!content) {
+    const pendingAttachments = normalizePendingAttachments(this.data.pendingAttachments);
+    const hasPendingAttachments = pendingAttachments.length > 0;
+    if (!hasComposerContent({ inputValue: visibleContent, attachmentContextText, pendingAttachments })) {
       this.setData({ sendPressing: false });
       return;
     }
@@ -1914,11 +2319,13 @@ Page({
     }
 
     const keepHomeConversation = Boolean(this.data.homeMode);
+    const visibleMessageContent = visibleContent || (hasPendingAttachments ? "帮我解读下图片内容" : attachmentPreviewText || "已添加附件");
     const userMessage = {
       id: messageId("user"),
       role: "user",
-      content: visibleContent || attachmentPreviewText || "已添加附件",
-      contentParts: buildMessageContentParts(visibleContent || attachmentPreviewText || "已添加附件"),
+      content: visibleMessageContent,
+      contentParts: buildMessageContentParts(visibleMessageContent),
+      attachments: normalizeMessageAttachments(pendingAttachments),
       shareable: false,
       ts: new Date().toISOString()
     };
@@ -1938,6 +2345,7 @@ Page({
       inputValue: "",
       inputReady: false,
       selectedHomePrompt: "",
+      pendingAttachments: [],
       attachmentPreviewText: "",
       attachmentContextText: "",
       homeMode: keepHomeConversation,
@@ -1956,13 +2364,22 @@ Page({
       knowledgePillCollapsed: true
     });
 
-    this.buildContextualContent(activeChild, content)
-      .then(({ contextualContent, profileSummary, memoryEnabled }) => request({
+    const attachmentContextPromise = hasPendingAttachments
+      ? recognizePendingAttachments(pendingAttachments)
+      : Promise.resolve(attachmentContextText);
+
+    attachmentContextPromise
+      .then((resolvedAttachmentContextText) => {
+        const content = buildComposerContent(visibleContent || (hasPendingAttachments ? "帮我解读下图片内容" : ""), resolvedAttachmentContextText);
+        if (!content) throw new Error("请先输入问题或上传图片");
+        return this.buildContextualContent(activeChild, content).then((contextPayload) => ({ ...contextPayload, content }));
+      })
+      .then(({ contextualContent, profileSummary, memoryEnabled, content }) => request({
         method: "POST",
         url: `/api/v1/tutorbot/${BOT_ID}/messages`,
         data: { content: contextualContent, stream: false }
-      }).then((payload) => ({ payload, profileSummary, memoryEnabled })))
-      .then(({ payload, profileSummary, memoryEnabled }) => {
+      }).then((payload) => ({ payload, profileSummary, memoryEnabled, content })))
+      .then(({ payload, profileSummary, memoryEnabled, content }) => {
         if (this.data.pendingMessageId !== pendingMessage.id) return;
         const reply = String(payload && (payload.content || payload.message || payload.detail) || "").trim() || "小玩子暂时没有返回内容。";
         const assistantMessage = {
@@ -2010,9 +2427,10 @@ Page({
           pendingMessageId: "",
           sendPressing: false,
           inputValue: visibleContent,
+          pendingAttachments,
           attachmentPreviewText,
           attachmentContextText,
-          inputReady: hasComposerContent({ inputValue: visibleContent, attachmentContextText }),
+          inputReady: hasComposerContent({ inputValue: visibleContent, attachmentContextText, pendingAttachments }),
           scrollIntoView: pendingMessage.id
         });
         this.refreshHistoryCards(messages);
@@ -2083,7 +2501,8 @@ Page({
     const knowledgePillCollapsed = scrollTop > KNOWLEDGE_PILL_COLLAPSE_SCROLL_TOP;
     const previousScrollTop = Number(this.lastChatScrollTop || 0);
     this.lastChatScrollTop = scrollTop;
-    const shouldFoldAttachmentMenu = this.data.attachmentMenuOpen && scrollTop > previousScrollTop + 4;
+    const attachmentMenuJustOpened = this.attachmentMenuOpenedAt && Date.now() - this.attachmentMenuOpenedAt < 500;
+    const shouldFoldAttachmentMenu = this.data.attachmentMenuOpen && !attachmentMenuJustOpened && scrollTop > previousScrollTop + 4;
     const payload = {};
     if (this.data.knowledgePillCollapsed !== knowledgePillCollapsed) payload.knowledgePillCollapsed = knowledgePillCollapsed;
     if (shouldFoldAttachmentMenu) payload.attachmentMenuOpen = false;
@@ -2150,6 +2569,7 @@ Page({
   toggleAttachmentMenu() {
     if (this.data.sending) return;
     const attachmentMenuOpen = !this.data.attachmentMenuOpen;
+    this.attachmentMenuOpenedAt = attachmentMenuOpen ? Date.now() : 0;
     this.clearShareRevealTimer();
     this.setData({
       attachmentMenuOpen,
@@ -2159,18 +2579,61 @@ Page({
       childPickerOpen: false,
       voiceListening: false,
       voiceHolding: false,
-      scrollIntoView: attachmentMenuOpen && this.data.homeMode ? "xiaowanziPromptPanel" : this.data.scrollIntoView
+      scrollIntoView: this.data.scrollIntoView
     });
   },
 
   chooseAttachment(event) {
     const type = String(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.type || "");
-    this.setData({ attachmentMenuOpen: false });
-    if (type === "camera" || type === "image" || type === "file") {
-      this.showToast("相关功能正在开发中");
+    this.setData({ errorText: "", actionLabel: "", actionType: "" });
+    if (type !== "camera" && type !== "image" && type !== "file") {
+      this.showToast("请选择图片或文件");
       return;
     }
-    this.showToast("相关功能正在开发中");
+    if (!getToken()) {
+      this.requireXiaowanziLogin();
+      return;
+    }
+    const existingPendingAttachments = normalizePendingAttachments(this.data.pendingAttachments);
+    this.setData({ statusText: "正在上传附件", attachmentPreviewText: "正在上传附件...", attachmentContextText: "" });
+    return chooseNativeAttachment(type)
+      .then((file) => readAttachmentDataUrl(file, type).then((dataUrl) => ({ file, dataUrl })))
+      .then(({ file, dataUrl }) => {
+        const pendingAttachment = buildPendingAttachment(type, file, dataUrl);
+        const nextPendingAttachments = existingPendingAttachments.concat(pendingAttachment);
+        this.setData({
+          pendingAttachments: nextPendingAttachments,
+          attachmentPreviewText: buildPendingAttachmentPreviewText(nextPendingAttachments),
+          attachmentContextText: "",
+          statusText: "附件已上传",
+          inputReady: hasComposerContent({ ...this.data, pendingAttachments: nextPendingAttachments })
+        });
+      })
+      .catch((error) => {
+        const message = getAttachmentRequestMessage(error, "附件上传失败，请重试。");
+        const canceled = /cancel/i.test(String(error && (error.errMsg || error.message) || ""));
+        this.setData({
+          statusText: canceled ? (existingPendingAttachments.length ? "附件已上传" : "随时可用") : "附件上传失败",
+          pendingAttachments: existingPendingAttachments,
+          attachmentPreviewText: buildPendingAttachmentPreviewText(existingPendingAttachments),
+          attachmentContextText: "",
+          inputReady: hasComposerContent({ ...this.data, pendingAttachments: existingPendingAttachments, attachmentPreviewText: buildPendingAttachmentPreviewText(existingPendingAttachments), attachmentContextText: "" })
+        });
+        if (!canceled) this.showToast(message);
+      });
+  },
+
+  removePendingAttachment(event) {
+    const index = Number(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.index);
+    const currentPendingAttachments = normalizePendingAttachments(this.data.pendingAttachments);
+    const nextPendingAttachments = currentPendingAttachments.filter((_, itemIndex) => itemIndex !== index);
+    this.setData({
+      pendingAttachments: nextPendingAttachments,
+      attachmentPreviewText: buildPendingAttachmentPreviewText(nextPendingAttachments),
+      attachmentContextText: "",
+      inputReady: hasComposerContent({ ...this.data, pendingAttachments: nextPendingAttachments, attachmentPreviewText: buildPendingAttachmentPreviewText(nextPendingAttachments), attachmentContextText: "" }),
+      statusText: nextPendingAttachments.length ? "附件已上传" : "随时可用"
+    });
   },
 
   openShareSelectionFromMessage(event) {
@@ -2187,6 +2650,7 @@ Page({
       selectedMessageMap: selectedMessageMapFromIds(ids),
       shareRoundCount: shareRoundCountFromIds(ids)
     });
+    this.prepareSelectedConversationShare(ids);
   },
 
   handleMessageTap(event) {
@@ -2229,6 +2693,7 @@ Page({
       selectedMessageMap: selectedMessageMapFromIds(ids),
       shareRoundCount: shareRoundCountFromIds(ids)
     });
+    this.prepareSelectedConversationShare(ids);
   },
 
   exitShareSelection() {
@@ -2237,8 +2702,52 @@ Page({
       shareRevealMessageId: "",
       selectedMessageIds: [],
       selectedMessageMap: {},
-      shareRoundCount: 0
+      shareRoundCount: 0,
+      selectedConversationShareId: "",
+      selectedSharePreparing: false,
+      selectedShareError: "",
+      selectedShareKey: ""
     });
+  },
+
+  prepareSelectedConversationShare(ids) {
+    const selectedIds = Array.isArray(ids) ? ids : [];
+    const shareKey = selectedShareKeyFromIds(selectedIds);
+    const messages = selectedMessagesForIds(currentShareMessages(this.data), selectedIds);
+    if (!messages.length) {
+      this.setData({
+        selectedConversationShareId: "",
+        selectedSharePreparing: false,
+        selectedShareError: "",
+        selectedShareKey: ""
+      });
+      return;
+    }
+    this.setData({
+      selectedConversationShareId: "",
+      selectedSharePreparing: true,
+      selectedShareError: "",
+      selectedShareKey: shareKey
+    });
+    createXiaowanziConversationShare(messages)
+      .then((shareId) => {
+        if (this.data.selectedShareKey !== shareKey) return;
+        this.setData({
+          selectedConversationShareId: shareId,
+          selectedSharePreparing: false,
+          selectedShareError: ""
+        });
+      })
+      .catch((error) => {
+        if (this.data.selectedShareKey !== shareKey) return;
+        const message = getRequestMessage(error, "分享内容准备失败，请重试");
+        this.setData({
+          selectedConversationShareId: "",
+          selectedSharePreparing: false,
+          selectedShareError: message
+        });
+        this.showToast(message);
+      });
   },
 
   copySelectedMessages() {
@@ -2612,7 +3121,7 @@ Page({
 
   onShareAppMessage() {
     if (this.data && this.data.shareSelectionMode && this.data.selectedMessageIds && this.data.selectedMessageIds.length) {
-      const selectedShare = buildSelectedWechatShare(currentShareMessages(this.data), this.data.selectedMessageIds);
+      const selectedShare = buildSelectedWechatShare(currentShareMessages(this.data), this.data.selectedMessageIds, this.data.selectedConversationShareId);
       if (selectedShare) return selectedShare;
     }
     return createPageShare(SHARE_OPTIONS).onShareAppMessage();

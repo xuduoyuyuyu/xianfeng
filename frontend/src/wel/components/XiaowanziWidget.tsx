@@ -571,6 +571,35 @@ async function mergeChildMemory(input: {
   }
 }
 
+async function recognizeXiaowanziAttachment(input: {
+  attachment: UploadedImage;
+  prompt: string;
+}): Promise<string> {
+  if (input.attachment.kind === "file" || !input.attachment.dataUrl) {
+    throw new Error("当前仅支持图片识别，请上传图片文件");
+  }
+  const res = await fetch(apiUrl(`/api/v1/tutorbot/${BOT_ID}/attachments/recognize`), {
+    method: "POST",
+    headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({
+      dataUrl: input.attachment.dataUrl,
+      fileName: input.attachment.name,
+      prompt: input.prompt || "请识别这张图片里的文字、场景和关键信息，方便小玩子继续回答。",
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    if (res.status === 402 || isProRequiredPayload(data)) {
+      showProUpgradeFromPayload(data);
+    }
+    throw new Error(String(data?.content || data?.detail || data?.message || "图片识别失败"));
+  }
+  const content = String(data?.content || "").trim();
+  if (!content) throw new Error("图片识别没有返回内容，请换一张图片重试");
+  document.dispatchEvent(new CustomEvent("xf-billing-balance-changed", { detail: { featureKey: "xiaowanzi_file" } }));
+  return content;
+}
+
 const DEFAULT_MESSAGE = { role: "assistant" as const, content: "你好,我是小玩子 ✨", ts: new Date().toISOString() };
 const AVATAR_FADE_DURATION_MS = 300;
 const AVATAR_EFFECT_DURATION_MS = 500;
@@ -2658,7 +2687,7 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
       shouldBlockXiaowanziForAuth();
       return;
     }
-    const content = imageAttachment
+    let content = imageAttachment
       ? `${plainContent || (imageAttachment.kind === "file" ? "请帮我看一下这个文件" : "请帮我看一下这张图片")}\n\n[用户上传${imageAttachment.kind === "file" ? "文件" : "图片"}] ${imageAttachment.name}`
       : plainContent;
     if ((!isChildBound || !activeChild) && !homeActive) {
@@ -2680,6 +2709,22 @@ const XiaowanziWidget: React.FC<XiaowanziWidgetProps> = ({ standalone = false, h
         ].filter(Boolean).join("。");
     const memory = activeChild ? await loadChildMemory(activeChild.id) : {};
     const memoryEnabled = memory.enabled !== false;
+    if (imageAttachment) {
+      try {
+        setStatusText("● 正在识别图片...");
+        const recognition = await recognizeXiaowanziAttachment({ attachment: imageAttachment, prompt: plainContent });
+        content = `${content}\n\n[图片识别结果]\n${recognition}`;
+      } catch (error: any) {
+        setStatusText("● 图片识别失败");
+        setUploadedImage(null);
+        setMessages((prev) => [...prev, {
+          role: "assistant",
+          content: `图片识别失败:${String(error?.message || "unknown")}`,
+          ts: new Date().toISOString(),
+        }]);
+        return;
+      }
+    }
     const contextualContent = buildXiaowanziPromptPayload({
       profileSummary,
       memorySummary: memoryEnabled ? String(memory.summary || "").trim() : "",

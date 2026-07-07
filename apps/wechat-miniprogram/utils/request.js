@@ -32,7 +32,8 @@ function request(options) {
         reject({
           statusCode: res.statusCode,
           data: res.data,
-          message: (res.data && (res.data.error || res.data.message || res.data.detail)) || "请求失败"
+          url,
+          message: (res.data && (res.data.error || res.data.message || res.data.detail || res.data.content)) || "请求失败"
         });
       },
       fail(error) {

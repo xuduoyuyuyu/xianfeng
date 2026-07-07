@@ -154,6 +154,7 @@ const AdminBooksPage: React.FC = () => {
     wxShopScore: 0,
     wxHeadImgs: [] as string[],
     wxQrcodeUrl: '',
+    wxPurchaseLink: '',
     status: 'draft' as 'draft' | 'published' | 'group-only',
   });
   const [metadataFormData, setMetadataFormData] = useState<MetadataFormData>(createEmptyMetadataForm);
@@ -274,6 +275,7 @@ const AdminBooksPage: React.FC = () => {
       wxShopScore: 0,
       wxHeadImgs: [],
       wxQrcodeUrl: '',
+      wxPurchaseLink: '',
       status: 'draft',
     });
     setMetadataFormData(createEmptyMetadataForm());
@@ -304,6 +306,7 @@ const AdminBooksPage: React.FC = () => {
       wxShopScore: book.wxShopScore || 0,
       wxHeadImgs: book.wxHeadImgs || [],
       wxQrcodeUrl: book.wxQrcodeUrl || '',
+      wxPurchaseLink: book.wxPurchaseLink || '',
       status: book.status,
     });
     setMetadataFormData(toMetadataForm(book));
@@ -1380,31 +1383,17 @@ const AdminBooksPage: React.FC = () => {
                   </div>
                   <p className="mt-1 text-[10px] text-stone-400">从微信小店后台「商品管理 → 下载二维码」保存后上传，或粘贴图片URL</p>
                 </div>
-                {formData.wxProductId ? (
                 <div>
                   <label className="block text-[11px] font-medium text-stone-500 mb-1">购买短链</label>
-                  <div className="flex gap-2 items-center">
-                    <input
-                      type="text"
-                      readOnly
-                      value={`https://store.mp.video.tencent-cloud.com/pages/product/detail?productId=${formData.wxProductId}&appid=${formData.wxShopAppid || ''}`}
-                      className="flex-1 bg-stone-50 border border-stone-200 rounded-xl py-2.5 px-3 text-xs text-stone-500 outline-none select-all"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(
-                          `https://store.mp.video.tencent-cloud.com/pages/product/detail?productId=${formData.wxProductId}&appid=${formData.wxShopAppid || ''}`
-                        );
-                      }}
-                      className="shrink-0 rounded-xl bg-[#5e17eb] px-3 py-2 text-xs font-bold text-white hover:bg-[#4a12c0] transition"
-                    >
-                      复制
-                    </button>
-                  </div>
-                  <p className="mt-1 text-[10px] text-stone-400">微信内点击此链接可直接打开商品页购买</p>
+                  <input
+                    type="text"
+                    value={formData.wxPurchaseLink}
+                    onChange={(e) => setFormData({ ...formData, wxPurchaseLink: e.target.value })}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[#5e17eb]/10 focus:border-[#5e17eb]"
+                    placeholder="#小程序://快团团/点击查看/pprMtoZCLfpeMFl"
+                  />
+                  <p className="mt-1 text-[10px] text-stone-400">可选；手动创建书单时填写，有短链的小程序商品可用于图片或按钮点击跳转购买。</p>
                 </div>
-                ) : null}
                 <div>
                   <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#5E8B8E] mb-3">
                     状态

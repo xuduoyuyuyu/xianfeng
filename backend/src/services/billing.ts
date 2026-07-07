@@ -42,6 +42,12 @@ export const POINT_USAGE_POLICY: Record<string, PointUsagePolicyItem> = {
     cost: 2,
     description: "每发送 1 次小玩子 AI 对话扣 2 点。",
   },
+  xiaowanzi_file: {
+    featureKey: "xiaowanzi_file",
+    name: "小玩子图片文件处理",
+    cost: 10,
+    description: "每处理 1 张小玩子图片或文件扣 10 点。",
+  },
   ai_chat: {
     featureKey: "ai_chat",
     name: "兼容 AI 聊天",

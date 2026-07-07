@@ -243,7 +243,7 @@ page {
 }
 
 .xf-xiaowanzi-chat-list.has-attachment-menu {
-  bottom: calc(211px + env(safe-area-inset-bottom));
+  bottom: calc(170px + env(safe-area-inset-bottom));
 }
 
 .xf-xiaowanzi-chat-list.has-share-selection {
@@ -251,12 +251,12 @@ page {
 }
 
 .xf-xiaowanzi-chat-list.has-attachment-menu .xf-xiaowanzi-home {
-  padding-top: 112rpx;
+  padding-top: 60rpx;
 }
 
 .xf-xiaowanzi-chat-list.has-attachment-menu .xf-xiaowanzi-hero {
-  min-height: 336rpx;
-  padding-bottom: 24rpx;
+  min-height: 132px;
+  padding-bottom: 12rpx;
 }
 
 .xf-xiaowanzi-chat-list.has-attachment-menu .xf-xiaowanzi-prompt-panel {
@@ -266,15 +266,15 @@ page {
 .xf-xiaowanzi-home {
   box-sizing: border-box;
   min-height: 100%;
-  padding: 132rpx 0 40rpx;
+  padding: calc(44rpx + 5px) 0 40rpx;
 }
 
 .xf-xiaowanzi-hero {
   display: flex;
   align-items: center;
   box-sizing: border-box;
-  min-height: 168px;
-  padding: 0 8px 18rpx 4px;
+  min-height: 132px;
+  padding: 0 8px 8rpx 4px;
 }
 
 .xf-xiaowanzi-hero-bot {
@@ -901,6 +901,31 @@ page {
   box-shadow: 0 14rpx 32rpx rgba(96, 27, 236, 0.2);
 }
 
+.xf-xiaowanzi-message-attachments {
+  display: block;
+  width: 100%;
+  max-width: 386rpx;
+  margin-bottom: 14rpx;
+  white-space: nowrap;
+}
+
+.xf-xiaowanzi-message-attachment-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 12rpx;
+  min-width: 100%;
+}
+
+.xf-xiaowanzi-message-image {
+  display: block;
+  flex: 0 0 auto;
+  width: 72px;
+  height: 72px;
+  border: 2rpx solid rgba(255, 255, 255, 0.28);
+  border-radius: 22rpx;
+  background: rgba(255, 255, 255, 0.16);
+}
+
 .xf-xiaowanzi-home-message .xf-xiaowanzi-user-bubble {
   min-width: 404rpx;
   max-width: 600rpx;
@@ -1021,20 +1046,9 @@ page {
   isolation: isolate;
 }
 
-.xf-xiaowanzi-composer-feather {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -82px;
-  bottom: 0;
-  z-index: 0;
-  pointer-events: none;
-  background: linear-gradient(180deg, rgba(242, 241, 255, 0) 0%, rgba(241, 242, 255, 0.1) 30%, rgba(238, 241, 255, 0.36) 58%, rgba(235, 239, 255, 0.68) 82%, rgba(235, 239, 255, 0.88) 100%);
-}
-
 .xf-xiaowanzi-composer.is-attach-open {
   z-index: 33;
-  padding-bottom: calc(150px + env(safe-area-inset-bottom));
+  padding-bottom: calc(112px + env(safe-area-inset-bottom));
 }
 
 .xf-xiaowanzi-inline-status {
@@ -1073,6 +1087,77 @@ page {
   font-size: 22rpx;
   font-weight: 400;
   line-height: 42rpx;
+}
+
+.xf-xiaowanzi-attachment-strip {
+  position: relative;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0 0 12px;
+  padding: 0 18px;
+  transform: translateY(-25px);
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.xf-xiaowanzi-attachment-thumb {
+  position: relative;
+  flex: 0 0 auto;
+  width: 72px;
+  height: 72px;
+  box-sizing: border-box;
+  border-radius: 16px;
+  z-index: 1;
+  overflow: visible;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 8px 20px rgba(70, 73, 132, 0.12);
+}
+
+.xf-xiaowanzi-attachment-image {
+  display: block;
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  background: #eef2ff;
+}
+
+.xf-xiaowanzi-attachment-file {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  background: #f2f0ff;
+  color: #5b48ff;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.xf-xiaowanzi-attachment-remove {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(31, 33, 52, 0.78);
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 28px;
+}
+
+.xf-xiaowanzi-attachment-remove::after {
+  border: 0;
 }
 
 .xf-xiaowanzi-child-hint {
@@ -1150,6 +1235,13 @@ page {
 }
 
 .xf-xiaowanzi-input-shell.has-typed-input {
+  box-shadow:
+    0 12px 29px rgba(70, 73, 132, 0.16),
+    0 24px 48px rgba(91, 72, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+.xf-xiaowanzi-input-shell.has-attachment-input {
   box-shadow:
     0 12px 29px rgba(70, 73, 132, 0.16),
     0 24px 48px rgba(91, 72, 255, 0.1),
@@ -1271,6 +1363,7 @@ page {
 }
 
 .xf-xiaowanzi-input-shell.has-typed-input .xf-xiaowanzi-send,
+.xf-xiaowanzi-input-shell.has-attachment-input .xf-xiaowanzi-send,
 .xf-xiaowanzi-send.is-stop {
   background: linear-gradient(135deg, #5b48ff 0%, #7a45f4 100%);
   box-shadow: 0 12px 26px rgba(91, 72, 255, 0.28);
@@ -1465,15 +1558,18 @@ page {
 .xf-xiaowanzi-history-card {
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
   align-items: flex-start;
   width: 100%;
+  height: 80px;
   box-sizing: border-box;
   margin-bottom: 10px;
-  padding: 14px 14px 13px;
+  padding: 10px 14px;
   border: 2rpx solid rgba(124, 77, 255, 0.12);
   border-radius: 16px;
   background: #ffffff;
   box-shadow: 0 2px 8px rgba(35, 37, 71, 0.035);
+  overflow: hidden;
   text-align: left;
 }
 
@@ -1487,24 +1583,26 @@ page {
   color: #1f254b;
   font-size: 14px;
   font-weight: 400;
-  line-height: 22px;
-  overflow-wrap: anywhere;
-  white-space: normal;
-  word-break: break-word;
+  line-height: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
+  white-space: nowrap;
+  word-break: normal;
 }
 
 .xf-xiaowanzi-history-card-time {
   display: block;
-  margin-top: 4px;
+  margin-top: 3px;
   color: #9eb0cf;
   font-size: 12px;
   font-weight: 400;
-  line-height: 15px;
+  line-height: 14px;
 }
 
 .xf-xiaowanzi-history-card-child {
   display: block;
-  margin-top: 8px;
+  margin-top: 4px;
   color: #5c47ff;
   font-size: 13px;
   font-weight: 400;
@@ -1689,6 +1787,13 @@ page {
   font-size: 22rpx;
   font-weight: 400;
   text-align: center;
+}
+
+.xf-xiaowanzi-share-error {
+  display: block;
+  color: #b91c1c;
+  font-size: 22rpx;
+  line-height: 1.5;
 }
 
 .xf-xiaowanzi-share-channel-label {
@@ -2001,7 +2106,7 @@ page {
   height: 100vh;
   box-sizing: border-box;
   padding: 86rpx 28rpx 56rpx;
-  background: #f6f7fb;
+  background: linear-gradient(180deg, #f6f7fb 0, #f6f7fb calc(100% - 96rpx), transparent calc(100% - 96rpx), transparent 100%);
   border-radius: 0 0 0 36rpx;
   box-shadow: -22rpx 0 52rpx rgba(31, 20, 71, 0.16);
   overflow-y: auto;

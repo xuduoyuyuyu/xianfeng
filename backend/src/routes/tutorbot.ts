@@ -11,6 +11,7 @@ import Book from "../models/Book";
 import LearningMaterial from "../models/LearningMaterial";
 import { buildRagContext } from "../services/ragContextService";
 import { buildXiaowanziContextPayload, type XiaowanziSiteCard } from "../services/xiaowanziContextService";
+import { recognizeXiaowanziImageDataUrl } from "../services/xiaowanziAttachmentRecognition";
 
 const router = express.Router();
 const FRONTEND_BOT_ID = "xiaowanzi_debug_bot";
@@ -220,6 +221,20 @@ function writeSse(res: express.Response, event: string, data: Record<string, any
   res.write(`data: ${JSON.stringify(data)}\n\n`);
 }
 
+function recognizeXiaowanziAttachment(req: express.Request, res: express.Response): void {
+  (async () => {
+    try {
+      const result = await recognizeXiaowanziImageDataUrl({
+        dataUrl: req.body?.dataUrl,
+        prompt: req.body?.prompt,
+      });
+      res.json(result);
+    } catch (error: any) {
+      res.status(Number(error?.statusCode || 502)).json({ message: error?.message || "图片识别失败" });
+    }
+  })();
+}
+
 function sendBotMessage(req: express.Request, res: express.Response): void {
   const botId = String(req.params.botId);
   let bot = tutorbotManager.getBot(botId);
@@ -414,6 +429,11 @@ router.get("/:botId/history", (req, res, next) => {
 router.post("/:botId/messages", (req, res, next) => {
   if (!isFrontendBot(req.params.botId)) return next("route");
   return requirePro("xiaowanzi")(req as any, res, () => sendBotMessage(req, res));
+});
+
+router.post("/:botId/attachments/recognize", (req, res, next) => {
+  if (!isFrontendBot(req.params.botId)) return next("route");
+  return requirePro("xiaowanzi_file")(req as any, res, () => recognizeXiaowanziAttachment(req, res));
 });
 
 router.use(requireAdmin);

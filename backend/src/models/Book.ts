@@ -29,6 +29,7 @@ interface Book extends mongoose.Document {
   wxMonthlySales?: number;
   wxHeadImgs?: string[];
   wxQrcodeUrl?: string;
+  wxPurchaseLink?: string;
   wxSyncAt?: Date;
 }
 
@@ -54,6 +55,7 @@ const bookSchema = new mongoose.Schema(
     wxShopScore: { type: Number, default: 0 },
     wxHeadImgs: { type: [String], default: [] },
     wxQrcodeUrl: { type: String, default: "" },
+    wxPurchaseLink: { type: String, default: "", trim: true },
     wxSyncAt: { type: Date, default: null },
     sourceName: { type: String, default: "" },
     sourceGuestId: { type: mongoose.Schema.Types.ObjectId, ref: "Guest", default: null, index: true },

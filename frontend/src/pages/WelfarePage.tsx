@@ -3,18 +3,17 @@ import GlobalPublicNav from "../components/GlobalPublicNav";
 import { publicApi, WelfareCampaign } from "../services/api";
 import { isMiniProgramWebView } from "../utils/mpAuthBridge";
 
-const statusText: Record<string, string> = {
-  active: "可领取",
-  expired: "已过期",
-  sold_out: "已抢完",
-  upcoming: "未开始",
-};
-
 function dateText(value?: string | null): string {
   if (!value) return "长期有效";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "长期有效";
   return `${date.getMonth() + 1}.${date.getDate()} 截止`;
+}
+
+function campaignCover(value?: string) {
+  const source = String(value || "").trim();
+  if (source.startsWith("emoji:")) return { emoji: source.slice("emoji:".length).trim(), image: "" };
+  return { emoji: "", image: source || "/assets/welfare-gift-icon.png" };
 }
 
 function readableError(error: any, fallback: string): string {
@@ -45,18 +44,16 @@ function WelfareCard({
       : campaign.availability === "sold_out"
       ? "已抢完"
       : campaign.claimButtonText || "立即领取";
+  const cover = campaignCover(campaign.coverImageUrl);
 
   return (
     <article className={`flex items-center gap-3 rounded-[26px] bg-white/92 p-4 shadow-[0_18px_44px_rgba(77,69,148,0.10)] ${unavailable ? "opacity-70" : ""}`}>
       <div className="flex h-[62px] w-[62px] shrink-0 items-center justify-center rounded-[20px] bg-[#f1ecff]">
-        <img src={campaign.coverImageUrl || "/assets/welfare-gift-icon.png"} alt="" className="h-[54px] w-[54px] object-contain" />
+        {cover.emoji ? <span className="text-[30px] leading-none">{cover.emoji}</span> : <img src={cover.image} alt="" className="h-[54px] w-[54px] object-contain" />}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <h3 className="truncate text-[17px] font-black leading-tight text-[#17143d]">{campaign.title || "未命名福利"}</h3>
-          <span className="shrink-0 rounded-full bg-[#f2efff] px-2 py-0.5 text-[10px] font-black text-[#5e43e6]">
-            {statusText[campaign.availability] || "福利"}
-          </span>
         </div>
         <p className="mt-1 line-clamp-2 text-[13px] font-semibold leading-[1.45] text-[#8d879b]">
           {campaign.subtitle || campaign.description || `剩余 ${campaign.remainingStock} 份 · ${dateText(campaign.endsAt)}`}
@@ -87,6 +84,7 @@ const WelfarePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [claimingId, setClaimingId] = useState("");
+  const [claimDialog, setClaimDialog] = useState<{ title: string; instructions: string; externalUrl: string } | null>(null);
   const miniProgramWebView = isMiniProgramWebView();
 
   const hasHistory = useMemo(() => historyCampaigns.length > 0, [historyCampaigns]);
@@ -119,7 +117,12 @@ const WelfarePage: React.FC = () => {
     setMessage("");
     try {
       const response = await publicApi.claimWelfareCampaign(campaign._id);
-      setMessage(response.data.campaign?.claimInstructions || campaign.claimInstructions || "领取成功，运营会根据福利说明联系你。");
+      const claimedCampaign = response.data.campaign || campaign;
+      setClaimDialog({
+        title: claimedCampaign.title || campaign.title || "领取成功",
+        instructions: claimedCampaign.claimInstructions || campaign.claimInstructions || "领取成功，运营会根据福利说明联系你。",
+        externalUrl: claimedCampaign.externalUrl || campaign.externalUrl || "",
+      });
       await loadCampaigns();
     } catch (error: any) {
       if (isNotFoundError(error)) {
@@ -129,6 +132,17 @@ const WelfarePage: React.FC = () => {
       setMessage(readableError(error, "领取失败，请稍后重试"));
     } finally {
       setClaimingId("");
+    }
+  };
+
+  const copyClaimLink = async () => {
+    const url = claimDialog?.externalUrl.trim();
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      setMessage("链接已复制。");
+    } catch (_error) {
+      setMessage(url);
     }
   };
 
@@ -144,7 +158,7 @@ const WelfarePage: React.FC = () => {
                 <img src="/assets/welfare-gift-icon.png" alt="" className="h-6 w-6 object-contain" />
                 我的福利
               </div>
-              <h1 className="text-[36px] font-black leading-[1.08] tracking-normal text-[#15123f]">
+              <h1 className="text-[36px] font-medium leading-[1.08] tracking-normal text-[#15123f]">
                 小玩子百宝箱
               </h1>
               <p className="mt-3 text-[15px] font-bold leading-[1.7] text-[#8a84a0]">
@@ -191,6 +205,26 @@ const WelfarePage: React.FC = () => {
           </section>
         ) : null}
       </main>
+      {claimDialog ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#120e25]/35 px-5" role="dialog" aria-modal="true">
+          <div className="w-full max-w-[420px] rounded-[28px] bg-white p-5 shadow-2xl">
+            <p className="text-xs font-black text-[#5e43e6]">领取成功</p>
+            <h2 className="mt-2 text-2xl font-black leading-tight text-[#15123f]">{claimDialog.title}</h2>
+            <p className="mt-4 whitespace-pre-wrap text-sm font-semibold leading-7 text-[#5f5a72]">{claimDialog.instructions}</p>
+            {claimDialog.externalUrl ? (
+              <div className="mt-4 flex items-center gap-3 rounded-2xl bg-[#f5f2ff] p-3">
+                <span className="min-w-0 flex-1 truncate text-sm font-bold text-[#5e43e6]">{claimDialog.externalUrl}</span>
+                <button type="button" onClick={copyClaimLink} className="shrink-0 rounded-full bg-white px-3 py-2 text-xs font-black text-[#5e43e6]">
+                  复制链接
+                </button>
+              </div>
+            ) : null}
+            <button type="button" onClick={() => setClaimDialog(null)} className="mt-5 w-full rounded-full bg-[#5f50eb] px-4 py-3 text-sm font-black text-white">
+              知道了
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };

@@ -40,7 +40,9 @@
   owned by the web frontend and are reached from the native Topics list.
   The Baibaoxiang welfare shortcut opens native `pages/welfare/index` so the
   page uses mini-program chrome and hides backend 404s as an empty welfare
-  state; `/welfare` webview support remains only for compatibility links.
+  state. Claim success is handled in the native page with the configured claim
+  instructions and optional copied external link; `/welfare` webview support
+  remains only for compatibility links.
   Mine subpages such as archive, memory, and settings are thin `web-view`
   shells that open the web mobile half-panel via `xf_panel`, so the original
   web panel styling remains the source of truth.
@@ -59,6 +61,13 @@
 - The Xiaowanzi bottom tab keeps only the avatar icon. The top-nav Xiaowanzi
   entry matches the website mobile menu: tap opens chat mode through
   `xf_xw=chat`, long press opens super mode through `xf_xw=home`.
+- The native Xiaowanzi attachment menu starts image recognition directly:
+  camera, album images, and image files are read as base64 and sent to the
+  backend `attachments/recognize` endpoint before the parsed result is included
+  in the next chat prompt.
+- The native Pro page displays `xiaowanzi_file` in the point usage policy as
+  "小玩子图片文件处理", 10 points per processing request, using backend
+  `/api/billing/plans` when available and the same fallback copy offline.
 - WeChat friend sharing uses `pages/share/index` as the branded landing page
   with the local logo asset, then opens the encoded target page. Timeline
   sharing keeps WeChat's page-query model and does not rely on a target path

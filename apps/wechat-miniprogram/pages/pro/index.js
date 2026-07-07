@@ -1,7 +1,7 @@
 const { request } = require("../../utils/request");
 const { getNativeTopbarMetrics } = require("../../utils/nativeChrome");
 const { createPageShare, enableShareMenu } = require("../../utils/share");
-const { goProgramsHome: navigateProgramsHome } = require("../../utils/nativePageNav");
+const { ensureBackStackForBackButtonPage, goProgramsHome: navigateProgramsHome, smartBackHome } = require("../../utils/nativePageNav");
 const { SETTINGS_SECTIONS, createNativeSettingsMethods } = require("../../utils/nativeSettings");
 
 const SHARE_OPTIONS = {
@@ -39,6 +39,7 @@ const FALLBACK_PLANS = {
 
 const FALLBACK_USAGE_POLICY = [
   { featureKey: "xiaowanzi", name: "小玩子对话", cost: 2, description: "每发送 1 次小玩子 AI 对话扣 2 点。" },
+  { featureKey: "xiaowanzi_file", name: "小玩子图片文件处理", cost: 10, description: "每处理 1 张小玩子图片或文件扣 10 点。" },
   { featureKey: "guest_agent", name: "嘉宾 AI 分身", cost: 3, description: "每向嘉宾 AI 分身提问 1 次扣 3 点。" },
   { featureKey: "topic_submit", name: "请教一下", cost: 5, description: "每次生成或提交深度话题扣 5 点。" },
   { featureKey: "education_planning", name: "智能教育规划", cost: 5, description: "每次生成智能教育规划扣 5 点。" },
@@ -253,6 +254,7 @@ Page({
   },
 
   onLoad(options = {}) {
+    if (ensureBackStackForBackButtonPage(options)) return;
     enableShareMenu();
     this._billingLoaded = false;
     this.setData({ launchedFromSettings: String(options.from || "") === "settings" });
@@ -303,7 +305,7 @@ Page({
   },
 
   goBack() {
-    wx.navigateBack({ delta: 1 });
+    smartBackHome();
   },
 
   ...createNativeSettingsMethods(),

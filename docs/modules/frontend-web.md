@@ -32,6 +32,10 @@
   treats saved non-draft profiles as selectable or syncable.
 - Deleting a child profile must persist a local deletion tombstone so browser
   refresh and Xiaowanzi account sync cannot revive removed profiles.
+- Xiaowanzi image attachments are recognized before chat submission. The
+  widget calls the dedicated attachment endpoint, injects the returned
+  `[图片识别结果]` block into the prompt, emits a `xiaowanzi_file` balance
+  refresh event, and stops the chat send if image recognition fails.
 - Admin worthbuy management defaults to non-deleted records and provides an
   explicit deleted-record view for restoring logically deleted submissions.
 - The `/library/:externalId` detail page exposes description translation as a
@@ -50,10 +54,11 @@
   is still not a public marketplace or open claiming flow.
 - `/welfare` is the public Xiaowanzi treasure box page (`小玩子百宝箱`). It
   uses the gift icon asset and Xiaowanzi avatar treatment, lists claimable
-  welfare separately from expired or sold-out historical welfare, and requires
-  the logged-in claim API for actual claiming. `/admin/welfare` is the operator
-  screen for uploading/configuring welfare campaigns, stock, date windows,
-  publish state, and claim history.
+  welfare separately from expired or sold-out historical welfare, and shows
+  claim instructions plus an optional copied external link after claiming.
+  `/admin/welfare` is the operator screen for configuring welfare campaigns,
+  emoji or uploaded covers, stock, date windows, publish state, and enriched
+  claim history.
 
 ### Deferred / Obsolete
 

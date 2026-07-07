@@ -4,7 +4,6 @@ import { adminApi, WelfareCampaign, WelfareCampaignInput, WelfareClaim, WelfareC
 type WelfareForm = {
   title: string;
   subtitle: string;
-  description: string;
   coverImageUrl: string;
   claimInstructions: string;
   externalUrl: string;
@@ -19,7 +18,6 @@ type WelfareForm = {
 const emptyForm: WelfareForm = {
   title: "",
   subtitle: "",
-  description: "",
   coverImageUrl: "/assets/welfare-gift-icon.png",
   claimInstructions: "",
   externalUrl: "",
@@ -30,6 +28,9 @@ const emptyForm: WelfareForm = {
   status: "draft",
   sortOrder: "0",
 };
+
+const coverEmojiOptions = ["🎁", "📚", "🧸", "🎫", "⭐", "🍬", "🪄", "🏆"];
+const maxCoverImageBytes = 1024 * 1024;
 
 const statusLabel: Record<string, string> = {
   draft: "草稿",
@@ -53,7 +54,6 @@ function toForm(campaign: WelfareCampaign): WelfareForm {
   return {
     title: campaign.title || "",
     subtitle: campaign.subtitle || "",
-    description: campaign.description || "",
     coverImageUrl: campaign.coverImageUrl || "/assets/welfare-gift-icon.png",
     claimInstructions: campaign.claimInstructions || "",
     externalUrl: campaign.externalUrl || "",
@@ -70,7 +70,6 @@ function toPayload(form: WelfareForm): WelfareCampaignInput {
   return {
     title: form.title.trim(),
     subtitle: form.subtitle.trim(),
-    description: form.description.trim(),
     coverImageUrl: form.coverImageUrl.trim(),
     claimInstructions: form.claimInstructions.trim(),
     externalUrl: form.externalUrl.trim(),
@@ -83,12 +82,21 @@ function toPayload(form: WelfareForm): WelfareCampaignInput {
   };
 }
 
+function renderCoverPreview(value: string, className = "h-14 w-14") {
+  const source = String(value || "").trim();
+  if (source.startsWith("emoji:")) {
+    return <span className={`${className} flex shrink-0 items-center justify-center rounded-2xl bg-[#f1ecff] text-3xl`}>{source.slice("emoji:".length)}</span>;
+  }
+  return <img src={source || "/assets/welfare-gift-icon.png"} alt="" className={`${className} shrink-0 rounded-2xl bg-[#f1ecff] object-contain p-1`} />;
+}
+
 const AdminWelfarePage: React.FC = () => {
   const [items, setItems] = useState<WelfareCampaign[]>([]);
   const [form, setForm] = useState<WelfareForm>(emptyForm);
   const [editing, setEditing] = useState<WelfareCampaign | null>(null);
   const [claims, setClaims] = useState<WelfareClaim[]>([]);
   const [claimCampaign, setClaimCampaign] = useState<WelfareCampaign | null>(null);
+  const [formModalOpen, setFormModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -122,17 +130,31 @@ const AdminWelfarePage: React.FC = () => {
     setEditing(null);
     setForm(emptyForm);
     setMessage("");
+    setFormModalOpen(true);
   };
 
   const openEdit = (campaign: WelfareCampaign) => {
     setEditing(campaign);
     setForm(toForm(campaign));
     setMessage("");
+    setFormModalOpen(true);
+  };
+
+  const closeFormModal = () => {
+    if (saving || uploading) return;
+    setFormModalOpen(false);
+    setEditing(null);
+    setForm(emptyForm);
   };
 
   const uploadCoverImage = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (file.size > maxCoverImageBytes) {
+      setMessage("封面图片不能超过 1MB，请压缩后再上传。");
+      event.target.value = "";
+      return;
+    }
     setUploading(true);
     setMessage("");
     try {
@@ -158,9 +180,11 @@ const AdminWelfarePage: React.FC = () => {
       } else {
         await adminApi.createWelfareCampaign(toPayload(form));
       }
-      openCreate();
+      setFormModalOpen(false);
+      setEditing(null);
+      setForm(emptyForm);
       await loadItems();
-      setMessage("小玩子百宝箱福利已保存。");
+      setMessage("百宝箱福利已保存。");
     } catch (error: any) {
       setMessage(error?.response?.data?.message || error?.message || "保存失败");
     } finally {
@@ -184,7 +208,7 @@ const AdminWelfarePage: React.FC = () => {
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7a6ee6]">Welfare</p>
-          <h1 className="mt-1 text-3xl font-black text-[#171321]">小玩子百宝箱</h1>
+          <h1 className="mt-1 text-3xl font-black text-[#171321]">百宝箱</h1>
           <p className="mt-2 text-sm font-medium text-stone-500">配置前台福利、库存、活动时间和领取说明。</p>
         </div>
         <button type="button" onClick={openCreate} className="rounded-xl bg-[#5e17eb] px-4 py-2 text-sm font-black text-white">
@@ -194,79 +218,7 @@ const AdminWelfarePage: React.FC = () => {
 
       {message ? <div className="rounded-xl border border-[#d9cffd] bg-[#f8f5ff] px-4 py-3 text-sm font-bold text-[#5e17eb]">{message}</div> : null}
 
-      <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
-        <form onSubmit={saveCampaign} className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center gap-3">
-            <img src={form.coverImageUrl || "/assets/welfare-gift-icon.png"} alt="" className="h-14 w-14 rounded-2xl bg-[#f1ecff] object-contain p-1" />
-            <div>
-              <h2 className="text-lg font-black text-[#171321]">{editing ? "编辑福利" : "上传福利活动"}</h2>
-              <p className="text-xs font-bold text-stone-500">推荐使用图一礼物 icon 或福利封面图</p>
-            </div>
-          </div>
-
-          <div className="grid gap-3">
-            <label className="text-xs font-black text-stone-600">
-              标题
-              <input className="mt-1 h-10 w-full rounded-xl border border-stone-200 px-3 text-sm" value={form.title} onChange={(event) => updateField("title", event.target.value)} />
-            </label>
-            <label className="text-xs font-black text-stone-600">
-              副标题
-              <input className="mt-1 h-10 w-full rounded-xl border border-stone-200 px-3 text-sm" value={form.subtitle} onChange={(event) => updateField("subtitle", event.target.value)} />
-            </label>
-            <label className="text-xs font-black text-stone-600">
-              描述
-              <textarea className="mt-1 min-h-[78px] w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" value={form.description} onChange={(event) => updateField("description", event.target.value)} />
-            </label>
-            <label className="text-xs font-black text-stone-600">
-              领取说明
-              <textarea className="mt-1 min-h-[78px] w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" value={form.claimInstructions} onChange={(event) => updateField("claimInstructions", event.target.value)} />
-            </label>
-            <label className="text-xs font-black text-stone-600">
-              外部链接
-              <input className="mt-1 h-10 w-full rounded-xl border border-stone-200 px-3 text-sm" value={form.externalUrl} onChange={(event) => updateField("externalUrl", event.target.value)} />
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <label className="text-xs font-black text-stone-600">
-                总库存
-                <input className="mt-1 h-10 w-full rounded-xl border border-stone-200 px-3 text-sm" inputMode="numeric" value={form.totalStock} onChange={(event) => updateField("totalStock", event.target.value)} />
-              </label>
-              <label className="text-xs font-black text-stone-600">
-                排序
-                <input className="mt-1 h-10 w-full rounded-xl border border-stone-200 px-3 text-sm" inputMode="numeric" value={form.sortOrder} onChange={(event) => updateField("sortOrder", event.target.value)} />
-              </label>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <label className="text-xs font-black text-stone-600">
-                开始时间
-                <input type="datetime-local" className="mt-1 h-10 w-full rounded-xl border border-stone-200 px-3 text-sm" value={form.startsAt} onChange={(event) => updateField("startsAt", event.target.value)} />
-              </label>
-              <label className="text-xs font-black text-stone-600">
-                结束时间
-                <input type="datetime-local" className="mt-1 h-10 w-full rounded-xl border border-stone-200 px-3 text-sm" value={form.endsAt} onChange={(event) => updateField("endsAt", event.target.value)} />
-              </label>
-            </div>
-            <label className="text-xs font-black text-stone-600">
-              状态
-              <select className="mt-1 h-10 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm" value={form.status} onChange={(event) => updateField("status", event.target.value as WelfareCampaignStatus)}>
-                <option value="draft">草稿</option>
-                <option value="published">发布</option>
-                <option value="hidden">隐藏</option>
-                <option value="archived">归档</option>
-              </select>
-            </label>
-            <div>
-              <input ref={fileInputRef} type="file" accept="image/*" onChange={uploadCoverImage} className="hidden" />
-              <button type="button" onClick={() => fileInputRef.current?.click()} className="inline-flex items-center gap-2 rounded-xl border border-[#5e17eb]/20 bg-[#f7f2ff] px-3 py-2 text-sm font-black text-[#5e17eb]">
-                <span className="material-symbols-outlined text-base">upload_file</span>
-                {uploading ? "上传中..." : "上传封面"}
-              </button>
-            </div>
-            <button type="submit" disabled={saving} className="mt-2 rounded-xl bg-[#5e17eb] px-4 py-3 text-sm font-black text-white disabled:opacity-60">
-              {saving ? "保存中..." : "保存福利"}
-            </button>
-          </div>
-        </form>
-
+      <div>
         <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-black text-[#171321]">福利活动</h2>
           <div className="mt-4 grid gap-3">
@@ -278,14 +230,14 @@ const AdminWelfarePage: React.FC = () => {
               sortedItems.map((item) => (
                 <article key={item._id} className="rounded-2xl border border-stone-200 p-4">
                   <div className="flex items-start gap-3">
-                    <img src={item.coverImageUrl || "/assets/welfare-gift-icon.png"} alt="" className="h-14 w-14 rounded-2xl bg-[#f1ecff] object-contain p-1" />
+                    {renderCoverPreview(item.coverImageUrl || "/assets/welfare-gift-icon.png")}
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="text-base font-black text-[#171321]">{item.title}</h3>
                         <span className="rounded-full bg-[#f4f1ff] px-2 py-1 text-xs font-black text-[#5e17eb]">{statusLabel[item.availability] || item.availability}</span>
                         <span className="rounded-full bg-stone-100 px-2 py-1 text-xs font-black text-stone-600">{statusLabel[item.status] || item.status}</span>
                       </div>
-                      <p className="mt-1 text-sm font-medium text-stone-500">{item.subtitle || item.description || "未填写描述"}</p>
+                      <p className="mt-1 text-sm font-medium text-stone-500">{item.subtitle || "未填写副标题"}</p>
                       <p className="mt-2 text-xs font-bold text-stone-500">
                         库存 {item.remainingStock}/{item.totalStock} · 已领取 {item.claimedCount}
                       </p>
@@ -301,6 +253,103 @@ const AdminWelfarePage: React.FC = () => {
           </div>
         </section>
       </div>
+
+      {formModalOpen ? (
+        <div className="fixed inset-0 z-[80] overflow-y-auto bg-black/35 p-4 backdrop-blur-sm" onClick={closeFormModal}>
+          <aside role="dialog" aria-modal="true" aria-label={editing ? "编辑福利" : "上传福利活动"} className="mx-auto my-8 max-w-2xl overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-center justify-between gap-4 border-b border-stone-100 px-5 py-4">
+              <div className="flex min-w-0 items-center gap-3">
+                {renderCoverPreview(form.coverImageUrl)}
+                <div className="min-w-0">
+                  <h2 className="text-lg font-black text-[#171321]">{editing ? "编辑福利" : "上传福利活动"}</h2>
+                  <p className="mt-1 text-xs font-bold text-stone-500">配置封面、库存、活动时间和领取说明</p>
+                </div>
+              </div>
+              <button type="button" onClick={closeFormModal} disabled={saving || uploading} className="rounded-full p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-50" aria-label="关闭">
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={saveCampaign} className="max-h-[calc(100vh-180px)] overflow-y-auto p-5">
+              <div className="grid gap-3">
+                <label className="text-xs font-black text-stone-600">
+                  标题
+                  <input className="mt-1 h-10 w-full rounded-xl border border-stone-200 px-3 text-sm" value={form.title} onChange={(event) => updateField("title", event.target.value)} />
+                </label>
+                <label className="text-xs font-black text-stone-600">
+                  副标题
+                  <input className="mt-1 h-10 w-full rounded-xl border border-stone-200 px-3 text-sm" value={form.subtitle} onChange={(event) => updateField("subtitle", event.target.value)} />
+                </label>
+                <label className="text-xs font-black text-stone-600">
+                  领取说明
+                  <textarea className="mt-1 min-h-[78px] w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" value={form.claimInstructions} onChange={(event) => updateField("claimInstructions", event.target.value)} />
+                </label>
+                <label className="text-xs font-black text-stone-600">
+                  外部链接
+                  <input className="mt-1 h-10 w-full rounded-xl border border-stone-200 px-3 text-sm" value={form.externalUrl} onChange={(event) => updateField("externalUrl", event.target.value)} />
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="text-xs font-black text-stone-600">
+                    总库存
+                    <input className="mt-1 h-10 w-full rounded-xl border border-stone-200 px-3 text-sm" inputMode="numeric" value={form.totalStock} onChange={(event) => updateField("totalStock", event.target.value)} />
+                  </label>
+                  <label className="text-xs font-black text-stone-600">
+                    排序
+                    <input className="mt-1 h-10 w-full rounded-xl border border-stone-200 px-3 text-sm" inputMode="numeric" value={form.sortOrder} onChange={(event) => updateField("sortOrder", event.target.value)} />
+                  </label>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="text-xs font-black text-stone-600">
+                    开始时间
+                    <input type="datetime-local" className="mt-1 h-10 w-full rounded-xl border border-stone-200 px-3 text-sm" value={form.startsAt} onChange={(event) => updateField("startsAt", event.target.value)} />
+                  </label>
+                  <label className="text-xs font-black text-stone-600">
+                    结束时间
+                    <input type="datetime-local" className="mt-1 h-10 w-full rounded-xl border border-stone-200 px-3 text-sm" value={form.endsAt} onChange={(event) => updateField("endsAt", event.target.value)} />
+                  </label>
+                </div>
+                <label className="text-xs font-black text-stone-600">
+                  状态
+                  <select className="mt-1 h-10 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm" value={form.status} onChange={(event) => updateField("status", event.target.value as WelfareCampaignStatus)}>
+                    <option value="draft">草稿</option>
+                    <option value="published">发布</option>
+                    <option value="hidden">隐藏</option>
+                    <option value="archived">归档</option>
+                  </select>
+                </label>
+                <div>
+                  <div className="mb-2 flex flex-wrap gap-2">
+                    {coverEmojiOptions.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => updateField("coverImageUrl", `emoji:${emoji}`)}
+                        className={`flex h-10 w-10 items-center justify-center rounded-xl border text-xl ${form.coverImageUrl === `emoji:${emoji}` ? "border-[#5e17eb] bg-[#f2ecff]" : "border-stone-200 bg-white"}`}
+                        aria-label={`选择 ${emoji}`}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                  <input ref={fileInputRef} type="file" accept="image/*" onChange={uploadCoverImage} className="hidden" />
+                  <button type="button" onClick={() => fileInputRef.current?.click()} className="inline-flex items-center gap-2 rounded-xl border border-[#5e17eb]/20 bg-[#f7f2ff] px-3 py-2 text-sm font-black text-[#5e17eb]">
+                    <span className="material-symbols-outlined text-base">upload_file</span>
+                    {uploading ? "上传中..." : "上传封面"}
+                  </button>
+                </div>
+                <div className="sticky bottom-0 -mx-5 mt-2 flex justify-end gap-3 border-t border-stone-100 bg-white px-5 py-4">
+                  <button type="button" disabled={saving || uploading} onClick={closeFormModal} className="rounded-xl border border-stone-200 px-4 py-3 text-sm font-black text-stone-700 disabled:opacity-50">
+                    取消
+                  </button>
+                  <button type="submit" disabled={saving} className="rounded-xl bg-[#5e17eb] px-4 py-3 text-sm font-black text-white disabled:opacity-60">
+                    {saving ? "保存中..." : "保存福利"}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </aside>
+        </div>
+      ) : null}
 
       {claimCampaign ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4" role="dialog" aria-modal="true">
@@ -318,8 +367,22 @@ const AdminWelfarePage: React.FC = () => {
               ) : (
                 claims.map((claim) => (
                   <div key={claim._id} className="rounded-xl border border-stone-200 p-3 text-sm">
-                    <div className="font-black text-[#171321]">用户 {claim.userId}</div>
-                    <div className="mt-1 text-xs font-bold text-stone-500">状态 {claim.status} · {claim.claimedAt || claim.createdAt || "未记录时间"}</div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="font-black text-[#171321]">{claim.user?.nickname || claim.user?.username || "未命名用户"}</div>
+                      <div className="rounded-full bg-stone-100 px-2 py-0.5 text-xs font-bold text-stone-500">ID {claim.userId}</div>
+                    </div>
+                    <div className="mt-1 text-xs font-bold text-stone-500">
+                      手机 {claim.user?.mobile || "未绑定"} · 状态 {claim.status} · {claim.claimedAt || claim.createdAt || "未记录时间"}
+                    </div>
+                    {claim.children?.length ? (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {claim.children.map((child) => (
+                          <span key={`${claim._id}-${child.id || child.name}`} className="rounded-full bg-[#f7f2ff] px-2 py-1 text-xs font-black text-[#5e17eb]">
+                            {[child.name, child.age, child.grade].filter(Boolean).join(" · ")}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 ))
               )}

@@ -1,5 +1,6 @@
 const { createPageShare, enableShareMenu } = require("../../../utils/share");
 const { readFontSizeSetting } = require("../../../utils/nativeSettings");
+const { ensureBackStackForBackButtonPage } = require("../../../utils/nativePageNav");
 
 const MEMORY_ENABLED_KEY = "xf_child_memory_enabled";
 
@@ -12,7 +13,8 @@ Page({
     fontSizeClass: "xf-font-standard"
   },
 
-  onLoad() {
+  onLoad(options = {}) {
+    if (ensureBackStackForBackButtonPage(options)) return;
     enableShareMenu();
     this.loadMemorySetting();
   },

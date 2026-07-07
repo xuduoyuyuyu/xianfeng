@@ -49,6 +49,14 @@ test("admin book list exposes editable metadata detail fields", () => {
   assert.match(controllerSource, /ratingCount: metadata\?\.ratingCount \?\? null/, "metadata detail should include rating count");
 });
 
+test("admin book payload preserves the manual purchase jump link", () => {
+  const modelSource = readFileSync(resolve(__dirname, "../models/Book.ts"), "utf8");
+
+  assert.match(modelSource, /wxPurchaseLink\?: string;/, "book documents should expose the purchase jump link");
+  assert.match(modelSource, /wxPurchaseLink: \{ type: String, default: "", trim: true \}/, "book schema should persist a trimmed purchase jump link");
+  assert.match(controllerSource, /wxPurchaseLink: pick\(raw, \["wxPurchaseLink", "purchaseLink", "wxMiniProgramLink", "miniProgramLink"\]\)/, "admin normalization should accept purchase jump link aliases");
+});
+
 test("book cover proxy keeps fetched covers cached for repeated reading visits", () => {
   assert.match(controllerSource, /const BOOK_COVER_PROXY_CACHE_TTL_MS = 1000 \* 60 \* 60 \* 24;/, "cover proxy should keep a one-day in-memory cache");
   assert.match(controllerSource, /const BOOK_COVER_PROXY_CACHE_MAX_BYTES = 80 \* 1024 \* 1024;/, "cover proxy should cap in-memory image cache size");

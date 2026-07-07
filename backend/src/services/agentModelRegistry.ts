@@ -57,60 +57,77 @@ const STORE_FILE = path.join(STORE_DIR, "store.json");
 const LEGACY_STORE_FILE_1 = path.join(process.cwd(), "data", "multi_agents", "store.json");
 const LEGACY_STORE_FILE_2 = path.resolve(__dirname, "..", "..", "data", "multi_agents", "store.json");
 
-const DEFAULT_MODEL_REGISTRY: ModelRegistryItem[] = [
-  {
-    id: "deepseek-v4-flash",
-    name: "deepseek-v4-flash",
-    provider: "Deepseek",
-    model_name: "deepseek-v4-flash",
-    api_key: "sk-5861237803ed495e913fc97001f1a214",
-    base_url: "https://api.deepseek.com",
-    enabled: true,
-    capabilities: ["chat", "reasoning"],
-    meta: {},
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "default-openai-deepseek-v4",
-    name: "deepseek-v4-pro",
-    provider: "Deepseek",
-    model_name: "deepseek-v4-pro",
-    api_key: "sk-5861237803ed495e913fc97001f1a214",
-    base_url: "https://api.deepseek.com",
-    enabled: true,
-    capabilities: ["chat", "reasoning"],
-    meta: {},
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "doubao-seedream-5-0-260128",
-    name: "Doubao-Seedream-5.0",
-    provider: "Doubao",
-    model_name: "Doubao-Seedream-5.0",
-    api_key: "b74002c7-a04a-4ace-99f4-595c2cf397de",
-    base_url: "https://ark.cn-beijing.volces.com/api/v3",
-    enabled: true,
-    capabilities: ["reasoning"],
-    meta: {},
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "Speech_Recognition_Seed",
-    name: "录音文件识别2.0",
-    provider: "Doubao",
-    model_name: "Doubao_Seed_ASR_AUC_2.02000000735829284098",
-    api_key: "59daea53-dfbf-41de-91b3-ed47a831b6e1",
-    base_url: "https://openspeech.bytedance.com/api/v3/auc/bigmodel/submit",
-    enabled: true,
-    capabilities: ["reasoning", "asr"],
-    meta: {},
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
+function isDeepseekModelRegistryItem(input: any): boolean {
+  const provider = String(input?.provider || "").trim().toLowerCase();
+  const id = String(input?.id || "").trim().toLowerCase();
+  const modelName = String(input?.model_name || "").trim().toLowerCase();
+  return provider === "deepseek" || id.startsWith("deepseek-") || modelName.startsWith("deepseek-");
+}
+
+export function resolveModelRegistryApiKey(input: any): string {
+  const storedApiKey = String(input?.api_key || "").trim();
+  if (!isDeepseekModelRegistryItem(input)) return storedApiKey;
+  return String(process.env.DEEPSEEK_API_KEY || process.env.AI_API_KEY || storedApiKey).trim();
+}
+
+function buildDefaultModelRegistry(): ModelRegistryItem[] {
+  const now = new Date().toISOString();
+  const deepseekApiKey = resolveModelRegistryApiKey({ provider: "Deepseek" });
+  return [
+    {
+      id: "deepseek-v4-flash",
+      name: "deepseek-v4-flash",
+      provider: "Deepseek",
+      model_name: "deepseek-v4-flash",
+      api_key: deepseekApiKey,
+      base_url: "https://api.deepseek.com",
+      enabled: true,
+      capabilities: ["chat", "reasoning"],
+      meta: {},
+      created_at: now,
+      updated_at: now,
+    },
+    {
+      id: "default-openai-deepseek-v4",
+      name: "deepseek-v4-pro",
+      provider: "Deepseek",
+      model_name: "deepseek-v4-pro",
+      api_key: deepseekApiKey,
+      base_url: "https://api.deepseek.com",
+      enabled: true,
+      capabilities: ["chat", "reasoning"],
+      meta: {},
+      created_at: now,
+      updated_at: now,
+    },
+    {
+      id: "doubao-seedream-5-0-260128",
+      name: "Doubao-Seedream-5.0",
+      provider: "Doubao",
+      model_name: "Doubao-Seedream-5.0",
+      api_key: "b74002c7-a04a-4ace-99f4-595c2cf397de",
+      base_url: "https://ark.cn-beijing.volces.com/api/v3",
+      enabled: true,
+      capabilities: ["reasoning"],
+      meta: {},
+      created_at: now,
+      updated_at: now,
+    },
+    {
+      id: "Speech_Recognition_Seed",
+      name: "录音文件识别2.0",
+      provider: "Doubao",
+      model_name: "Doubao_Seed_ASR_AUC_2.02000000735829284098",
+      api_key: "59daea53-dfbf-41de-91b3-ed47a831b6e1",
+      base_url: "https://openspeech.bytedance.com/api/v3/auc/bigmodel/submit",
+      enabled: true,
+      capabilities: ["reasoning", "asr"],
+      meta: {},
+      created_at: now,
+      updated_at: now,
+    },
+  ];
+}
 
 function normalizeFeatureModels(input: any): AgentFeatureModels {
   const raw = input && typeof input === "object" ? input : {};
@@ -142,7 +159,7 @@ function migrateStore(parsed: any): Store {
     primary_model_id: typeof a?.primary_model_id === "string" ? a.primary_model_id : "",
     feature_models: normalizeFeatureModels(a?.feature_models),
   })) as AgentRow[];
-  const modelRegistry = Array.isArray(raw.model_registry) && raw.model_registry.length ? raw.model_registry : DEFAULT_MODEL_REGISTRY;
+  const modelRegistry = Array.isArray(raw.model_registry) && raw.model_registry.length ? raw.model_registry : buildDefaultModelRegistry();
   return {
     agents: normalizedAgents,
     prompts: raw.prompts && typeof raw.prompts === "object" ? raw.prompts : {},
@@ -154,7 +171,7 @@ function migrateStore(parsed: any): Store {
       name: String(m?.name || ""),
       provider: String(m?.provider || ""),
       model_name: String(m?.model_name || ""),
-      api_key: String(m?.api_key || ""),
+      api_key: resolveModelRegistryApiKey(m),
       base_url: String(m?.base_url || ""),
       enabled: Boolean(m?.enabled),
       capabilities: Array.isArray(m?.capabilities) ? m.capabilities.filter(Boolean) : [],
@@ -186,7 +203,7 @@ export function ensureStore(seedFactory: () => Omit<Store, "model_registry">): S
         primary_model_id: a.primary_model_id || "",
         feature_models: normalizeFeatureModels(a.feature_models),
       })),
-      model_registry: DEFAULT_MODEL_REGISTRY,
+      model_registry: buildDefaultModelRegistry(),
     };
     fs.writeFileSync(STORE_FILE, JSON.stringify(full, null, 2), "utf-8");
     return full;

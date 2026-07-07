@@ -3,11 +3,8 @@
 <view class="xf-mama-page {{fontSizeClass}}" style="padding-top: {{chromeHeight}}px;">
   <view class="xf-native-topbar" style="height: {{topbarHeight}}px;">
     <view class="xf-native-nav-row" style="height: {{topbarHeight}}px;">
-      <view wx:if="{{launchedFromSettings}}" class="xf-native-menu-button xf-native-back-button" style="top: {{backTop}}px; width: {{backSize}}px; height: {{backSize}}px;" catchtap="goBack" role="button" aria-label="返回">
+      <view class="xf-native-menu-button xf-native-back-button" style="top: {{backTop}}px; width: {{backSize}}px; height: {{backSize}}px;" catchtap="goBack" role="button" aria-label="返回">
         <view class="xf-native-back-icon" aria-hidden="true"></view>
-      </view>
-      <view wx:else class="xf-native-menu-button" style="top: {{logoTop}}px; height: {{logoHeight}}px;" catchtap="openSettings" role="button" aria-label="打开设置">
-        <view class="xf-native-menu-icon" aria-hidden="true"></view>
       </view>
       <image class="xf-native-logo" style="top: {{logoTop}}px; height: {{logoHeight}}px;" src="/assets/nav/logo.png" mode="aspectFit" bindtap="goProgramsHome" aria-label="回到顶部" />
       <button class="xf-native-welfare-button" style="top: {{logoTop}}px; right: {{welfareRight}}px; height: {{logoHeight}}px;" catchtap="openWelfare" aria-label="百宝箱">
@@ -162,24 +159,19 @@
 
     <block wx:elif="{{mamaResourceView === 'tasks'}}">
       <view class="xf-mama-task-hero">
+        <image class="xf-mama-task-hero-icon" src="/assets/menu/mama-hao-zhuan-icon.png" mode="aspectFit" />
         <view>
           <text class="xf-mama-task-kicker">账号已通过</text>
-          <text class="xf-mama-task-title">妈妈好赚任务中心</text>
+          <text class="xf-mama-task-title">妈妈好赚</text>
           <text class="xf-mama-task-subtitle">{{mamaResourceProfile.displayName || "已审核账号"}} · 可接：{{mamaResourceProfile.categoriesText || "亲子阅读、学习用品"}}</text>
         </view>
-      </view>
-
-      <view class="xf-mama-task-tabs">
-        <text class="is-active">进行中</text>
-        <text>待审核</text>
-        <text>已收录</text>
       </view>
 
       <view wx:if="{{mamaTasksLoading}}" class="xf-mama-task-empty">任务加载中...</view>
       <view wx:elif="{{mamaTasks.length === 0}}" class="xf-mama-task-empty">暂无已分配任务，运营分配后会显示在这里。</view>
       <view wx:else class="xf-mama-task-list">
         <view wx:for="{{mamaTasks}}" wx:key="_id" class="xf-mama-task-row" data-id="{{item._id}}" catchtap="openMamaTask">
-          <view class="xf-mama-task-logo">任</view>
+          <image class="xf-mama-task-logo" src="/assets/menu/mama-hao-zhuan-icon.png" mode="aspectFit" />
           <view class="xf-mama-task-main">
             <view class="xf-mama-task-row-head">
               <text class="xf-mama-task-name">{{item.title}}</text>
@@ -198,7 +190,7 @@
         <view class="xf-mama-detail-hero">
           <view class="xf-mama-detail-back" catchtap="backToMamaTasks">‹</view>
           <view class="xf-mama-detail-brand">
-            <view class="xf-mama-detail-logo">任</view>
+            <image class="xf-mama-detail-logo" src="/assets/menu/mama-hao-zhuan-icon.png" mode="aspectFit" />
             <view>
               <text class="xf-mama-detail-title">{{currentMamaTask.title || "任推邦（红薯）评论"}}</text>
               <view class="xf-mama-detail-tags">
@@ -210,18 +202,14 @@
           </view>
         </view>
 
-        <view class="xf-mama-notice-row">
+        <view wx:if="{{currentMamaTask.announcement}}" class="xf-mama-notice-row" catchtap="openTaskAnnouncement">
           <text class="xf-mama-notice-badge">公告</text>
-          <text>{{currentMamaTask.announcement || "项目重要通知"}}</text>
+          <text>{{currentMamaTask.announcement}}</text>
           <text class="xf-mama-task-chevron">›</text>
         </view>
 
         <view class="xf-mama-project-card">
-          <view class="xf-mama-detail-tabs">
-            <text class="is-active">项目信息</text>
-            <text>推广流程</text>
-          </view>
-
+          <view class="xf-mama-project-title">项目信息</view>
           <view class="xf-mama-section-title">项目价格</view>
           <view class="xf-mama-price-table">
             <view>任务</view>
@@ -233,6 +221,10 @@
             <view>{{currentMamaTask.dataCycle || "T+9"}}</view>
             <view>{{currentMamaTask.settlementCycle || "T+9"}}</view>
           </view>
+          <view wx:if="{{currentMamaTask.hasTrafficFee}}" class="xf-mama-cost-row">
+            <text>投流费用</text>
+            <text>{{currentMamaTask.trafficFeeText}}</text>
+          </view>
 
           <view class="xf-mama-fold-row">
             <text>结算标准</text>
@@ -241,6 +233,9 @@
           <view class="xf-mama-fold-row">
             <text>项目要求</text>
             <text>{{currentMamaTask.requirement || "提交小红书笔记链接和完成截图，否则无法结算。"}}</text>
+            <view wx:if="{{currentMamaTask.exampleImageUrls.length}}" class="xf-mama-example-gallery">
+              <image wx:for="{{currentMamaTask.exampleImageUrls}}" wx:key="*this" class="xf-mama-example-image" src="{{item}}" mode="widthFix" data-index="{{index}}" catchtap="previewTaskExampleImage" />
+            </view>
           </view>
 
           <view class="xf-mama-proof-card">
@@ -256,6 +251,16 @@
         </view>
       </view>
     </block>
+  </view>
+
+  <view wx:if="{{taskAnnouncementOpen}}" class="xf-mama-dialog-mask" catchtap="closeTaskAnnouncement" catchtouchmove="noop">
+    <view class="xf-mama-dialog" catchtap="noop">
+      <button type="button" class="xf-mama-dialog-close" catchtap="closeTaskAnnouncement">×</button>
+      <view class="xf-mama-dialog-head">
+        <text>项目公告</text>
+      </view>
+      <text class="xf-mama-dialog-copy">{{currentMamaTask.announcement}}</text>
+    </view>
   </view>
 
   <view wx:if="{{settingsPanelOpen}}" class="xf-native-settings-mask" style="height: {{settingsPanelHeight}}px;" catchtap="closeSettings" catchtouchmove="noop">

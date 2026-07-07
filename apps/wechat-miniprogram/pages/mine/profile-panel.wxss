@@ -44,7 +44,7 @@ button::after {
   height: 100vh;
   box-sizing: border-box;
   padding: 86rpx 28rpx 44rpx;
-  background: #f6f7fb;
+  background: linear-gradient(180deg, #f6f7fb 0, #f6f7fb calc(100% - 96rpx), transparent calc(100% - 96rpx), transparent 100%);
   border-radius: 0 0 0 34rpx;
 }
 

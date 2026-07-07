@@ -58,7 +58,7 @@ page {
   display: block;
   color: #15123f;
   font-size: 72rpx;
-  font-weight: 950;
+  font-weight: 500;
   line-height: 1.08;
 }
 
@@ -166,11 +166,24 @@ page {
 }
 
 .xf-welfare-item-cover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
   width: 96rpx;
   height: 96rpx;
   border-radius: 24rpx;
   background: #f1ecff;
+}
+
+.xf-welfare-item-cover image {
+  width: 82rpx;
+  height: 82rpx;
+}
+
+.xf-welfare-item-emoji {
+  font-size: 50rpx;
+  line-height: 1;
 }
 
 .xf-welfare-item-copy {
@@ -195,16 +208,6 @@ page {
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.xf-welfare-item-status {
-  flex: 0 0 auto;
-  padding: 4rpx 14rpx;
-  border-radius: 999rpx;
-  background: #f2efff;
-  color: #5e43e6;
-  font-size: 20rpx;
-  font-weight: 900;
 }
 
 .xf-welfare-item-desc,
@@ -247,4 +250,108 @@ page {
   background: #eceaf4;
   color: #9b95aa;
   box-shadow: none;
+}
+
+.xf-welfare-dialog-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48rpx;
+  background: rgba(18, 14, 37, 0.34);
+}
+
+.xf-welfare-dialog {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 640rpx;
+  padding: 38rpx;
+  border-radius: 38rpx;
+  background: #ffffff;
+  box-shadow: 0 34rpx 90rpx rgba(24, 18, 52, 0.22);
+}
+
+.xf-welfare-dialog-head {
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+}
+
+.xf-welfare-dialog-kicker {
+  color: #5e43e6;
+  font-size: 24rpx;
+  font-weight: 900;
+}
+
+.xf-welfare-dialog-title {
+  color: #15123f;
+  font-size: 38rpx;
+  font-weight: 950;
+  line-height: 1.25;
+}
+
+.xf-welfare-dialog-body {
+  display: block;
+  margin-top: 24rpx;
+  color: #5f5a72;
+  font-size: 28rpx;
+  font-weight: 700;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.xf-welfare-dialog-link {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin-top: 24rpx;
+  padding: 20rpx;
+  border-radius: 24rpx;
+  background: #f5f2ff;
+}
+
+.xf-welfare-dialog-link text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: #5e43e6;
+  font-size: 24rpx;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xf-welfare-dialog-link button,
+.xf-welfare-dialog-close {
+  margin: 0;
+  border: 0;
+  border-radius: 999rpx;
+  font-weight: 950;
+}
+
+.xf-welfare-dialog-link button {
+  flex: 0 0 auto;
+  height: 58rpx;
+  padding: 0 22rpx;
+  background: #ffffff;
+  color: #5e43e6;
+  font-size: 24rpx;
+  line-height: 58rpx;
+}
+
+.xf-welfare-dialog-link button::after,
+.xf-welfare-dialog-close::after {
+  border: 0;
+}
+
+.xf-welfare-dialog-close {
+  width: 100%;
+  height: 76rpx;
+  margin-top: 28rpx;
+  background: #5f50eb;
+  color: #ffffff;
+  font-size: 28rpx;
+  line-height: 76rpx;
 }

@@ -3,6 +3,7 @@ const { request } = require("../../../utils/request");
 const { getToken, getUser, clearSession } = require("../../../utils/session");
 const { maskMobile, parseStoredValue } = require("../../../utils/profileState");
 const { applyFontSizeSetting, buildFontOptions, clearAppCache, readFontSizeSetting } = require("../../../utils/nativeSettings");
+const { ensureBackStackForBackButtonPage } = require("../../../utils/nativePageNav");
 
 function loadUser() {
   return parseStoredValue(getUser(), {}) || {};
@@ -21,7 +22,8 @@ Page({
     message: ""
   },
 
-  onLoad() {
+  onLoad(options = {}) {
+    if (ensureBackStackForBackButtonPage(options)) return;
     enableShareMenu();
     this.refresh();
   },

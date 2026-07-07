@@ -52,14 +52,24 @@ export function buildUnlimitedQRCodeRequestBody(options: {
   width?: number;
   envVersion?: string;
   checkPath?: boolean;
+  isHyaline?: boolean;
 }) {
-  return {
+  const body: {
+    scene: string;
+    page: string;
+    width: number;
+    env_version: string;
+    check_path: boolean;
+    is_hyaline?: boolean;
+  } = {
     scene: String(options.scene || "").trim(),
     page: String(options.page || "pages/share/index").trim(),
     width: Number(options.width || 280),
     env_version: String(options.envVersion || process.env.WECHAT_MINI_QRCODE_ENV || "release").trim(),
     check_path: options.checkPath !== false,
   };
+  if ((options as any).isHyaline) body.is_hyaline = true;
+  return body;
 }
 
 export function isWechatAccessTokenInvalid(payload: any): boolean {
@@ -184,6 +194,7 @@ export async function fetchWechatMiniUnlimitedQRCode(options: {
   width?: number;
   envVersion?: string;
   checkPath?: boolean;
+  isHyaline?: boolean;
 }): Promise<Buffer> {
   const scene = String(options.scene || "").trim();
   if (!scene) throw new Error("缺少小程序码 scene");

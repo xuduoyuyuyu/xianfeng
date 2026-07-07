@@ -57,7 +57,7 @@ function normalizeChildRecord(item, index, options = {}) {
     birthDate: String(source.birthDate || "").trim(),
     city: String(source.city || "上海").trim(),
     region: String(source.region || "").trim(),
-    grade: String(source.grade || "学前小班").trim(),
+    grade: String(source.grade || "").trim(),
     concernTags: normalizeTags(source.concernTags),
     avatar: normalizeChildAvatar(source.avatar, options.avatarFallback),
     createdAt: String(source.createdAt || new Date(0).toISOString()),

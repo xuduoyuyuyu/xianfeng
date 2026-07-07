@@ -248,7 +248,7 @@ function isLargeFontState(data) {
 }
 
 const pageShare = createPageShare({
-  title: "家长先疯节目",
+  title: "节目",
   path: "/pages/programs/index"
 });
 
@@ -269,7 +269,7 @@ Page({
     logoHeight: 28,
     welfareRight: 101,
     searchPrompt: getInitialSearchPrompt(),
-    compactMode: false,
+    compactMode: true,
     activeProgramTag: "",
     activeProgramTags: [],
     activeProgramShow: "",
@@ -377,7 +377,8 @@ Page({
   loadPreferredViewMode() {
     try {
       const fontState = readFontSizeSetting();
-      const compactMode = wx.getStorageSync(PROGRAM_VIEW_MODE_KEY) === "compact" && !isLargeFontState(fontState);
+      const storedMode = wx.getStorageSync(PROGRAM_VIEW_MODE_KEY);
+      const compactMode = storedMode !== "feature" && !isLargeFontState(fontState);
       this.setData({ ...fontState, compactMode });
       if (this.isLargeFontMode()) wx.setStorageSync(PROGRAM_VIEW_MODE_KEY, "feature");
     } catch (_error) {}

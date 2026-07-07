@@ -88,6 +88,13 @@ test("assistant message links a repeated keyword only once in the same reply", (
   );
 });
 
+test("image attachments are recognized before Xiaowanzi chat is sent", () => {
+  assert.match(source, /recognizeXiaowanziAttachment/, "the widget should recognize uploaded images before sending chat content");
+  assert.match(source, /\/api\/v1\/tutorbot\/\$\{BOT_ID\}\/attachments\/recognize/, "image recognition should use the dedicated Xiaowanzi attachment endpoint");
+  assert.match(source, /featureKey:\s*"xiaowanzi_file"/, "the UI should emit the specific balance-change key after attachment recognition");
+  assert.match(source, /\[图片识别结果\]/, "the recognized text should be included in the prompt sent to Xiaowanzi");
+});
+
 test("home history drawer owns the new conversation and exit actions", () => {
   assert.match(source, /xw-home-history-drawer/, "home history should render in a left-side drawer");
   assert.match(source, /setHomeHistoryDrawerOpen\(true\)/, "history action should open the left drawer");

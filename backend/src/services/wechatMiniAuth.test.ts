@@ -103,6 +103,20 @@ test("buildUnlimitedQRCodeUrl and body encode current mini-program topic scene",
   });
 });
 
+test("buildUnlimitedQRCodeRequestBody honors an explicit mini-program env version", () => {
+  const body = buildUnlimitedQRCodeRequestBody({
+    scene: "s=507f1f77bcf86cd799439011",
+    page: "pages/share/index",
+    width: 280,
+    envVersion: "develop",
+    checkPath: false,
+    isHyaline: true,
+  });
+  assert.equal(body.env_version, "develop");
+  assert.equal(body.check_path, false);
+  assert.equal(body.is_hyaline, true);
+});
+
 test("fetchWechatMiniUnlimitedQRCode returns binary mini-program code image", async () => {
   process.env.WECHAT_MINI_APP_ID = "appid";
   process.env.WECHAT_MINI_APP_SECRET = "secret";

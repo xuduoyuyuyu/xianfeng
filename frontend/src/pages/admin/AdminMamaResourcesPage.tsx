@@ -81,6 +81,7 @@ type TaskDraft = {
   difficulty: string;
   phase: string;
   unitPriceYuan: string;
+  trafficFeeYuan: string;
   dataCycle: string;
   settlementCycle: string;
   promotionCount: string;
@@ -105,6 +106,7 @@ function initialTaskDraft(): TaskDraft {
     difficulty: rentuibangXiaohongshuTask.difficulty,
     phase: rentuibangXiaohongshuTask.phase,
     unitPriceYuan: "1.00",
+    trafficFeeYuan: "",
     dataCycle: rentuibangXiaohongshuTask.dataCycle,
     settlementCycle: rentuibangXiaohongshuTask.settlementCycle,
     promotionCount: String(rentuibangXiaohongshuTask.promotionCount),
@@ -128,6 +130,39 @@ function toDateText(value?: string | null): string {
 function toMoneyText(value?: number | null): string {
   if (value === undefined || value === null) return "待定";
   return `¥${(Number(value) / 100).toFixed(2)}`;
+}
+
+function resolveAdminAssetUrl(url: string): string {
+  const text = String(url || "").trim();
+  if (!text) return "";
+  if (/^(https?:)?\/\//i.test(text) || text.startsWith("data:") || text.startsWith("blob:")) return text;
+  const apiOrigin = String(import.meta.env.VITE_API_URL || "").trim().replace(/\/+$/, "");
+  if (!apiOrigin) return text;
+  return `${apiOrigin}${text.startsWith("/") ? text : `/${text}`}`;
+}
+
+function taskDraftFromTask(task: MamaResourceTask): TaskDraft {
+  return {
+    title: task.title || "",
+    category: task.category || "",
+    matchCategoriesText: (task.matchCategories || []).join("、"),
+    matchRiskTagsText: (task.matchRiskTags || []).join("、"),
+    minFollowerCount: task.minFollowerCount === undefined || task.minFollowerCount === null ? "" : String(task.minFollowerCount),
+    difficulty: task.difficulty || "",
+    phase: task.phase || "",
+    unitPriceYuan: (Number(task.unitPriceCents || 0) / 100).toFixed(2),
+    trafficFeeYuan: task.trafficFeeCents === undefined || task.trafficFeeCents === null ? "" : (Number(task.trafficFeeCents || 0) / 100).toFixed(2),
+    dataCycle: task.dataCycle || "",
+    settlementCycle: task.settlementCycle || "",
+    promotionCount: task.promotionCount === undefined || task.promotionCount === null ? "" : String(task.promotionCount),
+    latestDataDate: task.latestDataDate ? task.latestDataDate.slice(0, 10) : "",
+    announcement: task.announcement || "",
+    settlementStandard: task.settlementStandard || "",
+    requirement: task.requirement || "",
+    externalUrl: task.externalUrl || "",
+    exampleImageUrls: task.exampleImageUrls || [],
+    autoAssign: false,
+  };
 }
 
 function toCount(value?: number | null): string {
@@ -173,6 +208,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
   const [taskManagerOpen, setTaskManagerOpen] = useState(false);
   const [taskCreateOpen, setTaskCreateOpen] = useState(false);
+  const [taskEditingId, setTaskEditingId] = useState<string | null>(null);
   const [taskDraft, setTaskDraft] = useState<TaskDraft>(() => initialTaskDraft());
   const [taskCreateMessage, setTaskCreateMessage] = useState<TaskCreateMessage | null>(null);
   const [loading, setLoading] = useState(false);
@@ -340,7 +376,15 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
   };
 
   const openTaskCreate = () => {
+    setTaskEditingId(null);
     setTaskDraft(initialTaskDraft());
+    setTaskCreateMessage(null);
+    setTaskCreateOpen(true);
+  };
+
+  const openTaskEdit = (task: MamaResourceTask) => {
+    setTaskEditingId(task._id);
+    setTaskDraft(taskDraftFromTask(task));
     setTaskCreateMessage(null);
     setTaskCreateOpen(true);
   };
@@ -348,6 +392,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
   const closeTaskCreate = () => {
     if (taskLoading || taskImageUploading) return;
     setTaskCreateOpen(false);
+    setTaskEditingId(null);
   };
 
   const handleTaskExampleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -392,10 +437,15 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
       return;
     }
     const unitPrice = Number(taskDraft.unitPriceYuan || 0);
+    const trafficFee = taskDraft.trafficFeeYuan.trim() ? Number(taskDraft.trafficFeeYuan) : null;
     const minFollowerCount = taskDraft.minFollowerCount.trim() ? Number(taskDraft.minFollowerCount) : null;
     const promotionCount = taskDraft.promotionCount.trim() ? Number(taskDraft.promotionCount) : null;
     if (!Number.isFinite(unitPrice) || unitPrice < 0) {
       setTaskCreateMessage({ type: "error", text: "请输入有效的单价" });
+      return;
+    }
+    if (trafficFee !== null && (!Number.isFinite(trafficFee) || trafficFee < 0)) {
+      setTaskCreateMessage({ type: "error", text: "请输入有效的投流费用" });
       return;
     }
     if (minFollowerCount !== null && (!Number.isFinite(minFollowerCount) || minFollowerCount < 0)) {
@@ -410,7 +460,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
     setToast("");
     setTaskCreateMessage(null);
     try {
-      const response = await adminApi.createMamaResourceTask({
+      const payload = {
         title,
         category: taskDraft.category.trim(),
         matchCategories: splitTags(taskDraft.matchCategoriesText),
@@ -419,6 +469,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
         difficulty: taskDraft.difficulty.trim(),
         phase: taskDraft.phase.trim(),
         unitPriceCents: Number.isFinite(unitPrice) ? Math.round(unitPrice * 100) : 0,
+        trafficFeeCents: trafficFee === null ? null : Math.round(trafficFee * 100),
         dataCycle: taskDraft.dataCycle.trim(),
         settlementCycle: taskDraft.settlementCycle.trim(),
         promotionCount: Number.isFinite(promotionCount) ? promotionCount : null,
@@ -429,7 +480,17 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
         externalUrl: taskDraft.externalUrl.trim(),
         exampleImageUrls: taskDraft.exampleImageUrls,
         autoAssign: taskDraft.autoAssign,
-      });
+      };
+      if (taskEditingId) {
+        const response = await adminApi.updateMamaResourceTask(taskEditingId, payload);
+        setTasks((current) => current.map((task) => (task._id === response.data.task._id ? response.data.task : task)));
+        setSelectedTask((current) => (current?._id === response.data.task._id ? response.data.task : current));
+        setTaskCreateOpen(false);
+        setTaskEditingId(null);
+        setToast("任务已更新");
+        return;
+      }
+      const response = await adminApi.createMamaResourceTask(payload);
       setTasks((current) => [response.data.task, ...current]);
       setSelectedTask(response.data.task);
       setTaskCreateOpen(false);
@@ -438,7 +499,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
       setToast(assignedCount > 0 ? `任务已上架，已自动匹配 ${assignedCount} 个账号` : "任务已上架，可继续精准选号");
       await loadTaskWorkspace(response.data.task._id);
     } catch (createError: any) {
-      const message = requestErrorMessage(createError, "任务上架失败");
+      const message = requestErrorMessage(createError, taskEditingId ? "任务更新失败" : "任务上架失败");
       setTaskCreateMessage({ type: "error", text: message });
       setToast(message);
     } finally {
@@ -658,12 +719,12 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
 
       {!isReviewMode && taskCreateOpen ? (
         <div className="fixed inset-0 z-[95] overflow-y-auto bg-black/35 p-4 backdrop-blur-sm" onClick={closeTaskCreate}>
-          <aside role="dialog" aria-modal="true" aria-label="创建新任务" className="mx-auto my-8 max-w-4xl overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+          <aside role="dialog" aria-modal="true" aria-label={taskEditingId ? "编辑任务" : "创建新任务"} className="mx-auto my-8 max-w-4xl overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
             <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-stone-100 bg-white px-5 py-4">
               <div>
-                <div className="text-xs font-black text-stone-400">创建新任务</div>
-                <h2 className="mt-1 text-xl font-black text-stone-900">上架新任务</h2>
-                <div className="mt-1 text-sm font-semibold text-stone-500">设置分类标签、要求和匹配权重，提交后直接匹配已审核账号。</div>
+                <div className="text-xs font-black text-stone-400">{taskEditingId ? "编辑任务" : "创建新任务"}</div>
+                <h2 className="mt-1 text-xl font-black text-stone-900">{taskEditingId ? "修改任务信息" : "上架新任务"}</h2>
+                <div className="mt-1 text-sm font-semibold text-stone-500">{taskEditingId ? "更新项目说明、价格、要求和配图，保存后小程序端同步展示。" : "设置分类标签、要求和匹配权重，提交后直接匹配已审核账号。"}</div>
               </div>
               <button type="button" onClick={closeTaskCreate} disabled={taskLoading || taskImageUploading} className="rounded-full border border-stone-200 px-4 py-2 text-sm font-bold text-stone-600 hover:bg-stone-50 disabled:opacity-50">关闭</button>
             </div>
@@ -672,6 +733,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                 <label className="text-sm font-bold text-stone-700">任务标题<input value={taskDraft.title} onChange={(event) => setTaskDraft((current) => ({ ...current, title: event.target.value }))} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" /></label>
                 <label className="text-sm font-bold text-stone-700">任务类型<input value={taskDraft.category} onChange={(event) => setTaskDraft((current) => ({ ...current, category: event.target.value }))} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="小红书评论" /></label>
                 <label className="text-sm font-bold text-stone-700">单价（元）<input value={taskDraft.unitPriceYuan} onChange={(event) => setTaskDraft((current) => ({ ...current, unitPriceYuan: event.target.value }))} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" /></label>
+                <label className="text-sm font-bold text-stone-700">投流费用（元）<input value={taskDraft.trafficFeeYuan} onChange={(event) => setTaskDraft((current) => ({ ...current, trafficFeeYuan: event.target.value }))} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="不填则前端不展示" /></label>
                 <label className="text-sm font-bold text-stone-700">阶段<input value={taskDraft.phase} onChange={(event) => setTaskDraft((current) => ({ ...current, phase: event.target.value }))} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" /></label>
                 <label className="text-sm font-bold text-stone-700">数据周期<input value={taskDraft.dataCycle} onChange={(event) => setTaskDraft((current) => ({ ...current, dataCycle: event.target.value }))} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" /></label>
                 <label className="text-sm font-bold text-stone-700">结算周期<input value={taskDraft.settlementCycle} onChange={(event) => setTaskDraft((current) => ({ ...current, settlementCycle: event.target.value }))} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" /></label>
@@ -681,6 +743,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                 <label className="text-sm font-bold text-stone-700">最新数据<input value={taskDraft.latestDataDate} onChange={(event) => setTaskDraft((current) => ({ ...current, latestDataDate: event.target.value }))} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="2026-06-29" /></label>
               </div>
               <label className="block text-sm font-bold text-stone-700">项目链接<input value={taskDraft.externalUrl} onChange={(event) => setTaskDraft((current) => ({ ...current, externalUrl: event.target.value }))} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" /></label>
+              <label className="block text-sm font-bold text-stone-700">项目公告<textarea value={taskDraft.announcement} onChange={(event) => setTaskDraft((current) => ({ ...current, announcement: event.target.value }))} className="mt-1 min-h-[88px] w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="不填则小程序端不展示公告入口" /></label>
               <div className="rounded-2xl border border-stone-200 bg-stone-50 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -696,7 +759,9 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                   <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
                     {taskDraft.exampleImageUrls.map((url, index) => (
                       <div key={`${url}-${index}`} className="group relative overflow-hidden rounded-xl border border-stone-200 bg-white">
-                        <img src={url} alt="" className="aspect-[4/3] w-full object-cover" />
+                        <a href={resolveAdminAssetUrl(url)} target="_blank" rel="noreferrer" title="打开原图">
+                          <img src={resolveAdminAssetUrl(url)} alt="" className="aspect-[4/3] w-full object-cover" />
+                        </a>
                         <button type="button" onClick={() => removeTaskExampleImage(index)} disabled={taskImageUploading} className="absolute right-2 top-2 rounded-full bg-white/95 px-2 py-1 text-xs font-black text-red-500 shadow-sm disabled:opacity-50">删除</button>
                       </div>
                     ))}
@@ -707,17 +772,19 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                 <label className="text-sm font-bold text-stone-700">发布要求<textarea value={taskDraft.requirement} onChange={(event) => setTaskDraft((current) => ({ ...current, requirement: event.target.value }))} className="mt-1 min-h-[110px] w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" /></label>
                 <label className="text-sm font-bold text-stone-700">结算标准<textarea value={taskDraft.settlementStandard} onChange={(event) => setTaskDraft((current) => ({ ...current, settlementStandard: event.target.value }))} className="mt-1 min-h-[110px] w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" /></label>
               </div>
-              <label className="flex items-center gap-2 rounded-xl bg-[#f7f2ff] px-3 py-3 text-sm font-bold text-[#4b1db5]">
-                <input type="checkbox" checked={taskDraft.autoAssign} onChange={(event) => setTaskDraft((current) => ({ ...current, autoAssign: event.target.checked }))} />
-                创建后自动按任务条件匹配账号
-              </label>
+              {!taskEditingId ? (
+                <label className="flex items-center gap-2 rounded-xl bg-[#f7f2ff] px-3 py-3 text-sm font-bold text-[#4b1db5]">
+                  <input type="checkbox" checked={taskDraft.autoAssign} onChange={(event) => setTaskDraft((current) => ({ ...current, autoAssign: event.target.checked }))} />
+                  创建后自动按任务条件匹配账号
+                </label>
+              ) : null}
               {taskCreateMessage ? (
                 <div className={`rounded-xl px-3 py-2 text-sm font-bold ${taskCreateMessage.type === "error" ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>
                   {taskCreateMessage.text}
                 </div>
               ) : null}
               <button type="button" onClick={submitTaskCreate} disabled={taskLoading || taskImageUploading} className="w-full rounded-xl bg-[#6c27d6] px-4 py-3 text-sm font-black text-white shadow-[0_10px_24px_rgba(108,39,214,0.18)] disabled:bg-stone-300 disabled:shadow-none">
-                {taskLoading ? "上架中..." : "提交上架并匹配账号"}
+                {taskLoading ? (taskEditingId ? "保存中..." : "上架中...") : (taskEditingId ? "保存修改" : "提交上架并匹配账号")}
               </button>
             </div>
           </aside>
@@ -742,10 +809,13 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                   <div className="mb-2 text-xs font-black text-stone-500">已上架任务</div>
                   <div className="space-y-2">
                     {tasks.map((task) => (
-                      <button key={task._id} type="button" onClick={() => selectTask(task)} className={`w-full rounded-xl border px-3 py-3 text-left ${selectedTask?._id === task._id ? "border-[#6c27d6] bg-[#f7f2ff]" : "border-stone-200 bg-white"}`}>
-                        <div className="truncate text-sm font-black text-stone-900">{task.title}</div>
-                        <div className="mt-1 text-xs font-semibold text-stone-500">{task.category || "未分类"} · {toMoneyText(task.unitPriceCents)} · {taskStatusLabel[String(task.status)] || task.status}</div>
-                      </button>
+                      <div key={task._id} className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-xl border px-3 py-3 ${selectedTask?._id === task._id ? "border-[#6c27d6] bg-[#f7f2ff]" : "border-stone-200 bg-white"}`}>
+                        <button type="button" onClick={() => selectTask(task)} className="min-w-0 text-left">
+                          <div className="truncate text-sm font-black text-stone-900">{task.title}</div>
+                          <div className="mt-1 text-xs font-semibold text-stone-500">{task.category || "未分类"} · {toMoneyText(task.unitPriceCents)} · {taskStatusLabel[String(task.status)] || task.status}</div>
+                        </button>
+                        <button type="button" onClick={() => openTaskEdit(task)} disabled={taskLoading} className="rounded-lg border border-[#6c27d6] bg-white px-2.5 py-1.5 text-xs font-black text-[#5e17eb] disabled:opacity-50">编辑</button>
+                      </div>
                     ))}
                   </div>
                 </div>

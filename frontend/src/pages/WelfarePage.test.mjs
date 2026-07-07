@@ -19,6 +19,7 @@ test("welfare page is routed as Xiaowanzi treasure box", () => {
   assert.match(source, /bg-\[#f0edff\]/);
   assert.match(source, /我的福利/);
   assert.match(source, /福利多多，好运多多/);
+  assert.match(source, /font-medium leading-\[1\.08\][\s\S]*小玩子百宝箱/);
   assert.doesNotMatch(source, /这里放家长先疯给你的限时资料、课程体验和合作福利/);
 });
 
@@ -51,6 +52,10 @@ test("welfare page separates claimable and historical welfare states", () => {
   assert.match(source, /已抢完/);
   assert.match(source, /立即领取/);
   assert.match(source, /handleClaim/);
+  assert.match(source, /claimDialog/);
+  assert.match(source, /领取成功/);
+  assert.match(source, /复制链接/);
+  assert.doesNotMatch(source, /statusText/);
   assert.match(source, /availability === "expired"/);
   assert.match(source, /availability === "sold_out"/);
 });

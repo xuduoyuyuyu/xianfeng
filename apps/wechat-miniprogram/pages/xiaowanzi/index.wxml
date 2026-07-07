@@ -71,6 +71,11 @@
               <text wx:if="{{selectedMessageMap[item.id]}}" class="xf-xiaowanzi-share-check-mark"></text>
             </button>
             <view wx:if="{{item.role === 'user'}}" class="xf-xiaowanzi-user-bubble">
+              <scroll-view wx:if="{{item.attachments && item.attachments.length}}" class="xf-xiaowanzi-message-attachments" scroll-x="{{true}}" enhanced="{{true}}" show-scrollbar="{{false}}">
+                <view class="xf-xiaowanzi-message-attachment-row">
+                  <image wx:for="{{item.attachments}}" wx:for-item="attachment" wx:key="key" class="xf-xiaowanzi-message-image" src="{{attachment.path}}" mode="aspectFill" />
+                </view>
+              </scroll-view>
               <text>{{item.content}}</text>
             </view>
             <view wx:else class="xf-xiaowanzi-home-assistant-wrap {{item.pending ? 'is-thinking' : ''}}">
@@ -118,6 +123,11 @@
           <text wx:if="{{selectedMessageMap[item.id]}}" class="xf-xiaowanzi-share-check-mark"></text>
         </button>
         <view wx:if="{{item.role === 'user'}}" class="xf-xiaowanzi-user-bubble">
+          <scroll-view wx:if="{{item.attachments && item.attachments.length}}" class="xf-xiaowanzi-message-attachments" scroll-x="{{true}}" enhanced="{{true}}" show-scrollbar="{{false}}">
+            <view class="xf-xiaowanzi-message-attachment-row">
+              <image wx:for="{{item.attachments}}" wx:for-item="attachment" wx:key="key" class="xf-xiaowanzi-message-image" src="{{attachment.path}}" mode="aspectFill" />
+            </view>
+          </scroll-view>
           <text>{{item.content}}</text>
         </view>
         <view wx:else class="xf-xiaowanzi-assistant-panel {{item.pending ? 'is-thinking' : ''}}">
@@ -159,17 +169,23 @@
   </scroll-view>
 
   <view class="xf-xiaowanzi-composer {{attachmentMenuOpen ? 'is-attach-open' : ''}}">
-    <view class="xf-xiaowanzi-composer-feather" aria-hidden="true"></view>
-    <view wx:if="{{errorText || actionLabel || attachmentPreviewText}}" class="xf-xiaowanzi-inline-status">
-      <text>{{errorText || attachmentPreviewText || statusText}}</text>
+    <view wx:if="{{errorText || actionLabel}}" class="xf-xiaowanzi-inline-status">
+      <text>{{errorText || statusText}}</text>
       <button wx:if="{{actionLabel}}" class="xf-xiaowanzi-inline-action" catchtap="handleActionTap">{{actionLabel}}</button>
     </view>
+    <view wx:if="{{pendingAttachments.length}}" class="xf-xiaowanzi-attachment-strip">
+      <view class="xf-xiaowanzi-attachment-thumb" wx:for="{{pendingAttachments}}" wx:key="path" wx:for-item="attachment">
+        <image wx:if="{{attachment.path}}" class="xf-xiaowanzi-attachment-image" src="{{attachment.path}}" mode="aspectFill" />
+        <text wx:else class="xf-xiaowanzi-attachment-file">{{attachment.label}}</text>
+        <button class="xf-xiaowanzi-attachment-remove" data-index="{{index}}" catchtap="removePendingAttachment" aria-label="移除附件">×</button>
+      </view>
+    </view>
     <view class="xf-xiaowanzi-input-row">
-      <view class="xf-xiaowanzi-input-shell {{inputReady ? 'can-send' : ''}} {{inputValue ? 'has-typed-input' : ''}} {{inputFocused ? 'is-input-focused' : ''}} {{!inputValue && !inputFocused ? 'is-placeholder' : ''}} {{sendPressing ? 'send-pressing' : ''}} {{sending ? 'is-sending' : ''}}">
+      <view class="xf-xiaowanzi-input-shell {{inputReady ? 'can-send' : ''}} {{inputValue ? 'has-typed-input' : ''}} {{pendingAttachments.length ? 'has-attachment-input' : ''}} {{inputFocused ? 'is-input-focused' : ''}} {{!inputValue && !inputFocused ? 'is-placeholder' : ''}} {{sendPressing ? 'send-pressing' : ''}} {{sending ? 'is-sending' : ''}}">
         <button class="xf-xiaowanzi-voice" hover-class="is-pressed" catchtap="toggleVoiceInput" aria-label="语音输入">
           <image class="xf-xiaowanzi-voice-icon" src="/assets/xiaowanzi-icons/voice-dark.png" mode="aspectFit" />
         </button>
-        <input class="xf-xiaowanzi-input" value="{{inputValue}}" placeholder="对话内容已开启隐私保护" placeholder-class="xf-xiaowanzi-input-placeholder" confirm-type="send" disabled="{{sending}}" bindinput="updateInput" bindfocus="handleInputFocus" bindblur="handleInputBlur" bindconfirm="handleSend" />
+        <input class="xf-xiaowanzi-input" value="{{inputValue}}" placeholder="{{pendingAttachments.length ? '帮我解读下图片内容' : '对话内容已开启隐私保护'}}" placeholder-class="xf-xiaowanzi-input-placeholder" confirm-type="send" disabled="{{sending}}" bindinput="updateInput" bindfocus="handleInputFocus" bindblur="handleInputBlur" bindconfirm="handleSend" />
         <button class="xf-xiaowanzi-send {{sending ? 'is-stop' : 'is-send'}} {{sendPressing ? 'is-pressing' : ''}}" hover-class="is-pressed" disabled="{{!sending && !inputReady}}" bindtouchstart="startSendPress" bindtouchend="endSendPress" bindtouchcancel="endSendPress" catchtap="handleSend" aria-label="{{sending ? '停止生成' : '发送'}}">
           <image class="xf-xiaowanzi-send-mark" src="{{sending ? '/assets/xiaowanzi-icons/stop-white.png' : '/assets/xiaowanzi-icons/send-white.png'}}" mode="aspectFit" />
         </button>
@@ -230,11 +246,11 @@
     <view class="xf-xiaowanzi-share-select-channels">
       <text class="xf-xiaowanzi-share-count">将{{shareRoundCount}}轮对话分享至</text>
       <view class="xf-xiaowanzi-share-channel-row">
-        <button class="xf-xiaowanzi-share-channel" hover-class="is-pressed" open-type="share" disabled="{{!selectedMessageIds.length}}">
+        <button class="xf-xiaowanzi-share-channel" hover-class="is-pressed" open-type="share" disabled="{{!selectedMessageIds.length || selectedSharePreparing || !selectedConversationShareId}}">
           <view class="xf-xiaowanzi-share-channel-icon is-wechat">
             <image class="xf-xiaowanzi-share-channel-icon-img" src="/assets/xiaowanzi-icons/share-wechat-friend.svg" mode="aspectFit" />
           </view>
-          <text class="xf-xiaowanzi-share-channel-label">微信好友</text>
+          <text class="xf-xiaowanzi-share-channel-label">{{selectedSharePreparing ? '准备中' : '微信好友'}}</text>
         </button>
         <button class="xf-xiaowanzi-share-channel" hover-class="is-pressed" catchtap="generateShareImage" disabled="{{!selectedMessageIds.length || shareImageGenerating}}">
           <view class="xf-xiaowanzi-share-channel-icon is-image">
@@ -249,6 +265,7 @@
           <text class="xf-xiaowanzi-share-channel-label">复制内容</text>
         </button>
       </view>
+      <text wx:if="{{selectedShareError}}" class="xf-xiaowanzi-share-error">{{selectedShareError}}</text>
     </view>
     <view class="xf-xiaowanzi-share-privacy">
       <text>⚙️ 分享内容已开启隐私保护</text>

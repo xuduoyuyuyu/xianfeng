@@ -47,6 +47,15 @@
   the current balance. Legacy stored plan ids `monthly` and `yearly` are read
   as Plus and Pro membership tiers. The education-planning generation flow
   consumes the `education_planning` point policy at 5 points per generated plan.
+- Xiaowanzi image recognition uses the authenticated
+  `/api/v1/tutorbot/xiaowanzi_debug_bot/attachments/recognize` endpoint before
+  the normal chat send. It calls Volcengine Ark with endpoint id
+  `ep-m-20260510222218-mv5t9` by default, expects the key in
+  `XIAOWANZI_VOLCENGINE_API_KEY` or `ARK_API_KEY`, and consumes the
+  `xiaowanzi_file` policy at 10 points per successful image processing request.
+  WeChat mini-program native uploads use
+  `/api/wechat-mini/xiaowanzi/attachments/recognize` with the same service and
+  point policy so they do not depend on tutorbot admin-route fallthrough.
 - `WorthBuyAnalysis.status=deleted` is a logical deletion state for admin
   worthbuy records. Admin lists hide deleted records by default and can request
   them explicitly for recovery.
@@ -68,6 +77,8 @@
   that task plus proof/review status. Admin
   `/api/admin/mama-resources/tasks` creates and lists tasks, including optional
   multiple example image URLs for task illustration, then
+  `/tasks/:taskId` updates an already listed task's project copy, pricing,
+  targeting fields, and example images without changing assignments.
   `/tasks/:taskId/candidates` filters approved accounts by search/category,
   risk tag, and follower count before `/tasks/:taskId/assignments` assigns
   selected profiles. Public `/api/mama-resources/me/tasks` exposes only the
@@ -79,13 +90,15 @@
   or rejected.
 - Welfare campaigns are independent from guest listener benefits and Mama
   Haozhuan tasks. `WelfareCampaign` stores the uploaded/configured activity,
-  stock, date window, publish state, and claim instructions. Public
+  stock, date window, publish state, claim instructions, and optional external
+  claim link. Public
   `/api/welfare/campaigns` returns active welfare separately from expired or
   sold-out history. Authenticated public
   `/api/welfare/campaigns/:id/claims` creates one claim per user only while the
   campaign is published, in-window, and in stock. Admin `/api/admin/welfare`
   creates/updates campaigns and `/api/admin/welfare/:id/claims` lists claim
-  history.
+  history with user contact fields plus synced child profile summaries when
+  available.
 
 ### Active
 

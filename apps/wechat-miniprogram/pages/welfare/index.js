@@ -1,7 +1,7 @@
 const { request } = require("../../utils/request");
 const { getNativeTopbarMetrics } = require("../../utils/nativeChrome");
 const { createPageShare, enableShareMenu } = require("../../utils/share");
-const { goProgramsHome: navigateProgramsHome } = require("../../utils/nativePageNav");
+const { ensureBackStackForBackButtonPage, goProgramsHome: navigateProgramsHome, smartBackHome } = require("../../utils/nativePageNav");
 
 const SHARE_OPTIONS = {
   title: "小玩子百宝箱",
@@ -25,7 +25,13 @@ function isNotFoundError(error) {
 
 function normalizeImage(value) {
   const source = String(value || "").trim();
+  if (source.startsWith("emoji:")) return "";
   return source || "/assets/menu/welfare-gift-icon.png";
+}
+
+function normalizeEmoji(value) {
+  const source = String(value || "").trim();
+  return source.startsWith("emoji:") ? source.slice("emoji:".length).trim() : "";
 }
 
 function dateText(value) {
@@ -53,11 +59,14 @@ function normalizeCampaign(item) {
     title: String(item && item.title || "未命名福利"),
     subtitle: String(item && (item.subtitle || item.description) || `剩余 ${remainingStock} 份 · ${dateText(item && item.endsAt)}`),
     coverImageUrl: normalizeImage(item && item.coverImageUrl),
+    coverEmoji: normalizeEmoji(item && item.coverImageUrl),
     availability,
     statusText: STATUS_TEXT[availability] || "福利",
     stockText: unavailable ? dateText(item && item.endsAt) : `剩余 ${remainingStock} / ${totalStock} 份`,
     actionText,
-    unavailable
+    unavailable,
+    claimInstructions: String(item && item.claimInstructions || ""),
+    externalUrl: String(item && item.externalUrl || "")
   };
 }
 
@@ -80,10 +89,15 @@ Page({
     historyCampaigns: [],
     loading: true,
     message: "",
-    claimingId: ""
+    claimingId: "",
+    claimDialogVisible: false,
+    claimDialogTitle: "",
+    claimDialogInstructions: "",
+    claimDialogExternalUrl: ""
   },
 
-  onLoad() {
+  onLoad(options = {}) {
+    if (ensureBackStackForBackButtonPage(options)) return;
     enableShareMenu();
     this.syncTopbarMetrics();
     this.loadCampaigns();
@@ -135,11 +149,17 @@ Page({
   claimWelfare(event) {
     const id = event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.id;
     if (!id) return;
+    const selected = this.data.activeCampaigns.find((campaign) => campaign._id === id);
     this.setData({ claimingId: id, message: "" });
     request({ url: `/api/welfare/campaigns/${id}/claims`, method: "POST" })
       .then((response) => {
         const campaign = response && response.campaign || {};
-        this.setData({ message: campaign.claimInstructions || "领取成功，运营会根据福利说明联系你。" });
+        this.setData({
+          claimDialogVisible: true,
+          claimDialogTitle: campaign.title || (selected && selected.title) || "领取成功",
+          claimDialogInstructions: campaign.claimInstructions || (selected && selected.claimInstructions) || "领取成功，运营会根据福利说明联系你。",
+          claimDialogExternalUrl: campaign.externalUrl || (selected && selected.externalUrl) || ""
+        });
         this.loadCampaigns();
       })
       .catch((error) => {
@@ -152,8 +172,30 @@ Page({
       });
   },
 
+  closeClaimDialog() {
+    this.setData({
+      claimDialogVisible: false,
+      claimDialogTitle: "",
+      claimDialogInstructions: "",
+      claimDialogExternalUrl: ""
+    });
+  },
+
+  copyClaimLink() {
+    const url = String(this.data.claimDialogExternalUrl || "").trim();
+    if (!url) return;
+    wx.setClipboardData({
+      data: url,
+      success() {
+        wx.showToast({ title: "链接已复制", icon: "none" });
+      }
+    });
+  },
+
+  noop() {},
+
   goBack() {
-    wx.navigateBack({ delta: 1 });
+    smartBackHome();
   },
 
   goProgramsHome: navigateProgramsHome,

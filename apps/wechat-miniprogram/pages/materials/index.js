@@ -233,7 +233,7 @@ function buildMaterialFilterGroups(materials, selectedTags = []) {
 }
 
 const pageShare = createPageShare({
-  title: "家长先疯资料",
+  title: "资料",
   path: "/pages/materials/index"
 });
 const materialFilterDrawerMethods = createFilterDrawerMethods();

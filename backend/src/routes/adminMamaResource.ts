@@ -94,6 +94,31 @@ function buildTaskMatchFilter(task: any) {
   return filter;
 }
 
+function buildTaskWritePayload(body: any, title: string) {
+  return {
+    title,
+    platform: "xiaohongshu",
+    category: asText(body?.category),
+    matchCategories: asTextArray(body?.matchCategories || body?.category),
+    matchRiskTags: asTextArray(body?.matchRiskTags),
+    minFollowerCount: asOptionalNumber(body?.minFollowerCount),
+    difficulty: asText(body?.difficulty),
+    phase: asText(body?.phase),
+    unitPriceCents: asOptionalNumber(body?.unitPriceCents) || 0,
+    trafficFeeCents: asOptionalNumber(body?.trafficFeeCents),
+    dataCycle: asText(body?.dataCycle),
+    settlementCycle: asText(body?.settlementCycle),
+    promotionCount: asOptionalNumber(body?.promotionCount),
+    latestDataDate: asOptionalDate(body?.latestDataDate),
+    announcement: asText(body?.announcement),
+    settlementStandard: asText(body?.settlementStandard),
+    requirement: asText(body?.requirement),
+    externalUrl: asText(body?.externalUrl),
+    exampleImageUrls: asTextArray(body?.exampleImageUrls).slice(0, 12),
+    status: TASK_STATUSES.includes(asText(body?.status) as MamaResourceTaskStatus) ? asText(body?.status) : "listed",
+  };
+}
+
 function serializeProfile(profile: any) {
   const source = typeof profile.toObject === "function" ? profile.toObject() : profile;
   return {
@@ -164,27 +189,7 @@ router.post("/tasks", async (req: Request, res: Response) => {
       return;
     }
 
-    const task = await MamaResourceTask.create({
-      title,
-      platform: "xiaohongshu",
-      category: asText(req.body?.category),
-      matchCategories: asTextArray(req.body?.matchCategories || req.body?.category),
-      matchRiskTags: asTextArray(req.body?.matchRiskTags),
-      minFollowerCount: asOptionalNumber(req.body?.minFollowerCount),
-      difficulty: asText(req.body?.difficulty),
-      phase: asText(req.body?.phase),
-      unitPriceCents: asOptionalNumber(req.body?.unitPriceCents) || 0,
-      dataCycle: asText(req.body?.dataCycle),
-      settlementCycle: asText(req.body?.settlementCycle),
-      promotionCount: asOptionalNumber(req.body?.promotionCount),
-      latestDataDate: asOptionalDate(req.body?.latestDataDate),
-      announcement: asText(req.body?.announcement),
-      settlementStandard: asText(req.body?.settlementStandard),
-      requirement: asText(req.body?.requirement),
-      externalUrl: asText(req.body?.externalUrl),
-      exampleImageUrls: asTextArray(req.body?.exampleImageUrls).slice(0, 12),
-      status: TASK_STATUSES.includes(asText(req.body?.status) as MamaResourceTaskStatus) ? asText(req.body?.status) : "listed",
-    });
+    const task = await MamaResourceTask.create(buildTaskWritePayload(req.body, title));
 
     let assignments: any[] = [];
     if (req.body?.autoAssign === true) {
@@ -212,6 +217,30 @@ router.post("/tasks", async (req: Request, res: Response) => {
     res.status(201).json({ task: serializeTask(task), assignments: assignments.map(serializeAssignment) });
   } catch (error: any) {
     res.status(400).json({ message: error?.message || "上架任务失败" });
+  }
+});
+
+router.patch("/tasks/:taskId", async (req: Request, res: Response) => {
+  try {
+    const title = asText(req.body?.title);
+    if (!title) {
+      res.status(400).json({ message: "请填写任务标题" });
+      return;
+    }
+
+    const task = await MamaResourceTask.findOneAndUpdate(
+      idQuery(asText(req.params.taskId)),
+      { $set: buildTaskWritePayload(req.body, title) },
+      { returnDocument: "after", runValidators: true }
+    );
+    if (!task) {
+      res.status(404).json({ message: "任务不存在" });
+      return;
+    }
+
+    res.json({ task: serializeTask(task) });
+  } catch (error: any) {
+    res.status(400).json({ message: error?.message || "更新任务失败" });
   }
 });
 

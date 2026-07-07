@@ -1,6 +1,7 @@
 const { createPageShare, enableShareMenu } = require("../../../utils/share");
 const { buildProfileState, CHILD_PROFILES_KEY, WEB_CHILD_PROFILES_KEY, hasDuplicateChildDisplayName, mergeChildProfileRecords } = require("../../../utils/profileState");
 const { readFontSizeSetting } = require("../../../utils/nativeSettings");
+const { ensureBackStackForBackButtonPage } = require("../../../utils/nativePageNav");
 const { rememberCurrentExternalPage } = require("../../../utils/xiaowanziReturn");
 
 const LAST_CHILD_ID_KEY = "xiaowanzi_last_child_id_v1";
@@ -174,7 +175,7 @@ function viewModel(children, activeId, draft, message) {
       ...item,
       selected: draft.concernTags.includes(item.value)
     })),
-    insightGrade: selectedGrade.replace(/^学前/, "") || "未填年级",
+    insightGrade: selectedGrade.replace(/^学前/, ""),
     profileStatus: profileComplete({ ...draft, grade: selectedGrade }) ? "可绑定" : "待补全",
     message: message || ""
   };
@@ -184,6 +185,7 @@ Page({
   data: viewModel([], "", emptyChild(), ""),
 
   onLoad(options = {}) {
+    if (ensureBackStackForBackButtonPage(options)) return;
     enableShareMenu();
     const shouldCreateChild = String(options.action || "") === "add";
     this.loadProfile({ createChild: shouldCreateChild });

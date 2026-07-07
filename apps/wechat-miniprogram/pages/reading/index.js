@@ -241,7 +241,7 @@ function sliceBooksForDisplay(books, count) {
 }
 
 const pageShare = createPageShare({
-  title: "家长先疯及阅",
+  title: "及阅",
   path: "/pages/reading/index"
 });
 const readingFilterDrawerMethods = createFilterDrawerMethods();
@@ -261,7 +261,7 @@ Page({
       logoHeight: 28,
       welfareRight: 101,
     searchPrompt: getInitialSearchPrompt(),
-    compactMode: false,
+    compactMode: true,
     activeReadingTag: "",
     activeReadingTags: [],
     draftReadingTags: [],
@@ -355,7 +355,7 @@ Page({
 
   loadPreferredViewMode() {
     try {
-      this.setData({ compactMode: wx.getStorageSync(BOOK_VIEW_MODE_KEY) === "compact" });
+      this.setData({ compactMode: wx.getStorageSync(BOOK_VIEW_MODE_KEY) !== "feature" });
     } catch (_error) {}
   },
 

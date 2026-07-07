@@ -62,14 +62,147 @@ function extractConversationShareIdFromScene(scene) {
   return parseSceneParam(scene, "s");
 }
 
+function conversationSharePath(shareId) {
+  return `/pages/share/index?sid=${encodeURIComponent(shareId)}`;
+}
+
+function stripMarkdownInline(value) {
+  return String(value || "")
+    .replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/)[^)]+)\)/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .trim();
+}
+
+function parseMarkdownHeadingLine(line) {
+  const source = String(line || "").trim();
+  const hashMatch = source.match(/^(#{1,3})\s+(.+)$/);
+  if (hashMatch) return { text: stripMarkdownInline(hashMatch[2]) };
+  const boldMatch = source.match(/^\*\*\s*(.+?)\s*\*\*$/);
+  if (boldMatch) return { text: stripMarkdownInline(boldMatch[1]) };
+  return null;
+}
+
+function parseMarkdownListItem(line) {
+  const match = String(line || "").trim().match(/^[-*]\s+(.+)$/);
+  return match ? stripMarkdownInline(match[1]) : "";
+}
+
+function looksLikeMarkdownDocument(content) {
+  const lines = String(content || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (lines.length < 2) return false;
+  const headingCount = lines.filter((line) => parseMarkdownHeadingLine(line)).length;
+  const listCount = lines.filter((line) => parseMarkdownListItem(line)).length;
+  return headingCount > 0 || listCount >= 2;
+}
+
+function buildMarkdownDocumentContentParts(content) {
+  const parts = [];
+  const paragraphLines = [];
+  const pushParagraph = () => {
+    const text = paragraphLines.map(stripMarkdownInline).filter(Boolean).join("\n");
+    if (text) parts.push({ type: "md_paragraph", text });
+    paragraphLines.length = 0;
+  };
+
+  String(content || "").split(/\r?\n/).forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      pushParagraph();
+      return;
+    }
+    const heading = parseMarkdownHeadingLine(trimmed);
+    if (heading && heading.text) {
+      pushParagraph();
+      parts.push({ type: "md_heading", text: heading.text });
+      return;
+    }
+    const listText = parseMarkdownListItem(trimmed);
+    if (listText) {
+      pushParagraph();
+      parts.push({ type: "md_list_item", text: listText });
+      return;
+    }
+    paragraphLines.push(trimmed);
+  });
+
+  pushParagraph();
+  return parts;
+}
+
+function buildInlineMessageContentParts(content) {
+  const source = String(content || "");
+  const parts = [];
+  const markdownLinkPattern = /\[([^\]]+)\]\(((?:https?:\/\/|\/)[^)]+)\)/g;
+  let lastIndex = 0;
+  let match;
+  while ((match = markdownLinkPattern.exec(source))) {
+    if (match.index > lastIndex) {
+      parts.push({ type: "text", text: source.slice(lastIndex, match.index).replace(/\s+$/g, "") });
+    }
+    parts.push({
+      type: "link",
+      text: String(match[1] || "").trim(),
+      url: String(match[2] || "").trim()
+    });
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < source.length) {
+    parts.push({ type: "text", text: source.slice(lastIndex).replace(/^\s+/g, "") });
+  }
+  return parts;
+}
+
+function buildMessageContentParts(content) {
+  const source = String(content || "");
+  const parts = looksLikeMarkdownDocument(source)
+    ? buildMarkdownDocumentContentParts(source)
+    : buildInlineMessageContentParts(source);
+  return parts
+    .map((part, index) => ({
+      key: `${part.type || "text"}-${index}`,
+      type: part.type === "link" && part.text && part.url ? "link" : part.type || "text",
+      text: String(part.text || ""),
+      url: part.type === "link" ? String(part.url || "") : ""
+    }))
+    .filter((part) => part.text);
+}
+
+function extractShareReferences(content) {
+  const references = [];
+  const seen = new Set();
+  String(content || "").replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/)[^)]+)\)/g, (_match, label, url) => {
+    const title = String(label || "").trim();
+    const target = String(url || "").trim();
+    if (title && target && !seen.has(title)) {
+      seen.add(title);
+      references.push({ title, url: target });
+    }
+    return "";
+  });
+  return references.slice(0, 4).map((item, index) => ({ ...item, key: `ref-${index}` }));
+}
+
+function normalizeConversationShareMessage(message, index) {
+  const role = message && message.role === "user" ? "user" : "assistant";
+  const content = String(message && message.content || "").trim();
+  return content
+    ? {
+        key: `message-${index}`,
+        role,
+        content,
+        contentParts: buildMessageContentParts(content),
+        references: role === "assistant" ? extractShareReferences(content) : []
+      }
+    : null;
+}
+
 function normalizeConversationShare(payload) {
   const messages = Array.isArray(payload && payload.messages)
     ? payload.messages
-        .map((message) => ({
-          role: message && message.role === "user" ? "user" : "assistant",
-          content: String(message && message.content || "").trim()
-        }))
-        .filter((message) => message.content)
+        .map(normalizeConversationShareMessage)
+        .filter(Boolean)
     : [];
   return {
     id: String(payload && (payload.id || payload._id) || ""),
@@ -125,7 +258,8 @@ Page({
     enableShareMenu();
     this.setData(readFontSizeSetting());
     const scene = decodeOption(options.scene, "");
-    const shareId = extractConversationShareIdFromScene(scene);
+    const directShareId = decodeOption(options.sid || options.shareId, "");
+    const shareId = directShareId || extractConversationShareIdFromScene(scene);
     if (shareId) {
       this.loadConversationShare(shareId);
       return;
@@ -171,10 +305,16 @@ Page({
           shareLoading: false,
           shareError: error && error.message || "分享内容加载失败"
         });
-      });
+    });
   },
 
   onShareAppMessage() {
+    if (this.data.conversationShare && this.data.conversationShare.id) {
+      return createPageShare({
+        title: this.data.title || DEFAULT_TITLE,
+        path: conversationSharePath(this.data.conversationShare.id)
+      }).onShareAppMessage();
+    }
     return createPageShare({
       title: this.data.title || DEFAULT_TITLE,
       path: this.data.target || DEFAULT_TARGET
@@ -182,6 +322,12 @@ Page({
   },
 
   onShareTimeline() {
+    if (this.data.conversationShare && this.data.conversationShare.id) {
+      return createPageShare({
+        title: this.data.title || DEFAULT_TITLE,
+        path: conversationSharePath(this.data.conversationShare.id)
+      }).onShareTimeline();
+    }
     return createPageShare({
       title: this.data.title || DEFAULT_TITLE,
       path: this.data.target || DEFAULT_TARGET

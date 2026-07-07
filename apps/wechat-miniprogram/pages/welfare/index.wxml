@@ -33,11 +33,13 @@
       <view wx:elif="{{activeCampaigns.length === 0}}" class="xf-welfare-state">今天没有新的福利，过几天再来看看。</view>
       <view wx:else class="xf-welfare-list">
         <view wx:for="{{activeCampaigns}}" wx:key="_id" class="xf-welfare-item">
-          <image class="xf-welfare-item-cover" src="{{item.coverImageUrl}}" mode="aspectFit" />
+          <view class="xf-welfare-item-cover">
+            <text wx:if="{{item.coverEmoji}}" class="xf-welfare-item-emoji">{{item.coverEmoji}}</text>
+            <image wx:else src="{{item.coverImageUrl}}" mode="aspectFit" />
+          </view>
           <view class="xf-welfare-item-copy">
             <view class="xf-welfare-item-title-row">
               <text class="xf-welfare-item-title">{{item.title}}</text>
-              <text class="xf-welfare-item-status">{{item.statusText}}</text>
             </view>
             <text class="xf-welfare-item-desc">{{item.subtitle}}</text>
             <text class="xf-welfare-item-stock">{{item.stockText}}</text>
@@ -55,15 +57,32 @@
         <text>历史内容</text>
       </view>
       <view wx:for="{{historyCampaigns}}" wx:key="_id" class="xf-welfare-item is-history">
-        <image class="xf-welfare-item-cover" src="{{item.coverImageUrl}}" mode="aspectFit" />
+        <view class="xf-welfare-item-cover">
+          <text wx:if="{{item.coverEmoji}}" class="xf-welfare-item-emoji">{{item.coverEmoji}}</text>
+          <image wx:else src="{{item.coverImageUrl}}" mode="aspectFit" />
+        </view>
         <view class="xf-welfare-item-copy">
           <view class="xf-welfare-item-title-row">
             <text class="xf-welfare-item-title">{{item.title}}</text>
-            <text class="xf-welfare-item-status">{{item.statusText}}</text>
           </view>
           <text class="xf-welfare-item-desc">{{item.subtitle}}</text>
         </view>
       </view>
     </view>
   </scroll-view>
+
+  <view wx:if="{{claimDialogVisible}}" class="xf-welfare-dialog-mask" catchtap="closeClaimDialog">
+    <view class="xf-welfare-dialog" catchtap="noop">
+      <view class="xf-welfare-dialog-head">
+        <text class="xf-welfare-dialog-kicker">领取成功</text>
+        <text class="xf-welfare-dialog-title">{{claimDialogTitle}}</text>
+      </view>
+      <text class="xf-welfare-dialog-body">{{claimDialogInstructions}}</text>
+      <view wx:if="{{claimDialogExternalUrl}}" class="xf-welfare-dialog-link">
+        <text>{{claimDialogExternalUrl}}</text>
+        <button bindtap="copyClaimLink">复制链接</button>
+      </view>
+      <button class="xf-welfare-dialog-close" bindtap="closeClaimDialog">知道了</button>
+    </view>
+  </view>
 </view>

@@ -9,6 +9,7 @@ import adminWelfareRoutes from "./adminWelfare";
 import WelfareCampaign from "../models/WelfareCampaign";
 import WelfareClaim from "../models/WelfareClaim";
 import User from "../models/User";
+import UserXiaowanziSync from "../models/UserXiaowanziSync";
 
 type TestServer = {
   close: () => Promise<void>;
@@ -67,6 +68,7 @@ describe("welfare campaign routes", () => {
     await WelfareCampaign.deleteMany({});
     await WelfareClaim.deleteMany({});
     await User.deleteMany({});
+    await UserXiaowanziSync.deleteMany({});
   });
 
   it("lets operators configure welfare campaigns and public users see active plus historical welfare", async () => {
@@ -204,5 +206,45 @@ describe("welfare campaign routes", () => {
     assert.equal(expiredResponse.status, 410);
     const expiredData = await expiredResponse.json();
     assert.match(expiredData.message, /已过期/);
+  });
+
+  it("returns user and child profile details in admin claim history", async () => {
+    const now = new Date("2026-07-02T08:00:00.000Z");
+    const user = await User.create({
+      username: "u13800138000",
+      password: "hash",
+      mobile: "13800138000",
+      name: "阿力",
+      childGrade: "一年级",
+      role: "user",
+    });
+    await UserXiaowanziSync.create({
+      userId: user._id,
+      childProfiles: [
+        { id: "child-1", displayName: "小圆子", accurateAge: "6岁2个月", grade: "一年级" },
+        { id: "child-2", displayName: "已删除", age: "4岁" },
+      ],
+      childProfileDeletions: [{ id: "child-2", removedAt: now.toISOString() }],
+    });
+    const campaign = await WelfareCampaign.create({
+      title: "资料包",
+      totalStock: 10,
+      status: "published",
+    });
+    await WelfareClaim.create({
+      campaignId: campaign._id,
+      userId: user._id,
+      claimedAt: now,
+    });
+
+    const response = await fetch(`${server.adminUrl}/${campaign._id}/claims`);
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.claims[0].user.nickname, "阿力");
+    assert.equal(data.claims[0].user.mobile, "13800138000");
+    assert.equal(data.claims[0].user.childGrade, "一年级");
+    assert.deepEqual(data.claims[0].children, [
+      { id: "child-1", name: "小圆子", age: "6岁2个月", grade: "一年级" },
+    ]);
   });
 });

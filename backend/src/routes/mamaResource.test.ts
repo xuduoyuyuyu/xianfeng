@@ -281,10 +281,12 @@ describe("mama resource pool routes", () => {
         difficulty: "简单",
         phase: "测试期",
         unitPriceCents: 100,
+        trafficFeeCents: 2500,
         dataCycle: "T+9",
         settlementCycle: "T+9",
         promotionCount: 42527,
         latestDataDate: "2026-06-29T00:00:00.000Z",
+        announcement: "测试期任务请先阅读项目重要通知。",
         settlementStandard: "按任务要求完成评论并提交回填，运营审核通过后计入已收录。",
         requirement: "按指定小红书链接完成评论，完成后必须提交回填。",
         exampleImageUrls: ["/uploads/admin/example-1.png", "/uploads/admin/example-2.png"],
@@ -294,7 +296,37 @@ describe("mama resource pool routes", () => {
     const created = await createTaskResponse.json();
     assert.equal(created.task.title, "任推邦（红薯）评论");
     assert.equal(created.task.status, "listed");
+    assert.equal(created.task.trafficFeeCents, 2500);
+    assert.equal(created.task.announcement, "测试期任务请先阅读项目重要通知。");
     assert.deepEqual(created.task.exampleImageUrls, ["/uploads/admin/example-1.png", "/uploads/admin/example-2.png"]);
+
+    const updateTaskResponse = await fetch(`${server.adminUrl}/tasks/${created.task._id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "任推邦（红薯）评论",
+        category: "小红书评论",
+        difficulty: "简单",
+        phase: "测试期",
+        unitPriceCents: 3000,
+        trafficFeeCents: null,
+        dataCycle: "T+9",
+        settlementCycle: "T+9",
+        promotionCount: 42527,
+        latestDataDate: "2026-06-29T00:00:00.000Z",
+        announcement: "更新后的项目公告。",
+        settlementStandard: "按任务要求完成评论并提交回填，运营审核通过后计入已收录。",
+        requirement: "按指定小红书链接完成评论，完成后必须提交回填，并参考展开的示意图。",
+        exampleImageUrls: ["/uploads/admin/example-updated.png"],
+      }),
+    });
+    assert.equal(updateTaskResponse.status, 200);
+    const updated = await updateTaskResponse.json();
+    assert.equal(updated.task.unitPriceCents, 3000);
+    assert.equal(updated.task.trafficFeeCents, null);
+    assert.equal(updated.task.announcement, "更新后的项目公告。");
+    assert.equal(updated.task.requirement, "按指定小红书链接完成评论，完成后必须提交回填，并参考展开的示意图。");
+    assert.deepEqual(updated.task.exampleImageUrls, ["/uploads/admin/example-updated.png"]);
 
     const candidatesResponse = await fetch(
       `${server.adminUrl}/tasks/${created.task._id}/candidates?category=${encodeURIComponent("亲子阅读")}&minFollowers=1`
@@ -323,7 +355,10 @@ describe("mama resource pool routes", () => {
     const listData = await listResponse.json();
     assert.equal(listData.profile.status, "approved");
     assert.equal(listData.tasks.length, 1);
-    assert.equal(listData.tasks[0].unitPriceCents, 100);
+    assert.equal(listData.tasks[0].unitPriceCents, 3000);
+    assert.equal(listData.tasks[0].trafficFeeCents, null);
+    assert.equal(listData.tasks[0].announcement, "更新后的项目公告。");
+    assert.deepEqual(listData.tasks[0].exampleImageUrls, ["/uploads/admin/example-updated.png"]);
     assert.equal(listData.tasks[0]._id, assigned.assignments[0]._id);
     assert.equal(listData.tasks[0].taskId, created.task._id);
 

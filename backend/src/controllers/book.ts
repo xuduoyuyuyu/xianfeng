@@ -180,6 +180,7 @@ function normalizeBookPayload(raw: any, defaults?: { sourceName?: string; source
     wxShopScore: Number(pick(raw, ["wxShopScore", "shopScore"]) || 0),
     wxHeadImgs: raw?.wxHeadImgs || raw?.headImgs || [],
     wxQrcodeUrl: pick(raw, ["wxQrcodeUrl", "qrcode", "qrcodeUrl"]),
+    wxPurchaseLink: pick(raw, ["wxPurchaseLink", "purchaseLink", "wxMiniProgramLink", "miniProgramLink"]),
     status: toStatus(pick(raw, ["status", "状态"])),
   };
 }

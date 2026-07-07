@@ -470,6 +470,7 @@ export interface Book {
   wxProductId?: string;
   wxShopAppid?: string;
   wxQrcodeUrl?: string;
+  wxPurchaseLink?: string;
   wxSyncAt?: string;
   hasMetadataDetail?: boolean;
   metadataCover?: string;
@@ -672,6 +673,7 @@ export interface MamaResourceTask {
   difficulty?: string;
   phase?: string;
   unitPriceCents: number;
+  trafficFeeCents?: number | null;
   dataCycle?: string;
   settlementCycle?: string;
   promotionCount?: number | null;
@@ -721,6 +723,7 @@ export interface MamaResourceTaskInput {
   difficulty?: string;
   phase?: string;
   unitPriceCents?: number;
+  trafficFeeCents?: number | null;
   dataCycle?: string;
   settlementCycle?: string;
   promotionCount?: number | null;
@@ -761,6 +764,23 @@ export interface WelfareClaim {
   _id: string;
   campaignId: string;
   userId: string;
+  user?: {
+    _id: string;
+    username?: string;
+    nickname?: string;
+    mobile?: string;
+    avatarInitial?: string;
+    avatarImage?: string;
+    childGrade?: string;
+    city?: string;
+    region?: string;
+  } | null;
+  children?: Array<{
+    id?: string;
+    name?: string;
+    age?: string;
+    grade?: string;
+  }>;
   status: "claimed" | "cancelled";
   claimedAt?: string;
   createdAt?: string;
@@ -1370,6 +1390,8 @@ export const adminApi = {
     api.get<{ tasks: MamaResourceTask[] }>('/admin/mama-resources/tasks'),
   createMamaResourceTask: (data: MamaResourceTaskInput) =>
     api.post<{ task: MamaResourceTask; assignments?: MamaResourceTaskAssignment[] }>('/admin/mama-resources/tasks', data),
+  updateMamaResourceTask: (id: string, data: MamaResourceTaskInput) =>
+    api.patch<{ task: MamaResourceTask }>(`/admin/mama-resources/tasks/${id}`, data),
   getMamaResourceTaskCandidates: (id: string, params?: MamaResourceQuery & { riskTag?: string }) =>
     api.get<{ items: MamaResourceTaskCandidate[] }>(`/admin/mama-resources/tasks/${id}/candidates`, { params }),
   getMamaResourceTaskAssignments: (id: string) =>

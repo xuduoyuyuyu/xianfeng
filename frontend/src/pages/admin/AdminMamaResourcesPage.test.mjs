@@ -9,6 +9,7 @@ const source = readFileSync(resolve(__dirname, "AdminMamaResourcesPage.tsx"), "u
 const appSource = readFileSync(resolve(__dirname, "../../App.tsx"), "utf8");
 const layoutSource = readFileSync(resolve(__dirname, "../../components/AdminLayout.tsx"), "utf8");
 const apiSource = readFileSync(resolve(__dirname, "../../services/api.ts"), "utf8");
+const backendSource = readFileSync(resolve(__dirname, "../../../../backend/src/routes/adminMamaResource.ts"), "utf8");
 
 test("admin mama resource pool is routed and appears in the sidebar", () => {
   assert.match(appSource, /import AdminMamaResourcesPage from "\.\/pages\/admin\/AdminMamaResourcesPage";/);
@@ -78,6 +79,18 @@ test("admin mama resources page supports task shelving and account selection ins
   assert.doesNotMatch(source, /onClick=\{submitTaskCreate\} disabled=\{taskLoading\} className="[^"]*bg-emerald-600/);
   assert.match(source, /taskDraft/);
   assert.match(source, /submitTaskCreate/);
+  assert.match(source, /taskEditingId/);
+  assert.match(source, /taskDraftFromTask/);
+  assert.match(source, /trafficFeeYuan: string;/);
+  assert.match(source, /trafficFeeCents/);
+  assert.match(source, /投流费用（元）/);
+  assert.match(source, /请输入有效的投流费用/);
+  assert.match(source, /项目公告/);
+  assert.match(source, /不填则小程序端不展示公告入口/);
+  assert.match(source, /openTaskEdit/);
+  assert.match(source, /编辑任务/);
+  assert.match(source, /保存修改/);
+  assert.match(source, /updateMamaResourceTask\(taskEditingId, payload\)/);
   assert.match(source, /type TaskCreateMessage = \{ type: "error" \| "success"; text: string \};/);
   assert.match(source, /exampleImageUrls: string\[\];/);
   assert.match(source, /taskCreateMessage/);
@@ -86,6 +99,8 @@ test("admin mama resources page supports task shelving and account selection ins
   assert.match(source, /配图示意图/);
   assert.match(source, /type="file"[\s\S]*accept="image\/\*"[\s\S]*multiple/);
   assert.match(source, /taskDraft\.exampleImageUrls\.map/);
+  assert.match(source, /resolveAdminAssetUrl\(url\)/);
+  assert.match(source, /target="_blank"/);
   assert.match(source, /exampleImageUrls: taskDraft\.exampleImageUrls/);
   assert.match(source, /请输入有效的单价/);
   assert.match(source, /matchCategories/);
@@ -102,6 +117,7 @@ test("admin mama resources page supports task shelving and account selection ins
   assert.match(apiSource, /export interface MamaResourceTask/);
   assert.match(apiSource, /matchCategories\?: string\[\];/);
   assert.match(apiSource, /matchRiskTags\?: string\[\];/);
+  assert.match(apiSource, /trafficFeeCents\?: number \| null;/);
   assert.match(apiSource, /minFollowerCount\?: number \| null;/);
   assert.match(apiSource, /exampleImageUrls\?: string\[\];/);
   assert.match(apiSource, /autoAssign\?: boolean;/);
@@ -109,11 +125,14 @@ test("admin mama resources page supports task shelving and account selection ins
   assert.match(apiSource, /export interface MamaResourceTaskCandidate/);
   assert.match(apiSource, /getMamaResourceTasks: \(\)/);
   assert.match(apiSource, /createMamaResourceTask: \(data: MamaResourceTaskInput\)/);
+  assert.match(apiSource, /updateMamaResourceTask: \(id: string, data: MamaResourceTaskInput\)/);
   assert.match(apiSource, /getMamaResourceTaskCandidates/);
   assert.match(apiSource, /assignMamaResourceTaskProfiles/);
   assert.match(apiSource, /reviewMamaResourceTaskAssignment/);
   assert.match(apiSource, /\/admin\/mama-resources\/tasks\/\$\{id\}\/candidates/);
   assert.match(apiSource, /\/admin\/mama-resources\/tasks\/assignments\/\$\{id\}\/review/);
+  assert.match(backendSource, /router\.patch\("\/tasks\/:taskId"/);
+  assert.match(backendSource, /buildTaskWritePayload\(req\.body, title\)/);
 });
 
 test("admin mama resources detail editing is handled in a modal instead of a right rail", () => {

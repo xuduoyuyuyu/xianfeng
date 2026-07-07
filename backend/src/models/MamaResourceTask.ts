@@ -12,6 +12,7 @@ export interface MamaResourceTask extends mongoose.Document {
   difficulty: string;
   phase: string;
   unitPriceCents: number;
+  trafficFeeCents?: number | null;
   dataCycle: string;
   settlementCycle: string;
   promotionCount?: number | null;
@@ -37,6 +38,7 @@ const mamaResourceTaskSchema = new mongoose.Schema(
     difficulty: { type: String, default: "", trim: true },
     phase: { type: String, default: "", trim: true },
     unitPriceCents: { type: Number, default: 0, min: 0 },
+    trafficFeeCents: { type: Number, default: null, min: 0 },
     dataCycle: { type: String, default: "", trim: true },
     settlementCycle: { type: String, default: "", trim: true },
     promotionCount: { type: Number, default: null },

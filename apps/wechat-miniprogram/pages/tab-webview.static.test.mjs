@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 import { createRequire } from "node:module";
+import zlib from "node:zlib";
 
 const require = createRequire(import.meta.url);
 const MINI_PROGRAM_ROOT = new URL("../", import.meta.url);
@@ -47,6 +48,76 @@ function assertPngSize(path, width, height) {
   assert.equal(buffer.toString("ascii", 12, 16), "IHDR");
   assert.equal(buffer.readUInt32BE(16), width, `${path} width`);
   assert.equal(buffer.readUInt32BE(20), height, `${path} height`);
+}
+
+function readPngRgba(path) {
+  const buffer = fs.readFileSync(new URL(path, import.meta.url));
+  assert.equal(buffer.toString("ascii", 12, 16), "IHDR");
+  const width = buffer.readUInt32BE(16);
+  const height = buffer.readUInt32BE(20);
+  const bitDepth = buffer[24];
+  const colorType = buffer[25];
+  assert.equal(bitDepth, 8, `${path} should use 8-bit PNG channels`);
+  assert.equal(colorType, 6, `${path} should be RGBA PNG`);
+
+  const idatChunks = [];
+  let offset = 8;
+  while (offset < buffer.length) {
+    const length = buffer.readUInt32BE(offset);
+    const type = buffer.toString("ascii", offset + 4, offset + 8);
+    const dataStart = offset + 8;
+    if (type === "IDAT") idatChunks.push(buffer.subarray(dataStart, dataStart + length));
+    offset = dataStart + length + 4;
+  }
+
+  const inflated = zlib.inflateSync(Buffer.concat(idatChunks));
+  const bytesPerPixel = 4;
+  const stride = width * bytesPerPixel;
+  const data = Buffer.alloc(width * height * bytesPerPixel);
+  let inputOffset = 0;
+  for (let y = 0; y < height; y += 1) {
+    const filter = inflated[inputOffset];
+    inputOffset += 1;
+    for (let x = 0; x < stride; x += 1) {
+      const raw = inflated[inputOffset + x];
+      const left = x >= bytesPerPixel ? data[y * stride + x - bytesPerPixel] : 0;
+      const up = y > 0 ? data[(y - 1) * stride + x] : 0;
+      const upLeft = y > 0 && x >= bytesPerPixel ? data[(y - 1) * stride + x - bytesPerPixel] : 0;
+      let value = raw;
+      if (filter === 1) value = raw + left;
+      if (filter === 2) value = raw + up;
+      if (filter === 3) value = raw + Math.floor((left + up) / 2);
+      if (filter === 4) {
+        const p = left + up - upLeft;
+        const pa = Math.abs(p - left);
+        const pb = Math.abs(p - up);
+        const pc = Math.abs(p - upLeft);
+        value = raw + (pa <= pb && pa <= pc ? left : pb <= pc ? up : upLeft);
+      }
+      data[y * stride + x] = value & 255;
+    }
+    inputOffset += stride;
+  }
+  return { width, height, data };
+}
+
+function assertPngPixelNotWhite(path, x, y) {
+  const png = readPngRgba(path);
+  const offset = (png.width * y + x) << 2;
+  const r = png.data[offset];
+  const g = png.data[offset + 1];
+  const b = png.data[offset + 2];
+  assert.ok(!(r > 248 && g > 248 && b > 248), `${path} pixel ${x},${y} should not be white`);
+}
+
+function assertPngPixelWhite(path, x, y) {
+  const png = readPngRgba(path);
+  const offset = (png.width * y + x) << 2;
+  const r = png.data[offset];
+  const g = png.data[offset + 1];
+  const b = png.data[offset + 2];
+  const a = png.data[offset + 3];
+  assert.deepEqual([r, g, b, a], [255, 255, 255, 255], `${path} pixel ${x},${y} should be pure white`);
 }
 
 function assertSameTextFile(actualPath, expectedPath) {
@@ -297,16 +368,25 @@ test("welfare opens as a native mini program page and hides backend 404 noise", 
   assert.match(page.wxml, /小玩子百宝箱/);
   assert.match(page.wxml, /class="xf-welfare-mascot" src="\/assets\/wel-avatar\/wizard\.png"/);
   assert.match(page.wxml, /今天没有新的福利，过几天再来看看。/);
+  assert.match(page.wxml, /claimDialogVisible/);
+  assert.match(page.wxml, /复制链接/);
+  assert.doesNotMatch(page.wxml, /xf-welfare-item-status/);
   assert.doesNotMatch(page.wxml, /Request failed with status code 404/);
   assert.match(page.js, /request\(\{ url: "\/api\/welfare\/campaigns" \}\)/);
+  assert.match(page.js, /claimDialogInstructions/);
+  assert.match(page.js, /copyClaimLink\(\)/);
+  assert.match(page.js, /smartBackHome/);
+  assert.match(page.js, /goBack\(\)\s*\{[\s\S]*smartBackHome\(\);[\s\S]*\}/);
   assert.match(page.js, /\^request\\\.fail\$/);
   assert.match(page.js, /isNotFoundError\(error\)[\s\S]*activeCampaigns: \[\][\s\S]*historyCampaigns: \[\][\s\S]*message: ""/);
   assert.match(page.wxss, /\.xf-welfare-page \{[\s\S]*background: #f0edff;/);
   assert.match(page.wxss, /\.xf-welfare-page \{[\s\S]*font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Arial, sans-serif;/);
   assert.match(page.wxss, /\.xf-welfare-title \{[\s\S]*font-size: 72rpx;/);
+  assert.match(page.wxss, /\.xf-welfare-title \{[\s\S]*font-weight: 500;/);
   assert.match(page.wxss, /\.xf-welfare-subtitle \{[\s\S]*font-size: 30rpx;[\s\S]*font-weight: 700;[\s\S]*line-height: 1\.7;/);
   assert.match(page.wxss, /\.xf-welfare-mascot \{[\s\S]*width: 184rpx;[\s\S]*height: 184rpx;[\s\S]*margin-top: -48rpx;/);
   assert.match(page.wxss, /\.xf-welfare-state \{[\s\S]*font-size: 28rpx;[\s\S]*font-weight: 700;/);
+  assert.match(page.wxss, /\.xf-welfare-dialog-mask/);
 
   const definition = loadPageDefinition("welfare");
   const originalWx = global.wx;
@@ -465,14 +545,95 @@ test("native search page replaces the webview global search entry", () => {
   assert.match(nativePageNav, /wx\.navigateTo\(\{[\s\S]*\/pages\/search\/index/);
   assert.match(nativePageNav, /function scrollPageToTop\(\)\s*\{[\s\S]*wx\.pageScrollTo\(\{ scrollTop: 0, duration: 250 \}\);[\s\S]*\}/);
   assert.match(nativePageNav, /function goProgramsHome\(\)\s*\{[\s\S]*scrollPageToTop\(\);[\s\S]*\}/);
-  assert.match(nativePageNav, /function switchProgramsHome\(\)\s*\{[\s\S]*wx\.switchTab\(\{ url: "\/pages\/programs\/index" \}\);[\s\S]*\}/);
+  assert.match(nativePageNav, /const BACK_STACK_HOME_PAGE = "\/pages\/programs\/index";/);
+  assert.match(nativePageNav, /function switchProgramsHome\(\)\s*\{[\s\S]*wx\.switchTab\(\{ url: BACK_STACK_HOME_PAGE \}\);[\s\S]*\}/);
+  assert.match(nativePageNav, /function smartBackHome\(\)\s*\{[\s\S]*getCurrentPages[\s\S]*wx\.navigateBack\(\{ delta: 1 \}\);[\s\S]*switchProgramsHome\(\);[\s\S]*\}/);
   assert.match(nativePageNav, /if \(detail\.page === "\/pages\/programs\/index"\) \{[\s\S]*switchProgramsHome\(\);[\s\S]*return;[\s\S]*\}/);
+  assert.match(nativePageNav, /smartBackHome,/);
   assert.equal(nativePageNav.includes("WEB_ROUTES.search"), false);
   assert.equal(fs.existsSync(searchPromptsUrl), true);
   assert.match(searchPrompts, /const DEFAULT_SEARCH_PROMPTS = \[/);
   assert.match(searchPrompts, /"中考作文"/);
   assert.match(searchPrompts, /"亲子关系"/);
   assert.match(searchPrompts, /function startSearchPromptRotation\(page\)/);
+});
+
+test("smartBackHome returns to the previous page or home after share launch", () => {
+  const file = require.resolve("../utils/nativePageNav.js");
+  delete require.cache[file];
+  const originalGetCurrentPages = global.getCurrentPages;
+  const originalNavigateBack = global.wx.navigateBack;
+  const originalSwitchTab = global.wx.switchTab;
+  const backCalls = [];
+  const switchCalls = [];
+
+  try {
+    global.wx.navigateBack = (options) => backCalls.push(options);
+    global.wx.switchTab = (options) => switchCalls.push(options);
+    const { smartBackHome } = require("../utils/nativePageNav.js");
+
+    global.getCurrentPages = () => [{ route: "pages/programs/index" }, { route: "pages/mama-resource-apply/index" }];
+    smartBackHome();
+    assert.deepEqual(backCalls, [{ delta: 1 }]);
+    assert.deepEqual(switchCalls, []);
+
+    backCalls.length = 0;
+    global.getCurrentPages = () => [{ route: "pages/mama-resource-apply/index" }];
+    smartBackHome();
+    assert.deepEqual(backCalls, []);
+    assert.deepEqual(switchCalls, [{ url: "/pages/programs/index" }]);
+  } finally {
+    global.getCurrentPages = originalGetCurrentPages;
+    global.wx.navigateBack = originalNavigateBack;
+    global.wx.switchTab = originalSwitchTab;
+  }
+});
+
+test("back-button pages normalize a root launch into a swipe-back page stack", () => {
+  const file = require.resolve("../utils/nativePageNav.js");
+  delete require.cache[file];
+  const originalGetCurrentPages = global.getCurrentPages;
+  const originalSwitchTab = global.wx.switchTab;
+  const originalNavigateTo = global.wx.navigateTo;
+  const switchCalls = [];
+  const navigateCalls = [];
+
+  try {
+    global.wx.switchTab = (options) => {
+      switchCalls.push(options);
+      if (typeof options.success === "function") options.success();
+    };
+    global.wx.navigateTo = (options) => navigateCalls.push(options);
+    const { ensureBackStackForBackButtonPage } = require("../utils/nativePageNav.js");
+
+    global.getCurrentPages = () => [{ route: "pages/pro/index", options: { from: "settings" } }];
+    assert.equal(ensureBackStackForBackButtonPage({ plan: "plus" }), true);
+    assert.equal(switchCalls[0].url, "/pages/programs/index");
+    assert.deepEqual(navigateCalls, [{ url: "/pages/pro/index?from=settings&plan=plus&xf_back_stack=1" }]);
+
+    switchCalls.length = 0;
+    navigateCalls.length = 0;
+    global.getCurrentPages = () => [
+      { route: "pages/programs/index" },
+      { route: "pages/pro/index", options: { from: "settings" } }
+    ];
+    assert.equal(ensureBackStackForBackButtonPage({ plan: "plus" }), false);
+    assert.deepEqual(switchCalls, []);
+    assert.deepEqual(navigateCalls, []);
+
+    global.getCurrentPages = () => [{ route: "pages/pro/index", options: { xf_back_stack: "1" } }];
+    assert.equal(ensureBackStackForBackButtonPage({ plan: "plus" }), false);
+
+    for (const name of ["pro", "welfare", "mama-resource-apply", "mine/archive", "mine/memory", "mine/settings"]) {
+      const page = readPage(name);
+      assert.match(page.js, /ensureBackStackForBackButtonPage/);
+      assert.match(page.js, /if \(ensureBackStackForBackButtonPage\(options\)\) return;/);
+    }
+  } finally {
+    global.getCurrentPages = originalGetCurrentPages;
+    global.wx.switchTab = originalSwitchTab;
+    global.wx.navigateTo = originalNavigateTo;
+  }
 });
 
 test("openNativeSearch passes the keyword into the native search page", () => {
@@ -653,11 +814,22 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.match(wxml, /wx:for="\{\{messages\}\}"/);
     assert.doesNotMatch(wxml, /class="xf-xiaowanzi-status"/);
     assert.doesNotMatch(wxml, /class="xf-xiaowanzi-error"/);
-    assert.match(wxml, /wx:if="\{\{errorText \|\| actionLabel \|\| attachmentPreviewText\}\}" class="xf-xiaowanzi-inline-status"/);
-    assert.match(wxml, /\{\{errorText \|\| attachmentPreviewText \|\| statusText\}\}/);
+    assert.match(wxml, /wx:if="\{\{errorText \|\| actionLabel\}\}" class="xf-xiaowanzi-inline-status"/);
+    assert.match(wxml, /\{\{errorText \|\| statusText\}\}/);
     assert.match(wxml, /class="xf-xiaowanzi-inline-action"[\s\S]*catchtap="handleActionTap"/);
     assert.match(wxml, /class="xf-xiaowanzi-chat-list \{\{homeMode \? 'is-home' : 'is-chat'\}\} \{\{attachmentMenuOpen \? 'has-attachment-menu' : ''\}\} \{\{shareSelectionMode \? 'has-share-selection' : ''\}\}"/);
     assert.match(wxml, /class="xf-xiaowanzi-composer \{\{attachmentMenuOpen \? 'is-attach-open' : ''\}\}"/);
+    assert.match(wxml, /wx:if="\{\{pendingAttachments\.length\}\}" class="xf-xiaowanzi-attachment-strip"/);
+    assert.match(wxml, /wx:for="\{\{pendingAttachments\}\}" wx:key="path" wx:for-item="attachment"/);
+    assert.match(wxml, /class="xf-xiaowanzi-attachment-image" src="\{\{attachment\.path\}\}" mode="aspectFill"/);
+    assert.match(wxml, /<scroll-view wx:if="\{\{item\.attachments && item\.attachments\.length\}\}" class="xf-xiaowanzi-message-attachments" scroll-x="\{\{true\}\}" enhanced="\{\{true\}\}" show-scrollbar="\{\{false\}\}">/);
+    assert.match(wxml, /class="xf-xiaowanzi-message-attachment-row"/);
+    assert.match(wxml, /wx:for="\{\{item\.attachments\}\}" wx:for-item="attachment" wx:key="key"/);
+    assert.match(wxml, /class="xf-xiaowanzi-message-image" src="\{\{attachment\.path\}\}" mode="aspectFill"/);
+    assert.match(wxml, /class="xf-xiaowanzi-attachment-remove" data-index="\{\{index\}\}" catchtap="removePendingAttachment" aria-label="移除附件"/);
+    assert.doesNotMatch(wxml, /xf-xiaowanzi-attachment-add|aria-label="继续上传"/);
+    assert.match(wxml, /class="xf-xiaowanzi-input-shell[\s\S]*\{\{pendingAttachments\.length \? 'has-attachment-input' : ''\}\}/);
+    assert.match(wxml, /placeholder="\{\{pendingAttachments\.length \? '帮我解读下图片内容' : '对话内容已开启隐私保护'\}\}"/);
     assert.doesNotMatch(wxml, /xf-xiaowanzi-bottom-dock/);
     assert.match(wxml, /bindinput="updateInput"/);
     assert.match(wxml, /catchtap="handleSend"/);
@@ -694,6 +866,12 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assertAssetUnder("../assets/fonts/material-symbols-rounded.woff2", 512 * 1024);
     assert.match(wxss, /@font-face \{[\s\S]*font-family: "Material Symbols Rounded";[\s\S]*src: url\("\/assets\/fonts\/material-symbols-rounded\.woff2"\) format\("woff2"\);/);
     assertPngSize("../assets/xiaowanzi-icons/share-purple.png", 164, 164);
+    assertPngSize("../assets/share/xiaowanzi-nohat-cover.png", 500, 400);
+    assertPngPixelWhite("../assets/share/xiaowanzi-nohat-cover.png", 20, 20);
+    assertPngPixelWhite("../assets/share/xiaowanzi-nohat-cover.png", 100, 100);
+    assertPngPixelWhite("../assets/share/xiaowanzi-nohat-cover.png", 400, 100);
+    assertPngPixelWhite("../assets/share/xiaowanzi-nohat-cover.png", 250, 330);
+    assertPngPixelNotWhite("../assets/share/xiaowanzi-nohat-cover.png", 250, 120);
     assertSameTextFile("../assets/xiaowanzi-icons/share-wechat-friend.svg", "../../../frontend/public/assets/xiaowanzi-icons/share-wechat-friend.svg");
     assertSameTextFile("../assets/xiaowanzi-icons/share-image-card.svg", "../../../frontend/public/assets/xiaowanzi-icons/share-image-card.svg");
     assertSameTextFile("../assets/xiaowanzi-icons/share-copy-content.svg", "../../../frontend/public/assets/xiaowanzi-icons/share-copy-content.svg");
@@ -760,12 +938,12 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.match(wxml, /<block wx:else>[\s\S]*wx:for="\{\{messages\}\}"[\s\S]*<\/view>\s*<view id="xiaowanziChildHint" class="xf-xiaowanzi-child-hint">[\s\S]*\{\{childHintText\}\}[\s\S]*catchtap="openNativeChildPicker"[\s\S]*<\/view>\s*<\/block>/);
     assert.doesNotMatch(wxml, /class="xf-xiaowanzi-composer[\s\S]*?<view class="xf-xiaowanzi-child-hint"/);
     assert.match(wxss, /\.xf-xiaowanzi-input-row \{[\s\S]*transform: translateY\(-25px\);/);
-    assert.match(wxml, /class="xf-xiaowanzi-input-shell \{\{inputReady \? 'can-send' : ''\}\} \{\{inputValue \? 'has-typed-input' : ''\}\} \{\{inputFocused \? 'is-input-focused' : ''\}\} \{\{!inputValue && !inputFocused \? 'is-placeholder' : ''\}\} \{\{sendPressing \? 'send-pressing' : ''\}\} \{\{sending \? 'is-sending' : ''\}\}"/);
+    assert.match(wxml, /class="xf-xiaowanzi-input-shell \{\{inputReady \? 'can-send' : ''\}\} \{\{inputValue \? 'has-typed-input' : ''\}\} \{\{pendingAttachments\.length \? 'has-attachment-input' : ''\}\} \{\{inputFocused \? 'is-input-focused' : ''\}\} \{\{!inputValue && !inputFocused \? 'is-placeholder' : ''\}\} \{\{sendPressing \? 'send-pressing' : ''\}\} \{\{sending \? 'is-sending' : ''\}\}"/);
     assert.match(wxml, /class="xf-xiaowanzi-voice" hover-class="is-pressed" catchtap="toggleVoiceInput" aria-label="语音输入"/);
     assert.doesNotMatch(wxml, /bindtouchstart="startVoicePress"|bindtouchend="endVoicePress"/);
     assert.match(wxml, /class="xf-xiaowanzi-voice-icon" src="\/assets\/xiaowanzi-icons\/voice-dark\.png" mode="aspectFit"/);
     assert.doesNotMatch(wxml, /class="xf-xiaowanzi-voice-person"|class="xf-xiaowanzi-voice-wave/);
-    assert.match(wxml, /placeholder="对话内容已开启隐私保护"[\s\S]*bindfocus="handleInputFocus"[\s\S]*bindblur="handleInputBlur"/);
+    assert.match(wxml, /placeholder="\{\{pendingAttachments\.length \? '帮我解读下图片内容' : '对话内容已开启隐私保护'\}\}"[\s\S]*bindfocus="handleInputFocus"[\s\S]*bindblur="handleInputBlur"/);
     assert.match(wxml, /class="xf-xiaowanzi-send \{\{sending \? 'is-stop' : 'is-send'\}\} \{\{sendPressing \? 'is-pressing' : ''\}\}" hover-class="is-pressed" disabled="\{\{!sending && !inputReady\}\}" bindtouchstart="startSendPress" bindtouchend="endSendPress" bindtouchcancel="endSendPress" catchtap="handleSend" aria-label="\{\{sending \? '停止生成' : '发送'\}\}"/);
     assert.match(wxml, /class="xf-xiaowanzi-send-mark" src="\{\{sending \? '\/assets\/xiaowanzi-icons\/stop-white\.png' : '\/assets\/xiaowanzi-icons\/send-white\.png'\}\}" mode="aspectFit"/);
     assert.match(wxml, /class="xf-xiaowanzi-plus \{\{attachmentMenuOpen \? 'is-open' : ''\}\}"[\s\S]*catchtap="toggleAttachmentMenu"[\s\S]*aria-label="\{\{attachmentMenuOpen \? '收起更多' : '更多'\}\}"/);
@@ -805,7 +983,8 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.match(wxml, /class="xf-xiaowanzi-share-select-head"[\s\S]*选择对话[\s\S]*取消/);
     assert.match(wxml, /将\{\{shareRoundCount\}\}轮对话分享至/);
     assert.match(wxml, /class="xf-xiaowanzi-share-select-channels"[\s\S]*class="xf-xiaowanzi-share-channel-row"/);
-    assert.match(wxml, /class="xf-xiaowanzi-share-channel" hover-class="is-pressed" open-type="share" disabled="\{\{!selectedMessageIds\.length\}\}"[\s\S]*class="xf-xiaowanzi-share-channel-icon is-wechat"[\s\S]*src="\/assets\/xiaowanzi-icons\/share-wechat-friend\.svg"[\s\S]*微信好友/);
+    assert.match(wxml, /class="xf-xiaowanzi-share-channel" hover-class="is-pressed" open-type="share" disabled="\{\{!selectedMessageIds\.length \|\| selectedSharePreparing \|\| !selectedConversationShareId\}\}"[\s\S]*class="xf-xiaowanzi-share-channel-icon is-wechat"[\s\S]*src="\/assets\/xiaowanzi-icons\/share-wechat-friend\.svg"[\s\S]*\{\{selectedSharePreparing \? '准备中' : '微信好友'\}\}/);
+    assert.match(wxml, /wx:if="\{\{selectedShareError\}\}" class="xf-xiaowanzi-share-error"/);
     assert.match(wxml, /hover-class="is-pressed" catchtap="generateShareImage" disabled="\{\{!selectedMessageIds\.length \|\| shareImageGenerating\}\}"[\s\S]*class="xf-xiaowanzi-share-channel-icon is-image"[\s\S]*src="\/assets\/xiaowanzi-icons\/share-image-card\.svg"[\s\S]*\{\{shareImageGenerating \? '生成中' : '生成图片'\}\}/);
     assert.match(wxml, /catchtap="copySelectedMessages"[\s\S]*class="xf-xiaowanzi-share-channel-icon is-copy"[\s\S]*src="\/assets\/xiaowanzi-icons\/share-copy-content\.svg"[\s\S]*复制内容/);
     assert.doesNotMatch(wxml, /forum|add_photo_alternate|content_copy/);
@@ -851,14 +1030,14 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.match(wxss, /\.xf-xiaowanzi-chat-list\.is-home \{[\s\S]*bottom: 84px;[\s\S]*padding: 0 28rpx 12px;/);
     assert.doesNotMatch(wxss, /\.xf-xiaowanzi-chat-list(?:\.is-home)? \{[^}]*padding: 0 28rpx calc\(104px \+ env\(safe-area-inset-bottom\)\);/);
     assert.doesNotMatch(wxss, /\.xf-xiaowanzi-chat-list(?:\.is-home)? \{[^}]*(?:bottom|padding):[^;}]*env\(safe-area-inset-bottom\)/);
-    assert.match(wxss, /\.xf-xiaowanzi-chat-list\.has-attachment-menu \{[\s\S]*bottom: calc\(211px \+ env\(safe-area-inset-bottom\)\);/);
+    assert.match(wxss, /\.xf-xiaowanzi-chat-list\.has-attachment-menu \{[\s\S]*bottom: calc\(170px \+ env\(safe-area-inset-bottom\)\);/);
     assert.match(wxss, /\.xf-xiaowanzi-chat-list\.has-share-selection \{[\s\S]*z-index: 85;/);
     assert.match(wxss, /\.xf-xiaowanzi-share-select-backdrop \{[\s\S]*z-index: 80;/);
     assert.match(wxss, /\.xf-xiaowanzi-share-select-panel \{[\s\S]*z-index: 95;/);
-    assert.match(wxss, /\.xf-xiaowanzi-home \{[\s\S]*padding: 132rpx 0 40rpx;/);
-    assert.match(wxss, /\.xf-xiaowanzi-chat-list\.has-attachment-menu \.xf-xiaowanzi-home \{[\s\S]*padding-top: 112rpx;/);
-    assert.match(wxss, /\.xf-xiaowanzi-chat-list\.has-attachment-menu \.xf-xiaowanzi-hero \{[\s\S]*min-height: 336rpx;[\s\S]*padding-bottom: 24rpx;/);
-    assert.match(wxss, /\.xf-xiaowanzi-hero \{[\s\S]*min-height: 168px;[\s\S]*padding: 0 8px 18rpx 4px;/);
+    assert.match(wxss, /\.xf-xiaowanzi-home \{[\s\S]*padding: calc\(44rpx \+ 5px\) 0 40rpx;/);
+    assert.match(wxss, /\.xf-xiaowanzi-chat-list\.has-attachment-menu \.xf-xiaowanzi-home \{[\s\S]*padding-top: 60rpx;/);
+    assert.match(wxss, /\.xf-xiaowanzi-chat-list\.has-attachment-menu \.xf-xiaowanzi-hero \{[\s\S]*min-height: 132px;[\s\S]*padding-bottom: 12rpx;/);
+    assert.match(wxss, /\.xf-xiaowanzi-hero \{[\s\S]*min-height: 132px;[\s\S]*padding: 0 8px 8rpx 4px;/);
     assert.match(wxss, /\.xf-xiaowanzi-hero-bot \{[\s\S]*width: 132px;[\s\S]*height: 132px;[\s\S]*margin-right: 20px;/);
     assert.match(wxss, /\.xf-xiaowanzi-hello-row \{[\s\S]*gap: 8px;[\s\S]*margin-bottom: 8px;/);
     assert.match(wxss, /\.xf-xiaowanzi-hello \{[\s\S]*font-size: 24px;[\s\S]*animation: xfXiaowanziHomeHelloIn 0\.38s 0\.58s cubic-bezier\(0\.2, 0\.9, 0\.22, 1\) both;/);
@@ -901,6 +1080,9 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.doesNotMatch(wxss, /xf-xiaowanzi-featured-prompt/);
     assert.doesNotMatch(wxss, /xf-xiaowanzi-welfare-entry|xf-xiaowanzi-share-entry|xf-xiaowanzi-logo/);
     assert.match(wxss, /\.xf-xiaowanzi-user-bubble \{[\s\S]*border-radius: 34rpx 8rpx 34rpx 34rpx;[\s\S]*background: linear-gradient\(108deg, #5368ff 0%, #6847ff 56%, #601bec 100%\);[\s\S]*font-weight: 500;[\s\S]*box-shadow: 0 14rpx 32rpx rgba\(96, 27, 236, 0\.2\);/);
+    assert.match(wxss, /\.xf-xiaowanzi-message-attachments \{[\s\S]*display: block;[\s\S]*max-width: 386rpx;[\s\S]*white-space: nowrap;/);
+    assert.match(wxss, /\.xf-xiaowanzi-message-attachment-row \{[\s\S]*display: inline-flex;[\s\S]*gap: 12rpx;/);
+    assert.match(wxss, /\.xf-xiaowanzi-message-image \{[\s\S]*flex: 0 0 auto;[\s\S]*width: 72px;[\s\S]*height: 72px;[\s\S]*border-radius: 22rpx;/);
     assert.match(wxss, /\.xf-xiaowanzi-home-message \.xf-xiaowanzi-user-bubble \{[\s\S]*min-width: 404rpx;[\s\S]*max-width: 600rpx;[\s\S]*padding: 28rpx 42rpx 30rpx;[\s\S]*font-size: 30rpx;[\s\S]*font-weight: 500;[\s\S]*line-height: 1\.42;[\s\S]*text-align: left;[\s\S]*box-shadow: 0 18rpx 42rpx rgba\(96, 27, 236, 0\.22\);/);
     assert.doesNotMatch(wxss, /\.xf-xiaowanzi-(?:home-user-preview text|user-bubble) \{[\s\S]*linear-gradient\(90deg, rgba\(255, 255, 255, 0\.22\)/);
     assert.match(wxss, /\.xf-xiaowanzi-home-assistant-wrap \{[\s\S]*flex: 1 1 auto;[\s\S]*min-width: 0;[\s\S]*padding-bottom: 0;/);
@@ -925,16 +1107,17 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.match(wxss, /\.xf-xiaowanzi-child-picker-sheet \{[\s\S]*bottom: 0;[\s\S]*background: #fbf9ff;/);
     assert.doesNotMatch(wxss, /\.xf-xiaowanzi-child-hint \{[^}]*position:\s*(fixed|sticky|absolute)/);
     const composerBlock = wxss.match(/\.xf-xiaowanzi-composer \{[^}]*\}/)?.[0] || "";
-    assert.match(wxml, /<view class="xf-xiaowanzi-composer \{\{attachmentMenuOpen \? 'is-attach-open' : ''\}\}">\s*<view class="xf-xiaowanzi-composer-feather" aria-hidden="true"><\/view>/);
+    assert.match(wxml, /<view class="xf-xiaowanzi-composer \{\{attachmentMenuOpen \? 'is-attach-open' : ''\}\}">/);
+    assert.doesNotMatch(wxml, /xf-xiaowanzi-composer-feather/);
     assert.match(wxss, /\.xf-xiaowanzi-composer \{[\s\S]*z-index: 31;[\s\S]*padding: 0 30px 0;[\s\S]*background: transparent;[\s\S]*isolation: isolate;/);
-    assert.match(wxss, /\.xf-xiaowanzi-composer-feather \{[\s\S]*top: -82px;[\s\S]*bottom: 0;[\s\S]*pointer-events: none;[\s\S]*background: linear-gradient\(180deg, rgba\(242, 241, 255, 0\) 0%, rgba\(241, 242, 255, 0\.1\) 30%, rgba\(238, 241, 255, 0\.36\) 58%, rgba\(235, 239, 255, 0\.68\) 82%, rgba\(235, 239, 255, 0\.88\) 100%\);/);
+    assert.doesNotMatch(wxss, /\.xf-xiaowanzi-composer-feather|top: -48px|rgba\(238, 241, 255, 0\.36\)/);
     assert.doesNotMatch(wxss, /rgba\(232, 236, 255, 0\.82\)/);
     assert.doesNotMatch(wxss, /\.xf-xiaowanzi-composer::before|top: -142px/);
     assert.doesNotMatch(wxss, /\.xf-xiaowanzi-composer \{[^}]*env\(safe-area-inset-bottom\)/);
     assert.equal((composerBlock.match(/background:/g) || []).length, 1);
     assert.match(composerBlock, /background: transparent;/);
     assert.doesNotMatch(wxss, /xf-xiaowanzi-bottom-dock/);
-    assert.match(wxss, /\.xf-xiaowanzi-composer\.is-attach-open \{[\s\S]*padding-bottom: calc\(150px \+ env\(safe-area-inset-bottom\)\);/);
+    assert.match(wxss, /\.xf-xiaowanzi-composer\.is-attach-open \{[\s\S]*padding-bottom: calc\(112px \+ env\(safe-area-inset-bottom\)\);/);
     assert.doesNotMatch(wxss, /\.xf-xiaowanzi-bottom-dock\.menu-open/);
     assert.doesNotMatch(wxss, /\.xf-xiaowanzi-composer(?:::after|\.is-attach-open::before|\.is-attach-open::after)/);
     assert.doesNotMatch(wxss, /\.xf-xiaowanzi-composer\.is-attach-open \.xf-xiaowanzi-child-hint/);
@@ -970,7 +1153,7 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.match(wxss, /\.xf-xiaowanzi-plus\.is-open \{[\s\S]*color: #5b48ff;/);
     assert.match(wxss, /\.xf-xiaowanzi-plus-mark \{[\s\S]*width: 17\.6px;[\s\S]*height: 17\.6px;/);
     assert.doesNotMatch(wxss, /\.xf-xiaowanzi-plus-mark::before|\.xf-xiaowanzi-plus-mark::after|\.xf-xiaowanzi-plus\.is-open \.xf-xiaowanzi-plus-mark \{[\s\S]*rotate/);
-    assert.match(wxss, /\.xf-xiaowanzi-composer\.is-attach-open \{[\s\S]*z-index: 33;[\s\S]*padding-bottom: calc\(150px \+ env\(safe-area-inset-bottom\)\);/);
+    assert.match(wxss, /\.xf-xiaowanzi-composer\.is-attach-open \{[\s\S]*z-index: 33;[\s\S]*padding-bottom: calc\(112px \+ env\(safe-area-inset-bottom\)\);/);
     assert.match(wxss, /\.xf-xiaowanzi-attach-menu \{[\s\S]*position: fixed;[\s\S]*left: 30px;[\s\S]*right: 30px;[\s\S]*bottom: calc\(24px \+ env\(safe-area-inset-bottom\)\);[\s\S]*z-index: 34;[\s\S]*grid-template-columns: repeat\(3, 1fr\);[\s\S]*gap: 18px;/);
     assert.doesNotMatch(wxss, /\.xf-xiaowanzi-attach-menu \{[\s\S]*bottom: calc\(118px \+ env\(safe-area-inset-bottom\)\);/);
     assert.doesNotMatch(wxss, /\.xf-xiaowanzi-attach-menu::before|\.xf-xiaowanzi-attach-menu::after/);
@@ -992,13 +1175,12 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.match(wxss, /\.xf-xiaowanzi-history-title \{[\s\S]*font-size: 44rpx;[\s\S]*font-weight: 700;/);
     assert.match(wxss, /\.xf-xiaowanzi-history-list \{[\s\S]*display: flex;[\s\S]*flex-direction: column;[\s\S]*gap: 0;[\s\S]*padding-bottom: 0;/);
     assert.doesNotMatch(wxss.match(/\.xf-xiaowanzi-history-list \{[^}]*\}/)?.[0] || "", /calc\(126rpx \+ env\(safe-area-inset-bottom\)\)|env\(safe-area-inset-bottom\)/);
-    assert.match(wxss, /\.xf-xiaowanzi-history-card \{[\s\S]*flex-direction: column;[\s\S]*align-items: flex-start;[\s\S]*margin-bottom: 10px;[\s\S]*padding: 14px 14px 13px;[\s\S]*border-radius: 16px;/);
-    assert.doesNotMatch(wxss.match(/\.xf-xiaowanzi-history-card \{[^}]*\}/)?.[0] || "", /\b(?:min-)?height\s*:/);
+    assert.match(wxss, /\.xf-xiaowanzi-history-card \{[\s\S]*flex-direction: column;[\s\S]*flex-shrink: 0;[\s\S]*align-items: flex-start;[\s\S]*height: 80px;[\s\S]*margin-bottom: 10px;[\s\S]*padding: 10px 14px;[\s\S]*border-radius: 16px;[\s\S]*overflow: hidden;/);
     assert.match(wxss, /\.xf-xiaowanzi-history-card:last-child \{[\s\S]*margin-bottom: 0;/);
     assert.doesNotMatch(wxss, /\.xf-xiaowanzi-history-card \{[^}]*margin-bottom: 20rpx;/);
-    assert.match(wxss, /\.xf-xiaowanzi-history-card-title \{[\s\S]*display: block;[\s\S]*width: 100%;[\s\S]*font-size: 14px;[\s\S]*line-height: 22px;[\s\S]*overflow-wrap: anywhere;[\s\S]*white-space: normal;[\s\S]*word-break: break-word;/);
-    assert.match(wxss, /\.xf-xiaowanzi-history-card-time \{[\s\S]*margin-top: 4px;[\s\S]*color: #9eb0cf;[\s\S]*font-size: 12px;[\s\S]*line-height: 15px;/);
-    assert.match(wxss, /\.xf-xiaowanzi-history-card-child \{[\s\S]*margin-top: 8px;[\s\S]*color: #5c47ff;[\s\S]*font-size: 13px;[\s\S]*line-height: 16px;/);
+    assert.match(wxss, /\.xf-xiaowanzi-history-card-title \{[\s\S]*display: block;[\s\S]*width: 100%;[\s\S]*font-size: 14px;[\s\S]*line-height: 20px;[\s\S]*overflow: hidden;[\s\S]*text-overflow: ellipsis;[\s\S]*white-space: nowrap;[\s\S]*word-break: normal;/);
+    assert.match(wxss, /\.xf-xiaowanzi-history-card-time \{[\s\S]*margin-top: 3px;[\s\S]*color: #9eb0cf;[\s\S]*font-size: 12px;[\s\S]*line-height: 14px;/);
+    assert.match(wxss, /\.xf-xiaowanzi-history-card-child \{[\s\S]*margin-top: 4px;[\s\S]*color: #5c47ff;[\s\S]*font-size: 13px;[\s\S]*line-height: 16px;/);
     assert.match(wxml, /<view wx:for="\{\{historyCards\}\}"[\s\S]*class="xf-xiaowanzi-history-card"[\s\S]*class="xf-xiaowanzi-history-card-title">\{\{item\.title\}\}<\/text>[\s\S]*class="xf-xiaowanzi-history-card-time">\{\{item\.sub\}\}<\/text>[\s\S]*wx:if="\{\{item\.childTag\}\}" class="xf-xiaowanzi-history-card-child">\{\{item\.childTag\}\}<\/text>[\s\S]*<\/view>/);
     assert.match(wxss, /\.xf-xiaowanzi-history-empty \{[\s\S]*align-items: center;[\s\S]*min-height: 0;[\s\S]*padding: 48rpx 16rpx;[\s\S]*border-radius: 32rpx;[\s\S]*background: #ffffff;[\s\S]*text-align: center;/);
     assert.match(wxss, /\.xf-xiaowanzi-history-empty-title \{[\s\S]*font-size: 28rpx;[\s\S]*font-weight: 400;/);
@@ -1086,7 +1268,7 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.match(js, /function hasComposerContent\(data\)/);
     assert.match(js, /function buildComposerContent\(text, attachmentContextText\)/);
     assert.match(js, /function getRequestMessage\(error, fallback\) \{[\s\S]*\^request:fail[\s\S]*return fallback \|\| "网络连接失败，请稍后重试。";/);
-    assert.match(js, /function buildAttachmentState\(type, file\)/);
+    assert.match(js, /function buildAttachmentState\(type, file, recognition\)/);
     assert.match(js, /function normalizeSpeechText\(result\)/);
     assert.match(js, /function mergeSpeechInput\(currentValue, recognizedText\)/);
     assert.match(js, /toggleVoiceInput\(\) \{[\s\S]*this\.showToast\("语音输入正在开发中"\);[\s\S]*\}/);
@@ -1099,7 +1281,11 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.match(js, /handleInputBlur\(\) \{[\s\S]*this\.setData\(\{ inputFocused: false \}\);[\s\S]*\}/);
     assert.match(js, /useQuickPrompt\(event\) \{[\s\S]*const prompt = value\.trim\(\);[\s\S]*if \(!prompt \|\| this\.data\.sending\) return;[\s\S]*this\.setData\(\{ inputValue: "", inputReady: true, selectedHomePrompt: prompt, sendPressing: false, attachmentMenuOpen: false, voiceListening: false, voiceHolding: false, errorText: "", actionLabel: "", actionType: "", scrollIntoView: "xiaowanziChildHint" \}, \(\) => \{[\s\S]*this\.handleSend\(\);[\s\S]*\}\);[\s\S]*\}/);
     assert.match(js, /const visibleContent = String\(this\.data\.inputValue \|\| this\.data\.selectedHomePrompt \|\| ""\)\.trim\(\);/);
-    assert.match(js, /const content = buildComposerContent\(visibleContent, attachmentContextText\);/);
+    assert.match(js, /const pendingAttachments = normalizePendingAttachments\(this\.data\.pendingAttachments\);/);
+    assert.match(js, /const hasPendingAttachments = pendingAttachments\.length > 0;/);
+    assert.match(js, /const visibleMessageContent = visibleContent \|\| \(hasPendingAttachments \? "帮我解读下图片内容" : attachmentPreviewText \|\| "已添加附件"\);/);
+    assert.match(js, /const attachmentContextPromise = hasPendingAttachments[\s\S]*recognizePendingAttachments\(pendingAttachments\)[\s\S]*: Promise\.resolve\(attachmentContextText\);/);
+    assert.match(js, /const content = buildComposerContent\(visibleContent \|\| \(hasPendingAttachments \? "帮我解读下图片内容" : ""\), resolvedAttachmentContextText\);/);
     assert.match(js, /const keepHomeConversation = Boolean\(this\.data\.homeMode\);/);
     assert.match(js, /homeConversationMessages: keepHomeConversation \? buildHomeConversationMessages\(nextMessages\) : \[\]/);
     assert.match(js, /homeMode: keepHomeConversation/);
@@ -1112,8 +1298,12 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.match(js, /function buildHistoryCards\(messages, childName\)/);
     assert.match(js, /openHistoryDrawer\(\)/);
     assert.match(js, /startNewConversation\(\)/);
-    assert.match(js, /toggleAttachmentMenu\(\) \{[\s\S]*const attachmentMenuOpen = !this\.data\.attachmentMenuOpen;[\s\S]*voiceListening: false,[\s\S]*voiceHolding: false,[\s\S]*scrollIntoView: attachmentMenuOpen && this\.data\.homeMode \? "xiaowanziPromptPanel" : this\.data\.scrollIntoView/);
-    assert.match(js, /chooseAttachment\(event\)[\s\S]*type === "camera" \|\| type === "image" \|\| type === "file"[\s\S]*this\.showToast\("相关功能正在开发中"\)/);
+    assert.match(js, /toggleAttachmentMenu\(\) \{[\s\S]*const attachmentMenuOpen = !this\.data\.attachmentMenuOpen;[\s\S]*this\.attachmentMenuOpenedAt = attachmentMenuOpen \? Date\.now\(\) : 0;[\s\S]*voiceListening: false,[\s\S]*voiceHolding: false,[\s\S]*scrollIntoView: this\.data\.scrollIntoView/);
+    assert.match(js, /function buildPendingAttachment\(type, file, dataUrl\)/);
+    assert.match(js, /pendingAttachments: \[\]/);
+    assert.match(js, /chooseAttachment\(event\)[\s\S]*chooseNativeAttachment\(type\)[\s\S]*readAttachmentDataUrl\(file, type\)[\s\S]*buildPendingAttachment\(type, file, dataUrl\)[\s\S]*pendingAttachments: nextPendingAttachments/);
+    assert.doesNotMatch(js, /this\.showToast\("图片已上传，发送后解析"\)/);
+    assert.match(js, /removePendingAttachment\(event\) \{[\s\S]*const index = Number\(event[\s\S]*pendingAttachments: nextPendingAttachments,[\s\S]*attachmentPreviewText: buildPendingAttachmentPreviewText\(nextPendingAttachments\)/);
     assert.match(js, /const SHARE_REVEAL_HIDE_DELAY_MS = 5000/);
     assert.match(js, /shareRevealMessageId: ""/);
     assert.match(js, /handleMessageTap\(event\) \{[\s\S]*if \(!this\.data\.shareSelectionMode\) \{[\s\S]*dataset\.role === "assistant"[\s\S]*this\.revealShareButton\(String\(dataset\.id \|\| ""\)\);[\s\S]*return;[\s\S]*\}[\s\S]*this\.toggleShareMessage\(event\);/);
@@ -1122,17 +1312,27 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.match(js, /openShareSelectionFromMessage\(event\)/);
     assert.match(js, /copySelectedMessages\(\)/);
     assert.match(js, /const SHARE_CARD_LOGO_IMAGE = "\/assets\/xiaowanzi-icons\/share-logo\.png"/);
-    assert.match(js, /const SHARE_CARD_QR_FILE_PREFIX = "xiaowanzi-conversation-qrcode"/);
+    assert.match(js, /const SHARE_CARD_QR_FILE_PREFIX = "xiaowanzi-conversation-qrcode-transparent-v2"/);
+    assert.match(js, /const SHARE_CARD_QR_CACHE_VERSION = "transparent-v2"/);
     assert.doesNotMatch(js, /SHARE_CARD_QR_IMAGE/);
-    assert.match(js, /ctx\.drawImage\(SHARE_CARD_LOGO_IMAGE, 265, 74, 220, 71\)/);
+    assert.match(js, /function drawShareCanvasPageBackground\(ctx, canvasHeight\)/);
+    assert.match(js, /function drawShareCanvasTopbar\(ctx\)/);
+    assert.match(js, /ctx\.drawImage\(SHARE_CARD_LOGO_IMAGE, topbar\.logoX, topbar\.logoY, topbar\.logoWidth, topbar\.logoHeight\)/);
+    assert.doesNotMatch(js, /ctx\.fillText\("09:26"/);
+    assert.doesNotMatch(js, /topbar\.capsuleX/);
+    assert.doesNotMatch(js, /rgba\(255, 228, 236, 0\.5\)|rgba\(211, 218, 255, 0\.5\)/);
+    assert.doesNotMatch(js, /ctx\.fillText\("先疯智库"/);
+    assert.doesNotMatch(js, /ctx\.drawImage\(XIAOWANZI_AVATAR_IMAGE, topbar\.avatarX/);
     assert.match(js, /const shareCanvasHeight = measureShareImageCanvasHeight\(ctx, messages\);/);
-    assert.match(js, /ctx\.setFillStyle\("#f8f7fc"\);[\s\S]*ctx\.fillRect\(0, 0, SHARE_CANVAS_WIDTH, canvasHeight\);/);
-    assert.match(js, /const SHARE_CANVAS_CONTENT_LEFT = 20;/);
-    assert.match(js, /const contentLeft = SHARE_CANVAS_CONTENT_LEFT;/);
-    assert.match(js, /const userMaxWidth = 584;/);
+    assert.match(js, /createShareCanvasLinearGradient\(ctx, 0, 0, 0, canvasHeight/);
+    assert.match(js, /const SHARE_CANVAS_CONTENT_LEFT = 28;/);
+    assert.match(js, /const contentLeft = SHARE_CANVAS_CHAT_STYLE\.contentLeft;/);
+    assert.match(js, /const userMaxWidth = style\.user\.maxWidth;/);
     assert.match(js, /const assistantMaxWidth = contentWidth;/);
+    assert.match(js, /\? Math\.max\(120, Math\.min\(Math\.max\(measuredWidth, measuredReferenceWidth\) \+ bubblePadX \* 2, maxBubbleWidth\)\)[\s\S]*: maxBubbleWidth;/);
     assert.match(js, /contentLeft \+ contentWidth - message\.bubbleWidth/);
-    assert.match(js, /ctx\.setFillStyle\(message\.isUser \? "#6d3ff2" : "#ffffff"\);/);
+    assert.match(js, /style\.user\.gradientStart/);
+    assert.match(js, /: style\.assistant\.background\);/);
     assert.match(js, /function getCenteredUserBubbleTextOffset\(message\)/);
     assert.match(js, /const textY = y \+ getCenteredUserBubbleTextOffset\(message\) \+ message\.fontSize;/);
     assert.doesNotMatch(js, /messages\.slice\(0, 4\)/);
@@ -1969,7 +2169,7 @@ test("Xiaowanzi child picker links selection and shared archive creation", () =>
 
     assert.equal(context.data.childPickerOpen, true);
     assert.equal(context.data.settingsPanelOpen, false);
-    assert.equal(context.data.attachmentMenuOpen, false);
+    assert.equal(context.data.attachmentMenuOpen, true);
     assert.equal(context.data.historyDrawerOpen, false);
     assert.equal(context.data.shareSelectionMode, false);
     assert.equal(context.data.shareRevealMessageId, "");
@@ -2034,6 +2234,39 @@ test("Xiaowanzi child picker links selection and shared archive creation", () =>
     assert.equal(emptyContext.data.archiveChildren[0].selected, true);
     assert.equal(emptyContext.data.archiveDraft.displayName, "");
     assert.equal(emptyContext.data.profilePanelMessage, "");
+  } finally {
+    global.wx.getStorageSync = originalGetStorageSync;
+  }
+});
+
+test("Xiaowanzi child picker hides grade when child archive has no grade", () => {
+  const definition = loadPageDefinition("xiaowanzi");
+  const originalGetStorageSync = global.wx.getStorageSync;
+  const storage = new Map([
+    ["xf_child_profiles", [
+      { id: "child-1", displayName: "测试", relation: "儿子", birthDate: "2026-07-06", grade: "", city: "上海", region: "" }
+    ]],
+    ["xiaowanzi_last_child_id_v1", "child-1"]
+  ]);
+  const context = {
+    ...definition,
+    data: {
+      ...definition.data
+    },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    },
+    getTabBar() {
+      return { setData() {} };
+    }
+  };
+
+  try {
+    global.wx.getStorageSync = (key) => storage.get(key) || "";
+
+    definition.openNativeChildPicker.call(context);
+
+    assert.deepEqual(context.data.childPickerCards.map((child) => [child.id, child.displayName, child.tag, child.grade]), [["child-1", "测试", "儿子", ""]]);
   } finally {
     global.wx.getStorageSync = originalGetStorageSync;
   }
@@ -2374,9 +2607,11 @@ test("Xiaowanzi assistant cards format Markdown-like document replies", async ()
   const originalRequest = global.wx.request;
   const originalGetStorageSync = global.wx.getStorageSync;
   const originalSetStorageSync = global.wx.setStorageSync;
+  const originalNavigateTo = global.wx.navigateTo;
   const originalGetWindowInfo = global.wx.getWindowInfo;
   const originalGetMenuButtonBoundingClientRect = global.wx.getMenuButtonBoundingClientRect;
   const storage = new Map([["xf_token", "token-1"]]);
+  const referencePath = "/topics/you-er-bao-hu-yan-jing?xw_layer=1&xw_return=xiaowanzi";
   const markdownReply = [
     "哎呀，这句话有点小模糊哦～我来猜猜看～",
     "",
@@ -2388,8 +2623,13 @@ test("Xiaowanzi assistant cards format Markdown-like document replies", async ()
     "",
     "对于新生儿来说，**现在就是让宝宝“做主”的时候** 😂！比如：",
     "- 宝宝张嘴找乳头/奶嘴时→让喂奶",
-    "- 宝宝揉眼睛打哈欠时→让睡觉"
+    "- 宝宝揉眼睛打哈欠时→让睡觉",
+    "",
+    `[046.对话从业20年儿科主任：孩子明明很健康，为什么还要定期做儿保？](${referencePath})`,
+    "",
+    "慢慢来，育儿路上小玩子随时陪你～"
   ].join("\n");
+  const navigations = [];
   const context = {
     ...definition,
     data: {
@@ -2422,6 +2662,9 @@ test("Xiaowanzi assistant cards format Markdown-like document replies", async ()
       }
       options.success({ statusCode: 200, data: {} });
     };
+    global.wx.navigateTo = (options) => {
+      navigations.push(options);
+    };
 
     definition.handleSend.call(context);
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -2435,13 +2678,30 @@ test("Xiaowanzi assistant cards format Markdown-like document replies", async ()
       "md_heading",
       "md_paragraph",
       "md_list_item",
-      "md_list_item"
+      "md_list_item",
+      "link",
+      "md_paragraph"
     ]);
     assert.equal(assistant.contentParts[1].text, "如果是问“什么时候让宝宝做某件事”，比如开始某种训练或培养习惯：");
     assert.doesNotMatch(assistant.contentParts[1].text, /\*\*/);
     assert.equal(assistant.contentParts[4].text, "对于新生儿来说，现在就是让宝宝“做主”的时候 😂！比如：");
     assert.equal(assistant.contentParts[5].text, "宝宝张嘴找乳头/奶嘴时→让喂奶");
+    assert.equal(assistant.contentParts[7].text, "046.对话从业20年儿科主任：孩子明明很健康，为什么还要定期做儿保？");
+    assert.equal(assistant.contentParts[7].url, referencePath);
+    assert.equal(assistant.contentParts[8].text, "慢慢来，育儿路上小玩子随时陪你～");
     assert.equal(context.data.homeConversationMessages.at(-1).contentParts[1].type, "md_heading");
+    assert.equal(context.data.homeConversationMessages.at(-1).contentParts[7].type, "link");
+
+    definition.openMessageLink.call(context, {
+      currentTarget: {
+        dataset: {
+          url: assistant.contentParts[7].url,
+          title: assistant.contentParts[7].text
+        }
+      }
+    });
+    assert.equal(navigations.length, 1);
+    assert.match(decodeURIComponent(navigations[0].url), /\/topics\/you-er-bao-hu-yan-jing/);
 
     const { wxml, wxss } = readPage("xiaowanzi");
     assert.match(wxml, /part\.type === 'md_heading'/);
@@ -2452,6 +2712,7 @@ test("Xiaowanzi assistant cards format Markdown-like document replies", async ()
     global.wx.request = originalRequest;
     global.wx.getStorageSync = originalGetStorageSync;
     global.wx.setStorageSync = originalSetStorageSync;
+    global.wx.navigateTo = originalNavigateTo;
     global.wx.getWindowInfo = originalGetWindowInfo;
     global.wx.getMenuButtonBoundingClientRect = originalGetMenuButtonBoundingClientRect;
   }
@@ -2555,18 +2816,30 @@ test("Xiaowanzi share image uses native canvas preview instead of placeholder to
   assert.doesNotMatch(js, /drawRoundRect\(ctx, qrPanelX, qrPanelY, qrPanelWidth, qrPanelHeight, 34\);/);
   assert.match(js, /function buildShareMarkdownDocumentContentParts\(content\)/);
   assert.match(js, /function shareCanvasLineTopGap\(lines, index\)/);
-  assert.match(js, /function shareCanvasLinkMetrics\(ctx, text, fontSize\)/);
+  assert.match(js, /function shareCanvasSiteCardBottomGap\(lines, index\)/);
+  assert.match(js, /function shareCanvasLinkMetrics\(ctx, text, fontSize, maxWidth\)/);
+  assert.match(js, /function drawShareCanvasSiteCard\(ctx, line, x, y, width, fontSize\)/);
+  assert.match(js, /function drawShareCanvasSiteCardArrow\(ctx, x, y, size\)/);
+  assert.doesNotMatch(js, /ctx\.fillText\("↗"/);
   assert.match(js, /buildShareCanvasContentParts\(message\.content, message\.contentParts\)/);
   assert.match(js, /const \{ request, buildUrl \} = require\("\.\.\/\.\.\/utils\/request"\)/);
   assert.match(js, /function loadShareQrImagePath\(messages\)/);
+  assert.match(js, /const cacheKey = `\$\{shareId\}:\$\{SHARE_CARD_QR_CACHE_VERSION\}`/);
+  assert.match(js, /shareQrImageCache\[cacheKey\]/);
   assert.match(js, /function createXiaowanziConversationShare\(messages\)/);
+  assert.match(js, /function currentMiniProgramEnvVersion\(\)/);
+  assert.match(js, /function xiaowanziShareQrUrl\(shareId\)/);
+  assert.match(js, /envVersion && envVersion !== "release"/);
+  assert.match(js, /envVersion=\$\{encodeURIComponent\(envVersion\)\}/);
+  assert.match(js, /function arrayBufferJsonMessage\(value\)/);
   assert.match(js, /\/api\/wechat-mini\/xiaowanzi-shares/);
-  assert.match(js, /\/api\/wechat-mini\/xiaowanzi-share-qrcode\?shareId=/);
+  assert.match(js, /const params = \[`shareId=\$\{encodeURIComponent\(shareId\)\}`, "transparent=1", "v=2"\]/);
+  assert.match(js, /\/api\/wechat-mini\/xiaowanzi-share-qrcode\?\$\{params\.join\("&"\)\}/);
   assert.match(js, /responseType: "arraybuffer"/);
   assert.match(js, /fs\.writeFile\(\{/);
   assert.doesNotMatch(js, /wx\.downloadFile/);
   assert.doesNotMatch(js, /resolve\(SHARE_CARD_QR_IMAGE\)/);
-  assert.match(js, /ctx\.setFillStyle\("rgba\(116, 88, 255, 0\.12\)"\);[\s\S]*ctx\.fillText\("↗"/);
+  assert.match(js, /siteCard: \{[\s\S]*borderColor: "rgba\(126, 95, 255, 0\.22\)"[\s\S]*backgroundStart: "rgba\(255, 255, 255, 0\.82\)"[\s\S]*textColor: "#2a2350"[\s\S]*marginY: 3/);
   assert.match(js, /drawShareImageCanvas\(drawCtx, messages, shareCanvasHeight, qrImagePath\)/);
 
   const definition = loadPageDefinition("xiaowanzi");
@@ -2574,6 +2847,7 @@ test("Xiaowanzi share image uses native canvas preview instead of placeholder to
   const originalCanvasToTempFilePath = global.wx.canvasToTempFilePath;
   const originalRequest = global.wx.request;
   const originalGetFileSystemManager = global.wx.getFileSystemManager;
+  const originalGetAccountInfoSync = global.wx.getAccountInfoSync;
   const originalEnv = global.wx.env;
   const originalPreviewImage = global.wx.previewImage;
   const originalSaveImageToPhotosAlbum = global.wx.saveImageToPhotosAlbum;
@@ -2581,6 +2855,7 @@ test("Xiaowanzi share image uses native canvas preview instead of placeholder to
   const drawnTextRuns = [];
   const drawnImages = [];
   const drawnRects = [];
+  const drawnPaths = [];
   const measuredFontSizes = [];
   const previews = [];
   const savedFiles = [];
@@ -2588,7 +2863,10 @@ test("Xiaowanzi share image uses native canvas preview instead of placeholder to
   const writtenFiles = [];
   let currentFontSize = 10;
   let currentFillStyle = "#000000";
+  let currentStrokeStyle = "#000000";
+  let currentLineWidth = 1;
   let currentTextAlign = "center";
+  let currentPath = [];
   const context = {
     ...definition,
     data: {
@@ -2636,6 +2914,14 @@ test("Xiaowanzi share image uses native canvas preview instead of placeholder to
     setFillStyle(style) {
       currentFillStyle = String(style || "");
     },
+    setStrokeStyle(style) {
+      currentStrokeStyle = String(style || "");
+    },
+    setLineWidth(width) {
+      currentLineWidth = Number(width) || 1;
+    },
+    setLineCap() {},
+    setLineJoin() {},
     setTextAlign(align) {
       currentTextAlign = String(align || "");
     },
@@ -2650,7 +2936,18 @@ test("Xiaowanzi share image uses native canvas preview instead of placeholder to
     fillRect(x, y, width, height) {
       drawnRects.push({ x, y, width, height, fillStyle: currentFillStyle });
     },
-    beginPath: undefined,
+    beginPath() {
+      currentPath = [];
+    },
+    moveTo(x, y) {
+      currentPath.push({ op: "moveTo", x, y });
+    },
+    lineTo(x, y) {
+      currentPath.push({ op: "lineTo", x, y });
+    },
+    stroke() {
+      drawnPaths.push({ path: currentPath, strokeStyle: currentStrokeStyle, lineWidth: currentLineWidth });
+    },
     arcTo: undefined,
     measureText(text) {
       measuredFontSizes.push(currentFontSize);
@@ -2665,6 +2962,7 @@ test("Xiaowanzi share image uses native canvas preview instead of placeholder to
 
   try {
     global.wx.env = { USER_DATA_PATH: "/tmp" };
+    global.wx.getAccountInfoSync = () => ({ miniProgram: { envVersion: "develop" } });
     global.wx.createCanvasContext = (canvasId, page) => {
       assert.equal(canvasId, "xiaowanziShareCanvas");
       assert.equal(page, context);
@@ -2713,34 +3011,40 @@ test("Xiaowanzi share image uses native canvas preview instead of placeholder to
     assert.deepEqual(previews, []);
     assert.equal(qrRequests.length, 2);
     assert.match(qrRequests[0].url, /\/api\/wechat-mini\/xiaowanzi-shares$/);
+    assert.equal(qrRequests[0].data.messages[1].content.includes("[窝沟封闭黄金年龄](/topics/wo-gou-feng-bi?xw_layer=1&xw_return=xiaowanzi)"), true);
     assert.equal(qrRequests[0].method, "POST");
     assert.equal(qrRequests[0].data.messages[0].role, "user");
     assert.equal(qrRequests[0].data.messages[1].role, "assistant");
-    assert.match(qrRequests[1].url, /\/api\/wechat-mini\/xiaowanzi-share-qrcode\?shareId=share-abc123/);
+    assert.match(qrRequests[1].url, /\/api\/wechat-mini\/xiaowanzi-share-qrcode\?shareId=share-abc123&transparent=1&v=2&envVersion=develop/);
     assert.equal(qrRequests[1].responseType, "arraybuffer");
     assert.equal(writtenFiles.length, 1);
-    assert.equal(writtenFiles[0].filePath, "/tmp/xiaowanzi-conversation-qrcode-share-abc123.png");
-    assert.deepEqual(drawnImages, [
-      ["/assets/xiaowanzi-icons/share-logo.png", 265, 74, 220, 71],
-      ["/tmp/xiaowanzi-conversation-qrcode-share-abc123.png", 305, context.data.shareCanvasHeight - 364, 140, 140]
-    ]);
+    assert.equal(writtenFiles[0].filePath, "/tmp/xiaowanzi-conversation-qrcode-transparent-v2-share-abc123.png");
+    assert.ok(drawnImages.some((image) => image[0] === "/assets/xiaowanzi-icons/share-logo.png" && image[1] === 265 && image[2] === 138));
+    assert.equal(drawnTexts.includes("先疯智库"), false);
+    assert.ok(drawnImages.some((image) => image[0] === "/tmp/xiaowanzi-conversation-qrcode-transparent-v2-share-abc123.png" && image[1] === 305 && image[2] === context.data.shareCanvasHeight - 364));
     assert.ok(drawnTexts.some((text) => text.includes("窝沟封闭黄金年龄？")));
     assert.ok(drawnTexts.some((text) => text.includes("乳磨牙3-4岁")));
-    assert.ok(drawnTexts.includes("↗"));
-    assert.ok(drawnTextRuns.some((run) => run.text === "窝沟封闭黄金年龄" && run.fillStyle === "#6d28f2"));
-    assert.ok(drawnRects.some((rect) => rect.fillStyle === "rgba(116, 88, 255, 0.12)"));
-    assert.ok(drawnRects.some((rect) => rect.fillStyle === "rgba(105, 74, 232, 0.14)"));
+    assert.equal(drawnTexts.includes("↗"), false);
+    assert.ok(drawnPaths.some((path) => path.strokeStyle === "#6a42e8" && path.lineWidth === 4 && path.path.filter((point) => point.op === "lineTo").length >= 3));
+    assert.ok(drawnTextRuns.some((run) => run.text === "窝沟封闭黄金年龄" && run.fillStyle === "#2a2350"));
+    assert.ok(drawnRects.some((rect) => rect.fillStyle === "rgba(126, 95, 255, 0.22)" && rect.x === 58 && rect.width === 634));
+    assert.ok(drawnRects.some((rect) => rect.fillStyle === "rgba(247, 243, 255, 0.98)" && rect.x === 59 && rect.width === 632));
+    const firstSiteCardRect = drawnRects.find((rect) => rect.fillStyle === "rgba(126, 95, 255, 0.22)" && rect.x === 58 && rect.width === 634);
+    const firstPostSiteCardRun = drawnTextRuns.find((run) => run.text.includes("，第一恒磨牙") && run.x === 58 && run.fontSize === 28);
+    assert.ok(firstSiteCardRect);
+    assert.ok(firstPostSiteCardRun);
+    assert.ok(firstPostSiteCardRun.y - firstPostSiteCardRun.fontSize - (firstSiteCardRect.y + firstSiteCardRect.height) >= 8);
     assert.ok(drawnTexts.join("\n").includes("站内引用：搜索以下标题"));
     assert.ok(drawnTexts.join("\n").includes("1. 「窝沟封闭黄金年龄」"));
     assert.ok(drawnTexts.join("\n").includes("2. 「22 如何利用阅读测试.m4a」"));
     assert.equal(drawnTexts.join("\n").includes("」或「"), false);
     assert.equal(drawnTexts.join("\n").includes("查看"), false);
-    assert.ok(drawnTextRuns.some((run) => run.text.includes("窝沟封闭黄金年龄") && run.fontSize === 28 && run.fillStyle === "#6d28f2"));
+    assert.ok(drawnTextRuns.some((run) => run.text.includes("窝沟封闭黄金年龄") && run.fontSize === 28 && run.fillStyle === "#2a2350"));
     assert.ok(drawnTexts.some((text) => text.includes("低年级历史启蒙书单")));
-    assert.ok(drawnTextRuns.some((run) => run.text.includes("低年级历史启蒙书单") && run.fontSize === 28 && run.fillStyle === "#6d28f2"));
+    assert.ok(drawnTextRuns.some((run) => run.text.includes("低年级历史启蒙书单") && run.fontSize === 28 && run.fillStyle === "#2a2350"));
     assert.ok(drawnTextRuns.some((run) => run.text.includes("• ") && run.fontSize === 28 && run.fillStyle === "#6d28f2"));
     const markdownHeadingRun = drawnTextRuns.find((run) => run.text.includes("关于历史启蒙") && run.fontSize === 28);
-    const markdownLinkRun = drawnTextRuns.find((run) => run.text.includes("低年级历史启蒙书单") && run.fontSize === 28 && run.fillStyle === "#6d28f2");
+    const markdownLinkRun = drawnTextRuns.find((run) => run.text.includes("低年级历史启蒙书单") && run.fontSize === 28 && run.fillStyle === "#2a2350");
     assert.ok(markdownHeadingRun);
     assert.ok(markdownLinkRun);
     assert.ok(markdownLinkRun.y >= markdownHeadingRun.y + 58);
@@ -2754,16 +3058,16 @@ test("Xiaowanzi share image uses native canvas preview instead of placeholder to
     assert.equal(drawnTexts.join("\n").includes("]("), false);
     assert.ok(measuredFontSizes.length > 0);
     assert.deepEqual([...new Set(measuredFontSizes)].sort((a, b) => a - b), [24, 28]);
-    assert.ok(drawnTextRuns.some((run) => run.text.includes("乳磨牙3-4岁") && run.x === 50 && run.fontSize === 28));
+    assert.ok(drawnTextRuns.some((run) => run.text.includes("乳磨牙3-4岁") && run.x === 58 && run.fontSize === 28));
     const firstUserQuestionRun = drawnTextRuns.find((run) => run.text.includes("窝沟封闭黄金年龄？") && run.x >= 380 && run.fontSize === 28);
     assert.ok(firstUserQuestionRun);
     assert.equal(firstUserQuestionRun.textAlign, "left");
-    assert.ok(firstUserQuestionRun.y > 290 && firstUserQuestionRun.y < 298);
+    assert.ok(firstUserQuestionRun.y > 350 && firstUserQuestionRun.y < 360);
     assert.ok(drawnTextRuns.some((run) => run.text.includes("扫描二维码，和小玩子继续聊") && run.textAlign === "center"));
     assert.ok(drawnTextRuns.some((run) => run.text.includes("站内引用：搜索以下标题") && run.fontSize === 24 && run.fillStyle === "#6d28f2"));
     assert.ok(drawnTextRuns.some((run) => run.text.includes("1. 「窝沟封闭黄金年龄」") && run.fontSize === 24 && run.fillStyle === "#6d28f2"));
     assert.ok(drawnTextRuns.some((run) => run.text.includes("2. 「22 如何利用阅读测试.m4a」") && run.fontSize === 24 && run.fillStyle === "#6d28f2"));
-    const firstAssistantRect = drawnRects.find((rect) => rect.fillStyle === "#ffffff" && rect.x === 20);
+    const firstAssistantRect = drawnRects.find((rect) => rect.fillStyle === "#ffffff" && rect.x === 28);
     const secondReferenceRun = drawnTextRuns.find((run) => run.text.includes("2. 「22 如何利用阅读测试.m4a」"));
     assert.ok(firstAssistantRect);
     assert.ok(secondReferenceRun);
@@ -2782,9 +3086,84 @@ test("Xiaowanzi share image uses native canvas preview instead of placeholder to
     global.wx.canvasToTempFilePath = originalCanvasToTempFilePath;
     global.wx.request = originalRequest;
     global.wx.getFileSystemManager = originalGetFileSystemManager;
+    global.wx.getAccountInfoSync = originalGetAccountInfoSync;
     global.wx.env = originalEnv;
     global.wx.previewImage = originalPreviewImage;
     global.wx.saveImageToPhotosAlbum = originalSaveImageToPhotosAlbum;
+  }
+});
+
+test("Xiaowanzi share QR lets backend choose qrcode env for release clients", async () => {
+  const definition = loadPageDefinition("xiaowanzi");
+  const originalCreateCanvasContext = global.wx.createCanvasContext;
+  const originalCanvasToTempFilePath = global.wx.canvasToTempFilePath;
+  const originalRequest = global.wx.request;
+  const originalGetFileSystemManager = global.wx.getFileSystemManager;
+  const originalGetAccountInfoSync = global.wx.getAccountInfoSync;
+  const originalEnv = global.wx.env;
+  const qrRequests = [];
+  const context = {
+    ...definition,
+    data: {
+      ...definition.data,
+      messages: [
+        { id: "user-1", role: "user", content: "夏老师教育观点解析" },
+        { id: "assistant-1", role: "assistant", content: "尊重与引导并行。" }
+      ],
+      selectedMessageIds: ["user-1", "assistant-1"],
+      shareImageGenerating: false,
+      shareCanvasMounted: false
+    },
+    setData(payload, callback) {
+      this.data = { ...this.data, ...payload };
+      if (typeof callback === "function") callback();
+    }
+  };
+
+  try {
+    global.wx.env = { USER_DATA_PATH: "/tmp" };
+    global.wx.getAccountInfoSync = () => ({ miniProgram: { envVersion: "release" } });
+    global.wx.createCanvasContext = () => ({
+      draw(_reserve, callback) {
+        if (typeof callback === "function") callback();
+      },
+      drawImage() {},
+      setFillStyle() {},
+      fillRect() {},
+      setTextAlign() {},
+      setFontSize() {},
+      measureText(text) {
+        return { width: String(text || "").length * 10 };
+      }
+    });
+    global.wx.canvasToTempFilePath = (options) => options.success({ tempFilePath: "/tmp/share-release.png" });
+    global.wx.request = (options) => {
+      if (String(options.url).includes("/api/wechat-mini/xiaowanzi-shares") && options.method === "POST") {
+        options.success({ statusCode: 200, data: { id: "share-release123" } });
+        return;
+      }
+      qrRequests.push(options);
+      options.success({ statusCode: 200, data: new ArrayBuffer(8) });
+    };
+    global.wx.getFileSystemManager = () => ({
+      writeFile(options) {
+        options.success();
+      }
+    });
+
+    definition.generateShareImage.call(context);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(qrRequests.length, 1);
+    assert.match(qrRequests[0].url, /\/api\/wechat-mini\/xiaowanzi-share-qrcode\?shareId=share-release123&transparent=1&v=2$/);
+    assert.doesNotMatch(qrRequests[0].url, /envVersion=release/);
+  } finally {
+    global.wx.createCanvasContext = originalCreateCanvasContext;
+    global.wx.canvasToTempFilePath = originalCanvasToTempFilePath;
+    global.wx.request = originalRequest;
+    global.wx.getFileSystemManager = originalGetFileSystemManager;
+    global.wx.getAccountInfoSync = originalGetAccountInfoSync;
+    global.wx.env = originalEnv;
   }
 });
 
@@ -2798,6 +3177,7 @@ test("Xiaowanzi share image does not fall back to the website QR when mini-progr
   const originalCanvasToTempFilePath = global.wx.canvasToTempFilePath;
   const originalRequest = global.wx.request;
   const originalGetFileSystemManager = global.wx.getFileSystemManager;
+  const originalGetAccountInfoSync = global.wx.getAccountInfoSync;
   const originalEnv = global.wx.env;
   const toasts = [];
   const drawnImages = [];
@@ -2826,6 +3206,7 @@ test("Xiaowanzi share image does not fall back to the website QR when mini-progr
 
   try {
     global.wx.env = { USER_DATA_PATH: "/tmp" };
+    global.wx.getAccountInfoSync = () => ({ miniProgram: { envVersion: "develop" } });
     global.wx.createCanvasContext = () => ({
       drawImage(image) {
         drawnImages.push(image);
@@ -2843,7 +3224,12 @@ test("Xiaowanzi share image does not fall back to the website QR when mini-progr
     });
     global.wx.canvasToTempFilePath = (options) => options.success({ tempFilePath: "/tmp/share.png" });
     global.wx.request = (options) => {
-      options.success({ statusCode: 500, data: {} });
+      if (String(options.url).includes("/api/wechat-mini/xiaowanzi-shares") && options.method === "POST") {
+        options.success({ statusCode: 200, data: { id: "share-fail123" } });
+        return;
+      }
+      const encoded = new TextEncoder().encode(JSON.stringify({ error: "invalid page hint" }));
+      options.success({ statusCode: 500, data: encoded.buffer });
     };
     global.wx.getFileSystemManager = () => ({
       writeFile(options) {
@@ -2858,12 +3244,13 @@ test("Xiaowanzi share image does not fall back to the website QR when mini-progr
     assert.equal(context.data.shareCanvasMounted, false);
     assert.equal(context.data.shareImagePreviewOpen, false);
     assert.deepEqual(drawnImages, []);
-    assert.deepEqual(toasts, ["小程序码生成失败，请重试"]);
+    assert.deepEqual(toasts, ["invalid page hint"]);
   } finally {
     global.wx.createCanvasContext = originalCreateCanvasContext;
     global.wx.canvasToTempFilePath = originalCanvasToTempFilePath;
     global.wx.request = originalRequest;
     global.wx.getFileSystemManager = originalGetFileSystemManager;
+    global.wx.getAccountInfoSync = originalGetAccountInfoSync;
     global.wx.env = originalEnv;
   }
 });
@@ -2905,8 +3292,10 @@ test("Xiaowanzi copied share content keeps display text and strips routed Markdo
   }
 });
 
-test("Xiaowanzi share selection opens from a message and pairs the current round", () => {
+test("Xiaowanzi share selection opens from a message, pairs the current round, and prepares a read-only share", async () => {
   const definition = loadPageDefinition("xiaowanzi");
+  const originalRequest = global.wx.request;
+  const shareRequests = [];
   const context = {
     ...definition,
     data: {
@@ -2923,37 +3312,58 @@ test("Xiaowanzi share selection opens from a message and pairs the current round
       shareRevealMessageId: "",
       selectedMessageIds: [],
       selectedMessageMap: {},
-      shareRoundCount: 0
+      shareRoundCount: 0,
+      selectedConversationShareId: "",
+      selectedSharePreparing: false,
+      selectedShareError: ""
     },
     setData(payload) {
       this.data = { ...this.data, ...payload };
     }
   };
 
-  definition.handleMessageTap.call(context, {
-    currentTarget: { dataset: { id: "assistant-2", role: "assistant" } }
-  });
-  assert.equal(context.data.shareRevealMessageId, "assistant-2");
+  try {
+    global.wx.request = (options) => {
+      shareRequests.push(options);
+      options.success({ statusCode: 200, data: { id: "share-abc123" } });
+    };
 
-  definition.openShareSelectionFromMessage.call(context, {
-    currentTarget: { dataset: { id: "assistant-2" } }
-  });
+    definition.handleMessageTap.call(context, {
+      currentTarget: { dataset: { id: "assistant-2", role: "assistant" } }
+    });
+    assert.equal(context.data.shareRevealMessageId, "assistant-2");
 
-  assert.equal(context.data.shareSelectionMode, true);
-  assert.equal(context.data.attachmentMenuOpen, false);
-  assert.equal(context.data.historyDrawerOpen, false);
-  assert.equal(context.data.shareRevealMessageId, "");
-  assert.deepEqual(context.data.selectedMessageIds, ["assistant-2", "user-2"]);
-  assert.deepEqual(context.data.selectedMessageMap, { "assistant-2": true, "user-2": true });
-  assert.equal(context.data.shareRoundCount, 1);
+    definition.openShareSelectionFromMessage.call(context, {
+      currentTarget: { dataset: { id: "assistant-2" } }
+    });
 
-  definition.toggleShareMessage.call(context, {
-    currentTarget: { dataset: { id: "user-2" } }
-  });
+    assert.equal(context.data.shareSelectionMode, true);
+    assert.equal(context.data.attachmentMenuOpen, true);
+    assert.equal(context.data.historyDrawerOpen, false);
+    assert.equal(context.data.shareRevealMessageId, "");
+    assert.deepEqual(context.data.selectedMessageIds, ["assistant-2", "user-2"]);
+    assert.deepEqual(context.data.selectedMessageMap, { "assistant-2": true, "user-2": true });
+    assert.equal(context.data.shareRoundCount, 1);
+    assert.equal(context.data.selectedSharePreparing, true);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(context.data.selectedSharePreparing, false);
+    assert.equal(context.data.selectedConversationShareId, "share-abc123");
+    assert.equal(shareRequests.length, 1);
+    assert.match(shareRequests[0].url, /\/api\/wechat-mini\/xiaowanzi-shares$/);
+    assert.equal(shareRequests[0].method, "POST");
+    assert.deepEqual(shareRequests[0].data.messages.map((message) => message.role), ["user", "assistant"]);
 
-  assert.deepEqual(context.data.selectedMessageIds, []);
-  assert.deepEqual(context.data.selectedMessageMap, {});
-  assert.equal(context.data.shareRoundCount, 0);
+    definition.toggleShareMessage.call(context, {
+      currentTarget: { dataset: { id: "user-2" } }
+    });
+
+    assert.deepEqual(context.data.selectedMessageIds, []);
+    assert.deepEqual(context.data.selectedMessageMap, {});
+    assert.equal(context.data.shareRoundCount, 0);
+    assert.equal(context.data.selectedConversationShareId, "");
+  } finally {
+    global.wx.request = originalRequest;
+  }
 });
 
 test("Xiaowanzi share selection uses the visible home conversation messages", () => {
@@ -2991,6 +3401,37 @@ test("Xiaowanzi share selection uses the visible home conversation messages", ()
   assert.equal(context.data.shareRoundCount, 1);
 });
 
+test("Xiaowanzi attachment menu stays open during the layout scroll caused by opening it", () => {
+  const definition = loadPageDefinition("xiaowanzi");
+  const context = {
+    ...definition,
+    data: {
+      ...definition.data,
+      homeMode: true,
+      sending: false,
+      attachmentMenuOpen: false,
+      scrollIntoView: "old-anchor",
+      knowledgePillCollapsed: false
+    },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+
+  definition.toggleAttachmentMenu.call(context);
+  assert.equal(context.data.attachmentMenuOpen, true);
+  assert.equal(context.data.scrollIntoView, "old-anchor");
+
+  context.lastChatScrollTop = 0;
+  definition.handleKnowledgePillScroll.call(context, { detail: { scrollTop: 40 } });
+  assert.equal(context.data.attachmentMenuOpen, true);
+
+  context.attachmentMenuOpenedAt = Date.now() - 1000;
+  context.lastChatScrollTop = 0;
+  definition.handleKnowledgePillScroll.call(context, { detail: { scrollTop: 40 } });
+  assert.equal(context.data.attachmentMenuOpen, false);
+});
+
 test("Xiaowanzi WeChat share uses the selected conversation round when sharing from the sheet", () => {
   const definition = loadPageDefinition("xiaowanzi");
   const defaultShare = definition.onShareAppMessage();
@@ -3000,6 +3441,7 @@ test("Xiaowanzi WeChat share uses the selected conversation round when sharing f
       ...definition.data,
       shareSelectionMode: true,
       selectedMessageIds: ["user-1", "assistant-1"],
+      selectedConversationShareId: "share-abc123",
       messages: [
         { id: "user-1", role: "user", content: "窝沟封闭黄金年龄？" },
         { id: "assistant-1", role: "assistant", content: "乳磨牙3-4岁，第一恒磨牙6-7岁。" }
@@ -3014,9 +3456,8 @@ test("Xiaowanzi WeChat share uses the selected conversation round when sharing f
   assert.equal(defaultShare.path, "/pages/xiaowanzi/index");
   assert.equal(selectedShare.title, "小玩子：窝沟封闭黄金年龄？");
   assert.equal(shareUrl.pathname, "/pages/share/index");
-  assert.equal(shareUrl.searchParams.get("target"), "/pages/xiaowanzi/index");
-  assert.equal(shareUrl.searchParams.get("title"), "小玩子：窝沟封闭黄金年龄？");
-  assert.equal("imageUrl" in selectedShare, false);
+  assert.equal(shareUrl.searchParams.get("sid"), "share-abc123");
+  assert.equal(selectedShare.imageUrl, "/assets/share/xiaowanzi-nohat-cover.png");
 });
 
 test("Xiaowanzi WeChat share uses visible home conversation text in home mode", () => {
@@ -3028,6 +3469,7 @@ test("Xiaowanzi WeChat share uses visible home conversation text in home mode", 
       homeMode: true,
       shareSelectionMode: true,
       selectedMessageIds: ["home-user", "home-assistant"],
+      selectedConversationShareId: "share-home123",
       messages: [
         { id: "old-user", role: "user", content: "旧问题不要分享" },
         { id: "old-assistant", role: "assistant", content: "旧回答不要分享" }
@@ -3042,21 +3484,29 @@ test("Xiaowanzi WeChat share uses visible home conversation text in home mode", 
   const selectedShare = definition.onShareAppMessage.call(context);
 
   assert.equal(selectedShare.title, "小玩子：低龄幼儿阅读兴趣引导？");
+  assert.equal(selectedShare.imageUrl, "/assets/share/xiaowanzi-nohat-cover.png");
   assert.equal(selectedShare.path.includes("旧问题不要分享"), false);
+  assert.match(selectedShare.path, /\/pages\/share\/index\?sid=share-home123/);
 });
 
-test("Xiaowanzi attachment actions are temporarily disabled with a development toast", () => {
+test("Xiaowanzi attachment actions stage native files and recognize on send", async () => {
   const definition = loadPageDefinition("xiaowanzi");
   const originalChooseMedia = global.wx.chooseMedia;
   const originalChooseImage = global.wx.chooseImage;
   const originalChooseMessageFile = global.wx.chooseMessageFile;
+  const originalGetFileSystemManager = global.wx.getFileSystemManager;
+  const originalRequest = global.wx.request;
+  const originalGetStorageSync = global.wx.getStorageSync;
+  const originalSetStorageSync = global.wx.setStorageSync;
   const mediaCalls = [];
   const imageCalls = [];
   const fileCalls = [];
+  const requests = [];
   const toastMessages = [];
+  const storage = new Map([["xf_token", "token-1"]]);
   const context = {
     ...definition,
-    data: { ...definition.data, attachmentMenuOpen: true },
+    data: { ...definition.data, attachmentMenuOpen: true, homeMode: true },
     setData(payload) {
       this.data = { ...this.data, ...payload };
     },
@@ -3067,39 +3517,125 @@ test("Xiaowanzi attachment actions are temporarily disabled with a development t
   };
 
   try {
+    global.wx.getStorageSync = (key) => storage.get(key) || "";
+    global.wx.setStorageSync = (key, value) => {
+      storage.set(key, value);
+    };
+    global.wx.getFileSystemManager = () => ({
+      readFile(options) {
+        options.success({ data: "aW1hZ2UtYnl0ZXM=" });
+      }
+    });
+    global.wx.request = (options) => {
+      requests.push(options);
+      const url = String(options.url || "");
+      if (url.includes("/api/v1/tutorbot/xiaowanzi_debug_bot/messages")) {
+        options.success({
+          statusCode: 200,
+          data: {
+            content: "这张图里是一张课程表，可以继续问我怎么安排。"
+          }
+        });
+        return;
+      }
+      options.success({
+        statusCode: 200,
+        data: {
+          content: "图片里有一张课程表。",
+          featureKey: "xiaowanzi_file"
+        }
+      });
+    };
     global.wx.chooseMedia = (options) => {
       mediaCalls.push(options);
+      const fromCamera = Array.isArray(options.sourceType) && options.sourceType.includes("camera");
+      options.success({ tempFiles: [fromCamera ? { tempFilePath: "/tmp/camera.jpg", size: 2048 } : { tempFilePath: "/tmp/picture.png", size: 1024 }] });
     };
     global.wx.chooseImage = (options) => {
       imageCalls.push(options);
+      options.success({ tempFilePaths: ["/tmp/picture.png"], tempFiles: [{ path: "/tmp/picture.png", size: 1024 }] });
     };
     global.wx.chooseMessageFile = (options) => {
       fileCalls.push(options);
+      options.success({ tempFiles: [{ path: "/tmp/report.jpg", name: "report.jpg", size: 4096, type: "image" }] });
     };
 
-    definition.chooseAttachment.call(context, { currentTarget: { dataset: { type: "camera" } } });
-    assert.equal(context.data.attachmentMenuOpen, false);
-    assert.equal(context.data.toastText, "相关功能正在开发中");
+    await definition.chooseAttachment.call(context, { currentTarget: { dataset: { type: "camera" } } });
+    assert.equal(context.data.attachmentMenuOpen, true);
+    assert.equal(context.data.attachmentPreviewText, "已上传照片：camera.jpg · 2KB");
+    assert.equal(context.data.attachmentContextText, "");
+    assert.deepEqual(context.data.pendingAttachments.map((item) => item.name), ["camera.jpg"]);
+    assert.equal(context.data.pendingAttachments[0].path, "/tmp/camera.jpg");
+    assert.equal(context.data.pendingAttachments[0].dataUrl, "data:image/jpeg;base64,aW1hZ2UtYnl0ZXM=");
+    assert.equal(context.data.inputReady, true);
+    assert.equal(requests.length, 0);
+    assert.deepEqual(toastMessages, []);
 
     context.data.attachmentMenuOpen = true;
-    definition.chooseAttachment.call(context, { currentTarget: { dataset: { type: "image" } } });
-    assert.equal(context.data.attachmentMenuOpen, false);
-    assert.equal(context.data.toastText, "相关功能正在开发中");
+    await definition.chooseAttachment.call(context, { currentTarget: { dataset: { type: "image" } } });
+    assert.equal(context.data.attachmentMenuOpen, true);
+    assert.equal(context.data.attachmentPreviewText, "已上传 2 个附件");
+    assert.deepEqual(context.data.pendingAttachments.map((item) => item.name), ["camera.jpg", "picture.png"]);
+    assert.equal(requests.length, 0);
+    assert.deepEqual(toastMessages, []);
 
     context.data.attachmentMenuOpen = true;
-    definition.chooseAttachment.call(context, { currentTarget: { dataset: { type: "file" } } });
-    assert.equal(context.data.attachmentMenuOpen, false);
-    assert.equal(context.data.toastText, "相关功能正在开发中");
-    assert.deepEqual(toastMessages, ["相关功能正在开发中", "相关功能正在开发中", "相关功能正在开发中"]);
-    assert.equal(mediaCalls.length, 0);
+    await definition.chooseAttachment.call(context, { currentTarget: { dataset: { type: "file" } } });
+    assert.equal(context.data.attachmentMenuOpen, true);
+    assert.equal(context.data.attachmentPreviewText, "已上传 3 个附件");
+    assert.deepEqual(context.data.pendingAttachments.map((item) => item.name), ["camera.jpg", "picture.png", "report.jpg"]);
+    assert.equal(mediaCalls.length, 2);
     assert.equal(imageCalls.length, 0);
-    assert.equal(fileCalls.length, 0);
+    assert.equal(fileCalls.length, 1);
+    assert.equal(requests.length, 0);
+    assert.deepEqual(toastMessages, []);
+
+    definition.removePendingAttachment.call(context, { currentTarget: { dataset: { index: 1 } } });
+    assert.equal(context.data.attachmentPreviewText, "已上传 2 个附件");
+    assert.deepEqual(context.data.pendingAttachments.map((item) => item.name), ["camera.jpg", "report.jpg"]);
+
+    definition.handleSend.call(context);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.deepEqual(context.data.pendingAttachments, []);
     assert.equal(context.data.attachmentPreviewText, "");
     assert.equal(context.data.attachmentContextText, "");
+    assert.equal(context.data.sending, false);
+    assert.equal(requests.length, 3);
+    assert.equal(requests[0].method, "POST");
+    assert.match(requests[0].url, /\/api\/wechat-mini\/xiaowanzi\/attachments\/recognize$/);
+    assert.equal(requests[0].header.Authorization, "Bearer token-1");
+    assert.equal(requests[0].data.dataUrl, "data:image/jpeg;base64,aW1hZ2UtYnl0ZXM=");
+    assert.match(requests[1].url, /\/api\/wechat-mini\/xiaowanzi\/attachments\/recognize$/);
+    assert.equal(requests[1].data.fileName, "report.jpg");
+    assert.match(requests[2].url, /\/api\/v1\/tutorbot\/xiaowanzi_debug_bot\/messages$/);
+    assert.match(requests[2].data.content, /帮我解读下图片内容/);
+    assert.match(requests[2].data.content, /附件名称：camera\.jpg。/);
+    assert.match(requests[2].data.content, /附件名称：report\.jpg。/);
+    assert.match(requests[2].data.content, /图片识别结果：图片里有一张课程表。/);
+    assert.deepEqual(context.data.messages.slice(-2).map((message) => message.content), [
+      "帮我解读下图片内容",
+      "这张图里是一张课程表，可以继续问我怎么安排。"
+    ]);
+    assert.deepEqual(context.data.messages.at(-2).attachments.map((item) => ({
+      type: item.type,
+      name: item.name,
+      path: item.path,
+      mediaType: item.mediaType
+    })), [
+      { type: "camera", name: "camera.jpg", path: "/tmp/camera.jpg", mediaType: "image/jpeg" },
+      { type: "file", name: "report.jpg", path: "/tmp/report.jpg", mediaType: "image/jpeg" }
+    ]);
+    assert.equal(Object.hasOwn(context.data.messages.at(-2).attachments[0], "dataUrl"), false);
   } finally {
     global.wx.chooseMedia = originalChooseMedia;
     global.wx.chooseImage = originalChooseImage;
     global.wx.chooseMessageFile = originalChooseMessageFile;
+    global.wx.getFileSystemManager = originalGetFileSystemManager;
+    global.wx.request = originalRequest;
+    global.wx.getStorageSync = originalGetStorageSync;
+    global.wx.setStorageSync = originalSetStorageSync;
   }
 });
 
@@ -3318,7 +3854,7 @@ test("native first-level content tabs fetch API data and open detail wrapper rou
     assert.match(nativeSettingsMaskStyle, /z-index: 2147483647;/);
     assert.match(nativeSettingsMaskStyle, /padding-bottom: 96rpx;/);
     const nativeListWxss = fs.readFileSync(new URL("../styles/native-list.wxss", import.meta.url), "utf8");
-    assert.match(nativeListWxss, /\.xf-native-settings-panel \{[\s\S]*width: 84vw;[\s\S]*max-width: 640rpx;[\s\S]*height: calc\(100vh \+ 96rpx\);[\s\S]*padding: 52rpx 34rpx 96rpx;[\s\S]*background: #f7f7f8;[\s\S]*box-shadow: -36rpx 0 90rpx rgba\(15, 23, 42, 0\.2\);/);
+    assert.match(nativeListWxss, /\.xf-native-settings-panel \{[\s\S]*width: 84vw;[\s\S]*max-width: 640rpx;[\s\S]*height: calc\(100vh \+ 96rpx\);[\s\S]*padding: 52rpx 34rpx 96rpx;[\s\S]*background: linear-gradient\(180deg, #f7f7f8 0, #f7f7f8 calc\(100% - 192rpx\), transparent calc\(100% - 192rpx\), transparent 100%\);[\s\S]*box-shadow: -36rpx 0 90rpx rgba\(15, 23, 42, 0\.2\);/);
     assert.match(nativeListWxss, /\.xf-native-settings-panel-inner \{[\s\S]*display: flex;[\s\S]*flex-direction: column;[\s\S]*gap: 26rpx;[\s\S]*min-height: 0;/);
     assert.match(nativeListWxss, /\.xf-native-settings-account,[\s\S]*\.xf-native-settings-card \{[\s\S]*margin-bottom: 0;[\s\S]*background: #ffffff;/);
     assert.match(nativeListWxss, /\.xf-native-settings-account \{[\s\S]*justify-content: center;[\s\S]*gap: 15rpx;[\s\S]*margin: 0;[\s\S]*min-height: 152rpx;[\s\S]*padding: 32rpx 30rpx;[\s\S]*border: 0;[\s\S]*border-radius: 32rpx;/);
@@ -3679,6 +4215,7 @@ test("native first-level content tabs fetch API data and open detail wrapper rou
   assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-inline-status"/);
   assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-inline-action"[\s\S]*catchtap="handleActionTap"/);
   assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-composer \{\{attachmentMenuOpen \? 'is-attach-open' : ''\}\}"/);
+  assert.doesNotMatch(xiaowanzi.wxml, /xf-xiaowanzi-composer-feather/);
   assert.doesNotMatch(xiaowanzi.wxml, /xf-xiaowanzi-bottom-dock/);
   assert.match(xiaowanzi.wxml, /bindinput="updateInput"/);
   assert.match(xiaowanzi.wxml, /catchtap="handleSend"/);
@@ -3708,9 +4245,8 @@ test("native first-level content tabs fetch API data and open detail wrapper rou
   assert.doesNotMatch(xiaowanzi.wxss.match(/\.xf-xiaowanzi-history-list \{[^}]*\}/)?.[0] || "", /calc\(126rpx \+ env\(safe-area-inset-bottom\)\)|env\(safe-area-inset-bottom\)/);
   assert.match(xiaowanzi.wxml, /<view wx:for="\{\{historyCards\}\}" wx:key="id" class="xf-xiaowanzi-history-card" data-id="\{\{item\.id\}\}" catchtap="openHistoryCard">/);
   assert.doesNotMatch(xiaowanzi.wxml, /<button wx:for="\{\{historyCards\}}"[\s\S]*class="xf-xiaowanzi-history-card"/);
-  assert.match(xiaowanzi.wxss, /\.xf-xiaowanzi-history-card \{[\s\S]*margin-bottom: 10px;[\s\S]*padding: 14px 14px 13px;/);
-  assert.doesNotMatch(xiaowanzi.wxss.match(/\.xf-xiaowanzi-history-card \{[^}]*\}/)?.[0] || "", /\b(?:min-)?height\s*:/);
-  assert.match(xiaowanzi.wxss, /\.xf-xiaowanzi-history-card-title \{[\s\S]*font-size: 14px;[\s\S]*line-height: 22px;[\s\S]*white-space: normal;[\s\S]*word-break: break-word;/);
+  assert.match(xiaowanzi.wxss, /\.xf-xiaowanzi-history-card \{[\s\S]*flex-shrink: 0;[\s\S]*height: 80px;[\s\S]*margin-bottom: 10px;[\s\S]*padding: 10px 14px;[\s\S]*overflow: hidden;/);
+  assert.match(xiaowanzi.wxss, /\.xf-xiaowanzi-history-card-title \{[\s\S]*font-size: 14px;[\s\S]*line-height: 20px;[\s\S]*overflow: hidden;[\s\S]*text-overflow: ellipsis;[\s\S]*white-space: nowrap;[\s\S]*word-break: normal;/);
   assert.match(xiaowanzi.wxss, /\.xf-xiaowanzi-history-card:last-child \{[\s\S]*margin-bottom: 0;/);
   assert.match(xiaowanzi.wxml, /xf-xiaowanzi-history-card-time[\s\S]*\{\{item\.sub\}\}/);
   assert.match(xiaowanzi.wxml, /xf-xiaowanzi-history-card-child[\s\S]*\{\{item\.childTag\}\}/);
@@ -3720,12 +4256,13 @@ test("native first-level content tabs fetch API data and open detail wrapper rou
   assert.match(xiaowanzi.wxss, /\.xf-xiaowanzi-child-picker-primary \{[\s\S]*background: linear-gradient\(135deg, #7c34e8 0%, #7f37ea 100%\);/);
   assert.match(xiaowanzi.wxss, /\.xf-xiaowanzi-chat-list \{/);
   assert.match(xiaowanzi.wxss, /\.xf-xiaowanzi-composer \{/);
+  assert.doesNotMatch(xiaowanzi.wxss, /\.xf-xiaowanzi-composer-feather|top: -48px|rgba\(238, 241, 255, 0\.36\)/);
   assert.doesNotMatch(xiaowanzi.wxss, /xf-xiaowanzi-bottom-dock/);
   assert.match(xiaowanzi.wxss, /\.xf-xiaowanzi-history-exit-mark \{[\s\S]*display: block;[\s\S]*width: 24px;[\s\S]*height: 24px;/);
   assert.doesNotMatch(xiaowanzi.wxss.match(/\.xf-xiaowanzi-history-exit-mark \{[^}]*\}/)?.[0] || "", /font-family: "Material Symbols Rounded"/);
   assert.doesNotMatch(xiaowanzi.wxss, /\.xf-xiaowanzi-history-exit-mark::before|\.xf-xiaowanzi-history-exit-mark::after/);
   assert.match(xiaowanzi.wxss, /\.xf-xiaowanzi-archive-scrim \{[^}]*width: 16vw;[^}]*background: rgba\(15, 12, 35, 0\.42\);[^}]*\}/);
-  assert.match(xiaowanzi.wxss, /\.xf-xiaowanzi-archive-panel \{[^}]*right: 0;[^}]*width: 84vw;[^}]*padding: 86rpx 28rpx 56rpx;[^}]*overflow-y: auto;[^}]*\}/);
+  assert.match(xiaowanzi.wxss, /\.xf-xiaowanzi-archive-panel \{[^}]*right: 0;[^}]*width: 84vw;[^}]*padding: 86rpx 28rpx 56rpx;[^}]*background: linear-gradient\(180deg, #f6f7fb 0, #f6f7fb calc\(100% - 96rpx\), transparent calc\(100% - 96rpx\), transparent 100%\);[^}]*overflow-y: auto;[^}]*\}/);
   assert.match(xiaowanzi.wxml, /is="xfSettingsArchivePanel"/);
   assert.doesNotMatch(xiaowanzi.wxml, /☰|↪/);
   assert.doesNotMatch(xiaowanzi.wxml, /class="xf-xiaowanzi-share-panel"|class="xf-xiaowanzi-share-scrim"/);
@@ -3999,7 +4536,7 @@ test("reading tab switches between feature and compact book layouts", () => {
     };
 
     definition.loadPreferredViewMode.call(context);
-    assert.equal(context.data.compactMode, false);
+    assert.equal(context.data.compactMode, true);
 
     storage.set("xf_native_books_view_mode", "compact");
     definition.loadPreferredViewMode.call(context);
@@ -5760,7 +6297,7 @@ test("programs tab renders a native first-level list and opens details through t
     assert.equal(context.data.logoTop, 10);
     assert.equal(context.data.logoHeight, 28);
     assert.equal(context.data.contentTop, undefined);
-    assert.equal(context.data.compactMode, false);
+    assert.equal(context.data.compactMode, true);
     assert.equal(context.data.settingsPanelOpen, false);
     assert.equal(storage.has("xf_native_programs_cache"), true);
 
@@ -5768,12 +6305,12 @@ test("programs tab renders a native first-level list and opens details through t
     assert.deepEqual(pageScrolls.at(-1), { scrollTop: 45, duration: 0 });
 
     definition.switchProgramViewMode.call(context);
-    assert.equal(context.data.compactMode, true);
-    assert.equal(storage.get("xf_native_programs_view_mode"), "compact");
-
-    definition.switchProgramViewMode.call(context);
     assert.equal(context.data.compactMode, false);
     assert.equal(storage.get("xf_native_programs_view_mode"), "feature");
+
+    definition.switchProgramViewMode.call(context);
+    assert.equal(context.data.compactMode, true);
+    assert.equal(storage.get("xf_native_programs_view_mode"), "compact");
 
     storage.set("xf_profile_font_size", "large");
     storage.set("xf_native_programs_view_mode", "compact");
@@ -5930,9 +6467,9 @@ test("pro page renders native subscription content instead of a web-view wrapper
     assert.equal(wxml.includes("<web-view"), false);
     assert.match(wxml, /class="xf-pro-page \{\{fontSizeClass\}\}" style="padding-top: \{\{chromeHeight\}\}px;"/);
     assert.match(wxml, /class="xf-native-topbar" style="height: \{\{topbarHeight\}\}px;"/);
-    assert.match(wxml, /wx:if="\{\{launchedFromSettings\}\}" class="xf-native-menu-button xf-native-back-button" style="top: \{\{backTop\}\}px; width: \{\{backSize\}\}px; height: \{\{backSize\}\}px;" catchtap="goBack" role="button" aria-label="返回"/);
+    assert.match(wxml, /class="xf-native-menu-button xf-native-back-button" style="top: \{\{backTop\}\}px; width: \{\{backSize\}\}px; height: \{\{backSize\}\}px;" catchtap="goBack" role="button" aria-label="返回"/);
     assert.match(wxml, /class="xf-native-back-icon" aria-hidden="true"/);
-    assert.match(wxml, /wx:else class="xf-native-menu-button" style="top: \{\{logoTop\}\}px; height: \{\{logoHeight\}\}px;" catchtap="openSettings" role="button" aria-label="打开设置"/);
+    assert.doesNotMatch(wxml, /wx:else class="xf-native-menu-button" style="top: \{\{logoTop\}\}px; height: \{\{logoHeight\}\}px;" catchtap="openSettings" role="button" aria-label="打开设置"/);
     assert.match(wxml, /class="xf-native-logo" style="top: \{\{logoTop\}\}px; height: \{\{logoHeight\}\}px;" src="\/assets\/nav\/logo\.png" mode="aspectFit" bindtap="goProgramsHome" aria-label="回到顶部"/);
     assert.doesNotMatch(wxml, /xf-pro-logo-badge/);
     assert.match(wxml, /class="xf-native-settings-avatar-wrap"[\s\S]*class="xf-native-settings-avatar" src="\{\{accountAvatar\}\}" mode="aspectFill"[\s\S]*class="xf-native-settings-title-row"[\s\S]*class="xf-native-settings-title">\{\{accountTitle\}\}[\s\S]*class="xf-native-settings-subtitle-row"[\s\S]*class="xf-native-settings-subtitle">\{\{accountSubtitle\}\}/);
@@ -5950,11 +6487,13 @@ test("pro page renders native subscription content instead of a web-view wrapper
     assert.match(js, /chromeHeight: 88/);
     assert.match(js, /syncTopbarMetrics\(\)/);
     assert.match(js, /\.\.\.createNativeSettingsMethods\(\)/);
-    assert.match(js, /goBack\(\)\s*\{[\s\S]*wx\.navigateBack\(\{ delta: 1 \}\)/);
+    assert.match(js, /smartBackHome/);
+    assert.match(js, /goBack\(\)\s*\{[\s\S]*smartBackHome\(\);[\s\S]*\}/);
     assert.match(js, /goProgramsHome: navigateProgramsHome/);
     assert.match(js, /goProgramsHome\(\)\s*\{[\s\S]*navigateProgramsHome\(\);[\s\S]*\}/);
     assert.match(wxml, /选择套餐/);
-    assert.match(wxml, /订阅已完成/);
+    assert.match(wxml, /订阅中/);
+    assert.doesNotMatch(wxml, /订阅已完成/);
     assert.match(wxml, /继续补充点数/);
     assert.match(wxml, /bindtap="requestRefund"/);
     assert.match(wxml, /申请退款/);
@@ -5992,6 +6531,7 @@ test("pro page renders native subscription content instead of a web-view wrapper
     assert.match(js, /formatPoints/);
     assert.match(js, /membershipBadgeLabel/);
     assert.match(js, /featureKey: "education_planning", name: "智能教育规划", cost: 5/);
+    assert.match(js, /featureKey: "xiaowanzi_file", name: "小玩子图片文件处理", cost: 10/);
     assert.doesNotMatch(js, /name: "兼容 AI 聊天"/);
 
     await definition.onLoad.call(context);
@@ -6003,6 +6543,7 @@ test("pro page renders native subscription content instead of a web-view wrapper
     assert.equal(context.data.statusLabel, "未开通订阅");
     assert.equal(context.data.memberBadgeLabel, "");
     assert.equal(context.data.usagePolicy[0].name, "小玩子对话");
+    assert.equal(context.data.usagePolicy.some((item) => item.featureKey === "xiaowanzi_file" && item.costText === "10 点/次"), true);
     assert.equal(context.data.usagePolicy.some((item) => item.featureKey === "education_planning" && item.name === "智能教育规划"), true);
     assert.equal(context.data.usagePolicy.some((item) => item.featureKey === "ai_chat"), false);
     assert.equal(context.data.topbarHeight, 72);
@@ -6875,10 +7416,10 @@ test("Xiaowanzi super mode exit bridge closes the webview page stack", () => {
 
 test("main mini program pages expose WeChat share handlers", () => {
   const pages = [
-    ["programs", "家长先疯节目", "/pages/programs/index"],
-    ["reading", "家长先疯及阅", "/pages/reading/index"],
+    ["programs", "节目", "/pages/programs/index"],
+    ["reading", "及阅", "/pages/reading/index"],
     ["xiaowanzi", "小玩子", "/pages/xiaowanzi/index"],
-    ["materials", "家长先疯资料", "/pages/materials/index"],
+    ["materials", "资料", "/pages/materials/index"],
     ["topics", "家长先疯请教", "/pages/topics/index"]
   ];
 
@@ -7224,6 +7765,7 @@ test("shared native settings drawer renders profile subviews in place on first-l
   assert.match(template, /<view class="xf-settings-bottom">\s*<button wx:if="\{\{isLoggedIn\}\}" class="xf-profile-danger xf-settings-danger">注销账户<\/button>/);
   assert.match(nativeListStyles, /\.xf-settings-panel \{[\s\S]*display: flex;[\s\S]*flex-direction: column;[\s\S]*min-height: calc\(100vh - 190rpx\);/);
   assert.match(nativeListStyles, /\.xf-settings-bottom \{[\s\S]*margin-top: auto;[\s\S]*padding-top: 120rpx;[\s\S]*padding-bottom: 86rpx;/);
+  assert.match(archivePanelStyles, /\.xf-profile-panel \{[\s\S]*background: linear-gradient\(180deg, #f6f7fb 0, #f6f7fb calc\(100% - 96rpx\), transparent calc\(100% - 96rpx\), transparent 100%\);/);
   assert.match(template, /class="xf-profile-delete-child" bindtap="deleteArchiveChild">删除<\/button>/);
   assert.match(archivePageTemplate, /class="xf-profile-delete-child" bindtap="deleteChild">删除<\/button>/);
   assert.match(template, /<button class="xf-profile-secondary" bindtap="findXiaowanzi">找小玩子<\/button>\s*<\/view>\s*<\/view>\s*<view class="xf-profile-message">\{\{profilePanelMessage\}\}<\/view>\s*<view class="xf-profile-delete-zone">\s*<button class="xf-profile-delete-child" bindtap="deleteArchiveChild">删除<\/button>\s*<\/view>/);
@@ -7815,16 +8357,17 @@ test("mama haozhuan opens a native mini program form instead of program detail w
     assert.equal(page.wxml.includes("<web-view"), false);
     assert.match(page.wxml, /class="xf-mama-page \{\{fontSizeClass\}\}" style="padding-top: \{\{chromeHeight\}\}px;"/);
     assert.match(page.wxml, /class="xf-native-topbar" style="height: \{\{topbarHeight\}\}px;"/);
-    assert.match(page.wxml, /wx:if="\{\{launchedFromSettings\}\}" class="xf-native-menu-button xf-native-back-button" style="top: \{\{backTop\}\}px; width: \{\{backSize\}\}px; height: \{\{backSize\}\}px;" catchtap="goBack" role="button" aria-label="返回"/);
+    assert.match(page.wxml, /class="xf-native-menu-button xf-native-back-button" style="top: \{\{backTop\}\}px; width: \{\{backSize\}\}px; height: \{\{backSize\}\}px;" catchtap="goBack" role="button" aria-label="返回"/);
     assert.match(page.wxml, /class="xf-native-back-icon" aria-hidden="true"/);
-    assert.match(page.wxml, /wx:else class="xf-native-menu-button" style="top: \{\{logoTop\}\}px; height: \{\{logoHeight\}\}px;" catchtap="openSettings" role="button" aria-label="打开设置"/);
+    assert.doesNotMatch(page.wxml, /wx:else class="xf-native-menu-button" style="top: \{\{logoTop\}\}px; height: \{\{logoHeight\}\}px;" catchtap="openSettings" role="button" aria-label="打开设置"/);
     assert.match(page.wxml, /class="xf-native-logo" style="top: \{\{logoTop\}\}px; height: \{\{logoHeight\}\}px;" src="\/assets\/nav\/logo\.png" mode="aspectFit" bindtap="goProgramsHome" aria-label="回到顶部"/);
     assert.match(page.js, /goProgramsHome: navigateProgramsHome/);
     assert.match(page.js, /goProgramsHome\(\)\s*\{[\s\S]*navigateProgramsHome\(\);[\s\S]*\}/);
     assert.match(page.js, /launchedFromSettings: false/);
     assert.match(page.js, /backTop: 8/);
     assert.match(page.js, /backSize: 32/);
-    assert.match(page.js, /goBack\(\)\s*\{[\s\S]*wx\.navigateBack\(\{ delta: 1 \}\)/);
+    assert.match(page.js, /smartBackHome/);
+    assert.match(page.js, /goBack\(\)\s*\{[\s\S]*smartBackHome\(\);[\s\S]*\}/);
     assert.match(page.wxml, /wx:if="\{\{settingsPanelOpen\}\}" class="xf-native-settings-mask" style="height: \{\{settingsPanelHeight\}\}px;" catchtap="closeSettings"/);
     assert.match(page.wxml, /wx:for="\{\{settingsSections\}\}"/);
     assert.doesNotMatch(page.wxml, /xf-mama-back/);
@@ -8628,14 +9171,31 @@ test("share landing page is registered and uses the logo asset", async () => {
   assert.match(js, /title: inferTargetTitle\(target, title\)/);
   assert.match(wxml, /wx:if="\{\{conversationShare\}\}" class="xf-share-conversation"/);
   assert.match(wxml, /wx:for="\{\{conversationShare\.messages\}\}"/);
+  assert.match(wxml, /wx:for="\{\{item\.contentParts\}\}"/);
+  assert.match(wxml, /class="xf-share-readonly-head"[\s\S]*class="xf-share-brand" src="\/assets\/xiaowanzi-icons\/share-logo\.png"/);
+  assert.doesNotMatch(wxml, /xf-share-readonly-kicker|xf-share-readonly-title|xf-share-readonly-note|不能继续提问或查看其它对话/);
+  assert.match(wxml, /class="xf-share-message-link is-readonly"/);
+  assert.match(wxml, /class="xf-share-message-link-arrow">↗<\/text>/);
+  assert.match(wxml, /class="xf-share-references"[\s\S]*站内引用/);
+  assert.match(wxml, /class="xf-share-reference-arrow">↗<\/text>/);
+  assert.match(wxml, /class="xf-share-open-xiaowanzi" bindtap="openTarget">打开小玩子<\/button>/);
+  assert.doesNotMatch(wxml, /openConversationLink/);
   assert.match(wxml, /bindtap="openTarget"/);
   assert.match(wxml, /bindtap="goPrograms"/);
+  assert.match(js, /function buildMessageContentParts\(content\)/);
+  assert.match(js, /function extractShareReferences\(content\)/);
+  assert.doesNotMatch(js, /openConversationLink/);
   assert.match(js, /decodeOption\(options\.target, DEFAULT_TARGET\)/);
   assert.match(js, /if \(options\.target \|\| sceneTarget\) openTargetPath\(target\)/);
   assert.match(js, /wx\.reLaunch/);
   assert.match(js, /wx\.switchTab/);
   assert.match(wxss, /#5e17eb/);
-  assert.match(wxss, /\.xf-share-message\.is-user \{[\s\S]*text-align: left;/);
+  assert.match(wxss, /\.xf-share-user-bubble \{[\s\S]*border-radius: 34rpx 8rpx 34rpx 34rpx;[\s\S]*text-align: left;/);
+  assert.match(wxss, /\.xf-share-assistant-card \{[\s\S]*border: 1rpx solid rgba\(122, 103, 238, 0\.1\);[\s\S]*line-height: 1\.82;/);
+  assert.match(wxss, /\.xf-share-message-link \{[\s\S]*border: 1rpx solid rgba\(115, 83, 224, 0\.24\);/);
+  assert.match(wxss, /\.xf-share-message-link-arrow \{[\s\S]*color: #6d28f2;/);
+  assert.match(wxss, /\.xf-share-reference-arrow \{[\s\S]*color: #6d28f2;/);
+  assert.match(wxss, /\.xf-share-open-xiaowanzi \{[\s\S]*background: linear-gradient\(108deg, #5368ff 0%, #6847ff 56%, #601bec 100%\);/);
 
   const definition = loadPageDefinition("share");
   const relaunchCalls = [];
@@ -8652,7 +9212,7 @@ test("share landing page is registered and uses the logo asset", async () => {
           title: "小玩子：小学数学进阶规划？",
           messages: [
             { role: "user", content: "小学数学进阶规划？" },
-            { role: "assistant", content: "先培养数感，再慢慢进入抽象思维。" }
+            { role: "assistant", content: "先培养数感，再慢慢进入抽象思维。👉 [夏老师教育观点解析](/topics/teacher-xia)" }
           ]
         }
       });
@@ -8704,6 +9264,12 @@ test("share landing page is registered and uses the logo asset", async () => {
     assert.equal(shareSceneContext.data.conversationShare.id, "share-abc123");
     assert.equal(shareSceneContext.data.conversationShare.messages[0].role, "user");
     assert.equal(shareSceneContext.data.conversationShare.messages[1].role, "assistant");
+    assert.equal(shareSceneContext.data.conversationShare.messages[1].contentParts.some((part) => part.type === "link"), true);
+    assert.deepEqual(shareSceneContext.data.conversationShare.messages[1].references, [{
+      title: "夏老师教育观点解析",
+      url: "/topics/teacher-xia",
+      key: "ref-0"
+    }]);
     assert.equal(relaunchCalls.filter((item) => String(item.url).includes("share-abc123")).length, 0);
   } finally {
     global.wx.reLaunch = originalRelaunch;

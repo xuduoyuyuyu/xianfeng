@@ -79,6 +79,23 @@ test("child profile merge replaces retired Xiaowanzi avatar paths with the packa
   assert.equal(merged[0].avatar, "/assets/wel-avatar/no-hat.png");
 });
 
+test("child profile merge preserves empty grade instead of defaulting to kindergarten", () => {
+  const merged = mergeChildProfileRecords(
+    [
+      {
+        id: "child-empty-grade",
+        displayName: "测试",
+        relation: "儿子",
+        grade: ""
+      }
+    ],
+    []
+  );
+
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].grade, "");
+});
+
 test("child profile merge dedupes saved children by display name", () => {
   const nativeChildren = [
     {

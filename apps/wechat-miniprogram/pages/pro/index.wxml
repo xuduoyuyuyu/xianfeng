@@ -3,11 +3,8 @@
 <view class="xf-pro-page {{fontSizeClass}}" style="padding-top: {{chromeHeight}}px;">
   <view class="xf-native-topbar" style="height: {{topbarHeight}}px;">
     <view class="xf-native-nav-row" style="height: {{topbarHeight}}px;">
-      <view wx:if="{{launchedFromSettings}}" class="xf-native-menu-button xf-native-back-button" style="top: {{backTop}}px; width: {{backSize}}px; height: {{backSize}}px;" catchtap="goBack" role="button" aria-label="返回">
+      <view class="xf-native-menu-button xf-native-back-button" style="top: {{backTop}}px; width: {{backSize}}px; height: {{backSize}}px;" catchtap="goBack" role="button" aria-label="返回">
         <view class="xf-native-back-icon" aria-hidden="true"></view>
-      </view>
-      <view wx:else class="xf-native-menu-button" style="top: {{logoTop}}px; height: {{logoHeight}}px;" catchtap="openSettings" role="button" aria-label="打开设置">
-        <view class="xf-native-menu-icon" aria-hidden="true"></view>
       </view>
       <image class="xf-native-logo" style="top: {{logoTop}}px; height: {{logoHeight}}px;" src="/assets/nav/logo.png" mode="aspectFit" bindtap="goProgramsHome" aria-label="回到顶部" />
       <button class="xf-native-welfare-button" style="top: {{logoTop}}px; right: {{welfareRight}}px; height: {{logoHeight}}px;" catchtap="openWelfare" aria-label="百宝箱">
@@ -20,7 +17,7 @@
     <view class="xf-pro-primary-card">
       <block wx:if="{{membership && membership.isProActive}}">
         <view class="xf-pro-complete-hero">
-          <text class="xf-pro-complete-kicker">订阅已完成</text>
+          <text class="xf-pro-complete-kicker">订阅中</text>
           <text class="xf-pro-complete-title">{{memberBadgeLabel}} 会员</text>
           <text class="xf-pro-complete-copy">点数已到账，可继续用于小玩子、嘉宾 AI、知物分析等功能。</text>
         </view>

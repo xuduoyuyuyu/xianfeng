@@ -20,6 +20,23 @@ describe("tutorbot RAG wiring", () => {
     assert.match(source, /localPromptBlock:\s*rag\.promptBlock/);
   });
 
+  it("recognizes Xiaowanzi image attachments through a dedicated charged endpoint", () => {
+    const source = readFileSync(resolve(__dirname, "tutorbot.ts"), "utf8");
+    const serviceSource = readFileSync(resolve(__dirname, "../services/xiaowanziAttachmentRecognition.ts"), "utf8");
+
+    assert.match(source, /recognizeXiaowanziAttachment/);
+    assert.match(source, /recognizeXiaowanziImageDataUrl/);
+    assert.match(serviceSource, /XIAOWANZI_VOLCENGINE_ENDPOINT_ID = "ep-m-20260510222218-mv5t9"/);
+    assert.match(serviceSource, /XIAOWANZI_VOLCENGINE_API_KEY/);
+    assert.match(serviceSource, /callXiaowanziVolcengineImageModel/);
+    assert.match(source, /router\.post\("\/:botId\/attachments\/recognize"/);
+    assert.match(source, /requirePro\("xiaowanzi_file"\)/);
+    assert.match(serviceSource, /featureKey:\s*"xiaowanzi_file"/);
+    const attachmentRouteIndex = source.indexOf('router.post("/:botId/attachments/recognize"');
+    const adminMiddlewareIndex = source.indexOf("router.use(requireAdmin)");
+    assert.ok(attachmentRouteIndex >= 0 && adminMiddlewareIndex >= 0 && attachmentRouteIndex < adminMiddlewareIndex);
+  });
+
   it("prevents Xiaowanzi from inventing site programs when no direct site reference is provided", () => {
     const source = readFileSync(resolve(__dirname, "tutorbot.ts"), "utf8");
 
