@@ -58,6 +58,15 @@ function currentUserId(req: AuthenticatedRequest): string {
   return String(req.user?.id || "");
 }
 
+function isWechatMiniProgramRequest(req: AuthenticatedRequest): boolean {
+  const channel = String(req.body?.channel || "").trim();
+  const userAgent = String(req.headers["user-agent"] || "").toLowerCase();
+  const referer = String(req.headers.referer || req.headers.referrer || "").toLowerCase();
+  return channel === "mini_program"
+    || userAgent.includes("miniprogramenv")
+    || referer.includes("servicewechat.com/");
+}
+
 async function findOwnedOrder(req: AuthenticatedRequest, orderId: string) {
   const order = await PaymentOrderModel.findById(orderId);
   if (!order) return null;
@@ -144,6 +153,10 @@ router.get("/me", authenticate, async (req: AuthenticatedRequest, res) => {
 
 router.post("/orders", authenticate, async (req: AuthenticatedRequest, res) => {
   try {
+    if (isWechatMiniProgramRequest(req)) {
+      res.status(400).json({ message: "微信小程序内虚拟商品购买必须使用微信虚拟支付，请返回小程序订阅页完成支付" });
+      return;
+    }
     const plan = normalizeBillingPlan(req.body?.plan);
     if (!plan) {
       res.status(400).json({ message: "请选择有效套餐" });
