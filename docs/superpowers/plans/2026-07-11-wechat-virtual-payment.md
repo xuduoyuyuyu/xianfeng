@@ -159,7 +159,7 @@ git commit -m "feat: add virtual payment product catalog"
 - Produces: `exchangeWechatLoginCode(code): Promise<{ openid: string; sessionKey: string }>`
 - Produces: `createWechatVirtualCheckout(order, { openid, sessionKey }): WechatVirtualCheckout`
 - Produces: `parseWechatVirtualNotification(rawBody): WechatVirtualNotification`
-- Produces: `queryWechatVirtualOrder(outTradeNo): Promise<VerifiedVirtualOrder>`
+- Produces: `queryWechatVirtualOrder({ outTradeNo, openid }): Promise<VerifiedVirtualOrder>`
 - Produces: `isWechatVirtualPaymentConfigured(): boolean`
 
 - [ ] **Step 1: Capture the exact official contract before coding**
@@ -173,7 +173,8 @@ If official documentation differs from names in this plan, update the plan and t
 Use fixed `openid`, Offer ID, app key/session key fixture and order fields. Assert:
 
 ```ts
-assert.equal(checkout.mode, "wechat_virtual");
+assert.equal(checkout.paymentChannel, "wechat_virtual");
+assert.equal(checkout.paymentParams.mode, "short_series_goods");
 assert.equal(checkout.signData, expectedSignData);
 assert.equal(checkout.paySig, expectedPaySig);
 assert.equal(checkout.signature, expectedSignature);
@@ -212,12 +213,12 @@ Return a discriminated internal type:
 
 ```ts
 type WechatVirtualNotification =
-  | { event: "xpay_goods_deliver_notify"; outTradeNo: string; productId: string; quantity: number; raw: Record<string, unknown> }
-  | { event: "xpay_refund_notify"; outTradeNo: string; refundFee: number; raw: Record<string, unknown> }
-  | { event: "xpay_complaint_notify"; outTradeNo: string; transactionId: string; raw: Record<string, unknown> };
+  | { event: "xpay_goods_deliver_notify"; outTradeNo: string; openid: string; productId: string; quantity: number; raw: Record<string, unknown> }
+  | { event: "xpay_refund_notify"; outTradeNo: string; openid: string; refundFee: number; raw: Record<string, unknown> }
+  | { event: "xpay_complaint_notify"; outTradeNo: string; openid: string; transactionId: string; raw: Record<string, unknown> };
 ```
 
-Only map event names and fields confirmed by the official contract. Message pushes are untrusted triggers: parsing them must not imply an order-state transition. Complaint events only support minimal logging/alerting. `exchangeWechatLoginCode` must reject missing `session_key` and never expose it beyond the signing call site.
+Only map event names and fields confirmed by the official contract. Message pushes are untrusted triggers: parsing them must not imply an order-state transition. The parsed openid may be used only with the local order number as the required `/xpay/query_order` selector; fulfillment trusts the query response, not the push. Complaint events only support minimal logging/alerting. `exchangeWechatLoginCode` must reject missing `session_key` and never expose it beyond the signing call site.
 
 - [ ] **Step 7: Run tests and verify GREEN**
 
