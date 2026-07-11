@@ -4,6 +4,7 @@ import PaymentOrderModel, { BillingPlanId as PaymentOrderPlanId, PaymentOrder, P
 import RefundRecordModel from "../models/RefundRecord";
 import User from "../models/User";
 import { getVirtualProduct } from "./virtualPaymentProducts";
+import { queryWechatVirtualOrder, type VerifiedVirtualOrder, type WechatVirtualNotification } from "./wechatVirtualPayment";
 
 export type ProStatus = "none" | "active" | "expired" | "refunded";
 
@@ -439,6 +440,7 @@ export async function createVirtualPaymentOrder(input: {
   if (input.quantity !== product.maxQuantity) {
     throw new Error("虚拟商品数量非法");
   }
+  const environment = String(process.env.WECHAT_VIRTUAL_PAY_ENV || "").trim();
   return PaymentOrderModel.create({
     userId: new mongoose.Types.ObjectId(input.userId),
     plan: product.plan,
@@ -451,6 +453,42 @@ export async function createVirtualPaymentOrder(input: {
     status: "pending",
     virtualProductId: product.productId,
     virtualQuantity: input.quantity,
+    virtualEnvironment: environment === "0" || environment === "1" ? Number(environment) : null,
+  });
+}
+
+export async function processWechatVirtualNotification(
+  notification: WechatVirtualNotification,
+  dependencies: { queryOrder?: (input: { outTradeNo: string; openid: string }) => Promise<VerifiedVirtualOrder> } = {},
+): Promise<PaymentOrder | null> {
+  if (notification.event !== "xpay_goods_deliver_notify") return null;
+  const order = await PaymentOrderModel.findOne({ outTradeNo: notification.outTradeNo });
+  if (!order || order.paymentChannel !== "wechat_virtual") throw new Error("微信虚拟支付订单不存在");
+
+  const trusted = await (dependencies.queryOrder || queryWechatVirtualOrder)({
+    outTradeNo: order.outTradeNo,
+    openid: notification.openid,
+  });
+  const user = await User.findById(order.userId).select("wechatMiniOpenid").lean();
+  const boundOpenid = String(user?.wechatMiniOpenid || "").trim();
+  const product = getVirtualProduct(order.virtualProductId);
+  const mismatch = trusted.outTradeNo !== order.outTradeNo
+    || trusted.status !== 2
+    || trusted.amountCents !== order.amountCents
+    || trusted.paidAmountCents !== order.amountCents
+    || trusted.environment !== order.virtualEnvironment
+    || !trusted.transactionId
+    || (order.providerTradeNo && order.providerTradeNo !== trusted.transactionId)
+    || !product
+    || notification.productId !== order.virtualProductId
+    || notification.quantity !== order.virtualQuantity
+    || (boundOpenid && boundOpenid !== notification.openid);
+  if (mismatch) throw new Error("微信虚拟支付查单结果与本地订单不匹配");
+
+  return markOrderPaid({
+    outTradeNo: order.outTradeNo,
+    providerTradeNo: trusted.transactionId,
+    rawNotify: { trigger: notification.raw, verifiedOrder: trusted.raw },
   });
 }
 
@@ -471,7 +509,15 @@ export async function markOrderPaid(input: {
   order.paidAt = paidAt;
   order.rawNotify = input.rawNotify || {};
   await order.save();
-  await grantProForOrder(order, paidAt);
+  try {
+    await grantProForOrder(order, paidAt);
+  } catch (error) {
+    order.status = "pending";
+    order.providerTradeNo = "";
+    order.paidAt = null;
+    await order.save();
+    throw error;
+  }
   return order;
 }
 

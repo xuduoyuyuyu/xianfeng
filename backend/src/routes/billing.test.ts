@@ -13,11 +13,13 @@ describe("billing routes", () => {
       { path: "/plans", methods: ["get"] },
       { path: "/me", methods: ["get"] },
       { path: "/orders", methods: ["post"] },
+      { path: "/virtual-orders", methods: ["post"] },
       { path: "/orders/:id", methods: ["get"] },
       { path: "/orders/:id/mock-pay", methods: ["post"] },
       { path: "/consume/education-planning", methods: ["post"] },
       { path: "/alipay/notify", methods: ["post"] },
       { path: "/wechat/notify", methods: ["post"] },
+      { path: "/wechat/virtual/notify", methods: ["post"] },
       { path: "/refunds", methods: ["post"] },
     ]);
   });
@@ -35,6 +37,13 @@ describe("billing routes", () => {
     assert.equal(data.plus.amountYuan, "19.90");
     assert.equal(data.plus.pointsPerCycle, 200);
     assert.equal(data.pro.pointsPerCycle, 1200);
+    const virtualProducts = [
+      { productId: "plus", name: data.plus.name, amountCents: data.plus.amountCents },
+      { productId: "pro", name: data.pro.name, amountCents: data.pro.amountCents },
+    ];
+    assert.deepEqual(virtualProducts.map((item) => item.productId), ["plus", "pro"]);
+    assert.equal(JSON.stringify(virtualProducts).includes("offerId"), false);
+    assert.equal(JSON.stringify(virtualProducts).includes("appKey"), false);
     assert.equal(JSON.stringify(data).includes("PRIVATE_KEY"), false);
   });
 });

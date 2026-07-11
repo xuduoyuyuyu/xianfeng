@@ -10,11 +10,13 @@ import {
   canRefundOrder,
   calculatePointBasedRefund,
   createPaymentOrder,
+  createVirtualPaymentOrder,
   grantFreeLoginPointsForUser,
   getLatestRefundableOrder,
   isMockPaymentEnabled,
   markOrderPaid,
   normalizeBillingPlan,
+  processWechatVirtualNotification,
   serializeBillingUser,
   serializePlan,
 } from "../services/billing";
@@ -28,6 +30,8 @@ import {
   refundWechatOrder,
   syncWechatPaidOrder,
 } from "../services/paymentProviders";
+import { createWechatVirtualCheckout, exchangeWechatLoginCode, isWechatVirtualPaymentConfigured, parseWechatVirtualNotification } from "../services/wechatVirtualPayment";
+import { getVirtualProduct } from "../services/virtualPaymentProducts";
 import User from "../models/User";
 
 const router = Router();
@@ -100,6 +104,12 @@ router.get("/plans", (_req, res) => {
       wechat: { enabled: true },
     },
     usagePolicy: PUBLIC_POINT_USAGE_POLICY,
+    virtualProducts: [getVirtualProduct("plus"), getVirtualProduct("pro")].map((product) => ({
+      productId: product!.productId,
+      name: product!.name,
+      amountCents: product!.amountCents,
+      points: product!.points,
+    })),
   });
 });
 
@@ -149,6 +159,44 @@ router.post("/orders", authenticate, async (req: AuthenticatedRequest, res) => {
     res.status(201).json({ order: serializeOrder(order), checkout });
   } catch (error: any) {
     res.status(500).json({ message: error?.message || "创建订单失败" });
+  }
+});
+
+router.post("/virtual-orders", authenticate, async (req: AuthenticatedRequest, res) => {
+  if (!isWechatVirtualPaymentConfigured()) {
+    res.status(503).json({ message: "微信虚拟支付暂不可用" });
+    return;
+  }
+  const productId = req.body?.productId;
+  const quantity = req.body?.quantity;
+  const loginCode = String(req.body?.loginCode || "").trim();
+  if (!getVirtualProduct(productId) || quantity !== 1) {
+    res.status(400).json({ message: "虚拟商品或数量无效" });
+    return;
+  }
+  if (!loginCode) {
+    res.status(400).json({ message: "微信登录 code 不能为空" });
+    return;
+  }
+  try {
+    const session = await exchangeWechatLoginCode(loginCode);
+    const user = await User.findById(currentUserId(req)).select("wechatMiniOpenid").lean();
+    if (!user) {
+      res.status(401).json({ message: "登录状态无效" });
+      return;
+    }
+    const boundOpenid = String(user.wechatMiniOpenid || "").trim();
+    if (boundOpenid && boundOpenid !== session.openid) {
+      res.status(401).json({ message: "微信账号与当前账号不匹配" });
+      return;
+    }
+    const order = await createVirtualPaymentOrder({ userId: currentUserId(req), productId, quantity });
+    const checkout = createWechatVirtualCheckout(order, session);
+    res.status(201).json({ order: serializeOrder(order), checkout });
+  } catch (error: any) {
+    const message = String(error?.message || "创建虚拟支付订单失败");
+    const loginFailure = /微信登录|session_key|code/.test(message);
+    res.status(loginFailure ? 400 : 500).json({ message });
   }
 });
 
@@ -221,6 +269,17 @@ router.post("/wechat/notify", async (req: any, res) => {
   }
 });
 
+router.post("/wechat/virtual/notify", async (req: any, res) => {
+  try {
+    const notification = parseWechatVirtualNotification(req.rawBody || JSON.stringify(req.body || {}));
+    await processWechatVirtualNotification(notification);
+    res.json({ ErrCode: 0, ErrMsg: "success" });
+  } catch (error) {
+    console.error("Wechat virtual pay notify failed:", error);
+    res.status(400).json({ ErrCode: -1, ErrMsg: "fail" });
+  }
+});
+
 router.post("/refunds", authenticate, async (req: AuthenticatedRequest, res) => {
   const order = req.body?.orderId
     ? await findOwnedOrder(req, String(req.body.orderId))
@@ -236,6 +295,10 @@ router.post("/refunds", authenticate, async (req: AuthenticatedRequest, res) => 
   const refundCheck = canRefundOrder(order);
   if (!refundCheck.ok) {
     res.status(400).json({ message: refundCheck.reason, refundDeadline: refundCheck.deadline?.toISOString() || null });
+    return;
+  }
+  if (order.paymentChannel === "wechat_virtual") {
+    res.status(409).json({ message: "微信虚拟支付退款尚未接入，订单未变更" });
     return;
   }
   const userForRefund = await User.findById(order.userId).lean();

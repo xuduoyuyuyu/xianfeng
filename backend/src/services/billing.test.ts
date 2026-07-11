@@ -21,6 +21,7 @@ import {
   isProActive,
   isMockPaymentEnabled,
   normalizeBillingPlan,
+  processWechatVirtualNotification,
   resetFreeAccountPointGrants,
   serializeBillingUser,
 } from "./billing";
@@ -320,6 +321,52 @@ describe("billing point consumption", () => {
       createVirtualPaymentOrder({ userId: "invalid", productId: "plus", quantity: 1 }),
       /用户 ID 非法/,
     );
+  });
+
+  it("queries every virtual delivery trigger and grants its entitlement only once", async () => {
+    await User.deleteMany({});
+    await PaymentOrderModel.deleteMany({});
+    const user = await User.create({ username: "virtual-paid-user", password: "hashed", wechatMiniOpenid: "openid-1", proPointBalance: 0 });
+    const order = await createVirtualPaymentOrder({ userId: String(user._id), productId: "plus", quantity: 1 });
+    order.virtualEnvironment = 1;
+    await order.save();
+    let queryCount = 0;
+    const queryOrder = async () => {
+      queryCount += 1;
+      return { outTradeNo: order.outTradeNo, status: 2, amountCents: 1990, paidAmountCents: 1990, environment: 1 as const, transactionId: "wx-virtual-1", raw: { trusted: true } };
+    };
+    const trigger = { event: "xpay_goods_deliver_notify" as const, outTradeNo: order.outTradeNo, openid: "openid-1", productId: "plus", quantity: 1, raw: { untrusted: true } };
+
+    await processWechatVirtualNotification(trigger, { queryOrder });
+    const first = await User.findById(user._id).lean();
+    const firstExpiry = first?.proExpiresAt?.toISOString();
+    await processWechatVirtualNotification(trigger, { queryOrder });
+    const second = await User.findById(user._id).lean();
+
+    assert.equal(queryCount, 2);
+    assert.equal(first?.proPointBalance, 200);
+    assert.equal(second?.proPointBalance, 200);
+    assert.equal(second?.proExpiresAt?.toISOString(), firstExpiry);
+  });
+
+  it("rejects untrusted or mismatched virtual delivery without fulfilling", async () => {
+    await User.deleteMany({});
+    await PaymentOrderModel.deleteMany({});
+    const user = await User.create({ username: "virtual-mismatch-user", password: "hashed", wechatMiniOpenid: "openid-1", proPointBalance: 0 });
+    const order = await createVirtualPaymentOrder({ userId: String(user._id), productId: "plus", quantity: 1 });
+    order.virtualEnvironment = 1;
+    await order.save();
+    const base = { outTradeNo: order.outTradeNo, status: 2, amountCents: 1990, paidAmountCents: 1990, environment: 1 as const, transactionId: "wx-virtual-2", raw: {} };
+    const trigger = { event: "xpay_goods_deliver_notify" as const, outTradeNo: order.outTradeNo, openid: "openid-1", productId: "plus", quantity: 1, raw: {} };
+    for (const queryResult of [{ ...base, amountCents: 9900 }, { ...base, environment: 0 as const }]) {
+      await assert.rejects(processWechatVirtualNotification(trigger, { queryOrder: async () => queryResult }), /不匹配/);
+    }
+    await assert.rejects(processWechatVirtualNotification({ ...trigger, productId: "pro" }, { queryOrder: async () => base }), /不匹配/);
+    await assert.rejects(processWechatVirtualNotification({ ...trigger, openid: "other-openid" }, { queryOrder: async () => base }), /不匹配/);
+    const savedOrder = await PaymentOrderModel.findById(order._id).lean();
+    const savedUser = await User.findById(user._id).lean();
+    assert.equal(savedOrder?.status, "pending");
+    assert.equal(savedUser?.proPointBalance, 0);
   });
 
   it("resets issued free account grants without clearing active paid Pro balances", async () => {
