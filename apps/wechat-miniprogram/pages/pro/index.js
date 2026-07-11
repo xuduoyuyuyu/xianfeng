@@ -225,6 +225,10 @@ function paymentErrorMessage(error) {
   return raw || "微信支付未完成，请稍后重试";
 }
 
+function isAuthExpiredError(error) {
+  return Number(error && error.statusCode) === 401;
+}
+
 function confirmRefundRequest() {
   if (!wx.showModal) return Promise.resolve(true);
   return new Promise((resolve) => {
@@ -467,6 +471,14 @@ Page({
         return response;
       })
       .catch((error) => {
+        if (isAuthExpiredError(error)) {
+          this.setData({
+            ordering: false,
+            message: ""
+          });
+          this.syncAccountEntry();
+          return;
+        }
         this.setData({
           ordering: false,
           message: paymentErrorMessage(error)

@@ -1,5 +1,6 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import { showProUpgradeFromPayload } from '../utils/proGate';
+import { isMiniProgramWebView, openMiniProgramNativeLogin } from '../utils/mpAuthBridge';
 
 // In production the Nginx gateway proxies `/api` on the same origin.
 // Falling back to a relative path keeps deployed domains working even when
@@ -52,6 +53,11 @@ api.interceptors.response.use(
       if (isAdminRoute) {
         window.location.href = '/admin/login';
       } else {
+        if (isMiniProgramWebView()) {
+          (error as any).xfMiniProgramNativeLoginOpened = true;
+          void openMiniProgramNativeLogin();
+          return Promise.reject(error);
+        }
         // 非 admin 路径：弹窗引导登录，不跳页面
         document.dispatchEvent(new CustomEvent('xf-show-login-modal', {
           detail: {

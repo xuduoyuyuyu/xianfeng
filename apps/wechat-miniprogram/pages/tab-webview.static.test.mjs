@@ -6951,7 +6951,7 @@ test("pro page renders native subscription content instead of a web-view wrapper
     assert.match(wxml, /当前可用点数/);
     assert.match(wxml, /wx:for="\{\{planCards\}\}"/);
     assert.match(wxml, /bindtap="selectPlan"/);
-    assert.match(wxml, /class="xf-pro-pay-dock"[\s\S]*class="xf-pro-pay-button" bindtap="createOrder" disabled="\{\{ordering \|\| loading\}\}"[\s\S]*立即订阅/);
+    assert.match(wxml, /class="xf-pro-pay-dock"[\s\S]*wx:if="\{\{!isLoggedIn\}\}" class="xf-pro-pay-button" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone"[\s\S]*wx:else class="xf-pro-pay-button" bindtap="createOrder" disabled="\{\{ordering \|\| loading\}\}"[\s\S]*立即订阅/);
     assert.match(wxml, /wx:for="\{\{usagePolicy\}\}"/);
     assert.match(wxml, /订阅状态/);
     assert.match(wxml, /xf-pro-primary-card[\s\S]*xf-pro-policy-card[\s\S]*xf-pro-status-card/);
@@ -7295,6 +7295,67 @@ test("pro page payment request failures expose the attempted API url", async () 
 
     assert.match(context.data.message, /request:fail/);
     assert.match(context.data.message, /\/api\/billing\/virtual-orders/);
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
+test("pro page unauthenticated checkout uses WeChat phone login instead of an error message", async () => {
+  const { wxml } = readPage("pro");
+  const definition = loadPageDefinition("pro");
+  const storage = new Map([
+    ["xf_token", "expired-token"],
+    ["xf_user", { mobile: "13500003069" }]
+  ]);
+  const context = {
+    ...definition,
+    data: { ...definition.data, isLoggedIn: true, hasMobile: true, maskedMobile: "135****3069" },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+  const originalWx = global.wx;
+  const requestedUrls = [];
+
+  try {
+    global.wx = {
+      getStorageSync(key) {
+        return storage.has(key) ? storage.get(key) : "";
+      },
+      setStorageSync(key, value) {
+        storage.set(key, value);
+      },
+      removeStorageSync(key) {
+        storage.delete(key);
+      },
+      login(options) {
+        options.success({ code: "wx-login-code" });
+      },
+      request(options) {
+        requestedUrls.push(options.url);
+        if (options.url.endsWith("/api/billing/virtual-orders")) {
+          options.success({
+            statusCode: 401,
+            data: { message: "未登录或登录已过期" }
+          });
+          return;
+        }
+        options.fail({ errMsg: "unexpected request" });
+      },
+      showToast() {}
+    };
+
+    assert.match(wxml, /<button wx:if="\{\{!isLoggedIn\}\}" class="xf-pro-pay-button" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone"/);
+    assert.match(wxml, /<button wx:else class="xf-pro-pay-button" bindtap="createOrder" disabled="\{\{ordering \|\| loading\}\}"/);
+
+    await definition.createOrder.call(context);
+
+    assert.equal(requestedUrls.some((url) => url.endsWith("/api/billing/virtual-orders")), true);
+    assert.equal(context.data.ordering, false);
+    assert.equal(context.data.isLoggedIn, false);
+    assert.equal(context.data.hasMobile, false);
+    assert.equal(context.data.maskedMobile, "未绑定");
+    assert.equal(context.data.message, "");
   } finally {
     global.wx = originalWx;
   }

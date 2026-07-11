@@ -34,7 +34,7 @@ test("subscription page uses native mini program chrome spacing when embedded", 
 });
 
 test("ProPage blocks ordinary web checkout inside mini-program web-view", () => {
-  assert.match(source, /import \{ isMiniProgramWebView, openMiniProgramNativePro \} from "\.\.\/utils\/mpAuthBridge";/);
+  assert.match(source, /import \{ isMiniProgramWebView,[^}]*openMiniProgramNativePro[^}]*\} from "\.\.\/utils\/mpAuthBridge";/);
   assert.match(source, /const miniProgramWebView = isMiniProgramWebView\(\);/);
   assert.match(source, /if \(miniProgramWebView\) \{[\s\S]*await openMiniProgramNativePro\(selected\)[\s\S]*return;[\s\S]*\}/);
   const createOrderFunction = source.match(/const createOrder = async \(\) => \{[\s\S]*?\n  \};/);
@@ -50,6 +50,18 @@ test("ProPage redirects to native virtual payment when backend blocks mini-progr
   assert.match(source, /if \(isMiniProgramVirtualPaymentBlock\(errorMessage\)\) \{/);
   assert.match(source, /await openMiniProgramNativePro\(selected\)/);
   assert.match(source, /请在小程序原生订阅页完成微信虚拟支付/);
+});
+
+test("ProPage opens native mini-program login when checkout auth is expired", () => {
+  assert.match(source, /import \{ isMiniProgramWebView,[^}]*openMiniProgramNativeLogin[^}]*openMiniProgramNativePro[^}]*\} from "\.\.\/utils\/mpAuthBridge";/);
+  assert.match(source, /error\?\.response\?\.status === 401 && miniProgramWebView/);
+  assert.match(source, /openMiniProgramNativeLogin\(\)/);
+  const catchBlock = source.match(/catch \(error: any\) \{[\s\S]*?\n    \} finally/);
+  assert.ok(catchBlock, "checkout catch block should exist");
+  assert.ok(
+    catchBlock[0].indexOf("openMiniProgramNativeLogin()") < catchBlock[0].indexOf("setMessage(errorMessage)"),
+    "expired mini-program checkout auth should open native login before showing an error message"
+  );
 });
 
 test("ProPage describes pending WeChat refunds as processing, not succeeded", () => {

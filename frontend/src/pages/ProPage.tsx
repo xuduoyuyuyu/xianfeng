@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import { BillingMembership, BillingOrder, BillingPlan, PointUsagePolicyItem, billingApi, userApi } from "../services/api";
-import { isMiniProgramWebView, openMiniProgramNativePro } from "../utils/mpAuthBridge";
+import { isMiniProgramWebView, openMiniProgramNativeLogin, openMiniProgramNativePro } from "../utils/mpAuthBridge";
 import { useXiaowanziEmbeddedLayer } from "../utils/xiaowanziLayer";
 
 type PlanId = "plus" | "pro";
@@ -195,6 +195,13 @@ const ProPage: React.FC = () => {
       }
       setMessage("微信支付二维码生成失败，请稍后重试。");
     } catch (error: any) {
+      if (error?.response?.status === 401 && miniProgramWebView) {
+        if (!error?.xfMiniProgramNativeLoginOpened) {
+          await openMiniProgramNativeLogin();
+        }
+        setMessage("");
+        return;
+      }
       const errorMessage = error?.response?.data?.message || error?.message || "下单失败";
       if (isMiniProgramVirtualPaymentBlock(errorMessage)) {
         const opened = await openMiniProgramNativePro(selected);

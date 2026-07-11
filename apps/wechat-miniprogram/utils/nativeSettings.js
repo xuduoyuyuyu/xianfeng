@@ -1008,6 +1008,9 @@ function createNativeSettingsMethods() {
       const settingsMemberBadgeLabel = token ? readCachedMembershipBadgeLabel() : "";
       this.setData({
         ...fontState,
+        isLoggedIn: Boolean(token),
+        hasMobile: Boolean(token && user && user.mobile),
+        maskedMobile: maskMobile(user && user.mobile),
         accountTitle: token && name ? String(name) : "登录/注册",
         accountSubtitle: accountSubtitleFor(token, settingsMemberBadgeLabel),
         accountAvatar: token && user.avatar ? user.avatar : ACCOUNT_AVATAR,
