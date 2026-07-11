@@ -13,6 +13,8 @@ test("mini program auth bridge stores token only for xf_mp web-view entries", ()
   assert.match(source, /url\.searchParams\.has\("xf_tab"\)/);
   assert.match(source, /wechatEnvironment === "miniprogram"/);
   assert.match(source, /\/miniprogram\/i\.test\(userAgent\)/);
+  assert.match(source, /document\.referrer/);
+  assert.match(source, /referrer\.includes\("servicewechat\.com\/"\)/);
   assert.match(source, /document\.documentElement\.classList\.contains\("xf-mp-webview"\)/);
   assert.match(source, /if \(detected\) \{/);
   assert.match(source, /if \(!isMiniProgramWebView\(\)\) return;/);

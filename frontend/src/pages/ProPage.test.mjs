@@ -45,6 +45,13 @@ test("ProPage blocks ordinary web checkout inside mini-program web-view", () => 
   );
 });
 
+test("ProPage redirects to native virtual payment when backend blocks mini-program ordinary checkout", () => {
+  assert.match(source, /const errorMessage = error\?\.response\?\.data\?\.message \|\| error\?\.message \|\| "下单失败";/);
+  assert.match(source, /if \(isMiniProgramVirtualPaymentBlock\(errorMessage\)\) \{/);
+  assert.match(source, /await openMiniProgramNativePro\(selected\)/);
+  assert.match(source, /请在小程序原生订阅页完成微信虚拟支付/);
+});
+
 test("ProPage describes pending WeChat refunds as processing, not succeeded", () => {
   assert.match(source, /res\.data\.refund\?\.status === "pending"/);
   assert.match(source, /微信处理中，处理完成后积分会自动扣回/);

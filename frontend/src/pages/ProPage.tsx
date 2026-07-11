@@ -60,6 +60,10 @@ function normalizePlanId(planId?: string | null): PlanCatalogId {
   return "free";
 }
 
+function isMiniProgramVirtualPaymentBlock(message: string) {
+  return /微信虚拟支付|小程序内虚拟商品/.test(message);
+}
+
 const ProPage: React.FC = () => {
   const superModePage = useXiaowanziEmbeddedLayer();
   const miniProgramWebView = isMiniProgramWebView();
@@ -191,7 +195,13 @@ const ProPage: React.FC = () => {
       }
       setMessage("微信支付二维码生成失败，请稍后重试。");
     } catch (error: any) {
-      setMessage(error?.response?.data?.message || error?.message || "下单失败");
+      const errorMessage = error?.response?.data?.message || error?.message || "下单失败";
+      if (isMiniProgramVirtualPaymentBlock(errorMessage)) {
+        const opened = await openMiniProgramNativePro(selected);
+        setMessage(opened ? "请在小程序原生订阅页完成微信虚拟支付。" : errorMessage);
+        return;
+      }
+      setMessage(errorMessage);
     } finally {
       setOrdering(false);
     }

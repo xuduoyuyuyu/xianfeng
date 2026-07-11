@@ -37,11 +37,13 @@ export function isMiniProgramWebView() {
   const url = new URL(window.location.href);
   const wechatEnvironment = String((window as any).__wxjs_environment || "").toLowerCase();
   const userAgent = String(window.navigator?.userAgent || "");
+  const referrer = String(document.referrer || "").toLowerCase();
   const detected = (
     url.searchParams.get("xf_mp") === "1" ||
     url.searchParams.has("xf_tab") ||
     window.sessionStorage.getItem("xf_mp_webview") === "1" ||
     document.documentElement.classList.contains("xf-mp-webview") ||
+    referrer.includes("servicewechat.com/") ||
     wechatEnvironment === "miniprogram" ||
     /miniprogram/i.test(userAgent)
   );
