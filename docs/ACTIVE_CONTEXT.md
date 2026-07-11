@@ -18,7 +18,7 @@ Pay remains separate.
 
 | Workstream | State | Waiting on |
 | --- | --- | --- |
-| WeChat mini-program virtual payment | active | Official sandbox Offer ID/app key, WeChat后台 product/callback config, and DevTools/device sandbox validation |
+| WeChat mini-program virtual payment | active | WeChat后台 product/callback config, public HTTPS sandbox callback/backend, and DevTools/device sandbox validation |
 | Mama Haozhuan task dispatch | active | Admin/product review of task-first assignment UX |
 | Governance bootstrap | active | Review of newly added docs and whether to keep the local `evolab/` clone inside this checkout |
 | Xiaowanzi treasure box welfare | active | Rendered public/admin review after the local app is running |
