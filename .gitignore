@@ -39,5 +39,6 @@ dist/
 frontend/.git/
 releases/
 .superpowers/
+.worktrees/
 backend/secrets/
 evolab/
