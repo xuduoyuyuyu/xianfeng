@@ -30,7 +30,7 @@ import {
   refundWechatOrder,
   syncWechatPaidOrder,
 } from "../services/paymentProviders";
-import { createWechatVirtualCheckout, exchangeWechatLoginCode, isWechatVirtualPaymentConfigured, parseWechatVirtualNotification } from "../services/wechatVirtualPayment";
+import { createWechatVirtualCheckout, exchangeWechatLoginCode, isWechatVirtualPaymentConfigured, parseWechatVirtualNotification, verifyWechatMessageCallback } from "../services/wechatVirtualPayment";
 import { getVirtualProduct } from "../services/virtualPaymentProducts";
 import User from "../models/User";
 
@@ -275,16 +275,25 @@ router.post("/wechat/notify", async (req: any, res) => {
   }
 });
 
-router.post("/wechat/virtual/notify", async (req: any, res) => {
-  try {
-    const notification = parseWechatVirtualNotification(req.rawBody || JSON.stringify(req.body || {}));
-    await processWechatVirtualNotification(notification);
-    res.json({ ErrCode: 0, ErrMsg: "success" });
-  } catch (error) {
-    console.error("Wechat virtual pay notify failed:", error);
-    res.status(400).json({ ErrCode: -1, ErrMsg: "fail" });
-  }
-});
+router.route("/wechat/virtual/notify")
+  .get((req, res) => {
+    const echostr = verifyWechatMessageCallback(req.query || {});
+    if (!echostr) {
+      res.type("text/plain").status(403).send("fail");
+      return;
+    }
+    res.type("text/plain").send(echostr);
+  })
+  .post(async (req: any, res) => {
+    try {
+      const notification = parseWechatVirtualNotification(req.rawBody || JSON.stringify(req.body || {}));
+      await processWechatVirtualNotification(notification);
+      res.json({ ErrCode: 0, ErrMsg: "success" });
+    } catch (error) {
+      console.error("Wechat virtual pay notify failed:", error);
+      res.status(400).json({ ErrCode: -1, ErrMsg: "fail" });
+    }
+  });
 
 router.post("/refunds", authenticate, async (req: AuthenticatedRequest, res) => {
   const order = req.body?.orderId

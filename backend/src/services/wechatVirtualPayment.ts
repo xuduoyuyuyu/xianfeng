@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import type { PaymentOrder } from "../models/PaymentOrder";
 import { fetchWechatMiniAccessToken, fetchWechatMiniSession } from "./wechatMiniAuth";
 import { getVirtualProduct } from "./virtualPaymentProducts";
@@ -43,6 +43,22 @@ function config() {
 export function isWechatVirtualPaymentConfigured(): boolean {
   const value = config();
   return value.enabled && value.environment !== null && value.messageFormat === "json" && Boolean(value.offerId && value.appKey);
+}
+
+export function verifyWechatMessageCallback(input: {
+  signature?: unknown;
+  timestamp?: unknown;
+  nonce?: unknown;
+  echostr?: unknown;
+}): string | null {
+  const token = String(process.env.WECHAT_MESSAGE_TOKEN || "").trim();
+  const signature = String(input.signature || "").trim();
+  const timestamp = String(input.timestamp || "").trim();
+  const nonce = String(input.nonce || "").trim();
+  const echostr = String(input.echostr || "").trim();
+  if (!token || !signature || !timestamp || !nonce || !echostr) return null;
+  const expected = createHash("sha1").update([token, timestamp, nonce].sort().join("")).digest("hex");
+  return expected === signature ? echostr : null;
 }
 
 function requiredConfig() {

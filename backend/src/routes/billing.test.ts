@@ -19,7 +19,7 @@ describe("billing routes", () => {
       { path: "/consume/education-planning", methods: ["post"] },
       { path: "/alipay/notify", methods: ["post"] },
       { path: "/wechat/notify", methods: ["post"] },
-      { path: "/wechat/virtual/notify", methods: ["post"] },
+      { path: "/wechat/virtual/notify", methods: ["get", "post"] },
       { path: "/refunds", methods: ["post"] },
     ]);
   });

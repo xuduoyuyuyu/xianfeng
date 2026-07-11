@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHmac } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import test, { afterEach } from "node:test";
 import type { PaymentOrder } from "../models/PaymentOrder";
 import {
@@ -8,6 +8,7 @@ import {
   isWechatVirtualPaymentConfigured,
   parseWechatVirtualNotification,
   queryWechatVirtualOrder,
+  verifyWechatMessageCallback,
 } from "./wechatVirtualPayment";
 
 /*
@@ -84,6 +85,16 @@ test("configuration requires an explicit enable flag and all protocol values", (
   configure();
   process.env.WECHAT_VIRTUAL_PAY_MESSAGE_FORMAT = "xml";
   assert.equal(isWechatVirtualPaymentConfigured(), false);
+});
+
+test("verifies WeChat message callback challenge with the configured token", () => {
+  process.env.WECHAT_MESSAGE_TOKEN = "token123";
+  const timestamp = "1720000000";
+  const nonce = "nonce-1";
+  const signature = createHash("sha1").update(["token123", timestamp, nonce].sort().join("")).digest("hex");
+
+  assert.equal(verifyWechatMessageCallback({ signature, timestamp, nonce, echostr: "echo-ok" }), "echo-ok");
+  assert.equal(verifyWechatMessageCallback({ signature: "bad", timestamp, nonce, echostr: "echo-ok" }), null);
 });
 
 test("parses official pushes as discriminated untrusted triggers", () => {
