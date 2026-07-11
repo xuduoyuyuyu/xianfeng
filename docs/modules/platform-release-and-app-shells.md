@@ -68,6 +68,15 @@
 - The native Pro page displays `xiaowanzi_file` in the point usage policy as
   "小玩子图片文件处理", 1 point per processing request, using backend
   `/api/billing/plans` when available and the same fallback copy offline.
+- The native Pro page uses WeChat Mini Program Virtual Payment for Plus and
+  Pro virtual products. The shell owns product selection, requesting a fresh
+  `wx.login` code, calling backend `/api/billing/virtual-orders`, invoking
+  `wx.requestVirtualPayment` with the returned official parameters, and
+  showing server-confirmed status from `/api/billing/me`. It does not set
+  membership from the client payment callback and does not fall back to
+  `wx.requestPayment` for virtual products. WeChat后台 product setup, sandbox
+  Offer ID/app key, callback routing, production secrets, upload, review, and
+  publication remain release/operations work and are not stored in this repo.
 - WeChat friend sharing uses `pages/share/index` as the branded landing page
   with the local logo asset, then opens the encoded target page. Timeline
   sharing keeps WeChat's page-query model and does not rely on a target path

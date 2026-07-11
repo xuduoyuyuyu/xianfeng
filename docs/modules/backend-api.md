@@ -47,6 +47,19 @@
   the current balance. Legacy stored plan ids `monthly` and `yearly` are read
   as Plus and Pro membership tiers. The education-planning generation flow
   consumes the `education_planning` point policy at 5 points per generated plan.
+- WeChat mini-program virtual payment is backend-owned for virtual products:
+  the API owns the Plus/Pro virtual catalog, amount, point grant, Offer ID
+  selection, environment, `wx.requestVirtualPayment` signatures, official order
+  query, notification reconciliation, and idempotent entitlement delivery.
+  Mini-program clients submit only `productId`, `quantity: 1`, and the current
+  one-time `wx.login` code to `/api/billing/virtual-orders`; the backend
+  exchanges that code for the current `session_key`, signs the exact
+  `signData`, and never persists, logs, or returns the `session_key`. Client
+  success callbacks and message pushes are untrusted triggers: paid state and
+  points are granted only after the official virtual-payment query matches the
+  local order, amount, environment, transaction id, and signed `biz_meta`.
+  Ordinary WeChat Pay V3 Native/JSAPI sync and notify paths explicitly do not
+  fulfill `paymentChannel=wechat_virtual` orders.
 - Xiaowanzi image recognition uses the authenticated
   `/api/v1/tutorbot/xiaowanzi_debug_bot/attachments/recognize` endpoint before
   the normal chat send. It calls Volcengine Ark with endpoint id
