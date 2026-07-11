@@ -47,6 +47,7 @@ function configure() {
 
 function order(): PaymentOrder {
   return {
+    userId: "507f1f77bcf86cd799439011",
     virtualProductId: "plus",
     virtualQuantity: 1,
     virtualEnvironment: 1,
@@ -62,7 +63,7 @@ test("creates official direct-goods checkout signatures from the exact signData"
   const expectedSignData = JSON.stringify({
     offerId: "offer-test", buyQuantity: 1, env: 1, currencyType: "CNY",
     productId: "plus", goodsPrice: 1990, outTradeNo: "VP20260711ABC123",
-    attach: "VP20260711ABC123",
+    attach: JSON.stringify({ orderId: "VP20260711ABC123", userId: "507f1f77bcf86cd799439011", productId: "plus", quantity: 1 }),
   });
   const expectedPaySig = createHmac("sha256", "app-key-test").update(`requestVirtualPayment&${expectedSignData}`).digest("hex");
   const expectedSignature = createHmac("sha256", "session-key-test").update(expectedSignData).digest("hex");
@@ -112,7 +113,7 @@ test("queries the official order endpoint with exact body and independent pay si
   globalThis.fetch = (async (input, init) => {
     const url = String(input); calls.push({ url, body: init?.body ? String(init.body) : undefined });
     if (url.includes("stable_token")) return new Response(JSON.stringify({ access_token: "access-1", expires_in: 7200 }), { status: 200 });
-    return new Response(JSON.stringify({ errcode: 0, errmsg: "", order: { order_id: "VP20260711ABC123", status: 2, order_fee: 1990, paid_fee: 1990, env_type: 2, wx_order_id: "wx-order", wxpay_order_id: "wxpay-order", biz_meta: "plus" } }), { status: 200 });
+    return new Response(JSON.stringify({ errcode: 0, errmsg: "", order: { order_id: "VP20260711ABC123", status: 2, order_fee: 1990, paid_fee: 1990, env_type: 2, wx_order_id: "wx-order", wxpay_order_id: "wxpay-order", biz_meta: JSON.stringify({ orderId: "VP20260711ABC123", userId: "507f1f77bcf86cd799439011", productId: "plus", quantity: 1 }) } }), { status: 200 });
   }) as typeof fetch;
   const result = await queryWechatVirtualOrder({ outTradeNo: "VP20260711ABC123", openid: "openid-test" });
   const body = JSON.stringify({ openid: "openid-test", env: 1, order_id: "VP20260711ABC123" });
@@ -123,13 +124,14 @@ test("queries the official order endpoint with exact body and independent pay si
   assert.equal(result.status, 2);
   assert.equal(result.environment, 1);
   assert.equal(result.amountCents, 1990);
+  assert.equal(result.bizMeta.productId, "plus");
 });
 
 test("rejects malformed official query numeric and identity fields", async () => {
   configure();
   globalThis.fetch = (async (input) => {
     if (String(input).includes("stable_token")) return new Response(JSON.stringify({ access_token: "access-2", expires_in: 7200 }), { status: 200 });
-    return new Response(JSON.stringify({ errcode: 0, order: { order_id: "VP20260711ABC123", status: 2, order_fee: "bad", paid_fee: -1, env_type: 2 } }), { status: 200 });
+    return new Response(JSON.stringify({ errcode: 0, order: { order_id: "VP20260711ABC123", status: 2, order_fee: "bad", paid_fee: -1, env_type: 2, biz_meta: JSON.stringify({ orderId: "VP20260711ABC123", userId: "u1", productId: "plus", quantity: 1 }) } }), { status: 200 });
   }) as typeof fetch;
   await assert.rejects(() => queryWechatVirtualOrder({ outTradeNo: "VP20260711ABC123", openid: "openid-test" }), /order_fee/);
 });

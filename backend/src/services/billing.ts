@@ -480,8 +480,10 @@ export async function processWechatVirtualNotification(
     || !trusted.transactionId
     || (order.providerTradeNo && order.providerTradeNo !== trusted.transactionId)
     || !product
-    || notification.productId !== order.virtualProductId
-    || notification.quantity !== order.virtualQuantity
+    || trusted.bizMeta.orderId !== order.outTradeNo
+    || trusted.bizMeta.userId !== String(order.userId)
+    || trusted.bizMeta.productId !== order.virtualProductId
+    || trusted.bizMeta.quantity !== order.virtualQuantity
     || (boundOpenid && boundOpenid !== notification.openid);
   if (mismatch) throw new Error("微信虚拟支付查单结果与本地订单不匹配");
 
@@ -497,6 +499,7 @@ export async function markOrderPaid(input: {
   providerTradeNo?: string;
   paidAt?: Date;
   rawNotify?: Record<string, any>;
+  afterEntitlement?: () => Promise<void>;
 }): Promise<PaymentOrder> {
   const order = await PaymentOrderModel.findOne({ outTradeNo: input.outTradeNo });
   if (!order) throw new Error("订单不存在");
@@ -504,20 +507,13 @@ export async function markOrderPaid(input: {
   if (order.status === "refunded") return order;
 
   const paidAt = input.paidAt || new Date();
+  await grantProForOrder(order, paidAt);
+  await input.afterEntitlement?.();
   order.status = "paid";
   order.providerTradeNo = input.providerTradeNo || order.providerTradeNo || "";
   order.paidAt = paidAt;
   order.rawNotify = input.rawNotify || {};
   await order.save();
-  try {
-    await grantProForOrder(order, paidAt);
-  } catch (error) {
-    order.status = "pending";
-    order.providerTradeNo = "";
-    order.paidAt = null;
-    await order.save();
-    throw error;
-  }
   return order;
 }
 
@@ -567,20 +563,21 @@ export async function consumeProPoints(input: SpendPointsInput): Promise<ProPoin
 }
 
 export async function grantProForOrder(order: PaymentOrder, paidAt = new Date()) {
-  const user = await User.findById(order.userId);
+  const user = await User.findById(order.userId).lean();
   if (!user) throw new Error("用户不存在");
   const plan = normalizeBillingPlan(order.plan);
   if (!plan) throw new Error("请选择有效套餐");
   const expiresAt = addPlanDuration(plan, paidAt, (user as any).proExpiresAt);
-  (user as any).proStatus = "active";
-  (user as any).proPlan = plan;
-  (user as any).proPurchasedAt = paidAt;
-  (user as any).proPointBalance = safePointBalance((user as any).proPointBalance, 0) + planPoints(plan);
-  (user as any).proExpiresAt = expiresAt;
-  (user as any).proRefundEligibleUntil = null;
-  (user as any).proLatestOrderId = order._id;
-  await user.save();
-  return user;
+  const updated = await User.findOneAndUpdate(
+    { _id: order.userId, fulfilledPaymentOrderIds: { $ne: order._id } },
+    {
+      $set: { proStatus: "active", proPlan: plan, proPurchasedAt: paidAt, proExpiresAt: expiresAt, proRefundEligibleUntil: null, proLatestOrderId: order._id },
+      $inc: { proPointBalance: planPoints(plan) },
+      $addToSet: { fulfilledPaymentOrderIds: order._id },
+    },
+    { returnDocument: "after" },
+  );
+  return updated || User.findById(order.userId);
 }
 
 export async function recomputeUserProFromOrders(userId: string) {

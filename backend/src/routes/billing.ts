@@ -178,8 +178,15 @@ router.post("/virtual-orders", authenticate, async (req: AuthenticatedRequest, r
     res.status(400).json({ message: "微信登录 code 不能为空" });
     return;
   }
+  let session: Awaited<ReturnType<typeof exchangeWechatLoginCode>>;
   try {
-    const session = await exchangeWechatLoginCode(loginCode);
+    session = await exchangeWechatLoginCode(loginCode);
+  } catch (error) {
+    console.error("Wechat virtual login exchange failed:", error);
+    res.status(400).json({ message: "微信登录状态无效" });
+    return;
+  }
+  try {
     const user = await User.findById(currentUserId(req)).select("wechatMiniOpenid").lean();
     if (!user) {
       res.status(401).json({ message: "登录状态无效" });
@@ -194,9 +201,8 @@ router.post("/virtual-orders", authenticate, async (req: AuthenticatedRequest, r
     const checkout = createWechatVirtualCheckout(order, session);
     res.status(201).json({ order: serializeOrder(order), checkout });
   } catch (error: any) {
-    const message = String(error?.message || "创建虚拟支付订单失败");
-    const loginFailure = /微信登录|session_key|code/.test(message);
-    res.status(loginFailure ? 400 : 500).json({ message });
+    console.error("Wechat virtual checkout failed:", error);
+    res.status(500).json({ message: "创建虚拟支付订单失败" });
   }
 });
 

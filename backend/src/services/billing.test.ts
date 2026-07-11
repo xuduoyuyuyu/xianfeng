@@ -21,6 +21,7 @@ import {
   isProActive,
   isMockPaymentEnabled,
   normalizeBillingPlan,
+  markOrderPaid,
   processWechatVirtualNotification,
   resetFreeAccountPointGrants,
   serializeBillingUser,
@@ -333,17 +334,20 @@ describe("billing point consumption", () => {
     let queryCount = 0;
     const queryOrder = async () => {
       queryCount += 1;
-      return { outTradeNo: order.outTradeNo, status: 2, amountCents: 1990, paidAmountCents: 1990, environment: 1 as const, transactionId: "wx-virtual-1", raw: { trusted: true } };
+      return { outTradeNo: order.outTradeNo, status: 2, amountCents: 1990, paidAmountCents: 1990, environment: 1 as const, transactionId: "wx-virtual-1", bizMeta: { orderId: order.outTradeNo, userId: String(user._id), productId: "plus", quantity: 1 }, raw: { trusted: true } };
     };
     const trigger = { event: "xpay_goods_deliver_notify" as const, outTradeNo: order.outTradeNo, openid: "openid-1", productId: "plus", quantity: 1, raw: { untrusted: true } };
 
-    await processWechatVirtualNotification(trigger, { queryOrder });
+    await Promise.all([
+      processWechatVirtualNotification(trigger, { queryOrder }),
+      processWechatVirtualNotification(trigger, { queryOrder }),
+    ]);
     const first = await User.findById(user._id).lean();
     const firstExpiry = first?.proExpiresAt?.toISOString();
     await processWechatVirtualNotification(trigger, { queryOrder });
     const second = await User.findById(user._id).lean();
 
-    assert.equal(queryCount, 2);
+    assert.equal(queryCount, 3);
     assert.equal(first?.proPointBalance, 200);
     assert.equal(second?.proPointBalance, 200);
     assert.equal(second?.proExpiresAt?.toISOString(), firstExpiry);
@@ -356,17 +360,31 @@ describe("billing point consumption", () => {
     const order = await createVirtualPaymentOrder({ userId: String(user._id), productId: "plus", quantity: 1 });
     order.virtualEnvironment = 1;
     await order.save();
-    const base = { outTradeNo: order.outTradeNo, status: 2, amountCents: 1990, paidAmountCents: 1990, environment: 1 as const, transactionId: "wx-virtual-2", raw: {} };
+    const base = { outTradeNo: order.outTradeNo, status: 2, amountCents: 1990, paidAmountCents: 1990, environment: 1 as const, transactionId: "wx-virtual-2", bizMeta: { orderId: order.outTradeNo, userId: String(user._id), productId: "plus", quantity: 1 }, raw: {} };
     const trigger = { event: "xpay_goods_deliver_notify" as const, outTradeNo: order.outTradeNo, openid: "openid-1", productId: "plus", quantity: 1, raw: {} };
     for (const queryResult of [{ ...base, amountCents: 9900 }, { ...base, environment: 0 as const }]) {
       await assert.rejects(processWechatVirtualNotification(trigger, { queryOrder: async () => queryResult }), /不匹配/);
     }
-    await assert.rejects(processWechatVirtualNotification({ ...trigger, productId: "pro" }, { queryOrder: async () => base }), /不匹配/);
+    await assert.rejects(processWechatVirtualNotification(trigger, { queryOrder: async () => ({ ...base, bizMeta: { ...base.bizMeta, productId: "pro" } }) }), /不匹配/);
     await assert.rejects(processWechatVirtualNotification({ ...trigger, openid: "other-openid" }, { queryOrder: async () => base }), /不匹配/);
     const savedOrder = await PaymentOrderModel.findById(order._id).lean();
     const savedUser = await User.findById(user._id).lean();
     assert.equal(savedOrder?.status, "pending");
     assert.equal(savedUser?.proPointBalance, 0);
+  });
+
+  it("retries order finalization without granting entitlement twice after a partial failure", async () => {
+    await User.deleteMany({});
+    await PaymentOrderModel.deleteMany({});
+    const user = await User.create({ username: "virtual-retry-user", password: "hashed", proPointBalance: 0 });
+    const order = await createVirtualPaymentOrder({ userId: String(user._id), productId: "plus", quantity: 1 });
+    await assert.rejects(markOrderPaid({ outTradeNo: order.outTradeNo, providerTradeNo: "wx-retry", afterEntitlement: async () => { throw new Error("simulated finalization failure"); } }), /simulated/);
+    assert.equal((await PaymentOrderModel.findById(order._id).lean())?.status, "pending");
+    assert.equal((await User.findById(user._id).lean())?.proPointBalance, 200);
+
+    await markOrderPaid({ outTradeNo: order.outTradeNo, providerTradeNo: "wx-retry" });
+    assert.equal((await PaymentOrderModel.findById(order._id).lean())?.status, "paid");
+    assert.equal((await User.findById(user._id).lean())?.proPointBalance, 200);
   });
 
   it("resets issued free account grants without clearing active paid Pro balances", async () => {
