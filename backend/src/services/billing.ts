@@ -637,6 +637,7 @@ export async function markRefundSucceeded(order: PaymentOrder, refund: any, rawR
   refund.refundedAt = new Date();
   refund.rawResult = rawResult;
   refund.providerRefundId = String(rawResult?.trade_no || rawResult?.refund_id || rawResult?.out_request_no || "");
+  refund.errorMessage = "";
   await refund.save();
 
   const refundablePoints = safePointBalance(options.refundablePoints, 0);
