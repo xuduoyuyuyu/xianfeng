@@ -44,3 +44,9 @@ test("ProPage blocks ordinary web checkout inside mini-program web-view", () => 
     "mini-program web-view guard must run before ordinary /billing/orders checkout"
   );
 });
+
+test("ProPage describes pending WeChat refunds as processing, not succeeded", () => {
+  assert.match(source, /res\.data\.refund\?\.status === "pending"/);
+  assert.match(source, /微信处理中，处理完成后积分会自动扣回/);
+  assert.doesNotMatch(source, /setMessage\("退款成功，订阅状态已回到可用积分方案。"\);/);
+});

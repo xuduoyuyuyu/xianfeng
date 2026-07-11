@@ -619,12 +619,13 @@ export async function recomputeUserProFromOrders(userId: string) {
   return user;
 }
 
-export async function createRefundRecord(order: PaymentOrder, reason: string, amountCents = order.amountCents) {
+export async function createRefundRecord(order: PaymentOrder, reason: string, amountCents = order.amountCents, options: { refundablePoints?: number } = {}) {
   return RefundRecordModel.create({
     orderId: order._id,
     userId: order.userId,
     provider: order.provider,
     amountCents,
+    refundablePoints: safePointBalance(options.refundablePoints, 0),
     reason: reason || "按未使用点数折算退款",
     outRequestNo: createRefundNo(),
     status: "pending",

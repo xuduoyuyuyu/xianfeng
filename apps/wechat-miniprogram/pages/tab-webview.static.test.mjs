@@ -6974,6 +6974,8 @@ test("pro page renders native subscription content instead of a web-view wrapper
     assert.match(js, /url: "\/api\/billing\/refunds"/);
     assert.match(js, /latestRefundableOrder/);
     assert.match(js, /const refundOrder = this\.data\.latestRefundableOrder \|\| this\.data\.latestOrder/);
+    assert.match(js, /response && response\.refund && response\.refund\.status === "pending"/);
+    assert.match(js, /微信处理中，处理完成后积分会自动扣回/);
     assert.match(js, /selectedPlan: "pro"/);
     assert.match(js, /formatYuan/);
     assert.match(js, /formatPoints/);
@@ -7145,7 +7147,7 @@ test("pro page renders completion state and submits refund requests", async () =
     assert.equal(context.data.membership.isProActive, false);
     assert.equal(context.data.latestOrder.status, "refunded");
     assert.equal(context.data.latestRefundableOrder, null);
-    assert.match(context.data.message, /退款申请已提交/);
+    assert.match(context.data.message, /退款成功/);
   } finally {
     global.wx = originalWx;
   }

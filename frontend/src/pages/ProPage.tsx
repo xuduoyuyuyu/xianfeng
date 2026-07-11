@@ -204,7 +204,11 @@ const ProPage: React.FC = () => {
     try {
       const res = await billingApi.requestRefund(latestOrder.id);
       setMembership(res.data.membership);
-      setMessage("退款成功，订阅状态已回到可用积分方案。");
+      setMessage(
+        res.data.refund?.status === "pending"
+          ? "退款申请已提交，微信处理中，处理完成后积分会自动扣回。"
+          : "退款成功，订阅状态已回到可用积分方案。"
+      );
       await load();
     } catch (error: any) {
       setMessage(error?.response?.data?.message || error?.message || "退款失败");

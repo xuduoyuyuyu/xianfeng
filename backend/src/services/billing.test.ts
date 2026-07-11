@@ -5,7 +5,8 @@ import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import User from "../models/User";
 import PaymentOrderModel from "../models/PaymentOrder";
-import { syncWechatPaidOrder } from "./paymentProviders";
+import RefundRecordModel from "../models/RefundRecord";
+import { refundWechatOrder, syncWechatPaidOrder, syncWechatRefundRecord } from "./paymentProviders";
 import {
   BILLING_PLANS,
   FREE_BILLING_PLAN,
@@ -581,4 +582,160 @@ describe("billing point consumption", () => {
     assert.equal(String(refundableOrder?._id), String(firstPaidOrder._id));
     assert.equal(refundableOrder?.status, "paid");
   });
+
+  it("keeps WeChat PROCESSING refunds pending without deducting points immediately", async () => {
+    await User.deleteMany({});
+    await PaymentOrderModel.deleteMany({});
+    await RefundRecordModel.deleteMany({});
+    const user = await User.create({
+      username: "wechat-processing-refund-user",
+      password: "hashed",
+      proStatus: "active",
+      proPlan: "plus",
+      proExpiresAt: new Date("2026-08-06T00:00:00.000Z"),
+      proPointBalance: 200,
+    });
+    const order = await PaymentOrderModel.create({
+      userId: user._id,
+      plan: "plus",
+      provider: "wechat",
+      amountCents: 1990,
+      currency: "CNY",
+      subject: "订阅 Plus",
+      outTradeNo: "XFPROREFUNDPROCESSING",
+      providerTradeNo: "4200000000000000001",
+      status: "paid",
+      paidAt: new Date("2026-07-11T14:29:25.000Z"),
+    });
+    const oldEnv = withWechatTestEnv();
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = (async (url: any, options: any) => {
+        assert.equal(String(url), "https://wechat-pay.test/v3/refund/domestic/refunds");
+        assert.equal(options?.method, "POST");
+        return new Response(JSON.stringify({
+          out_refund_no: "XFRFPROCESSING",
+          out_trade_no: order.outTradeNo,
+          refund_id: "50303307832026071136102173078",
+          status: "PROCESSING",
+        }), { status: 200 });
+      }) as typeof fetch;
+
+      const refund = await refundWechatOrder(order, "按未使用点数折算退款", 1990, 200);
+
+      assert.equal(refund.status, "pending");
+      assert.equal(refund.providerRefundId, "50303307832026071136102173078");
+      assert.equal(refund.errorMessage, "微信退款处理中");
+      assert.equal((await PaymentOrderModel.findById(order._id).lean())?.status, "paid");
+      assert.equal((await User.findById(user._id).lean())?.proPointBalance, 200);
+    } finally {
+      globalThis.fetch = originalFetch;
+      restoreEnvValue("NODE_ENV", oldEnv.nodeEnv);
+      restoreEnvValue("BILLING_DISABLE_MOCK_PAY", oldEnv.disableMock);
+      restoreEnvValue("WECHAT_PAY_GATEWAY", oldEnv.gateway);
+      restoreEnvValue("WECHAT_PAY_MCH_ID", oldEnv.mchId);
+      restoreEnvValue("WECHAT_PAY_APP_ID", oldEnv.appId);
+      restoreEnvValue("WECHAT_PAY_API_V3_KEY", oldEnv.apiV3Key);
+      restoreEnvValue("WECHAT_PAY_SERIAL_NO", oldEnv.serialNo);
+      restoreEnvValue("WECHAT_PAY_PRIVATE_KEY", oldEnv.privateKey);
+    }
+  });
+
+  it("syncs a pending WeChat refund to succeeded and deducts refundable points", async () => {
+    await User.deleteMany({});
+    await PaymentOrderModel.deleteMany({});
+    await RefundRecordModel.deleteMany({});
+    const user = await User.create({
+      username: "wechat-sync-refund-user",
+      password: "hashed",
+      proStatus: "active",
+      proPlan: "plus",
+      proExpiresAt: new Date("2026-08-06T00:00:00.000Z"),
+      proPointBalance: 213,
+    });
+    const order = await PaymentOrderModel.create({
+      userId: user._id,
+      plan: "plus",
+      provider: "wechat",
+      amountCents: 1990,
+      currency: "CNY",
+      subject: "订阅 Plus",
+      outTradeNo: "XFPROREFUNDSUCCESS",
+      providerTradeNo: "4200000000000000002",
+      status: "paid",
+      paidAt: new Date("2026-07-11T14:29:25.000Z"),
+    });
+    const refund = await RefundRecordModel.create({
+      orderId: order._id,
+      userId: user._id,
+      provider: "wechat",
+      amountCents: 1990,
+      reason: "按未使用点数折算退款",
+      outRequestNo: "XFRFSUCCESS",
+      providerRefundId: "50303307832026071136102173079",
+      status: "pending",
+      refundablePoints: 200,
+      rawResult: { status: "PROCESSING" },
+    });
+    const oldEnv = withWechatTestEnv();
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = (async (url: any, options: any) => {
+        assert.equal(String(url), "https://wechat-pay.test/v3/refund/domestic/refunds/XFRFSUCCESS");
+        assert.equal(options?.method, "GET");
+        return new Response(JSON.stringify({
+          out_refund_no: "XFRFSUCCESS",
+          out_trade_no: order.outTradeNo,
+          refund_id: "50303307832026071136102173079",
+          status: "SUCCESS",
+        }), { status: 200 });
+      }) as typeof fetch;
+
+      await syncWechatRefundRecord(refund);
+
+      const savedRefund = await RefundRecordModel.findById(refund._id).lean();
+      const savedOrder = await PaymentOrderModel.findById(order._id).lean();
+      const savedUser = await User.findById(user._id).lean();
+      assert.equal(savedRefund?.status, "succeeded");
+      assert.equal(savedOrder?.status, "refunded");
+      assert.equal(savedUser?.proPointBalance, 13);
+    } finally {
+      globalThis.fetch = originalFetch;
+      restoreEnvValue("NODE_ENV", oldEnv.nodeEnv);
+      restoreEnvValue("BILLING_DISABLE_MOCK_PAY", oldEnv.disableMock);
+      restoreEnvValue("WECHAT_PAY_GATEWAY", oldEnv.gateway);
+      restoreEnvValue("WECHAT_PAY_MCH_ID", oldEnv.mchId);
+      restoreEnvValue("WECHAT_PAY_APP_ID", oldEnv.appId);
+      restoreEnvValue("WECHAT_PAY_API_V3_KEY", oldEnv.apiV3Key);
+      restoreEnvValue("WECHAT_PAY_SERIAL_NO", oldEnv.serialNo);
+      restoreEnvValue("WECHAT_PAY_PRIVATE_KEY", oldEnv.privateKey);
+    }
+  });
 });
+
+function withWechatTestEnv() {
+  const oldEnv = {
+    nodeEnv: process.env.NODE_ENV,
+    disableMock: process.env.BILLING_DISABLE_MOCK_PAY,
+    gateway: process.env.WECHAT_PAY_GATEWAY,
+    mchId: process.env.WECHAT_PAY_MCH_ID,
+    appId: process.env.WECHAT_PAY_APP_ID,
+    apiV3Key: process.env.WECHAT_PAY_API_V3_KEY,
+    serialNo: process.env.WECHAT_PAY_SERIAL_NO,
+    privateKey: process.env.WECHAT_PAY_PRIVATE_KEY,
+  };
+  const { privateKey } = crypto.generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+    publicKeyEncoding: { type: "spki", format: "pem" },
+  });
+  process.env.NODE_ENV = "development";
+  process.env.BILLING_DISABLE_MOCK_PAY = "true";
+  process.env.WECHAT_PAY_GATEWAY = "https://wechat-pay.test";
+  process.env.WECHAT_PAY_MCH_ID = "1900000001";
+  process.env.WECHAT_PAY_APP_ID = "wx-mini-app";
+  process.env.WECHAT_PAY_API_V3_KEY = "12345678901234567890123456789012";
+  process.env.WECHAT_PAY_SERIAL_NO = "serial-no";
+  process.env.WECHAT_PAY_PRIVATE_KEY = privateKey;
+  return oldEnv;
+}

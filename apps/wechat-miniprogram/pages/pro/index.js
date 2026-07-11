@@ -491,9 +491,12 @@ Page({
         data: { orderId, reason: "按未使用点数折算退款" }
       })
         .then((response) => this.loadBilling().then(() => {
+          const pending = response && response.refund && response.refund.status === "pending";
           this.setData({
             refunding: false,
-            message: "退款申请已提交，订阅状态已更新。"
+            message: pending
+              ? "退款申请已提交，微信处理中，处理完成后积分会自动扣回。"
+              : "退款成功，订阅状态已更新。"
           });
           return response;
         }))

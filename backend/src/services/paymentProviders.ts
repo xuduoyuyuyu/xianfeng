@@ -2,7 +2,8 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import PaymentOrderModel, { PaymentOrder } from "../models/PaymentOrder";
-import { createRefundRecord, isMockPaymentEnabled, markOrderPaid, markRefundSucceeded } from "./billing";
+import RefundRecordModel from "../models/RefundRecord";
+import { createRefundRecord, getCatalogPlanById, isMockPaymentEnabled, markOrderPaid, markRefundSucceeded } from "./billing";
 
 export type PaymentCheckout = {
   provider: "alipay" | "wechat";
@@ -445,6 +446,12 @@ export async function queryWechatOrderByOutTradeNo(outTradeNo: string) {
   return wechatRequest("GET", pathWithQuery);
 }
 
+export async function queryWechatRefundByOutRefundNo(outRefundNo: string) {
+  const normalizedOutRefundNo = String(outRefundNo || "").trim();
+  if (!normalizedOutRefundNo) throw new Error("微信查退款缺少 out_refund_no");
+  return wechatRequest("GET", `/v3/refund/domestic/refunds/${encodeURIComponent(normalizedOutRefundNo)}`);
+}
+
 export async function syncWechatPaidOrder(order: PaymentOrder) {
   if (order.provider !== "wechat" || order.status !== "pending") return order;
   if (order.paymentChannel === "wechat_virtual") return order;
@@ -461,7 +468,7 @@ export async function syncWechatPaidOrder(order: PaymentOrder) {
 }
 
 export async function refundWechatOrder(order: PaymentOrder, reason: string, amountCents = order.amountCents, refundablePoints = 0) {
-  const refund = await createRefundRecord(order, reason, amountCents);
+  const refund = await createRefundRecord(order, reason, amountCents, { refundablePoints });
   try {
     const result = await wechatRequest("POST", "/v3/refund/domestic/refunds", {
       out_trade_no: order.outTradeNo,
@@ -474,10 +481,19 @@ export async function refundWechatOrder(order: PaymentOrder, reason: string, amo
       },
     });
     const status = String(result?.status || "").toUpperCase();
+    if (status === "PROCESSING") {
+      refund.status = "pending";
+      refund.errorMessage = "微信退款处理中";
+      refund.rawResult = result || {};
+      refund.providerRefundId = String(result?.refund_id || "");
+      await refund.save();
+      return refund;
+    }
     if (status && status !== "SUCCESS") {
       refund.status = "failed";
-      refund.errorMessage = `微信退款${status === "PROCESSING" ? "处理中，请稍后重试" : "未成功"}`;
+      refund.errorMessage = "微信退款未成功";
       refund.rawResult = result || {};
+      refund.providerRefundId = String(result?.refund_id || "");
       await refund.save();
       throw new Error(refund.errorMessage);
     }
@@ -491,5 +507,74 @@ export async function refundWechatOrder(order: PaymentOrder, reason: string, amo
     refund.errorMessage = message;
     await refund.save();
     throw error;
+  }
+}
+
+function shouldSyncWechatRefund(refund: any) {
+  if (!refund || refund.provider !== "wechat") return false;
+  if (refund.status === "pending") return true;
+  return refund.status === "failed" && String(refund.rawResult?.status || "").toUpperCase() === "PROCESSING";
+}
+
+function refundablePointsForStoredRefund(order: PaymentOrder, refund: any) {
+  const stored = Number(refund?.refundablePoints);
+  if (Number.isFinite(stored) && stored > 0) return stored;
+  const planPoints = getCatalogPlanById(order.plan).pointsPerCycle;
+  const orderAmount = Math.max(0, Number(order.amountCents) || 0);
+  const refundAmount = Math.max(0, Number(refund?.amountCents) || 0);
+  if (!planPoints || !orderAmount || !refundAmount) return 0;
+  return Math.min(planPoints, Math.round((refundAmount * planPoints) / orderAmount));
+}
+
+async function markWechatRefundStillProcessing(refund: any, rawResult: Record<string, any>) {
+  refund.status = "pending";
+  refund.errorMessage = "微信退款处理中";
+  refund.rawResult = rawResult || {};
+  refund.providerRefundId = String(rawResult?.refund_id || refund.providerRefundId || "");
+  await refund.save();
+  return refund;
+}
+
+export async function syncWechatRefundRecord(refund: any) {
+  if (!shouldSyncWechatRefund(refund)) return refund;
+  const result = await queryWechatRefundByOutRefundNo(refund.outRequestNo);
+  const status = String(result?.status || "").toUpperCase();
+  if (status === "PROCESSING") return markWechatRefundStillProcessing(refund, result || {});
+  if (status !== "SUCCESS") {
+    refund.status = "failed";
+    refund.errorMessage = "微信退款未成功";
+    refund.rawResult = result || {};
+    refund.providerRefundId = String(result?.refund_id || refund.providerRefundId || "");
+    await refund.save();
+    return refund;
+  }
+
+  const order = await PaymentOrderModel.findById(refund.orderId);
+  if (!order) throw new Error("退款对应订单不存在");
+  if (order.status === "refunded") {
+    refund.status = "succeeded";
+    refund.refundedAt = refund.refundedAt || new Date();
+    refund.rawResult = result || {};
+    refund.providerRefundId = String(result?.refund_id || refund.providerRefundId || "");
+    refund.errorMessage = "";
+    await refund.save();
+    return refund;
+  }
+  return markRefundSucceeded(order, refund, result || {}, { refundablePoints: refundablePointsForStoredRefund(order, refund) });
+}
+
+export async function syncRecentWechatRefundsForUser(userId: string) {
+  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const refunds = await RefundRecordModel.find({
+    userId,
+    provider: "wechat",
+    createdAt: { $gte: cutoff },
+    $or: [
+      { status: "pending" },
+      { status: "failed", "rawResult.status": "PROCESSING" },
+    ],
+  }).sort({ createdAt: -1 }).limit(5);
+  for (const refund of refunds) {
+    await syncWechatRefundRecord(refund);
   }
 }

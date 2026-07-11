@@ -29,6 +29,7 @@ import {
   refundAlipayOrder,
   refundWechatOrder,
   syncWechatPaidOrder,
+  syncRecentWechatRefundsForUser,
 } from "../services/paymentProviders";
 import { createWechatVirtualCheckout, exchangeWechatLoginCode, isWechatVirtualPaymentConfigured, parseWechatVirtualNotification, verifyWechatMessageCallback } from "../services/wechatVirtualPayment";
 import { getVirtualProduct } from "../services/virtualPaymentProducts";
@@ -122,6 +123,7 @@ router.get("/me", authenticate, async (req: AuthenticatedRequest, res) => {
   }
   await grantFreeLoginPointsForUser(user);
   await syncRecentPendingWechatOrders(userId);
+  await syncRecentWechatRefundsForUser(userId);
   const [freshUser, latestOrder, latestRefundableOrder] = await Promise.all([
     User.findById(userId),
     PaymentOrderModel.findOne({ userId: user._id }).sort({ createdAt: -1 }).lean(),
