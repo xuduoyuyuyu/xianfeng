@@ -13,6 +13,7 @@ import {
   canRefundOrder,
   calculatePointBasedRefund,
   calculateFreeLoginPointGrant,
+  createVirtualPaymentOrder,
   consumeProPoints,
   getPointCostForFeature,
   getLatestRefundableOrder,
@@ -287,6 +288,38 @@ describe("billing point consumption", () => {
 
     assert.equal(insufficient.ok, false);
     assert.equal(insufficient.remainingPointBalance, 1);
+  });
+
+  it("creates a pending WeChat virtual order from the fixed product catalog", async () => {
+    await PaymentOrderModel.deleteMany({});
+    const userId = new mongoose.Types.ObjectId().toString();
+
+    const order = await createVirtualPaymentOrder({ userId, productId: "plus", quantity: 1 });
+
+    assert.equal(order.amountCents, 1990);
+    assert.equal(order.plan, "plus");
+    assert.equal(order.provider, "wechat");
+    assert.equal(order.paymentChannel, "wechat_virtual");
+    assert.equal(order.virtualProductId, "plus");
+    assert.equal(order.virtualQuantity, 1);
+    assert.equal(order.status, "pending");
+  });
+
+  it("rejects invalid virtual order product, quantity, and user IDs", async () => {
+    const userId = new mongoose.Types.ObjectId().toString();
+
+    await assert.rejects(
+      createVirtualPaymentOrder({ userId, productId: "plus", quantity: 2 }),
+      /数量非法/,
+    );
+    await assert.rejects(
+      createVirtualPaymentOrder({ userId, productId: "unknown", quantity: 1 }),
+      /商品不存在/,
+    );
+    await assert.rejects(
+      createVirtualPaymentOrder({ userId: "invalid", productId: "plus", quantity: 1 }),
+      /用户 ID 非法/,
+    );
   });
 
   it("resets issued free account grants without clearing active paid Pro balances", async () => {

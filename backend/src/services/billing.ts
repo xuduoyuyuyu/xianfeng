@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import PaymentOrderModel, { BillingPlanId as PaymentOrderPlanId, PaymentOrder, PaymentProviderId } from "../models/PaymentOrder";
 import RefundRecordModel from "../models/RefundRecord";
 import User from "../models/User";
+import { getVirtualProduct } from "./virtualPaymentProducts";
 
 export type ProStatus = "none" | "active" | "expired" | "refunded";
 
@@ -421,6 +422,36 @@ export async function createPaymentOrder(input: {
     status: "pending",
   });
   return order;
+}
+
+export async function createVirtualPaymentOrder(input: {
+  userId: string;
+  productId: unknown;
+  quantity: number;
+}): Promise<PaymentOrder> {
+  if (!mongoose.Types.ObjectId.isValid(input.userId)) {
+    throw new Error("用户 ID 非法");
+  }
+  const product = getVirtualProduct(input.productId);
+  if (!product) {
+    throw new Error("虚拟商品不存在");
+  }
+  if (input.quantity !== product.maxQuantity) {
+    throw new Error("虚拟商品数量非法");
+  }
+  return PaymentOrderModel.create({
+    userId: new mongoose.Types.ObjectId(input.userId),
+    plan: product.plan,
+    provider: "wechat",
+    paymentChannel: "wechat_virtual",
+    amountCents: product.amountCents,
+    currency: "CNY",
+    subject: `订阅 ${product.name}`,
+    outTradeNo: createTradeNo(),
+    status: "pending",
+    virtualProductId: product.productId,
+    virtualQuantity: input.quantity,
+  });
 }
 
 export async function markOrderPaid(input: {
