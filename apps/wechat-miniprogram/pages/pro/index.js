@@ -174,22 +174,41 @@ function buildStatusRows(membership) {
   ];
 }
 
-function requestWechatPayment(paymentParams) {
-  const params = paymentParams || {};
-  const packageValue = String(params.package || "");
-  if (!params.timeStamp || !params.nonceStr || !packageValue || !params.paySign) {
-    return Promise.reject(new Error("微信支付参数缺失，请稍后重试"));
-  }
-  if (typeof wx.requestPayment !== "function") {
-    return Promise.reject(new Error("当前环境不支持微信支付"));
+function requestWechatLoginCode() {
+  if (typeof wx.login !== "function") {
+    return Promise.reject(new Error("当前环境不支持微信登录"));
   }
   return new Promise((resolve, reject) => {
-    wx.requestPayment({
-      timeStamp: String(params.timeStamp),
-      nonceStr: String(params.nonceStr),
-      package: packageValue,
-      signType: String(params.signType || "RSA"),
-      paySign: String(params.paySign),
+    wx.login({
+      success(result) {
+        const code = String(result && result.code || "").trim();
+        if (!code) {
+          reject(new Error("微信登录 code 不能为空"));
+          return;
+        }
+        resolve(code);
+      },
+      fail(error) {
+        reject(error);
+      }
+    });
+  });
+}
+
+function requestWechatVirtualPayment(paymentParams) {
+  const params = paymentParams || {};
+  if (!params.mode || !params.signData || !params.paySig || !params.signature) {
+    return Promise.reject(new Error("微信虚拟支付参数缺失，请稍后重试"));
+  }
+  if (typeof wx.requestVirtualPayment !== "function") {
+    return Promise.reject(new Error("当前微信版本不支持小程序虚拟支付，请升级微信后重试"));
+  }
+  return new Promise((resolve, reject) => {
+    wx.requestVirtualPayment({
+      mode: params.mode,
+      signData: params.signData,
+      paySig: params.paySig,
+      signature: params.signature,
       success: resolve,
       fail(error) {
         reject(error);
@@ -401,11 +420,12 @@ Page({
       return Promise.resolve();
     }
     this.setData({ ordering: true, message: "" });
-    return request({
-      method: "POST",
-      url: "/api/billing/orders",
-      data: { plan, provider: "wechat", channel: "mini_program" }
-    })
+    return requestWechatLoginCode()
+      .then((loginCode) => request({
+        method: "POST",
+        url: "/api/billing/virtual-orders",
+        data: { productId: plan, quantity: 1, loginCode }
+      }))
       .then((response) => {
         const order = response && response.order ? response.order : null;
         const checkout = response && response.checkout ? response.checkout : {};
@@ -425,8 +445,8 @@ Page({
             return mockResponse;
           });
         }
-        if (checkout.mode === "wechat_jsapi") {
-          return requestWechatPayment(checkout.paymentParams)
+        if (checkout.paymentChannel === "wechat_virtual") {
+          return requestWechatVirtualPayment(checkout.paymentParams)
             .then(() => this.waitForWechatPaymentConfirmation())
             .then((meResponse) => {
               const membership = meResponse && meResponse.membership ? meResponse.membership : null;
