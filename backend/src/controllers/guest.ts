@@ -471,7 +471,6 @@ export class GuestController {
         { _id: 1, programCode: 1, title: 1, coverImage: 1, publishedAt: 1, summary: 1, description: 1 }
       )
         .sort({ publishedAt: -1, updatedAt: -1, _id: -1 })
-        .limit(12)
         .lean();
 
       const countMap = await buildGuestProgramCountMap([id]);

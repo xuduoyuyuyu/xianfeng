@@ -9,6 +9,7 @@ interface Book extends mongoose.Document {
   author: string;
   translator: string;
   publisher: string;
+  description: string;
   isbn: string;
   publishedDate: string;
   grade: string;
@@ -41,6 +42,7 @@ const bookSchema = new mongoose.Schema(
     author: { type: String, default: "", trim: true },
     translator: { type: String, default: "", trim: true },
     publisher: { type: String, default: "", trim: true },
+    description: { type: String, default: "", trim: true },
     isbn: { type: String, default: "", trim: true },
     publishedDate: { type: String, default: "", trim: true },
     grade: { type: String, default: "", trim: true },

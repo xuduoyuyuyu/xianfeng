@@ -24,7 +24,7 @@ const SETTINGS_SECTIONS = [
     key: "content",
     items: [
       { key: "programs", title: "播客节目", iconType: "image", image: "/assets/menu/line-podcasts.png", page: "/pages/programs/index" },
-      { key: "experts", title: "先疯智库", iconType: "image", image: "/assets/menu/line-person.png", path: "/experts?xw_layer=1&xw_return=xiaowanzi", preserveXiaowanziLayer: true }
+      { key: "experts", title: "先疯智库", iconType: "image", image: "/assets/menu/line-person.png", page: "/pages/experts/index" }
     ]
   },
   {
@@ -104,6 +104,7 @@ const CACHE_STORAGE_KEYS = [
   "xf_program_search_query",
   "xf_mama_resource_apply_draft_v1"
 ];
+const ACCOUNT_DELETE_CONFIRMATION = "确认注销";
 
 function newChildId() {
   return `child-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -329,6 +330,78 @@ function clearAppCache() {
     } catch (_error) {}
   });
   return CACHE_STORAGE_KEYS.length;
+}
+
+function setPageMessage(page, key, message) {
+  if (!page || typeof page.setData !== "function") return;
+  page.setData({ [key]: message });
+}
+
+function clearLoginState(page, messageKey, message) {
+  clearSession();
+  const app = typeof getApp === "function" ? getApp() : null;
+  if (app && typeof app.clearLoginSession === "function") {
+    app.clearLoginSession();
+  }
+  if (page && typeof page.setData === "function") {
+    page.setData({
+      isLoggedIn: false,
+      hasMobile: false,
+      maskedMobile: "未绑定",
+      deletingAccount: false,
+      [messageKey]: message
+    });
+  }
+  if (page && typeof page.syncAccountEntry === "function") {
+    page.syncAccountEntry();
+  }
+}
+
+function deleteAccountFromSettings(page, options = {}) {
+  const messageKey = options.messageKey || "profilePanelMessage";
+  if (!getToken()) {
+    setPageMessage(page, messageKey, "请先登录后再注销账户");
+    return;
+  }
+  if (page && page.data && page.data.deletingAccount) return;
+  wx.showModal({
+    title: "确认注销账户",
+    content: "注销后账号会进入 3 天恢复期，期间重新登录可恢复。继续请完整输入“确认注销”。",
+    editable: true,
+    placeholderText: ACCOUNT_DELETE_CONFIRMATION,
+    confirmText: "确认注销",
+    confirmColor: "#e64b5f",
+    success: (result) => {
+      if (!result || !result.confirm) return;
+      const confirmation = String(result.content || "").trim();
+      if (confirmation !== ACCOUNT_DELETE_CONFIRMATION) {
+        setPageMessage(page, messageKey, "请完整输入：确认注销");
+        return;
+      }
+      if (page && typeof page.setData === "function") {
+        page.setData({ deletingAccount: true, [messageKey]: "注销中..." });
+      }
+      request({
+        method: "DELETE",
+        url: "/api/users/me",
+        data: { confirmation }
+      })
+        .then((payload) => {
+          clearLoginState(page, messageKey, (payload && payload.message) || "账号已申请注销，3天内重新登录可恢复");
+        })
+        .catch((error) => {
+          if (page && typeof page.setData === "function") {
+            page.setData({
+              deletingAccount: false,
+              [messageKey]: error.message || "注销账号失败"
+            });
+          }
+        });
+    },
+    fail: () => {
+      setPageMessage(page, messageKey, "无法打开注销确认");
+    }
+  });
 }
 
 function currentChild(children, activeId) {
@@ -675,6 +748,9 @@ function createNativeSettingsMethods() {
               }
               this.loadSettingsPanel();
               this.syncAccountEntry();
+              if (typeof this.onNativeSettingsLoginSuccess === "function") {
+                this.onNativeSettingsLoginSuccess(payload);
+              }
               this.setData({ profilePanelMessage: "登录成功" });
             })
             .catch((error) => {
@@ -736,6 +812,9 @@ function createNativeSettingsMethods() {
             app.globalData.user = getUser();
           }
           this.loadSettingsPanel();
+          if (typeof this.onNativeSettingsLoginSuccess === "function") {
+            this.onNativeSettingsLoginSuccess(payload);
+          }
           this.setData({ profilePanelMessage: "手机号已绑定" });
         })
         .catch((error) => {
@@ -759,6 +838,10 @@ function createNativeSettingsMethods() {
         profilePanelMessage: "已退出登录"
       });
       this.syncAccountEntry();
+    },
+
+    deleteAccount() {
+      deleteAccountFromSettings(this);
     },
 
     syncArchiveDraft(patch, message) {
@@ -1008,6 +1091,9 @@ function createNativeSettingsMethods() {
       const settingsMemberBadgeLabel = token ? readCachedMembershipBadgeLabel() : "";
       this.setData({
         ...fontState,
+        isLoggedIn: Boolean(token),
+        hasMobile: Boolean(token && user.mobile),
+        maskedMobile: maskMobile(user.mobile),
         accountTitle: token && name ? String(name) : "登录/注册",
         accountSubtitle: accountSubtitleFor(token, settingsMemberBadgeLabel),
         accountAvatar: token && user.avatar ? user.avatar : ACCOUNT_AVATAR,
@@ -1026,6 +1112,7 @@ module.exports = {
   buildFontOptions,
   clearAppCache,
   createNativeSettingsMethods,
+  deleteAccountFromSettings,
   readFontSizeSetting,
   readWebviewFontSizeParam,
   getSettingsPanelHeight,

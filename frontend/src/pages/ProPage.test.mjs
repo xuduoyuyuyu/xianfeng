@@ -32,3 +32,12 @@ test("subscription page uses native mini program chrome spacing when embedded", 
   assert.match(source, /padding-top: var\(--xf-mp-nav-height, 88px\) !important;/);
   assert.match(source, /padding-bottom: 0 !important;/);
 });
+
+test("subscription page opens native mini program login on auth-expired checkout", () => {
+  assert.match(source, /import \{ isMiniProgramWebView, openMiniProgramNativeLogin \} from "\.\.\/utils\/mpAuthBridge";/);
+  assert.match(
+    source,
+    /if \(error\?\.response\?\.status === 401 && isMiniProgramWebView\(\)\) \{[\s\S]*await openMiniProgramNativeLogin\(\);[\s\S]*setMessage\(""\);[\s\S]*return;[\s\S]*\}/,
+    "Pro checkout should not render the 401 API error in a mini program webview"
+  );
+});

@@ -26,10 +26,11 @@ function smartBackHome() {
   switchProgramsHome();
 }
 
-function openNativeSearch(query) {
+function openNativeSearch(query, options) {
   const keyword = String(query || "").trim();
+  const params = encodeOptions({ q: keyword, ...(options || {}) });
   wx.navigateTo({
-    url: `/pages/search/index${keyword ? `?q=${encodeURIComponent(keyword)}` : ""}`
+    url: `/pages/search/index${params}`
   });
 }
 

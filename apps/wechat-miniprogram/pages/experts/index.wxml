@@ -1,0 +1,89 @@
+<view class="xf-experts-page" style="padding-top: {{chromeHeight}}px;">
+  <view class="xf-experts-topbar" style="height: {{topbarHeight}}px;">
+    <button class="xf-experts-back" catchtap="goBack" aria-label="返回">‹</button>
+    <text class="xf-experts-title">先疯智库</text>
+  </view>
+
+  <view class="xf-experts-search-card">
+    <view class="xf-experts-search-field">
+      <text class="xf-experts-search-icon">⌕</text>
+      <input
+        class="xf-experts-search-input"
+        value="{{search}}"
+        bindinput="onSearchInput"
+        placeholder="搜索嘉宾、主题、关键词"
+        placeholder-class="xf-experts-placeholder"
+      />
+      <button wx:if="{{search}}" class="xf-experts-search-clear" catchtap="clearSearch" aria-label="清空搜索">×</button>
+    </view>
+  </view>
+
+  <scroll-view wx:if="{{filterTags.length}}" class="xf-experts-chip-scroll" scroll-x enhanced show-scrollbar="false">
+    <view class="xf-experts-chip-row">
+      <button class="xf-experts-chip {{activeTag ? '' : 'is-active'}}" catchtap="resetTag">全部</button>
+      <button
+        wx:for="{{filterTags}}"
+        wx:key="*this"
+        class="xf-experts-chip {{activeTag === item ? 'is-active' : ''}}"
+        data-tag="{{item}}"
+        catchtap="onTagTap"
+      >{{item}}</button>
+    </view>
+  </scroll-view>
+
+  <view wx:if="{{loading}}" class="xf-experts-state">
+    <view class="xf-experts-skeleton"></view>
+    <view class="xf-experts-skeleton"></view>
+    <view class="xf-experts-skeleton"></view>
+  </view>
+
+  <view wx:elif="{{guests.length}}" class="xf-experts-list">
+    <view
+      wx:for="{{guests}}"
+      wx:key="id"
+      class="xf-experts-card"
+      data-index="{{index}}"
+      bindtap="openExpert"
+    >
+      <view class="xf-experts-avatar-wrap {{item.avatarFallback ? 'is-fallback' : ''}}">
+        <image
+          class="xf-experts-avatar {{item.avatarFallback ? 'is-fallback' : ''}}"
+          src="{{item.avatar}}"
+          mode="{{item.avatarMode}}"
+          lazy-load
+          fade-in="{{false}}"
+          data-index="{{index}}"
+          binderror="useGuestAvatarFallback"
+        />
+        <text wx:if="{{item.agentEnabled}}" class="xf-experts-ai-badge">AI</text>
+      </view>
+      <view class="xf-experts-card-body">
+        <view class="xf-experts-name-row">
+          <text class="xf-experts-name">{{item.name}}</text>
+          <text class="xf-experts-role">{{item.title}}</text>
+        </view>
+        <view class="xf-experts-meta-row">
+          <text class="xf-experts-count">节目 {{item.programCount}}</text>
+          <text wx:if="{{item.referenceCount}}" class="xf-experts-count">公开资料 {{item.referenceCount}}</text>
+        </view>
+        <text class="xf-experts-bio">{{item.bio}}</text>
+        <view wx:if="{{item.showQuestionCard && item.activeQuestion}}" class="xf-experts-question-row">
+          <view class="xf-experts-question-text">
+            <text>{{item.activeQuestion}}</text>
+          </view>
+          <view class="xf-experts-question-cta">
+            <text class="xf-experts-sparkle">✦</text>
+            <text>去问问</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:else class="xf-experts-state">
+    <text>{{error || "暂无符合条件的嘉宾资料。"}}</text>
+    <button class="xf-experts-retry" catchtap="retryLoad">重试</button>
+  </view>
+
+  <view wx:if="{{loadingMore}}" class="xf-experts-loading-more">继续加载中...</view>
+</view>

@@ -30,6 +30,11 @@ type BookMetadataPayload = {
   rawCandidate: Record<string, any> | null;
 };
 
+type ManualBookMetadataPayload = Partial<BookMetadataPayload> & {
+  status?: BookMetadataStatus;
+  reviewNote?: string;
+};
+
 function cleanText(value: unknown): string {
   return String(value || "").trim();
 }
@@ -103,6 +108,13 @@ export async function listApprovedBookMetadataByBookIds(bookIds: string[]) {
   return BookMetadataModel.find({ bookId: { $in: validIds }, status: "auto_approved" }).lean();
 }
 
+export async function listApprovedBookMetadataBookIds() {
+  const bookIds = await BookMetadataModel.distinct("bookId", { status: "auto_approved" });
+  return bookIds
+    .map((bookId) => String(bookId || ""))
+    .filter((bookId) => mongoose.Types.ObjectId.isValid(bookId));
+}
+
 export async function listBookMetadataByBookIds(bookIds: string[]) {
   const validIds = bookIds.filter((id) => mongoose.Types.ObjectId.isValid(id));
   if (!validIds.length) return [];
@@ -114,13 +126,9 @@ export async function listBookMetadataForReview(status?: string) {
   return BookMetadataModel.find(filter).populate("bookId", "title author publisher coverImage").sort({ updatedAt: -1 }).lean();
 }
 
-export async function reviewBookMetadata(
-  id: string,
-  payload: Partial<BookMetadataPayload> & { status?: BookMetadataStatus; reviewNote?: string }
-) {
-  if (!mongoose.Types.ObjectId.isValid(id)) return null;
+function buildManualMetadataSetPayload(payload: ManualBookMetadataPayload, defaultStatus?: BookMetadataStatus) {
   const allowed: BookMetadataStatus[] = ["auto_approved", "needs_review", "rejected"];
-  const status = payload.status && allowed.includes(payload.status) ? payload.status : undefined;
+  const status = payload.status && allowed.includes(payload.status) ? payload.status : defaultStatus;
   const setPayload: Record<string, any> = {};
   for (const key of ["title", "author", "publisher", "isbn", "cover", "description", "source", "sourceId", "ratingLabel", "reviewNote"] as const) {
     if (payload[key] !== undefined) setPayload[key] = cleanText(payload[key]);
@@ -130,5 +138,33 @@ export async function reviewBookMetadata(
   }
   if (status) setPayload.status = status;
   setPayload.reviewedAt = new Date();
-  return BookMetadataModel.findByIdAndUpdate(id, { $set: setPayload }, { returnDocument: "after" });
+  return setPayload;
+}
+
+export async function upsertBookMetadataManually(bookId: string, payload: ManualBookMetadataPayload) {
+  if (!mongoose.Types.ObjectId.isValid(bookId)) return null;
+  return BookMetadataModel.findOneAndUpdate(
+    { bookId: new mongoose.Types.ObjectId(bookId) },
+    {
+      $set: buildManualMetadataSetPayload(payload, "auto_approved"),
+      $setOnInsert: {
+        matchScore: 0,
+        matchReason: [],
+        rawCandidate: null,
+      },
+    },
+    { upsert: true, returnDocument: "after", runValidators: true, setDefaultsOnInsert: true }
+  );
+}
+
+export async function reviewBookMetadata(
+  id: string,
+  payload: ManualBookMetadataPayload
+) {
+  if (!mongoose.Types.ObjectId.isValid(id)) return null;
+  return BookMetadataModel.findByIdAndUpdate(
+    id,
+    { $set: buildManualMetadataSetPayload(payload) },
+    { returnDocument: "after", runValidators: true }
+  );
 }

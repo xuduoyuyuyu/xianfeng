@@ -109,6 +109,7 @@ function buildTaskWritePayload(body: any, title: string) {
     dataCycle: asText(body?.dataCycle),
     settlementCycle: asText(body?.settlementCycle),
     promotionCount: asOptionalNumber(body?.promotionCount),
+    claimLimit: asOptionalNumber(body?.claimLimit),
     latestDataDate: asOptionalDate(body?.latestDataDate),
     announcement: asText(body?.announcement),
     settlementStandard: asText(body?.settlementStandard),

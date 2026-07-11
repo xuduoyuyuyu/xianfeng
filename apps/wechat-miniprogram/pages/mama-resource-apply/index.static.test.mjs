@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
@@ -30,10 +30,101 @@ test("mama resource form keeps an unsent draft across page exits", () => {
   assert.match(wxmlSource, /<checkbox class="xf-mama-check-circle" value="1" checked="\{\{formDraft\.consentAccepted\}\}"/);
 });
 
+test("mama resource profile management is always available and separates personal and media data", () => {
+  assert.match(jsSource, /MEDIA_PLATFORM_OPTIONS/);
+  const platformOptions = jsSource.match(/const MEDIA_PLATFORM_OPTIONS = \[[\s\S]*?\n\];/)?.[0] || "";
+  assert.match(platformOptions, /xiaohongshu/);
+  assert.match(platformOptions, /douyin/);
+  assert.doesNotMatch(platformOptions, /shipinhao|gongzhonghao|other/);
+  assert.match(jsSource, /mediaAccounts/);
+  assert.match(jsSource, /profileManagerMode: "overview"/);
+  assert.match(jsSource, /openProfileManager\(\)/);
+  assert.match(jsSource, /openPersonalInfoEditor\(\)/);
+  assert.match(jsSource, /openMediaAccountsManager\(\)/);
+  assert.match(jsSource, /openPreferenceEditor\(\)/);
+  assert.match(jsSource, /backToProfileOverview\(\)/);
+  assert.match(jsSource, /addMediaAccount\(\)/);
+  assert.doesNotMatch(jsSource, /dataset && event\.currentTarget\.dataset\.platform/);
+  const addMediaAccountSource = jsSource.match(/addMediaAccount\(\) \{[\s\S]*?\n  \},/)?.[0] || "";
+  assert.match(addMediaAccountSource, /blankMediaAccount\(\)/);
+  assert.doesNotMatch(addMediaAccountSource, /xiaohongshu/);
+  assert.match(jsSource, /请选择平台/);
+  assert.match(jsSource, /platformLogoText/);
+  assert.match(jsSource, /platformLogoClass/);
+  assert.match(jsSource, /platformLogoUrl/);
+  assert.match(jsSource, /\/assets\/platform\/douyin-logo\.png/);
+  assert.match(jsSource, /\/assets\/platform\/xiaohongshu-logo\.png/);
+  assert.match(jsSource, /account\.profileUrl && account\.platform/);
+  assert.match(jsSource, /updateMediaAccountField\(event\)/);
+  assert.match(jsSource, /removeMediaAccount\(event\)/);
+  assert.match(jsSource, /submitProfileDraft\(\)/);
+  assert.match(jsSource, /submit\(event\)[\s\S]*mediaAccounts: buildSubmitMediaAccounts\(payload\)/);
+  const normalizeExtraMediaAccounts = jsSource.match(/function normalizeExtraMediaAccounts\(value\) \{[\s\S]*?\n\}/)?.[0] || "";
+  assert.match(normalizeExtraMediaAccounts, /return value\.map\(normalizeMediaAccount\);/);
+  assert.doesNotMatch(normalizeExtraMediaAccounts, /\.filter/);
+
+  assert.match(wxmlSource, /资料管理/);
+  assert.doesNotMatch(wxmlSource, /自己的小红书账号/);
+  assert.match(wxmlSource, /自己的社交媒体账号/);
+  assert.match(wxmlSource, /小红书、抖音账号优先/);
+  assert.match(wxmlSource, /xf-mama-profile-manager/);
+  assert.match(wxmlSource, /profileManagerMode === 'overview'/);
+  assert.match(wxmlSource, /class="xf-mama-info-list"/);
+  assert.match(wxmlSource, /class="xf-mama-info-row is-personal"[\s\S]*个人资料/);
+  assert.match(wxmlSource, /class="xf-mama-info-row is-media"[\s\S]*社交媒体账号/);
+  assert.match(wxmlSource, /class="xf-mama-info-row is-preference"[\s\S]*接单偏好/);
+  assert.match(wxssSource, /\.xf-mama-info-row\.is-personal \{/);
+  assert.match(wxssSource, /\.xf-mama-info-row\.is-media \{/);
+  assert.match(wxssSource, /\.xf-mama-info-row\.is-preference \{/);
+  assert.match(wxmlSource, /catchtap="openPersonalInfoEditor"/);
+  assert.match(wxmlSource, /catchtap="openMediaAccountsManager"/);
+  assert.match(wxmlSource, /catchtap="openPreferenceEditor"/);
+  assert.match(wxmlSource, /catchtap="submitProfileDraft"/);
+  assert.match(wxmlSource, /个人信息/);
+  assert.match(wxmlSource, /媒体账号/);
+  assert.match(wxmlSource, /wx:for="\{\{mediaAccounts\}\}"/);
+  assert.match(wxmlSource, /xf-mama-platform-logo/);
+  assert.match(wxmlSource, /\{\{item\.platformLogoClass\}\}/);
+  assert.match(wxmlSource, /<image[^>]*class="xf-mama-platform-logo-image"[^>]*src="\{\{item\.platformLogoUrl\}\}"/);
+  assert.match(wxmlSource, /\{\{item\.platformLogoText\}\}/);
+  assert.match(wxmlSource, /data-field="profileUrl"[^>]*bindinput="updateMediaAccountField"/);
+  assert.match(wxmlSource, /账号昵称<input name="xiaohongshuNickname"[^>]*value="\{\{formDraft\.xiaohongshuNickname\}\}"[^>]*data-field="xiaohongshuNickname"[^>]*bindinput="updateDraftField"/);
+  assert.match(wxmlSource, /账号昵称<input value="\{\{item\.nickname\}\}"[^>]*placeholder="必填"/);
+  assert.match(wxmlSource, /<text>\{\{item\.nickname \|\| item\.platformLabel \+ "账号"\}\}<\/text>/);
+  assert.doesNotMatch(wxmlSource, /item\.platformLabel\}\}账号 \{\{index \+ 2\}\}/);
+  assert.match(wxmlSource, /catchtap="addMediaAccount"[^>]*>添加新账号<\/button>/);
+  assert.doesNotMatch(wxmlSource, /添加小红书账号|添加抖音账号|data-platform=/);
+  assert.doesNotMatch(wxmlSource, /视频号|公众号|其他/);
+  assert.match(wxssSource, /\.xf-mama-platform-logo\.is-xiaohongshu \{/);
+  assert.match(wxssSource, /\.xf-mama-platform-logo\.is-douyin \{/);
+  assert.match(wxssSource, /\.xf-mama-platform-logo\.is-unselected \{/);
+  assert.match(wxssSource, /\.xf-mama-platform-logo-image \{/);
+  assert.ok(existsSync(resolve(__dirname, "../../assets/platform/douyin-logo.png")));
+  assert.ok(existsSync(resolve(__dirname, "../../assets/platform/xiaohongshu-logo.png")));
+  assert.match(wxmlSource, /catchtap="removeMediaAccount"/);
+  assert.match(wxmlSource, /mamaResourceView === 'tasks'[\s\S]*资料管理/);
+  assert.match(wxmlSource, /mamaResourceView === 'reviewing'[\s\S]*资料管理/);
+
+  assert.match(jsSource, /xiaohongshuNickname: ""/);
+  assert.match(jsSource, /nickname: draft\.xiaohongshuNickname/);
+  assert.match(jsSource, /title: account\.nickname \|\| `\$\{account\.platformLabel \|\| "媒体"\}账号 \$\{index \+ 1\}`/);
+  assert.match(jsSource, /summary: account\.platform === "xiaohongshu" \? "" :/);
+  assert.match(wxmlSource, /<text wx:if="\{\{item\.summary\}\}" class="xf-mama-info-account-summary">\{\{item\.summary\}\}<\/text>/);
+  assert.match(jsSource, /if \(!payload\.xiaohongshuNickname\)[\s\S]*请填写小红书账号昵称/);
+  assert.match(jsSource, /findIndex\(\(account\) => !account\.nickname\)/);
+  assert.match(jsSource, /请填写第\$\{missingNicknameIndex \+ 2\}个账号的账号昵称/);
+});
+
 test("approved mama resource account can view assigned tasks and submit proof", () => {
   assert.match(jsSource, /loadMamaTasks\(\)/);
   assert.match(jsSource, /url: "\/api\/mama-resources\/me\/tasks"/);
+  assert.match(jsSource, /onNativeSettingsLoginSuccess\(payload\)/);
+  assert.match(jsSource, /updatePageApplyDraft\(this, \{ contactPhone: mobile \}\)/);
+  assert.match(jsSource, /onNativeSettingsLoginSuccess\(payload\)[\s\S]*return this\.loadMamaTasks\(\)/);
+  assert.match(jsSource, /availableTasks/);
   assert.match(jsSource, /openMamaTask\(event\)/);
+  assert.match(jsSource, /claimMamaTask\(\)/);
+  assert.match(jsSource, /\/api\/mama-resources\/tasks\/\$\{taskId\}\/claims/);
   assert.match(jsSource, /chooseTaskProofScreenshot\(\)/);
   assert.match(jsSource, /proofScreenshotUrl/);
   assert.match(jsSource, /submitTaskProof\(\)/);
@@ -44,18 +135,82 @@ test("approved mama resource account can view assigned tasks and submit proof", 
   assert.match(wxmlSource, /xf-mama-task-title[\s\S]*妈妈好赚/);
   assert.match(wxmlSource, /xf-mama-task-hero-icon[\s\S]*\/assets\/menu\/mama-hao-zhuan-icon\.png/);
   assert.match(wxmlSource, /xf-mama-task-logo[\s\S]*\/assets\/menu\/mama-hao-zhuan-icon\.png/);
+  assert.match(wxmlSource, /xf-mama-task-price-label[\s\S]*任务单价/);
+  assert.match(wxmlSource, /xf-mama-task-price-group[\s\S]*任务单价[\s\S]*\{\{item\.unitPriceText\}\}[\s\S]*class="xf-mama-task-traffic">投流补贴 \{\{item\.trafficFeeText\}\}/);
+  assert.match(wxmlSource, /class="xf-mama-task-stats"[\s\S]*推广 \{\{item\.promotionCountText\}\} 人/);
+  assert.match(wxssSource, /\.xf-mama-task-stats \{[\s\S]*margin-left: 90rpx;/);
   assert.match(wxmlSource, /项目价格/);
-  assert.match(wxmlSource, /wx:if="\{\{currentMamaTask\.hasTrafficFee\}\}" class="xf-mama-cost-row"/);
-  assert.match(wxmlSource, /投流费用/);
+  assert.match(wxmlSource, /价格[\s\S]*投流补贴[\s\S]*结算周期/);
+  assert.match(wxmlSource, /\{\{currentMamaTask\.hasTrafficFee \? currentMamaTask\.trafficFeeText : "-"\}\}/);
+  assert.doesNotMatch(wxmlSource, /数据周期/);
+  assert.doesNotMatch(wxmlSource, /xf-mama-cost-row/);
   assert.match(wxmlSource, /xf-mama-project-title[\s\S]*项目信息/);
   assert.match(wxmlSource, /xf-mama-example-gallery/);
   assert.match(wxmlSource, /catchtap="previewTaskExampleImage"/);
+  assert.match(wxmlSource, /catchtap="claimMamaTask"/);
+  assert.match(wxmlSource, /立即领取/);
   assert.match(jsSource, /exampleImageUrls: Array\.isArray\(source\.exampleImageUrls\)/);
   assert.match(jsSource, /trafficFeeCents/);
   assert.match(jsSource, /previewTaskExampleImage\(event\)/);
   assert.doesNotMatch(wxmlSource, /推广流程/);
+  assert.doesNotMatch(wxmlSource, /最新数据/);
+  assert.doesNotMatch(jsSource, /latestDataDateText/);
+  assert.match(jsSource, /function formatDateText\(value\)/);
   assert.match(wxmlSource, /提交回填/);
   assert.match(wxmlSource, /上传完成截图/);
+  assert.match(wxssSource, /\.xf-mama-proof-card \{[\s\S]*padding: 6rpx 24rpx 28rpx;/);
+  assert.match(wxssSource, /\.xf-mama-proof-card \.xf-mama-section-title \{[\s\S]*padding-left: 0;[\s\S]*padding-right: 0;/);
+});
+
+test("logged-out mama resource users must authorize phone before seeing apply form", () => {
+  assert.match(jsSource, /const \{ getToken, getUser \} = require\("\.\.\/\.\.\/utils\/session"\)/);
+  assert.match(jsSource, /function isUnauthorizedError\(error\)/);
+  assert.match(jsSource, /mamaResourceView: "login"/);
+  assert.match(jsSource, /if \(!getToken\(\)\) \{/);
+  assert.match(jsSource, /isUnauthorizedError\(error\)/);
+  assert.match(jsSource, /mamaResourceView: "login"[\s\S]*mamaTasks: \[\]/);
+  assert.match(wxmlSource, /mamaResourceView === 'login'/);
+  assert.match(wxmlSource, /open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone"/);
+  assert.match(wxmlSource, /已审核通过的账号会直接进入任务列表/);
+});
+
+test("mama resource task share image includes a direct mini-program qrcode", () => {
+  assert.match(jsSource, /openMamaTaskSharePoster\(\)/);
+  assert.match(jsSource, /const pendingMamaTaskId = asText\(options\.taskId \|\| parseSceneParam\(options\.scene, "m"\)\)\.trim\(\)/);
+  assert.match(jsSource, /if \(!pendingMamaTaskId && ensureBackStackForBackButtonPage\(options\)\) return;/);
+  assert.match(jsSource, /mamaTaskShareQrUrl\(taskId\)/);
+  assert.match(jsSource, /currentMiniProgramEnvVersion\(\)/);
+  assert.match(jsSource, /envVersion=\$\{encodeURIComponent\(envVersion\)\}/);
+  assert.match(jsSource, /responseType: "arraybuffer"/);
+  assert.match(jsSource, /arrayBufferJsonMessage\(res && res\.data\)/);
+  assert.match(jsSource, /wx\.getFileSystemManager\(\)/);
+  assert.match(jsSource, /resolveCanvasImagePath\(task\.exampleImageUrls && task\.exampleImageUrls\[0\]\)/);
+  assert.match(jsSource, /drawMamaTaskShareImage\(task, qrPath, examplePath\)/);
+  assert.match(jsSource, /drawText\("项目信息"/);
+  assert.match(jsSource, /drawText\("项目价格"/);
+  assert.match(jsSource, /drawText\("结算标准"/);
+  assert.match(jsSource, /drawText\("项目要求"/);
+  assert.match(jsSource, /function canvasPosterTextWidth\(ctx, text, fontSize\)/);
+  assert.match(jsSource, /function fitPosterText\(ctx, text, maxWidth, fontSize\)/);
+  assert.match(jsSource, /const drawFittedText = \(text, x, y, maxWidth, fontSize, color, bold\)/);
+  assert.match(jsSource, /\[286, 430, 560\]\.forEach/);
+  assert.match(jsSource, /drawFittedText\(category, 74, 522, 194, 21, "#151222", true\)/);
+  assert.match(jsSource, /function drawPosterRoundRect\(ctx, x, y, width, height, radius\)/);
+  assert.match(jsSource, /drawPosterRoundRect\(ctx, 28, 38, 694, 1584, 28\)/);
+  assert.match(jsSource, /drawPosterRoundRect\(ctx, 48, 206, 654, 64, 12\)/);
+  assert.match(jsSource, /drawImage\(examplePath, 56, 948, 638, 380\)/);
+  assert.match(jsSource, /drawImage\(qrPath, 305, 1396, 140, 140\)/);
+  assert.match(jsSource, /drawText\("扫码直达任务，领取后参与", 375, 1572, 24, "#667085"/);
+  assert.match(jsSource, /wx\.canvasToTempFilePath/);
+  assert.match(jsSource, /height: 1660,[\s\S]*destHeight: 3320/);
+  assert.match(jsSource, /saveMamaTaskShareImage\(\)/);
+  assert.match(jsSource, /parseSceneParam\(options\.scene, "m"\)/);
+  assert.match(wxmlSource, /<canvas[^>]*canvas-id="mamaTaskShareCanvas"[^>]*width="750"[^>]*height="1660"/);
+  assert.match(wxmlSource, /class="xf-mama-detail-share-icon"[^>]*catchtap="openMamaTaskSharePoster"/);
+  assert.doesNotMatch(wxmlSource, /生成分享图/);
+  assert.match(wxmlSource, /taskSharePreviewOpen/);
+  assert.match(wxssSource, /\.xf-mama-detail-share-icon \{/);
+  assert.match(wxssSource, /\.xf-mama-share-canvas \{[\s\S]*width: 750px;[\s\S]*height: 1660px;/);
 });
 
 test("mama resource task example images use native-loadable URLs without a fixed background frame", () => {
@@ -74,16 +229,26 @@ test("mama resource task example images use native-loadable URLs without a fixed
   assert.doesNotMatch(imageStyle, /background:/);
 });
 
-test("non-approved mama resource account stays on the application form", () => {
+test("submitted mama resource account stays in review status instead of the application form", () => {
   assert.match(jsSource, /profile\.status !== "approved"/);
-  assert.match(jsSource, /mamaResourceView: "apply"/);
+  assert.match(jsSource, /mamaResourceView: "reviewing"/);
   assert.match(jsSource, /mamaTasks: \[\]/);
-  assert.doesNotMatch(jsSource, /profile\.status === "approved" \? "tasks" : "reviewing"/);
+  const nonApprovedBranch = jsSource.match(/if \(profile\.status !== "approved"\) \{[\s\S]*?\n          return;\n        \}/)?.[0] || "";
+  assert.match(nonApprovedBranch, /mamaResourceView: "reviewing"/);
+  assert.doesNotMatch(nonApprovedBranch, /mamaResourceView: "apply"/);
   assert.match(jsSource, /readStoredUserMobile\(\)/);
   assert.match(jsSource, /contactPhone: storedDraft\.contactPhone \|\| userMobile/);
 
   assert.match(wxmlSource, /mamaResourceView === 'apply'/);
+  assert.match(wxmlSource, /mamaResourceView === 'reviewing'/);
   assert.match(wxmlSource, /妈妈好赚/);
+});
+
+test("mama resource task loading errors do not force the application form", () => {
+  assert.match(jsSource, /\.catch\(\(error\) => \{/);
+  assert.match(jsSource, /任务状态加载失败，请稍后重试/);
+  assert.match(jsSource, /messageType: "error"/);
+  assert.doesNotMatch(jsSource, /\.catch\(\(_error\) => \{\s*this\.setData\(\{\s*mamaResourceView: "apply"/);
 });
 
 test("task announcement only appears when configured and opens a modal", () => {

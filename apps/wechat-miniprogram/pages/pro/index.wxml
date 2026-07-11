@@ -128,7 +128,10 @@
   </view>
 
   <view class="xf-pro-pay-dock">
-    <button class="xf-pro-pay-button" bindtap="createOrder" disabled="{{ordering || loading}}">
+    <button wx:if="{{!isLoggedIn}}" class="xf-pro-pay-button" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone" disabled="{{loading || bindingPhone}}">
+      {{bindingPhone ? "正在登录..." : (membership && membership.isProActive ? "登录后补充点数" : "立即订阅")}}
+    </button>
+    <button wx:else class="xf-pro-pay-button" bindtap="createOrder" disabled="{{ordering || loading}}">
       {{ordering ? "正在拉起微信支付..." : (membership && membership.isProActive ? "补充点数" : "立即订阅")}}
     </button>
   </view>

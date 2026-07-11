@@ -70,7 +70,7 @@ const PublicScreenRouter: React.FC = () => {
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const normalizedPathname = pathname.startsWith("/v2/") ? pathname.slice(3) : pathname === "/v2" ? "/" : pathname;
-  const screenRev = "20260703-podcast-detail-mp-bottom-1";
+  const screenRev = "20260708-podcast-detail-scroll-1";
   const [programDetailFrameHeight, setProgramDetailFrameHeight] = React.useState<string | null>(null);
 
   useEffect(() => {
@@ -228,6 +228,8 @@ const PublicScreenRouter: React.FC = () => {
   }
 
   if (normalizedPathname === "/library") {
+    const externalBookId = new URLSearchParams(search).get("xf_external_book_id");
+    if (externalBookId) return <ExternalBookLibraryDetailPage />;
     return <ExternalBookLibraryPage />;
   }
 

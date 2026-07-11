@@ -2,7 +2,7 @@ const { createPageShare, enableShareMenu } = require("../../../utils/share");
 const { request } = require("../../../utils/request");
 const { getToken, getUser, clearSession } = require("../../../utils/session");
 const { maskMobile, parseStoredValue } = require("../../../utils/profileState");
-const { applyFontSizeSetting, buildFontOptions, clearAppCache, readFontSizeSetting } = require("../../../utils/nativeSettings");
+const { applyFontSizeSetting, buildFontOptions, clearAppCache, deleteAccountFromSettings, readFontSizeSetting } = require("../../../utils/nativeSettings");
 const { ensureBackStackForBackButtonPage } = require("../../../utils/nativePageNav");
 
 function loadUser() {
@@ -143,7 +143,7 @@ Page({
   },
 
   deleteAccount() {
-    this.setData({ message: "注销账户需在登录后通过账号服务完成" });
+    deleteAccountFromSettings(this, { messageKey: "message" });
   },
 
   goBack() {

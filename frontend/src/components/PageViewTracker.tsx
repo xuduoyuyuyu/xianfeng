@@ -37,7 +37,7 @@ function resolvePageTitle(pathname: string): string {
     "/admin/programs": "节目管理",
     "/admin/dictionary": "教育词典",
     "/admin/guests": "嘉宾管理",
-    "/admin/books": "书单管理",
+    "/admin/books": "图书管理",
     "/admin/materials": "资料管理",
     "/admin/users": "用户管理",
     "/admin/user-portrait": "用户画像",

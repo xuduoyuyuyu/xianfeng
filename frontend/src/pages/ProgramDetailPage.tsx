@@ -54,6 +54,34 @@ function hasText(value?: string | null): boolean {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+function normalizeCuratedReadingKey(value?: string): string {
+  return (value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function getVerifiedCuratedReading(program: Program | null) {
+  const currentItems = program?.deepDive?.curatedReading || [];
+  const reportItems = program?.agentOutputs?.enrichment?.readingVerificationReport?.items || [];
+  const verifiedItems = reportItems.filter(
+    (item) => item?.passed === true && item?.titleMatched === true
+  );
+  return currentItems.flatMap((reading) => {
+    const titleKey = normalizeCuratedReadingKey(reading?.title);
+    const readingUrl = reading?.url?.trim() || "";
+    if (!titleKey || !readingUrl) return [];
+    const verified = verifiedItems.find((item) => {
+      if (normalizeCuratedReadingKey(item?.title) !== titleKey) return false;
+      const originalUrl = item?.url?.trim() || "";
+      const finalUrl = item?.finalUrl?.trim() || "";
+      return readingUrl === originalUrl || readingUrl === finalUrl;
+    });
+    if (!verified) return [];
+    return [{
+      ...reading,
+      url: verified.finalUrl?.trim() || verified.url?.trim() || readingUrl,
+    }];
+  });
+}
+
 function getRealTranscriptSegments(program: Program | null): TranscriptSegment[] {
   if (!program) return [];
   return (program.transcript || []).filter((segment) => hasText(segment?.text));
@@ -116,7 +144,7 @@ const ProgramDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
-  const [contentViewMode, setContentViewMode] = useState<"quickview" | "transcript" | "mindmap">("mindmap");
+  const [contentViewMode, setContentViewMode] = useState<"quickview" | "transcript" | "mindmap">("quickview");
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -141,15 +169,15 @@ const ProgramDetailPage: React.FC = () => {
     guest?.bio || "围绕家庭关系、成长节奏与学习环境，提炼节目中的关键视角，帮助家长把内容真正带回到日常生活里。";
   const { src: guestAvatar, isFallback: isGuestFallbackAvatar } = resolveGuestAvatar(guest?.avatar, avatarFallbackActive);
   const deepDiveTitle = program?.deepDive?.sectionTitle || "深度挖掘 Deep Dive";
-  const curatedReading = (program?.deepDive?.curatedReading || []).filter((item) => hasText(item?.title));
+  const curatedReading = getVerifiedCuratedReading(program);
   const curatedReadingUnique = curatedReading.filter(
     (item, idx, arr) => arr.findIndex((x) => x.title === item.title && (x.subtitle || "") === (item.subtitle || "")) === idx
   );
   const quickView = (program?.contentPack?.quickView || []).filter((item) => hasText(item?.summary)).slice(0, 12);
   const hasMindMapContent = hasRealMindMapData(program);
   const detailContentModes = [
-    hasMindMapContent ? { key: "mindmap", label: "脉络", icon: "account_tree" } : null,
     quickView.length > 0 ? { key: "quickview", label: "速览", icon: "view_timeline" } : null,
+    hasMindMapContent ? { key: "mindmap", label: "脉络", icon: "account_tree" } : null,
     transcriptSegments.length > 0 ? { key: "transcript", label: "逐字稿", icon: "description" } : null,
   ].filter((item): item is DetailContentMode => Boolean(item));
   const hasDetailContent = detailContentModes.length > 0;

@@ -27,6 +27,7 @@ function isNotFoundError(error) {
 function normalizeImage(value) {
   const source = String(value || "").trim();
   if (source.startsWith("emoji:")) return "";
+  if (source === "/assets/welfare-gift-icon.png") return "/assets/menu/welfare-gift-icon.png";
   if (source.startsWith("/uploads/")) return `${API_ORIGIN}${source}`;
   if (/^http:\/\/xianfeng\.xinzhi\.info\//i.test(source)) return source.replace(/^http:/i, "https:");
   return source || "/assets/menu/welfare-gift-icon.png";
@@ -228,6 +229,22 @@ Page({
       data: url,
       success() {
         wx.showToast({ title: "链接已复制", icon: "none" });
+      }
+    });
+  },
+
+  openClaimLink() {
+    const link = String(this.data.claimDialogExternalUrl || "").trim();
+    if (!link) return;
+    if (!/^#小程序:\/\//u.test(link) || typeof wx.navigateToMiniProgram !== "function") {
+      this.copyClaimLink();
+      return;
+    }
+    wx.navigateToMiniProgram({
+      shortLink: link,
+      fail(error) {
+        if (/cancel/i.test(String(error && error.errMsg || ""))) return;
+        wx.showToast({ title: "暂时无法打开，请复制链接", icon: "none" });
       }
     });
   },

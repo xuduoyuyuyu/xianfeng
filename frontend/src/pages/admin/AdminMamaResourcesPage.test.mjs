@@ -51,6 +51,8 @@ test("admin mama resources page shows account cards without removed offer and ca
   assert.doesNotMatch(source, /点赞|收藏/);
   assert.doesNotMatch(source, /manualCases|contentCases|rateCard/);
   assert.match(source, /运营备注/);
+  assert.match(source, /className="flex flex-wrap content-start items-start gap-1"/);
+  assert.match(source, /className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-\[#f6f0ff\] px-2 py-1 text-xs font-bold leading-none text-\[#5e17eb\]"/);
 });
 
 test("admin mama resource api supports list, review, and manual update", () => {
@@ -85,6 +87,11 @@ test("admin mama resources page supports task shelving and account selection ins
   assert.match(source, /trafficFeeCents/);
   assert.match(source, /投流费用（元）/);
   assert.match(source, /请输入有效的投流费用/);
+  assert.match(source, /claimLimit: string;/);
+  assert.match(source, /领取人数限制/);
+  assert.match(source, /不填则不限，填写后先到先得/);
+  assert.match(source, /claimLimit: Number\.isFinite\(claimLimit\) \? claimLimit : null/);
+  assert.match(source, /请输入有效的领取人数限制/);
   assert.match(source, /项目公告/);
   assert.match(source, /不填则小程序端不展示公告入口/);
   assert.match(source, /openTaskEdit/);
@@ -118,6 +125,9 @@ test("admin mama resources page supports task shelving and account selection ins
   assert.match(apiSource, /matchCategories\?: string\[\];/);
   assert.match(apiSource, /matchRiskTags\?: string\[\];/);
   assert.match(apiSource, /trafficFeeCents\?: number \| null;/);
+  assert.match(apiSource, /claimLimit\?: number \| null;/);
+  assert.match(apiSource, /remainingClaimCount\?: number \| null;/);
+  assert.match(apiSource, /claimMamaResourceTask: \(id: string\)/);
   assert.match(apiSource, /minFollowerCount\?: number \| null;/);
   assert.match(apiSource, /exampleImageUrls\?: string\[\];/);
   assert.match(apiSource, /autoAssign\?: boolean;/);

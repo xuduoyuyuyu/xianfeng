@@ -41,12 +41,24 @@ test("native settings implements font size and cache clearing actions", () => {
   assert.match(mineTemplateSource, /class="xf-setting-row xf-setting-button" bindtap="clearCache"><text>应用管理<\/text><text class="xf-setting-value">清理缓存 ›<\/text><\/button>/);
 });
 
+test("native settings wires account deletion to the shared settings action", () => {
+  assert.match(nativeSettingsSource, /function deleteAccountFromSettings\(page, options = \{\}\)/);
+  assert.match(nativeSettingsSource, /url: "\/api\/users\/me"/);
+  assert.match(nativeSettingsSource, /method: "DELETE"/);
+  assert.match(nativeSettingsSource, /data: \{ confirmation \}/);
+  assert.match(nativeSettingsSource, /deleteAccount\(\) \{[\s\S]*deleteAccountFromSettings\(this\);[\s\S]*\}/);
+  assert.match(sharedTemplateSource, /class="xf-profile-danger xf-settings-danger" bindtap="deleteAccount">注销账户<\/button>/);
+  assert.match(mineTemplateSource, /class="xf-profile-danger xf-settings-danger" bindtap="deleteAccount">注销账户<\/button>/);
+});
+
 test("native settings logs in logged-out users with the current phone authorization sheet", () => {
   assert.match(nativeSettingsSource, /loginWithPhone\(event\)/);
   assert.match(nativeSettingsSource, /wx\.login\(/);
   assert.match(nativeSettingsSource, /\/api\/wechat-mini\/login/);
   assert.match(nativeSettingsSource, /setSession\(payload\)/);
   assert.match(nativeSettingsSource, /syncAccountEntry\(\)/);
+  assert.match(nativeSettingsSource, /typeof this\.onNativeSettingsLoginSuccess === "function"/);
+  assert.match(nativeSettingsSource, /this\.onNativeSettingsLoginSuccess\(payload\)/);
   assert.match(nativeSettingsSource, /SETTINGS_MEMBERSHIP_BADGE_KEY/);
   assert.match(nativeSettingsSource, /request\(\{ url: "\/api\/billing\/me" \}\)/);
   assert.match(nativeSettingsSource, /accountSubtitleFor\(token, settingsMemberBadgeLabel\)/);
@@ -117,6 +129,91 @@ test("native settings logout clears the account entry shown in the open drawer",
     assert.equal(context.data.accountAvatar, "/assets/tabbar/xiaowanzi.png");
     assert.equal(context.data.accountPage, "");
     assert.equal(context.data.accountPanelView, "");
+  } finally {
+    global.wx = originalWx;
+    global.getApp = originalGetApp;
+  }
+});
+
+test("native settings delete account matches the mobile confirmation flow", async () => {
+  const originalWx = global.wx;
+  const originalGetApp = global.getApp;
+  const storage = new Map([
+    ["xf_token", "token-1"],
+    ["xf_user", { name: "阿力", mobile: "13500003069", avatar: "/avatar.png" }]
+  ]);
+  let modalOptions = null;
+  let requestOptions = null;
+  let clearCalled = false;
+  global.wx = {
+    getStorageSync(key) {
+      return storage.has(key) ? storage.get(key) : "";
+    },
+    setStorageSync(key, value) {
+      storage.set(key, value);
+    },
+    removeStorageSync(key) {
+      storage.delete(key);
+    },
+    showModal(options) {
+      modalOptions = options;
+      options.success({ confirm: true, content: "确认注销" });
+    },
+    request(options) {
+      requestOptions = options;
+      options.success({
+        statusCode: 200,
+        data: { message: "账号已申请注销，3天内重新登录可恢复" }
+      });
+    }
+  };
+  global.getApp = () => ({
+    clearLoginSession() {
+      clearCalled = true;
+      storage.delete("xf_token");
+      storage.delete("xf_user");
+    }
+  });
+
+  const nativeSettingsFile = require.resolve("./nativeSettings.js");
+  delete require.cache[nativeSettingsFile];
+  const { createNativeSettingsMethods } = require(nativeSettingsFile);
+  const methods = createNativeSettingsMethods();
+  const context = {
+    data: {
+      isLoggedIn: true,
+      hasMobile: true,
+      maskedMobile: "135****3069",
+      accountTitle: "阿力",
+      accountSubtitle: "查看和管理个人资料",
+      accountAvatar: "/avatar.png",
+      accountPage: "/pages/mine/index",
+      accountPanelView: "profile"
+    },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    },
+    syncAccountEntry: methods.syncAccountEntry
+  };
+
+  try {
+    methods.deleteAccount.call(context);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(modalOptions.title, "确认注销账户");
+    assert.equal(modalOptions.editable, true);
+    assert.equal(modalOptions.placeholderText, "确认注销");
+    assert.match(requestOptions.url, /\/api\/users\/me$/);
+    assert.equal(requestOptions.method, "DELETE");
+    assert.deepEqual(requestOptions.data, { confirmation: "确认注销" });
+    assert.equal(clearCalled, true);
+    assert.equal(storage.has("xf_token"), false);
+    assert.equal(storage.has("xf_user"), false);
+    assert.equal(context.data.isLoggedIn, false);
+    assert.equal(context.data.hasMobile, false);
+    assert.equal(context.data.maskedMobile, "未绑定");
+    assert.equal(context.data.profilePanelMessage, "账号已申请注销，3天内重新登录可恢复");
+    assert.equal(context.data.accountTitle, "登录/注册");
   } finally {
     global.wx = originalWx;
     global.getApp = originalGetApp;

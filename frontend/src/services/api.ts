@@ -1,5 +1,6 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import { showProUpgradeFromPayload } from '../utils/proGate';
+import { isMiniProgramWebView, openMiniProgramNativeLogin } from '../utils/mpAuthBridge';
 
 // In production the Nginx gateway proxies `/api` on the same origin.
 // Falling back to a relative path keeps deployed domains working even when
@@ -52,6 +53,11 @@ api.interceptors.response.use(
       if (isAdminRoute) {
         window.location.href = '/admin/login';
       } else {
+        if (isMiniProgramWebView()) {
+          (error as any).xfMiniProgramNativeLoginOpened = true;
+          void openMiniProgramNativeLogin();
+          return Promise.reject(error);
+        }
         // 非 admin 路径：弹窗引导登录，不跳页面
         document.dispatchEvent(new CustomEvent('xf-show-login-modal', {
           detail: {
@@ -297,7 +303,18 @@ export interface DictionaryRelatedProgram {
 export interface CuratedReadingItem {
   title: string;
   subtitle?: string;
+  author?: string;
+  translator?: string;
+  publisher?: string;
+  reason?: string;
   url?: string;
+  book?: {
+    id: string;
+    title: string;
+    author?: string;
+    translator?: string;
+    publisher?: string;
+  } | null;
 }
 
 export interface MindMapNode {
@@ -450,6 +467,7 @@ export interface Book {
   author: string;
   translator: string;
   publisher: string;
+  description?: string;
   isbn?: string;
   publishedDate?: string;
   grade: string;
@@ -561,6 +579,7 @@ export interface LearningMaterial {
 
 export type MamaResourceStatus = 'pending' | 'approved' | 'needs_info' | 'rejected';
 export type MamaResourceCaptureStatus = 'pending' | 'captured' | 'failed' | 'manual_required';
+export type MamaResourceMediaPlatform = 'xiaohongshu' | 'douyin' | 'shipinhao' | 'gongzhonghao' | 'other';
 export type MamaResourceTaskStatus = 'listed' | 'paused' | 'archived';
 export type MamaResourceTaskAssignmentStatus = 'assigned' | 'submitted' | 'collected' | 'rejected';
 
@@ -573,6 +592,18 @@ export interface MamaResourceContentCase {
   commentCount?: number | null;
   screenshotUrl?: string;
   captureStatus: MamaResourceCaptureStatus;
+  lastCapturedAt?: string | null;
+}
+
+export interface MamaResourceMediaAccount {
+  platform: MamaResourceMediaPlatform;
+  profileUrl: string;
+  normalizedProfileUrl?: string;
+  nickname?: string;
+  followerCount?: number | null;
+  screenshotUrl?: string;
+  realNameVerified?: boolean | null;
+  dataSource?: 'pending' | 'auto' | 'manual' | 'screenshot';
   lastCapturedAt?: string | null;
 }
 
@@ -599,6 +630,7 @@ export interface MamaResourceProfile {
     dataSource: 'pending' | 'auto' | 'manual' | 'screenshot';
     lastCapturedAt?: string | null;
   };
+  mediaAccounts?: MamaResourceMediaAccount[];
   contentCases: MamaResourceContentCase[];
   rateCard: {
     rateRange?: string;
@@ -629,6 +661,7 @@ export interface MamaResourceApplicationInput {
   followerCount?: number | string;
   realNameVerified?: boolean | null;
   accountPositioning?: string;
+  mediaAccounts?: Array<Partial<MamaResourceMediaAccount>>;
   categories?: string[] | string;
   acceptsGiftExchange?: boolean;
   blockedCategories?: string[] | string;
@@ -677,6 +710,10 @@ export interface MamaResourceTask {
   dataCycle?: string;
   settlementCycle?: string;
   promotionCount?: number | null;
+  claimLimit?: number | null;
+  claimedCount?: number;
+  remainingClaimCount?: number | null;
+  claimable?: boolean;
   latestDataDate?: string | null;
   announcement?: string;
   settlementStandard?: string;
@@ -727,6 +764,7 @@ export interface MamaResourceTaskInput {
   dataCycle?: string;
   settlementCycle?: string;
   promotionCount?: number | null;
+  claimLimit?: number | null;
   latestDataDate?: string | null;
   announcement?: string;
   settlementStandard?: string;
@@ -1169,9 +1207,10 @@ export const publicApi = {
   getGuestAgentHistory: (id: string) => api.get<GuestAgentHistory>(`/guests/${id}/agent/history`),
   chatWithGuestAgent: (id: string, question: string) => api.post<GuestAgentChatResponse>(`/guests/${id}/agent/chat`, { question }),
   
-  // 书单
+  // 图书
   getBooks: () => api.get<Book[]>('/books'),
   getExternalBooks: (params: { current: number; size: number }) => api.get<ExternalBookLibraryResponse>('/books/external', { params }),
+  getExternalBook: (id: string) => api.get<ExternalBookLibraryRecord>(`/books/external/${encodeURIComponent(id)}`),
   translateExternalBookDescription: (id: string, data: { title: string; description: string }) =>
     api.post<ExternalBookDescriptionTranslationResponse>(`/books/external/${encodeURIComponent(id)}/description-translation`, data),
   getBook: (id: string) => api.get<Book>(`/books/${id}`),
@@ -1191,9 +1230,11 @@ export const publicApi = {
   submitMamaResourceApplication: (data: MamaResourceApplicationInput) =>
     api.post<{ profile: MamaResourceProfile }>('/mama-resources/applications', data),
   getMyMamaResourceTasks: () =>
-    api.get<{ profile: MamaResourceProfile | null; tasks: MamaResourceTask[] }>('/mama-resources/me/tasks'),
+    api.get<{ profile: MamaResourceProfile | null; tasks: MamaResourceTask[]; availableTasks?: MamaResourceTask[] }>('/mama-resources/me/tasks'),
   getMyMamaResourceTask: (id: string) =>
     api.get<{ profile: MamaResourceProfile; task: MamaResourceTask }>(`/mama-resources/me/tasks/${id}`),
+  claimMamaResourceTask: (id: string) =>
+    api.post<{ task: MamaResourceTask }>(`/mama-resources/tasks/${id}/claims`, {}),
   submitMamaResourceTaskProof: (id: string, data: { proofLink: string; proofScreenshotUrl: string }) =>
     api.post<{ task: MamaResourceTask }>(`/mama-resources/me/tasks/${id}/submissions`, data),
   getWelfareCampaigns: () =>
@@ -1349,7 +1390,7 @@ export const adminApi = {
   syncGuestKnowledgeSources: (guestId: string) =>
     api.post<GuestKnowledgeSyncResponse>(`/admin/knowledge-sources/guests/${guestId}/sync`),
   
-  // 书单管理
+  // 图书管理
   getBooks: (status?: string) => api.get<Book[]>('/admin/books', { params: { status } }),
   getBook: (id: string) => api.get<Book>(`/admin/books/${id}`),
   createBook: (data: Partial<Book>) => api.post<Book>('/admin/books', data),
@@ -1367,10 +1408,10 @@ export const adminApi = {
     data,
     { timeout: 120000 }
   ),
-  batchPublishBooks: (data: { filter?: string; ids?: string[] }) =>
-    api.post<{ matched: number; modified: number }>('/admin/books/batch-publish', data),
   getBookMetadataReview: (status?: string) =>
     api.get<AdminBookMetadata[]>('/admin/books/metadata', { params: { status } }),
+  upsertBookMetadata: (bookId: string, data: Partial<AdminBookMetadata>) =>
+    api.put<AdminBookMetadata>(`/admin/books/${bookId}/metadata`, data),
   reviewBookMetadata: (id: string, data: Partial<AdminBookMetadata>) =>
     api.patch<AdminBookMetadata>(`/admin/books/metadata/${id}`, data),
   

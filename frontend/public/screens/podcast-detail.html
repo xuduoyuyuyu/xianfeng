@@ -1072,6 +1072,33 @@
   installEmbeddedFrameHeightSync();
   installEmbeddedFrameScrollBridge();
 
+  function resetProgramDetailScrollTop() {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    if (document.documentElement && typeof document.documentElement.scrollTo === "function") {
+      document.documentElement.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    }
+    if (document.body && typeof document.body.scrollTo === "function") {
+      document.body.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    }
+  }
+
+  function getDetailContentScrollOffset() {
+    if (document.documentElement.classList.contains("xf-mp-webview")) return 16;
+    if (window.matchMedia("(max-width: 768px)").matches) return 20;
+    return 86;
+  }
+
+  function scrollToDetailContent(behavior) {
+    const target = document.getElementById("transcript-section");
+    if (!target) {
+      window.scrollTo({ top: 0, left: 0, behavior: behavior || "smooth" });
+      return;
+    }
+    const rect = target.getBoundingClientRect();
+    const top = window.scrollY + rect.top - getDetailContentScrollOffset();
+    window.scrollTo({ top: Math.max(0, top), left: 0, behavior: behavior || "smooth" });
+  }
+
   function normalizeGuestAvatar(url) {
     var clean = String(url || "").trim();
     return clean.replace(/^https:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::(\d+))?\//i, function (_match, host, port) {
@@ -1700,7 +1727,8 @@
       return quickView;
 	  }
 
-	  function setDetailViewMode(mode) {
+	  function setDetailViewMode(mode, options) {
+      options = options || {};
       if (detailViewState.availableModes.length && detailViewState.availableModes.indexOf(mode) === -1) {
         mode = detailViewState.availableModes[0];
       }
@@ -1721,6 +1749,7 @@
 	    if (transcriptBtn) transcriptBtn.classList.toggle("is-active", mode === "transcript");
 	    if (mindmapBtn) mindmapBtn.classList.toggle("is-active", mode === "mindmap");
 	    if (mode === "mindmap") renderMindMapPanel();
+      if (options.scrollIntoView) scrollToDetailContent("smooth");
 	  }
 
     function configureDetailContentTabs(availability) {
@@ -1749,7 +1778,7 @@
       }
       if (section) section.classList.remove("hidden");
       const nextMode = modes.indexOf(detailViewState.mode) >= 0 ? detailViewState.mode : modes[0];
-      setDetailViewMode(nextMode);
+      setDetailViewMode(nextMode, { scrollIntoView: false });
     }
 
   function applyProgram(program, programs) {
@@ -2354,20 +2383,20 @@
 	    const detailModeMindmapBtn = document.getElementById("detail-mode-mindmap");
 	    if (detailModeQuickBtn) {
 	      detailModeQuickBtn.addEventListener("click", function () {
-	        setDetailViewMode("quickview");
-	      });
-	    }
+	        setDetailViewMode("quickview", { scrollIntoView: true });
+      });
+    }
 	    if (detailModeTranscriptBtn) {
 	      detailModeTranscriptBtn.addEventListener("click", function () {
-	        setDetailViewMode("transcript");
+	        setDetailViewMode("transcript", { scrollIntoView: true });
       });
     }
 	    if (detailModeMindmapBtn) {
 	      detailModeMindmapBtn.addEventListener("click", function () {
-	        setDetailViewMode("mindmap");
+	        setDetailViewMode("mindmap", { scrollIntoView: true });
       });
     }
-    setDetailViewMode(detailViewState.mode);
+    setDetailViewMode(detailViewState.mode, { scrollIntoView: false });
     const transcriptSearchInput = document.getElementById("transcript-search-input");
     if (transcriptSearchInput) {
       transcriptSearchInput.addEventListener("input", function () {
@@ -2396,14 +2425,7 @@
     if (backToTopBtn) {
       backToTopBtn.addEventListener("click", function (event) {
         event.preventDefault();
-        const target = document.getElementById("transcript-section");
-        if (target) {
-          const rect = target.getBoundingClientRect();
-          const top = window.scrollY + rect.top - 86;
-          window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
-          return;
-        }
-        window.scrollTo({ top: 0, behavior: "smooth" });
+        scrollToDetailContent("smooth");
       });
     }
     audio.addEventListener("timeupdate", function () {
@@ -2621,6 +2643,7 @@
 
   async function load() {
     try {
+      resetProgramDetailScrollTop();
       const id = getIdFromPath();
       let program = null;
       let lookupPrograms = [];
@@ -2664,6 +2687,8 @@
       }
       if (!program) return;
       applyProgram(program, lookupPrograms);
+      requestAnimationFrame(resetProgramDetailScrollTop);
+      setTimeout(resetProgramDetailScrollTop, 120);
       const relatedPrograms = await fetchRelatedPrograms(program);
       renderRelated(program, relatedPrograms);
     } catch (error) {

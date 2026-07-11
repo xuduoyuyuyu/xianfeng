@@ -63,6 +63,7 @@ const rentuibangXiaohongshuTask = {
   dataCycle: "T+9",
   settlementCycle: "T+9",
   promotionCount: 42527,
+  claimLimit: "",
   latestDataDate: "2026-06-29",
   announcement: "项目重要通知",
   settlementStandard: "按平台要求发布小红书原创评论内容，并保留 7 天。后台审核通过后进入收录结算。",
@@ -85,6 +86,7 @@ type TaskDraft = {
   dataCycle: string;
   settlementCycle: string;
   promotionCount: string;
+  claimLimit: string;
   latestDataDate: string;
   announcement: string;
   settlementStandard: string;
@@ -110,6 +112,7 @@ function initialTaskDraft(): TaskDraft {
     dataCycle: rentuibangXiaohongshuTask.dataCycle,
     settlementCycle: rentuibangXiaohongshuTask.settlementCycle,
     promotionCount: String(rentuibangXiaohongshuTask.promotionCount),
+    claimLimit: rentuibangXiaohongshuTask.claimLimit,
     latestDataDate: rentuibangXiaohongshuTask.latestDataDate,
     announcement: rentuibangXiaohongshuTask.announcement,
     settlementStandard: rentuibangXiaohongshuTask.settlementStandard,
@@ -155,6 +158,7 @@ function taskDraftFromTask(task: MamaResourceTask): TaskDraft {
     dataCycle: task.dataCycle || "",
     settlementCycle: task.settlementCycle || "",
     promotionCount: task.promotionCount === undefined || task.promotionCount === null ? "" : String(task.promotionCount),
+    claimLimit: task.claimLimit === undefined || task.claimLimit === null ? "" : String(task.claimLimit),
     latestDataDate: task.latestDataDate ? task.latestDataDate.slice(0, 10) : "",
     announcement: task.announcement || "",
     settlementStandard: task.settlementStandard || "",
@@ -440,6 +444,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
     const trafficFee = taskDraft.trafficFeeYuan.trim() ? Number(taskDraft.trafficFeeYuan) : null;
     const minFollowerCount = taskDraft.minFollowerCount.trim() ? Number(taskDraft.minFollowerCount) : null;
     const promotionCount = taskDraft.promotionCount.trim() ? Number(taskDraft.promotionCount) : null;
+    const claimLimit = taskDraft.claimLimit.trim() ? Number(taskDraft.claimLimit) : null;
     if (!Number.isFinite(unitPrice) || unitPrice < 0) {
       setTaskCreateMessage({ type: "error", text: "请输入有效的单价" });
       return;
@@ -454,6 +459,10 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
     }
     if (promotionCount !== null && (!Number.isFinite(promotionCount) || promotionCount < 0)) {
       setTaskCreateMessage({ type: "error", text: "请输入有效的最新数据" });
+      return;
+    }
+    if (claimLimit !== null && (!Number.isFinite(claimLimit) || claimLimit < 0 || !Number.isInteger(claimLimit))) {
+      setTaskCreateMessage({ type: "error", text: "请输入有效的领取人数限制" });
       return;
     }
     setTaskLoading(true);
@@ -473,6 +482,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
         dataCycle: taskDraft.dataCycle.trim(),
         settlementCycle: taskDraft.settlementCycle.trim(),
         promotionCount: Number.isFinite(promotionCount) ? promotionCount : null,
+        claimLimit: Number.isFinite(claimLimit) ? claimLimit : null,
         latestDataDate: taskDraft.latestDataDate.trim() || null,
         announcement: taskDraft.announcement.trim(),
         settlementStandard: taskDraft.settlementStandard.trim(),
@@ -608,7 +618,9 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
               >
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-black text-stone-900">{task.title}</span>
-                  <span className="mt-1 block text-xs font-semibold text-stone-500">{task.category || "未分类"} · {task.phase || "阶段待定"}</span>
+                  <span className="mt-1 block text-xs font-semibold text-stone-500">
+                    {task.category || "未分类"} · {task.phase || "阶段待定"} · {task.claimLimit ? `限 ${task.claimLimit} 人领取` : "不限领取"}
+                  </span>
                 </span>
                 <span className="text-sm font-black text-red-500">{toMoneyText(task.unitPriceCents)}</span>
                 <span className="text-xs font-bold text-stone-500">{taskStatusLabel[String(task.status)] || task.status}</span>
@@ -659,8 +671,8 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                   {profile.socialAccount.screenshotUrl ? <a className="ml-2 text-[#6c27d6]" href={profile.socialAccount.screenshotUrl} target="_blank" rel="noreferrer">主页截图</a> : <span className="ml-2">未传截图</span>}
                 </div>
               </div>
-              <div className="flex flex-wrap gap-1">
-                {(profile.categories || []).slice(0, 3).map((category) => <span key={category} className="rounded-full bg-[#f6f0ff] px-2 py-1 text-xs font-bold text-[#5e17eb]">{category}</span>)}
+              <div className="flex flex-wrap content-start items-start gap-1">
+                {(profile.categories || []).slice(0, 3).map((category) => <span key={category} className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[#f6f0ff] px-2 py-1 text-xs font-bold leading-none text-[#5e17eb]">{category}</span>)}
               </div>
               <div className="font-black text-stone-900">{toCount(profile.socialAccount?.followerCount)}</div>
               <div><span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-black ${statusClass[profile.status]}`}>{statusLabel[profile.status]}</span></div>
@@ -740,6 +752,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                 <label className="text-sm font-bold text-stone-700">匹配分类标签<input value={taskDraft.matchCategoriesText} onChange={(event) => setTaskDraft((current) => ({ ...current, matchCategoriesText: event.target.value }))} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="亲子阅读、学习用品" /></label>
                 <label className="text-sm font-bold text-stone-700">匹配风险标签<input value={taskDraft.matchRiskTagsText} onChange={(event) => setTaskDraft((current) => ({ ...current, matchRiskTagsText: event.target.value }))} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="内容稳定、需近期开播" /></label>
                 <label className="text-sm font-bold text-stone-700">最低粉丝数<input value={taskDraft.minFollowerCount} onChange={(event) => setTaskDraft((current) => ({ ...current, minFollowerCount: event.target.value }))} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="5000" /></label>
+                <label className="text-sm font-bold text-stone-700">领取人数限制<input value={taskDraft.claimLimit} onChange={(event) => setTaskDraft((current) => ({ ...current, claimLimit: event.target.value }))} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="不填则不限，填写后先到先得" /></label>
                 <label className="text-sm font-bold text-stone-700">最新数据<input value={taskDraft.latestDataDate} onChange={(event) => setTaskDraft((current) => ({ ...current, latestDataDate: event.target.value }))} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="2026-06-29" /></label>
               </div>
               <label className="block text-sm font-bold text-stone-700">项目链接<input value={taskDraft.externalUrl} onChange={(event) => setTaskDraft((current) => ({ ...current, externalUrl: event.target.value }))} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" /></label>

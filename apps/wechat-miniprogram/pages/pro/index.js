@@ -201,9 +201,19 @@ function requestWechatPayment(paymentParams) {
 function paymentErrorMessage(error) {
   const raw = String(error && (error.message || error.errMsg) || "");
   if (/cancel/i.test(raw)) return "已取消微信支付";
+  return requestErrorMessage(error, "微信支付未完成，请稍后重试");
+}
+
+function requestErrorMessage(error, fallback) {
+  const raw = String(error && (error.message || error.errMsg) || "").trim();
   const url = String(error && error.url || "").trim();
-  if (url) return `${raw || "请求失败"}（${url}）`;
-  return raw || "微信支付未完成，请稍后重试";
+  const message = raw || fallback || "请求失败";
+  if (url) return `${message}（${url}）`;
+  return message;
+}
+
+function isAuthExpiredError(error) {
+  return Number(error && error.statusCode) === 401;
 }
 
 function confirmRefundRequest() {
@@ -447,6 +457,14 @@ Page({
         return response;
       })
       .catch((error) => {
+        if (isAuthExpiredError(error)) {
+          this.setData({
+            ordering: false,
+            message: ""
+          });
+          this.syncAccountEntry();
+          return;
+        }
         this.setData({
           ordering: false,
           message: paymentErrorMessage(error)
@@ -480,7 +498,7 @@ Page({
         .catch((error) => {
           this.setData({
             refunding: false,
-            message: error && error.message ? error.message : "退款申请失败，请稍后重试"
+            message: requestErrorMessage(error, "退款申请失败，请稍后重试")
           });
         });
     });

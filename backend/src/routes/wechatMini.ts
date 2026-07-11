@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import User from "../models/User";
 import Topic from "../models/Topic";
 import XiaowanziShare from "../models/XiaowanziShare";
+import MamaResourceTask from "../models/MamaResourceTask";
 import { authenticate, AuthenticatedRequest } from "../middlewares/auth";
 import { requirePro } from "../middlewares/requirePro";
 import { grantFreeLoginPointsForUser } from "../services/billing";
@@ -335,6 +336,36 @@ router.get("/xiaowanzi-share-qrcode", async (req, res) => {
     const code = await fetchWechatMiniUnlimitedQRCode({
       scene: `s=${String(share._id)}`,
       page: "pages/share/index",
+      width: 280,
+      envVersion,
+      checkPath: shouldCheckMiniPagePath(envVersion),
+      isHyaline: true,
+    });
+    res.setHeader("content-type", "image/png");
+    res.setHeader("cache-control", "no-store");
+    res.send(makeQrPngWhitePixelsTransparent(code));
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "生成小程序码失败" });
+  }
+});
+
+router.get("/mama-resource-task-qrcode", async (req, res) => {
+  try {
+    const taskId = String(req.query.taskId || "").trim();
+    if (!mongoose.Types.ObjectId.isValid(taskId)) {
+      res.status(400).json({ error: "缺少任务 ID" });
+      return;
+    }
+    const task = await MamaResourceTask.findOne({ _id: taskId, status: "listed" }).select("_id").lean();
+    if (!task) {
+      res.status(404).json({ error: "任务不存在或暂不可分享" });
+      return;
+    }
+
+    const envVersion = requestedMiniEnvVersion(req.query.envVersion);
+    const code = await fetchWechatMiniUnlimitedQRCode({
+      scene: `m=${String(task._id)}`,
+      page: "pages/mama-resource-apply/index",
       width: 280,
       envVersion,
       checkPath: shouldCheckMiniPagePath(envVersion),

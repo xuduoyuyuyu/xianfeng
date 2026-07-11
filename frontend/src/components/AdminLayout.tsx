@@ -64,7 +64,7 @@ const AdminLayout: React.FC = () => {
                 {renderNavItem("/admin/programs", "podcasts", "内容管理")}
                 {renderNavItem("/admin/guests", "group", "先疯智库")}
                 {renderNavItem("/admin/dictionary", "dictionary", "教育词典")}
-                {renderNavItem("/admin/books", "menu_book", "书单管理")}
+                {renderNavItem("/admin/books", "menu_book", "图书管理")}
                 {renderNavItem("/admin/materials", "school", "学习资料")}
               </div>
             </section>

@@ -138,6 +138,59 @@ describe("mama resource pool routes", () => {
     assert.equal("password" in data.profile, false);
   });
 
+  it("accepts separated personal info with multiple media accounts while keeping a primary account", async () => {
+    const response = await fetch(`${server.publicUrl}/applications`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        displayName: "多账号妈妈",
+        contactWechat: "multi-mom",
+        contactPhone: "13800001111",
+        city: "上海",
+        childStage: "小学",
+        childGender: "女孩",
+        accountPositioning: "亲子阅读和家庭教育",
+        categories: ["亲子阅读", "家庭消费"],
+        blockedCategories: ["医美"],
+        consentAccepted: true,
+        mediaAccounts: [
+          {
+            platform: "xiaohongshu",
+            profileUrl: "https://www.xiaohongshu.com/user/profile/primary?xsec_token=secret",
+            screenshotUrl: "/uploads/mama-resources/primary.png",
+            followerCount: "12000",
+            realNameVerified: true,
+          },
+          {
+            platform: "xiaohongshu",
+            profileUrl: "https://www.xiaohongshu.com/user/profile/backup",
+            followerCount: "3600",
+          },
+          {
+            platform: "douyin",
+            profileUrl: "https://www.douyin.com/user/abc",
+            nickname: "抖音亲子号",
+            followerCount: "8000",
+          },
+        ],
+      }),
+    });
+
+    assert.equal(response.status, 201);
+    const data = await response.json();
+    assert.equal(data.profile.status, "pending");
+    assert.equal(data.profile.socialAccount.platform, "xiaohongshu");
+    assert.equal(data.profile.socialAccount.profileUrl, "https://www.xiaohongshu.com/user/profile/primary");
+    assert.equal(data.profile.socialAccount.normalizedProfileUrl, "xiaohongshu:user/profile/primary");
+    assert.equal(data.profile.socialAccount.followerCount, 12000);
+    assert.equal(data.profile.mediaAccounts.length, 3);
+    assert.equal(data.profile.mediaAccounts[1].platform, "xiaohongshu");
+    assert.equal(data.profile.mediaAccounts[1].followerCount, 3600);
+    assert.equal(data.profile.mediaAccounts[2].platform, "douyin");
+    assert.equal(data.profile.mediaAccounts[2].normalizedProfileUrl, "douyin:https://www.douyin.com/user/abc");
+    assert.deepEqual(data.profile.rateCard.blockedCategories, ["医美"]);
+  });
+
   it("requires WeChat as the primary contact instead of phone", async () => {
     const response = await fetch(`${server.publicUrl}/applications`, {
       method: "POST",
@@ -476,6 +529,151 @@ describe("mama resource pool routes", () => {
     assert.equal(data.tasks[0].promotionCount, 42527);
     assert.equal(data.tasks[0].activePromotionCount, 2);
     assert.equal(data.tasks[0].trafficFeeCents, 1200);
+  });
+
+  it("lets approved users claim listed tasks until the claim limit is reached", async () => {
+    const [firstUser, secondUser] = await User.create([
+      { username: "u13800138101", password: "hash", mobile: "13800138101", role: "user" },
+      { username: "u13800138102", password: "hash", mobile: "13800138102", role: "user" },
+    ]);
+    const firstToken = jwt.sign({ id: String(firstUser._id), role: "user" }, process.env.JWT_SECRET || "your-secret-key");
+    const secondToken = jwt.sign({ id: String(secondUser._id), role: "user" }, process.env.JWT_SECRET || "your-secret-key");
+    await MamaResourceProfile.create([
+      {
+        displayName: "先到妈妈",
+        contactPhone: "13800138101",
+        contactWechat: "first-mom",
+        status: "approved",
+        consentAccepted: true,
+        categories: ["亲子阅读"],
+        socialAccount: { platform: "xiaohongshu", profileUrl: "https://www.xiaohongshu.com/user/profile/first", normalizedProfileUrl: "xiaohongshu:user/profile/first" },
+      },
+      {
+        displayName: "后到妈妈",
+        contactPhone: "13800138102",
+        contactWechat: "second-mom",
+        status: "approved",
+        consentAccepted: true,
+        categories: ["亲子阅读"],
+        socialAccount: { platform: "xiaohongshu", profileUrl: "https://www.xiaohongshu.com/user/profile/second", normalizedProfileUrl: "xiaohongshu:user/profile/second" },
+      },
+    ]);
+    const task = await MamaResourceTask.create({
+      title: "限量亲子阅读发图",
+      category: "小红书发图+评论",
+      unitPriceCents: 3000,
+      trafficFeeCents: 10000,
+      dataCycle: "T+9",
+      settlementCycle: "T+9",
+      claimLimit: 1,
+      status: "listed",
+      requirement: "发布小红书图文并评论。",
+    });
+
+    const beforeClaimResponse = await fetch(`${server.publicUrl}/me/tasks`, {
+      headers: { Authorization: `Bearer ${firstToken}` },
+    });
+    assert.equal(beforeClaimResponse.status, 200);
+    const beforeClaim = await beforeClaimResponse.json();
+    assert.equal(beforeClaim.tasks.length, 0);
+    assert.equal(beforeClaim.availableTasks.length, 1);
+    assert.equal(beforeClaim.availableTasks[0].taskId, String(task._id));
+    assert.equal(beforeClaim.availableTasks[0].claimLimit, 1);
+    assert.equal(beforeClaim.availableTasks[0].remainingClaimCount, 1);
+
+    const claimResponse = await fetch(`${server.publicUrl}/tasks/${task._id}/claims`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${firstToken}` },
+    });
+    assert.equal(claimResponse.status, 201);
+    const claimData = await claimResponse.json();
+    assert.equal(claimData.task.title, "限量亲子阅读发图");
+    assert.equal(claimData.task.status, "assigned");
+    assert.equal(claimData.task.remainingClaimCount, 0);
+
+    const secondClaimResponse = await fetch(`${server.publicUrl}/tasks/${task._id}/claims`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${secondToken}` },
+    });
+    assert.equal(secondClaimResponse.status, 409);
+    const secondClaimData = await secondClaimResponse.json();
+    assert.match(secondClaimData.message, /已被领完/);
+
+    const storedAssignments = await MamaResourceTaskAssignment.find({ taskId: task._id }).lean();
+    assert.equal(storedAssignments.length, 1);
+    assert.equal(String(storedAssignments[0].profileId), String((await MamaResourceProfile.findOne({ contactPhone: "13800138101" }).lean())?._id));
+  });
+
+  it("matches an approved mama profile when the stored contact phone has formatting", async () => {
+    const user = await User.create({ username: "u13501893069", password: "hash", mobile: "13501893069", role: "user" });
+    const token = jwt.sign({ id: String(user._id), role: "user" }, process.env.JWT_SECRET || "your-secret-key");
+    await MamaResourceProfile.create({
+      displayName: "格式手机号妈妈",
+      contactPhone: "+86 135 0189 3069",
+      contactWechat: "formatted-phone-mom",
+      status: "approved",
+      consentAccepted: true,
+      categories: ["亲子阅读"],
+      socialAccount: {
+        platform: "xiaohongshu",
+        profileUrl: "https://www.xiaohongshu.com/user/profile/formatted-phone",
+        normalizedProfileUrl: "xiaohongshu:user/profile/formatted-phone",
+      },
+    });
+
+    const response = await fetch(`${server.publicUrl}/me/tasks`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.profile.status, "approved");
+    assert.equal(data.profile.displayName, "格式手机号妈妈");
+    assert.equal(data.profile.contactPhone, "+86 135 0189 3069");
+  });
+
+  it("prefers an existing approved mama profile over a newer pending profile for the same mobile", async () => {
+    const user = await User.create({ username: "u13501893070", password: "hash", mobile: "13501893070", role: "user" });
+    const token = jwt.sign({ id: String(user._id), role: "user" }, process.env.JWT_SECRET || "your-secret-key");
+    await MamaResourceProfile.create({
+      displayName: "已通过妈妈",
+      contactPhone: "13501893070",
+      contactWechat: "approved-mom",
+      status: "approved",
+      consentAccepted: true,
+      categories: ["亲子阅读"],
+      socialAccount: {
+        platform: "xiaohongshu",
+        profileUrl: "https://www.xiaohongshu.com/user/profile/approved-old",
+        normalizedProfileUrl: "xiaohongshu:user/profile/approved-old",
+      },
+      createdAt: new Date("2026-06-01T00:00:00.000Z"),
+      updatedAt: new Date("2026-06-01T00:00:00.000Z"),
+    });
+    await MamaResourceProfile.create({
+      displayName: "新提交妈妈",
+      contactPhone: "13501893070",
+      contactWechat: "pending-mom",
+      status: "pending",
+      consentAccepted: true,
+      categories: ["亲子阅读"],
+      socialAccount: {
+        platform: "xiaohongshu",
+        profileUrl: "https://www.xiaohongshu.com/user/profile/pending-new",
+        normalizedProfileUrl: "xiaohongshu:user/profile/pending-new",
+      },
+      createdAt: new Date("2026-07-01T00:00:00.000Z"),
+      updatedAt: new Date("2026-07-01T00:00:00.000Z"),
+    });
+
+    const response = await fetch(`${server.publicUrl}/me/tasks`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.profile.status, "approved");
+    assert.equal(data.profile.displayName, "已通过妈妈");
   });
 
   it("auto-assigns approved profiles that match task creation criteria", async () => {

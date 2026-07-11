@@ -77,6 +77,30 @@ test("podcast detail reports embedded content height to the parent route", () =>
   assert.match(source, /installEmbeddedFrameHeightSync\(\);/, "height sync should be installed during script initialization");
 });
 
+test("podcast detail resets and targets its own scroll position", () => {
+  assert.match(source, /function resetProgramDetailScrollTop\(\)/, "program detail should centralize opening-position reset");
+  assert.match(source, /window\.scrollTo\(\{ top: 0, left: 0, behavior: "auto" \}\)/, "program detail should reset the iframe document scroll");
+  assert.match(source, /document\.documentElement\.scrollTo\(\{ top: 0, left: 0, behavior: "auto" \}\)/, "program detail should also reset documentElement scroll state");
+  assert.match(source, /document\.body\.scrollTo\(\{ top: 0, left: 0, behavior: "auto" \}\)/, "program detail should also reset body scroll state");
+  assert.match(source, /function getDetailContentScrollOffset\(\)[\s\S]*document\.documentElement\.classList\.contains\("xf-mp-webview"\)[\s\S]*return 16;/, "mini program detail should not use the desktop nav offset when positioning content");
+  assert.match(source, /function scrollToDetailContent\(behavior\)[\s\S]*getDetailContentScrollOffset\(\)[\s\S]*window\.scrollTo\(\{ top: Math\.max\(0, top\), left: 0, behavior: behavior \|\| "smooth" \}\);/, "tab navigation should scroll to the detail content with the shared offset");
+  assert.match(source, /resetProgramDetailScrollTop\(\);\s*const id = getIdFromPath\(\);/, "loading a program should start from the top before async content paints");
+  assert.match(source, /requestAnimationFrame\(resetProgramDetailScrollTop\);\s*setTimeout\(resetProgramDetailScrollTop, 120\);/, "program detail should repeat the reset after layout and web-view restoration");
+});
+
+test("podcast detail mode tabs scroll back to the content section after the user has moved", () => {
+  assert.match(source, /function setDetailViewMode\(mode, options\)/, "detail mode setter should accept explicit scroll behavior");
+  assert.match(source, /options = options \|\| \{\};/, "detail mode scroll should be opt-in");
+  assert.match(source, /if \(options\.scrollIntoView\) scrollToDetailContent\("smooth"\);/, "explicit tab changes should reposition the visible content section");
+  assert.match(source, /setDetailViewMode\(nextMode, \{ scrollIntoView: false \}\);/, "initial availability sync should not pull the page away from the hero");
+  assert.match(source, /setDetailViewMode\("quickview", \{ scrollIntoView: true \}\);/, "quickview tab should reposition the viewport");
+  assert.match(source, /setDetailViewMode\("transcript", \{ scrollIntoView: true \}\);/, "transcript tab should reposition the viewport");
+  assert.match(source, /setDetailViewMode\("mindmap", \{ scrollIntoView: true \}\);/, "mindmap tab should reposition the viewport");
+  assert.match(source, /setDetailViewMode\(detailViewState\.mode, \{ scrollIntoView: false \}\);/, "initial mode sync should not scroll");
+  assert.match(source, /backToTopBtn[\s\S]*scrollToDetailContent\("smooth"\);/, "floating back button should use the same positioning helper");
+  assert.doesNotMatch(source, /window\.scrollY \+ rect\.top - 86/, "content positioning should not keep the hard-coded desktop offset");
+});
+
 test("podcast detail mobile floating player clears the public bottom tab bar", () => {
   assert.match(source, /#mobile-player-dock\s*\{[\s\S]*right:\s*20px;[\s\S]*bottom:\s*calc\(30px \+ env\(safe-area-inset-bottom\)\);/, "mobile player FAB should sit 30px above the native bottom menu");
   assert.match(source, /html\.xf-mp-webview\.xf-mp-tabbar-hidden #mobile-player-dock\s*\{[\s\S]*bottom:\s*calc\(20px \+ env\(safe-area-inset-bottom\)\);/, "immersive mini program player should not reserve space for a hidden bottom menu");
@@ -116,7 +140,7 @@ test("podcast detail loads related content from the public related endpoint", ()
   assert.match(source, /fetch\("\/api\/programs\/" \+ encodeURIComponent\(relatedId\) \+ "\/related"\)/, "detail page should request backend related recommendations");
   assert.match(source, /recommendedPrograms/, "detail page should consume the backend related recommendation list");
   assert.match(source, /renderRelated\(program, relatedPrograms\)/, "backend related programs should drive the Related Content panel");
-  assert.match(source, /applyProgram\(program, lookupPrograms\);\s*const relatedPrograms = await fetchRelatedPrograms\(program\);\s*renderRelated\(program, relatedPrograms\);/, "detail page should always repaint related content from backend results, including empty results");
+  assert.match(source, /applyProgram\(program, lookupPrograms\);[\s\S]*const relatedPrograms = await fetchRelatedPrograms\(program\);\s*renderRelated\(program, relatedPrograms\);/, "detail page should always repaint related content from backend results, including empty results");
   assert.doesNotMatch(source, /if \(relatedPrograms\.length\) renderRelated\(program, relatedPrograms\);/, "detail page should not keep stale fallback related items when backend returns no associations");
 });
 

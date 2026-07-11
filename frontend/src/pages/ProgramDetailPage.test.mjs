@@ -28,6 +28,9 @@ test("program detail uses the shared guest avatar fallback instead of remote fal
 });
 
 test("program detail deep dive keeps real supplemental content compact", () => {
+  assert.match(source, /function getVerifiedCuratedReading\(program: Program \| null\)/, "curated reading should use the verification report");
+  assert.match(source, /const curatedReading = getVerifiedCuratedReading\(program\);/, "detail rendering should only receive verified reading items");
+  assert.doesNotMatch(source, /const curatedReading = \(program\?\.deepDive\?\.curatedReading \|\| \[\]\)/, "raw curated reading must not render directly");
   assert.match(source, /<div className="p-8 pb-8">/, "deep dive content should use one padded body");
   assert.match(source, /const hasSupplementalContent = curatedReadingUnique\.length > 0 \|\| relatedItems\.length > 0;/, "supplemental card should hide when there are no real items");
   assert.match(source, /\{hasSupplementalContent \? \(/, "supplemental card should not render an empty shell");
@@ -51,7 +54,12 @@ test("program detail related content uses guest metadata instead of episode labe
 test("program detail gates mindmap quickview and transcript tabs by real data", () => {
   assert.match(source, /function getRealTranscriptSegments\(program: Program \| null\): TranscriptSegment\[\]/, "transcript content should come from real transcript rows only");
   assert.match(source, /function hasRealMindMapData\(program: Program \| null\): boolean/, "mindmap availability should reject empty root placeholders");
-  assert.match(source, /const detailContentModes = \[/, "detail tabs should be built from one availability list");
+  assert.match(source, /useState<"quickview" \| "transcript" \| "mindmap">\("quickview"\)/, "quickview should be the default detail tab");
+  assert.match(
+    source,
+    /const detailContentModes = \[\s*quickView\.length > 0\s*\?\s*\{ key: "quickview", label: "速览"[\s\S]*hasMindMapContent\s*\?\s*\{ key: "mindmap", label: "脉络"[\s\S]*transcriptSegments\.length > 0\s*\?\s*\{ key: "transcript", label: "逐字稿"/,
+    "detail tabs should render in quickview, mindmap, transcript order"
+  );
   assert.match(source, /hasMindMapContent\s*\?\s*\{ key: "mindmap", label: "脉络"/, "mindmap tab should only render when real mindmap data exists");
   assert.match(source, /quickView\.length > 0\s*\?\s*\{ key: "quickview", label: "速览"/, "quickview tab should only render when real quickview data exists");
   assert.match(source, /transcriptSegments\.length > 0\s*\?\s*\{ key: "transcript", label: "逐字稿"/, "transcript tab should only render when real transcript rows exist");
