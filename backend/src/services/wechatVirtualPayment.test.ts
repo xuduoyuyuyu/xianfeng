@@ -40,6 +40,7 @@ function configure() {
   process.env.WECHAT_VIRTUAL_PAY_ENV = "1";
   process.env.WECHAT_VIRTUAL_PAY_OFFER_ID = "offer-test";
   process.env.WECHAT_VIRTUAL_PAY_APP_KEY = "app-key-test";
+  process.env.WECHAT_VIRTUAL_PAY_MESSAGE_FORMAT = "json";
   process.env.WECHAT_MINI_APP_ID = "wx-test";
   process.env.WECHAT_MINI_APP_SECRET = "secret-test";
 }
@@ -71,12 +72,16 @@ test("creates official direct-goods checkout signatures from the exact signData"
   assert.equal(checkout.paySig, expectedPaySig);
   assert.equal(checkout.signature, expectedSignature);
   assert.equal(JSON.parse(checkout.signData).goodsPrice, 1990);
+  assert.equal(JSON.parse(checkout.signData).outTradeNo, order().outTradeNo);
 });
 
 test("configuration requires an explicit enable flag and all protocol values", () => {
   configure();
   assert.equal(isWechatVirtualPaymentConfigured(), true);
   delete process.env.WECHAT_VIRTUAL_PAY_APP_KEY;
+  assert.equal(isWechatVirtualPaymentConfigured(), false);
+  configure();
+  process.env.WECHAT_VIRTUAL_PAY_MESSAGE_FORMAT = "xml";
   assert.equal(isWechatVirtualPaymentConfigured(), false);
 });
 
@@ -88,6 +93,9 @@ test("parses official pushes as discriminated untrusted triggers", () => {
   assert.equal(parseWechatVirtualNotification(JSON.stringify({ Event: "xpay_refund_notify", OpenId: "o1", MchOrderId: "t1", RefundFee: 1990 })).refundFee, 1990);
   assert.equal(parseWechatVirtualNotification(JSON.stringify({ Event: "xpay_complaint_notify", OpenId: "o1", MchOrderId: "t1", TransactionId: "wx1" })).event, "xpay_complaint_notify");
   assert.throws(() => parseWechatVirtualNotification('{"Event":"unknown"}'), /不支持/);
+  assert.throws(() => parseWechatVirtualNotification(JSON.stringify({ Event: "xpay_goods_deliver_notify", OpenId: "o1", OutTradeNo: "t1", GoodsInfo: { ProductId: "plus", Quantity: -1 } })), /Quantity/);
+  assert.throws(() => parseWechatVirtualNotification(JSON.stringify({ Event: "xpay_goods_deliver_notify", OpenId: "o1", OutTradeNo: "t1", GoodsInfo: { ProductId: "plus", Quantity: 1.5 } })), /Quantity/);
+  assert.throws(() => parseWechatVirtualNotification(JSON.stringify({ Event: "xpay_refund_notify", OpenId: "o1", MchOrderId: "t1" })), /RefundFee/);
 });
 
 test("exchanges a one-time code and requires both openid and session_key", async () => {
@@ -115,4 +123,13 @@ test("queries the official order endpoint with exact body and independent pay si
   assert.equal(result.status, 2);
   assert.equal(result.environment, 1);
   assert.equal(result.amountCents, 1990);
+});
+
+test("rejects malformed official query numeric and identity fields", async () => {
+  configure();
+  globalThis.fetch = (async (input) => {
+    if (String(input).includes("stable_token")) return new Response(JSON.stringify({ access_token: "access-2", expires_in: 7200 }), { status: 200 });
+    return new Response(JSON.stringify({ errcode: 0, order: { order_id: "VP20260711ABC123", status: 2, order_fee: "bad", paid_fee: -1, env_type: 2 } }), { status: 200 });
+  }) as typeof fetch;
+  await assert.rejects(() => queryWechatVirtualOrder({ outTradeNo: "VP20260711ABC123", openid: "openid-test" }), /order_fee/);
 });

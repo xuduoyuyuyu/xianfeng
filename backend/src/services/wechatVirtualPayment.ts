@@ -35,12 +35,13 @@ function config() {
     environment: (envText === "0" ? 0 : envText === "1" ? 1 : null) as VirtualEnvironment | null,
     offerId: String(process.env.WECHAT_VIRTUAL_PAY_OFFER_ID || "").trim(),
     appKey: String(process.env.WECHAT_VIRTUAL_PAY_APP_KEY || "").trim(),
+    messageFormat: String(process.env.WECHAT_VIRTUAL_PAY_MESSAGE_FORMAT || "").trim().toLowerCase(),
   };
 }
 
 export function isWechatVirtualPaymentConfigured(): boolean {
   const value = config();
-  return value.enabled && value.environment !== null && Boolean(value.offerId && value.appKey);
+  return value.enabled && value.environment !== null && value.messageFormat === "json" && Boolean(value.offerId && value.appKey);
 }
 
 function requiredConfig() {
@@ -97,6 +98,12 @@ function requiredString(value: unknown, field: string): string {
   return result;
 }
 
+function nonNegativeInteger(value: unknown, field: string): number {
+  const result = typeof value === "number" ? value : Number.NaN;
+  if (!Number.isSafeInteger(result) || result < 0) throw new Error(`微信虚拟支付字段 ${field} 必须是非负整数`);
+  return result;
+}
+
 export function parseWechatVirtualNotification(rawBody: string | Buffer): WechatVirtualNotification {
   let raw: Record<string, any>;
   try {
@@ -110,10 +117,10 @@ export function parseWechatVirtualNotification(rawBody: string | Buffer): Wechat
   }
   const openid = requiredString(raw.OpenId, "OpenId");
   if (event === "xpay_goods_deliver_notify") {
-    return { event, outTradeNo: requiredString(raw.OutTradeNo, "OutTradeNo"), openid, productId: requiredString(raw.GoodsInfo?.ProductId, "GoodsInfo.ProductId"), quantity: Number(raw.GoodsInfo?.Quantity), raw };
+    return { event, outTradeNo: requiredString(raw.OutTradeNo, "OutTradeNo"), openid, productId: requiredString(raw.GoodsInfo?.ProductId, "GoodsInfo.ProductId"), quantity: nonNegativeInteger(raw.GoodsInfo?.Quantity, "Quantity"), raw };
   }
   if (event === "xpay_refund_notify") {
-    return { event, outTradeNo: requiredString(raw.MchOrderId, "MchOrderId"), openid, refundFee: Number(raw.RefundFee), raw };
+    return { event, outTradeNo: requiredString(raw.MchOrderId, "MchOrderId"), openid, refundFee: nonNegativeInteger(raw.RefundFee, "RefundFee"), raw };
   }
   if (event === "xpay_complaint_notify") {
     return { event, outTradeNo: requiredString(raw.MchOrderId, "MchOrderId"), openid, transactionId: requiredString(raw.TransactionId, "TransactionId"), raw };
@@ -138,5 +145,5 @@ export async function queryWechatVirtualOrder(input: { outTradeNo: string; openi
   if (!order || String(order.order_id || "") !== outTradeNo) throw new Error("微信虚拟支付查单返回订单不匹配");
   const environment = order.env_type === 1 ? 0 : order.env_type === 2 ? 1 : null;
   if (environment === null) throw new Error("微信虚拟支付查单返回环境无效");
-  return { outTradeNo, status: Number(order.status), amountCents: Number(order.order_fee), paidAmountCents: Number(order.paid_fee), environment, transactionId: String(order.wxpay_order_id || order.wx_order_id || ""), raw: order };
+  return { outTradeNo, status: nonNegativeInteger(order.status, "status"), amountCents: nonNegativeInteger(order.order_fee, "order_fee"), paidAmountCents: nonNegativeInteger(order.paid_fee, "paid_fee"), environment, transactionId: requiredString(order.wxpay_order_id || order.wx_order_id, "wxpay_order_id"), raw: order };
 }
