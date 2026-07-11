@@ -176,6 +176,13 @@ test("openWeb passes native tabbar height for the mini program webview wrapper",
   assert.equal(embeddedUrl.searchParams.has("xf_tab"), true);
 });
 
+test("openWeb routes subscription plan to the native Pro page for virtual payment", () => {
+  global.__lastNavigateTo = null;
+  openWeb("/pro?plan=plus", "订阅计划");
+
+  assert.deepEqual(global.__lastNavigateTo, { url: "/pages/pro/index?plan=plus&from=webview" });
+});
+
 test("openWeb opens program details as immersive webview pages", () => {
   openWeb("/programs/abc", "节目详情");
 

@@ -32,3 +32,15 @@ test("subscription page uses native mini program chrome spacing when embedded", 
   assert.match(source, /padding-top: var\(--xf-mp-nav-height, 88px\) !important;/);
   assert.match(source, /padding-bottom: 0 !important;/);
 });
+
+test("ProPage blocks ordinary web checkout inside mini-program web-view", () => {
+  assert.match(source, /import \{ isMiniProgramWebView, openMiniProgramNativePro \} from "\.\.\/utils\/mpAuthBridge";/);
+  assert.match(source, /const miniProgramWebView = isMiniProgramWebView\(\);/);
+  assert.match(source, /if \(miniProgramWebView\) \{[\s\S]*await openMiniProgramNativePro\(selected\)[\s\S]*return;[\s\S]*\}/);
+  const createOrderFunction = source.match(/const createOrder = async \(\) => \{[\s\S]*?\n  \};/);
+  assert.ok(createOrderFunction, "createOrder function should exist");
+  assert.ok(
+    createOrderFunction[0].indexOf("if (miniProgramWebView)") < createOrderFunction[0].indexOf("billingApi.createOrder"),
+    "mini-program web-view guard must run before ordinary /billing/orders checkout"
+  );
+});

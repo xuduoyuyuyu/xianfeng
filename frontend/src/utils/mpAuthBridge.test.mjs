@@ -50,6 +50,14 @@ test("mini program bridge opens native archive in add-child mode", () => {
   assert.doesNotMatch(source, /\/pages\/mine\/index\?panel=archive/);
 });
 
+test("mini program bridge opens native Pro page for virtual payment", () => {
+  assert.match(source, /export async function openMiniProgramNativePro\(plan\?: "plus" \| "pro"\)/);
+  assert.match(source, /\/pages\/pro\/index/);
+  assert.match(source, /plan=\$\{encodeURIComponent\(plan\)\}/);
+  assert.match(source, /from=webview/);
+  assert.match(source, /window\.wx\?\.miniProgram\?\.navigateTo/);
+});
+
 test("mini program JSSDK loader cannot hang forever on an existing script tag", () => {
   assert.match(source, /const WECHAT_JSSDK_LOAD_TIMEOUT_MS = 1200/);
   assert.match(source, /let settled = false/);

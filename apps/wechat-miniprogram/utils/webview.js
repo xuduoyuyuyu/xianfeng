@@ -53,6 +53,21 @@ function isWelfareWebPath(pathname) {
   return pathname === "/welfare";
 }
 
+function buildNativeProUrl(search) {
+  const query = new Map();
+  String(search || "")
+    .split("&")
+    .filter(Boolean)
+    .forEach((pair) => {
+      const equalIndex = pair.indexOf("=");
+      const rawKey = equalIndex >= 0 ? pair.slice(0, equalIndex) : pair;
+      const rawValue = equalIndex >= 0 ? pair.slice(equalIndex + 1) : "";
+      query.set(safeDecode(rawKey), safeDecode(rawValue));
+    });
+  const plan = query.get("plan") === "plus" || query.get("plan") === "pro" ? query.get("plan") : "";
+  return `/pages/pro/index${plan ? `?plan=${encodeURIComponent(plan)}&from=webview` : "?from=webview"}`;
+}
+
 function inferWebPageTitle(path, fallback = "家长先疯") {
   const pathname = parsePath(path).pathname;
   if (pathname === XIAOWANZI_WEB_PATH) return "小玩子";
@@ -140,12 +155,17 @@ function webUrl(path, params) {
 
 function openWeb(path, title, params) {
   clearXiaowanziEntryModeForContent(path);
-  if (isXiaowanziWebPath(parsePath(path).pathname)) {
+  const parsed = parsePath(path);
+  if (isXiaowanziWebPath(parsed.pathname)) {
     rememberCurrentExternalPage();
     try {
       wx.setStorageSync(XIAOWANZI_ENTRY_MODE_KEY, "home");
     } catch (_error) {}
     wx.switchTab({ url: "/pages/xiaowanzi/index" });
+    return;
+  }
+  if (parsed.pathname === "/pro" || parsed.pathname === "/pro/success") {
+    wx.navigateTo({ url: buildNativeProUrl(parsed.search) });
     return;
   }
   const webParams = {

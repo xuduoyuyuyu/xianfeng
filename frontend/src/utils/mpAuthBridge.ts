@@ -165,6 +165,17 @@ export async function openMiniProgramNativeArchiveCreate() {
   return openMiniProgramNativeArchive("add");
 }
 
+export async function openMiniProgramNativePro(plan?: "plus" | "pro") {
+  if (typeof window === "undefined") return false;
+  await loadWechatJssdk();
+  const navigateTo = window.wx?.miniProgram?.navigateTo;
+  if (!isMiniProgramWebView() || !navigateTo) return false;
+  navigateTo({
+    url: `/pages/pro/index?${plan ? `plan=${encodeURIComponent(plan)}&` : ""}from=webview`
+  });
+  return true;
+}
+
 export async function forceExitMiniProgramXiaowanzi() {
   if (typeof window === "undefined") return false;
   await loadWechatJssdk();

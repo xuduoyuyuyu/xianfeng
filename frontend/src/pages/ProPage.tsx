@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import { BillingMembership, BillingOrder, BillingPlan, PointUsagePolicyItem, billingApi, userApi } from "../services/api";
+import { isMiniProgramWebView, openMiniProgramNativePro } from "../utils/mpAuthBridge";
 import { useXiaowanziEmbeddedLayer } from "../utils/xiaowanziLayer";
 
 type PlanId = "plus" | "pro";
@@ -61,6 +62,7 @@ function normalizePlanId(planId?: string | null): PlanCatalogId {
 
 const ProPage: React.FC = () => {
   const superModePage = useXiaowanziEmbeddedLayer();
+  const miniProgramWebView = isMiniProgramWebView();
   const [plans, setPlans] = useState<Record<PlanCatalogId, BillingPlan> | null>(null);
   const [usagePolicy, setUsagePolicy] = useState<PointUsagePolicyItem[]>([]);
   const [membership, setMembership] = useState<BillingMembership | null>(null);
@@ -160,6 +162,11 @@ const ProPage: React.FC = () => {
     setMessage("");
     setWechatQr("");
     try {
+      if (miniProgramWebView) {
+        const opened = await openMiniProgramNativePro(selected);
+        setMessage(opened ? "请在小程序原生订阅页完成微信虚拟支付。" : "当前小程序版本不支持网页内购买，请返回小程序订阅页完成支付。");
+        return;
+      }
       const res = await billingApi.createOrder(selected, "wechat");
       setLatestOrder(res.data.order);
       const checkout = res.data.checkout;
