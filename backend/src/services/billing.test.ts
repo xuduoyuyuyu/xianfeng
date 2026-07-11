@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import crypto from "crypto";
 import { after, before, describe, it } from "node:test";
 import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import User from "../models/User";
 import PaymentOrderModel from "../models/PaymentOrder";
+import { syncWechatPaidOrder } from "./paymentProviders";
 import {
   BILLING_PLANS,
   FREE_BILLING_PLAN,
@@ -26,6 +28,11 @@ import {
   resetFreeAccountPointGrants,
   serializeBillingUser,
 } from "./billing";
+
+function restoreEnvValue(key: string, value: string | undefined) {
+  if (value === undefined) delete process.env[key];
+  else process.env[key] = value;
+}
 
 describe("billing rules", () => {
   it("exposes Plus and Pro plans, free 10 point login grants, and legacy plan aliases", () => {
@@ -385,6 +392,67 @@ describe("billing point consumption", () => {
     await markOrderPaid({ outTradeNo: order.outTradeNo, providerTradeNo: "wx-retry" });
     assert.equal((await PaymentOrderModel.findById(order._id).lean())?.status, "paid");
     assert.equal((await User.findById(user._id).lean())?.proPointBalance, 200);
+  });
+
+  it("does not fulfill virtual orders through ordinary WeChat payment sync", async () => {
+    await User.deleteMany({});
+    await PaymentOrderModel.deleteMany({});
+    const user = await User.create({ username: "virtual-ordinary-sync-user", password: "hashed", proPointBalance: 0 });
+    const order = await createVirtualPaymentOrder({ userId: String(user._id), productId: "plus", quantity: 1 });
+    const oldEnv = {
+      nodeEnv: process.env.NODE_ENV,
+      disableMock: process.env.BILLING_DISABLE_MOCK_PAY,
+      gateway: process.env.WECHAT_PAY_GATEWAY,
+      mchId: process.env.WECHAT_PAY_MCH_ID,
+      appId: process.env.WECHAT_PAY_APP_ID,
+      apiV3Key: process.env.WECHAT_PAY_API_V3_KEY,
+      serialNo: process.env.WECHAT_PAY_SERIAL_NO,
+      privateKey: process.env.WECHAT_PAY_PRIVATE_KEY,
+    };
+    const originalFetch = globalThis.fetch;
+    const { privateKey } = crypto.generateKeyPairSync("rsa", {
+      modulusLength: 2048,
+      privateKeyEncoding: { type: "pkcs8", format: "pem" },
+      publicKeyEncoding: { type: "spki", format: "pem" },
+    });
+    let fetchCount = 0;
+    try {
+      process.env.NODE_ENV = "development";
+      process.env.BILLING_DISABLE_MOCK_PAY = "true";
+      process.env.WECHAT_PAY_GATEWAY = "https://wechat-pay.test";
+      process.env.WECHAT_PAY_MCH_ID = "1900000001";
+      process.env.WECHAT_PAY_APP_ID = "wx-mini-app";
+      process.env.WECHAT_PAY_API_V3_KEY = "12345678901234567890123456789012";
+      process.env.WECHAT_PAY_SERIAL_NO = "serial-no";
+      process.env.WECHAT_PAY_PRIVATE_KEY = privateKey;
+      globalThis.fetch = (async () => {
+        fetchCount += 1;
+        return new Response(JSON.stringify({
+          out_trade_no: order.outTradeNo,
+          transaction_id: "ordinary-wechat-transaction",
+          trade_state: "SUCCESS",
+          appid: "wx-mini-app",
+          mchid: "1900000001",
+          amount: { total: 1990, currency: "CNY" },
+        }), { status: 200 });
+      }) as typeof fetch;
+
+      await syncWechatPaidOrder(order);
+
+      assert.equal(fetchCount, 0);
+      assert.equal((await PaymentOrderModel.findById(order._id).lean())?.status, "pending");
+      assert.equal((await User.findById(user._id).lean())?.proPointBalance, 0);
+    } finally {
+      globalThis.fetch = originalFetch;
+      restoreEnvValue("NODE_ENV", oldEnv.nodeEnv);
+      restoreEnvValue("BILLING_DISABLE_MOCK_PAY", oldEnv.disableMock);
+      restoreEnvValue("WECHAT_PAY_GATEWAY", oldEnv.gateway);
+      restoreEnvValue("WECHAT_PAY_MCH_ID", oldEnv.mchId);
+      restoreEnvValue("WECHAT_PAY_APP_ID", oldEnv.appId);
+      restoreEnvValue("WECHAT_PAY_API_V3_KEY", oldEnv.apiV3Key);
+      restoreEnvValue("WECHAT_PAY_SERIAL_NO", oldEnv.serialNo);
+      restoreEnvValue("WECHAT_PAY_PRIVATE_KEY", oldEnv.privateKey);
+    }
   });
 
   it("resets issued free account grants without clearing active paid Pro balances", async () => {

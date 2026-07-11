@@ -267,6 +267,7 @@ export function decryptWechatResource(resource: any, apiV3Key = getWechatApiV3Ke
 
 function assertWechatPaidOrderMatches(order: PaymentOrder, payload: any) {
   if (order.provider !== "wechat") throw new Error("微信通知订单 provider 不匹配");
+  if (order.paymentChannel === "wechat_virtual") throw new Error("普通微信支付不能处理虚拟支付订单");
   if (payload?.appid && !isWechatNotifyAppIdAllowed(payload.appid)) throw new Error("微信通知 appid 不匹配");
   if (payload?.mchid && payload.mchid !== getWechatMchId()) throw new Error("微信通知 mchid 不匹配");
   const total = Number(payload?.amount?.total);
@@ -446,6 +447,7 @@ export async function queryWechatOrderByOutTradeNo(outTradeNo: string) {
 
 export async function syncWechatPaidOrder(order: PaymentOrder) {
   if (order.provider !== "wechat" || order.status !== "pending") return order;
+  if (order.paymentChannel === "wechat_virtual") return order;
   const payload = await queryWechatOrderByOutTradeNo(order.outTradeNo);
   if (String(payload?.trade_state || "").toUpperCase() !== "SUCCESS") return order;
 
