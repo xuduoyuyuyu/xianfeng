@@ -440,7 +440,8 @@ export async function createVirtualPaymentOrder(input: {
   if (input.quantity !== product.maxQuantity) {
     throw new Error("虚拟商品数量非法");
   }
-  const environment = String(process.env.WECHAT_VIRTUAL_PAY_ENV || "").trim();
+  const environmentText = String(process.env.WECHAT_VIRTUAL_PAY_ENV || "").trim();
+  const virtualEnvironment: 0 | 1 | null = environmentText === "0" ? 0 : environmentText === "1" ? 1 : null;
   return PaymentOrderModel.create({
     userId: new mongoose.Types.ObjectId(input.userId),
     plan: product.plan,
@@ -453,7 +454,7 @@ export async function createVirtualPaymentOrder(input: {
     status: "pending",
     virtualProductId: product.productId,
     virtualQuantity: input.quantity,
-    virtualEnvironment: environment === "0" || environment === "1" ? Number(environment) : null,
+    virtualEnvironment,
   });
 }
 
