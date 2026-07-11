@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 将小程序 Plus、Pro 及重复购买补点全部迁移到 `wx.requestVirtualPayment`，由服务端完成商品定价、签名、通知验签和幂等权益发放，同时保留网页普通微信支付。
+**Goal:** 将小程序 Plus、Pro 及重复购买补点全部迁移到 `wx.requestVirtualPayment`，由服务端完成商品定价、当前 session 签名、通知触发查单和幂等权益发放，同时保留网页普通微信支付。
 
-**Architecture:** 新增独立的虚拟商品目录和微信虚拟支付协议服务；`PaymentOrder` 继续作为内部账单主记录，通过 `paymentChannel` 区分普通微信和虚拟支付。小程序只接收服务端签好的官方参数，客户端支付成功后轮询本地订单，最终权益以验签后的服务端发货通知为准。
+**Architecture:** 新增独立的虚拟商品目录和微信虚拟支付协议服务；`PaymentOrder` 继续作为内部账单主记录，通过 `paymentChannel` 区分普通微信和虚拟支付。小程序提交本次 `wx.login` code，后端通过 `code2Session` 取得当前 `session_key` 完成签名；通知与客户端成功都只触发官方查单，最终权益以可信查单结果为准。
 
 **Tech Stack:** TypeScript、Express 5、Mongoose、Node `crypto`、Node test runner、微信原生小程序 JavaScript、微信小程序虚拟支付 API。
 
@@ -15,7 +15,8 @@
 - 虚拟商品价格、Offer ID、环境和权益全部由服务端决定，客户端不能覆盖。
 - 小程序虚拟商品不得回退到 `wx.requestPayment`。
 - 网页 Native 扫码支付和未来实体商品支付不得受影响。
-- 客户端成功回调不是发货依据；权益只由验签后的通知或可信查单结果触发。
+- 客户端成功回调和消息推送都不是发货依据；权益只由可信查单结果触发。
+- `session_key` 只在服务端本次签名请求内使用，不持久化、不记录、不返回客户端，openid 不能替代它。
 - 正式密钥、Offer ID 和回调配置不得写入仓库。
 - 不执行生产配置、部署、小程序上传或真实支付。
 
@@ -25,7 +26,7 @@
 
 - Create `backend/src/services/virtualPaymentProducts.ts`: Plus/Pro 虚拟商品白名单和内部套餐映射。
 - Create `backend/src/services/virtualPaymentProducts.test.ts`: 商品目录、服务端定价和客户端字段拒绝测试。
-- Create `backend/src/services/wechatVirtualPayment.ts`: 官方参数构造、签名、通知验签/解析和虚拟支付配置读取。
+- Create `backend/src/services/wechatVirtualPayment.ts`: `code2Session`、官方参数构造、签名、查单、分事件通知解析和虚拟支付配置读取。
 - Create `backend/src/services/wechatVirtualPayment.test.ts`: 使用官方文档固定示例和本地密码学向量验证协议。
 - Modify `backend/src/models/PaymentOrder.ts`: 增加兼容历史记录的支付通道和虚拟商品元数据。
 - Modify `backend/src/services/billing.ts`: 创建虚拟订单，并复用幂等会员/点数发放。
@@ -155,8 +156,10 @@ git commit -m "feat: add virtual payment product catalog"
 
 **Interfaces:**
 - Consumes: `PaymentOrder`, `getVirtualProduct`
-- Produces: `createWechatVirtualCheckout(order, openid): WechatVirtualCheckout`
-- Produces: `verifyWechatVirtualNotification(rawBody, headers): VerifiedVirtualNotification`
+- Produces: `exchangeWechatLoginCode(code): Promise<{ openid: string; sessionKey: string }>`
+- Produces: `createWechatVirtualCheckout(order, { openid, sessionKey }): WechatVirtualCheckout`
+- Produces: `parseWechatVirtualNotification(rawBody): WechatVirtualNotification`
+- Produces: `queryWechatVirtualOrder(outTradeNo): Promise<VerifiedVirtualOrder>`
 - Produces: `isWechatVirtualPaymentConfigured(): boolean`
 
 - [ ] **Step 1: Capture the exact official contract before coding**
@@ -167,7 +170,7 @@ If official documentation differs from names in this plan, update the plan and t
 
 - [ ] **Step 2: Write failing deterministic signing tests**
 
-Use fixed `openid`, Offer ID, app key/session key fixture, timestamp/nonce and order fields. Assert:
+Use fixed `openid`, Offer ID, app key/session key fixture and order fields. Assert:
 
 ```ts
 assert.equal(checkout.mode, "wechat_virtual");
@@ -199,29 +202,22 @@ WECHAT_VIRTUAL_PAY_APP_KEY
 
 Use the exact official names for payload fields and signature algorithms established in Step 1. Return the original `signData` string used to calculate signatures. Reject missing production configuration; only return mock mode when the existing explicit billing mock flag is enabled in a non-production environment.
 
-- [ ] **Step 5: Write failing notification verification tests**
+- [ ] **Step 5: Write failing notification parsing and query tests**
 
-Cover valid official fixture, modified body, stale timestamp/replay identifier, wrong Offer ID, wrong product, wrong amount and wrong environment. Assert invalid input throws before returning a normalized event.
+Cover each official Event with its own fixture and assert the parser returns a discriminated event without inventing missing product/amount fields. Separately test `queryWechatVirtualOrder` against the exact official request/response contract, including wrong Offer ID, product, amount and environment rejection by the later reconciliation layer.
 
-- [ ] **Step 6: Implement exact notification verification and normalization**
+- [ ] **Step 6: Implement exact event parsing, code exchange and trusted query**
 
-Return a narrow internal type:
+Return a discriminated internal type:
 
 ```ts
-type VerifiedVirtualNotification = {
-  eventId: string;
-  eventType: "goods_deliver" | "refund" | "complaint";
-  outTradeNo: string;
-  transactionId: string;
-  productId: "plus" | "pro";
-  quantity: number;
-  amountCents: number;
-  environment: 0 | 1;
-  raw: Record<string, unknown>;
-};
+type WechatVirtualNotification =
+  | { event: "xpay_goods_deliver_notify"; outTradeNo: string; productId: string; quantity: number; raw: Record<string, unknown> }
+  | { event: "xpay_refund_notify"; outTradeNo: string; refundFee: number; raw: Record<string, unknown> }
+  | { event: "xpay_complaint_notify"; outTradeNo: string; transactionId: string; raw: Record<string, unknown> };
 ```
 
-Only map event names confirmed by the official contract. Complaint events must normalize for logging but must not imply an order-state transition.
+Only map event names and fields confirmed by the official contract. Message pushes are untrusted triggers: parsing them must not imply an order-state transition. Complaint events only support minimal logging/alerting. `exchangeWechatLoginCode` must reject missing `session_key` and never expose it beyond the signing call site.
 
 - [ ] **Step 7: Run tests and verify GREEN**
 
@@ -247,7 +243,7 @@ git commit -m "feat: add WeChat virtual payment signing"
 - Modify: `backend/src/services/billing.test.ts`
 
 **Interfaces:**
-- Consumes: `createVirtualPaymentOrder`, `createWechatVirtualCheckout`, `verifyWechatVirtualNotification`, `markOrderPaid`
+- Consumes: `createVirtualPaymentOrder`, `exchangeWechatLoginCode`, `createWechatVirtualCheckout`, `parseWechatVirtualNotification`, `queryWechatVirtualOrder`, `markOrderPaid`
 - Produces: `POST /api/billing/virtual-orders`
 - Produces: official notification endpoint confirmed in Task 2
 - Produces: `GET /api/billing/orders/:id` with unchanged ownership checks
@@ -270,11 +266,11 @@ The handler accepts only:
 { productId: "plus" | "pro", quantity: 1 }
 ```
 
-It loads the authenticated user's mini-program openid, calls the domain factory and signing service, then returns `{ order: serializeOrder(order), checkout }` with HTTP 201. Unknown products return 400; missing external configuration returns a non-secret 503; unexpected failures return 500.
+It accepts `{ productId, quantity, loginCode }`, exchanges the one-time login code server-side, verifies the returned openid matches the authenticated account when an account binding exists, calls the domain factory and signing service with the current session key, then returns `{ order, checkout }` with HTTP 201. The session key is not persisted or returned. Unknown products return 400; login/session failures return 401/400; missing external configuration returns a non-secret 503; unexpected failures return 500.
 
 - [ ] **Step 4: Write failing idempotent-delivery tests**
 
-Using memory MongoDB, send a normalized valid goods-delivery event twice. Assert the first call marks the order paid and adds exactly the plan points; the second returns success without adding points or extending expiry again. Assert mismatched amount, product, environment or user/openid never calls `markOrderPaid`.
+Using memory MongoDB, send a goods-delivery trigger twice. Assert each trigger first calls the official query operation; the first trusted query marks the order paid and adds exactly the plan points, while the second returns success without adding points or extending expiry again. Assert notification payload alone never calls `markOrderPaid`, and mismatched trusted query amount, product, environment or user/openid never calls it.
 
 - [ ] **Step 5: Run billing tests and verify RED**
 
@@ -284,7 +280,7 @@ Expected: FAIL on the missing virtual notification handler.
 
 - [ ] **Step 6: Implement atomic event deduplication and delivery**
 
-Add one billing service operation that validates the verified notification against the stored order and atomically claims `eventId` before calling the existing idempotent `markOrderPaid`. If entitlement persistence fails, the event must remain retryable; use a transaction when the current test/database configuration supports it, otherwise store an explicit delivery state that can safely resume.
+Add one billing service operation that locates the stored order from the parsed trigger, obtains a trusted official query result, validates it against the stored order, then calls the existing idempotent `markOrderPaid`. If entitlement persistence fails, reconciliation must remain retryable. Duplicate triggers rely on trusted transaction/order identifiers plus the existing paid-state idempotency; do not invent a replay ID absent from the official payload.
 
 Return the exact official success/failure body established in Task 2. Do not route virtual notifications through `handleWechatNotify`.
 
@@ -323,10 +319,10 @@ git commit -m "feat: process virtual payment orders"
 Replace expected request body with:
 
 ```js
-{ productId: "plus", quantity: 1 }
+{ productId: "plus", quantity: 1, loginCode: "wx-login-code" }
 ```
 
-Require the page source to contain `wx.requestVirtualPayment` and `/api/billing/virtual-orders`, and to contain no `wx.requestPayment` call. Stub `requestVirtualPayment(options)` and assert all official checkout fields returned by the server are passed through unchanged.
+Require the page source to contain `wx.login`, `wx.requestVirtualPayment` and `/api/billing/virtual-orders`, and to contain no `wx.requestPayment` call. Stub `wx.login` to return a one-time code, stub `requestVirtualPayment(options)`, assert the code is sent to the backend, and assert all official checkout fields returned by the server are passed through unchanged.
 
 - [ ] **Step 2: Run the focused mini-program test and verify RED**
 
@@ -349,7 +345,7 @@ function requestWechatVirtualPayment(paymentParams) {
 }
 ```
 
-Use the exact official parameter set from Task 2 instead of forwarding arbitrary response keys. Change order creation to `/api/billing/virtual-orders`; remove `provider` and `channel` from the request. Preserve mock support only for explicit local mock responses.
+Use the exact official parameter set from Task 2 instead of forwarding arbitrary response keys. Before order creation, wrap `wx.login` in a Promise and require a non-empty code. Change order creation to `/api/billing/virtual-orders`; send `{ productId, quantity: 1, loginCode }` and remove `provider` and `channel`. Preserve mock support only for explicit local mock responses.
 
 - [ ] **Step 4: Preserve server-confirmed completion behavior**
 
