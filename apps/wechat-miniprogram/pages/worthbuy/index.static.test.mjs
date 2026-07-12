@@ -32,6 +32,7 @@ test("reuses the Topics native topbar shell", () => {
 });
 test("matches the Topics submit shape and mounts the shared bottom tabbar", () => {
   assert.match(wxml, /class="wb-submit[^"]*\{\{input && !submitting \? '' : 'is-disabled'\}\}"/);
+  assert.doesNotMatch(wxml, /disabled="\{\{submitting \|\| !input\}\}"/);
   assert.match(wxml, /<custom-tab-bar selected="\{\{selected\}\}" hidden="\{\{hideTabbar\}\}" \/>/);
   assert.equal(json.usingComponents["custom-tab-bar"], "../../custom-tab-bar/index");
   assert.match(js, /selected: 4/);
