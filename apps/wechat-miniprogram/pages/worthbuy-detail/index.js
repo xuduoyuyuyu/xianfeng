@@ -3,9 +3,13 @@ const { getUser } = require("../../utils/session");
 const { getNativeTopbarMetrics } = require("../../utils/nativeChrome");
 const { createPageShare, enableShareMenu } = require("../../utils/share");
 const { normalizeWorthBuyItem, writeWorthBuyCache, readWorthBuyCache } = require("../../utils/worthbuyNative");
+const { createNativeSettingsMethods } = require("../../utils/nativeSettings");
+const { goProgramsHome: navigateProgramsHome } = require("../../utils/nativePageNav");
+
+const LOGO_HEIGHT_RPX = 56;
 
 Page({
-  data: { topbarHeight: 88, backTop: 8, backSize: 32, query: "", report: null, loading: true, error: "" },
+  data: { topbarHeight: 88, backTop: 8, backSize: 32, logoTop: 10, logoHeight: 28, welfareRight: 101, selected: 4, hideTabbar: false, query: "", report: null, loading: true, error: "" },
   onLoad(options) {
     enableShareMenu();
     const query = decodeURIComponent(String(options.query || ""));
@@ -14,7 +18,10 @@ Page({
     const report = cachedReport ? normalizeWorthBuyItem(cachedReport) : null;
     const metrics = getNativeTopbarMetrics();
     const backSize = Math.max(32, Math.round(metrics.capsuleHeight));
-    this.setData({ query, topbarHeight: metrics.topbarHeight, backTop: Math.max(0, Math.round(metrics.searchButtonTop + metrics.capsuleHeight / 2 - backSize / 2)), backSize, report, loading: !report }, () => this.drawGauge());
+    const windowWidth = Math.max(320, Number(metrics.windowWidth || 375));
+    const logoHeight = Math.round((LOGO_HEIGHT_RPX * windowWidth) / 750);
+    const logoTop = Math.max(0, Math.round(metrics.searchButtonTop + metrics.capsuleHeight / 2 - logoHeight / 2));
+    this.setData({ query, topbarHeight: metrics.topbarHeight, backTop: Math.max(0, Math.round(metrics.searchButtonTop + metrics.capsuleHeight / 2 - backSize / 2)), backSize, logoTop, logoHeight, welfareRight: Math.max(72, Math.round(metrics.capsuleRight || 96) + 5), report, loading: !report }, () => this.drawGauge());
     this.loadDetail();
   },
   loadDetail() {
@@ -48,7 +55,9 @@ Page({
   },
   copyReference(event) { const url = String(event.currentTarget.dataset.url || ""); if (!url) return; wx.setClipboardData({ data: url }); },
   goBack() { if (getCurrentPages().length > 1) wx.navigateBack(); else wx.redirectTo({ url: "/pages/worthbuy/index" }); },
+  goProgramsHome() { navigateProgramsHome(); },
   goWorthBuyList() { wx.redirectTo({ url: "/pages/worthbuy/index" }); },
   onShareAppMessage() { return { title: `${this.data.report ? this.data.report.title : this.data.query}｜知物`, path: `/pages/worthbuy-detail/index?query=${encodeURIComponent(this.data.query)}` }; },
-  onShareTimeline() { return { title: `${this.data.report ? this.data.report.title : this.data.query}｜知物`, query: `query=${encodeURIComponent(this.data.query)}` }; }
+  onShareTimeline() { return { title: `${this.data.report ? this.data.report.title : this.data.query}｜知物`, query: `query=${encodeURIComponent(this.data.query)}` }; },
+  ...createNativeSettingsMethods()
 });
