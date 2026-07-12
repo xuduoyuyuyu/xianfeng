@@ -51,6 +51,9 @@
   the API owns the Plus/Pro virtual catalog, amount, point grant, Offer ID
   selection, environment, `wx.requestVirtualPayment` signatures, official order
   query, notification reconciliation, and idempotent entitlement delivery.
+  Internal catalog ids remain `plus` and `pro`; the WeChat-published product
+  ids sent in `signData.productId` are configured separately with
+  `WECHAT_VIRTUAL_PAY_PRODUCT_PLUS` and `WECHAT_VIRTUAL_PAY_PRODUCT_PRO`.
   Mini-program clients submit only `productId`, `quantity: 1`, and the current
   one-time `wx.login` code to `/api/billing/virtual-orders`; the backend
   exchanges that code for the current `session_key`, signs the exact

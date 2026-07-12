@@ -60,10 +60,11 @@ function order(): PaymentOrder {
 
 test("creates official direct-goods checkout signatures from the exact signData", () => {
   configure();
+  process.env.WECHAT_VIRTUAL_PAY_PRODUCT_PLUS = "wx_plus_200_points";
   const checkout = createWechatVirtualCheckout(order(), { openid: "openid-test", sessionKey: "session-key-test" });
   const expectedSignData = JSON.stringify({
     offerId: "offer-test", buyQuantity: 1, env: 1, currencyType: "CNY",
-    productId: "plus", goodsPrice: 1990, outTradeNo: "VP20260711ABC123",
+    productId: "wx_plus_200_points", goodsPrice: 1990, outTradeNo: "VP20260711ABC123",
     attach: JSON.stringify({ orderId: "VP20260711ABC123", userId: "507f1f77bcf86cd799439011", productId: "plus", quantity: 1 }),
   });
   const expectedPaySig = createHmac("sha256", "app-key-test").update(`requestVirtualPayment&${expectedSignData}`).digest("hex");

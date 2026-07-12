@@ -4,6 +4,7 @@ export type VirtualProductId = "plus" | "pro";
 
 export type VirtualPaymentProduct = {
   productId: VirtualProductId;
+  wechatProductId: string;
   plan: BillingPlanId;
   name: string;
   amountCents: number;
@@ -11,10 +12,16 @@ export type VirtualPaymentProduct = {
   maxQuantity: 1;
 };
 
+function configuredWechatProductId(plan: VirtualProductId): string {
+  const suffix = plan.toUpperCase();
+  return String(process.env[`WECHAT_VIRTUAL_PAY_PRODUCT_${suffix}`] || "").trim() || plan;
+}
+
 function catalog(): Readonly<Record<VirtualProductId, VirtualPaymentProduct>> {
   return Object.freeze({
     plus: Object.freeze({
       productId: "plus",
+      wechatProductId: configuredWechatProductId("plus"),
       plan: "plus",
       name: BILLING_PLANS.plus.name,
       amountCents: BILLING_PLANS.plus.amountCents,
@@ -23,6 +30,7 @@ function catalog(): Readonly<Record<VirtualProductId, VirtualPaymentProduct>> {
     }),
     pro: Object.freeze({
       productId: "pro",
+      wechatProductId: configuredWechatProductId("pro"),
       plan: "pro",
       name: BILLING_PLANS.pro.name,
       amountCents: BILLING_PLANS.pro.amountCents,

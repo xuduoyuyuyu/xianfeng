@@ -85,7 +85,7 @@ export function createWechatVirtualCheckout(
     buyQuantity: 1,
     env: cfg.environment,
     currencyType: "CNY",
-    productId: product.productId,
+    productId: product.wechatProductId,
     goodsPrice: product.amountCents,
     outTradeNo: order.outTradeNo,
     attach: JSON.stringify({ orderId: order.outTradeNo, userId: String(order.userId), productId: product.productId, quantity: 1 }),
