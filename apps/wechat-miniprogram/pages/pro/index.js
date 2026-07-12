@@ -83,6 +83,37 @@ function planLabel(planId) {
   return "Free";
 }
 
+function paymentStatusLabel(order) {
+  if (!order) return "未知状态";
+  if (order.statusLabel) return order.statusLabel;
+  if (order.status === "paid") return "已支付";
+  if (order.status === "refunded") return "已退款";
+  if (order.status === "pending") return "待支付";
+  return "未知状态";
+}
+
+function normalizePaymentOrder(order) {
+  const item = order || {};
+  const amountYuan = formatYuan(item.amountYuan, item.amountCents ? (Number(item.amountCents) / 100).toFixed(2) : "");
+  const refundableAmountYuan = formatYuan(item.refundableAmountYuan, item.refundableAmountCents ? (Number(item.refundableAmountCents) / 100).toFixed(2) : "");
+  const paidAtText = item.paidAtText || formatDate(item.paidAt || item.createdAt).replace(/\//g, "-");
+  const refundStatusLabel = item.refundStatusLabel || (item.canRefund ? "可申请退款" : paymentStatusLabel(item));
+  return {
+    ...item,
+    planLabel: planLabel(item.plan),
+    amountYuan,
+    paidAtText,
+    statusLabel: paymentStatusLabel(item),
+    refundStatusLabel,
+    refundablePointsText: formatPoints(item.refundablePoints || 0),
+    refundableAmountYuan
+  };
+}
+
+function normalizePaymentOrders(orders) {
+  return Array.isArray(orders) ? orders.map(normalizePaymentOrder).filter((item) => item.id) : [];
+}
+
 function normalizePlanId(planId) {
   if (planId === "plus" || planId === "monthly") return "plus";
   if (planId === "pro" || planId === "yearly") return "pro";
@@ -277,6 +308,7 @@ Page({
     membership: null,
     latestOrder: null,
     latestRefundableOrder: null,
+    paymentOrders: [],
     pointsText: "-",
     memberBadgeLabel: "",
     statusLabel: "未开通订阅",
@@ -375,6 +407,7 @@ Page({
       membership,
       latestOrder: meResponse && meResponse.latestOrder ? meResponse.latestOrder : null,
       latestRefundableOrder: meResponse && meResponse.latestRefundableOrder ? meResponse.latestRefundableOrder : null,
+      paymentOrders: normalizePaymentOrders(meResponse && meResponse.paymentOrders),
       pointsText: membership && typeof membership.proPointBalance === "number" ? `${formatPoints(membership.proPointBalance)} 点` : "-",
       memberBadgeLabel: membershipBadgeLabel(membership),
       statusLabel: statusLabel(membership),
@@ -405,6 +438,26 @@ Page({
           setTimeout(resolve, PAYMENT_CONFIRMATION_POLL_DELAYS_MS[attempt + 1]);
         }).then(() => this.waitForWechatPaymentConfirmation(attempt + 1));
       });
+  },
+
+  syncWechatVirtualOrder(orderId) {
+    if (!orderId) return Promise.resolve(null);
+    return request({
+      method: "POST",
+      url: `/api/billing/virtual-orders/${orderId}/sync`
+    }).then((response) => {
+      const membership = response && response.membership ? response.membership : null;
+      const order = response && response.order ? response.order : null;
+      this.setData({
+        membership: membership || this.data.membership,
+        latestOrder: order || this.data.latestOrder,
+        pointsText: membership && typeof membership.proPointBalance === "number" ? `${formatPoints(membership.proPointBalance)} 点` : this.data.pointsText,
+        memberBadgeLabel: membershipBadgeLabel(membership || this.data.membership),
+        statusLabel: statusLabel(membership || this.data.membership),
+        statusRows: buildStatusRows(membership || this.data.membership)
+      });
+      return response;
+    });
   },
 
   selectPlan(event) {
@@ -451,6 +504,7 @@ Page({
         }
         if (checkout.paymentChannel === "wechat_virtual") {
           return requestWechatVirtualPayment(checkout.paymentParams)
+            .then(() => this.syncWechatVirtualOrder(order && order.id).catch(() => null))
             .then(() => this.waitForWechatPaymentConfirmation())
             .then((meResponse) => {
               const membership = meResponse && meResponse.membership ? meResponse.membership : null;
@@ -486,12 +540,11 @@ Page({
       });
   },
 
-  requestRefund() {
+  requestRefund(event) {
     if (this.data.refunding) return Promise.resolve();
-    const refundOrder = this.data.latestRefundableOrder || this.data.latestOrder;
-    const orderId = refundOrder && refundOrder.id;
+    const orderId = event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.orderId;
     if (!orderId) {
-      this.setData({ message: "没有可申请退款的订单" });
+      this.setData({ message: "请选择要退款的付款记录" });
       return Promise.resolve();
     }
     return confirmRefundRequest().then((confirmed) => {

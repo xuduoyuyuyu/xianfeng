@@ -60,7 +60,16 @@
   `signData`, and never persists, logs, or returns the `session_key`. Client
   success callbacks and message pushes are untrusted triggers: paid state and
   points are granted only after the official virtual-payment query matches the
-  local order, amount, environment, transaction id, and signed `biz_meta`.
+  local order, amount, environment, transaction id, and signed `biz_meta`
+  payload. Production query responses may wrap the signed payload inside
+  `biz_meta.attach`, and paid virtual orders may report status `3`; both are
+  accepted only when the paid amount matches the local order amount. The client
+  may call `/api/billing/virtual-orders/:id/sync` after `wx.requestVirtualPayment`
+  succeeds to actively reconcile the order, while notification delivery remains
+  the backup trigger.
+  `/api/billing/me` exposes recent paid/refunded `paymentOrders` with per-order
+  refund eligibility so clients request refunds against a specific payment
+  record instead of a single latest-order shortcut.
   Ordinary WeChat Pay V3 Native/JSAPI sync and notify paths explicitly do not
   fulfill `paymentChannel=wechat_virtual` orders.
 - Xiaowanzi image recognition uses the authenticated

@@ -19,6 +19,7 @@ import {
   processWechatVirtualNotification,
   serializeBillingUser,
   serializePlan,
+  syncWechatVirtualPaidOrder,
 } from "../services/billing";
 import {
   createAlipayCheckout,
@@ -51,6 +52,54 @@ function serializeOrder(order: any) {
     paidAt: order.paidAt ? new Date(order.paidAt).toISOString() : null,
     refundedAt: order.refundedAt ? new Date(order.refundedAt).toISOString() : null,
     createdAt: order.createdAt ? new Date(order.createdAt).toISOString() : null,
+  };
+}
+
+function statusLabel(order: any) {
+  if (order.status === "paid") return "已支付";
+  if (order.status === "refunded") return "已退款";
+  if (order.status === "pending") return "待支付";
+  if (order.status === "closed") return "已关闭";
+  if (order.status === "failed") return "支付失败";
+  return "未知状态";
+}
+
+function formatAmount(cents: number) {
+  return (Math.max(0, Number(cents) || 0) / 100).toFixed(2);
+}
+
+function formatPaymentTime(value: any) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day} ${hour}:${minute}`;
+}
+
+function serializePaymentOrder(order: any, user: any) {
+  const base = serializeOrder(order);
+  const pointRefund = calculatePointBasedRefund(order, user);
+  const refundable = canRefundOrder(order).ok && pointRefund.ok;
+  return {
+    ...base,
+    amountYuan: formatAmount(order.amountCents),
+    paidAtText: formatPaymentTime(order.paidAt || order.createdAt),
+    statusLabel: statusLabel(order),
+    canRefund: refundable,
+    refundablePoints: refundable ? pointRefund.refundablePoints : 0,
+    refundableAmountCents: refundable ? pointRefund.amountCents : 0,
+    refundableAmountYuan: formatAmount(refundable ? pointRefund.amountCents : 0),
+    refundStatusLabel: order.status === "refunded"
+      ? "已退款"
+      : refundable
+        ? "可申请退款"
+        : order.status === "paid"
+          ? pointRefund.reason || "不可退款"
+          : statusLabel(order),
   };
 }
 
@@ -133,10 +182,11 @@ router.get("/me", authenticate, async (req: AuthenticatedRequest, res) => {
   await grantFreeLoginPointsForUser(user);
   await syncRecentPendingWechatOrders(userId);
   await syncRecentWechatRefundsForUser(userId);
-  const [freshUser, latestOrder, latestRefundableOrder] = await Promise.all([
+  const [freshUser, latestOrder, latestRefundableOrder, paymentOrders] = await Promise.all([
     User.findById(userId),
     PaymentOrderModel.findOne({ userId: user._id }).sort({ createdAt: -1 }).lean(),
     getLatestRefundableOrder(userId),
+    PaymentOrderModel.find({ userId: user._id, status: { $in: ["paid", "refunded"] } }).sort({ createdAt: -1 }).limit(20).lean(),
   ]);
   const membership = serializeBillingUser(freshUser || user);
   membership.canRefundLatestOrder = !!(
@@ -148,6 +198,7 @@ router.get("/me", authenticate, async (req: AuthenticatedRequest, res) => {
     membership,
     latestOrder: latestOrder ? serializeOrder(latestOrder) : null,
     latestRefundableOrder: latestRefundableOrder ? serializeOrder(latestRefundableOrder) : null,
+    paymentOrders: paymentOrders.map((order) => serializePaymentOrder(order, freshUser || user)),
   });
 });
 
@@ -218,6 +269,32 @@ router.post("/virtual-orders", authenticate, async (req: AuthenticatedRequest, r
   } catch (error: any) {
     console.error("Wechat virtual checkout failed:", error);
     res.status(500).json({ message: "创建虚拟支付订单失败" });
+  }
+});
+
+router.post("/virtual-orders/:id/sync", authenticate, async (req: AuthenticatedRequest, res) => {
+  const order = await findOwnedOrder(req, String(req.params.id));
+  if (!order) {
+    res.status(404).json({ message: "订单不存在" });
+    return;
+  }
+  if (order.paymentChannel !== "wechat_virtual") {
+    res.status(400).json({ message: "不是微信虚拟支付订单" });
+    return;
+  }
+  const user = await User.findById(order.userId).select("wechatMiniOpenid").lean();
+  const openid = String(user?.wechatMiniOpenid || "").trim();
+  if (!openid) {
+    res.status(400).json({ message: "微信登录状态无效" });
+    return;
+  }
+  try {
+    const syncedOrder = await syncWechatVirtualPaidOrder(order, openid, { rawTrigger: { source: "client-sync" } });
+    const syncedUser = await User.findById(order.userId).lean();
+    res.json({ order: serializeOrder(syncedOrder), membership: serializeBillingUser(syncedUser) });
+  } catch (error: any) {
+    console.error("Wechat virtual order sync failed:", error);
+    res.status(409).json({ message: error?.message || "微信虚拟支付订单尚未确认" });
   }
 });
 

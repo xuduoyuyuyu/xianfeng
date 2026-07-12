@@ -116,14 +116,28 @@
         </view>
       </view>
       <view class="xf-pro-refund-note">退款按未使用点数折算，已使用点数对应费用不退；若无剩余有效套餐，高级 AI 调用将关闭。</view>
-      <button
-        wx:if="{{membership && membership.canRefundLatestOrder && latestRefundableOrder && latestRefundableOrder.status === 'paid'}}"
-        class="xf-pro-refund-button"
-        bindtap="requestRefund"
-        disabled="{{refunding}}"
-      >
-        {{refunding ? "退款申请中..." : "申请退款"}}
-      </button>
+    </view>
+
+    <view wx:if="{{paymentOrders.length}}" class="xf-pro-status-card">
+      <text class="xf-pro-section-title">付款记录</text>
+      <view class="xf-pro-payment-list">
+        <view wx:for="{{paymentOrders}}" wx:key="id" class="xf-pro-payment-row">
+          <view class="xf-pro-payment-main">
+            <text class="xf-pro-payment-title">{{item.planLabel}} · ¥{{item.amountYuan}}</text>
+            <text class="xf-pro-payment-meta">{{item.paidAtText}} · {{item.statusLabel}}</text>
+            <text class="xf-pro-payment-refund">{{item.refundStatusLabel}}</text>
+          </view>
+          <button
+            wx:if="{{item.canRefund}}"
+            class="xf-pro-refund-button is-inline"
+            bindtap="requestRefund"
+            data-order-id="{{item.id}}"
+            disabled="{{refunding}}"
+          >
+            {{refunding ? "申请中" : "申请退款"}}
+          </button>
+        </view>
+      </view>
     </view>
   </view>
 

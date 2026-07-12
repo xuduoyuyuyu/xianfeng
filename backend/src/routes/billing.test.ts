@@ -70,6 +70,7 @@ describe("billing routes", () => {
       { path: "/me", methods: ["get"] },
       { path: "/orders", methods: ["post"] },
       { path: "/virtual-orders", methods: ["post"] },
+      { path: "/virtual-orders/:id/sync", methods: ["post"] },
       { path: "/orders/:id", methods: ["get"] },
       { path: "/orders/:id/mock-pay", methods: ["post"] },
       { path: "/consume/education-planning", methods: ["post"] },
@@ -125,5 +126,66 @@ describe("billing routes", () => {
     const data = await response.json() as { message?: string };
     assert.match(data.message || "", /微信虚拟支付/);
     assert.equal(await PaymentOrderModel.countDocuments({}), 0);
+  });
+
+  it("returns refundable state on each payment order instead of only the latest order", async () => {
+    const user = await User.create({
+      username: "payment-record-user",
+      password: "secret",
+      role: "user",
+      proStatus: "active",
+      proPlan: "plus",
+      proPointBalance: 200,
+      proExpiresAt: new Date("2026-08-12T00:00:00.000Z"),
+      proLatestOrderId: null,
+    });
+    const olderPaidOrder = await PaymentOrderModel.create({
+      userId: user._id,
+      plan: "plus",
+      provider: "wechat",
+      paymentChannel: "wechat_virtual",
+      amountCents: 1990,
+      currency: "CNY",
+      subject: "订阅 Plus",
+      outTradeNo: "XFOLDERPAID",
+      status: "paid",
+      paidAt: new Date("2026-07-12T01:00:00.000Z"),
+      virtualProductId: "plus",
+      virtualQuantity: 1,
+      virtualEnvironment: 0,
+      createdAt: new Date("2026-07-12T00:59:00.000Z"),
+    });
+    const refundedOrder = await PaymentOrderModel.create({
+      userId: user._id,
+      plan: "plus",
+      provider: "wechat",
+      paymentChannel: "wechat_virtual",
+      amountCents: 1990,
+      currency: "CNY",
+      subject: "订阅 Plus",
+      outTradeNo: "XFREFUNDED",
+      status: "refunded",
+      paidAt: new Date("2026-07-12T02:00:00.000Z"),
+      refundedAt: new Date("2026-07-12T03:00:00.000Z"),
+      virtualProductId: "plus",
+      virtualQuantity: 1,
+      virtualEnvironment: 0,
+      createdAt: new Date("2026-07-12T01:59:00.000Z"),
+    });
+
+    const response = await fetch(`${server.url}/me`, {
+      headers: { "Authorization": `Bearer ${userToken(String(user._id))}` },
+    });
+
+    assert.equal(response.status, 200);
+    const data = await response.json() as { paymentOrders?: Array<any> };
+    assert.equal(Array.isArray(data.paymentOrders), true);
+    assert.deepEqual(data.paymentOrders?.map((order) => order.id), [String(refundedOrder._id), String(olderPaidOrder._id)]);
+    assert.equal(data.paymentOrders?.[0].canRefund, false);
+    assert.equal(data.paymentOrders?.[0].refundStatusLabel, "已退款");
+    assert.equal(data.paymentOrders?.[1].canRefund, true);
+    assert.equal(data.paymentOrders?.[1].refundablePoints, 200);
+    assert.equal(data.paymentOrders?.[1].refundableAmountCents, 1990);
+    assert.equal(data.paymentOrders?.[1].refundStatusLabel, "可申请退款");
   });
 });

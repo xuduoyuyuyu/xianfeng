@@ -6814,6 +6814,7 @@ test("pro page renders native subscription content instead of a web-view wrapper
   const definition = loadPageDefinition("pro");
   const requests = [];
   const createdOrders = [];
+  const syncedOrders = [];
   const virtualPaymentRequests = [];
   let billingMeActive = false;
   const context = {
@@ -6874,7 +6875,13 @@ test("pro page renders native subscription content instead of a web-view wrapper
                 canRefundLatestOrder: billingMeActive
               },
               latestOrder: billingMeActive ? { id: "order-plus-1", plan: "plus", status: "paid" } : null,
-              latestRefundableOrder: billingMeActive ? { id: "order-plus-1", plan: "plus", status: "paid" } : null
+              latestRefundableOrder: billingMeActive ? { id: "order-plus-1", plan: "plus", status: "paid" } : null,
+              paymentOrders: billingMeActive
+                ? [
+                  { id: "order-plus-2", plan: "plus", amountYuan: "19.90", paidAtText: "2026-07-12 12:44", statusLabel: "已支付", refundStatusLabel: "可申请退款", canRefund: true, refundablePoints: 200, refundableAmountYuan: "19.90" },
+                  { id: "order-plus-1", plan: "plus", amountYuan: "19.90", paidAtText: "2026-07-12 12:42", statusLabel: "已支付", refundStatusLabel: "已退款", canRefund: false, refundablePoints: 0, refundableAmountYuan: "0.00" }
+                ]
+                : []
             }
           });
           return;
@@ -6893,6 +6900,27 @@ test("pro page renders native subscription content instead of a web-view wrapper
                   paySig: "pay-sig",
                   signature: "session-signature"
                 }
+              }
+            }
+          });
+          return;
+        }
+        if (options.url.endsWith("/api/billing/virtual-orders/order-1/sync")) {
+          syncedOrders.push(options.url);
+          billingMeActive = true;
+          options.success({
+            statusCode: 200,
+            data: {
+              order: { id: "order-1", plan: "plus", status: "paid" },
+              membership: {
+                proPointBalance: 428,
+                proStatus: "active",
+                proPlan: "plus",
+                membershipTier: "plus",
+                membershipLabel: "Plus",
+                proExpiresAt: "2026-09-06T06:38:41.000Z",
+                isProActive: true,
+                canRefundLatestOrder: true
               }
             }
           });
@@ -6944,10 +6972,15 @@ test("pro page renders native subscription content instead of a web-view wrapper
     assert.doesNotMatch(wxml, /订阅已完成/);
     assert.match(wxml, /继续补充点数/);
     assert.match(wxml, /bindtap="requestRefund"/);
+    assert.match(wxml, /付款记录/);
+    assert.match(wxml, /wx:for="\{\{paymentOrders\}\}"/);
+    assert.match(wxml, /data-order-id="\{\{item\.id\}\}"/);
+    assert.match(wxml, /item\.refundStatusLabel/);
     assert.match(wxml, /申请退款/);
     assert.match(wxml, /退款按未使用点数折算/);
     assert.match(wxml, /若无剩余有效套餐/);
-    assert.match(wxml, /membership && membership\.canRefundLatestOrder && latestRefundableOrder && latestRefundableOrder\.status === 'paid'/);
+    assert.doesNotMatch(wxml, /membership && membership\.canRefundLatestOrder && latestRefundableOrder && latestRefundableOrder\.status === 'paid'/);
+    assert.match(wxml, /item\.canRefund/);
     assert.match(wxml, /当前可用点数/);
     assert.match(wxml, /wx:for="\{\{planCards\}\}"/);
     assert.match(wxml, /bindtap="selectPlan"/);
@@ -6972,8 +7005,9 @@ test("pro page renders native subscription content instead of a web-view wrapper
     assert.match(js, /request\(\{ url: "\/api\/billing\/me" \}\)/);
     assert.match(js, /request\(\{[\s\S]*method: "POST",[\s\S]*url: "\/api\/billing\/virtual-orders"/);
     assert.match(js, /url: "\/api\/billing\/refunds"/);
-    assert.match(js, /latestRefundableOrder/);
-    assert.match(js, /const refundOrder = this\.data\.latestRefundableOrder \|\| this\.data\.latestOrder/);
+    assert.match(js, /paymentOrders/);
+    assert.match(js, /event[\s\S]*currentTarget[\s\S]*dataset[\s\S]*orderId/);
+    assert.doesNotMatch(js, /const refundOrder = this\.data\.latestRefundableOrder \|\| this\.data\.latestOrder/);
     assert.match(js, /response && response\.refund && response\.refund\.status === "pending"/);
     assert.match(js, /微信处理中，处理完成后积分会自动扣回/);
     assert.match(js, /selectedPlan: "pro"/);
@@ -7010,6 +7044,8 @@ test("pro page renders native subscription content instead of a web-view wrapper
     assert.equal(context.data.memberBadgeLabel, "Plus");
     assert.equal(context.data.pointsText, "428 点");
     assert.equal(context.data.latestOrder.status, "paid");
+    assert.equal(context.data.paymentOrders.length, 2);
+    assert.equal(context.data.paymentOrders[0].id, "order-plus-2");
 
     await definition.onLoad.call(context, { from: "settings" });
     assert.equal(context.data.launchedFromSettings, true);
@@ -7023,6 +7059,8 @@ test("pro page renders native subscription content instead of a web-view wrapper
     await definition.createOrder.call(context);
     assert.deepEqual(createdOrders, [{ productId: "pro", quantity: 1, loginCode: "wx-login-code" }]);
     assert.equal(virtualPaymentRequests.length, 1);
+    assert.equal(syncedOrders.length, 1);
+    assert.match(syncedOrders[0], /\/api\/billing\/virtual-orders\/order-1\/sync$/);
     assert.deepEqual(
       Object.fromEntries(Object.entries(virtualPaymentRequests[0]).filter(([key]) => key !== "success" && key !== "fail")),
       {
@@ -7044,7 +7082,7 @@ test("pro page renders native subscription content instead of a web-view wrapper
     ]);
     assert.equal(virtualPaymentRequests.length, 2);
     assert.equal(virtualPaymentRequests[1].signData, "{\"offerId\":\"offer-test\"}");
-    assert.match(context.data.message, /等待微信确认/);
+    assert.match(context.data.message, /订阅权益已生效/);
   } finally {
     global.wx = originalWx;
     global.setTimeout = originalSetTimeout;
@@ -7140,7 +7178,7 @@ test("pro page renders completion state and submits refund requests", async () =
     assert.equal(context.data.latestOrder.status, "refunded");
     assert.equal(context.data.latestRefundableOrder.status, "paid");
 
-    await definition.requestRefund.call(context);
+    await definition.requestRefund.call(context, { currentTarget: { dataset: { orderId: "order-pro-1" } } });
 
     assert.equal(modalPrompts[0].confirmText, "申请退款");
     assert.deepEqual(refundRequests, [{ orderId: "order-pro-1", reason: "按未使用点数折算退款" }]);
@@ -7156,6 +7194,7 @@ test("pro page renders completion state and submits refund requests", async () =
 test("pro page waits for WeChat notify before showing paid membership", async () => {
   const definition = loadPageDefinition("pro");
   const requests = [];
+  const syncRequests = [];
   const virtualPaymentRequests = [];
   let billingMeCount = 0;
   const context = {
@@ -7239,6 +7278,26 @@ test("pro page waits for WeChat notify before showing paid membership", async ()
           });
           return;
         }
+        if (options.url.endsWith("/api/billing/virtual-orders/order-1/sync")) {
+          syncRequests.push(options.url);
+          options.success({
+            statusCode: 200,
+            data: {
+              order: { id: "order-1", plan: "plus", status: "paid" },
+              membership: {
+                proPointBalance: 200,
+                proStatus: "active",
+                proPlan: "plus",
+                membershipTier: "plus",
+                membershipLabel: "Plus",
+                proExpiresAt: "2026-08-06T00:00:00.000Z",
+                isProActive: true,
+                canRefundLatestOrder: true
+              }
+            }
+          });
+          return;
+        }
         options.fail({ errMsg: "unexpected request" });
       },
       requestVirtualPayment(options) {
@@ -7254,6 +7313,8 @@ test("pro page waits for WeChat notify before showing paid membership", async ()
     await definition.createOrder.call(context);
 
     assert.equal(virtualPaymentRequests.length, 1);
+    assert.equal(syncRequests.length, 1);
+    assert.match(syncRequests[0], /\/api\/billing\/virtual-orders\/order-1\/sync$/);
     assert.ok(billingMeCount >= 3);
     assert.equal(context.data.statusLabel, "Plus 会员");
     assert.equal(context.data.memberBadgeLabel, "Plus");

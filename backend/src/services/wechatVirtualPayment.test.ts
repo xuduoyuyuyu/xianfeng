@@ -125,7 +125,7 @@ test("queries the official order endpoint with exact body and independent pay si
   globalThis.fetch = (async (input, init) => {
     const url = String(input); calls.push({ url, body: init?.body ? String(init.body) : undefined });
     if (url.includes("stable_token")) return new Response(JSON.stringify({ access_token: "access-1", expires_in: 7200 }), { status: 200 });
-    return new Response(JSON.stringify({ errcode: 0, errmsg: "", order: { order_id: "VP20260711ABC123", status: 2, order_fee: 1990, paid_fee: 1990, env_type: 2, wx_order_id: "wx-order", wxpay_order_id: "wxpay-order", biz_meta: JSON.stringify({ orderId: "VP20260711ABC123", userId: "507f1f77bcf86cd799439011", productId: "plus", quantity: 1 }) } }), { status: 200 });
+    return new Response(JSON.stringify({ errcode: 0, errmsg: "", order: { order_id: "VP20260711ABC123", status: 3, order_fee: 1990, paid_fee: 1990, env_type: 2, wx_order_id: "wx-order", wxpay_order_id: "wxpay-order", biz_meta: JSON.stringify({ attach: JSON.stringify({ orderId: "VP20260711ABC123", userId: "507f1f77bcf86cd799439011", productId: "plus", quantity: 1 }) }) } }), { status: 200 });
   }) as typeof fetch;
   const result = await queryWechatVirtualOrder({ outTradeNo: "VP20260711ABC123", openid: "openid-test" });
   const body = JSON.stringify({ openid: "openid-test", env: 1, order_id: "VP20260711ABC123" });
@@ -133,7 +133,7 @@ test("queries the official order endpoint with exact body and independent pay si
   assert.equal(calls[1].body, body);
   assert.equal(new URL(calls[1].url).searchParams.get("pay_sig"), sig);
   assert.equal(result.outTradeNo, "VP20260711ABC123");
-  assert.equal(result.status, 2);
+  assert.equal(result.status, 3);
   assert.equal(result.environment, 1);
   assert.equal(result.amountCents, 1990);
   assert.equal(result.bizMeta.productId, "plus");

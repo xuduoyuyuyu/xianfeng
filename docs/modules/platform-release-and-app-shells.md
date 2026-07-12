@@ -72,11 +72,16 @@
   Pro virtual products. The shell owns product selection, requesting a fresh
   `wx.login` code, calling backend `/api/billing/virtual-orders`, invoking
   `wx.requestVirtualPayment` with the returned official parameters, and
-  showing server-confirmed status from `/api/billing/me`. It does not set
+  actively reconciling the order through
+  `/api/billing/virtual-orders/:id/sync` before falling back to
+  `/api/billing/me` polling. Refund actions are rendered per payment record
+  from `/api/billing/me.paymentOrders`; each refund request sends the selected
+  order id rather than relying on the latest paid order. It does not set
   membership from the client payment callback and does not fall back to
-  `wx.requestPayment` for virtual products. WeChat后台 product setup, sandbox
-  Offer ID/app key, callback routing, production secrets, upload, review, and
-  publication remain release/operations work and are not stored in this repo.
+  `wx.requestPayment` for virtual products.
+  WeChat后台 product setup, sandbox Offer ID/app key, callback routing,
+  production secrets, upload, review, and publication remain release/operations
+  work and are not stored in this repo.
 - WeChat friend sharing uses `pages/share/index` as the branded landing page
   with the local logo asset, then opens the encoded target page. Timeline
   sharing keeps WeChat's page-query model and does not rely on a target path

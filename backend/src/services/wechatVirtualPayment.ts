@@ -121,6 +121,24 @@ function nonNegativeInteger(value: unknown, field: string): number {
   return result;
 }
 
+function parseVerifiedOrderBizMeta(value: unknown): VerifiedVirtualOrder["bizMeta"] {
+  try {
+    const parsed = JSON.parse(requiredString(value, "biz_meta"));
+    const source = typeof parsed.attach === "string" && parsed.attach.trim()
+      ? JSON.parse(parsed.attach)
+      : parsed;
+    return {
+      orderId: requiredString(source.orderId, "biz_meta.orderId"),
+      userId: requiredString(source.userId, "biz_meta.userId"),
+      productId: requiredString(source.productId, "biz_meta.productId"),
+      quantity: nonNegativeInteger(source.quantity, "biz_meta.quantity"),
+    };
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("biz_meta")) throw error;
+    throw new Error("微信虚拟支付查单返回 biz_meta 无效");
+  }
+}
+
 export function parseWechatVirtualNotification(rawBody: string | Buffer): WechatVirtualNotification {
   let raw: Record<string, any>;
   try {
@@ -162,18 +180,6 @@ export async function queryWechatVirtualOrder(input: { outTradeNo: string; openi
   if (!order || String(order.order_id || "") !== outTradeNo) throw new Error("微信虚拟支付查单返回订单不匹配");
   const environment = order.env_type === 1 ? 0 : order.env_type === 2 ? 1 : null;
   if (environment === null) throw new Error("微信虚拟支付查单返回环境无效");
-  let bizMeta: VerifiedVirtualOrder["bizMeta"];
-  try {
-    const parsed = JSON.parse(requiredString(order.biz_meta, "biz_meta"));
-    bizMeta = {
-      orderId: requiredString(parsed.orderId, "biz_meta.orderId"),
-      userId: requiredString(parsed.userId, "biz_meta.userId"),
-      productId: requiredString(parsed.productId, "biz_meta.productId"),
-      quantity: nonNegativeInteger(parsed.quantity, "biz_meta.quantity"),
-    };
-  } catch (error) {
-    if (error instanceof Error && error.message.includes("biz_meta")) throw error;
-    throw new Error("微信虚拟支付查单返回 biz_meta 无效");
-  }
+  const bizMeta = parseVerifiedOrderBizMeta(order.biz_meta);
   return { outTradeNo, status: nonNegativeInteger(order.status, "status"), amountCents: nonNegativeInteger(order.order_fee, "order_fee"), paidAmountCents: nonNegativeInteger(order.paid_fee, "paid_fee"), environment, transactionId: requiredString(order.wxpay_order_id || order.wx_order_id, "wxpay_order_id"), bizMeta, raw: order };
 }

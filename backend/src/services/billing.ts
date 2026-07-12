@@ -465,18 +465,33 @@ export async function processWechatVirtualNotification(
   if (notification.event !== "xpay_goods_deliver_notify") return null;
   const order = await PaymentOrderModel.findOne({ outTradeNo: notification.outTradeNo });
   if (!order || order.paymentChannel !== "wechat_virtual") throw new Error("微信虚拟支付订单不存在");
+  return syncWechatVirtualPaidOrder(order, notification.openid, { queryOrder: dependencies.queryOrder, rawTrigger: notification.raw });
+}
 
+function isTrustedWechatVirtualPaymentPaid(trusted: VerifiedVirtualOrder, order: PaymentOrder) {
+  return (trusted.status === 2 || trusted.status === 3) && trusted.paidAmountCents === order.amountCents;
+}
+
+export async function syncWechatVirtualPaidOrder(
+  order: PaymentOrder,
+  openid: string,
+  dependencies: {
+    queryOrder?: (input: { outTradeNo: string; openid: string }) => Promise<VerifiedVirtualOrder>;
+    rawTrigger?: Record<string, any>;
+  } = {},
+): Promise<PaymentOrder> {
+  if (!order || order.paymentChannel !== "wechat_virtual") throw new Error("微信虚拟支付订单不存在");
+  if (order.status === "paid" || order.status === "refunded") return order;
   const trusted = await (dependencies.queryOrder || queryWechatVirtualOrder)({
     outTradeNo: order.outTradeNo,
-    openid: notification.openid,
+    openid,
   });
   const user = await User.findById(order.userId).select("wechatMiniOpenid").lean();
   const boundOpenid = String(user?.wechatMiniOpenid || "").trim();
   const product = getVirtualProduct(order.virtualProductId);
   const mismatch = trusted.outTradeNo !== order.outTradeNo
-    || trusted.status !== 2
+    || !isTrustedWechatVirtualPaymentPaid(trusted, order)
     || trusted.amountCents !== order.amountCents
-    || trusted.paidAmountCents !== order.amountCents
     || trusted.environment !== order.virtualEnvironment
     || !trusted.transactionId
     || (order.providerTradeNo && order.providerTradeNo !== trusted.transactionId)
@@ -485,13 +500,13 @@ export async function processWechatVirtualNotification(
     || trusted.bizMeta.userId !== String(order.userId)
     || trusted.bizMeta.productId !== order.virtualProductId
     || trusted.bizMeta.quantity !== order.virtualQuantity
-    || (boundOpenid && boundOpenid !== notification.openid);
+    || (boundOpenid && boundOpenid !== openid);
   if (mismatch) throw new Error("微信虚拟支付查单结果与本地订单不匹配");
 
   return markOrderPaid({
     outTradeNo: order.outTradeNo,
     providerTradeNo: trusted.transactionId,
-    rawNotify: { trigger: notification.raw, verifiedOrder: trusted.raw },
+    rawNotify: { trigger: dependencies.rawTrigger || { source: "wechat-virtual-sync" }, verifiedOrder: trusted.raw },
   });
 }
 

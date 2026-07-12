@@ -342,7 +342,7 @@ describe("billing point consumption", () => {
     let queryCount = 0;
     const queryOrder = async () => {
       queryCount += 1;
-      return { outTradeNo: order.outTradeNo, status: 2, amountCents: 1990, paidAmountCents: 1990, environment: 1 as const, transactionId: "wx-virtual-1", bizMeta: { orderId: order.outTradeNo, userId: String(user._id), productId: "plus", quantity: 1 }, raw: { trusted: true } };
+      return { outTradeNo: order.outTradeNo, status: 3, amountCents: 1990, paidAmountCents: 1990, environment: 1 as const, transactionId: "wx-virtual-1", bizMeta: { orderId: order.outTradeNo, userId: String(user._id), productId: "plus", quantity: 1 }, raw: { trusted: true } };
     };
     const trigger = { event: "xpay_goods_deliver_notify" as const, outTradeNo: order.outTradeNo, openid: "openid-1", productId: "plus", quantity: 1, raw: { untrusted: true } };
 
@@ -355,7 +355,7 @@ describe("billing point consumption", () => {
     await processWechatVirtualNotification(trigger, { queryOrder });
     const second = await User.findById(user._id).lean();
 
-    assert.equal(queryCount, 3);
+    assert.equal(queryCount, 2);
     assert.equal(first?.proPointBalance, 200);
     assert.equal(second?.proPointBalance, 200);
     assert.equal(second?.proExpiresAt?.toISOString(), firstExpiry);
