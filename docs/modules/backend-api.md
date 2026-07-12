@@ -98,6 +98,17 @@
   return the saved translation instead of calling the AI provider again. The
   default translation model is DeepSeek Flash via the translation-specific
   `BOOK_TRANSLATION_AI_MODEL` setting.
+- Admin book editing can create or update the public detail metadata through
+  `PUT /api/admin/books/:id/metadata`. The endpoint upserts by `bookId`, so a
+  book without a metadata row becomes editable without creating duplicate
+  detail records on later saves. Uploaded covers are mirrored to both the base
+  book and metadata form; metadata upsert falls back to the base cover instead
+  of replacing it with an empty detail cover.
+- Public program details preserve concrete curated-reading titles for static
+  display, but only expose a URL when its landing-page title verification
+  passes. Generic category placeholders such as `教育相关推荐`, `延伸阅读`, and
+  `参考书目` are rejected during payload normalization, public serialization,
+  and enrichment reruns.
 - Mama resource pool submissions are supply-side only. Public
   `/api/mama-resources/applications` accepts lightweight Xiaohongshu account
   intake without account credentials, including profile screenshot URL, follower
@@ -112,16 +123,22 @@
   `/api/admin/mama-resources/tasks` creates and lists tasks, including optional
   multiple example image URLs for task illustration, then
   `/tasks/:taskId` updates an already listed task's project copy, pricing,
-  targeting fields, and example images without changing assignments.
+  targeting fields, claim limit, and example images without changing assignments.
   `/tasks/:taskId/candidates` filters approved accounts by search/category,
   risk tag, and follower count before `/tasks/:taskId/assignments` assigns
-  selected profiles. Public `/api/mama-resources/me/tasks` exposes only the
-  assignments for the authenticated user whose mobile matches the approved
-  profile contact phone. The same endpoint returns pending/needs-info/rejected
-  profile status with an empty task list so clients can show a review-status
-  page instead of the intake form. Public task submission stores proof link
-  plus screenshot URL on the assignment before admin review marks it collected
-  or rejected.
+  selected profiles. Public `/api/mama-resources/me/tasks` matches the
+  authenticated user to profiles by normalized contact-phone digits and
+  prefers an approved profile over newer pending submissions for the same
+  mobile, then exposes that user's assignments plus listed tasks that are still
+  claimable by the approved profile contact phone. Public
+  `/api/mama-resources/tasks/:taskId/claims` creates the assignment for
+  first-come claiming and enforces `MamaResourceTask.claimLimit` against
+  assigned/submitted/collected assignments; rejected assignments free the slot.
+  The same `/me/tasks` endpoint returns pending/needs-info/rejected profile
+  status with an empty task list so clients can show a review-status page
+  instead of the intake form. Public task submission stores proof link plus
+  screenshot URL on the assignment before admin review marks it collected or
+  rejected.
 - Welfare campaigns are independent from guest listener benefits and Mama
   Haozhuan tasks. `WelfareCampaign` stores the uploaded/configured activity,
   stock, date window, publish state, claim instructions, and optional external

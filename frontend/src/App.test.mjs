@@ -23,7 +23,7 @@ test("legacy /programs route redirects to the real program list page", () => {
 test("program detail uses the latest iframe detail page inside Xiaowanzi layer", () => {
   assert.match(source, /const routeParams = new URLSearchParams\(search\);[\s\S]*const xiaowanziLayer = routeParams\.get\("xw_layer"\) === "1";/, "router should detect xw_layer in program detail URLs");
   assert.doesNotMatch(source, /if \(xiaowanziLayer\) return <ProgramDetailPage \/>;/, "program detail in Xiaowanzi layer should not render the old React detail page");
-  assert.match(source, /const screenRev = "20260703-podcast-detail-mp-bottom-1";/, "program detail iframe should have a cache-busting revision");
+  assert.match(source, /const screenRev = "20260708-podcast-detail-scroll-1";/, "program detail iframe should have a cache-busting revision");
   assert.match(source, /const detailParams = new URLSearchParams\(\{ programId, v: screenRev \}\);/, "program detail should build the iframe URL from explicit query params");
   assert.match(source, /if \(xiaowanziLayer\) detailParams\.set\("xw_layer", "1"\);/, "program detail should preserve xw_layer");
   assert.match(source, /detailParams\.set\("xf_mp", "1"\);[\s\S]*detailParams\.set\("xf_tab", routeParams\.get\("xf_tab"\) \|\| "0"\);/, "mini program detail iframe should receive hidden-tabbar markers");
@@ -102,8 +102,13 @@ test("reading detail route is available for book detail pages", () => {
   );
   assert.match(
     source,
-    /if \(normalizedPathname === "\/library"\) \{\s*return <ExternalBookLibraryPage \/>;\s*\}/s,
-    "App should route /library to the standalone external library page"
+    /if \(normalizedPathname === "\/library"\) \{[\s\S]*return <ExternalBookLibraryPage \/>;\s*\}/s,
+    "App should route /library without an explicit book id to the standalone external library page"
+  );
+  assert.match(
+    source,
+    /if \(normalizedPathname === "\/library"\) \{\s*const externalBookId = new URLSearchParams\(search\)\.get\("xf_external_book_id"\);[\s\S]*if \(externalBookId\) return <ExternalBookLibraryDetailPage \/>;[\s\S]*return <ExternalBookLibraryPage \/>;\s*\}/s,
+    "mini-program /library links with an explicit external book id should recover the detail page"
   );
   assert.match(
     source,

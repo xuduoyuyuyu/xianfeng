@@ -1,6 +1,6 @@
 <import src="../../templates/settings-profile-views.wxml" />
 
-<view class="xf-native-page xf-reading-page {{fontSizeClass}} {{compactMode ? 'is-compact' : 'is-feature'}}" style="padding-top: {{chromeHeight}}px;">
+<view class="xf-native-page xf-reading-page {{fontSizeClass}} {{compactMode ? 'is-compact' : 'is-feature'}} {{useExternalLibrarySource ? 'is-external-library' : 'is-native-library'}}" style="padding-top: {{chromeHeight}}px;">
   <view class="xf-native-topbar" style="height: {{topbarHeight}}px;">
     <view class="xf-native-nav-row" style="height: {{topbarHeight}}px;">
       <view class="xf-native-menu-button" style="top: {{logoTop}}px; height: {{logoHeight}}px;" catchtap="openSettings" role="button" aria-label="打开设置">
@@ -56,17 +56,23 @@
       <view class="xf-native-body">
         <text class="xf-native-card-title">{{item.title}}</text>
         <text class="xf-native-meta-text">{{item.author}}</text>
-        <text class="xf-native-description">{{item.description}}</text>
+        <text wx:if="{{item.hasListDescription}}" class="xf-native-description">{{item.description}}</text>
         <view wx:if="{{item.recommenderTag || item.displayTags.length}}" class="xf-reading-tags">
           <text wx:if="{{item.recommenderTag}}" class="xf-reading-recommender-tag">{{item.recommenderTag}}</text>
-          <text
+          <block
             wx:for="{{item.displayTags}}"
             wx:for-item="tag"
             wx:key="*this"
-            class="xf-reading-topic-tag {{activeReadingTag === tag ? 'is-active' : ''}}"
-            data-tag="{{tag}}"
-            catchtap="onReadingTagTap"
-          >{{tag}}</text>
+          >
+            <text
+              class="xf-reading-topic-tag {{activeReadingTag === tag ? 'is-active' : ''}}"
+              data-tag="{{tag}}"
+              catchtap="onReadingTagTap"
+            >{{tag}}</text>
+          </block>
+        </view>
+        <view wx:if="{{item.miniProgramShortLink}}" class="xf-reading-purchase-button" aria-label="购买">
+          <image class="xf-reading-purchase-icon" src="/assets/icons/shopping-cart-share.svg" mode="aspectFit" />
         </view>
       </view>
     </view>
@@ -101,7 +107,7 @@
       <view class="xf-native-filter-head">
         <view>
           <text class="xf-native-filter-title">及阅筛选</text>
-          <text class="xf-native-filter-subtitle">只筛选当前及阅列表</text>
+          <text class="xf-native-filter-subtitle">筛选全部及阅图书</text>
         </view>
         <button class="xf-native-filter-close" catchtap="closeFilterDrawer" aria-label="关闭筛选">×</button>
       </view>

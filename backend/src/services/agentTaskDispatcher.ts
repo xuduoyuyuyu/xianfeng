@@ -154,6 +154,7 @@ function isGeneratedFallbackReading(item: { title?: unknown; subtitle?: unknown;
   const title = asText(item?.title);
   const subtitle = asText(item?.subtitle);
   const url = asText(item?.url);
+  if (["教育相关推荐", "延伸阅读", "参考书目"].includes(title.replace(/\s+/g, ""))) return true;
   if (isSearchEntryUrl(url) || isSearchLikeUrl(url)) return true;
   if (/^延伸阅读：/.test(title)) return true;
   if (subtitle === "概念词条与背景知识" || subtitle === "概念入门与背景梳理") return true;

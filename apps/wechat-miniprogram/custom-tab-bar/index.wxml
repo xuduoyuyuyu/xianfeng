@@ -16,7 +16,7 @@
         </view>
       </view>
       <view wx:else class="xf-custom-tabbar__normal-core" data-index="{{index}}" catchtap="switchTab">
-        <image class="xf-custom-tabbar__icon" src="{{selected === index ? item.selectedIconPath : item.iconPath}}" mode="aspectFit" data-index="{{index}}" catchtap="switchTab" />
+        <image class="xf-custom-tabbar__icon {{index === 1 && readingLogoBouncing ? 'is-reading-source-switching' : ''}}" src="{{selected === index ? item.selectedIconPath : item.iconPath}}" mode="aspectFit" data-index="{{index}}" catchtap="switchTab" />
         <view class="xf-custom-tabbar__text" style="color: {{selected === index ? selectedColor : color}}" data-index="{{index}}" catchtap="switchTab">{{item.text}}</view>
       </view>
     </button>

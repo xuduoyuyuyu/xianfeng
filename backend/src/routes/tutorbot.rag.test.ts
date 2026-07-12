@@ -42,7 +42,7 @@ describe("tutorbot RAG wiring", () => {
     const source = readFileSync(resolve(__dirname, "tutorbot.ts"), "utf8");
 
     assert.match(source, /function buildSiteReferencePolicy\(hasSiteContext: boolean\): string/);
-    assert.match(source, /没有提供任何已命中的站内节目、请教一下、资料、书单或嘉宾链接/);
+    assert.match(source, /没有提供任何已命中的站内节目、请教一下、资料、图书或嘉宾链接/);
     assert.match(source, /不要说“家长先疯节目里也有聊过/);
     assert.match(source, /不要引导用户去搜索关键词/);
     assert.match(source, /const siteReferencePolicy = isFrontendBot\(botId\) \? buildSiteReferencePolicy\(Boolean\(siteContext\)\) : ""/);
@@ -52,15 +52,31 @@ describe("tutorbot RAG wiring", () => {
   it("requires any Xiaowanzi site recommendation to include direct links from matched records", () => {
     const source = readFileSync(resolve(__dirname, "tutorbot.ts"), "utf8");
 
+    assert.match(source, /import \{ listApprovedBookMetadataByBookIds \} from "\.\.\/services\/bookMetadataService"/);
     assert.match(source, /function buildProgramHref\(item: any\): string/);
+    assert.match(source, /function buildBookHref\(item: any\): string/);
+    assert.match(source, /if \(id && item\?\.hasMetadataDetail\) return `\/reading\/\$\{encodeURIComponent\(id\)\}`/);
+    assert.match(source, /new URLSearchParams\(\{ q: title \}\)/);
     assert.match(source, /href: buildProgramHref\(item\)/);
     assert.match(source, /href: buildTopicHref\(item\)/);
+    assert.match(source, /href: buildBookHref\(book\)/);
+    assert.match(source, /const bookMetadataRows = await listApprovedBookMetadataByBookIds/);
+    assert.match(source, /hasMetadataDetail: bookMetadataIds\.has\(getRecordId\(item\)\)/);
     assert.match(source, /href: buildMaterialHref\(item\)/);
     assert.match(source, /function buildMaterialHref\(item: any\): string/);
     assert.match(source, /new URLSearchParams\(\{ q: title \}\)/);
     assert.match(source, /推荐时必须列出下方条目的标题和链接/);
     assert.doesNotMatch(source, /说不定能找到对应的节目/);
     assert.doesNotMatch(source, /可以先去搜一下/);
+  });
+
+  it("keeps frontend Xiaowanzi requests out of shared bot history", () => {
+    const source = readFileSync(resolve(__dirname, "tutorbot.ts"), "utf8");
+
+    assert.match(source, /if \(isFrontendBot\(botId\)\) \{\s*res\.json\(\[\]\);/);
+    assert.match(source, /if \(!isFrontendBot\(botId\)\) tutorbotManager\.appendHistory\(botId, "user", content\)/);
+    assert.match(source, /const recentHistory = isFrontendBot\(botId\)\s*\?\s*\[\]/);
+    assert.match(source, /if \(!isFrontendBot\(botId\)\) tutorbotManager\.appendHistory\(botId, "assistant", reply\)/);
   });
 
   it("keeps named teacher terms searchable when the user asks for a core viewpoint", () => {

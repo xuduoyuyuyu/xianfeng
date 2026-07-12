@@ -70,6 +70,11 @@
   height: 22px;
 }
 
+.xf-custom-tabbar__icon.is-reading-source-switching {
+  animation: xf-reading-source-bounce 520ms cubic-bezier(0.2, 0.9, 0.22, 1);
+  transform-origin: 50% 50%;
+}
+
 .xf-custom-tabbar__icon.is-xiaowanzi-icon {
   width: 42px;
   height: 42px;
@@ -103,4 +108,22 @@
 .xf-custom-tabbar__safe {
   width: 100%;
   background: #fff;
+}
+
+@keyframes xf-reading-source-bounce {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  34% {
+    transform: translateY(-5px) scale(1.14);
+  }
+  62% {
+    transform: translateY(1px) scale(0.96);
+  }
+  82% {
+    transform: translateY(-1px) scale(1.04);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
 }

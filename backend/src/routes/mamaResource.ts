@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import multer from "multer";
 import MamaResourceProfile from "../models/MamaResourceProfile";
+import MamaResourceTask from "../models/MamaResourceTask";
 import MamaResourceTaskAssignment from "../models/MamaResourceTaskAssignment";
 import User from "../models/User";
 import { authenticate, AuthenticatedRequest } from "../middlewares/auth";
@@ -59,6 +60,26 @@ function asOptionalNumber(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function normalizePhoneDigits(value: unknown): string {
+  const digits = asText(value).replace(/\D/g, "");
+  if (digits.startsWith("0086") && digits.length === 15) return digits.slice(4);
+  if (digits.startsWith("86") && digits.length === 13) return digits.slice(2);
+  return digits;
+}
+
+function contactPhoneQuery(value: unknown) {
+  const raw = asText(value);
+  const digits = normalizePhoneDigits(raw);
+  if (!digits) return { contactPhone: raw };
+  const digitPattern = digits.split("").join("\\D*");
+  return {
+    $or: [
+      { contactPhone: raw },
+      { contactPhone: new RegExp(`^\\D*(?:86\\D*)?${digitPattern}\\D*$`) },
+    ],
+  };
+}
+
 function asOptionalBoolean(value: unknown): boolean | null {
   if (value === undefined || value === null || value === "") return null;
   if (value === true || value === false) return value;
@@ -66,6 +87,13 @@ function asOptionalBoolean(value: unknown): boolean | null {
   if (["true", "1", "yes", "已实名"].includes(text)) return true;
   if (["false", "0", "no", "未实名"].includes(text)) return false;
   return null;
+}
+
+const mediaPlatformSet = new Set(["xiaohongshu", "douyin", "shipinhao", "gongzhonghao", "other"]);
+
+function normalizeMediaPlatform(value: unknown): string {
+  const platform = asText(value).toLowerCase();
+  return mediaPlatformSet.has(platform) ? platform : "xiaohongshu";
 }
 
 function normalizeXiaohongshuProfileUrl(value: unknown): { profileUrl: string; normalizedProfileUrl: string } {
@@ -88,6 +116,49 @@ function normalizeXiaohongshuProfileUrl(value: unknown): { profileUrl: string; n
   }
 }
 
+function normalizeGenericProfileUrl(platform: string, value: unknown): { profileUrl: string; normalizedProfileUrl: string } {
+  const profileUrl = asText(value);
+  if (!profileUrl) return { profileUrl: "", normalizedProfileUrl: "" };
+  return {
+    profileUrl,
+    normalizedProfileUrl: `${platform}:${profileUrl.toLowerCase()}`,
+  };
+}
+
+function normalizeMediaAccount(value: unknown) {
+  const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const platform = normalizeMediaPlatform(source.platform);
+  const account = platform === "xiaohongshu"
+    ? normalizeXiaohongshuProfileUrl(source.profileUrl || source.xiaohongshuProfileUrl)
+    : normalizeGenericProfileUrl(platform, source.profileUrl);
+  return {
+    platform,
+    profileUrl: account.profileUrl,
+    normalizedProfileUrl: account.normalizedProfileUrl,
+    nickname: asText(source.nickname),
+    followerCount: asOptionalNumber(source.followerCount),
+    screenshotUrl: asText(source.screenshotUrl || source.xiaohongshuScreenshotUrl),
+    realNameVerified: asOptionalBoolean(source.realNameVerified),
+    dataSource: asText(source.screenshotUrl || source.xiaohongshuScreenshotUrl) ? "screenshot" : "pending",
+  };
+}
+
+function mediaAccountsFromBody(body: any) {
+  const bodyAccounts = Array.isArray(body?.mediaAccounts) ? body.mediaAccounts : [];
+  const accounts = bodyAccounts
+    .map(normalizeMediaAccount)
+    .filter((account) => account.profileUrl && account.normalizedProfileUrl);
+  if (accounts.length) return accounts;
+  const legacyAccount = normalizeMediaAccount({
+    platform: "xiaohongshu",
+    profileUrl: body?.xiaohongshuProfileUrl || body?.profileUrl,
+    screenshotUrl: body?.xiaohongshuScreenshotUrl || body?.screenshotUrl,
+    followerCount: body?.followerCount,
+    realNameVerified: body?.realNameVerified,
+  });
+  return legacyAccount.profileUrl && legacyAccount.normalizedProfileUrl ? [legacyAccount] : [];
+}
+
 function publicProfilePayload(profile: any) {
   const source = typeof profile.toObject === "function" ? profile.toObject() : profile;
   return {
@@ -97,6 +168,7 @@ function publicProfilePayload(profile: any) {
 }
 
 const activePromotionStatuses = ["assigned", "submitted"];
+const claimSlotStatuses = ["assigned", "submitted", "collected"];
 
 function assignmentTaskId(assignment: any) {
   const source = typeof assignment?.toObject === "function" ? assignment.toObject() : assignment;
@@ -106,12 +178,17 @@ function assignmentTaskId(assignment: any) {
 
 async function getActivePromotionCounts(assignments: any[]) {
   const taskIds = assignments.map(assignmentTaskId).filter(Boolean);
-  if (!taskIds.length) return new Map<string, number>();
+  return getAssignmentCountsForTaskIds(taskIds, activePromotionStatuses);
+}
+
+async function getAssignmentCountsForTaskIds(taskIds: any[], statuses: string[]) {
+  const ids = taskIds.filter(Boolean);
+  if (!ids.length) return new Map<string, number>();
   const rows = await MamaResourceTaskAssignment.aggregate([
     {
       $match: {
-        taskId: { $in: taskIds },
-        status: { $in: activePromotionStatuses },
+        taskId: { $in: ids },
+        status: { $in: statuses },
       },
     },
     { $group: { _id: "$taskId", count: { $sum: 1 } } },
@@ -119,10 +196,43 @@ async function getActivePromotionCounts(assignments: any[]) {
   return new Map(rows.map((row) => [String(row._id), Number(row.count || 0)]));
 }
 
-function publicTaskPayload(assignment: any, activePromotionCounts?: Map<string, number>) {
+async function getClaimCountsForTaskIds(taskIds: any[]) {
+  return getAssignmentCountsForTaskIds(taskIds, claimSlotStatuses);
+}
+
+function claimInfoForTask(task: any, taskId: string, claimCounts?: Map<string, number>) {
+  const claimLimit = task?.claimLimit === undefined || task?.claimLimit === null ? null : Number(task.claimLimit);
+  const claimedCount = Number(claimCounts?.get(taskId) || 0);
+  const remainingClaimCount = claimLimit === null || !Number.isFinite(claimLimit) || claimLimit <= 0
+    ? null
+    : Math.max(0, Math.floor(claimLimit) - claimedCount);
+  return {
+    claimLimit: claimLimit === null || !Number.isFinite(claimLimit) ? null : Math.floor(claimLimit),
+    claimedCount,
+    remainingClaimCount,
+  };
+}
+
+function publicAvailableTaskPayload(task: any, claimCounts?: Map<string, number>, activePromotionCounts?: Map<string, number>) {
+  const source = typeof task.toObject === "function" ? task.toObject() : task;
+  const taskId = String(source._id);
+  const claimInfo = claimInfoForTask(source, taskId, claimCounts);
+  return {
+    ...source,
+    _id: taskId,
+    taskId,
+    status: "listed",
+    activePromotionCount: activePromotionCounts?.get(taskId) || 0,
+    ...claimInfo,
+    claimable: claimInfo.remainingClaimCount === null || claimInfo.remainingClaimCount > 0,
+  };
+}
+
+function publicTaskPayload(assignment: any, activePromotionCounts?: Map<string, number>, claimCounts?: Map<string, number>) {
   const source = typeof assignment.toObject === "function" ? assignment.toObject() : assignment;
   const task = source.taskId && typeof source.taskId === "object" ? source.taskId : {};
   const taskId = String(task._id || source.taskId);
+  const claimInfo = claimInfoForTask(task, taskId, claimCounts);
   return {
     ...task,
     status: source.status,
@@ -135,6 +245,8 @@ function publicTaskPayload(assignment: any, activePromotionCounts?: Map<string, 
     taskId,
     profileId: String(source.profileId),
     activePromotionCount: activePromotionCounts?.get(taskId) || 0,
+    ...claimInfo,
+    claimable: false,
   };
 }
 
@@ -142,7 +254,10 @@ async function findProfileForUser(userId: string) {
   const user = await User.findById(userId).select("mobile").lean();
   const mobile = asText(user?.mobile);
   if (!mobile) return null;
-  return MamaResourceProfile.findOne({ contactPhone: mobile }).sort({ updatedAt: -1 });
+  const phoneFilter = contactPhoneQuery(mobile);
+  const approvedProfile = await MamaResourceProfile.findOne({ $and: [phoneFilter, { status: "approved" }] }).sort({ updatedAt: -1 });
+  if (approvedProfile) return approvedProfile;
+  return MamaResourceProfile.findOne(phoneFilter).sort({ updatedAt: -1 });
 }
 
 async function findApprovedProfileForUser(userId: string) {
@@ -154,24 +269,86 @@ router.get("/me/tasks", authenticate, async (req: AuthenticatedRequest, res: Res
   try {
     const profile = await findProfileForUser(asText(req.user?.id));
     if (!profile) {
-      res.json({ profile: null, tasks: [] });
+      res.json({ profile: null, tasks: [], availableTasks: [] });
       return;
     }
     if (profile.status !== "approved") {
-      res.json({ profile: publicProfilePayload(profile), tasks: [] });
+      res.json({ profile: publicProfilePayload(profile), tasks: [], availableTasks: [] });
       return;
     }
     const tasks = await MamaResourceTaskAssignment.find({ profileId: profile._id })
       .populate("taskId")
       .sort({ updatedAt: -1 })
       .lean();
+    const assignedTaskIds = tasks.map(assignmentTaskId).filter(Boolean);
+    const availableTasks = await MamaResourceTask.find({
+      status: "listed",
+      ...(assignedTaskIds.length ? { _id: { $nin: assignedTaskIds } } : {}),
+    })
+      .sort({ updatedAt: -1 })
+      .lean();
     const activePromotionCounts = await getActivePromotionCounts(tasks);
+    const allTaskIds = assignedTaskIds.concat(availableTasks.map((task: any) => task._id));
+    const availableActivePromotionCounts = await getAssignmentCountsForTaskIds(allTaskIds, activePromotionStatuses);
+    const claimCounts = await getClaimCountsForTaskIds(allTaskIds);
     res.json({
       profile: publicProfilePayload(profile),
-      tasks: tasks.map((task) => publicTaskPayload(task, activePromotionCounts)),
+      tasks: tasks.map((task) => publicTaskPayload(task, activePromotionCounts, claimCounts)),
+      availableTasks: availableTasks
+        .map((task) => publicAvailableTaskPayload(task, claimCounts, availableActivePromotionCounts))
+        .filter((task) => task.claimable),
     });
   } catch (error: any) {
     res.status(500).json({ message: error?.message || "获取妈妈好赚任务失败" });
+  }
+});
+
+router.post("/tasks/:taskId/claims", authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const profile = await findApprovedProfileForUser(asText(req.user?.id));
+    if (!profile) {
+      res.status(404).json({ message: "还没有可派单的妈妈好赚账号" });
+      return;
+    }
+    const taskId = asText(req.params.taskId);
+    const task = await MamaResourceTask.findOne({ _id: taskId, status: "listed" });
+    if (!task) {
+      res.status(404).json({ message: "任务不存在或暂不可领取" });
+      return;
+    }
+    const existingAssignment = await MamaResourceTaskAssignment.findOne({ taskId: task._id, profileId: profile._id }).populate("taskId");
+    if (existingAssignment) {
+      const activePromotionCounts = await getActivePromotionCounts([existingAssignment]);
+      const claimCounts = await getClaimCountsForTaskIds([task._id]);
+      res.json({ task: publicTaskPayload(existingAssignment, activePromotionCounts, claimCounts) });
+      return;
+    }
+
+    const claimLimit = task.claimLimit === undefined || task.claimLimit === null ? null : Number(task.claimLimit);
+    const claimedCount = await MamaResourceTaskAssignment.countDocuments({
+      taskId: task._id,
+      status: { $in: claimSlotStatuses },
+    });
+    if (claimLimit !== null && Number.isFinite(claimLimit) && claimLimit > 0 && claimedCount >= claimLimit) {
+      res.status(409).json({ message: "任务名额已被领完" });
+      return;
+    }
+
+    const assignment = await MamaResourceTaskAssignment.create({
+      taskId: task._id,
+      profileId: profile._id,
+      status: "assigned",
+    });
+    const populatedAssignment = await MamaResourceTaskAssignment.findById(assignment._id).populate("taskId");
+    const activePromotionCounts = await getActivePromotionCounts(populatedAssignment ? [populatedAssignment] : []);
+    const claimCounts = await getClaimCountsForTaskIds([task._id]);
+    res.status(201).json({ task: publicTaskPayload(populatedAssignment || assignment, activePromotionCounts, claimCounts) });
+  } catch (error: any) {
+    if (error?.code === 11000) {
+      res.status(409).json({ message: "你已领取过该任务" });
+      return;
+    }
+    res.status(400).json({ message: error?.message || "领取任务失败" });
   }
 });
 
@@ -252,10 +429,8 @@ router.post("/applications", async (req: Request, res: Response) => {
     const contactPhone = asText(req.body?.contactPhone);
     const contactWechat = asText(req.body?.contactWechat);
     const consentAccepted = req.body?.consentAccepted === true;
-    const account = normalizeXiaohongshuProfileUrl(req.body?.xiaohongshuProfileUrl || req.body?.profileUrl);
-    const followerCount = asOptionalNumber(req.body?.followerCount);
-    const screenshotUrl = asText(req.body?.xiaohongshuScreenshotUrl || req.body?.screenshotUrl);
-    const realNameVerified = asOptionalBoolean(req.body?.realNameVerified);
+    const mediaAccounts = mediaAccountsFromBody(req.body);
+    const primaryXiaohongshuAccount = mediaAccounts.find((account) => account.platform === "xiaohongshu");
 
     if (!displayName) {
       res.status(400).json({ message: "请填写姓名或昵称" });
@@ -265,7 +440,7 @@ router.post("/applications", async (req: Request, res: Response) => {
       res.status(400).json({ message: "请填写微信号" });
       return;
     }
-    if (!account.normalizedProfileUrl) {
+    if (!primaryXiaohongshuAccount) {
       res.status(400).json({ message: "请填写有效的小红书主页链接" });
       return;
     }
@@ -274,8 +449,17 @@ router.post("/applications", async (req: Request, res: Response) => {
       return;
     }
 
+    const normalizedProfileUrls = mediaAccounts.map((account) => account.normalizedProfileUrl).filter(Boolean);
+    if (new Set(normalizedProfileUrls).size !== normalizedProfileUrls.length) {
+      res.status(400).json({ message: "同一个媒体账号不能重复提交" });
+      return;
+    }
+
     const existing = await MamaResourceProfile.findOne({
-      "socialAccount.normalizedProfileUrl": account.normalizedProfileUrl,
+      $or: [
+        { "socialAccount.normalizedProfileUrl": { $in: normalizedProfileUrls } },
+        { "mediaAccounts.normalizedProfileUrl": { $in: normalizedProfileUrls } },
+      ],
     }).lean();
     if (existing) {
       res.status(409).json({
@@ -298,13 +482,15 @@ router.post("/applications", async (req: Request, res: Response) => {
       consentAccepted,
       socialAccount: {
         platform: "xiaohongshu",
-        profileUrl: account.profileUrl,
-        normalizedProfileUrl: account.normalizedProfileUrl,
-        followerCount,
-        screenshotUrl,
-        realNameVerified,
-        dataSource: screenshotUrl ? "screenshot" : "pending",
+        profileUrl: primaryXiaohongshuAccount.profileUrl,
+        normalizedProfileUrl: primaryXiaohongshuAccount.normalizedProfileUrl,
+        nickname: primaryXiaohongshuAccount.nickname,
+        followerCount: primaryXiaohongshuAccount.followerCount,
+        screenshotUrl: primaryXiaohongshuAccount.screenshotUrl,
+        realNameVerified: primaryXiaohongshuAccount.realNameVerified,
+        dataSource: primaryXiaohongshuAccount.dataSource,
       },
+      mediaAccounts,
       rateCard: {
         acceptsGiftExchange: req.body?.acceptsGiftExchange === true,
         blockedCategories: asTextArray(req.body?.blockedCategories),

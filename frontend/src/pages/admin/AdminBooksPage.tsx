@@ -95,7 +95,7 @@ function toMetadataForm(book: Book | null): MetadataFormData {
     publisher: detail?.publisher || book?.publisher || '',
     isbn: detail?.isbn || book?.isbn || '',
     cover: detail?.cover || book?.metadataCover || book?.coverImage || '',
-    description: detail?.description || '',
+    description: detail?.description || book?.description || '',
     source: detail?.source || '',
     sourceId: detail?.sourceId || '',
     rating: detail?.rating === null || detail?.rating === undefined ? '' : String(detail.rating),
@@ -124,6 +124,7 @@ const AdminBooksPage: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [editingBook, setEditingBook] = useState<Book | null>(null);
+  const [coverUploading, setCoverUploading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [importRows, setImportRows] = useState<ImportRow[]>([]);
   const [importFileName, setImportFileName] = useState('');
@@ -184,7 +185,7 @@ const AdminBooksPage: React.FC = () => {
       setBooks(response.data);
       setCurrentPage(1);
     } catch (error) {
-      console.error('获取书单列表失败:', error);
+      console.error('获取图书列表失败:', error);
     } finally {
       setLoading(false);
     }
@@ -319,22 +320,25 @@ const AdminBooksPage: React.FC = () => {
       if (editingBook) {
         await adminApi.updateBook(editingBook._id, formData);
         const metadataId = editingBook.metadataDetail?._id || editingBook.metadataId || '';
+        const metadataPayload = {
+          title: metadataFormData.title.trim() || formData.title,
+          author: metadataFormData.author.trim() || formData.author,
+          publisher: metadataFormData.publisher.trim() || formData.publisher,
+          isbn: metadataFormData.isbn.trim(),
+          cover: metadataFormData.cover.trim() || formData.coverImage.trim(),
+          description: metadataFormData.description.trim(),
+          source: metadataFormData.source.trim(),
+          sourceId: metadataFormData.sourceId.trim(),
+          rating: parseOptionalNumber(metadataFormData.rating),
+          ratingCount: parseOptionalNumber(metadataFormData.ratingCount),
+          ratingLabel: metadataFormData.ratingLabel.trim(),
+          status: metadataFormData.status,
+          reviewNote: metadataFormData.reviewNote.trim() || '后台编辑详情',
+        };
         if (metadataId) {
-          await adminApi.reviewBookMetadata(metadataId, {
-            title: metadataFormData.title.trim() || formData.title,
-            author: metadataFormData.author.trim() || formData.author,
-            publisher: metadataFormData.publisher.trim() || formData.publisher,
-            isbn: metadataFormData.isbn.trim(),
-            cover: metadataFormData.cover.trim(),
-            description: metadataFormData.description.trim(),
-            source: metadataFormData.source.trim(),
-            sourceId: metadataFormData.sourceId.trim(),
-            rating: parseOptionalNumber(metadataFormData.rating),
-            ratingCount: parseOptionalNumber(metadataFormData.ratingCount),
-            ratingLabel: metadataFormData.ratingLabel.trim(),
-            status: metadataFormData.status,
-            reviewNote: metadataFormData.reviewNote.trim() || '后台编辑详情',
-          });
+          await adminApi.reviewBookMetadata(metadataId, metadataPayload);
+        } else {
+          await adminApi.upsertBookMetadata(editingBook._id, metadataPayload);
         }
       } else {
         await adminApi.createBook(formData);
@@ -342,13 +346,13 @@ const AdminBooksPage: React.FC = () => {
       setShowModal(false);
       await Promise.all([fetchBooks(), fetchMetadataRows()]);
     } catch (error) {
-      console.error('保存失败:', error);
-      alert('保存失败，请重试');
+      console.error('图书保存失败:', error);
+      alert('图书保存失败，请重试');
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('确定要删除这个书单吗？')) return;
+    if (!confirm('确定要删除这本图书吗？')) return;
     try {
       await adminApi.deleteBook(id);
       fetchBooks();
@@ -366,6 +370,25 @@ const AdminBooksPage: React.FC = () => {
     } catch (error) {
       console.error('状态更新失败:', error);
       alert('状态更新失败');
+    }
+  };
+
+  const handleCoverImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (coverUploading) return;
+    setCoverUploading(true);
+    try {
+      const response = await adminApi.uploadAdminImage(file);
+      if (!response.data.url) throw new Error('未返回图片 URL');
+      setFormData((current) => ({ ...current, coverImage: response.data.url }));
+      setMetadataFormData((current) => ({ ...current, cover: response.data.url }));
+    } catch (error: any) {
+      console.error('封面上传失败:', error);
+      alert(error?.response?.data?.message || error?.message || '封面上传失败');
+    } finally {
+      setCoverUploading(false);
+      event.target.value = '';
     }
   };
 
@@ -521,8 +544,6 @@ const AdminBooksPage: React.FC = () => {
     return v.name || v._id;
   };
 
-  const editingMetadataId = editingBook?.metadataDetail?._id || editingBook?.metadataId || '';
-
   return (
     <div className="space-y-8">
       <div className="admin-toolbar">
@@ -530,26 +551,7 @@ const AdminBooksPage: React.FC = () => {
         <div className="flex items-center gap-3">
           <button
             onClick={async () => {
-              const wxCount = books.filter(b => b.coverImage && /wxapp\.tc\.qq\.com|store\.mp\.video\.tencent-cloud/.test(b.coverImage) && b.status === 'draft').length;
-              if (wxCount === 0) { alert('没有封面正确且处于草稿状态的书'); return; }
-              if (!confirm(`确定批量发布 ${wxCount} 本封面正确的草稿书吗？`)) return;
-              try {
-                const res = await adminApi.batchPublishBooks({ filter: 'with_wx_cover' });
-                await fetchBooks();
-                alert(`批量发布完成：${res.data.modified} 本已发布`);
-              } catch (error) {
-                console.error('批量发布失败:', error);
-                alert('批量发布失败');
-              }
-            }}
-            className="admin-pill-btn admin-pill-btn-secondary"
-          >
-            <span className="material-symbols-outlined text-base">rocket_launch</span>
-            批量发布封面正确的书
-          </button>
-          <button
-            onClick={async () => {
-              if (!confirm(`确定清空全部 ${books.length} 条书单吗？此操作不可恢复。`)) return;
+              if (!confirm(`确定清空全部 ${books.length} 本图书吗？此操作不可恢复。`)) return;
               try {
                 const all = await adminApi.getBooks();
                 const rows = Array.isArray(all.data) ? all.data : [];
@@ -557,30 +559,30 @@ const AdminBooksPage: React.FC = () => {
                   await adminApi.deleteBook(row._id);
                 }
                 await fetchBooks();
-                alert(`已清空 ${rows.length} 条书单`);
+                alert(`已清空 ${rows.length} 本图书`);
               } catch (error) {
-                console.error('清空书单失败:', error);
+                console.error('清空图书失败:', error);
                 alert('清空失败，请重试');
               }
             }}
             className="admin-pill-btn"
           >
             <span className="material-symbols-outlined text-base">delete_sweep</span>
-            清空书单
+            清空图书
           </button>
           <button
             onClick={() => setShowImportModal(true)}
             className="admin-pill-btn admin-pill-btn-secondary"
           >
             <span className="material-symbols-outlined text-base">upload_file</span>
-            导入书单
+            导入图书
           </button>
           <button
             onClick={handleCreate}
             className="admin-pill-btn admin-pill-btn-primary"
           >
             <span className="material-symbols-outlined text-base">add_circle</span>
-            新增书单
+            新增图书
           </button>
         </div>
       </div>
@@ -593,7 +595,7 @@ const AdminBooksPage: React.FC = () => {
             </div>
             <div>
               <p className="text-2xl font-black">{books.length}</p>
-              <p className="text-xs text-stone-400">总书单数</p>
+              <p className="text-xs text-stone-400">总图书数</p>
             </div>
           </div>
         </div>
@@ -735,7 +737,7 @@ const AdminBooksPage: React.FC = () => {
             <table className="w-full text-left">
               <thead className="bg-stone-50/50 text-stone-500 uppercase text-[10px] font-black tracking-[0.2em]">
                 <tr>
-                  <th className="px-6 py-4">书单信息</th>
+                  <th className="px-6 py-4">图书信息</th>
                   <th className="px-6 py-4">著作者</th>
                   <th className="px-6 py-4">出版社/年级</th>
                   <th className="px-6 py-4">微信小店</th>
@@ -840,7 +842,7 @@ const AdminBooksPage: React.FC = () => {
             {books.length === 0 && (
               <div className="text-center py-16 text-stone-400">
                 <span className="material-symbols-outlined text-6xl mb-4">inbox</span>
-                <p>暂无书单</p>
+                <p>暂无图书</p>
               </div>
             )}
             {books.length > 0 && (
@@ -875,7 +877,7 @@ const AdminBooksPage: React.FC = () => {
           <div className="bg-white rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="p-8 space-y-5">
               <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-black text-stone-900">导入书单</h2>
+                <h2 className="text-2xl font-black text-stone-900">导入图书</h2>
                 <button onClick={() => setShowImportModal(false)} className="p-2 rounded-lg hover:bg-stone-100 text-stone-400">
                   <span className="material-symbols-outlined">close</span>
                 </button>
@@ -956,7 +958,7 @@ const AdminBooksPage: React.FC = () => {
             <div className="p-8">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-black text-stone-900">
-                  {editingBook ? '编辑书单' : '新建书单'}
+                  {editingBook ? '编辑图书' : '新建图书'}
                 </h2>
                 <button
                   onClick={() => setShowModal(false)}
@@ -1090,19 +1092,59 @@ const AdminBooksPage: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#5E8B8E] mb-3">
-                    封面图片 URL
+                    封面配图
                   </label>
-                  <input
-                    type="url"
-                    value={formData.coverImage}
-                    onChange={(e) => setFormData({ ...formData, coverImage: e.target.value })}
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl py-3 px-4 text-sm focus:ring-4 focus:ring-[#5e17eb]/5 focus:border-[#5e17eb] outline-none"
-                    placeholder="https://..."
-                  />
+                  <div className="rounded-2xl border border-stone-200 bg-stone-50/60 p-4">
+                    <div className="flex items-center gap-4">
+                      {formData.coverImage ? (
+                        <img
+                          src={formData.coverImage}
+                          alt="封面预览"
+                          className="h-20 w-16 shrink-0 rounded-xl border border-stone-200 bg-white object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-20 w-16 shrink-0 items-center justify-center rounded-xl border border-dashed border-stone-300 bg-white text-stone-300">
+                          <span className="material-symbols-outlined">menu_book</span>
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1 space-y-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <label className={`inline-flex cursor-pointer items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-white transition ${coverUploading ? 'bg-[#5e17eb] opacity-60' : 'bg-[#5e17eb] hover:bg-[#4a12c0]'}`}>
+                            <span className="material-symbols-outlined text-base">upload_file</span>
+                            {coverUploading ? '上传中...' : '上传封面'}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              disabled={coverUploading}
+                              onChange={handleCoverImageUpload}
+                            />
+                          </label>
+                          {formData.coverImage ? (
+                            <button
+                              type="button"
+                              onClick={() => setFormData({ ...formData, coverImage: '' })}
+                              className="rounded-xl border border-stone-200 px-3 py-2 text-xs font-bold text-stone-500 hover:bg-white hover:text-red-500"
+                              disabled={coverUploading}
+                            >
+                              移除封面
+                            </button>
+                          ) : null}
+                        </div>
+                        <input
+                          type="url"
+                          value={formData.coverImage}
+                          onChange={(e) => setFormData({ ...formData, coverImage: e.target.value })}
+                          className="w-full bg-white border border-stone-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[#5e17eb]/10 focus:border-[#5e17eb]"
+                          placeholder="或手动填入封面图片 URL"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#E88B2C] mb-3">
-                    📚 书单名称 (sourceName)
+                    📚 图书来源 (sourceName)
                   </label>
                   <input
                     type="text"
@@ -1133,7 +1175,6 @@ const AdminBooksPage: React.FC = () => {
                   </p>
                 </div>
                 {editingBook ? (
-                  editingMetadataId ? (
                     <div className="space-y-4 rounded-2xl border border-violet-100 bg-violet-50/30 p-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div>
@@ -1268,14 +1309,9 @@ const AdminBooksPage: React.FC = () => {
                         />
                       </div>
                     </div>
-                  ) : (
-                    <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-500">
-                      这本书暂无详情记录；当前弹窗只编辑基础书单字段。
-                    </div>
-                  )
                 ) : (
                   <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-500">
-                    新建书单后，详情内容会在匹配或导入后进入这里维护。
+                    新建图书后，详情内容会在匹配或导入后进入这里维护。
                   </div>
                 )}
                 {/* ===== 微信小店字段 ===== */}
@@ -1392,7 +1428,7 @@ const AdminBooksPage: React.FC = () => {
                     className="w-full bg-stone-50 border border-stone-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[#5e17eb]/10 focus:border-[#5e17eb]"
                     placeholder="#小程序://快团团/点击查看/pprMtoZCLfpeMFl"
                   />
-                  <p className="mt-1 text-[10px] text-stone-400">可选；手动创建书单时填写，有短链的小程序商品可用于图片或按钮点击跳转购买。</p>
+                  <p className="mt-1 text-[10px] text-stone-400">可选；手动创建图书时填写，有短链的小程序商品可用于图片或按钮点击跳转购买。</p>
                 </div>
                 <div>
                   <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#5E8B8E] mb-3">
@@ -1417,6 +1453,7 @@ const AdminBooksPage: React.FC = () => {
                   </button>
                   <button
                     type="submit"
+                    disabled={coverUploading}
                     className="flex-1 py-3 rounded-xl bg-[#5e17eb] text-white font-bold text-sm hover:bg-[#5e17eb]/90 transition-colors"
                   >
                     保存

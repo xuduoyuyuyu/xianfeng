@@ -26,10 +26,11 @@ function smartBackHome() {
   switchProgramsHome();
 }
 
-function openNativeSearch(query) {
+function openNativeSearch(query, options) {
   const keyword = String(query || "").trim();
+  const params = encodeOptions({ q: keyword, ...(options || {}) });
   wx.navigateTo({
-    url: `/pages/search/index${keyword ? `?q=${encodeURIComponent(keyword)}` : ""}`
+    url: `/pages/search/index${params}`
   });
 }
 
@@ -75,6 +76,16 @@ function openNativeRoute(_page, detail) {
     return;
   }
   if (!detail.path) return;
+  const path = String(detail.path || "");
+  if (path === "/worthbuy") {
+    wx.navigateTo({ url: "/pages/worthbuy/index" });
+    return;
+  }
+  const worthBuyMatch = path.match(/^\/worthbuy\/(.+)$/);
+  if (worthBuyMatch) {
+    wx.navigateTo({ url: `/pages/worthbuy-detail/index?query=${encodeURIComponent(decodeURIComponent(worthBuyMatch[1]))}` });
+    return;
+  }
   openWeb(detail.path, detail.text || "家长先疯");
 }
 

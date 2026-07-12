@@ -9,7 +9,7 @@ const { SETTINGS_SECTIONS, applyFontSizeSetting, createNativeSettingsMethods, re
 const { getInitialSearchPrompt, startSearchPromptRotation, stopSearchPromptRotation } = require("../../utils/searchPrompts");
 const { createFilterDrawerMethods } = require("../../utils/filterDrawer");
 
-const PROGRAM_CACHE_KEY = "xf_native_programs_cache";
+const PROGRAM_CACHE_KEY = "xf_native_programs_cache_v2";
 const PROGRAM_VIEW_MODE_KEY = "xf_native_programs_view_mode";
 const PROGRAM_PAGE_SIZE = 20;
 const PROGRAM_FILTER_PAGE_SIZE = 100;
@@ -63,22 +63,22 @@ function findOption(options, value) {
   return options.find((item) => item.value === target) || null;
 }
 
+function findProgramShowOption(value) {
+  const target = String(value || "").trim();
+  if (!target) return null;
+  return PROGRAM_SHOW_OPTIONS.find((item) => item.value === target || item.label === target) || null;
+}
+
 function inferProgramShow(program) {
   const item = program || {};
-  const summary = item.summary || {};
-  const explicit = findOption(PROGRAM_SHOW_OPTIONS, item.programShow);
+  const explicit = findProgramShowOption(item.programShow);
   if (explicit) return { label: explicit.label, value: explicit.value, tone: explicit.value };
   const textParts = [
     item.showName,
     item.show,
     item.programShow,
     item.channel,
-    item.programSeries,
-    item.title,
-    item.description,
-    item.coverImage,
-    summary.headline,
-    Array.isArray(summary.tags) ? summary.tags.join(" ") : ""
+    item.programSeries
   ];
   const source = textParts.map((value) => String(value || "").toLowerCase()).join(" ");
   const isZhiji = source.indexOf("中年知己") >= 0 || source.indexOf("zhiji") >= 0 || source.indexOf("middle") >= 0;
@@ -183,8 +183,8 @@ function buildProgramFilterLabel(show, status, tags) {
   const showOption = findOption(PROGRAM_SHOW_OPTIONS, show);
   const statusOption = findOption(PROGRAM_STATUS_OPTIONS, status);
   const tagLabel = buildProgramTagLabel(tags);
-  if (showOption) parts.push(showOption.label);
-  if (statusOption) parts.push(statusOption.label);
+  if (showOption) parts.push(`节目：${showOption.label}`);
+  if (statusOption) parts.push(`范围：${statusOption.label}`);
   if (tagLabel) parts.push(tagLabel);
   return parts.join("、");
 }
@@ -639,14 +639,34 @@ Page({
   },
 
   openFilterDrawer() {
-    this.syncProgramFilterDraft({
+    const filters = {
       show: this.data.activeProgramShow,
       status: this.data.activeProgramStatus,
       tags: getSelectedProgramTags(this.data)
-    });
-    setSettingsTabbarHidden(this, true);
-    programFilterDrawerMethods.openFilterDrawer.call(this);
-    return this.loadProgramFilterSource().catch(() => {
+    };
+    const openDrawer = () => {
+      this.syncProgramFilterDraft(filters);
+      setSettingsTabbarHidden(this, true);
+      programFilterDrawerMethods.openFilterDrawer.call(this);
+    };
+
+    if (!this.data.filterSourceLoaded) {
+      this.setData({
+        draftProgramTags: normalizeFilterTags(filters.tags),
+        draftProgramShow: String(filters.show || "").trim(),
+        draftProgramStatus: String(filters.status || "").trim()
+      });
+      return this.loadProgramFilterSource().then((programs) => {
+        openDrawer();
+        return programs;
+      }).catch(() => {
+        wx.showToast({ title: "筛选内容加载失败", icon: "none" });
+        return [];
+      });
+    }
+
+    openDrawer();
+    return Promise.resolve(this.getProgramFilterSource()).catch(() => {
       wx.showToast({ title: "筛选内容加载失败", icon: "none" });
       return [];
     });

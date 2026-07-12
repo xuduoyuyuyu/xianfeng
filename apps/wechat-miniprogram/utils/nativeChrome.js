@@ -8,20 +8,30 @@ function getSafeBottom() {
   return Math.max(0, Math.min(40, Math.round(screenHeight - safeBottom)));
 }
 
+function getStatusBarHeight(windowInfo) {
+  const statusBarHeight = Number(windowInfo.statusBarHeight || 0);
+  if (statusBarHeight > 0) return statusBarHeight;
+  const safeTop = Number(windowInfo.safeArea && windowInfo.safeArea.top || 0);
+  return safeTop > 0 ? safeTop : 0;
+}
+
 function getNativeTopbarMetrics() {
   const windowInfo = wx.getWindowInfo ? wx.getWindowInfo() : {};
   const menuButton = wx.getMenuButtonBoundingClientRect ? wx.getMenuButtonBoundingClientRect() : null;
-  const statusBarHeight = windowInfo.statusBarHeight || 0;
+  const statusBarHeight = getStatusBarHeight(windowInfo);
   const menuButtonHeight = menuButton && menuButton.height ? Number(menuButton.height) : 32;
-  const contentHeight = menuButton && menuButton.height
-    ? menuButtonHeight + (menuButton.top - statusBarHeight) * 2
+  const menuButtonTop = menuButton && Number.isFinite(Number(menuButton.top)) && Number(menuButton.top) >= statusBarHeight
+    ? Number(menuButton.top)
+    : null;
+  const contentHeight = menuButtonTop !== null
+    ? menuButtonHeight + (menuButtonTop - statusBarHeight) * 2
     : 48;
   const topbarHeight = statusBarHeight + contentHeight;
   const capsuleRight = windowInfo.windowWidth && menuButton && menuButton.left
     ? Math.max(windowInfo.windowWidth - menuButton.left + 8, 96)
     : 96;
-  const searchButtonTop = menuButton && Number.isFinite(Number(menuButton.top))
-    ? Math.round(Number(menuButton.top))
+  const searchButtonTop = menuButtonTop !== null
+    ? Math.round(menuButtonTop)
     : Math.max(8, Math.round(statusBarHeight + Math.max(0, contentHeight - 32) / 2));
 
   return {

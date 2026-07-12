@@ -54,4 +54,17 @@ describe("public guest list visibility", () => {
       "guest program counts should only include published programs"
     );
   });
+
+  it("returns every published program on the guest detail page", () => {
+    const detailStart = source.indexOf("async getByIdPublic");
+    const detailEnd = source.indexOf("// POST /api/guests/:id/submit-wish");
+    const detailSource = source.slice(detailStart, detailEnd);
+
+    assert.match(detailSource, /relatedPrograms: relatedPrograms\.map\(serializeProgramCard\)/);
+    assert.doesNotMatch(
+      detailSource,
+      /\.limit\(12\)/,
+      "guest detail should not truncate participated programs before the client can render them"
+    );
+  });
 });

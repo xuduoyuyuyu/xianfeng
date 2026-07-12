@@ -8,6 +8,7 @@ const { SETTINGS_SECTIONS, createNativeSettingsMethods } = require("../../utils/
 const { DEFAULT_SEARCH_PROMPTS, getInitialSearchPrompt, startSearchPromptRotation, stopSearchPromptRotation } = require("../../utils/searchPrompts");
 
 const SEARCH_HISTORY_KEY = "xf_native_search_history";
+const READING_PENDING_FILTER_KEY = "xf_reading_pending_filter_v1";
 const SEARCH_PAGE_SIZE = 80;
 const LOGO_HEIGHT_RPX = 56;
 const GUEST_FALLBACK_AVATAR = "/assets/wel-avatar/no-hat.png";
@@ -76,6 +77,29 @@ function safeTags(raw, limit) {
   return text.split(/[|｜,，;；\n]+/).map((item) => item.trim()).filter(Boolean).slice(0, max);
 }
 
+function normalizeSearchOption(value) {
+  const source = String(value || "").trim();
+  if (!source) return "";
+  try {
+    return decodeURIComponent(source);
+  } catch (_error) {
+    return source;
+  }
+}
+
+function openMiniProgramShortLink(value) {
+  const shortLink = String(value || "").trim();
+  if (!/^#小程序:\/\//u.test(shortLink) || typeof wx.navigateToMiniProgram !== "function") return false;
+  wx.navigateToMiniProgram({
+    shortLink,
+    fail(error) {
+      if (/cancel/i.test(String(error && error.errMsg || ""))) return;
+      wx.showToast({ title: "暂时无法打开，请稍后重试", icon: "none" });
+    }
+  });
+  return true;
+}
+
 function normalizeResult(type, item) {
   const meta = TYPE_META[type] || { label: "内容", icon: "搜" };
   const tags = Array.isArray(item.tags) ? item.tags : [];
@@ -95,6 +119,7 @@ function normalizeResult(type, item) {
     path: item.path || "",
     page: item.page || "",
     copyUrl: item.copyUrl || "",
+    miniProgramShortLink: item.miniProgramShortLink || "",
     searchText: [
       item.title,
       item.description,
@@ -144,8 +169,38 @@ function normalizeBooks(response) {
       meta: item.grade || item.categoryLabel || "及阅",
       tags: [item.recommendedGuest ? `推荐：${item.recommendedGuest}` : "", item.grade, item.categoryLabel, item.topic].filter(Boolean).slice(0, 3),
       image: normalizeImage(item.coverImage || item.metadataCover),
+      miniProgramShortLink: firstText([item.wxPurchaseLink], ""),
       path: item.hasMetadataDetail && id ? `/reading/${encodeURIComponent(id)}` : "",
       page: item.hasMetadataDetail ? "" : "/pages/reading/index"
+    });
+  }).filter((item) => item.id);
+}
+
+function normalizeExternalBooks(response) {
+  const data = response || {};
+  const rawItems = Array.isArray(data.records)
+    ? data.records
+    : Array.isArray(data.data)
+      ? data.data
+      : Array.isArray(data)
+        ? data
+        : [];
+  return rawItems.map((book) => {
+    const item = book || {};
+    const id = String(item.id || item._id || "").trim();
+    const author = firstText([item.author], "");
+    const publisher = firstText([item.publisher], "");
+    return normalizeResult("books", {
+      id,
+      title: firstText([item.title], "未命名书籍"),
+      description: firstText([
+        item.description,
+        publisher ? `${author} / ${publisher}` : author
+      ], "打开详情继续查看书库信息"),
+      meta: author || publisher || "及阅书库",
+      tags: safeTags(item.tags || item.category, 5),
+      image: normalizeImage(item.coverPic || item.coverImage || item.metadataCover),
+      path: id ? `/library?xf_external_book_id=${encodeURIComponent(id)}` : ""
     });
   }).filter((item) => item.id);
 }
@@ -274,6 +329,17 @@ function clearHistory() {
   return [];
 }
 
+function saveReadingKeyword(keyword, source) {
+  const query = String(keyword || "").trim();
+  if (!query) return;
+  try {
+    wx.setStorageSync(READING_PENDING_FILTER_KEY, {
+      source: source === "external" ? "external" : "native",
+      keyword: query
+    });
+  } catch (_error) {}
+}
+
 const pageShare = createPageShare({
   title: "家长先疯搜索",
   path: "/pages/search/index"
@@ -301,6 +367,8 @@ Page({
     inputFocus: false,
     suggestions: DEFAULT_SEARCH_PROMPTS,
     recentKeywords: [],
+    searchSource: "",
+    readingSource: "native",
     activeTab: "all",
     tabs: buildTabs([]),
     allResults: [],
@@ -316,10 +384,15 @@ Page({
     this.syncAccountEntry();
     startSearchPromptRotation(this);
     const query = String(options && options.q ? decodeURIComponent(options.q) : "").trim();
+    const readingSource = normalizeSearchOption(options && options.readingSource) === "external"
+      ? "external"
+      : "native";
     this.setData({
       searchInput: query,
       submittedQuery: query,
-      recentKeywords: readHistory()
+      recentKeywords: readHistory(),
+      searchSource: "",
+      readingSource
     });
     this.loadData().then(() => {
       if (query) this.applySearch(query);
@@ -359,9 +432,30 @@ Page({
 
   loadData() {
     this.setData({ loading: true, error: "" });
+    if (this.data.searchSource === "reading") {
+      const booksRequest = this.data.readingSource === "external"
+        ? request({ url: `/api/books/external?current=1&size=${SEARCH_PAGE_SIZE}` }).then(normalizeExternalBooks)
+        : request({ url: "/api/books" }).then(normalizeBooks);
+      return booksRequest.then((allResults) => {
+        this.setData({
+          allResults,
+          loading: false,
+          error: allResults.length ? "" : "搜索内容加载失败，请稍后重试"
+        });
+        if (this.data.submittedQuery) this.applySearch(this.data.submittedQuery);
+      }).catch((error) => {
+        this.setData({
+          loading: false,
+          error: (error && error.message) || "搜索内容加载失败，请稍后重试"
+        });
+      });
+    }
+    const booksRequest = this.data.readingSource === "external"
+      ? request({ url: `/api/books/external?current=1&size=${SEARCH_PAGE_SIZE}` }).then(normalizeExternalBooks).catch(() => [])
+      : request({ url: "/api/books" }).then(normalizeBooks).catch(() => []);
     return Promise.all([
       request({ url: `/api/programs?page=1&pageSize=${SEARCH_PAGE_SIZE}` }).then(normalizePrograms).catch(() => []),
-      request({ url: "/api/books" }).then(normalizeBooks).catch(() => []),
+      booksRequest,
       request({ url: "/api/learning-materials" }).then(normalizeMaterials).catch(() => []),
       request({ url: `/api/topic-hub?page=1&limit=${SEARCH_PAGE_SIZE}` }).then(normalizeTopics).catch(() => []),
       request({ url: `/api/guests?page=1&pageSize=${SEARCH_PAGE_SIZE}` }).then(normalizeGuests).catch(() => [])
@@ -493,7 +587,11 @@ Page({
     const index = Number(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.index);
     const result = this.data.visibleResults[index];
     if (!result) return;
+    if (openMiniProgramShortLink(result.miniProgramShortLink)) return;
     if (result.page) {
+      if (result.type === "books" && result.page === "/pages/reading/index") {
+        saveReadingKeyword(this.data.submittedQuery || this.data.searchInput || result.title, this.data.readingSource);
+      }
       wx.switchTab({ url: result.page });
       return;
     }
@@ -510,6 +608,15 @@ Page({
       return;
     }
     if (result.path) {
+      if (result.path === "/worthbuy") {
+        wx.navigateTo({ url: "/pages/worthbuy/index" });
+        return;
+      }
+      const worthBuyMatch = String(result.path).match(/^\/worthbuy\/(.+)$/);
+      if (worthBuyMatch) {
+        wx.navigateTo({ url: `/pages/worthbuy-detail/index?query=${encodeURIComponent(decodeURIComponent(worthBuyMatch[1]))}` });
+        return;
+      }
       openWeb(result.path, result.title);
     }
   },

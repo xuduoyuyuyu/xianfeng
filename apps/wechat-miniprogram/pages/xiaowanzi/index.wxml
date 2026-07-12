@@ -79,11 +79,19 @@
               <text>{{item.content}}</text>
             </view>
             <view wx:else class="xf-xiaowanzi-home-assistant-wrap {{item.pending ? 'is-thinking' : ''}}">
-              <view wx:if="{{item.pending}}" class="xf-xiaowanzi-home-thinking" aria-label="小玩子思考中">
-                <text class="xf-xiaowanzi-thinking-dot"></text>
-                <text class="xf-xiaowanzi-thinking-dot"></text>
-                <text class="xf-xiaowanzi-thinking-dot is-strong"></text>
-                <text>小玩子思考中</text>
+              <view wx:if="{{item.pending}}" class="xf-xiaowanzi-home-thinking" aria-label="{{item.thinkingLabel || '小玩子思考中'}}">
+                <view class="xf-xiaowanzi-thinking-head">
+                  <text class="xf-xiaowanzi-thinking-dot"></text>
+                  <text class="xf-xiaowanzi-thinking-dot"></text>
+                  <text class="xf-xiaowanzi-thinking-dot is-strong"></text>
+                  <text class="xf-xiaowanzi-thinking-label">{{item.thinkingLabel || '小玩子思考中'}}</text>
+                </view>
+                <view wx:if="{{item.thinkingActiveStepText}}" class="xf-xiaowanzi-thinking-trace">
+                  <view class="xf-xiaowanzi-thinking-step is-{{item.thinkingActiveStepStatus}} is-tick-{{item.thinkingTick}}">
+                    <text class="xf-xiaowanzi-thinking-step-mark"></text>
+                    <text class="xf-xiaowanzi-thinking-step-text">{{item.thinkingActiveStepText}}</text>
+                  </view>
+                </view>
               </view>
               <view wx:else class="xf-xiaowanzi-home-assistant-card">
                 <block wx:for="{{item.contentParts}}" wx:for-item="part" wx:key="key">
@@ -109,6 +117,7 @@
           </view>
         </view>
       </view>
+      <view class="xf-xiaowanzi-ai-disclaimer">本服务为AI生成内容，结果仅供参考</view>
       <view id="xiaowanziChildHint" class="xf-xiaowanzi-child-hint">
         <view class="xf-xiaowanzi-child-hint-line">
           <text>{{childHintText}}</text>
@@ -131,11 +140,19 @@
           <text>{{item.content}}</text>
         </view>
         <view wx:else class="xf-xiaowanzi-assistant-panel {{item.pending ? 'is-thinking' : ''}}">
-          <view wx:if="{{item.pending}}" class="xf-xiaowanzi-home-thinking" aria-label="小玩子思考中">
-            <text class="xf-xiaowanzi-thinking-dot"></text>
-            <text class="xf-xiaowanzi-thinking-dot"></text>
-            <text class="xf-xiaowanzi-thinking-dot is-strong"></text>
-            <text>小玩子思考中</text>
+          <view wx:if="{{item.pending}}" class="xf-xiaowanzi-home-thinking" aria-label="{{item.thinkingLabel || '小玩子思考中'}}">
+            <view class="xf-xiaowanzi-thinking-head">
+              <text class="xf-xiaowanzi-thinking-dot"></text>
+              <text class="xf-xiaowanzi-thinking-dot"></text>
+              <text class="xf-xiaowanzi-thinking-dot is-strong"></text>
+              <text class="xf-xiaowanzi-thinking-label">{{item.thinkingLabel || '小玩子思考中'}}</text>
+            </view>
+            <view wx:if="{{item.thinkingActiveStepText}}" class="xf-xiaowanzi-thinking-trace">
+              <view class="xf-xiaowanzi-thinking-step is-{{item.thinkingActiveStepStatus}} is-tick-{{item.thinkingTick}}">
+                <text class="xf-xiaowanzi-thinking-step-mark"></text>
+                <text class="xf-xiaowanzi-thinking-step-text">{{item.thinkingActiveStepText}}</text>
+              </view>
+            </view>
           </view>
           <view wx:else class="xf-xiaowanzi-assistant-card">
             <block wx:for="{{item.contentParts}}" wx:for-item="part" wx:key="key">
@@ -159,6 +176,7 @@
           </button>
         </view>
       </view>
+      <view class="xf-xiaowanzi-ai-disclaimer">本服务为AI生成内容，结果仅供参考</view>
       <view id="xiaowanziChildHint" class="xf-xiaowanzi-child-hint">
         <view class="xf-xiaowanzi-child-hint-line">
           <text>{{childHintText}}</text>

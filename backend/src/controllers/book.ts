@@ -6,9 +6,11 @@ import Program from "../models/Program";
 import {
   findApprovedBookMetadataByBookId,
   listApprovedBookMetadataByBookIds,
+  listApprovedBookMetadataBookIds,
   listBookMetadataByBookIds,
   listBookMetadataForReview,
   reviewBookMetadata,
+  upsertBookMetadataManually,
 } from "../services/bookMetadataService";
 import { getOrCreateExternalBookDescriptionTranslation } from "../services/externalBookDescriptionTranslation";
 
@@ -39,12 +41,27 @@ type ExternalBookLibraryRecord = {
   description: string;
 };
 
+type ExternalBookLibraryFilterGroup = {
+  key: string;
+  title: string;
+  options: Array<{ label: string; value: string; count: number }>;
+};
+
+type ExternalBookFilterMatchMode = "all" | "any";
+
 const BOOK_COVER_PROXY_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const BOOK_COVER_PROXY_CACHE_MAX_BYTES = 80 * 1024 * 1024;
 const BOOK_COVER_BROWSER_CACHE_HEADER = "public, max-age=604800, stale-while-revalidate=86400";
 const READLY_BOOK_PAGE_URL = "https://api.shuyu.xin/readly/api/ma/book/page";
+const EXTERNAL_BOOK_LIBRARY_SCAN_PAGE_SIZE = 100;
+const EXTERNAL_BOOK_LIBRARY_SCAN_CONCURRENCY = 4;
+const EXTERNAL_BOOK_LIBRARY_FILTER_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const bookCoverProxyCache = new Map<string, BookCoverProxyCacheEntry>();
 let bookCoverProxyCacheBytes = 0;
+let externalBookLibraryFilterCache: { records: any[]; expiresAt: number } | null = null;
+let externalBookLibraryFilterCachePromise: Promise<any[]> | null = null;
+const externalBookLibraryCategoryCache = new Map<string, { records: any[]; total: number; expiresAt: number }>();
+const externalBookLibraryCategoryCachePromises = new Map<string, Promise<{ records: any[]; total: number }>>();
 
 function setBookCoverProxyCacheHeaders(res: Response, contentType: string, hit: boolean) {
   res.setHeader("Content-Type", contentType);
@@ -99,6 +116,90 @@ function pick(row: any, keys: string[]): string {
   return "";
 }
 
+function splitExternalBookValues(value: unknown): string[] {
+  return String(value || "")
+    .split(/[;；,，、/／]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeExternalBookFilterValue(value: unknown): string {
+  const text = String(value || "").trim().replace(/^#/, "");
+  if (text === "漫画") return "Manga";
+  return text;
+}
+
+function parseExternalBookFilterTags(value: unknown): string[] {
+  const values = Array.isArray(value) ? value : [value];
+  return values
+    .flatMap(splitExternalBookValues)
+    .map(normalizeExternalBookFilterValue)
+    .filter(Boolean)
+    .filter((item, index, list) => list.indexOf(item) === index)
+    .slice(0, 12);
+}
+
+function parseExternalBookFilterMatchMode(value: unknown): ExternalBookFilterMatchMode {
+  return String(value || "").trim().toLowerCase() === "any" ? "any" : "all";
+}
+
+function pushExternalBookFilterOption(values: string[], value: unknown) {
+  const label = normalizeExternalBookFilterValue(value);
+  if (label && values.indexOf(label) < 0) values.push(label);
+}
+
+function externalBookRecordMatchesTags(record: any, tags: string[], mode: ExternalBookFilterMatchMode = "all"): boolean {
+  if (!tags.length) return true;
+  const values = [
+    pick(record, ["levelRange"]),
+    pick(record, ["fiction"]),
+    ...splitExternalBookValues(pick(record, ["author"])),
+    ...splitExternalBookValues(pick(record, ["publisher"])),
+    ...splitExternalBookValues(pick(record, ["series"])),
+    ...splitExternalBookValues(pick(record, ["tags"])),
+    ...splitExternalBookValues(pick(record, ["category"])),
+  ]
+    .map(normalizeExternalBookFilterValue)
+    .filter(Boolean);
+  if (mode === "any") return tags.some((tag) => values.includes(tag));
+  return tags.every((tag) => values.includes(tag));
+}
+
+function countExternalBookFilterMatches(records: any[], label: string): number {
+  return (Array.isArray(records) ? records : [])
+    .filter((record) => externalBookRecordMatchesTags(record, [label], "any"))
+    .length;
+}
+
+function externalBookFilterOptions(records: any[], values: string[]): Array<{ label: string; value: string; count: number }> {
+  return values
+    .map((label) => ({ label, value: `#${label}`, count: countExternalBookFilterMatches(records, label) }))
+    .filter((option) => option.count > 100)
+    .sort((a, b) => {
+      const countDiff = b.count - a.count;
+      return countDiff !== 0 ? countDiff : a.label.localeCompare(b.label, "zh-Hans-CN");
+    });
+}
+
+function buildExternalBookLibraryFilterGroups(records: any[]): ExternalBookLibraryFilterGroup[] {
+  const topicValues: string[] = [];
+  const levelValues: string[] = [];
+  const fictionValues: string[] = [];
+
+  for (const record of Array.isArray(records) ? records : []) {
+    for (const tag of splitExternalBookValues(pick(record, ["tags"]))) pushExternalBookFilterOption(topicValues, tag);
+    for (const tag of splitExternalBookValues(pick(record, ["category"]))) pushExternalBookFilterOption(topicValues, tag);
+    pushExternalBookFilterOption(levelValues, pick(record, ["levelRange"]));
+    pushExternalBookFilterOption(fictionValues, pick(record, ["fiction"]));
+  }
+
+  return [
+    { key: "topic", title: "主题", options: externalBookFilterOptions(records, topicValues).slice(0, 80) },
+    { key: "level", title: "难度", options: externalBookFilterOptions(records, levelValues).slice(0, 40) },
+    { key: "fiction", title: "类型", options: externalBookFilterOptions(records, fictionValues).slice(0, 20) },
+  ].filter((group) => group.options.length);
+}
+
 function toStatus(v: string): "draft" | "published" {
   const s = (v || "").trim().toLowerCase();
   if (["published", "publish", "已发布", "发布", "上架"].includes(s)) return "published";
@@ -139,6 +240,189 @@ function normalizeExternalBookLibraryRecord(record: any): ExternalBookLibraryRec
   };
 }
 
+async function fetchExternalBookLibraryPage(current: number, size: number, filters?: { category?: string; tags?: string }) {
+  const query = {
+    current: String(current),
+    size: String(size),
+    category: normalizeExternalBookFilterValue(filters?.category),
+    tags: normalizeExternalBookFilterValue(filters?.tags),
+  };
+  const upstreamUrl = new URL(READLY_BOOK_PAGE_URL);
+  upstreamUrl.searchParams.set("current", query.current);
+  upstreamUrl.searchParams.set("size", query.size);
+  if (query.category) upstreamUrl.searchParams.set("category", query.category);
+  if (query.tags) upstreamUrl.searchParams.set("tags", query.tags);
+
+  const response = await fetch(upstreamUrl, {
+    headers: {
+      "Accept": "application/json",
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    },
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!response.ok) {
+    const error = new Error(`外部书库返回 ${response.status}`) as Error & { statusCode?: number };
+    error.statusCode = 502;
+    throw error;
+  }
+
+  const payload = await response.json();
+  const data = payload && typeof payload === "object" ? payload.data : null;
+  const records = Array.isArray(data?.records) ? data.records : [];
+  return {
+    records,
+    total: Number(data?.total || 0),
+    size: Number(data?.size || size),
+    current: Number(data?.current || current),
+    pages: Number(data?.pages || 0),
+  };
+}
+
+async function fetchExternalBookLibraryCategoryPage(current: number, size: number, category: string) {
+  return fetchExternalBookLibraryPage(current, size, { category });
+}
+
+async function fetchExternalBookLibraryTagPage(current: number, size: number, tags: string) {
+  return fetchExternalBookLibraryPage(current, size, { tags });
+}
+
+async function fetchExternalBookLibraryCategoryRecords(category: string): Promise<{ records: any[]; total: number }> {
+  const normalizedCategory = normalizeExternalBookFilterValue(category);
+  const cacheKey = normalizedCategory.toLowerCase();
+  if (!normalizedCategory) return { records: [], total: 0 };
+
+  const cached = externalBookLibraryCategoryCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return { records: cached.records, total: cached.total };
+  const inflight = externalBookLibraryCategoryCachePromises.get(cacheKey);
+  if (inflight) return inflight;
+
+  const promise = (async () => {
+    const firstPage = await fetchExternalBookLibraryCategoryPage(1, EXTERNAL_BOOK_LIBRARY_SCAN_PAGE_SIZE, normalizedCategory);
+    const totalPages = Math.max(1, Number(firstPage.pages || 1));
+    const pages: Array<{ current: number; records: any[] }> = [
+      { current: 1, records: Array.isArray(firstPage.records) ? firstPage.records : [] },
+    ];
+    let nextPage = 2;
+    const workers = Array.from({ length: Math.min(EXTERNAL_BOOK_LIBRARY_SCAN_CONCURRENCY, Math.max(0, totalPages - 1)) }, async () => {
+      while (nextPage <= totalPages) {
+        const current = nextPage;
+        nextPage += 1;
+        const page = await fetchExternalBookLibraryCategoryPage(current, EXTERNAL_BOOK_LIBRARY_SCAN_PAGE_SIZE, normalizedCategory);
+        pages.push({ current, records: Array.isArray(page.records) ? page.records : [] });
+      }
+    });
+    await Promise.all(workers);
+    const records = pages
+      .sort((a, b) => a.current - b.current)
+      .flatMap((page) => page.records);
+    const result = { records, total: Number(firstPage.total || records.length) };
+    externalBookLibraryCategoryCache.set(cacheKey, {
+      ...result,
+      expiresAt: Date.now() + EXTERNAL_BOOK_LIBRARY_FILTER_CACHE_TTL_MS,
+    });
+    return result;
+  })();
+
+  externalBookLibraryCategoryCachePromises.set(cacheKey, promise);
+  try {
+    return await promise;
+  } finally {
+    externalBookLibraryCategoryCachePromises.delete(cacheKey);
+  }
+}
+
+async function findExternalBookLibraryBestCategory(tags: string[]): Promise<{ tag: string; total: number } | null> {
+  const probes = await Promise.all(tags.map(async (tag) => {
+    const page = await fetchExternalBookLibraryCategoryPage(1, 1, tag);
+    return { tag, total: Number(page.total || 0) };
+  }));
+  return probes
+    .filter((item) => item.total > 0)
+    .sort((a, b) => a.total - b.total)[0] || null;
+}
+
+async function fetchExternalBookLibraryFilterRecords(): Promise<any[]> {
+  const cached = externalBookLibraryFilterCache;
+  if (cached && cached.expiresAt > Date.now()) return cached.records;
+  if (externalBookLibraryFilterCachePromise) return externalBookLibraryFilterCachePromise;
+
+  externalBookLibraryFilterCachePromise = (async () => {
+    const firstPage = await fetchExternalBookLibraryPage(1, EXTERNAL_BOOK_LIBRARY_SCAN_PAGE_SIZE);
+    const totalPages = Math.max(1, Math.min(Number(firstPage.pages || 1), 300));
+    const pages: Array<{ current: number; records: any[] }> = [
+      { current: 1, records: Array.isArray(firstPage.records) ? firstPage.records : [] },
+    ];
+    let nextPage = 2;
+    const workers = Array.from({ length: Math.min(EXTERNAL_BOOK_LIBRARY_SCAN_CONCURRENCY, Math.max(0, totalPages - 1)) }, async () => {
+      while (nextPage <= totalPages) {
+        const current = nextPage;
+        nextPage += 1;
+        const page = await fetchExternalBookLibraryPage(current, EXTERNAL_BOOK_LIBRARY_SCAN_PAGE_SIZE);
+        pages.push({ current, records: Array.isArray(page.records) ? page.records : [] });
+      }
+    });
+    await Promise.all(workers);
+    const records = pages
+      .sort((a, b) => a.current - b.current)
+      .flatMap((page) => page.records);
+    externalBookLibraryFilterCache = {
+      records,
+      expiresAt: Date.now() + EXTERNAL_BOOK_LIBRARY_FILTER_CACHE_TTL_MS,
+    };
+    return records;
+  })();
+
+  try {
+    return await externalBookLibraryFilterCachePromise;
+  } finally {
+    externalBookLibraryFilterCachePromise = null;
+  }
+}
+
+async function fetchExternalBookLibraryFilteredPage(current: number, size: number, tags: string[], mode: ExternalBookFilterMatchMode = "all") {
+  if (!tags.length) return fetchExternalBookLibraryPage(current, size);
+
+  if (tags.length === 1) {
+    const categoryPage = await fetchExternalBookLibraryCategoryPage(current, size, tags[0]);
+    if (categoryPage.total > 0) return categoryPage;
+    const tagPage = await fetchExternalBookLibraryTagPage(current, size, tags[0]);
+    if (tagPage.total > 0) return tagPage;
+  }
+
+  const bestCategory = mode === "all" ? await findExternalBookLibraryBestCategory(tags) : null;
+  const sourceRecords = bestCategory
+    ? (await fetchExternalBookLibraryCategoryRecords(bestCategory.tag)).records
+    : await fetchExternalBookLibraryFilterRecords();
+  const records = sourceRecords
+    .filter((record) => externalBookRecordMatchesTags(record, tags, mode));
+  const start = Math.max(0, (current - 1) * size);
+  const pageRecords = records.slice(start, start + size);
+  return {
+    records: pageRecords,
+    total: records.length,
+    size,
+    current,
+    pages: Math.max(1, Math.ceil(records.length / size)),
+  };
+}
+
+async function findExternalBookLibraryRecordById(externalBookId: string): Promise<ExternalBookLibraryRecord | null> {
+  const targetId = String(externalBookId || "").trim();
+  if (!targetId) return null;
+
+  const firstPage = await fetchExternalBookLibraryPage(1, 60);
+  const firstMatch = firstPage.records.find((record: any) => pick(record, ["id"]) === targetId);
+  if (firstMatch) return normalizeExternalBookLibraryRecord(firstMatch);
+
+  const totalPages = Math.max(1, Math.min(Number(firstPage.pages || 1), 300));
+  for (let current = 2; current <= totalPages; current += 1) {
+    const page = await fetchExternalBookLibraryPage(current, 60);
+    const match = page.records.find((record: any) => pick(record, ["id"]) === targetId);
+    if (match) return normalizeExternalBookLibraryRecord(match);
+  }
+  return null;
+}
+
 /** 构造 _id 查询条件，兼容 string 和 ObjectId 类型 */
 function idQuery(id: string | string[]) {
   const sid = Array.isArray(id) ? id[0] : id;
@@ -162,10 +446,11 @@ function normalizeBookPayload(raw: any, defaults?: { sourceName?: string; source
     author: pick(raw, ["著作者", "author", "作者", "Author", "作者姓名"]),
     translator: pick(raw, ["译者", "translator"]),
     publisher: pick(raw, ["出版社", "publisher"]),
+    description: pick(raw, ["简介", "图书简介", "内容简介", "description", "summary", "intro"]),
     isbn: pick(raw, ["isbn", "ISBN"]),
     publishedDate: pick(raw, ["publishedDate", "published_date", "出版日期", "出版时间"]),
     grade: pick(raw, ["年级", "grade"]),
-    coverImage: pick(raw, ["封面图片", "coverImage", "封面", "封面图", "图片", "cover"]) ?? "https://via.placeholder.com/240x320/630ed4/ffffff?text=Book",
+    coverImage: pick(raw, ["封面图片", "coverImage", "封面", "封面图", "图片", "cover"]) || "https://via.placeholder.com/240x320/630ed4/ffffff?text=Book",
     recommendedGuest: pick(raw, ["推荐嘉宾", "recommendedGuest"]) || String(defaults?.recommendedGuest || "").trim(),
     sourceName: String(defaults?.sourceName || raw?.sourceName || "").trim(),
     sourceGuestId: defaults?.sourceGuestId && mongoose.Types.ObjectId.isValid(defaults.sourceGuestId)
@@ -197,7 +482,6 @@ function hasUsableBookCover(url: unknown): boolean {
   if (!value) return false;
   if (value.includes("via.placeholder.com")) return false;
   if (value.includes("placeholder")) return false;
-  if (value.includes("/uploads/images/")) return false;
   return true;
 }
 
@@ -271,47 +555,93 @@ function formatAdminBookMetadata(metadata: any) {
   };
 }
 
+async function findPagedPublicBooksPrioritizingDescriptions(current: number, size: number) {
+  const approvedBookIds = await listApprovedBookMetadataBookIds();
+  const publishedFilter = { status: "published" };
+  const describedBookFilter = {
+    $or: [
+      { _id: { $in: approvedBookIds } },
+      { description: { $regex: /\S/ } },
+    ],
+  };
+  const undescribedBookFilter = { $nor: describedBookFilter.$or };
+  const total = await Book.countDocuments(publishedFilter);
+  const describedTotal = await Book.countDocuments({ ...publishedFilter, ...describedBookFilter });
+  const offset = (current - 1) * size;
+  const describedTake = Math.min(size, Math.max(0, describedTotal - offset));
+  const books: any[] = [];
+
+  if (describedTake > 0) {
+    books.push(...await Book.find({ ...publishedFilter, ...describedBookFilter })
+      .sort({ publishedAt: -1, _id: -1 })
+      .skip(offset)
+      .limit(describedTake));
+  }
+
+  const remaining = size - books.length;
+  if (remaining > 0) {
+    const undescribedOffset = Math.max(0, offset - describedTotal);
+    books.push(...await Book.find({ ...publishedFilter, ...undescribedBookFilter })
+      .sort({ publishedAt: -1, _id: -1 })
+      .skip(undescribedOffset)
+      .limit(remaining));
+  }
+
+  return { books, total };
+}
+
 export class BookController {
   async getExternalLibraryPublic(req: Request, res: Response): Promise<void> {
     try {
       const safeCurrent = clampInteger(req.query.current, 1, 1, 100000);
       const safeSize = clampInteger(req.query.size, 24, 1, 60);
+      const filterTags = parseExternalBookFilterTags(req.query.tags);
+      const filterTagMode = parseExternalBookFilterMatchMode(req.query.tagMode);
+      const includeFilters = String(req.query.includeFilters || "") === "1";
       const query = {
         current: String(safeCurrent),
         size: String(safeSize),
       };
-      const upstreamUrl = new URL(READLY_BOOK_PAGE_URL);
-      upstreamUrl.searchParams.set("current", query.current);
-      upstreamUrl.searchParams.set("size", query.size);
-
-      const response = await fetch(upstreamUrl, {
-        headers: {
-          "Accept": "application/json",
-          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        },
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!response.ok) {
-        res.status(502).json({ message: `外部书库返回 ${response.status}` });
-        return;
-      }
-
-      const payload = await response.json();
-      const data = payload && typeof payload === "object" ? payload.data : null;
-      const records = Array.isArray(data?.records) ? data.records : [];
+      const data = await fetchExternalBookLibraryFilteredPage(Number(query.current), Number(query.size), filterTags, filterTagMode);
+      const records = data.records;
+      const filterRecords = includeFilters ? await fetchExternalBookLibraryFilterRecords() : [];
       res.status(200).json({
         records: records.map(normalizeExternalBookLibraryRecord),
-        total: Number(data?.total || 0),
-        size: Number(data?.size || safeSize),
-        current: Number(data?.current || safeCurrent),
-        pages: Number(data?.pages || 0),
+        total: Number(data.total || 0),
+        size: Number(data.size || safeSize),
+        current: Number(data.current || safeCurrent),
+        pages: Number(data.pages || 0),
+        filterGroups: includeFilters ? buildExternalBookLibraryFilterGroups(filterRecords) : undefined,
       });
     } catch (error: any) {
       if (error?.name === "AbortError" || error?.name === "TimeoutError") {
         res.status(504).json({ message: "外部书库加载超时" });
         return;
       }
-      res.status(502).json({ message: "外部书库加载失败", error: error?.message || error });
+      res.status(error?.statusCode || 502).json({ message: error?.message || "外部书库加载失败", error: error?.message || error });
+    }
+  }
+
+  async getExternalBookPublic(req: Request, res: Response): Promise<void> {
+    try {
+      const externalBookId = String(req.params.id || "").trim();
+      if (!externalBookId) {
+        res.status(400).json({ message: "缺少外部图书 ID" });
+        return;
+      }
+
+      const book = await findExternalBookLibraryRecordById(externalBookId);
+      if (!book) {
+        res.status(404).json({ message: "外部图书不存在" });
+        return;
+      }
+      res.status(200).json(book);
+    } catch (error: any) {
+      if (error?.name === "AbortError" || error?.name === "TimeoutError") {
+        res.status(504).json({ message: "外部书库加载超时" });
+        return;
+      }
+      res.status(error?.statusCode || 502).json({ message: error?.message || "外部书库加载失败", error: error?.message || error });
     }
   }
 
@@ -473,11 +803,15 @@ export class BookController {
     }
   }
 
-  async getAllPublic(_req: Request, res: Response): Promise<void> {
+  async getAllPublic(req: Request, res: Response): Promise<void> {
     try {
-      const books = await Book.find({ status: "published" }).sort({
-        publishedAt: -1,
-      });
+      const current = Math.max(1, Number(req.query.current) || 1);
+      const size = Math.min(100, Math.max(1, Number(req.query.size) || 24));
+      const paged = Boolean(req.query.current || req.query.size);
+      const page = paged ? await findPagedPublicBooksPrioritizingDescriptions(current, size) : null;
+      const books = page
+        ? page.books
+        : await Book.find({ status: "published" }).sort({ publishedAt: -1 });
       const metadataRows = await listApprovedBookMetadataByBookIds(books.map((book: any) => String(book?._id || "")));
       const metadataByBookId = new Map(metadataRows.map((item: any) => [String(item?.bookId || ""), item]));
       const enrichedBooks = books.map((book: any) => {
@@ -487,10 +821,22 @@ export class BookController {
         return {
           ...plain,
           coverImage: pickPublicBookCover(plain?.coverImage, metadataCover),
+          description: String(metadata?.description || plain?.description || ""),
           hasMetadataDetail: Boolean(metadata),
           metadataCover,
         };
       });
+      if (paged) {
+        const total = page?.total || 0;
+        res.status(200).json({
+          records: enrichedBooks,
+          total,
+          current,
+          pages: Math.max(1, Math.ceil(total / size)),
+          size,
+        });
+        return;
+      }
       res.status(200).json(enrichedBooks);
     } catch (error) {
       res.status(500).json({ message: "获取书单列表失败", error });
@@ -510,6 +856,7 @@ export class BookController {
       res.status(200).json({
         ...book,
         coverImage: pickPublicBookCover((book as any)?.coverImage, metadataCover),
+        description: String(metadata?.description || (book as any)?.description || ""),
         hasMetadataDetail: Boolean(metadata),
         metadataCover,
       });
@@ -587,6 +934,30 @@ export class BookController {
       res.status(200).json(metadata);
     } catch (error) {
       res.status(400).json({ message: "更新图书详情审核状态失败", error });
+    }
+  }
+
+  async upsertMetadataAdmin(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const existing = await Book.findOne(idQuery(id));
+      if (!existing) {
+        res.status(404).json({ message: "书籍不存在" });
+        return;
+      }
+      const metadataPayload = {
+        title: String((existing as any).title || ""),
+        author: String((existing as any).author || ""),
+        publisher: String((existing as any).publisher || ""),
+        isbn: String((existing as any).isbn || ""),
+        source: String((existing as any).sourceName || ""),
+        ...(req.body || {}),
+        cover: String(req.body?.cover || (existing as any).coverImage || ""),
+      };
+      const metadata = await upsertBookMetadataManually(String(existing._id), metadataPayload);
+      res.status(200).json(metadata);
+    } catch (error) {
+      res.status(400).json({ message: "保存图书详情失败", error });
     }
   }
 
@@ -684,23 +1055,6 @@ export class BookController {
       res.status(200).json(book);
     } catch (error) {
       res.status(400).json({ message: "更新书籍状态失败", error });
-    }
-  }
-
-  async batchPublish(req: Request, res: Response): Promise<void> {
-    try {
-      const { filter, ids } = req.body;
-      let query: any = { status: "draft" };
-      if (ids && Array.isArray(ids)) {
-        query._id = { $in: ids };
-      } else if (filter === "with_wx_cover") {
-        query.coverImage = { $regex: /wxapp\.tc\.qq\.com|store\.mp\.video\.tencent-cloud/ };
-      }
-      const now = new Date();
-      const result = await Book.updateMany(query, { status: "published", publishedAt: now });
-      res.status(200).json({ matched: result.matchedCount, modified: result.modifiedCount });
-    } catch (error) {
-      res.status(500).json({ message: "批量发布失败", error });
     }
   }
 

@@ -63,7 +63,10 @@
             data-index="{{index}}"
             data-url="{{item.fileUrl}}"
             catchtap="copyMaterialLink"
-          >复制链接</button>
+            aria-label="复制链接"
+          >
+            <image class="xf-materials-copy-icon" src="/assets/icons/unlink.svg" mode="aspectFit" aria-hidden="true" />
+          </button>
         </view>
       </view>
     </view>
@@ -75,6 +78,18 @@
   </view>
 
   <view wx:if="{{hasCache}}" class="xf-native-cache-tip">已先显示上次缓存，正在同步最新内容</view>
+
+  <view wx:if="{{materialLinkModalOpen}}" class="xf-materials-link-mask" catchtap="closeMaterialLinkModal" catchtouchmove="noop">
+    <view class="xf-materials-link-modal" catchtap="noop">
+      <view class="xf-materials-link-head">
+        <text class="xf-materials-link-title">资料链接</text>
+        <button class="xf-materials-link-close" catchtap="closeMaterialLinkModal" aria-label="关闭资料链接">×</button>
+      </view>
+      <text wx:if="{{materialLinkModalTitle}}" class="xf-materials-link-name">{{materialLinkModalTitle}}</text>
+      <text class="xf-materials-link-hint">长按可复制：</text>
+      <text class="xf-materials-link-url" user-select="true">{{materialLinkModalUrl}}</text>
+    </view>
+  </view>
 
   <view wx:if="{{filterDrawerOpen}}" class="xf-native-filter-mask" catchtap="closeFilterDrawer" catchtouchmove="noop">
     <view

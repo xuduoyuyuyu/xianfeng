@@ -48,10 +48,10 @@
   `/admin/mama-resources` is the operator review and manual data-completion
   screen. The admin task workflow is task-first: operators list a task, open the
   task workspace, then either directly choose approved accounts or filter them
-  by tags/follower count before assigning. Task creation also supports multiple
+  by tags/follower count before assigning. Task creation also supports a
+  claim-limit field for the mini-program first-come task flow and multiple
   example images uploaded through the admin image upload endpoint. Submitted
-  proof is reviewed from the task assignment list as collected or rejected; it
-  is still not a public marketplace or open claiming flow.
+  proof is reviewed from the task assignment list as collected or rejected.
 - `/welfare` is the public Xiaowanzi treasure box page (`小玩子百宝箱`). It
   uses the gift icon asset and Xiaowanzi avatar treatment, lists claimable
   welfare separately from expired or sold-out historical welfare, and shows

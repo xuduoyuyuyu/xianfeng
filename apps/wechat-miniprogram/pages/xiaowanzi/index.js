@@ -7,6 +7,7 @@ const { getNativeTopbarMetrics } = require("../../utils/nativeChrome");
 const { createNativeSettingsMethods, setSettingsTabbarHidden } = require("../../utils/nativeSettings");
 const { openWeb } = require("../../utils/webview");
 const { returnFromXiaowanzi } = require("../../utils/xiaowanziReturn");
+const { openNativeSearch } = require("../../utils/nativePageNav");
 
 const BOT_ID = "xiaowanzi_debug_bot";
 const LAST_CHILD_ID_KEY = "xiaowanzi_last_child_id_v1";
@@ -35,8 +36,8 @@ const nativeSettingsMethods = createNativeSettingsMethods();
 const DEFAULT_ASSISTANT_MESSAGE = {
   id: "assistant-default",
   role: "assistant",
-  content: "你好，我是小玩子。先关联孩子档案，再把你正在纠结的问题告诉我。",
-  contentParts: buildMessageContentParts("你好，我是小玩子。先关联孩子档案，再把你正在纠结的问题告诉我。"),
+  content: "你好，我是小玩子。你可以直接把正在纠结的问题告诉我，关联孩子档案后回答会更个性化。",
+  contentParts: buildMessageContentParts("你好，我是小玩子。你可以直接把正在纠结的问题告诉我，关联孩子档案后回答会更个性化。"),
   shareable: false,
   ts: new Date(0).toISOString()
 };
@@ -66,6 +67,11 @@ const SHARE_CARD_QR_CACHE_VERSION = "transparent-v2";
 const shareQrImageCache = {};
 const SHARE_REVEAL_HIDE_DELAY_MS = 5000;
 const KNOWLEDGE_PILL_COLLAPSE_SCROLL_TOP = 24;
+const NATIVE_REPLY_REVEAL_INITIAL_CHARS = 5;
+const NATIVE_REPLY_REVEAL_STEP_CHARS = 2;
+const NATIVE_REPLY_REVEAL_DELAY_MS = 45;
+const NATIVE_REPLY_REVEAL_PAUSE_MS = 180;
+const XIAOWANZI_THINKING_STEP_INTERVAL_MS = 1500;
 const SHARE_CANVAS_CHAT_STYLE = {
   pageTopColor: "#f2f1ff",
   pageBottomColor: "#e9edff",
@@ -131,6 +137,8 @@ const AI_RESPONSE_RULES = [
   "你是小玩子，一个可爱活泼的助手，风格软萌、热情、会撒娇。",
   "优先使用站内相关内容、孩子档案、孩子记忆和当前上下文回答；当前页面只是线索，不是唯一资料来源。",
   "当站内相关内容不足时，可以使用通用育儿、学习和沟通知识给出可执行建议，但要说明这是通用建议。",
+  "孩子姓名只表示被咨询的孩子，不代表提问者；如果个人资料提供家长姓名，可以用该姓名称呼家长。",
+  "回复开头按孩子档案里的“称呼用户”字段称呼用户，禁止用孩子姓名称呼家长。",
   "孩子档案里的关系只表示孩子称谓，不代表提问者是爸爸或妈妈。除非个人资料明确提供家长身份，否则统一称呼用户为家长。",
   "孩子档案如提供准确年龄，必须以该年龄为准，不要根据出生年份自行猜测。",
   "优先给出确定内容、已确认事实、可执行下一步。"
@@ -294,7 +302,7 @@ function withMessageShareability(message) {
   if (!message) return message;
   return {
     ...message,
-    shareable: isShareableAssistantMessageValue(message.role, message.content, message.pending, message.error)
+    shareable: message.revealPending ? false : isShareableAssistantMessageValue(message.role, message.content, message.pending, message.error)
   };
 }
 
@@ -338,8 +346,12 @@ function parseMarkdownHeadingLine(line) {
 }
 
 function parseMarkdownListItem(line) {
-  const match = String(line || "").trim().match(/^[-*]\s+(.+)$/);
+  const match = parseMarkdownListItemSource(line);
   return match ? stripMarkdownInline(match[1]) : "";
+}
+
+function parseMarkdownListItemSource(line) {
+  return String(line || "").trim().match(/^[-*]\s+(.+)$/);
 }
 
 function looksLikeMarkdownDocument(content) {
@@ -395,10 +407,21 @@ function buildMarkdownDocumentContentParts(content) {
       return;
     }
 
-    const listText = parseMarkdownListItem(trimmed);
-    if (listText) {
+    const listMatch = parseMarkdownListItemSource(trimmed);
+    if (listMatch) {
       pushParagraph();
-      parts.push({ type: "md_list_item", text: listText });
+      const inlineParts = buildInlineMessageContentParts(listMatch[1]);
+      const hasLink = inlineParts.some((part) => part.type === "link");
+      if (hasLink) {
+        inlineParts.forEach((part) => {
+          const text = stripMarkdownInline(part.text);
+          if (!text) return;
+          parts.push(part.type === "link" ? part : { type: "md_list_item", text });
+        });
+      } else {
+        const text = stripMarkdownInline(listMatch[1]);
+        if (text) parts.push({ type: "md_list_item", text });
+      }
       return;
     }
 
@@ -462,6 +485,83 @@ function buildMessageContentParts(content) {
   return buildInlineMessageContentParts(source);
 }
 
+function parseXiaowanziContentLink(url) {
+  const value = String(url || "").trim();
+  if (!value) return null;
+  const absoluteMatch = value.match(/^https?:\/\/([^/?#]+)([^#]*)/i);
+  if (absoluteMatch) {
+    const host = String(absoluteMatch[1] || "").toLowerCase();
+    if (!/(\.|^)xianfeng\.xinzhi\.info$/.test(host)) return null;
+    return parseXiaowanziContentLink(absoluteMatch[2] || "/");
+  }
+  const clean = value.split("#")[0] || "";
+  const queryIndex = clean.indexOf("?");
+  const pathname = (queryIndex >= 0 ? clean.slice(0, queryIndex) : clean).replace(/\/+$/g, "") || "/";
+  const query = queryIndex >= 0 ? clean.slice(queryIndex + 1) : "";
+  return { pathname, query };
+}
+
+function hasXiaowanziContentQueryParam(query, key) {
+  return String(query || "")
+    .split("&")
+    .some((part) => {
+      const rawKey = String(part || "").split("=")[0] || "";
+      try {
+        return decodeURIComponent(rawKey) === key;
+      } catch (_error) {
+        return rawKey === key;
+      }
+    });
+}
+
+function getXiaowanziContentQueryParam(query, key) {
+  const parts = String(query || "").split("&");
+  for (const part of parts) {
+    const [rawKey, ...rawValueParts] = String(part || "").split("=");
+    let decodedKey = rawKey;
+    try {
+      decodedKey = decodeURIComponent(rawKey);
+    } catch (_error) {}
+    if (decodedKey !== key) continue;
+    const rawValue = rawValueParts.join("=");
+    try {
+      return decodeURIComponent(rawValue.replace(/\+/g, " "));
+    } catch (_error) {
+      return rawValue.replace(/\+/g, " ");
+    }
+  }
+  return "";
+}
+
+function isGenericXiaowanziReadingLinkTitle(title) {
+  const value = String(title || "").replace(/[《》「」"'“”]/g, "").replace(/\s+/g, "").trim();
+  return !value || ["及阅", "及阅图书", "图书", "图书列表", "阅读", "书单"].includes(value);
+}
+
+function getXiaowanziNativeTabRoute(url) {
+  const parsed = parseXiaowanziContentLink(url);
+  if (!parsed) return "";
+  const { pathname, query } = parsed;
+  if ((pathname === "/reading" || pathname === "/books") && !hasXiaowanziContentQueryParam(query, "xf_external_book_id")) return "/pages/reading/index";
+  if (pathname === "/library" && !hasXiaowanziContentQueryParam(query, "xf_external_book_id")) return "/pages/reading/index";
+  if (pathname === "/programs" || pathname === "/programs/list") return "/pages/programs/index";
+  if (pathname === "/materials") return "/pages/materials/index";
+  if (pathname === "/topics") return "/pages/topics/index";
+  return "";
+}
+
+function getXiaowanziReadingSearchQuery(url, fallbackTitle) {
+  const parsed = parseXiaowanziContentLink(url);
+  if (!parsed) return "";
+  const { pathname, query } = parsed;
+  if (pathname !== "/reading" && pathname !== "/books" && pathname !== "/library") return "";
+  if (hasXiaowanziContentQueryParam(query, "xf_external_book_id")) return "";
+  const queryValue = getXiaowanziContentQueryParam(query, "q");
+  if (queryValue) return queryValue;
+  if (isGenericXiaowanziReadingLinkTitle(fallbackTitle)) return "";
+  return String(fallbackTitle || "").trim();
+}
+
 function getHomeTopicRequestUrl() {
   const activeChild = activeChildProfile();
   const params = ["page=1", "limit=24"];
@@ -496,27 +596,39 @@ function buildActiveChildSummary() {
 
 function buildNativeShellData() {
   const metrics = getNativeTopbarMetrics();
-  const topbarHeight = Math.max(72, Math.round(Number(metrics.topbarHeight || 88)));
   const capsuleHeight = Math.round(Number(metrics.capsuleHeight || 32));
   const knowledgeHeight = 34;
   const knowledgeWidth = 86;
   const avatarHeight = 40;
+  const statusBarHeight = Math.max(0, Math.round(Number(metrics.statusBarHeight || 0)));
   const searchButtonTop = Math.round(Number(metrics.searchButtonTop || 0));
+  const shellSafeTop = statusBarHeight > 0 ? statusBarHeight + 8 : 0;
+  const shellControlTop = Math.max(0, searchButtonTop, shellSafeTop);
+  const shellKnowledgeTop = Math.max(shellSafeTop, Math.round(shellControlTop + (capsuleHeight - knowledgeHeight) / 2));
+  const avatarVisualBottomOffset = 3;
+  const shellChromeBottomPadding = 2;
+  const sharePreviewChromeOffset = 20;
+  const shellAvatarTop = Math.max(0, shellKnowledgeTop + knowledgeHeight - avatarHeight + avatarVisualBottomOffset);
+  const topbarHeight = Math.max(
+    72,
+    shellControlTop + capsuleHeight + shellChromeBottomPadding,
+    shellAvatarTop + avatarHeight + shellChromeBottomPadding,
+    shellKnowledgeTop + knowledgeHeight + shellChromeBottomPadding
+  );
   const chatTop = topbarHeight + NATIVE_SHELL_BODY_HEIGHT;
-  const shellControlTop = Math.max(0, searchButtonTop);
   return {
     topbarHeight,
     chatTop,
     childBoundaryTop: topbarHeight + 12,
     shellLogoTop: shellControlTop,
     shellLogoHeight: capsuleHeight,
-    shellAvatarTop: Math.max(0, Math.round(shellControlTop + (capsuleHeight - avatarHeight) / 2)),
+    shellAvatarTop,
     shellAvatarHeight: avatarHeight,
-    shellKnowledgeTop: Math.max(0, Math.round(shellControlTop + (capsuleHeight - knowledgeHeight) / 2)),
+    shellKnowledgeTop,
     shellKnowledgeHeight: knowledgeHeight,
     shellKnowledgeWidth: knowledgeWidth,
     shellKnowledgeRight: Math.max(8, Math.round(Number(metrics.capsuleRight || 96) + 2)),
-    sharePreviewTop: Math.max(topbarHeight + 12, shellControlTop + capsuleHeight + 16)
+    sharePreviewTop: Math.max(topbarHeight + 12, shellControlTop + avatarHeight + sharePreviewChromeOffset, shellControlTop + capsuleHeight + 16)
   };
 }
 
@@ -613,11 +725,23 @@ function formatChildAgeFromBirthDate(birthDate, now = new Date()) {
   return months > 0 ? `${years}岁${months}个月` : `${years}岁`;
 }
 
-function buildChildProfileSummary(profile, parentRole) {
+function buildUserAddressingRule(childName, parentName) {
+  const normalizedChildName = String(childName || "").trim();
+  const normalizedParentName = String(parentName || "").trim();
+  const userAddress = normalizedParentName && normalizedParentName !== normalizedChildName ? normalizedParentName : "家长";
+  return normalizedChildName
+    ? `称呼用户:${userAddress}。不要把孩子姓名${normalizedChildName}当作用户称呼。禁止称呼用户为${normalizedChildName}家长、${normalizedChildName}妈妈、${normalizedChildName}爸爸`
+    : `称呼用户:${userAddress}`;
+}
+
+function buildChildProfileSummary(profile, parentRole, parentName) {
   const exactAge = formatChildAgeFromBirthDate(profile && profile.birthDate);
+  const childName = String((profile && profile.displayName) || "孩子").trim() || "孩子";
   return [
-    `咨询人:${String((profile && profile.displayName) || "孩子").trim() || "孩子"}`,
-    profile && profile.relation ? `关系:${String(profile.relation).trim()}` : "",
+    parentName ? `家长姓名:${parentName}` : "",
+    `孩子姓名:${childName}`,
+    buildUserAddressingRule(childName, parentName),
+    profile && profile.relation ? `孩子关系:${String(profile.relation).trim()}` : "",
     profile && profile.birthDate ? `出生日期:${String(profile.birthDate).trim()}` : "",
     `当前日期:${formatLocalDate(new Date())}`,
     exactAge ? `准确年龄:${exactAge}（按出生日期和当前日期计算，请以该准确年龄为准）` : "",
@@ -649,6 +773,12 @@ function toVisibleUserContent(content) {
 function getCurrentParentRole() {
   const user = parseStoredValue(getUser(), {}) || {};
   return String(user.parentRole || user.relation || "").trim();
+}
+
+function getCurrentParentName() {
+  const user = parseStoredValue(getUser(), {}) || {};
+  const profile = user && typeof user.profile === "object" ? user.profile : {};
+  return String(user.name || user.nickName || user.displayName || profile.name || profile.nickName || profile.displayName || user.username || "").trim();
 }
 
 function normalizeMessage(item, index) {
@@ -686,12 +816,38 @@ function normalizeMessageAttachments(value) {
   }).filter(Boolean);
 }
 
+function currentUserStorageScope() {
+  const token = String(getToken() || "").trim();
+  if (!token) return "";
+  const user = parseStoredValue(getUser(), {}) || {};
+  const rawId = String(user._id || user.id || user.mobile || user.openid || user.wechatMiniOpenid || "").trim();
+  const source = rawId || token;
+  return source.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80);
+}
+
+function scopedStorageKey(key) {
+  const scope = currentUserStorageScope();
+  return scope ? `${key}:${scope}` : key;
+}
+
 function historyCacheKey(childId) {
-  return `${NATIVE_HISTORY_CACHE_PREFIX}${childId || "global"}`;
+  return scopedStorageKey(`${NATIVE_HISTORY_CACHE_PREFIX}${childId || "global"}`);
 }
 
 function sessionMessagesKey(sessionId) {
+  return scopedStorageKey(`${NATIVE_SESSION_MESSAGES_PREFIX}${sessionId}`);
+}
+
+function sessionMessagesLegacyKey(sessionId) {
   return `${NATIVE_SESSION_MESSAGES_PREFIX}${sessionId}`;
+}
+
+function activeSessionKey() {
+  return scopedStorageKey(NATIVE_ACTIVE_SESSION_KEY);
+}
+
+function sessionIndexKey() {
+  return scopedStorageKey(NATIVE_SESSION_INDEX_KEY);
 }
 
 function createNativeSessionId() {
@@ -709,7 +865,7 @@ function sanitizeHistoryMessages(messages) {
 
 function readNativeSessionIndex() {
   try {
-    const raw = wx.getStorageSync(NATIVE_SESSION_INDEX_KEY);
+    const raw = wx.getStorageSync(sessionIndexKey()) || (currentUserStorageScope() ? "" : wx.getStorageSync(NATIVE_SESSION_INDEX_KEY));
     const parsed = typeof raw === "string" ? JSON.parse(raw || "[]") : raw;
     if (!Array.isArray(parsed)) return [];
     return parsed
@@ -730,7 +886,7 @@ function readNativeSessionIndex() {
 
 function writeNativeSessionIndex(items) {
   try {
-    wx.setStorageSync(NATIVE_SESSION_INDEX_KEY, (items || []).slice(0, 60));
+    wx.setStorageSync(sessionIndexKey(), (items || []).slice(0, 60));
   } catch (_error) {}
 }
 
@@ -745,7 +901,7 @@ function removeStorageKey(key) {
 function readNativeSessionMessages(sessionId) {
   if (!sessionId) return [];
   try {
-    const raw = wx.getStorageSync(sessionMessagesKey(sessionId));
+    const raw = wx.getStorageSync(sessionMessagesKey(sessionId)) || (currentUserStorageScope() ? "" : wx.getStorageSync(sessionMessagesLegacyKey(sessionId)));
     const parsed = typeof raw === "string" ? JSON.parse(raw || "[]") : raw;
     return Array.isArray(parsed) ? sanitizeHistoryMessages(parsed) : [];
   } catch (_error) {
@@ -865,7 +1021,7 @@ function saveNativeSession(childId, childName, messages) {
     saveCachedHistory(childId, messages);
     return "";
   }
-  const sessionId = String(wx.getStorageSync(NATIVE_ACTIVE_SESSION_KEY) || "").trim() || createNativeSessionId();
+  const sessionId = String(wx.getStorageSync(activeSessionKey()) || "").trim() || createNativeSessionId();
   const summary = firstUserHistoryTitle(sanitized);
   if (!summary) return "";
   const updatedAt = sanitized[sanitized.length - 1].ts || new Date().toISOString();
@@ -881,7 +1037,7 @@ function saveNativeSession(childId, childName, messages) {
   const remaining = readNativeSessionIndex().filter((item) => item.id !== sessionId);
   writeNativeSessionIndex([card].concat(remaining));
   writeNativeSessionMessages(sessionId, sanitized);
-  wx.setStorageSync(NATIVE_ACTIVE_SESSION_KEY, sessionId);
+  wx.setStorageSync(activeSessionKey(), sessionId);
   saveCachedHistory(childId, sanitized);
   return sessionId;
 }
@@ -892,9 +1048,11 @@ function removeNativeSession(sessionId) {
   const remaining = readNativeSessionIndex().filter((item) => item.id !== id);
   writeNativeSessionIndex(remaining);
   removeStorageKey(sessionMessagesKey(id));
-  const activeSessionId = String(wx.getStorageSync(NATIVE_ACTIVE_SESSION_KEY) || "").trim();
+  if (sessionMessagesLegacyKey(id) !== sessionMessagesKey(id)) removeStorageKey(sessionMessagesLegacyKey(id));
+  const activeSessionId = String(wx.getStorageSync(activeSessionKey()) || "").trim();
   const wasActive = activeSessionId === id;
-  if (wasActive) removeStorageKey(NATIVE_ACTIVE_SESSION_KEY);
+  if (wasActive) removeStorageKey(activeSessionKey());
+  if (String(wx.getStorageSync(NATIVE_ACTIVE_SESSION_KEY) || "").trim() === id) removeStorageKey(NATIVE_ACTIVE_SESSION_KEY);
   return wasActive;
 }
 
@@ -1117,6 +1275,23 @@ function decodeArrayBufferUtf8(value) {
   }
 }
 
+function maybeDecodeLatin1Utf8String(value) {
+  const text = String(value || "");
+  if (!text || /[\u4e00-\u9fff]/.test(text)) return text;
+  if (!/(?:Ã.|Â.|[äåèéç][\u0080-\u00ff])/.test(text)) return text;
+  const bytes = [];
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index);
+    if (code > 255) return text;
+    bytes.push(code);
+  }
+  try {
+    return decodeArrayBufferUtf8(new Uint8Array(bytes).buffer);
+  } catch (_error) {
+    return text;
+  }
+}
+
 function arrayBufferJsonMessage(value) {
   if (!value || typeof ArrayBuffer === "undefined" || !(value instanceof ArrayBuffer)) return "";
   try {
@@ -1126,6 +1301,206 @@ function arrayBufferJsonMessage(value) {
   } catch (_error) {
     return "";
   }
+}
+
+function decodeXiaowanziResponseData(value) {
+  if (!value) return "";
+  if (typeof value === "string") return maybeDecodeLatin1Utf8String(value);
+  if (typeof ArrayBuffer !== "undefined" && value instanceof ArrayBuffer) return decodeArrayBufferUtf8(value);
+  if (typeof value === "object" && typeof value.data !== "undefined") return decodeXiaowanziResponseData(value.data);
+  return "";
+}
+
+function parseXiaowanziSseBlock(block) {
+  const lines = String(block || "").replace(/\r\n/g, "\n").split("\n");
+  let eventName = "";
+  const dataLines = [];
+  lines.forEach((line) => {
+    if (line.indexOf("event:") === 0) {
+      eventName = line.replace(/^event:\s*/, "").trim();
+      return;
+    }
+    if (line.indexOf("data:") === 0) {
+      dataLines.push(line.replace(/^data:\s*/, ""));
+    }
+  });
+  if (!dataLines.length) return null;
+  const rawData = dataLines.join("\n").trim();
+  if (!rawData || rawData === "[DONE]") return null;
+  try {
+    return { eventName, payload: JSON.parse(rawData) };
+  } catch (_error) {
+    return { eventName, payload: { content: rawData } };
+  }
+}
+
+function drainXiaowanziSseBuffer(buffer, flush, onEvent) {
+  const normalized = String(buffer || "").replace(/\r\n/g, "\n");
+  const parts = normalized.split("\n\n");
+  const rest = flush ? "" : parts.pop() || "";
+  const events = flush ? parts : parts;
+  events.forEach((part) => {
+    const event = parseXiaowanziSseBlock(part);
+    if (event) onEvent(event);
+  });
+  if (flush && rest) {
+    const event = parseXiaowanziSseBlock(rest);
+    if (event) onEvent(event);
+  }
+  return rest;
+}
+
+function normalizeXiaowanziThinkingSteps(trace) {
+  if (!Array.isArray(trace)) return [];
+  return trace
+    .map((item, index) => {
+      const label = String(item && item.label || "").trim();
+      const detail = String(item && item.detail || "").trim();
+      if (!label && !detail) return null;
+      const status = ["hit", "miss", "fallback"].includes(String(item && item.status)) ? String(item.status) : "miss";
+      const text = [label, detail].filter(Boolean).join("：");
+      return {
+        key: `${status}-${index}-${text}`,
+        status,
+        text
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 3);
+}
+
+function buildInitialXiaowanziThinkingSteps() {
+  return [
+    { key: "initial-understand", status: "pending", text: "正在理解问题" },
+    { key: "initial-search", status: "pending", text: "准备查找站内内容和知识库" }
+  ];
+}
+
+function applyXiaowanziThinkingActiveStep(message, index, tick) {
+  const steps = Array.isArray(message && message.thinkingSteps) ? message.thinkingSteps : [];
+  const activeIndex = steps.length ? Math.max(0, Math.min(steps.length - 1, Number(index) || 0)) : 0;
+  const activeStep = steps[activeIndex] || null;
+  return {
+    ...message,
+    thinkingActiveStepIndex: activeIndex,
+    thinkingActiveStepText: activeStep ? activeStep.text : "",
+    thinkingActiveStepStatus: activeStep ? activeStep.status : "",
+    thinkingTick: Number(tick) || 0
+  };
+}
+
+function parseXiaowanziResponsePayload(data) {
+  if (!data) return null;
+  if (typeof data === "object" && (typeof ArrayBuffer === "undefined" || !(data instanceof ArrayBuffer))) return data;
+  const text = decodeXiaowanziResponseData(data).trim();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch (_error) {
+    return { content: text };
+  }
+}
+
+function xiaowanziRequestError(res, url, fallback) {
+  const statusCode = Number(res && res.statusCode || 0);
+  const payload = parseXiaowanziResponsePayload(res && res.data) || {};
+  if (statusCode === 401) clearSession();
+  return {
+    statusCode,
+    data: payload,
+    url,
+    message: String(payload && (payload.error || payload.message || payload.detail || payload.content) || fallback || "请求失败")
+  };
+}
+
+function requestXiaowanziStream(options) {
+  const content = String(options && options.content || "");
+  const onDelta = options && typeof options.onDelta === "function" ? options.onDelta : function noop() {};
+  const onContext = options && typeof options.onContext === "function" ? options.onContext : function noop() {};
+  const token = getToken();
+  const url = buildUrl(`/api/v1/tutorbot/${BOT_ID}/messages`);
+  const header = { "content-type": "application/json" };
+  if (token) header.Authorization = `Bearer ${token}`;
+
+  return new Promise((resolve, reject) => {
+    let buffer = "";
+    let streamedContent = "";
+    let finalPayload = null;
+    let receivedChunk = false;
+    let settled = false;
+
+    const settleResolve = (payload) => {
+      if (settled) return;
+      settled = true;
+      resolve(payload);
+    };
+    const settleReject = (error) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    };
+    const handleEvent = (event) => {
+      const eventName = String(event && event.eventName || "").trim();
+      const payload = event && event.payload || {};
+      if (eventName === "delta") {
+        const delta = String(payload && payload.content || "");
+        if (!delta) return;
+        streamedContent += delta;
+        onDelta(delta);
+        return;
+      }
+      if (eventName === "context") {
+        onContext(payload);
+        return;
+      }
+      if (eventName === "done") {
+        finalPayload = payload || {};
+        return;
+      }
+      if (eventName === "error") {
+        settleReject({ statusCode: 0, data: payload, url, message: String(payload && payload.content || "请求失败") });
+      }
+    };
+
+    const task = wx.request({
+      method: "POST",
+      url,
+      data: { content, stream: true },
+      header,
+      responseType: "arraybuffer",
+      enableChunked: true,
+      success(res) {
+        const statusCode = Number(res && res.statusCode || 0);
+        if (statusCode < 200 || statusCode >= 300) {
+          settleReject(xiaowanziRequestError(res, url, "请求失败"));
+          return;
+        }
+        if (!receivedChunk) {
+          const payload = parseXiaowanziResponsePayload(res && res.data);
+          const text = decodeXiaowanziResponseData(res && res.data);
+          if (text.indexOf("event:") >= 0 || text.indexOf("data:") >= 0) {
+            buffer = drainXiaowanziSseBuffer(text, true, handleEvent);
+          } else if (payload) {
+            finalPayload = payload;
+          }
+        } else {
+          buffer = drainXiaowanziSseBuffer(buffer, true, handleEvent);
+        }
+        settleResolve(finalPayload || { content: streamedContent });
+      },
+      fail(error) {
+        settleReject({ statusCode: 0, message: error && error.errMsg || "网络连接失败", url, error });
+      }
+    });
+
+    if (task && typeof task.onChunkReceived === "function") {
+      task.onChunkReceived((chunk) => {
+        receivedChunk = true;
+        buffer += decodeXiaowanziResponseData(chunk && chunk.data || chunk);
+        buffer = drainXiaowanziSseBuffer(buffer, false, handleEvent);
+      });
+    }
+  });
 }
 
 function createXiaowanziConversationShare(messages) {
@@ -1209,7 +1584,7 @@ function extractShareReferences(text) {
     }
     return "";
   });
-  return references.slice(0, 2);
+  return references.slice(0, 5);
 }
 
 function buildShareReferenceLines(ctx, references, maxWidth, fontSize) {
@@ -1533,21 +1908,11 @@ function drawShareCanvasSiteCard(ctx, line, x, y, width, fontSize) {
 
 function drawShareCanvasSiteCardArrow(ctx, x, y, size) {
   const arrow = Math.max(18, Number(size) || SHARE_CANVAS_CHAT_STYLE.siteCard.arrowFontSize);
-  const inset = Math.round(arrow * 0.25);
-  const end = arrow - inset;
-  const start = Math.round(arrow * 0.72);
-  if (!ctx || typeof ctx.beginPath !== "function" || typeof ctx.moveTo !== "function" || typeof ctx.lineTo !== "function" || typeof ctx.stroke !== "function") return;
-  if (typeof ctx.setStrokeStyle === "function") ctx.setStrokeStyle(SHARE_CANVAS_CHAT_STYLE.siteCard.arrowColor);
-  if (typeof ctx.setLineWidth === "function") ctx.setLineWidth(4);
-  if (typeof ctx.setLineCap === "function") ctx.setLineCap("round");
-  if (typeof ctx.setLineJoin === "function") ctx.setLineJoin("round");
-  ctx.beginPath();
-  ctx.moveTo(x + inset, y + end);
-  ctx.lineTo(x + end, y + inset);
-  ctx.moveTo(x + start, y + inset);
-  ctx.lineTo(x + end, y + inset);
-  ctx.lineTo(x + end, y + Math.round(arrow * 0.48));
-  ctx.stroke();
+  if (!ctx || typeof ctx.fillText !== "function") return;
+  setShareCanvasTextAlign(ctx, "left");
+  setShareCanvasFontSize(ctx, arrow);
+  ctx.setFillStyle(SHARE_CANVAS_CHAT_STYLE.siteCard.arrowColor);
+  ctx.fillText("↗", x, y + Math.round(arrow * 0.82));
 }
 
 function drawCanvasRichTextLines(ctx, lines, x, y, lineHeight, options) {
@@ -2054,6 +2419,13 @@ Page({
   },
 
   shareRevealTimer: null,
+  nativeThinkingStepTimer: null,
+  nativeReplyRevealTimer: null,
+  nativeReplyRevealQueue: "",
+  nativeReplyDisplayedReply: "",
+  nativeReplyRevealMessageId: "",
+  nativeReplyFinalReply: "",
+  nativeReplyFinalShareable: false,
 
   onLoad(options = {}) {
     this._initialOptions = options;
@@ -2066,6 +2438,8 @@ Page({
 
   onUnload() {
     this.clearShareRevealTimer();
+    this.clearNativeThinkingStepTimer();
+    this.clearNativeReplyRevealTimer();
   },
 
   initializeXiaowanzi(options = {}) {
@@ -2094,6 +2468,7 @@ Page({
       return true;
     }
     this.setData({
+      ...buildNativeShellData(),
       xiaowanziLoginRequired: true,
       canUseBot: false,
       sending: false,
@@ -2204,7 +2579,7 @@ Page({
 
   loadNativeHistory() {
     const activeChild = activeChildProfile();
-    const activeSessionId = String(wx.getStorageSync(NATIVE_ACTIVE_SESSION_KEY) || "").trim();
+    const activeSessionId = String(wx.getStorageSync(activeSessionKey()) || (currentUserStorageScope() ? "" : wx.getStorageSync(NATIVE_ACTIVE_SESSION_KEY)) || "").trim();
     const sessionMessages = readNativeSessionMessages(activeSessionId);
     if (sessionMessages.length) {
       this.setData({ messages: sessionMessages, homeMode: false, homeConversationMessages: [], scrollIntoView: sessionMessages[sessionMessages.length - 1].id, knowledgePillCollapsed: true });
@@ -2336,17 +2711,6 @@ Page({
       return;
     }
     const activeChild = activeChildProfile();
-    if (!activeChild && !this.data.homeMode) {
-      this.setData({
-        errorText: "请先关联孩子档案，小玩子才能给出贴合年龄和年级的建议。",
-        actionLabel: "关联孩子",
-        actionType: "archive",
-        sendPressing: false,
-        statusText: "需要孩子档案"
-      });
-      this.openArchivePanel();
-      return;
-    }
 
     const keepHomeConversation = Boolean(this.data.homeMode);
     const visibleMessageContent = visibleContent || (hasPendingAttachments ? "帮我解读下图片内容" : attachmentPreviewText || "已添加附件");
@@ -2359,16 +2723,20 @@ Page({
       shareable: false,
       ts: new Date().toISOString()
     };
-    const pendingMessage = {
+    const initialThinkingSteps = buildInitialXiaowanziThinkingSteps();
+    const pendingMessage = applyXiaowanziThinkingActiveStep({
       id: messageId("assistant"),
       role: "assistant",
       content: "小玩子正在思考中...",
       contentParts: buildMessageContentParts("小玩子正在思考中..."),
       pending: true,
+      thinkingLabel: "小玩子处理中",
+      thinkingSteps: initialThinkingSteps,
       shareable: false,
       ts: new Date(Date.now() + 1).toISOString()
-    };
+    }, 0, 0);
     const nextMessages = this.data.messages.concat(userMessage, pendingMessage);
+    this.resetNativeReplyReveal(pendingMessage);
     this.setData({
       messages: nextMessages,
       homeConversationMessages: keepHomeConversation ? buildHomeConversationMessages(nextMessages) : [],
@@ -2393,6 +2761,7 @@ Page({
       scrollIntoView: pendingMessage.id,
       knowledgePillCollapsed: true
     });
+    this.startNativeThinkingStepCycle(pendingMessage);
 
     const attachmentContextPromise = hasPendingAttachments
       ? recognizePendingAttachments(pendingAttachments)
@@ -2404,14 +2773,23 @@ Page({
         if (!content) throw new Error("请先输入问题或上传图片");
         return this.buildContextualContent(activeChild, content).then((contextPayload) => ({ ...contextPayload, content }));
       })
-      .then(({ contextualContent, profileSummary, memoryEnabled, content }) => request({
-        method: "POST",
-        url: `/api/v1/tutorbot/${BOT_ID}/messages`,
-        data: { content: contextualContent, stream: false }
-      }).then((payload) => ({ payload, profileSummary, memoryEnabled, content })))
-      .then(({ payload, profileSummary, memoryEnabled, content }) => {
+      .then(({ contextualContent, profileSummary, memoryEnabled, content }) => {
+        let streamedReply = "";
+        return requestXiaowanziStream({
+          content: contextualContent,
+          onContext: (payload) => {
+            this.updateNativeAssistantThinkingTrace(pendingMessage, payload);
+          },
+          onDelta: (delta) => {
+            streamedReply += String(delta || "");
+            this.appendNativeAssistantDelta(pendingMessage, delta);
+          }
+        }).then((payload) => ({ payload, profileSummary, memoryEnabled, content, streamedReply }));
+      })
+      .then(({ payload, profileSummary, memoryEnabled, content, streamedReply }) => {
         if (this.data.pendingMessageId !== pendingMessage.id) return;
-        const reply = String(payload && (payload.content || payload.message || payload.detail) || "").trim() || "小玩子暂时没有返回内容。";
+        const streamedContent = String(streamedReply || "").trim();
+        const reply = String(payload && (payload.content || payload.message || payload.detail) || streamedContent).trim() || "小玩子暂时没有返回内容。";
         const assistantMessage = {
           id: pendingMessage.id,
           role: "assistant",
@@ -2420,24 +2798,33 @@ Page({
           shareable: isShareableAssistantMessageValue("assistant", reply, false, false),
           ts: new Date().toISOString()
         };
-        const messages = this.data.messages.map((item) => item.id === pendingMessage.id ? assistantMessage : item);
+        const currentMessages = this.data.messages;
+        const savedMessages = currentMessages.map((item) => item.id === pendingMessage.id ? assistantMessage : item);
+        if (streamedContent) {
+          this.completeNativeAssistantReveal(pendingMessage, reply);
+        }
         this.setData({
-          messages,
-          homeConversationMessages: this.data.homeMode ? buildHomeConversationMessages(messages) : [],
+          ...(streamedContent ? {} : {
+            messages: savedMessages,
+            homeConversationMessages: this.data.homeMode ? buildHomeConversationMessages(savedMessages) : []
+          }),
           sending: false,
           pendingMessageId: "",
           canUseBot: true,
-          statusText: "随时可用",
+          statusText: streamedContent && this.nativeReplyRevealQueue ? "正在回复" : "随时可用",
           scrollIntoView: assistantMessage.id
         });
-        this.refreshHistoryCards(messages);
-        saveNativeSession(activeChild && activeChild.id, activeChild && activeChild.displayName, messages);
+        if (!this.data.pendingMessageId) this.clearNativeThinkingStepTimer();
+        this.refreshHistoryCards(savedMessages);
+        saveNativeSession(activeChild && activeChild.id, activeChild && activeChild.displayName, savedMessages);
         if (activeChild && memoryEnabled) {
           this.mergeChildMemory(activeChild.id, profileSummary, content, reply);
         }
       })
       .catch((error) => {
         if (this.data.pendingMessageId !== pendingMessage.id) return;
+        this.clearNativeThinkingStepTimer();
+        this.clearNativeReplyRevealTimer();
         const messages = this.data.messages.map((item) => {
           if (item.id !== pendingMessage.id) return item;
           return {
@@ -2469,7 +2856,196 @@ Page({
       });
   },
 
+  updateNativeAssistantThinkingTrace(pendingMessage, payload) {
+    if (!pendingMessage || this.data.pendingMessageId !== pendingMessage.id) return;
+    const thinkingSteps = normalizeXiaowanziThinkingSteps(payload && payload.trace);
+    if (!thinkingSteps.length) return;
+    const messages = this.data.messages.map((item) => {
+      if (item.id !== pendingMessage.id || !item.pending) return item;
+      return applyXiaowanziThinkingActiveStep({
+        ...item,
+        thinkingLabel: "小玩子处理中",
+        thinkingSteps
+      }, 0, Number(item.thinkingTick || 0) + 1);
+    });
+    this.setData({
+      messages,
+      homeConversationMessages: this.data.homeMode ? buildHomeConversationMessages(messages) : [],
+      statusText: thinkingSteps[0] && thinkingSteps[0].text || "正在思考"
+    });
+  },
+
+  startNativeThinkingStepCycle(pendingMessage) {
+    this.clearNativeThinkingStepTimer();
+    if (!pendingMessage || !pendingMessage.id) return;
+    this.nativeThinkingStepTimer = setInterval(() => {
+      this.advanceNativeThinkingStep(pendingMessage);
+    }, XIAOWANZI_THINKING_STEP_INTERVAL_MS);
+  },
+
+  clearNativeThinkingStepTimer() {
+    if (this.nativeThinkingStepTimer) clearInterval(this.nativeThinkingStepTimer);
+    this.nativeThinkingStepTimer = null;
+  },
+
+  advanceNativeThinkingStep(pendingMessage) {
+    if (!pendingMessage || this.data.pendingMessageId !== pendingMessage.id) {
+      this.clearNativeThinkingStepTimer();
+      return;
+    }
+    let changed = false;
+    const messages = this.data.messages.map((item) => {
+      if (item.id !== pendingMessage.id || !item.pending) return item;
+      const steps = Array.isArray(item.thinkingSteps) ? item.thinkingSteps : [];
+      if (steps.length < 2) return item;
+      const currentIndex = Math.max(0, Math.min(steps.length - 1, Number(item.thinkingActiveStepIndex || 0)));
+      if (currentIndex >= steps.length - 1) return item;
+      changed = true;
+      const nextIndex = currentIndex + 1;
+      return applyXiaowanziThinkingActiveStep(item, nextIndex, Number(item.thinkingTick || 0) + 1);
+    });
+    if (!changed) return;
+    this.setData({
+      messages,
+      homeConversationMessages: this.data.homeMode ? buildHomeConversationMessages(messages) : []
+    });
+  },
+
+  appendNativeAssistantDelta(pendingMessage, delta) {
+    if (!pendingMessage || this.data.pendingMessageId !== pendingMessage.id) return;
+    const value = String(delta || "");
+    if (!value) return;
+    this.clearNativeThinkingStepTimer();
+    if (this.nativeReplyRevealMessageId !== pendingMessage.id) this.resetNativeReplyReveal(pendingMessage);
+    this.nativeReplyRevealQueue = `${String(this.nativeReplyRevealQueue || "")}${value}`;
+    this.revealNativeAssistantQueuedText(pendingMessage, !this.nativeReplyDisplayedReply);
+  },
+
+  resetNativeReplyReveal(pendingMessage) {
+    this.clearNativeReplyRevealTimer();
+    this.nativeReplyRevealQueue = "";
+    this.nativeReplyDisplayedReply = "";
+    this.nativeReplyRevealMessageId = pendingMessage && pendingMessage.id || "";
+    this.nativeReplyFinalReply = "";
+    this.nativeReplyFinalShareable = false;
+  },
+
+  clearNativeReplyRevealTimer() {
+    if (this.nativeReplyRevealTimer) clearTimeout(this.nativeReplyRevealTimer);
+    this.nativeReplyRevealTimer = null;
+  },
+
+  canUpdateNativeReplyReveal(pendingMessage) {
+    const messageId = pendingMessage && pendingMessage.id;
+    if (!messageId || this.nativeReplyRevealMessageId !== messageId) return false;
+    return this.data.messages.some((item) => item && item.id === messageId);
+  },
+
+  revealNativeAssistantQueuedText(pendingMessage, initial) {
+    if (!this.canUpdateNativeReplyReveal(pendingMessage)) return "";
+    const queue = String(this.nativeReplyRevealQueue || "");
+    if (!queue) return String(this.nativeReplyDisplayedReply || "");
+    const queueChars = Array.from(queue);
+    const displayedLength = Array.from(String(this.nativeReplyDisplayedReply || "")).length;
+    const step = initial
+      ? NATIVE_REPLY_REVEAL_INITIAL_CHARS
+      : (displayedLength % 5 === 0 ? 1 : NATIVE_REPLY_REVEAL_STEP_CHARS);
+    const take = Math.min(queueChars.length, Math.max(1, step));
+    const revealedText = queueChars.slice(0, take).join("");
+    this.nativeReplyRevealQueue = queueChars.slice(take).join("");
+    this.nativeReplyDisplayedReply = `${String(this.nativeReplyDisplayedReply || "")}${revealedText}`;
+    const final = !this.nativeReplyRevealQueue && Boolean(this.nativeReplyFinalReply);
+    const reply = final ? this.nativeReplyFinalReply : this.nativeReplyDisplayedReply;
+    this.applyNativeAssistantReply(pendingMessage, reply, { final });
+    if (final) {
+      this.nativeReplyFinalReply = "";
+      this.nativeReplyFinalShareable = false;
+      this.nativeReplyRevealMessageId = "";
+      return reply;
+    }
+    if (this.nativeReplyRevealQueue && !this.nativeReplyRevealTimer) {
+      const shouldPause = /[。！？!?；;，,、：:]$/.test(revealedText) || (displayedLength > 0 && displayedLength % 24 === 0);
+      this.nativeReplyRevealTimer = setTimeout(() => {
+        this.nativeReplyRevealTimer = null;
+        this.revealNativeAssistantQueuedText(pendingMessage, false);
+      }, shouldPause ? NATIVE_REPLY_REVEAL_PAUSE_MS : NATIVE_REPLY_REVEAL_DELAY_MS);
+    }
+    return this.nativeReplyDisplayedReply;
+  },
+
+  completeNativeAssistantReveal(pendingMessage, reply) {
+    if (!this.canUpdateNativeReplyReveal(pendingMessage)) return "";
+    const finalReply = String(reply || "").trim();
+    if (!finalReply) return "";
+    const displayed = String(this.nativeReplyDisplayedReply || "");
+    const combined = `${displayed}${String(this.nativeReplyRevealQueue || "")}`;
+    this.nativeReplyFinalReply = finalReply;
+    this.nativeReplyFinalShareable = isShareableAssistantMessageValue("assistant", finalReply, false, false);
+    if (finalReply !== combined) {
+      this.nativeReplyRevealQueue = finalReply.indexOf(displayed) === 0
+        ? finalReply.slice(displayed.length)
+        : finalReply;
+      if (finalReply.indexOf(displayed) !== 0) this.nativeReplyDisplayedReply = "";
+    }
+    if (!this.nativeReplyDisplayedReply && this.nativeReplyRevealQueue) {
+      return this.revealNativeAssistantQueuedText(pendingMessage, true);
+    }
+    if (!this.nativeReplyRevealQueue) {
+      this.applyNativeAssistantReply(pendingMessage, finalReply, { final: true });
+      this.nativeReplyFinalReply = "";
+      this.nativeReplyFinalShareable = false;
+      this.nativeReplyRevealMessageId = "";
+      return finalReply;
+    }
+    return this.nativeReplyDisplayedReply;
+  },
+
+  flushNativeAssistantReveal(pendingMessage) {
+    if (!this.canUpdateNativeReplyReveal(pendingMessage)) return "";
+    this.clearNativeReplyRevealTimer();
+    const queue = String(this.nativeReplyRevealQueue || "");
+    if (queue) {
+      this.nativeReplyRevealQueue = "";
+      this.nativeReplyDisplayedReply = `${String(this.nativeReplyDisplayedReply || "")}${queue}`;
+      this.applyNativeAssistantReply(pendingMessage, this.nativeReplyDisplayedReply);
+    }
+    return String(this.nativeReplyDisplayedReply || "");
+  },
+
+  applyNativeAssistantReply(pendingMessage, reply, options = {}) {
+    if (!this.canUpdateNativeReplyReveal(pendingMessage)) return;
+    const value = String(reply || "");
+    if (!value) return;
+    const final = Boolean(options && options.final);
+    const messages = this.data.messages.map((item) => {
+      if (item.id !== pendingMessage.id) return item;
+      return {
+        id: pendingMessage.id,
+        role: "assistant",
+        content: value,
+        contentParts: buildMessageContentParts(value),
+        pending: false,
+        revealPending: !final,
+        shareable: final ? this.nativeReplyFinalShareable : false,
+        ts: item.ts || pendingMessage.ts
+      };
+    });
+    const data = {
+      messages,
+      homeConversationMessages: this.data.homeMode ? buildHomeConversationMessages(messages) : [],
+      scrollIntoView: pendingMessage.id
+    };
+    if (final) {
+      data.statusText = "随时可用";
+    } else {
+      data.statusText = "正在回复";
+    }
+    this.setData(data);
+  },
+
   stopNativeResponse() {
+    this.clearNativeThinkingStepTimer();
+    this.clearNativeReplyRevealTimer();
     const pendingMessageId = String(this.data.pendingMessageId || "");
     const messages = pendingMessageId
       ? this.data.messages.filter((item) => item.id !== pendingMessageId)
@@ -2520,11 +3096,21 @@ Page({
     const url = String(dataset.url || "").trim();
     if (!url) return;
     const title = String(dataset.title || "").trim() || "话题详情";
+    const readingSearchQuery = getXiaowanziReadingSearchQuery(url, title);
+    if (readingSearchQuery) {
+      openNativeSearch(readingSearchQuery, { source: "reading", readingSource: "native" });
+      return;
+    }
+    const nativeTabRoute = getXiaowanziNativeTabRoute(url);
+    if (nativeTabRoute) {
+      wx.switchTab({ url: nativeTabRoute });
+      return;
+    }
     openWeb(url, title, { preserveXiaowanziLayer: true });
   },
 
   openKnowledgeHub() {
-    openWeb("https://xianfeng.xinzhi.info/experts?xw_layer=1&xw_return=xiaowanzi", "先疯智库", { preserveXiaowanziLayer: true });
+    wx.navigateTo({ url: "/pages/experts/index?from=xiaowanzi" });
   },
 
   handleKnowledgePillScroll(event) {
@@ -2542,7 +3128,7 @@ Page({
 
   startNewConversation() {
     this.clearShareRevealTimer();
-    wx.setStorageSync(NATIVE_ACTIVE_SESSION_KEY, createNativeSessionId());
+    wx.setStorageSync(activeSessionKey(), createNativeSessionId());
     this.setData({
       historyDrawerOpen: false,
       historyDeleteCardId: "",
@@ -2578,7 +3164,7 @@ Page({
     const sessionId = String(card.sessionId || card.id || "");
     const messages = readNativeSessionMessages(sessionId);
     if (messages.length) {
-      wx.setStorageSync(NATIVE_ACTIVE_SESSION_KEY, sessionId);
+      wx.setStorageSync(activeSessionKey(), sessionId);
       this.setData({
         historyDrawerOpen: false,
         historyDeleteCardId: "",
@@ -2908,9 +3494,12 @@ Page({
 
   buildContextualContent(activeChild, userContent) {
     const parentRole = getCurrentParentRole();
+    const parentName = getCurrentParentName();
     if (!activeChild) {
       const profileSummary = [
         "当前为通用咨询模式",
+        parentName ? `家长姓名:${parentName}` : "",
+        buildUserAddressingRule("", parentName),
         "用户未选择孩子档案",
         parentRole ? `提问者身份:${parentRole}` : ""
       ].filter(Boolean).join("。");
@@ -2927,7 +3516,7 @@ Page({
     return this.loadChildMemory(activeChild.id).then((memory) => {
       const backendMemoryEnabled = !memory || memory.enabled !== false;
       const memoryEnabled = memoryEnabledFromStorage() && backendMemoryEnabled;
-      const profileSummary = buildChildProfileSummary(activeChild, parentRole);
+      const profileSummary = buildChildProfileSummary(activeChild, parentRole, parentName);
       return {
         profileSummary,
         memoryEnabled,

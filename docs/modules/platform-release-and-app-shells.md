@@ -29,6 +29,10 @@
 
 ## WeChat Mini Program Shell
 
+- WorthBuy uses dedicated native routes `pages/worthbuy/index` and
+  `pages/worthbuy-detail/index`. They reuse `/api/worthbuy` for anonymous
+  public reads, owner-scoped history, Pro-gated analysis, deletion, and detail
+  access; browser `/worthbuy` routes remain owned by `frontend-web`.
 - The mini program is a hybrid shell: native bottom tabBar, native top
   shortcuts, and WeChat-native actions,
   with product content loaded from `https://xianfeng.xinzhi.info` through
@@ -110,6 +114,11 @@
   apply the same small/standard/large scale in mini-program mode. Cache clearing
   removes native list/search/form-draft caches while preserving login state,
   child profiles, memory settings, and font preference.
+- Native guest detail pages mirror the Xiaowanzi knowledge-hub profile layout:
+  the profile and related programs render immediately, while the guest-agent
+  profile and signed-in conversation history load alongside them. Agent-enabled
+  guests support native questions, citation expansion, and cited program links;
+  guests without an enabled agent remain readable profile pages.
 - `pages/mama-resource-apply/index` is a native mini-program form for the
   Mama Haozhuan supply intake. It mirrors the public web form and uses
   `wx.chooseMedia`/`wx.uploadFile` for Xiaohongshu profile screenshots.
@@ -117,10 +126,13 @@
   only after a successful submission.
 - After the bound mobile matches an approved Mama resource profile, the same
   native page switches from intake form to a task center. The task center reads
-  task assignments created from the admin task workspace, shows one horizontal
-  row per assigned project, opens a project detail page with
-  price/settlement/requirements, and lets the user submit proof link plus
-  completion screenshot for admin collection review.
+  task assignments and still-claimable listed tasks from the backend, shows one
+  horizontal row per project, opens a project detail page with
+  price/settlement/requirements, lets the user claim available tasks first,
+  then submit proof link plus completion screenshot for admin collection review.
+  The detail page can generate a compact task share image with a mini-program
+  code from `/api/wechat-mini/mama-resource-task-qrcode`; scanning the code
+  reopens `pages/mama-resource-apply/index` with the task id in `scene`.
 - If the bound mobile matches a submitted Mama resource profile that is still
   pending, needs-info, or rejected, `pages/mama-resource-apply/index` shows a
   dedicated review-status page instead of showing the intake form again. Only

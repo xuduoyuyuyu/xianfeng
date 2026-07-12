@@ -3,6 +3,19 @@ import mongoose from "mongoose";
 export type MamaResourceStatus = "pending" | "approved" | "needs_info" | "rejected";
 export type MamaResourceDataSource = "pending" | "auto" | "manual" | "screenshot";
 export type MamaResourceCaptureStatus = "pending" | "captured" | "failed" | "manual_required";
+export type MamaResourceMediaPlatform = "xiaohongshu" | "douyin" | "shipinhao" | "gongzhonghao" | "other";
+
+export interface MamaResourceMediaAccount {
+  platform: MamaResourceMediaPlatform;
+  profileUrl: string;
+  normalizedProfileUrl: string;
+  nickname?: string;
+  followerCount?: number | null;
+  screenshotUrl?: string;
+  realNameVerified?: boolean | null;
+  dataSource: MamaResourceDataSource;
+  lastCapturedAt?: Date | null;
+}
 
 export interface MamaResourceContentCase {
   url: string;
@@ -27,17 +40,8 @@ export interface MamaResourceProfile extends mongoose.Document {
   status: MamaResourceStatus;
   accountPositioning?: string;
   consentAccepted: boolean;
-  socialAccount: {
-    platform: "xiaohongshu";
-    profileUrl: string;
-    normalizedProfileUrl: string;
-    nickname?: string;
-    followerCount?: number;
-    screenshotUrl?: string;
-    realNameVerified?: boolean | null;
-    dataSource: MamaResourceDataSource;
-    lastCapturedAt?: Date | null;
-  };
+  socialAccount: MamaResourceMediaAccount & { platform: "xiaohongshu" };
+  mediaAccounts: MamaResourceMediaAccount[];
   contentCases: MamaResourceContentCase[];
   rateCard: {
     rateRange?: string;
@@ -68,6 +72,29 @@ const contentCaseSchema = new mongoose.Schema(
     captureStatus: {
       type: String,
       enum: ["pending", "captured", "failed", "manual_required"],
+      default: "pending",
+    },
+    lastCapturedAt: { type: Date, default: null },
+  },
+  { _id: false }
+);
+
+const mediaAccountSchema = new mongoose.Schema(
+  {
+    platform: {
+      type: String,
+      enum: ["xiaohongshu", "douyin", "shipinhao", "gongzhonghao", "other"],
+      default: "xiaohongshu",
+    },
+    profileUrl: { type: String, required: true, trim: true },
+    normalizedProfileUrl: { type: String, required: true, trim: true },
+    nickname: { type: String, default: "", trim: true },
+    followerCount: { type: Number, default: null },
+    screenshotUrl: { type: String, default: "", trim: true },
+    realNameVerified: { type: Boolean, default: null },
+    dataSource: {
+      type: String,
+      enum: ["pending", "auto", "manual", "screenshot"],
       default: "pending",
     },
     lastCapturedAt: { type: Date, default: null },
@@ -107,6 +134,7 @@ const mamaResourceProfileSchema = new mongoose.Schema(
       },
       lastCapturedAt: { type: Date, default: null },
     },
+    mediaAccounts: { type: [mediaAccountSchema], default: [] },
     contentCases: { type: [contentCaseSchema], default: [] },
     rateCard: {
       rateRange: { type: String, default: "", trim: true },

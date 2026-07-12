@@ -9,12 +9,45 @@ const { SETTINGS_SECTIONS, createNativeSettingsMethods, setSettingsTabbarHidden 
 const { getInitialSearchPrompt, startSearchPromptRotation, stopSearchPromptRotation } = require("../../utils/searchPrompts");
 const { createFilterDrawerMethods } = require("../../utils/filterDrawer");
 
-const MATERIAL_CACHE_KEY = "xf_native_materials_cache";
+const MATERIAL_CACHE_KEY = "xf_native_materials_cache_v2";
 const MATERIAL_PAGE_SIZE = 24;
 const LOGO_HEIGHT_RPX = 56;
 const SEARCH_PANEL_HEIGHT_RPX = 114;
 const TOP_CARD_GAP_RPX = 24;
 const MATERIAL_FILTER_TAG_LIMIT = 24;
+const MATERIAL_STAGE_ORDER = ["通用", "学前", "小学", "初中", "高中"];
+const MATERIAL_GRADE_ORDER = [
+  "通用",
+  "一年级",
+  "二年级",
+  "三年级",
+  "四年级",
+  "五年级",
+  "六年级",
+  "七年级",
+  "八年级",
+  "九年级",
+  "十年级",
+  "十一年级",
+  "十二年级"
+];
+const MATERIAL_SUBJECT_ORDER = ["语文", "数学", "英语", "书法", "地理", "家庭教育", "综合", "科学", "百科", "历史"];
+const MATERIAL_META_LABEL_RE = /^(阶段|年级|学科|关键分类|分类|类别|标签)\s*[:：]/;
+const MATERIAL_GRADE_LABELS = ["", "一年级", "二年级", "三年级", "四年级", "五年级", "六年级", "七年级", "八年级", "九年级", "十年级", "十一年级", "十二年级"];
+const MATERIAL_CHINESE_GRADE_NUMBERS = {
+  一: 1,
+  二: 2,
+  三: 3,
+  四: 4,
+  五: 5,
+  六: 6,
+  七: 7,
+  八: 8,
+  九: 9,
+  十: 10,
+  十一: 11,
+  十二: 12
+};
 
 function firstText(values, fallback) {
   for (const value of values) {
@@ -26,13 +59,13 @@ function firstText(values, fallback) {
 
 function splitTokens(value) {
   return String(value || "")
-    .split(/[|｜,，;；\n]+/)
+    .split(/[|｜,，;；、/／\n]+/)
     .map((item) => item.trim())
     .filter(Boolean);
 }
 
 function extractLabelValue(input, label) {
-  const pattern = new RegExp(`${label}\\s*[:：]\\s*([^|｜,，;；\\n]+)`, "i");
+  const pattern = new RegExp(`${label}\\s*[:：]\\s*([^|｜;；\\n]+)`, "i");
   const matched = String(input || "").match(pattern);
   return matched ? matched[1].trim() : "";
 }
@@ -42,7 +75,49 @@ function normalizeStage(value) {
   if (!text) return "";
   if (text === "小学" || text === "初中" || text === "高中" || text === "通用") return text;
   if (/(幼儿|学前)/.test(text)) return "学前";
-  return text;
+  return "";
+}
+
+function parseGradeNumber(value) {
+  const text = String(value || "").trim();
+  if (/^\d+$/.test(text)) return Number(text);
+  return MATERIAL_CHINESE_GRADE_NUMBERS[text] || 0;
+}
+
+function gradeLabelFromNumber(value) {
+  const number = Number(value);
+  return number >= 1 && number < MATERIAL_GRADE_LABELS.length ? MATERIAL_GRADE_LABELS[number] : "";
+}
+
+function normalizeGradeValues(value) {
+  const text = String(value || "").trim();
+  if (!text) return [];
+  if (text === "通用") return [text];
+  const classMatch = text.match(/(小班|中班|大班)/);
+  if (classMatch) return [classMatch[1]];
+  if (/低年级/.test(text)) return ["低年级"];
+
+  const rangeMatch = text.match(/(\d+|一|二|三|四|五|六|七|八|九|十|十一|十二)\s*[-－—~～至到]\s*(\d+|一|二|三|四|五|六|七|八|九|十|十一|十二)\s*年级/);
+  if (rangeMatch) {
+    const start = parseGradeNumber(rangeMatch[1]);
+    const end = parseGradeNumber(rangeMatch[2]);
+    if (start > 0 && end >= start && end <= 12) {
+      return MATERIAL_GRADE_LABELS.slice(start, end + 1);
+    }
+  }
+
+  const juniorMatch = text.match(/初\s*([一二三1-3])\s*(?:年级)?/);
+  if (juniorMatch) return [gradeLabelFromNumber(parseGradeNumber(juniorMatch[1]) + 6)].filter(Boolean);
+  const seniorMatch = text.match(/高\s*([一二三1-3])\s*(?:年级)?/);
+  if (seniorMatch) return [gradeLabelFromNumber(parseGradeNumber(seniorMatch[1]) + 9)].filter(Boolean);
+
+  const gradeMatch = text.match(/(十[一二]|[一二三四五六七八九十]|\d{1,2})\s*年级/);
+  if (gradeMatch) return [gradeLabelFromNumber(parseGradeNumber(gradeMatch[1]))].filter(Boolean);
+  return [];
+}
+
+function normalizeGrade(value) {
+  return normalizeGradeValues(value)[0] || "";
 }
 
 function normalizeSubject(value) {
@@ -53,17 +128,23 @@ function normalizeSubject(value) {
   return text;
 }
 
+function normalizeFieldValues(value, normalizer) {
+  return splitTokens(value)
+    .flatMap((token) => normalizer(token))
+    .filter(Boolean);
+}
+
 function parseMeta(description) {
   const raw = String(description || "").trim();
-  const stage = normalizeStage(extractLabelValue(raw, "阶段"));
-  const grade = extractLabelValue(raw, "年级");
-  const subject = normalizeSubject(extractLabelValue(raw, "学科"));
-  if (stage || grade || subject) return { stage, grade, subject };
+  const stage = normalizeFieldValues(extractLabelValue(raw, "阶段"), normalizeStage);
+  const grade = normalizeFieldValues(extractLabelValue(raw, "年级"), normalizeGrade);
+  const subject = normalizeFieldValues(extractLabelValue(raw, "学科"), normalizeSubject);
+  if (stage.length || grade.length || subject.length) return { stage, grade, subject };
 
   const tokens = splitTokens(raw);
-  const guessedStage = normalizeStage(tokens.find((token) => /(幼儿|小学|初中|高中|通用|学前)/.test(token)) || "");
-  const guessedGrade = tokens.find((token) => /年级|级|低年级/.test(token)) || "";
-  const guessedSubject = normalizeSubject(tokens.find((token) => /(语文|数学|英语|物理|化学|生物|历史|地理|政治|综合|科学)/.test(token)) || "");
+  const guessedStage = tokens.map(normalizeStage).filter(Boolean).slice(0, 1);
+  const guessedGrade = tokens.filter((token) => /年级|小班|中班|大班|低年级|初\s*[一二三1-3]|高\s*[一二三1-3]/.test(token)).flatMap(normalizeGradeValues).filter(Boolean).slice(0, 1);
+  const guessedSubject = tokens.filter((token) => /(语文|数学|英语|物理|化学|生物|历史|地理|政治|综合|科学)/.test(token)).map(normalizeSubject).filter(Boolean).slice(0, 1);
   return { stage: guessedStage, grade: guessedGrade, subject: guessedSubject };
 }
 
@@ -88,11 +169,41 @@ function pushFieldTag(tags, tone, value) {
   if (text && tags.every((tag) => tag.text !== text)) tags.push({ tone, text });
 }
 
+function pushFieldTags(tags, tone, value, normalizer) {
+  const values = Array.isArray(value) ? value : normalizeFieldValues(value, normalizer || ((item) => item));
+  values.forEach((item) => pushFieldTag(tags, tone, item));
+}
+
+function pushCategoryTags(tags, value) {
+  for (const token of splitTokens(value)) {
+    const stage = normalizeStage(token);
+    if (stage) {
+      pushFieldTag(tags, "stage", stage);
+      continue;
+    }
+    const gradeValues = /年级|小班|中班|大班|低年级|初\s*[一二三1-3]|高\s*[一二三1-3]/.test(token) ? normalizeGradeValues(token) : [];
+    if (gradeValues.length) {
+      gradeValues.forEach((grade) => pushFieldTag(tags, "grade", grade));
+      continue;
+    }
+    const subject = MATERIAL_SUBJECT_ORDER.indexOf(normalizeSubject(token)) >= 0 ? normalizeSubject(token) : "";
+    if (subject) {
+      pushFieldTag(tags, "subject", subject);
+      continue;
+    }
+    pushFieldTag(tags, "category", token.replace(MATERIAL_META_LABEL_RE, "").trim());
+  }
+}
+
+function stripMetaFields(value) {
+  return String(value || "").replace(/(阶段|年级|学科|关键分类|分类|类别|标签)\s*[:：]\s*[^|｜;；\n]+/g, "");
+}
+
 function normalizeDescription(value) {
   const raw = String(value || "").trim();
   if (!raw) return "点击复制资料链接，在浏览器或网盘 App 中继续打开";
-  const parts = splitTokens(raw).filter((item) => !/^(阶段|年级|学科)\s*[:：]/.test(item));
-  return parts.length ? parts.join("，") : raw;
+  const parts = splitTokens(stripMetaFields(raw)).filter((item) => !MATERIAL_META_LABEL_RE.test(item));
+  return parts.length ? parts.join("，") : "点击复制资料链接，在浏览器或网盘 App 中继续打开";
 }
 
 function normalizeMaterial(material) {
@@ -103,10 +214,17 @@ function normalizeMaterial(material) {
   const fileUrl = firstText([item.fileUrl, item.url, item.link], "");
   const sourceHost = hostLabel(fileUrl);
   const category = firstText([item.category], "学习资料");
-  pushFieldTag(fieldTags, "stage", meta.stage);
-  pushFieldTag(fieldTags, "grade", meta.grade);
-  pushFieldTag(fieldTags, "subject", meta.subject);
-  pushFieldTag(fieldTags, "category", category);
+  const keywordCategory = firstText([
+    extractLabelValue(item.description, "关键分类"),
+    extractLabelValue(item.description, "分类"),
+    extractLabelValue(item.description, "类别"),
+    extractLabelValue(item.description, "标签")
+  ], "");
+  pushFieldTags(fieldTags, "stage", meta.stage, normalizeStage);
+  pushFieldTags(fieldTags, "grade", meta.grade, normalizeGrade);
+  pushFieldTags(fieldTags, "subject", meta.subject, normalizeSubject);
+  pushCategoryTags(fieldTags, category);
+  pushCategoryTags(fieldTags, keywordCategory);
 
   return {
     id: id || String(item.title || "").trim(),
@@ -169,25 +287,6 @@ const MATERIAL_GROUP_DEFINITIONS = [
   { key: "grade", title: "年级" },
   { key: "subject", title: "科目" }
 ];
-
-const MATERIAL_GRADE_ORDER = [
-  "通用",
-  "一年级",
-  "二年级",
-  "三年级",
-  "四年级",
-  "五年级",
-  "六年级",
-  "七年级",
-  "八年级",
-  "九年级",
-  "十年级",
-  "十一年级",
-  "十二年级"
-];
-
-const MATERIAL_STAGE_ORDER = ["通用", "学前", "小学", "初中", "高中"];
-const MATERIAL_SUBJECT_ORDER = ["语文", "数学", "英语", "书法", "地理", "家庭教育", "综合", "科学/百科", "历史"];
 
 function compareByOrder(order, a, b) {
   const indexA = order.indexOf(a);
@@ -275,14 +374,17 @@ Page({
     hasMoreMaterials: false,
     loading: true,
     refreshing: false,
-      error: "",
-      hasCache: false,
-      settingsPanelOpen: false,
-      settingsPanelView: "menu",
-      settingsProfilePanelSupported: true,
-      accountTitle: "登录/注册",
-      accountSubtitle: "登录后同步档案和个性化推荐",
-      accountPage: ""
+    error: "",
+    hasCache: false,
+    materialLinkModalOpen: false,
+    materialLinkModalTitle: "",
+    materialLinkModalUrl: "",
+    settingsPanelOpen: false,
+    settingsPanelView: "menu",
+    settingsProfilePanelSupported: true,
+    accountTitle: "登录/注册",
+    accountSubtitle: "登录后同步档案和个性化推荐",
+    accountPage: ""
   },
 
   onLoad() {
@@ -450,14 +552,18 @@ Page({
       wx.showToast({ title: "暂无资料链接", icon: "none" });
       return;
     }
-    wx.setClipboardData({
-      data: url,
-      success() {
-        wx.showToast({ title: "链接已复制", icon: "success" });
-      },
-      fail() {
-        wx.showToast({ title: "复制失败", icon: "none" });
-      }
+    this.setData({
+      materialLinkModalOpen: true,
+      materialLinkModalTitle: String(material.title || "").trim(),
+      materialLinkModalUrl: url
+    });
+  },
+
+  closeMaterialLinkModal() {
+    this.setData({
+      materialLinkModalOpen: false,
+      materialLinkModalTitle: "",
+      materialLinkModalUrl: ""
     });
   },
 

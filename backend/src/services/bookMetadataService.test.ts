@@ -1,11 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import mongoose from "mongoose";
+import { MongoMemoryServer } from "mongodb-memory-server";
 
 import {
   buildBookMetadataPayload,
   getMetadataStatusForScore,
   shouldProtectExistingBookMetadata,
+  upsertBookMetadataManually,
 } from "./bookMetadataService";
+import BookMetadata from "../models/BookMetadata";
 
 test("getMetadataStatusForScore auto-approves high-confidence metadata only", () => {
   assert.equal(getMetadataStatusForScore(0.85), "auto_approved");
@@ -86,4 +90,35 @@ test("shouldProtectExistingBookMetadata protects reviewed or rejected records fr
   assert.equal(shouldProtectExistingBookMetadata({ status: "needs_review" }), true);
   assert.equal(shouldProtectExistingBookMetadata({ status: "rejected" }), true);
   assert.equal(shouldProtectExistingBookMetadata({ status: "auto_approved", reviewedAt: new Date() }), true);
+});
+
+test("upsertBookMetadataManually creates and updates one detail row per book", { timeout: 30_000 }, async () => {
+  const mongo = await MongoMemoryServer.create({ instance: { ip: "127.0.0.1" } });
+  await mongoose.connect(mongo.getUri());
+
+  try {
+    const bookId = new mongoose.Types.ObjectId().toString();
+    const created = await upsertBookMetadataManually(bookId, {
+      title: "手动详情图书",
+      description: "首次录入的详情",
+    });
+
+    assert.ok(created);
+    assert.equal(created.title, "手动详情图书");
+    assert.equal(created.description, "首次录入的详情");
+    assert.equal(created.status, "auto_approved");
+
+    const updated = await upsertBookMetadataManually(bookId, {
+      description: "更新后的详情",
+      status: "needs_review",
+    });
+
+    assert.ok(updated);
+    assert.equal(updated.description, "更新后的详情");
+    assert.equal(updated.status, "needs_review");
+    assert.equal(await BookMetadata.countDocuments({ bookId }), 1);
+  } finally {
+    await mongoose.disconnect();
+    await mongo.stop();
+  }
 });

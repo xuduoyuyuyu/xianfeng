@@ -6,19 +6,41 @@ import { dirname, resolve } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const controllerSource = readFileSync(resolve(__dirname, "book.ts"), "utf8");
+const metadataServiceSource = readFileSync(resolve(__dirname, "../services/bookMetadataService.ts"), "utf8");
 const routeSource = readFileSync(resolve(__dirname, "../routes/adminBook.ts"), "utf8");
 const publicRouteSource = readFileSync(resolve(__dirname, "../routes/book.ts"), "utf8");
+const modelSource = readFileSync(resolve(__dirname, "../models/Book.ts"), "utf8");
 
 test("public book metadata reads the formal metadata table", () => {
   assert.match(controllerSource, /findApprovedBookMetadataByBookId/, "public metadata endpoint should read approved BookMetadata rows");
   assert.match(controllerSource, /listApprovedBookMetadataByBookIds/, "public book list should derive hasMetadataDetail from approved BookMetadata rows");
   assert.match(controllerSource, /function pickPublicBookCover\(bookCover: unknown, metadataCover: unknown\): string/, "public book list should use one cover picker for base and metadata covers");
-  assert.match(controllerSource, /value\.includes\("\/uploads\/images\/"\)/, "legacy uploaded covers should not block metadata covers on the public list");
+  assert.doesNotMatch(controllerSource, /value\.includes\("\/uploads\/images\/"\)/, "admin-uploaded covers should remain visible on the public list");
   assert.match(controllerSource, /value\.includes\("placeholder"\)/, "placeholder covers should not block metadata covers on the public list");
   assert.match(controllerSource, /const metadataByBookId = new Map\(metadataRows\.map/, "public book list should index approved metadata by book id");
   assert.match(controllerSource, /metadataCover = normalizeBookCoverUrl\(metadata\?\.cover\)/, "public book list should expose the normalized metadata cover");
   assert.match(controllerSource, /coverImage: pickPublicBookCover\(plain\?\.coverImage, metadataCover\)/, "public book list should prefer metadata cover before stale base covers");
+  assert.match(controllerSource, /description: String\(metadata\?\.description \|\| plain\?\.description \|\| ""\)/, "public book list should expose approved metadata descriptions for native reading cards");
   assert.match(controllerSource, /metadataCover,/, "public book list should return metadataCover for frontend list/detail consistency");
+  assert.match(controllerSource, /const paged = Boolean\(req\.query\.current \|\| req\.query\.size\);/, "public book list should support opt-in pagination for mini-program first-page preload");
+  assert.match(modelSource, /description: \{ type: String, default: "", trim: true \}/, "base book records should persist imported list descriptions");
+  assert.match(metadataServiceSource, /export async function listApprovedBookMetadataBookIds\(\)/, "paged book loading should be able to identify approved metadata descriptions");
+  assert.match(metadataServiceSource, /distinct\("bookId", \{ status: "auto_approved", description: \{ \$regex: \/\\S\/ \} \}\)/, "metadata priority ids should exclude approved rows without an introduction");
+  assert.match(controllerSource, /async function findPagedPublicBooksPrioritizingDescriptions\(current: number, size: number\)/, "paged public books should keep every described book first");
+  assert.match(
+    controllerSource,
+    /const describedBookFilter = \{[\s\S]*_id: \{ \$in: approvedBookIds \}[\s\S]*description: \{ \$regex: \/\\S\/ \}[\s\S]*\};/,
+    "paged public books should treat approved metadata or a non-blank base description as described"
+  );
+  assert.match(controllerSource, /const undescribedBookFilter = \{ \$nor: describedBookFilter\.\$or \};/, "undescribed pagination should invert the shared description predicate");
+  assert.match(
+    controllerSource,
+    /countDocuments\(\{ \.\.\.publishedFilter, \.\.\.describedBookFilter \}\)[\s\S]*Book\.find\(\{ \.\.\.publishedFilter, \.\.\.describedBookFilter \}\)[\s\S]*Book\.find\(\{ \.\.\.publishedFilter, \.\.\.undescribedBookFilter \}\)/,
+    "counting and both page segments should use the same global description partition"
+  );
+  assert.match(controllerSource, /const page = paged \? await findPagedPublicBooksPrioritizingDescriptions\(current, size\) : null;/, "public first-page loading should use description-priority pagination");
+  assert.match(controllerSource, /records: enrichedBooks,[\s\S]*total,[\s\S]*current,[\s\S]*pages:/, "paged public book list should return records and totals for native first-page cache");
+  assert.match(controllerSource, /res\.status\(200\)\.json\(enrichedBooks\);/, "unpaged public book list should keep the legacy array response for existing clients");
   assert.match(controllerSource, /const metadata = await findApprovedBookMetadataByBookId\(String\(\(book as any\)\._id \|\| ""\)\);|const metadata = await findApprovedBookMetadataByBookId\(String\(plain\?\._id \|\| ""\)\);/, "public book detail should read approved metadata before returning a book");
   assert.match(controllerSource, /hasMetadataDetail: Boolean\(metadata\)/, "public book detail should expose whether approved metadata exists");
   assert.match(controllerSource, /const book = await Book\.findOne\(\{ \.\.\.idQuery\(id\), status: "published" \}\)\.lean\(\);|const book = await Book\.findOne\(\{ _id: id, status: "published" \}\);/, "public book detail should query books through mongoose so ObjectId ids stay readable online");
@@ -49,6 +71,18 @@ test("admin book list exposes editable metadata detail fields", () => {
   assert.match(controllerSource, /ratingCount: metadata\?\.ratingCount \?\? null/, "metadata detail should include rating count");
 });
 
+test("admin can manually create metadata for a book without an existing detail row", () => {
+  assert.match(metadataServiceSource, /export async function upsertBookMetadataManually\(/, "metadata service should expose a manual upsert path");
+  assert.match(metadataServiceSource, /BookMetadataModel\.findOneAndUpdate\([\s\S]*\{ bookId: new mongoose\.Types\.ObjectId\(bookId\) \}[\s\S]*upsert: true/, "manual metadata should upsert by book id");
+  assert.match(controllerSource, /async upsertMetadataAdmin\(req: Request, res: Response\): Promise<void>/, "admin controller should expose manual metadata creation");
+  assert.match(controllerSource, /const existing = await Book\.findOne\(idQuery\(id\)\)/, "manual metadata creation should reject unknown books");
+  assert.match(routeSource, /router\.put\("\/:id\/metadata", bookController\.upsertMetadataAdmin\);/, "admin routes should expose the book metadata upsert endpoint");
+
+  const upsertIndex = routeSource.indexOf('router.put("/:id/metadata"');
+  const dynamicBookIndex = routeSource.indexOf('router.get("/:id"');
+  assert.ok(upsertIndex > -1 && upsertIndex < dynamicBookIndex, "metadata upsert route should stay before dynamic book routes");
+});
+
 test("admin book payload preserves the manual purchase jump link", () => {
   const modelSource = readFileSync(resolve(__dirname, "../models/Book.ts"), "utf8");
 
@@ -73,15 +107,40 @@ test("public books expose a read-only external library proxy before dynamic rout
   assert.match(controllerSource, /type ExternalBookLibraryRecord =/, "controller should define the external book record shape");
   assert.match(controllerSource, /function normalizeExternalBookLibraryRecord\(record: any\): ExternalBookLibraryRecord/, "controller should normalize upstream records before returning them");
   assert.match(controllerSource, /async getExternalLibraryPublic\(req: Request, res: Response\): Promise<void>/, "controller should expose a public external library handler");
+  assert.match(controllerSource, /async getExternalBookPublic\(req: Request, res: Response\): Promise<void>/, "controller should expose a public external book detail lookup");
+  assert.match(controllerSource, /findExternalBookLibraryRecordById\(externalBookId\)/, "external detail lookup should recover a record by route id");
   assert.match(controllerSource, /current: String\(safeCurrent\)/, "proxy should forward a sanitized current page value");
   assert.match(controllerSource, /size: String\(safeSize\)/, "proxy should forward a sanitized page size value");
+  assert.match(controllerSource, /parseExternalBookFilterTags\(req\.query\.tags\)/, "proxy should accept tag filters without requiring the mini program to fetch all records");
+  assert.match(controllerSource, /String\(req\.query\.includeFilters \|\| ""\) === "1"/, "proxy should compute full filter options only when requested");
+  assert.match(controllerSource, /fetchExternalBookLibraryFilteredPage\(Number\(query\.current\), Number\(query\.size\), filterTags, filterTagMode\)/, "proxy should return a filtered page with the matched total");
+  assert.match(controllerSource, /upstreamUrl\.searchParams\.set\("category", query\.category\)/, "proxy should translate category-like filter tags to the upstream category parameter");
+  assert.match(controllerSource, /upstreamUrl\.searchParams\.set\("tags", query\.tags\)/, "proxy should translate booklist-like filter tags to the upstream tags parameter");
+  assert.match(controllerSource, /fetchExternalBookLibraryTagPage\(current, size, tags\[0\]\)/, "single-tag filtering should retry upstream tags when category matching is empty");
+  assert.match(controllerSource, /findExternalBookLibraryBestCategory\(tags\)/, "multi-tag filtering should choose the smallest upstream category candidate before local matching");
+  assert.match(controllerSource, /fetchExternalBookLibraryCategoryRecords\(bestCategory\.tag\)/, "multi-tag filtering should scan only the chosen category candidate set");
+  assert.match(controllerSource, /EXTERNAL_BOOK_LIBRARY_FILTER_CACHE_TTL_MS = 1000 \* 60 \* 60 \* 24/, "filtered counts should reuse a backend cache");
+  assert.match(controllerSource, /count: countExternalBookFilterMatches\(records, label\)/, "external filter options should expose matched book counts");
+  assert.match(controllerSource, /if \(text === "漫画"\) return "Manga";/, "external filter labels should normalize the Chinese comic label to Manga");
+  assert.match(controllerSource, /\.filter\(\(option\) => option\.count > 100\)/, "external filter options should hide labels that match one hundred or fewer books");
+  assert.match(controllerSource, /const countDiff = b\.count - a\.count;/, "external filter options should be ordered by useful match volume instead of alphabetically");
+  assert.match(controllerSource, /parseExternalBookFilterMatchMode\(req\.query\.tagMode\)/, "external multi-tag filters should accept an explicit merge mode");
+  assert.match(controllerSource, /externalBookRecordMatchesTags\(record, tags, mode\)/, "external multi-tag filters should be able to merge results instead of intersecting them");
+  assert.match(controllerSource, /\.\.\.splitExternalBookValues\(pick\(record, \["author"\]\)\)/, "external detail author clicks should match the current book in external filters");
+  assert.match(controllerSource, /\.\.\.splitExternalBookValues\(pick\(record, \["publisher"\]\)\)/, "external detail publisher clicks should match the current book in external filters");
+  assert.match(controllerSource, /\.\.\.splitExternalBookValues\(pick\(record, \["series"\]\)\)/, "external detail series clicks should match the current book in external filters");
+  assert.match(controllerSource, /buildExternalBookLibraryFilterGroups\(filterRecords\)/, "proxy should return filter options from the full external API snapshot");
+  assert.match(controllerSource, /externalBookRecordMatchesTags\(record, tags, mode\)/, "filtered pages should match normalized external tag values");
   assert.match(controllerSource, /records: records\.map\(normalizeExternalBookLibraryRecord\)/, "proxy should return normalized external records");
 
   const externalIndex = publicRouteSource.indexOf('router.get("/external"');
+  const externalDetailIndex = publicRouteSource.indexOf('router.get("/external/:id"');
   const idIndex = publicRouteSource.indexOf('router.get("/:id"');
   assert.ok(externalIndex > -1, "public external library route should exist");
+  assert.ok(externalDetailIndex > -1, "public external book detail route should exist");
   assert.ok(idIndex > -1, "dynamic public book route should exist");
   assert.ok(externalIndex < idIndex, "external library route must be registered before /:id");
+  assert.ok(externalDetailIndex < idIndex, "external detail route must be registered before /:id");
 });
 
 test("public external book translation route is cached before dynamic routes", () => {

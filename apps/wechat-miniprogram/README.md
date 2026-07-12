@@ -100,7 +100,7 @@ curl -s -i -X POST https://xianfeng.xinzhi.info/api/wechat-mini/login \
 - `pages/reading`：原生及阅书单，详情通过 `pages/webview` 打开 `/reading/:id`。
 - `pages/xiaowanzi`：旧 tab 占位兼容桥；实际底部入口直接 `navigateTo` 到 `pages/webview` 加载 `/index-xiaowanzi.html?xf_xw=home`。
 - `pages/materials`：原生资料列表，详情通过 `pages/webview` 打开 `/materials/:id`。
-- `pages/topics`：原生请教话题列表，详情通过 `pages/webview` 打开 `/topics/:slug`，提问入口打开 `/topics`。
+- `pages/topics`：原生请教话题列表，详情复用 `pages/webview` 的原生话题模式渲染，相关话题在同一原生容器内切换；详情引用的未原生化复杂内容可继续通过 WebView 打开。
 - `pages/search`：原生大搜页，聚合节目、及阅、资料、请教和智库；详情仍通过 `pages/webview` 承载。
 - `pages/home`：旧入口兼容页，通过 `wx.switchTab` 跳转到 `pages/programs/index`。
 - `pages/pro`：原生订阅页。

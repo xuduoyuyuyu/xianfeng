@@ -20,12 +20,15 @@ test("member center is hidden behind the Pro billing feature flag", () => {
   );
 });
 
-test("active Plus and Pro users show a logo membership badge", () => {
-  assert.match(source, /function membershipBadgeLabel\(user:any\): string/);
-  assert.match(source, /tier==="plus"\|\|tier==="monthly"\)return "Plus"/);
-  assert.match(source, /tier==="pro"\|\|tier==="yearly"\)return "Pro"/);
-  assert.match(source, /const memberBadge = user&&token \? membershipBadgeLabel\(user\) : ""/);
-  assert.match(source, /<span className="tb-logo-badge">\{memberBadge\}<\/span>/);
+test("logo stays clean without a membership badge", () => {
+  assert.doesNotMatch(source, /function membershipBadgeLabel\(user:any\): string/);
+  assert.doesNotMatch(source, /tb-logo-badge/);
+  assert.doesNotMatch(source, /memberBadge/);
+  assert.match(
+    source,
+    /<Link className="tb-logo" to="\/programs\/list"><img src="\/assets\/logo\.png" alt="家长先疯" loading="eager" decoding="sync"\/><\/Link>/,
+    "top logo should render without a Plus or Pro overlay"
+  );
 });
 
 test("mobile hamburger menu stays a right-side partial drawer", () => {

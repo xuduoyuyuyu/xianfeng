@@ -16,6 +16,7 @@ export interface MamaResourceTask extends mongoose.Document {
   dataCycle: string;
   settlementCycle: string;
   promotionCount?: number | null;
+  claimLimit?: number | null;
   latestDataDate?: Date | null;
   announcement?: string;
   settlementStandard?: string;
@@ -42,6 +43,7 @@ const mamaResourceTaskSchema = new mongoose.Schema(
     dataCycle: { type: String, default: "", trim: true },
     settlementCycle: { type: String, default: "", trim: true },
     promotionCount: { type: Number, default: null },
+    claimLimit: { type: Number, default: null, min: 0 },
     latestDataDate: { type: Date, default: null },
     announcement: { type: String, default: "", trim: true },
     settlementStandard: { type: String, default: "", trim: true },

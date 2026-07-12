@@ -36,6 +36,10 @@ interface ProgramGuest {
 interface CuratedReadingItem {
   title: string;
   subtitle?: string;
+  author?: string;
+  translator?: string;
+  publisher?: string;
+  reason?: string;
   url?: string;
 }
 
@@ -273,6 +277,10 @@ const programSchema = new mongoose.Schema(
         {
           title: { type: String, required: true },
           subtitle: { type: String, default: "" },
+          author: { type: String, default: "" },
+          translator: { type: String, default: "" },
+          publisher: { type: String, default: "" },
+          reason: { type: String, default: "" },
           url: { type: String, default: "" },
         },
       ],

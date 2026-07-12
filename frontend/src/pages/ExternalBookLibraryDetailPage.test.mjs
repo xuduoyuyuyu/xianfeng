@@ -11,6 +11,15 @@ const apiSource = readFileSync(resolve(__dirname, "../services/api.ts"), "utf8")
 test("external library detail page restores a clicked book record by route id", () => {
   assert.match(source, /useParams/, "detail page should read the external id from /library/:externalId");
   assert.match(source, /readExternalBookLibraryRecord\(id\)/, "detail page should restore the clicked list record from session storage");
+  assert.match(source, /externalBookFromMiniProgramPayload\(location\.search, id\)/, "mini program webview detail links should pass the clicked record through the URL");
+  assert.match(source, /new URLSearchParams\(search\)\.get\("xf_external_book"\)/, "detail page should read the mini program clicked-book payload");
+  assert.match(source, /function getExternalBookIdFromSearch\(search: string\): string/, "detail page should recover an explicit mini-program book id query fallback");
+  assert.match(source, /getExternalBookIdFromSearch\(location\.search\)/, "detail page should use the short query id when the route id is unavailable");
+  assert.match(source, /publicApi\.getExternalBook\(restoreId\)/, "detail page should recover direct mini-program detail entries by route id");
+  assert.match(source, /rememberExternalBookLibraryRecord\(miniProgramPayloadBook\)/, "mini program payload records should enter the same detail cache path");
+  assert.match(source, /const restoreId = id \|\| miniProgramPayloadBook\?\.id \|\| "";/, "mini program payload should provide a fallback id for recovery");
+  assert.match(source, /rememberExternalBookLibraryRecord\(nextBook\)/, "recovered detail records should be cached for related navigation and refreshes");
+  assert.match(apiSource, /getExternalBook: \(id: string\) => api\.get<ExternalBookLibraryRecord>\(`\/books\/external\/\$\{encodeURIComponent\(id\)\}`\)/, "public API should expose one external book lookup by id");
   assert.match(source, /decodeURIComponent\(routeId\)/, "detail page should decode the external id from the route");
   assert.match(source, /需要从及阅列表进入/, "direct detail entry without cached data should explain how to recover");
   assert.match(source, /to="\/library"/, "detail page should provide a clear path back to the Jiyue list");

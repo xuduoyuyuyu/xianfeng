@@ -5,6 +5,7 @@ import path from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import Program from "../models/Program";
+import Book from "../models/Book";
 import GuestModel from "../models/Guest";
 import { generateMindMap, resolveProgramAiProvider } from "../services/programAi";
 import { uploadLocalAudioToTosAndSign } from "../services/programAi";
@@ -58,6 +59,90 @@ function asObjectIdText(value: unknown): string {
 
 function hasText(value: unknown): boolean {
   return asText(value).length > 0;
+}
+
+function normalizeCuratedReadingKey(value: unknown): string {
+  return asText(value).toLowerCase().replace(/\s+/g, " ");
+}
+
+function isCuratedReadingPlaceholder(item: any): boolean {
+  const title = asText(item?.title).replace(/\s+/g, "");
+  return ["教育相关推荐", "延伸阅读", "参考书目"].includes(title);
+}
+
+function normalizeCuratedReadingBookTitle(value: unknown): string {
+  return asText(value).toLowerCase().replace(/[《》〈〉]/g, "").replace(/\s+/g, " ").trim();
+}
+
+function curatedReadingBookTitleVariants(value: unknown): string[] {
+  const title = asText(value);
+  if (!title) return [];
+  const bareTitle = title.replace(/^[《〈]\s*/, "").replace(/\s*[》〉]$/, "").trim();
+  return Array.from(new Set([title, bareTitle, `《${bareTitle}》`].filter(Boolean)));
+}
+
+async function buildPublicCuratedReading(program: any) {
+  const deepDive = program?.deepDive && typeof program.deepDive === "object" ? program.deepDive : {};
+  const currentItems = Array.isArray(deepDive?.curatedReading) ? deepDive.curatedReading : [];
+  const reportItems = Array.isArray(program?.agentOutputs?.enrichment?.readingVerificationReport?.items)
+    ? program.agentOutputs.enrichment.readingVerificationReport.items
+    : [];
+  const verifiedItems = reportItems.filter(
+    (item: any) => item?.passed === true && item?.titleMatched === true
+  );
+  const curatedReading = currentItems.flatMap((reading: any) => {
+    if (isCuratedReadingPlaceholder(reading)) return [];
+    const titleKey = normalizeCuratedReadingKey(reading?.title);
+    const readingUrl = asText(reading?.url || reading?.link);
+    if (!titleKey) return [];
+    const verified = readingUrl
+      ? verifiedItems.find((item: any) => {
+          if (normalizeCuratedReadingKey(item?.title) !== titleKey) return false;
+          const originalUrl = asText(item?.url);
+          const finalUrl = asText(item?.finalUrl);
+          return readingUrl === originalUrl || readingUrl === finalUrl;
+        })
+      : undefined;
+    return [{
+      title: asText(reading?.title),
+      subtitle: asText(reading?.subtitle || reading?.description || reading?.reason),
+      author: asText(reading?.author),
+      translator: asText(reading?.translator),
+      publisher: asText(reading?.publisher),
+      url: verified ? asText(verified?.finalUrl) || asText(verified?.url) : "",
+    }];
+  });
+  const lookupTitles = Array.from(new Set<string>(
+    curatedReading.flatMap((item: any): string[] => curatedReadingBookTitleVariants(item?.title))
+  ));
+  const publishedBooks = lookupTitles.length
+    ? await Book.find(
+        { status: "published", title: { $in: lookupTitles } },
+        { _id: 1, title: 1, author: 1, translator: 1, publisher: 1 }
+      ).lean()
+    : [];
+  const booksByTitle = new Map(
+    publishedBooks.map((book: any) => [normalizeCuratedReadingBookTitle(book?.title), book])
+  );
+  const enrichedReading = curatedReading.map((reading: any) => {
+    const matchedBook = booksByTitle.get(normalizeCuratedReadingBookTitle(reading?.title));
+    return {
+      ...reading,
+      author: asText(matchedBook?.author) || asText(reading?.author),
+      translator: asText(matchedBook?.translator) || asText(reading?.translator),
+      publisher: asText(matchedBook?.publisher) || asText(reading?.publisher),
+      book: matchedBook
+        ? {
+            id: asObjectIdText(matchedBook?._id),
+            title: asText(matchedBook?.title),
+            author: asText(matchedBook?.author),
+            translator: asText(matchedBook?.translator),
+            publisher: asText(matchedBook?.publisher),
+          }
+        : null,
+    };
+  });
+  return { ...deepDive, curatedReading: enrichedReading };
 }
 
 function normalizeProgramCode(value: unknown): string {
@@ -289,9 +374,14 @@ function sanitizeCuratedReading(input: unknown) {
     .map((item: any) => ({
       title: asText(item?.title),
       subtitle: asText(item?.subtitle),
+      author: asText(item?.author),
+      translator: asText(item?.translator),
+      publisher: asText(item?.publisher),
+      reason: asText(item?.reason),
       url: asText(item?.url),
     }))
     .filter((item) => item.title)
+    .filter((item) => !isCuratedReadingPlaceholder(item))
     .filter((item) => !/^延伸阅读：/.test(item.title))
     .filter((item) => !/(概念词条与背景知识|概念入门与背景梳理)/.test(item.subtitle || ""))
     .filter((item) => {
@@ -1501,6 +1591,7 @@ export class ProgramController {
           };
         }
       }
+      result.deepDive = await buildPublicCuratedReading(result);
       res.status(200).json(result);
     } catch (error) {
       res.status(500).json({ message: "获取节目失败", error });

@@ -123,29 +123,112 @@ function getExternalBookIdFromPath(pathname: string): string {
   }
 }
 
+function getExternalBookIdFromSearch(search: string): string {
+  return formatValue(new URLSearchParams(search).get("xf_external_book_id"));
+}
+
+function externalBookFromMiniProgramPayload(search: string, expectedId: string): ExternalBookLibraryRecord | null {
+  try {
+    const raw = new URLSearchParams(search).get("xf_external_book");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const id = formatValue((parsed as Partial<ExternalBookLibraryRecord>).id);
+    if (!id || (expectedId && id !== expectedId)) return null;
+    return {
+      id,
+      title: formatValue((parsed as Partial<ExternalBookLibraryRecord>).title),
+      coverPic: formatValue((parsed as Partial<ExternalBookLibraryRecord>).coverPic),
+      author: formatValue((parsed as Partial<ExternalBookLibraryRecord>).author),
+      publisher: formatValue((parsed as Partial<ExternalBookLibraryRecord>).publisher),
+      isbn: formatValue((parsed as Partial<ExternalBookLibraryRecord>).isbn),
+      pubDate: formatValue((parsed as Partial<ExternalBookLibraryRecord>).pubDate),
+      pages: Number.isFinite(Number((parsed as Partial<ExternalBookLibraryRecord>).pages)) ? Number((parsed as Partial<ExternalBookLibraryRecord>).pages) : null,
+      words: formatValue((parsed as Partial<ExternalBookLibraryRecord>).words),
+      lexile: formatValue((parsed as Partial<ExternalBookLibraryRecord>).lexile),
+      ar: formatValue((parsed as Partial<ExternalBookLibraryRecord>).ar),
+      tags: formatValue((parsed as Partial<ExternalBookLibraryRecord>).tags),
+      category: formatValue((parsed as Partial<ExternalBookLibraryRecord>).category),
+      series: formatValue((parsed as Partial<ExternalBookLibraryRecord>).series),
+      fiction: formatValue((parsed as Partial<ExternalBookLibraryRecord>).fiction),
+      levelRange: formatValue((parsed as Partial<ExternalBookLibraryRecord>).levelRange),
+      description: formatValue((parsed as Partial<ExternalBookLibraryRecord>).description)
+    };
+  } catch {
+    return null;
+  }
+}
+
 const ExternalBookLibraryDetailPage: React.FC = () => {
   const { externalId: routeId = "" } = useParams();
   const location = useLocation();
   const decodedRouteId = decodeURIComponent(routeId);
-  const id = decodedRouteId || getExternalBookIdFromPath(location.pathname);
-  const [book, setBook] = useState<ExternalBookLibraryRecord | null>(() => readExternalBookLibraryRecord(id));
+  const id = decodedRouteId || getExternalBookIdFromPath(location.pathname) || getExternalBookIdFromSearch(location.search);
+  const [book, setBook] = useState<ExternalBookLibraryRecord | null>(() => externalBookFromMiniProgramPayload(location.search, id) || readExternalBookLibraryRecord(id));
   const [cachedBooks, setCachedBooks] = useState<ExternalBookLibraryRecord[]>(() => readExternalBookLibraryRecords());
   const [translatedIntro, setTranslatedIntro] = useState("");
   const [isIntroTranslated, setIsIntroTranslated] = useState(false);
   const [translationLoading, setTranslationLoading] = useState(false);
   const [translationError, setTranslationError] = useState("");
+  const [restoringBook, setRestoringBook] = useState(false);
+  const [restoreError, setRestoreError] = useState("");
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [id]);
 
   useEffect(() => {
-    setBook(readExternalBookLibraryRecord(id));
-    setCachedBooks(readExternalBookLibraryRecords());
-    setTranslatedIntro("");
-    setIsIntroTranslated(false);
-    setTranslationError("");
-  }, [id]);
+    const miniProgramPayloadBook = externalBookFromMiniProgramPayload(location.search, id);
+    if (miniProgramPayloadBook) {
+      rememberExternalBookLibraryRecord(miniProgramPayloadBook);
+      setBook(miniProgramPayloadBook);
+      setCachedBooks(readExternalBookLibraryRecords());
+      setTranslatedIntro("");
+      setIsIntroTranslated(false);
+      setTranslationError("");
+      setRestoreError("");
+    } else {
+      const cachedBook = readExternalBookLibraryRecord(id);
+      setBook(cachedBook);
+      setCachedBooks(readExternalBookLibraryRecords());
+      setTranslatedIntro("");
+      setIsIntroTranslated(false);
+      setTranslationError("");
+      setRestoreError("");
+      if (cachedBook || !id) {
+        setRestoringBook(false);
+        return;
+      }
+    }
+
+    let alive = true;
+    const restoreId = id || miniProgramPayloadBook?.id || "";
+    setRestoringBook(true);
+    publicApi.getExternalBook(restoreId)
+      .then((response) => {
+        if (!alive) return;
+        const nextBook = response.data;
+        if (!nextBook?.id) {
+          setRestoreError("图书详情加载失败");
+          return;
+        }
+        rememberExternalBookLibraryRecord(nextBook);
+        setBook(nextBook);
+        setCachedBooks(readExternalBookLibraryRecords());
+      })
+      .catch((error: any) => {
+        if (!alive) return;
+        setRestoreError(error?.response?.data?.message || error?.message || "图书详情加载失败");
+      })
+      .finally(() => {
+        if (!alive) return;
+        setRestoringBook(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [id, location.search]);
 
   const displayedIntro = isIntroTranslated && translatedIntro ? translatedIntro : book?.description || "";
   const introParagraphs = useMemo(() => buildIntroParagraphs(displayedIntro), [displayedIntro]);
@@ -218,14 +301,24 @@ const ExternalBookLibraryDetailPage: React.FC = () => {
           </div>
         ) : null}
 
-        {!book ? (
+        {!book && restoringBook ? (
+          <section className="rounded-[2rem] border border-[#ded7f3] bg-white px-6 py-12 text-center shadow-[0_18px_60px_rgba(80,62,125,0.08)]">
+            <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.24em] text-[#5b3fa1]">
+              及阅详情
+            </div>
+            <h1 className="mt-4 text-2xl font-black text-[#24163a]">正在加载及阅详情</h1>
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-[#7f73a7]">
+              正在根据这本书的记录恢复详情页。
+            </p>
+          </section>
+        ) : !book ? (
           <section className="rounded-[2rem] border border-[#ded7f3] bg-white px-6 py-12 text-center shadow-[0_18px_60px_rgba(80,62,125,0.08)]">
             <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.24em] text-[#5b3fa1]">
               及阅详情
             </div>
             <h1 className="mt-4 text-2xl font-black text-[#24163a]">需要从及阅列表进入</h1>
             <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-[#7f73a7]">
-              请回到及阅列表点击一本书，我们会把该条记录带入详情页展示。
+              {restoreError || "请回到及阅列表点击一本书，我们会把该条记录带入详情页展示。"}
             </p>
             <Link
               to="/library"

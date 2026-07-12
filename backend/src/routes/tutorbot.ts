@@ -13,6 +13,7 @@ import { buildRagContext } from "../services/ragContextService";
 import { buildXiaowanziContextPayload, type XiaowanziSiteCard } from "../services/xiaowanziContextService";
 import { recognizeXiaowanziImageDataUrl } from "../services/xiaowanziAttachmentRecognition";
 import { extractSearchTerms, extractUserQuestion } from "../services/xiaowanziSiteSearch";
+import { listApprovedBookMetadataByBookIds } from "../services/bookMetadataService";
 
 const router = express.Router();
 const FRONTEND_BOT_ID = "xiaowanzi_debug_bot";
@@ -48,8 +49,13 @@ function buildTopicHref(item: any): string {
   return slug ? `/topics/${encodeURIComponent(slug)}` : "/topics";
 }
 
-function buildBookHref(_item: any): string {
-  return "/reading";
+function buildBookHref(item: any): string {
+  const id = getRecordId(item);
+  if (id && item?.hasMetadataDetail) return `/reading/${encodeURIComponent(id)}`;
+  const title = compactText(item?.title, 80);
+  if (!title) return "/reading";
+  const params = new URLSearchParams({ q: title });
+  return `/reading?${params.toString()}`;
 }
 
 function buildMaterialHref(item: any): string {
@@ -63,13 +69,13 @@ function buildSiteReferencePolicy(hasSiteContext: boolean): string {
   if (hasSiteContext) {
     return [
       "[站内引用边界]",
-      "本轮提供了已命中的站内节目、请教一下、资料、书单或嘉宾链接。只有这些明确列出的条目才可以作为站内推荐。",
+      "本轮提供了已命中的站内节目、请教一下、资料、图书或嘉宾链接。只有这些明确列出的条目才可以作为站内推荐。",
       "推荐时必须列出下方条目的标题和链接；不要引导用户去搜索关键词，不要使用不确定的站内推荐话术。",
     ].join("\n");
   }
   return [
     "[站内引用边界]",
-    "本轮没有提供任何已命中的站内节目、请教一下、资料、书单或嘉宾链接。",
+    "本轮没有提供任何已命中的站内节目、请教一下、资料、图书或嘉宾链接。",
     "不要说“家长先疯节目里也有聊过”、不要说“站内有相关专题”、不要暗示平台已有对应内容，也不要引导用户去搜索关键词。",
     "可以直接给通用建议；如果需要说明依据，只能说本轮未检索到可引用的站内内容。",
   ].join("\n");
@@ -129,6 +135,8 @@ async function buildSiteCards(content: string): Promise<XiaowanziSiteCard[]> {
   ]);
 
   const cards: XiaowanziSiteCard[] = [];
+  const bookMetadataRows = await listApprovedBookMetadataByBookIds(books.map((item: any) => getRecordId(item)));
+  const bookMetadataIds = new Set(bookMetadataRows.map((item: any) => String(item?.bookId || "")));
   programs.forEach((item: any) => {
     cards.push({
       type: "program",
@@ -157,12 +165,16 @@ async function buildSiteCards(content: string): Promise<XiaowanziSiteCard[]> {
     });
   });
   books.forEach((item: any) => {
+    const book = {
+      ...item,
+      hasMetadataDetail: bookMetadataIds.has(getRecordId(item)),
+    };
     cards.push({
       type: "book",
-      typeLabel: "书单",
+      typeLabel: "图书",
       title: compactText(item.title, 80),
       summary: compactText([item.author, item.topic, item.grade, item.recommendedGuest].filter(Boolean).join(" / ")),
-      href: buildBookHref(item),
+      href: buildBookHref(book),
     });
   });
   materials.forEach((item: any) => {
@@ -196,6 +208,10 @@ function startBot(req: express.Request, res: express.Response): void {
 function getBotHistory(req: express.Request, res: express.Response): void {
   const botId = String(req.params.botId);
   const limit = Number(req.query.limit || 100);
+  if (isFrontendBot(botId)) {
+    res.json([]);
+    return;
+  }
   res.json(tutorbotManager.getBotHistory(botId, limit));
 }
 
@@ -237,7 +253,7 @@ function sendBotMessage(req: express.Request, res: express.Response): void {
     res.status(400).json({ detail: "content is required" });
     return;
   }
-  tutorbotManager.appendHistory(botId, "user", content);
+  if (!isFrontendBot(botId)) tutorbotManager.appendHistory(botId, "user", content);
   (async () => {
     try {
       const store = ensureStore(() => ({
@@ -283,12 +299,14 @@ function sendBotMessage(req: express.Request, res: express.Response): void {
       const latestPrompt = String(latestPromptDoc?.system_prompt || "").trim();
       const workspaceAgentDoc = String(tutorbotManager.readBotFile(botId, "AGENTS.md") || "").trim();
       const systemPrompt = latestPrompt || workspaceAgentDoc;
-      const recentHistory = tutorbotManager
-        .getBotHistory(botId, 12)
-        .slice(0, -1)
-        .filter((item: any) => item.role === "user" || item.role === "assistant")
-        .map((item: any) => ({ role: item.role, content: String(item.content || "") }))
-        .filter((item: any) => item.content);
+      const recentHistory = isFrontendBot(botId)
+        ? []
+        : tutorbotManager
+          .getBotHistory(botId, 12)
+          .slice(0, -1)
+          .filter((item: any) => item.role === "user" || item.role === "assistant")
+          .map((item: any) => ({ role: item.role, content: String(item.content || "") }))
+          .filter((item: any) => item.content);
       const query = extractUserQuestion(content);
       const siteCards = isFrontendBot(botId) ? await buildSiteCards(content).catch(() => []) : [];
       const siteContext = siteCards.length ? "has_site_cards" : "";
@@ -366,7 +384,7 @@ function sendBotMessage(req: express.Request, res: express.Response): void {
           }
         }
         const finalReply = reply.trim() || "（模型返回空响应）";
-        tutorbotManager.appendHistory(botId, "assistant", finalReply);
+        if (!isFrontendBot(botId)) tutorbotManager.appendHistory(botId, "assistant", finalReply);
         writeSse(res, "done", { content: finalReply });
         res.end();
         return;
@@ -376,11 +394,11 @@ function sendBotMessage(req: express.Request, res: express.Response): void {
         throw new Error(`上游调用失败(${provider}/${modelName}): ${upstream.status} ${data?.error?.message || data?.message || "unknown"}`);
       }
       const reply = String(data?.choices?.[0]?.message?.content || "").trim() || "（模型返回空响应）";
-      tutorbotManager.appendHistory(botId, "assistant", reply);
+      if (!isFrontendBot(botId)) tutorbotManager.appendHistory(botId, "assistant", reply);
       res.json({ type: "content", content: reply });
     } catch (error: any) {
       const reply = `⚠️ 小玩子调用失败：${error?.message || "unknown error"}`;
-      tutorbotManager.appendHistory(botId, "assistant", reply);
+      if (!isFrontendBot(botId)) tutorbotManager.appendHistory(botId, "assistant", reply);
       if (Boolean(req.body?.stream) && !res.headersSent) {
         res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
         writeSse(res, "error", { content: reply });

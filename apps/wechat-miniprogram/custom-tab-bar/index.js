@@ -1,6 +1,10 @@
 const XIAOWANZI_ENTRY_MODE_KEY = "xf_xiaowanzi_entry_mode";
+const READING_TAB_INDEX = 1;
+const DOUBLE_TAP_INTERVAL_MS = 360;
+const READING_LOGO_BOUNCE_MS = 520;
 const { NATIVE_TABBAR_HEIGHT, getNativeTabbarMetrics } = require("../utils/nativeChrome");
 const { rememberXiaowanziReturnPage } = require("../utils/xiaowanziReturn");
+const { preloadReadingLandingData } = require("../utils/readingPreload");
 
 Component({
   properties: {
@@ -19,6 +23,7 @@ Component({
     selectedColor: "#6c27d6",
     safeBottom: 0,
     totalHeight: NATIVE_TABBAR_HEIGHT,
+    readingLogoBouncing: false,
     list: [
       {
         pagePath: "/pages/programs/index",
@@ -86,11 +91,51 @@ Component({
       const index = Number(dataset.index);
       const item = this.data.list[index];
       if (!item) return;
+      if (index === READING_TAB_INDEX && this.data.selected === READING_TAB_INDEX) {
+        if (this.isDoubleTap(index)) {
+          this.triggerReadingLogoBounce();
+          this.toggleReadingPageSource();
+        }
+        return;
+      }
+      this.rememberTap(index);
+      if (index === READING_TAB_INDEX) preloadReadingLandingData();
       if (index === 2) {
         this.openXiaowanziSuper();
         return;
       }
       wx.switchTab({ url: item.pagePath });
+    },
+
+    rememberTap(index) {
+      this._lastTapIndex = index;
+      this._lastTapAt = Date.now();
+    },
+
+    isDoubleTap(index) {
+      const now = Date.now();
+      const isDoubleTap = this._lastTapIndex === index && now - this._lastTapAt <= DOUBLE_TAP_INTERVAL_MS;
+      this._lastTapIndex = index;
+      this._lastTapAt = now;
+      return isDoubleTap;
+    },
+
+    triggerReadingLogoBounce() {
+      if (this._readingLogoBounceTimer) clearTimeout(this._readingLogoBounceTimer);
+      this.setData({ readingLogoBouncing: false }, () => {
+        this.setData({ readingLogoBouncing: true });
+      });
+      this._readingLogoBounceTimer = setTimeout(() => {
+        this.setData({ readingLogoBouncing: false });
+      }, READING_LOGO_BOUNCE_MS);
+    },
+
+    toggleReadingPageSource() {
+      const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
+      const currentPage = pages[pages.length - 1];
+      if (currentPage && typeof currentPage.toggleReadingLibrarySource === "function") {
+        currentPage.toggleReadingLibrarySource();
+      }
     },
 
     openXiaowanziSuper() {

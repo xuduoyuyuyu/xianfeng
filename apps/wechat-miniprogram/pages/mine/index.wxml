@@ -135,7 +135,7 @@
         <button wx:if="{{isLoggedIn}}" class="xf-profile-secondary xf-settings-logout" bindtap="logout">退出登录</button>
         <button wx:else class="xf-profile-secondary xf-settings-login" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone">登录</button>
         <view class="xf-profile-message">{{profilePanelMessage}}</view>
-        <button wx:if="{{isLoggedIn}}" class="xf-profile-danger xf-settings-danger">注销账户</button>
+        <button wx:if="{{isLoggedIn}}" class="xf-profile-danger xf-settings-danger" bindtap="deleteAccount">注销账户</button>
       </view>
       </view>
     </scroll-view>

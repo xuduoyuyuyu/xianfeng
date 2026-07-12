@@ -11,11 +11,11 @@ router.get("/", bookController.getAllAdmin);
 router.post("/import", bookController.importBatch);
 router.get("/metadata", bookController.getMetadataAdmin);
 router.patch("/metadata/:metadataId", bookController.reviewMetadataAdmin);
+router.put("/:id/metadata", bookController.upsertMetadataAdmin);
 router.get("/:id", bookController.getByIdAdmin);
 router.post("/", bookController.create);
 router.put("/:id", bookController.update);
 router.patch("/:id/status", bookController.updateStatus);
-router.post("/batch-publish", bookController.batchPublish);
 router.delete("/:id", bookController.delete);
 
 export default router;

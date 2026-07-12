@@ -1,4 +1,13 @@
 <view wx:if="{{nativeProgramMode}}" class="xf-program-detail-page {{fontSizeClass}}" style="padding-top: {{chromeHeight}}px;">
+  <view class="xf-native-topbar xf-program-detail-topbar" style="height: {{topbarHeight}}px;">
+    <view class="xf-native-nav-row" style="height: {{topbarHeight}}px;">
+      <view class="xf-native-menu-button xf-native-back-button xf-program-detail-back-button" style="top: {{logoTop}}px; height: {{logoHeight}}px;" catchtap="goBack" role="button" aria-label="返回">
+        <view class="xf-native-back-icon" aria-hidden="true"></view>
+      </view>
+      <text class="xf-book-detail-nav-title" style="top: {{logoTop}}px; height: {{logoHeight}}px;">{{nativeProgram.showLabel}}</text>
+    </view>
+  </view>
+
   <view wx:if="{{nativeProgramLoading}}" class="xf-program-detail-state">
     <view class="xf-program-detail-skeleton is-title"></view>
     <view class="xf-program-detail-skeleton"></view>
@@ -15,19 +24,27 @@
       <image wx:if="{{nativeProgram.coverImage}}" class="xf-program-detail-hero-image" src="{{nativeProgram.coverImage}}" mode="aspectFill" />
       <view class="xf-program-detail-hero-shade"></view>
       <view class="xf-program-detail-hero-content">
-        <view class="xf-program-detail-meta">{{nativeProgram.duration}} · {{nativeProgram.date}} 发布</view>
         <text class="xf-program-detail-title">{{nativeProgram.title}}</text>
         <text class="xf-program-detail-description">{{nativeProgram.description}}</text>
         <view class="xf-program-detail-actions">
-          <button class="xf-program-detail-play" bindtap="toggleNativeAudio">{{isAudioPlaying ? "暂停收听" : "立即收听"}}</button>
-          <button class="xf-program-detail-secondary" bindtap="goProgramList">节目库</button>
+          <button class="xf-program-detail-hero-icon is-bookmark {{nativeProgram.bookmarked ? 'is-active' : ''}}" catchtap="toggleNativeProgramBookmark" aria-label="收藏节目">
+            <image class="xf-program-detail-action-icon" src="{{nativeProgram.bookmarked ? '/assets/program-detail/program-book-purple.png' : '/assets/program-detail/program-book-white.png'}}" mode="aspectFit" />
+          </button>
+          <button open-type="share" class="xf-program-detail-hero-icon is-share" aria-label="分享节目">
+            <image class="xf-program-detail-action-icon" src="/assets/program-detail/program-share-white.png" mode="aspectFit" />
+          </button>
+          <button class="xf-program-detail-play" bindtap="toggleNativeAudio">
+            <image class="xf-program-detail-play-icon" src="{{isAudioPlaying ? '/assets/program-detail/program-pause-purple.png' : '/assets/program-detail/program-play-purple.png'}}" mode="aspectFit" />
+            <text>{{isAudioPlaying ? "暂停收听" : "立即收听"}}</text>
+          </button>
         </view>
       </view>
     </view>
 
     <view class="xf-program-detail-card is-summary">
+      <view class="xf-program-detail-summary-corner" aria-hidden="true"></view>
       <view class="xf-program-detail-card-head">
-        <text class="xf-program-detail-card-icon">✦</text>
+        <view class="xf-program-detail-card-icon"><image class="xf-program-detail-card-icon-image" src="/assets/program-detail/program-sparkle-purple.png" mode="aspectFit" /></view>
         <view>
           <text class="xf-program-detail-card-title">总结摘要</text>
           <text class="xf-program-detail-card-subtitle">AI Overview</text>
@@ -44,49 +61,166 @@
       </view>
     </view>
 
-    <view wx:if="{{nativeProgram.contentModes.length}}" class="xf-program-detail-tabs">
-      <button
-        wx:for="{{nativeProgram.contentModes}}"
-        wx:key="key"
-        class="xf-program-detail-tab {{activeContentMode === item.key ? 'is-active' : ''}}"
-        data-mode="{{item.key}}"
-        bindtap="setContentMode"
-      >{{item.label}}</button>
-    </view>
-
-    <view wx:if="{{activeContentMode === 'quickview' && nativeProgram.quickView.length}}" class="xf-program-detail-card">
-      <view class="xf-program-detail-section-head">
-        <text class="xf-program-detail-section-title">速览</text>
+    <view class="xf-program-detail-card is-guest is-centered">
+      <scroll-view wx:if="{{nativeProgram.guests.length > 1}}" class="xf-program-detail-guest-switcher" scroll-x enhanced show-scrollbar="false">
+        <view class="xf-program-detail-guest-switcher-inner">
+          <button
+            wx:for="{{nativeProgram.guests}}"
+            wx:key="id"
+            class="xf-program-detail-guest-pill {{nativeProgram.activeGuestIndex === index ? 'is-active' : ''}}"
+            data-index="{{index}}"
+            catchtap="switchNativeProgramGuest"
+          >
+            <image class="xf-program-detail-guest-pill-avatar {{item.avatarFallback ? 'is-fallback' : ''}}" src="{{item.avatar}}" mode="{{item.avatarFallback ? 'aspectFit' : 'aspectFill'}}" data-index="{{index}}" binderror="useNativeProgramGuestPillAvatarFallback" />
+            <text class="xf-program-detail-guest-pill-name">{{item.name}}</text>
+          </button>
+        </view>
+      </scroll-view>
+      <view class="xf-program-detail-guest-avatar-wrap">
+        <image class="xf-program-detail-guest-avatar {{nativeProgram.guestAvatarFallback ? 'is-fallback' : ''}}" src="{{nativeProgram.guestAvatar}}" mode="{{nativeProgram.guestAvatarFallback ? 'aspectFit' : 'aspectFill'}}" binderror="useNativeProgramGuestAvatarFallback" />
+        <image wx:for="{{nativeProgram.guestWishBubbles}}" wx:key="id" class="xf-program-detail-wish-bubble" src="/assets/program-detail/program-heart-red.png" mode="aspectFit" style="right: {{item.right}}rpx; animation-delay: {{item.delay}}ms; animation-duration: {{item.duration}}ms;" />
+        <button wx:if="{{nativeProgram.guestId}}" class="xf-program-detail-guest-wish {{nativeProgram.guestWishAnimating ? 'is-animating' : ''}}" catchtap="toggleNativeProgramGuestWish" aria-label="返场心愿">
+          <image class="xf-program-detail-wish-icon" src="/assets/program-detail/program-heart-white.png" mode="aspectFit" />
+        </button>
       </view>
-      <view wx:for="{{nativeProgram.quickView}}" wx:key="summary" class="xf-program-detail-content-row">
-        <text wx:if="{{item.time}}" class="xf-program-detail-time">{{item.time}}</text>
-        <text class="xf-program-detail-content-text">{{item.summary}}</text>
-      </view>
-    </view>
-
-    <view wx:if="{{activeContentMode === 'transcript' && nativeProgram.transcript.length}}" class="xf-program-detail-card">
-      <view class="xf-program-detail-section-head">
-        <text class="xf-program-detail-section-title">逐字稿</text>
-      </view>
-      <view wx:for="{{nativeProgram.transcript}}" wx:key="text" class="xf-program-detail-content-row">
-        <text wx:if="{{item.time}}" class="xf-program-detail-time">{{item.time}}</text>
-        <text wx:if="{{item.speaker}}" class="xf-program-detail-speaker">{{item.speaker}}</text>
-        <text class="xf-program-detail-content-text">{{item.text}}</text>
-      </view>
-    </view>
-
-    <view class="xf-program-detail-card is-guest">
-      <image wx:if="{{nativeProgram.guestAvatar}}" class="xf-program-detail-guest-avatar" src="{{nativeProgram.guestAvatar}}" mode="aspectFill" />
       <view class="xf-program-detail-guest-copy">
         <text class="xf-program-detail-guest-name">{{nativeProgram.guestName}}</text>
         <text class="xf-program-detail-guest-title">{{nativeProgram.guestTitle}}</text>
         <text class="xf-program-detail-guest-bio">{{nativeProgram.guestBio}}</text>
+        <button wx:if="{{nativeProgram.guestId}}" class="xf-program-detail-guest-profile" bindtap="openNativeProgramGuest">
+          <image class="xf-program-detail-guest-profile-icon" src="/assets/program-detail/program-user-white.png" mode="aspectFit" />
+          查看完整学术档案
+        </button>
       </view>
     </view>
+
+    <view wx:if="{{nativeProgram.contentModes.length}}" class="xf-program-detail-content-shell">
+      <view class="xf-program-detail-tabs">
+        <button
+          wx:for="{{nativeProgram.contentModes}}"
+          wx:key="key"
+          class="xf-program-detail-tab {{activeContentMode === item.key ? 'is-active' : ''}}"
+          data-mode="{{item.key}}"
+          bindtap="setContentMode"
+        >{{item.label}}</button>
+      </view>
+
+      <view wx:if="{{activeContentMode === 'mindmap' && nativeProgram.hasMindMap}}" class="xf-program-detail-content-panel is-mindmap">
+        <view class="xf-program-detail-mindmap-outline">
+          <view class="xf-program-detail-mindmap-root">
+            <text class="xf-program-detail-mindmap-root-label">主题脉络</text>
+            <text class="xf-program-detail-mindmap-root-title">{{nativeProgramMindMapOutline.root.title}}</text>
+            <text wx:if="{{nativeProgramMindMapOutline.root.summary}}" class="xf-program-detail-mindmap-root-summary">{{nativeProgramMindMapOutline.root.summary}}</text>
+          </view>
+          <view class="xf-program-detail-mindmap-branches">
+            <view
+              wx:for="{{nativeProgramMindMapOutline.branches}}"
+              wx:key="id"
+              class="xf-program-detail-mindmap-branch"
+            >
+              <button
+                class="xf-program-detail-mindmap-branch-button"
+                data-index="{{item.index}}"
+                catchtap="toggleNativeProgramMindMapBranch"
+                aria-label="{{item.collapsed ? '展开' : '收起'}}{{item.title}}"
+              >
+                <text class="xf-program-detail-mindmap-branch-number">{{item.number}}</text>
+                <view class="xf-program-detail-mindmap-branch-copy">
+                  <text class="xf-program-detail-mindmap-branch-title">{{item.title}}</text>
+                  <text wx:if="{{item.summary}}" class="xf-program-detail-mindmap-branch-summary">{{item.summary}}</text>
+                  <text wx:if="{{item.childCount}}" class="xf-program-detail-mindmap-branch-count">{{item.childCount}} 个要点</text>
+                </view>
+                <text wx:if="{{item.childCount}}" class="xf-program-detail-mindmap-toggle">{{item.collapsed ? '+' : '−'}}</text>
+              </button>
+              <view wx:if="{{!item.collapsed}}" class="xf-program-detail-mindmap-children">
+                <view wx:for="{{item.children}}" wx:for-item="child" wx:key="id" class="xf-program-detail-mindmap-child">
+                  <view class="xf-program-detail-mindmap-child-dot"></view>
+                  <view class="xf-program-detail-mindmap-child-copy">
+                    <text class="xf-program-detail-mindmap-child-title">{{child.title}}</text>
+                    <text wx:if="{{child.summary}}" class="xf-program-detail-mindmap-child-summary">{{child.summary}}</text>
+                  </view>
+                </view>
+              </view>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <view wx:if="{{activeContentMode === 'quickview' && nativeProgram.quickView.length}}" class="xf-program-detail-content-panel is-quickview">
+        <view wx:for="{{nativeProgram.quickView}}" wx:key="summary" class="xf-program-detail-content-row">
+          <text wx:if="{{item.time}}" class="xf-program-detail-time">{{item.time}}</text>
+          <text class="xf-program-detail-content-text">{{item.summary}}</text>
+        </view>
+      </view>
+
+      <view wx:if="{{activeContentMode === 'transcript' && nativeProgram.transcript.length}}" class="xf-program-detail-content-panel is-transcript">
+        <view wx:for="{{nativeProgram.transcript}}" wx:key="text" class="xf-program-detail-content-row {{item.featured ? 'is-featured' : ''}}">
+          <view wx:if="{{item.time || item.speakerLabel}}" class="xf-program-detail-transcript-meta">
+            <text wx:if="{{item.time}}" class="xf-program-detail-time">{{item.time}}</text>
+            <text wx:if="{{item.time && item.speakerLabel}}" class="xf-program-detail-transcript-separator">·</text>
+            <text wx:if="{{item.speakerLabel}}" class="xf-program-detail-speaker">{{item.speakerLabel}}</text>
+          </view>
+          <text class="xf-program-detail-content-text">{{item.text}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{nativeProgram.hasExtension}}" class="xf-program-detail-card is-extension">
+      <view class="xf-program-detail-section-head">
+        <view class="xf-program-detail-card-icon"><image class="xf-program-detail-card-icon-image" src="/assets/program-detail/program-insights-purple.png" mode="aspectFit" /></view>
+        <text class="xf-program-detail-section-title">{{nativeProgram.deepDiveTitle}}</text>
+      </view>
+      <text class="xf-program-detail-extension-label">推荐阅读 Curated Reading</text>
+      <view class="xf-program-detail-extension-list">
+        <block
+          wx:for="{{nativeProgram.curatedReading}}"
+          wx:key="title"
+        >
+          <button wx:if="{{item.bookId}}" class="xf-program-detail-extension-item is-link" data-index="{{index}}" catchtap="openNativeProgramCuratedBook">
+            <view class="xf-program-detail-extension-item-head">
+              <text class="xf-program-detail-extension-item-title">{{item.title}}</text>
+              <image class="xf-program-detail-extension-item-arrow" src="/assets/program-detail/program-arrow-forward-purple.png" mode="aspectFit" />
+            </view>
+            <text wx:if="{{item.meta}}" class="xf-program-detail-extension-item-meta">{{item.meta}}</text>
+            <text wx:if="{{item.subtitle}}" class="xf-program-detail-extension-item-subtitle">{{item.subtitle}}</text>
+          </button>
+          <view wx:else class="xf-program-detail-extension-item">
+            <view class="xf-program-detail-extension-item-head">
+              <text class="xf-program-detail-extension-item-title">{{item.title}}</text>
+            </view>
+            <text wx:if="{{item.meta}}" class="xf-program-detail-extension-item-meta">{{item.meta}}</text>
+            <text wx:if="{{item.subtitle}}" class="xf-program-detail-extension-item-subtitle">{{item.subtitle}}</text>
+          </view>
+        </block>
+      </view>
+    </view>
+
+    <button class="xf-program-detail-library-link" bindtap="goProgramList">查看全部节目库 <image class="xf-program-detail-library-arrow" src="/assets/program-detail/program-arrow-forward-purple.png" mode="aspectFit" /></button>
   </scroll-view>
+
+  <view wx:if="{{nativeProgram.audioUrl}}" class="xf-program-detail-player-rail {{playerQuickActionsOpen ? 'is-open' : ''}}">
+    <button class="xf-program-detail-rail-button is-rewind" aria-label="后退10秒" data-seconds="-10" catchtap="seekNativeAudio">
+      <view class="xf-program-detail-skip-icon is-rewind"><text class="xf-program-detail-skip-number">10</text></view>
+    </button>
+    <button class="xf-program-detail-rail-button is-forward" aria-label="前进30秒" data-seconds="30" catchtap="seekNativeAudio">
+      <view class="xf-program-detail-skip-icon is-forward"><text class="xf-program-detail-skip-number">30</text></view>
+    </button>
+    <button class="xf-program-detail-rail-button is-list" aria-label="打开逐字稿" catchtap="openNativeProgramTranscript"><image class="xf-program-detail-rail-icon" src="/assets/program-detail/program-list-purple.png" mode="aspectFit" /></button>
+    <button class="xf-program-detail-rail-button is-speed" aria-label="切换播放倍速" catchtap="toggleNativeAudioSpeed">{{audioSpeedLabel}}</button>
+  </view>
+  <button wx:if="{{nativeProgram.audioUrl}}" class="xf-program-detail-player-fab {{isAudioPlaying ? 'is-playing' : ''}}" catchtap="toggleNativeAudio" aria-label="{{isAudioPlaying ? '暂停节目' : '播放节目'}}"><image class="xf-program-detail-player-fab-icon" src="{{isAudioPlaying ? '/assets/program-detail/program-pause-white.png' : '/assets/program-detail/program-play-white.png'}}" mode="aspectFit" /></button>
 </view>
 
 <view wx:elif="{{nativeBookMode}}" class="xf-book-detail-page {{fontSizeClass}}" style="padding-top: {{chromeHeight}}px;">
+  <view class="xf-native-topbar xf-book-detail-topbar" style="height: {{topbarHeight}}px;">
+    <view class="xf-native-nav-row" style="height: {{topbarHeight}}px;">
+      <view class="xf-native-menu-button xf-native-back-button" style="top: {{logoTop}}px; height: {{logoHeight}}px;" catchtap="goBack" role="button" aria-label="返回">
+        <view class="xf-native-back-icon" aria-hidden="true"></view>
+      </view>
+      <text class="xf-book-detail-nav-title" style="top: {{logoTop}}px; height: {{logoHeight}}px;">家长先疯</text>
+    </view>
+  </view>
+
   <view wx:if="{{nativeBookLoading}}" class="xf-book-detail-state">
     <view class="xf-book-detail-skeleton is-title"></view>
     <view class="xf-book-detail-skeleton"></view>
@@ -99,19 +233,20 @@
   </view>
 
   <scroll-view wx:else class="xf-book-detail-scroll" scroll-y enhanced show-scrollbar="false">
+    <view class="xf-book-detail-edge-spacer" aria-hidden="true"></view>
     <view class="xf-book-detail-card is-hero">
       <view class="xf-book-detail-cover-panel">
-        <view class="xf-book-detail-cover-frame">
-          <image wx:if="{{nativeBook.coverImage}}" class="xf-book-detail-cover" src="{{nativeBook.coverImage}}" mode="aspectFit" />
+        <view class="xf-book-detail-cover-frame" style="{{nativeBookCoverFrameStyle}}">
+          <image wx:if="{{nativeBook.coverImage}}" class="xf-book-detail-cover" src="{{nativeBook.coverImage}}" mode="widthFix" bindload="onNativeBookCoverLoad" />
           <view wx:else class="xf-book-detail-cover-empty">书</view>
         </view>
       </view>
 
-      <view class="xf-book-detail-copy">
+      <view class="xf-book-detail-copy {{nativeBook.hasMoreContent ? '' : 'is-terminal'}}">
         <text class="xf-book-detail-pill">来自及阅</text>
         <text class="xf-book-detail-title">{{nativeBook.title}}</text>
         <view class="xf-book-detail-meta-list">
-          <view class="xf-book-detail-meta-row">
+          <view wx:if="{{nativeBook.author}}" class="xf-book-detail-meta-row">
             <text class="xf-book-detail-meta-label">作者</text>
             <text class="xf-book-detail-meta-value">{{nativeBook.author}}</text>
           </view>
@@ -132,23 +267,25 @@
             <text class="xf-book-detail-meta-value">{{nativeBook.publishedDate}}</text>
           </view>
         </view>
-        <text wx:if="{{nativeBook.sourceLine}}" class="xf-book-detail-source">{{nativeBook.sourceLine}}</text>
       </view>
-    </view>
 
-    <view wx:if="{{nativeBook.tags.length}}" class="xf-book-detail-card">
-      <text class="xf-book-detail-section-pill">MORE CONTENT</text>
-      <view class="xf-book-detail-chip-grid">
-        <view wx:for="{{nativeBook.tags}}" wx:key="*this" class="xf-book-detail-chip">
-          <text class="xf-book-detail-chip-label">{{index === 0 ? "推荐阅读" : index === 1 ? "内容线索" : "相关标签"}}</text>
-          <text class="xf-book-detail-chip-text">{{item}}</text>
+      <view wx:if="{{nativeBook.hasMoreContent}}" class="xf-book-detail-hero-more">
+        <view class="xf-book-detail-tag-cloud is-hero-tags">
+          <text
+            wx:for="{{nativeBook.tags}}"
+            wx:key="*this"
+            class="xf-book-detail-tag-pill"
+            data-tag="{{item}}"
+            catchtap="onNativeBookTagTap"
+          >{{item}}</text>
         </view>
       </view>
     </view>
 
-    <view class="xf-book-detail-card">
+    <view wx:if="{{nativeBook.hasIntro}}" class="xf-book-detail-card">
       <text class="xf-book-detail-section-pill">BOOK INFO</text>
       <text class="xf-book-detail-section-title">内容简介</text>
+      <text wx:if="{{nativeBookTranslationError}}" class="xf-book-detail-translation-error">{{nativeBookTranslationError}}</text>
       <view class="xf-book-detail-intro">
         <text
           wx:for="{{nativeBook.introParagraphs}}"
@@ -156,7 +293,70 @@
           class="xf-book-detail-paragraph"
         >{{item}}</text>
       </view>
+      <view wx:if="{{nativeBook.isExternal}}" class="xf-book-detail-translate-row">
+        <button
+          class="xf-book-detail-translate-button {{nativeBookIntroTranslated ? 'is-active' : ''}} {{nativeBookTranslationLoading ? 'is-loading' : ''}}"
+          catchtap="toggleNativeBookIntroTranslation"
+          disabled="{{nativeBookTranslationLoading || !nativeBook.description || !nativeBook.isExternal}}"
+          aria-label="翻译简介"
+        >
+          <view wx:if="{{nativeBookTranslationLoading}}" class="xf-book-detail-translate-loading" aria-hidden="true">
+            <view class="xf-book-detail-translate-dot"></view>
+            <view class="xf-book-detail-translate-dot"></view>
+            <view class="xf-book-detail-translate-dot"></view>
+          </view>
+          <image
+            wx:else
+            class="xf-book-detail-translate-icon"
+            src="{{nativeBookIntroTranslated ? '/assets/library-translate-symbol-icon-active.png' : '/assets/library-translate-symbol-icon.png'}}"
+            mode="aspectFit"
+            aria-hidden="true"
+          />
+        </button>
+      </view>
     </view>
+
+    <view wx:if="{{nativeBook.hasFacts}}" class="xf-book-detail-card">
+      <text class="xf-book-detail-section-pill">METADATA</text>
+      <text class="xf-book-detail-section-title">图书资料</text>
+      <view class="xf-book-detail-fact-grid">
+        <view
+          wx:for="{{nativeBook.facts}}"
+          wx:key="label"
+          class="xf-book-detail-fact {{item.filterTag ? 'is-clickable' : ''}}"
+          data-tag="{{item.filterTag}}"
+          catchtap="onNativeBookFactTap"
+        >
+          <text class="xf-book-detail-fact-label">{{item.label}}</text>
+          <text class="xf-book-detail-fact-value">{{item.value}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{nativeBook.hasRelatedBooks}}" class="xf-book-detail-card">
+      <text class="xf-book-detail-section-pill">RELATED BOOKS</text>
+      <text class="xf-book-detail-section-title">相关图书</text>
+      <text class="xf-book-detail-section-copy">同标签或同分类下的其他图书。</text>
+      <scroll-view class="xf-book-detail-related-scroll" scroll-x enhanced show-scrollbar="false">
+        <view class="xf-book-detail-related-track">
+          <view
+            wx:for="{{nativeBook.relatedBooks}}"
+            wx:key="id"
+            class="xf-book-detail-related-card"
+            data-index="{{index}}"
+            catchtap="openNativeRelatedBook"
+          >
+            <view class="xf-book-detail-related-cover-wrap">
+              <image wx:if="{{item.coverImage}}" class="xf-book-detail-related-cover" src="{{item.coverImage}}" mode="aspectFit" />
+              <view wx:else class="xf-book-detail-related-empty">书</view>
+            </view>
+            <text class="xf-book-detail-related-title">{{item.title}}</text>
+            <text wx:if="{{item.meta}}" class="xf-book-detail-related-meta">{{item.meta}}</text>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+    <view class="xf-book-detail-bottom-spacer" aria-hidden="true"></view>
   </scroll-view>
 </view>
 
@@ -211,6 +411,14 @@
 </view>
 
 <view wx:elif="{{nativeTopicMode}}" class="xf-topic-detail-page {{fontSizeClass}}" style="padding-top: {{chromeHeight}}px;">
+  <view class="xf-native-topbar xf-topic-detail-topbar" style="height: {{topbarHeight}}px;">
+    <view class="xf-native-nav-row" style="height: {{topbarHeight}}px;">
+      <view class="xf-native-menu-button xf-native-back-button" style="top: {{logoTop}}px; height: {{logoHeight}}px;" catchtap="goBack" role="button" aria-label="返回">
+        <view class="xf-native-back-icon" aria-hidden="true"></view>
+      </view>
+      <text class="xf-topic-detail-nav-title" style="top: {{logoTop}}px; height: {{logoHeight}}px;">请教一下</text>
+    </view>
+  </view>
   <view wx:if="{{nativeTopicLoading}}" class="xf-topic-detail-state">
     <view class="xf-topic-detail-skeleton is-title"></view>
     <view class="xf-topic-detail-skeleton"></view>
@@ -219,73 +427,161 @@
 
   <view wx:elif="{{nativeTopicError}}" class="xf-topic-detail-state">
     <text class="xf-topic-detail-error">{{nativeTopicError}}</text>
+    <button class="xf-topic-detail-primary" bindtap="retryNativeTopic">重试</button>
     <button class="xf-topic-detail-primary" bindtap="goTopicsList">返回请教</button>
   </view>
 
-  <scroll-view wx:else class="xf-topic-detail-scroll" scroll-y enhanced show-scrollbar="false">
-    <view class="xf-topic-detail-card is-hero">
-      <view class="xf-topic-detail-eyebrow" aria-label="ASK AND LEARN">
-        <text>ASK</text>
-        <text class="xf-topic-detail-eyebrow-amp">{{eyebrowAmp}}</text>
-        <text>LEARN</text>
-      </view>
-      <view class="xf-topic-detail-title-row">
-        <text class="xf-topic-detail-title">{{nativeTopic.title}}</text>
-        <text class="xf-topic-detail-emoji">{{nativeTopic.coverEmoji}}</text>
+  <scroll-view wx:else class="xf-topic-detail-scroll" scroll-y enhanced show-scrollbar="false" scroll-top="{{nativeTopicScrollTop}}" scroll-into-view="{{nativeTopicScrollTarget}}" scroll-with-animation bindscrolltolower="onNativeTopicScrollToLower" bindtouchstart="onNativeTopicPullStart" bindtouchmove="onNativeTopicPullMove" bindtouchend="onNativeTopicPullEnd">
+    <view class="xf-topic-detail-heading">
+      <view class="xf-topic-detail-heading-row">
+        <text wx:if="{{nativeTopic.title}}" class="xf-topic-detail-title">{{nativeTopic.title}}</text>
       </view>
       <text wx:if="{{nativeTopic.subtitle}}" class="xf-topic-detail-subtitle">{{nativeTopic.subtitle}}</text>
-      <text class="xf-topic-detail-summary">{{nativeTopic.summary}}</text>
-      <view wx:if="{{nativeTopic.tags.length}}" class="xf-topic-detail-tags">
-        <text wx:for="{{nativeTopic.tags}}" wx:key="*this" class="xf-topic-detail-tag">{{item}}</text>
+      <view wx:if="{{nativeTopic.relatedTopics.length}}" class="xf-topic-detail-related-line">
+        <text class="xf-topic-detail-related-label">相关内容：</text>
+        <text wx:for="{{nativeTopic.relatedTopics}}" wx:key="slug" class="xf-topic-detail-related-link" bindtap="openNativeRelatedTopic" data-slug="{{item.slug}}">{{item.title}}{{index < nativeTopic.relatedTopics.length - 1 ? ' · ' : ''}}</text>
       </view>
     </view>
 
-    <view class="xf-topic-detail-stats">
-      <view class="xf-topic-detail-stat">
-        <text class="xf-topic-detail-stat-value">{{nativeTopic.branchCount}}</text>
-        <text class="xf-topic-detail-stat-label">知识层</text>
-      </view>
-      <view class="xf-topic-detail-stat">
-        <text class="xf-topic-detail-stat-value">{{nativeTopic.nodeCount}}</text>
-        <text class="xf-topic-detail-stat-label">知识点</text>
-      </view>
-      <button class="xf-topic-detail-stat-action" bindtap="goTopicsList">请教列表</button>
+    <view class="xf-topic-detail-mobile-tabs">
+      <button class="xf-topic-detail-mobile-tab {{nativeTopicMobileView === 'tree' ? 'is-active' : ''}}" data-view="tree" bindtap="setNativeTopicMobileView">知识目录</button>
+      <button class="xf-topic-detail-mobile-tab {{nativeTopicMobileView === 'detail' ? 'is-active' : ''}}" data-view="detail" bindtap="setNativeTopicMobileView">节点详情</button>
     </view>
 
-    <view
-      wx:for="{{nativeTopic.tree}}"
-      wx:for-item="branch"
-      wx:key="nodeKey"
-      class="xf-topic-detail-card is-branch"
-    >
-      <view class="xf-topic-detail-branch-head">
-        <text class="xf-topic-detail-branch-title">{{branch.title}}</text>
-        <text class="xf-topic-detail-branch-count">{{branch.children.length}} 个知识点</text>
-      </view>
-      <view
-        wx:for="{{branch.children}}"
-        wx:for-item="node"
-        wx:key="nodeKey"
-        class="xf-topic-detail-node"
-      >
-        <text class="xf-topic-detail-node-title">{{node.title}}</text>
-        <text wx:if="{{node.summary}}" class="xf-topic-detail-node-summary">{{node.summary}}</text>
-      </view>
-    </view>
-
-    <view wx:if="{{nativeTopic.relatedTopics.length}}" class="xf-topic-detail-card is-related">
-      <text class="xf-topic-detail-section-title">相关请教</text>
-      <view wx:for="{{nativeTopic.relatedTopics}}" wx:key="slug" class="xf-topic-detail-related-item">
-        <text class="xf-topic-detail-related-title">{{item.title}}</text>
-        <view wx:if="{{item.tags.length}}" class="xf-topic-detail-related-tags">
-          <text wx:for="{{item.tags}}" wx:for-item="tag" wx:key="*this" class="xf-topic-detail-related-tag">{{tag}}</text>
+    <view wx:if="{{nativeTopicMobileView === 'tree'}}" class="xf-topic-detail-tree-pane">
+      <view wx:for="{{nativeTopic.tree}}" wx:for-item="branch" wx:key="nodeKey" class="xf-topic-detail-branch">
+        <button class="xf-topic-detail-branch-toggle" data-branch-key="{{branch.nodeKey}}" bindtap="toggleNativeTopicBranch">
+          <text class="xf-topic-detail-branch-chevron {{branch.collapsed ? 'is-collapsed' : ''}}">▼</text>
+          <text class="xf-topic-detail-branch-title">🌿 {{branch.title}}</text>
+        </button>
+        <view wx:if="{{!branch.collapsed}}" class="xf-topic-detail-branch-nodes">
+          <view wx:for="{{branch.children}}" wx:for-item="node" wx:key="nodeKey" class="xf-topic-detail-node {{activeTopicNodeKey === node.nodeKey ? 'is-active' : ''}}" data-node-key="{{node.nodeKey}}" bindtap="selectNativeTopicNode">
+            <text class="xf-topic-detail-node-title">{{node.title}}</text>
+            <text wx:if="{{node.summary}}" class="xf-topic-detail-node-summary">{{node.summary}}</text>
+          </view>
         </view>
       </view>
+    </view>
+
+    <view wx:if="{{nativeTopicMobileView === 'detail'}}" class="xf-topic-detail-content-pane">
+      <view wx:if="{{nativeTopicNodeLoading}}" class="xf-topic-detail-node-loading">正在加载知识点…</view>
+      <view wx:elif="{{nativeTopicNodeError}}" class="xf-topic-detail-node-retry">
+        <text>{{nativeTopicNodeError}}</text>
+        <button class="xf-topic-detail-primary" bindtap="retryNativeTopicNode">重试</button>
+      </view>
+      <view wx:elif="{{activeTopicNode}}" class="xf-topic-detail-node-content">
+        <text class="xf-topic-detail-section-title">{{activeTopicNode.title}}</text>
+        <view wx:if="{{activeTopicNode.siblings.length}}" class="xf-topic-detail-siblings">
+          <button wx:for="{{activeTopicNode.siblings}}" wx:key="nodeKey" class="xf-topic-detail-sibling" data-node-key="{{item.nodeKey}}" bindtap="selectNativeTopicNode">{{item.title}}</button>
+        </view>
+        <view wx:if="{{activeTopicNode.keyPoints.length}}" class="xf-topic-detail-key-points">
+          <text class="xf-topic-detail-key-points-title">核心观点</text>
+          <text wx:for="{{activeTopicNode.keyPoints}}" wx:key="*this" class="xf-topic-detail-key-point">• {{item}}</text>
+        </view>
+        <view wx:if="{{activeTopicNode.contentParts.length}}" class="xf-topic-detail-content-rich">
+          <block wx:for="{{activeTopicNode.contentParts}}" wx:for-item="part" wx:key="key">
+            <view wx:if="{{part.type === 'paragraph'}}" class="xf-topic-detail-md-paragraph">
+              <block wx:for="{{part.inlineParts}}" wx:for-item="inline" wx:key="key">
+                <text wx:if="{{inline.type === 'strong'}}" class="xf-topic-detail-md-strong">{{inline.text}}</text>
+                <text wx:else>{{inline.text}}</text>
+              </block>
+            </view>
+            <view wx:elif="{{part.type === 'summary'}}" class="xf-topic-detail-md-summary">
+              <text class="xf-topic-detail-md-label">要点</text>
+              <view class="xf-topic-detail-md-summary-card">
+                <view class="xf-topic-detail-md-summary-head">
+                  <block wx:for="{{part.summaryParts}}" wx:for-item="inline" wx:key="key">
+                    <text wx:if="{{inline.type === 'strong'}}" class="xf-topic-detail-md-strong">{{inline.text}}</text>
+                    <text wx:else>{{inline.text}}</text>
+                  </block>
+                </view>
+                <view class="xf-topic-detail-md-summary-body">
+                  <block wx:for="{{part.detailParts}}" wx:for-item="inline" wx:key="key">
+                    <text wx:if="{{inline.type === 'strong'}}" class="xf-topic-detail-md-strong">{{inline.text}}</text>
+                    <text wx:else>{{inline.text}}</text>
+                  </block>
+                </view>
+              </view>
+            </view>
+            <view wx:elif="{{part.type === 'ordered'}}" class="xf-topic-detail-md-ordered">
+              <text class="xf-topic-detail-md-number">{{part.index}}</text>
+              <view class="xf-topic-detail-md-ordered-body">
+                <block wx:for="{{part.inlineParts}}" wx:for-item="inline" wx:key="key">
+                  <text wx:if="{{inline.type === 'strong'}}" class="xf-topic-detail-md-strong">{{inline.text}}</text>
+                  <text wx:else>{{inline.text}}</text>
+                </block>
+              </view>
+            </view>
+            <view wx:elif="{{part.type === 'heading2'}}" class="xf-topic-detail-md-heading is-level-2">
+              <text class="xf-topic-detail-md-heading-icon">📌</text>
+              <view class="xf-topic-detail-md-heading-copy">
+                <block wx:for="{{part.inlineParts}}" wx:for-item="inline" wx:key="key">
+                  <text wx:if="{{inline.type === 'strong'}}" class="xf-topic-detail-md-strong">{{inline.text}}</text>
+                  <text wx:else>{{inline.text}}</text>
+                </block>
+              </view>
+            </view>
+            <view wx:elif="{{part.type === 'heading3'}}" class="xf-topic-detail-md-heading is-level-3">
+              <text class="xf-topic-detail-md-heading-icon">🔹</text>
+              <view class="xf-topic-detail-md-heading-copy">
+                <block wx:for="{{part.inlineParts}}" wx:for-item="inline" wx:key="key">
+                  <text wx:if="{{inline.type === 'strong'}}" class="xf-topic-detail-md-strong">{{inline.text}}</text>
+                  <text wx:else>{{inline.text}}</text>
+                </block>
+              </view>
+            </view>
+            <view wx:elif="{{part.type === 'divider'}}" class="xf-topic-detail-md-divider">
+              <text>{{part.text}}</text>
+            </view>
+            <view wx:elif="{{part.type === 'spacer'}}" class="xf-topic-detail-md-spacer"></view>
+          </block>
+          <view id="xfTopicExpandAnchor" class="xf-topic-detail-expand-anchor"></view>
+        </view>
+        <view wx:if="{{activeTopicNode.references.length}}" class="xf-topic-detail-references">
+          <text class="xf-topic-detail-references-title">参考来源</text>
+          <text wx:for="{{activeTopicNode.references}}" wx:key="title" class="xf-topic-detail-reference">· {{item.title}}</text>
+        </view>
+      </view>
+
+      <view wx:if="{{activeTopicNode && !nativeTopicNodeLoading && !nativeTopicNodeError}}" class="xf-topic-detail-expand-panel">
+        <button
+          class="xf-topic-detail-expand {{nativeTopicExpandLoading ? 'is-loading' : ''}}"
+          disabled="{{nativeTopicExpandLoading || nativeTopicQuestionLoading}}"
+          bindtap="expandNativeTopicNode"
+        >
+          <image class="xf-topic-detail-expand-icon" src="/assets/topic-detail/topic-auto-awesome-white.png" mode="aspectFit" />
+          <text>{{nativeTopicExpandLoading ? '正在深度解析~' : '展开讲讲'}}</text>
+        </button>
+        <text wx:if="{{nativeTopicActionError}}" class="xf-topic-detail-action-error">{{nativeTopicActionError}}</text>
+      </view>
+
+      <button wx:if="{{nextNativeTopicNode}}" class="xf-topic-detail-next is-{{nativeTopicPullState}}" bindtap="enterNextNativeTopicNode">
+        <text class="xf-topic-detail-next-title">{{nativeTopicPullState === 'ready' ? '松开进入下一个知识点' : '上滑进入下一个知识点'}}</text>
+        <text class="xf-topic-detail-next-meta">下一个：{{nextNativeTopicNode.title}}</text>
+      </button>
+      <view wx:elif="{{activeTopicNode && !nativeTopicNodeLoading && !nativeTopicNodeError}}" class="xf-topic-detail-complete">
+        <text class="xf-topic-detail-next-title">已读完当前话题</text>
+        <text class="xf-topic-detail-next-meta">当前是最后一个知识节点，可以返回知识目录继续浏览</text>
+      </view>
+      <view wx:if="{{activeTopicNode && !nativeTopicNodeLoading && !nativeTopicNodeError}}" class="xf-topic-detail-bottom-safe"></view>
     </view>
   </scroll-view>
 </view>
 
 <view wx:elif="{{nativeExpertMode}}" class="xf-expert-detail-page {{fontSizeClass}}" style="padding-top: {{chromeHeight}}px;">
+  <view class="xf-native-topbar xf-expert-detail-topbar" style="height: {{topbarHeight}}px;">
+    <view class="xf-native-nav-row" style="height: {{topbarHeight}}px;">
+      <view class="xf-native-menu-button xf-native-back-button" style="top: {{logoTop}}px; height: {{logoHeight}}px;" catchtap="goBack" role="button" aria-label="返回">
+        <view class="xf-native-back-icon" aria-hidden="true"></view>
+      </view>
+      <view class="xf-expert-detail-compact {{nativeExpertCompactHeaderVisible ? 'is-visible' : ''}}" style="top: {{logoTop}}px; height: {{logoHeight}}px;">
+        <image class="xf-expert-detail-compact-avatar" src="{{nativeExpert.avatar}}" mode="aspectFill" />
+        <text class="xf-expert-detail-compact-name">{{nativeExpert.name}}</text>
+        <text class="xf-expert-detail-compact-title">{{nativeExpert.title}}</text>
+      </view>
+    </view>
+  </view>
+
   <view wx:if="{{nativeExpertLoading}}" class="xf-expert-detail-state">
     <view class="xf-expert-detail-skeleton is-title"></view>
     <view class="xf-expert-detail-skeleton"></view>
@@ -297,81 +593,222 @@
     <button class="xf-expert-detail-primary" bindtap="goExpertsList">返回智库</button>
   </view>
 
-  <scroll-view wx:else class="xf-expert-detail-scroll" scroll-y enhanced show-scrollbar="false">
-    <view class="xf-expert-detail-card is-hero">
+  <scroll-view wx:else class="xf-expert-detail-scroll" scroll-y enhanced show-scrollbar="false" bindscroll="onNativeExpertScroll">
+    <view class="xf-expert-detail-card is-profile {{nativeExpert.agentEnabled ? 'is-agent' : 'is-static'}}">
       <view class="xf-expert-detail-avatar-wrap">
-        <image class="xf-expert-detail-avatar" src="{{nativeExpert.avatar}}" mode="aspectFill" />
+        <image class="xf-expert-detail-avatar" src="{{nativeExpert.avatar}}" mode="aspectFill" binderror="useNativeExpertAvatarFallback" />
+        <text wx:if="{{nativeExpert.agentEnabled}}" class="xf-expert-detail-ai-badge">AI</text>
+        <image wx:for="{{nativeExpert.wishBubbles}}" wx:key="id" class="xf-program-detail-wish-bubble" src="/assets/program-detail/program-heart-red.png" mode="aspectFit" style="right: {{item.right}}rpx; animation-delay: {{item.delay}}ms; animation-duration: {{item.duration}}ms;" />
+        <button class="xf-expert-detail-wish {{nativeExpert.wishAnimating ? 'is-animating' : ''}}" catchtap="toggleNativeExpertWish" aria-label="返场心愿">
+          <image class="xf-program-detail-wish-icon" src="/assets/program-detail/program-heart-white.png" mode="aspectFit" />
+        </button>
       </view>
-      <text class="xf-expert-detail-eyebrow">GUEST PROFILE</text>
-      <text class="xf-expert-detail-name">{{nativeExpert.name}}</text>
-      <text class="xf-expert-detail-title">{{nativeExpert.title}}</text>
+      <view class="xf-expert-detail-name-row">
+        <text class="xf-expert-detail-name">{{nativeExpert.name}}</text>
+        <text class="xf-expert-detail-title">{{nativeExpert.title}}</text>
+      </view>
       <text class="xf-expert-detail-bio">{{nativeExpert.bio}}</text>
-      <view wx:if="{{nativeExpert.contentTags.length}}" class="xf-expert-detail-tags">
-        <text wx:for="{{nativeExpert.contentTags}}" wx:key="*this" class="xf-expert-detail-tag">{{item}}</text>
+
+      <block wx:if="{{nativeExpert.agentEnabled}}">
+        <view class="xf-expert-detail-profile-tabs">
+          <button class="{{nativeExpertProfileTab === 'programs' ? 'is-active' : ''}}" data-tab="programs" catchtap="setNativeExpertProfileTab">参与节目</button>
+          <button class="{{nativeExpertProfileTab === 'publications' ? 'is-active' : ''}}" data-tab="publications" catchtap="setNativeExpertProfileTab">公开内容</button>
+        </view>
+
+        <scroll-view wx:if="{{nativeExpertProfileTab === 'programs'}}" class="xf-expert-detail-profile-list is-programs {{nativeExpert.relatedPrograms.length > 3 ? 'is-scrollable' : ''}}" scroll-y="{{nativeExpert.relatedPrograms.length > 3}}" enhanced show-scrollbar="false">
+          <view
+            wx:for="{{nativeExpert.relatedPrograms}}"
+            wx:for-item="program"
+            wx:for-index="programIndex"
+            wx:key="id"
+            class="xf-expert-detail-profile-link"
+            data-id="{{program.id}}"
+            catchtap="openNativeExpertProgram"
+          >
+            <text class="xf-expert-detail-profile-link-order"># {{programIndex + 1}}</text>
+            <text class="xf-expert-detail-profile-link-title">{{program.title}}</text>
+            <text class="xf-expert-detail-profile-link-arrow">↗</text>
+          </view>
+          <text wx:if="{{!nativeExpert.relatedPrograms.length}}" class="xf-expert-detail-empty-copy">暂未关联公开节目</text>
+        </scroll-view>
+        <view wx:else class="xf-expert-detail-profile-list">
+          <view wx:for="{{nativeExpert.publicItems}}" wx:for-item="reference" wx:key="title" class="xf-expert-detail-profile-link is-reference">
+            <text class="xf-expert-detail-profile-link-title">{{reference.title}}</text>
+            <text wx:if="{{reference.source || reference.label}}" class="xf-expert-detail-profile-link-meta">{{reference.source || reference.label}}</text>
+          </view>
+          <text wx:if="{{!nativeExpert.publicItems.length}}" class="xf-expert-detail-empty-copy">暂未收录公开内容</text>
+        </view>
+      </block>
+
+      <view wx:if="{{!nativeExpert.agentEnabled && (nativeExpert.programCount > 0 || nativeExpert.socialCount > 0 || nativeExpert.referenceCount > 0)}}" class="xf-expert-detail-stat-pills">
+        <text wx:if="{{nativeExpert.programCount > 0}}" class="xf-expert-detail-stat-pill">节目 {{nativeExpert.programCount}}</text>
+        <text wx:if="{{nativeExpert.socialCount > 0}}" class="xf-expert-detail-stat-pill">社交媒体 {{nativeExpert.socialCount}}</text>
+        <text wx:if="{{nativeExpert.referenceCount > 0}}" class="xf-expert-detail-stat-pill">公开内容 {{nativeExpert.referenceCount}}</text>
       </view>
     </view>
 
-    <view class="xf-expert-detail-stats">
-      <view class="xf-expert-detail-stat">
-        <text class="xf-expert-detail-stat-value">{{nativeExpert.programCount}}</text>
-        <text class="xf-expert-detail-stat-label">相关节目</text>
-      </view>
-      <view class="xf-expert-detail-stat">
-        <text class="xf-expert-detail-stat-value">{{nativeExpert.referenceCount}}</text>
-        <text class="xf-expert-detail-stat-label">公开资料</text>
-      </view>
-      <view class="xf-expert-detail-stat">
-        <text class="xf-expert-detail-stat-value">{{nativeExpert.agentLabel}}</text>
-        <text class="xf-expert-detail-stat-label">智库状态</text>
-      </view>
+    <view wx:if="{{!nativeExpert.agentEnabled && nativeExpert.hasRelatedPrograms}}" class="xf-expert-detail-card is-static-programs">
+      <text class="xf-expert-detail-eyebrow">RELATED CONTENT</text>
+      <text class="xf-expert-detail-section-title">参与节目</text>
+      <text class="xf-expert-detail-section-copy">只保留标题，快速浏览这位嘉宾参与过的节目内容。</text>
+      <scroll-view class="xf-expert-detail-static-program-list {{nativeExpert.relatedPrograms.length > 3 ? 'is-scrollable' : ''}}" scroll-y="{{nativeExpert.relatedPrograms.length > 3}}" enhanced show-scrollbar="false">
+        <view
+          wx:for="{{nativeExpert.relatedPrograms}}"
+          wx:for-item="program"
+          wx:for-index="programIndex"
+          wx:key="id"
+          class="xf-expert-detail-static-program-link"
+          data-id="{{program.id}}"
+          catchtap="openNativeExpertProgram"
+        >
+          <text class="xf-expert-detail-static-program-order">#{{programIndex + 1}}</text>
+          <text class="xf-expert-detail-static-program-title">{{program.title}}</text>
+          <text class="xf-expert-detail-static-program-arrow">↗</text>
+        </view>
+      </scroll-view>
     </view>
 
-    <view wx:if="{{nativeExpert.hasRelatedPrograms}}" class="xf-expert-detail-card is-programs">
-      <text class="xf-expert-detail-section-title">相关节目</text>
-      <view wx:for="{{nativeExpert.relatedPrograms}}" wx:key="id" class="xf-expert-detail-program">
-        <image wx:if="{{item.coverImage}}" class="xf-expert-detail-program-cover" src="{{item.coverImage}}" mode="aspectFill" />
-        <view class="xf-expert-detail-program-copy">
-          <text class="xf-expert-detail-program-title">{{item.title}}</text>
-          <text class="xf-expert-detail-program-desc">{{item.description}}</text>
-          <text class="xf-expert-detail-program-date">{{item.date}}</text>
-        </view>
-      </view>
-    </view>
-
-    <view wx:if="{{nativeExpert.hasPublications || nativeExpert.hasReferences || nativeExpert.hasSocialProfiles || nativeExpert.hasListenerBenefits}}" class="xf-expert-detail-card is-links">
-      <text class="xf-expert-detail-section-title">资料与链接</text>
-      <view wx:if="{{nativeExpert.hasPublications}}" class="xf-expert-detail-link-group">
-        <text class="xf-expert-detail-link-group-title">公开发表</text>
-        <view wx:for="{{nativeExpert.publications}}" wx:key="title" class="xf-expert-detail-link-item">
-          <text class="xf-expert-detail-link-title">{{item.title}}</text>
-          <text wx:if="{{item.source || item.label}}" class="xf-expert-detail-link-meta">{{item.source || item.label}}</text>
-        </view>
-      </view>
-      <view wx:if="{{nativeExpert.hasReferences}}" class="xf-expert-detail-link-group">
-        <text class="xf-expert-detail-link-group-title">档案参考</text>
-        <view wx:for="{{nativeExpert.profileReferences}}" wx:key="title" class="xf-expert-detail-link-item">
-          <text class="xf-expert-detail-link-title">{{item.title}}</text>
-          <text wx:if="{{item.source || item.label}}" class="xf-expert-detail-link-meta">{{item.source || item.label}}</text>
-        </view>
-      </view>
-      <view wx:if="{{nativeExpert.hasSocialProfiles}}" class="xf-expert-detail-link-group">
-        <text class="xf-expert-detail-link-group-title">社交主页</text>
-        <view wx:for="{{nativeExpert.socialProfiles}}" wx:key="title" class="xf-expert-detail-link-item">
-          <text class="xf-expert-detail-link-title">{{item.label || item.title}}</text>
-          <text wx:if="{{item.source}}" class="xf-expert-detail-link-meta">{{item.source}}</text>
-        </view>
-      </view>
-      <view wx:if="{{nativeExpert.hasListenerBenefits}}" class="xf-expert-detail-link-group">
-        <text class="xf-expert-detail-link-group-title">听友福利</text>
-        <view wx:for="{{nativeExpert.listenerBenefits}}" wx:key="title" class="xf-expert-detail-link-item">
-          <text class="xf-expert-detail-link-title">{{item.title}}</text>
-          <text wx:if="{{item.description}}" class="xf-expert-detail-link-meta">{{item.description}}</text>
+    <view wx:if="{{!nativeExpert.agentEnabled && nativeExpert.publicItems.length}}" class="xf-expert-detail-card is-static-publications">
+      <text class="xf-expert-detail-eyebrow">PUBLIC CONTENT</text>
+      <text class="xf-expert-detail-section-title">公开内容与资料</text>
+      <view class="xf-expert-detail-static-public-list">
+        <view wx:for="{{nativeExpert.publicItems}}" wx:for-item="reference" wx:key="title" class="xf-expert-detail-profile-link is-reference">
+          <text class="xf-expert-detail-profile-link-title">{{reference.title}}</text>
+          <text wx:if="{{reference.source || reference.label}}" class="xf-expert-detail-profile-link-meta">{{reference.source || reference.label}}</text>
         </view>
       </view>
     </view>
 
-    <button class="xf-expert-detail-primary is-bottom" bindtap="goExpertsList">返回智库</button>
+    <view wx:if="{{nativeExpert.agentEnabled}}" class="xf-expert-detail-agent-card">
+      <view class="xf-expert-detail-agent-head">
+        <view>
+          <text class="xf-expert-detail-agent-title">向{{nativeExpert.name}} AI 分身提问</text>
+          <text class="xf-expert-detail-agent-subtitle">对话内容仅用于当前账号的嘉宾智能体会话展示。</text>
+        </view>
+        <text class="xf-expert-detail-agent-index">{{nativeExpertAgentLoading ? "索引读取中" : "已索引 " + (nativeExpertAgent.chunkCount || 0) + " 段"}}</text>
+      </view>
+
+      <view wx:if="{{nativeExpertAgentError}}" class="xf-expert-detail-agent-error">
+        <text>{{nativeExpertAgentError}}</text>
+        <button wx:if="{{nativeExpertAgentNeedsPro}}" catchtap="openNativePro">查看 Pro</button>
+      </view>
+
+      <view wx:if="{{!nativeExpertMessages.length && !nativeExpertAgentLoading}}" class="xf-expert-detail-agent-intro">
+        <text>我是{{nativeExpert.name}}的 AI 分身。你可以问我节目观点、具体做法，或让资料库帮你追溯出处。</text>
+        <button
+          wx:for="{{nativeExpertAgent.suggestedQuestions}}"
+          wx:for-item="question"
+          wx:key="*this"
+          data-question="{{question}}"
+          catchtap="submitNativeExpertSuggestedQuestion"
+        >{{question}}</button>
+      </view>
+
+      <view class="xf-expert-detail-message-list">
+        <view
+          wx:for="{{nativeExpertMessages}}"
+          wx:for-item="message"
+          wx:for-index="messageIndex"
+          wx:key="id"
+          class="xf-expert-detail-message is-{{message.role}}"
+        >
+          <view class="{{message.role === 'user' ? 'xf-expert-detail-user-bubble' : 'xf-expert-detail-assistant-bubble'}}">
+            <text>{{message.content}}</text>
+          </view>
+
+          <view wx:if="{{message.recommendations.length}}" class="xf-expert-detail-recommendations">
+            <text class="xf-expert-detail-recommendations-label">推荐收听</text>
+            <view
+              wx:for="{{message.recommendations}}"
+              wx:for-item="program"
+              wx:key="id"
+              class="xf-expert-detail-recommendation"
+              data-id="{{program.id}}"
+              catchtap="openNativeExpertProgram"
+            >
+              <text class="xf-expert-detail-recommendation-order">#{{program.order}}</text>
+              <text class="xf-expert-detail-recommendation-title">{{program.title}}</text>
+              <text class="xf-expert-detail-recommendation-arrow">↗</text>
+            </view>
+          </view>
+
+          <view wx:if="{{message.citationCount}}" class="xf-expert-detail-citations">
+            <button data-index="{{messageIndex}}" catchtap="toggleNativeExpertCitations">
+              <view>
+                <text>引用资料 {{message.citationCount}} 条</text>
+                <text>{{message.citationSummary}}</text>
+              </view>
+              <text class="{{message.citationsExpanded ? 'is-expanded' : ''}}">⌄</text>
+            </button>
+            <view wx:if="{{message.citationsExpanded}}" class="xf-expert-detail-citation-list">
+              <view wx:for="{{message.citations}}" wx:for-item="citation" wx:key="id" class="xf-expert-detail-citation">
+                <text class="xf-expert-detail-citation-source">{{citation.sourceLabel}}</text>
+                <text class="xf-expert-detail-citation-title">{{citation.sourceTitle}}</text>
+                <text wx:if="{{citation.locator}}" class="xf-expert-detail-citation-locator">{{citation.locator}}</text>
+                <text class="xf-expert-detail-citation-copy">{{citation.text}}</text>
+              </view>
+            </view>
+          </view>
+        </view>
+      </view>
+      <view wx:if="{{nativeExpertSending}}" class="xf-expert-detail-assistant-bubble is-loading">正在检索资料并生成回答...</view>
+    </view>
+
   </scroll-view>
+
+  <view wx:if="{{nativeExpert.agentEnabled}}" class="xf-expert-detail-composer {{nativeExpertAttachmentMenuOpen ? 'is-attach-open' : ''}}">
+    <button
+      wx:if="{{!nativeExpertAuthed}}"
+      class="xf-expert-detail-login"
+      open-type="getPhoneNumber"
+      bindgetphonenumber="loginWithPhone"
+    >登录后向嘉宾提问</button>
+    <view wx:else class="xf-expert-detail-input-row">
+      <view class="xf-expert-detail-input-shell {{nativeExpertQuestion ? 'has-typed-input' : ''}} {{nativeExpertInputFocused ? 'is-input-focused' : ''}} {{!nativeExpertQuestion && !nativeExpertInputFocused ? 'is-placeholder' : ''}} {{nativeExpertSending ? 'is-sending' : ''}}">
+        <button class="xf-expert-detail-voice" hover-class="is-pressed" catchtap="toggleNativeExpertVoiceInput" aria-label="语音输入">
+          <image class="xf-expert-detail-voice-icon" src="/assets/xiaowanzi-icons/voice-dark.png" mode="aspectFit" />
+        </button>
+        <input
+          class="xf-expert-detail-input"
+          value="{{nativeExpertQuestion}}"
+          placeholder="对话内容已开启隐私保护"
+          placeholder-class="xf-expert-detail-input-placeholder"
+          confirm-type="send"
+          disabled="{{nativeExpertSending}}"
+          bindinput="onNativeExpertQuestionInput"
+          bindfocus="onNativeExpertQuestionFocus"
+          bindblur="onNativeExpertQuestionBlur"
+          bindconfirm="submitNativeExpertQuestion"
+        />
+        <button
+          class="xf-expert-detail-send {{nativeExpertSending ? 'is-stop' : 'is-send'}}"
+          hover-class="is-pressed"
+          disabled="{{nativeExpertSending || !nativeExpertQuestion}}"
+          bindtap="submitNativeExpertQuestion"
+          aria-label="发送问题"
+        >
+          <image class="xf-expert-detail-send-mark" src="/assets/xiaowanzi-icons/send-white.png" mode="aspectFit" />
+        </button>
+      </view>
+      <button class="xf-expert-detail-plus {{nativeExpertAttachmentMenuOpen ? 'is-open' : ''}}" catchtap="toggleNativeExpertAttachmentMenu" aria-label="{{nativeExpertAttachmentMenuOpen ? '收起更多' : '更多'}}">
+        <image class="xf-expert-detail-plus-mark" src="{{nativeExpertAttachmentMenuOpen ? '/assets/xiaowanzi-icons/close-purple.png' : '/assets/xiaowanzi-icons/add-dark.png'}}" mode="aspectFit" />
+      </button>
+    </view>
+  </view>
+  <view wx:if="{{nativeExpert.agentEnabled && nativeExpertAuthed && nativeExpertAttachmentMenuOpen}}" class="xf-expert-detail-attach-menu">
+    <button class="xf-expert-detail-attach-action" data-type="camera" catchtap="chooseNativeExpertAttachment">
+      <image class="xf-expert-detail-attach-icon" src="/assets/xiaowanzi-icons/camera-dark.png" mode="aspectFit" />
+      <text>拍照</text>
+    </button>
+    <button class="xf-expert-detail-attach-action" data-type="image" catchtap="chooseNativeExpertAttachment">
+      <image class="xf-expert-detail-attach-icon" src="/assets/xiaowanzi-icons/image-dark.png" mode="aspectFit" />
+      <text>上传图片</text>
+    </button>
+    <button class="xf-expert-detail-attach-action" data-type="file" catchtap="chooseNativeExpertAttachment">
+      <image class="xf-expert-detail-attach-icon" src="/assets/xiaowanzi-icons/upload-file-dark.png" mode="aspectFit" />
+      <text>上传文件</text>
+    </button>
+  </view>
 </view>
 
 <view wx:elif="{{nativeWorthBuyMode}}" class="xf-worthbuy-detail-page {{fontSizeClass}}" style="padding-top: {{chromeHeight}}px;">

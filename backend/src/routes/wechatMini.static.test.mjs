@@ -54,6 +54,16 @@ test("xiaowanzi conversation shares can be saved and opened through a mini-progr
   assert.match(source, /res\.send\(makeQrPngWhitePixelsTransparent\(code\)\)/);
 });
 
+test("mama resource task qrcode opens the task page directly", () => {
+  assert.match(source, /import MamaResourceTask from "\.\.\/models\/MamaResourceTask"/);
+  assert.match(source, /router\.get\("\/mama-resource-task-qrcode"/);
+  assert.match(source, /MamaResourceTask\.findOne\(\{ _id: taskId, status: "listed" \}\)/);
+  assert.match(source, /scene: `m=\$\{String\(task\._id\)\}`/);
+  assert.match(source, /page: "pages\/mama-resource-apply\/index"/);
+  assert.match(source, /isHyaline: true/);
+  assert.match(source, /res\.send\(makeQrPngWhitePixelsTransparent\(code\)\)/);
+});
+
 test("xiaowanzi mini attachments use a public mini-program route with Pro point billing", () => {
   assert.match(source, /import \{ requirePro \} from "\.\.\/middlewares\/requirePro"/);
   assert.match(source, /import \{ recognizeXiaowanziImageDataUrl \} from "\.\.\/services\/xiaowanziAttachmentRecognition"/);

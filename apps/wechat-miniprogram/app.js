@@ -1,5 +1,6 @@
 const { getToken, getUser, setSession, clearSession } = require("./utils/session");
 const { request } = require("./utils/request");
+const { preloadReadingLandingData } = require("./utils/readingPreload");
 
 App({
   globalData: {
@@ -10,6 +11,7 @@ App({
   onLaunch() {
     this.globalData.token = getToken();
     this.globalData.user = getUser();
+    preloadReadingLandingData();
   },
 
   setLoginSession(payload) {

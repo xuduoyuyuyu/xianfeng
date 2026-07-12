@@ -3,16 +3,19 @@ const { getNativeTopbarMetrics } = require("../../utils/nativeChrome");
 const { createPageShare, enableShareMenu } = require("../../utils/share");
 const { setSelectedTab } = require("../../utils/tabbar");
 const { goProgramsHome: navigateProgramsHome } = require("../../utils/nativePageNav");
-const { openWeb } = require("../../utils/webview");
 const { getUser } = require("../../utils/session");
 const { CHILD_PROFILES_KEY, WEB_CHILD_PROFILES_KEY, mergeChildProfileRecords } = require("../../utils/profileState");
 const { SETTINGS_SECTIONS, createNativeSettingsMethods, setSettingsTabbarHidden } = require("../../utils/nativeSettings");
 const { createFilterDrawerMethods } = require("../../utils/filterDrawer");
+const { readNativeTopicDetailCache, saveNativeTopicDetailCache } = require("../../utils/nativeTopicDetailCache");
 
 const TOPIC_CACHE_KEY = "xf_native_topics_cache";
-const TOPIC_CACHE_VERSION = 2;
+const TOPIC_CACHE_VERSION = 3;
+const TOPIC_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const INVALID_TOPIC_CACHE_KEY = "xf_native_topic_invalidated_v1";
 const TOPIC_PAGE_SIZE = 30;
 const TOPIC_FILTER_PAGE_SIZE = 100;
+const TOPIC_DETAIL_PREFETCH_LIMIT = 4;
 const LOGO_HEIGHT_RPX = 56;
 const TOPIC_FILTER_TAG_LIMIT = 24;
 const GUIDE_TAG_VISIBLE_LIMIT = 11;
@@ -87,6 +90,20 @@ function normalizeTopicProgress(item) {
   };
 }
 
+function getTopicNodeCount(item) {
+  if (!item) return null;
+  const explicit = Number(item.nodeCount);
+  if (Number.isFinite(explicit)) return Math.max(0, explicit);
+  const layers = item.layers || {};
+  if (layers && typeof layers === "object") {
+    return Object.keys(layers).reduce((sum, key) => {
+      const layer = layers[key];
+      return sum + (Array.isArray(layer) ? layer.length : 0);
+    }, 0);
+  }
+  return null;
+}
+
 function normalizeTopic(topic) {
   const item = topic || {};
   const slug = String(item.slug || "").trim();
@@ -94,26 +111,29 @@ function normalizeTopic(topic) {
   const tags = safeTags(item.tags);
   const subtitle = firstText([item.subtitle], "");
   const progress = normalizeTopicProgress(item);
+  const status = String(item.status || "").trim();
+  const nodeCount = getTopicNodeCount(item);
+  const emptyGeneratedTopic = nodeCount === 0 && (status === "pending" || status === "published");
   const summary = firstText([
     item.shortSummary,
-    "打开详情继续查看完整知识树和相关回答"
-  ], "打开详情继续查看完整知识树和相关回答");
+    emptyGeneratedTopic ? "话题正在生成知识树，完成后可查看详情" : "打开详情继续查看完整知识树和相关回答"
+  ], emptyGeneratedTopic ? "话题正在生成知识树，完成后可查看详情" : "打开详情继续查看完整知识树和相关回答");
 
   return {
     id: slug || id || String(item.title || "").trim(),
     slug,
     title: firstText([item.title], "未命名话题"),
     emoji: firstText([item.coverEmoji], ""),
-    progressVisible: progress.visible,
-    progressLabel: progress.label,
+    progressVisible: emptyGeneratedTopic || progress.visible,
+    progressLabel: emptyGeneratedTopic ? "等待解析" : progress.label,
     progressPercent: progress.percent,
-    canOpen: progress.canOpen,
+    canOpen: progress.canOpen && !emptyGeneratedTopic,
     generatingProgress: item.generatingProgress || null,
     subtitle,
     summary,
     tags,
     displayTags: tags.slice(0, 3),
-    status: String(item.status || "").trim(),
+    status,
     gradeMatch: item.gradeMatch !== false,
     createdAt: firstText([item.createdAt], ""),
     updatedAt: firstText([item.updatedAt], ""),
@@ -196,6 +216,40 @@ function buildTopicListUrl(page, limit) {
   return `/api/topic-hub?${params.join("&")}`;
 }
 
+function buildTopicDetailUrl(slug, userId) {
+  const query = userId ? `?userId=${encodeURIComponent(userId)}` : "";
+  return `/api/topic-hub/${encodeURIComponent(slug)}${query}`;
+}
+
+function buildTopicNodeUrl(slug, nodeKey, userId) {
+  const query = userId ? `?userId=${encodeURIComponent(userId)}` : "";
+  return `/api/topic-hub/${encodeURIComponent(slug)}/nodes/${encodeURIComponent(nodeKey)}${query}`;
+}
+
+function getFirstTopicNodeKey(response) {
+  const data = response || {};
+  const topic = data.topic || data.data || data;
+  const tree = Array.isArray(data.tree)
+    ? data.tree
+    : (Array.isArray(topic && topic.tree) ? topic.tree : []);
+  for (const branch of tree) {
+    const children = Array.isArray(branch && branch.children) ? branch.children : [];
+    for (const node of children) {
+      const nodeKey = firstText([node && node.nodeKey, node && node.id, node && node.key], "");
+      if (nodeKey) return nodeKey;
+    }
+  }
+  const layers = topic && topic.layers ? topic.layers : {};
+  for (const key of Object.keys(layers)) {
+    const nodes = Array.isArray(layers[key]) ? layers[key] : [];
+    for (const node of nodes) {
+      const nodeKey = firstText([node && node.nodeKey, node && node.id, node && node.key], "");
+      if (nodeKey) return nodeKey;
+    }
+  }
+  return "";
+}
+
 function sortTopicsForGrade(topics) {
   return (Array.isArray(topics) ? topics : []).slice().sort((a, b) => {
     const aTime = Date.parse(a && (a.createdAt || a.updatedAt) || "");
@@ -214,6 +268,8 @@ function sortTopicsForGrade(topics) {
 function getCachedTopicsForCurrentContext(cached) {
   const context = getTopicRequestContext();
   if (!cached || cached.version !== TOPIC_CACHE_VERSION) return [];
+  const cachedAt = Number(cached.cachedAt) || 0;
+  if (!cachedAt || Date.now() - cachedAt > TOPIC_CACHE_TTL_MS) return [];
   if (String(cached.userId || "") !== context.userId) return [];
   if (String(cached.grade || "") !== context.grade) return [];
   return Array.isArray(cached.topics) ? cached.topics : [];
@@ -223,6 +279,7 @@ function saveTopicCache(topics) {
   const context = getTopicRequestContext();
   wx.setStorageSync(TOPIC_CACHE_KEY, {
     version: TOPIC_CACHE_VERSION,
+    cachedAt: Date.now(),
     userId: context.userId,
     grade: context.grade,
     topics: Array.isArray(topics) ? topics : []
@@ -507,6 +564,25 @@ Page({
     setSelectedTab(this, 4);
     this.syncTopbarMetrics();
     this.syncAccountEntry();
+    this.removeInvalidatedTopic();
+  },
+
+  removeInvalidatedTopic() {
+    const invalidatedId = String(wx.getStorageSync(INVALID_TOPIC_CACHE_KEY) || "").trim();
+    if (!invalidatedId) return;
+    wx.removeStorageSync(INVALID_TOPIC_CACHE_KEY);
+    this.removeTopicFromCurrentLists(invalidatedId);
+  },
+
+  removeTopicFromCurrentLists(slugOrId) {
+    const invalidatedId = String(slugOrId || "").trim();
+    if (!invalidatedId) return;
+    const matches = (item) => [item && item.id, item && item.slug]
+      .some((value) => String(value || "").trim() === invalidatedId);
+    const allTopics = (this.data.allTopics || []).filter((item) => !matches(item));
+    const topics = (this.data.topics || []).filter((item) => !matches(item));
+    this.setData({ allTopics, topics });
+    saveTopicCache(allTopics);
   },
 
   onUnload() {
@@ -534,6 +610,10 @@ Page({
         welfareRight
       });
     } catch (_error) {}
+  },
+
+  normalizeTopicForTest(payload) {
+    return normalizeTopic(payload);
   },
 
   loadCachedTopics() {
@@ -566,6 +646,7 @@ Page({
         error: visibleTopics.length ? "" : buildNoTopicsMessage(activeTopicTagLabel, this.data.askInput),
         hasCache: true
       });
+      this.prefetchVisibleTopicDetails(visibleTopics);
     } catch (_error) {}
   },
 
@@ -619,6 +700,7 @@ Page({
             : buildNoTopicsMessage(activeTopicTagLabel, this.data.askInput)
         });
         if (!append && allTopics.length) saveTopicCache(allTopics);
+        if (!append && visibleTopics.length) this.prefetchVisibleTopicDetails(visibleTopics);
         this.syncTopicProgressPolling(allTopics);
       })
       .catch((error) => {
@@ -683,7 +765,47 @@ Page({
       wx.showToast({ title: "话题解析中，完成后可查看详情", icon: "none" });
       return;
     }
-    openWeb(topic.path, topic.title, { userId: getCurrentUserId() });
+    const topicSlug = String(topic.slug || topic.id || "").trim();
+    const userId = getCurrentUserId();
+    const params = [
+      "nativeTopic=1",
+      `topicSlug=${encodeURIComponent(topicSlug)}`,
+      `title=${encodeURIComponent(topic.title || "请教一下")}`
+    ];
+    if (userId) params.push(`userId=${encodeURIComponent(userId)}`);
+    wx.navigateTo({ url: `/pages/webview/index?${params.join("&")}` });
+  },
+
+  prefetchVisibleTopicDetails(topics) {
+    const userId = getCurrentUserId();
+    const list = (Array.isArray(topics) ? topics : [])
+      .filter((topic) => topic && topic.canOpen !== false)
+      .map((topic) => String(topic.slug || topic.id || "").trim())
+      .filter(Boolean)
+      .slice(0, TOPIC_DETAIL_PREFETCH_LIMIT);
+    list.forEach((slug) => {
+      if (readNativeTopicDetailCache(slug, userId)) return;
+      request({ url: buildTopicDetailUrl(slug, userId) })
+        .then((detailResponse) => {
+          const firstNodeKey = getFirstTopicNodeKey(detailResponse);
+          saveNativeTopicDetailCache(slug, userId, { detailResponse, firstNodeKey });
+          if (!firstNodeKey) return null;
+          return request({ url: buildTopicNodeUrl(slug, firstNodeKey, userId) })
+            .then((firstNodeResponse) => {
+              saveNativeTopicDetailCache(slug, userId, {
+                detailResponse,
+                firstNodeKey,
+                firstNodeResponse
+              });
+              return firstNodeResponse;
+            });
+        })
+        .catch((error) => {
+          if (Number(error && error.statusCode) === 404) {
+            this.removeTopicFromCurrentLists(slug);
+          }
+        });
+    });
   },
 
   showTopicDelete(event) {
