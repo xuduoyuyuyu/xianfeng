@@ -35,12 +35,12 @@ test("subscription page uses native mini program chrome spacing when embedded", 
 
 test("ProPage blocks ordinary web checkout inside mini-program web-view", () => {
   assert.match(source, /import \{ isMiniProgramWebView,[^}]*openMiniProgramNativePro[^}]*\} from "\.\.\/utils\/mpAuthBridge";/);
-  assert.match(source, /const miniProgramWebView = isMiniProgramWebView\(\);/);
-  assert.match(source, /if \(miniProgramWebView\) \{[\s\S]*await openMiniProgramNativePro\(selected\)[\s\S]*return;[\s\S]*\}/);
+  assert.match(source, /const inMiniProgramWebView = isMiniProgramWebView\(\);/);
+  assert.match(source, /if \(inMiniProgramWebView\) \{[\s\S]*await openMiniProgramNativePro\(selected\)[\s\S]*return;[\s\S]*\}/);
   const createOrderFunction = source.match(/const createOrder = async \(\) => \{[\s\S]*?\n  \};/);
   assert.ok(createOrderFunction, "createOrder function should exist");
   assert.ok(
-    createOrderFunction[0].indexOf("if (miniProgramWebView)") < createOrderFunction[0].indexOf("billingApi.createOrder"),
+    createOrderFunction[0].indexOf("if (inMiniProgramWebView)") < createOrderFunction[0].indexOf("billingApi.createOrder"),
     "mini-program web-view guard must run before ordinary /billing/orders checkout"
   );
 });
@@ -50,11 +50,14 @@ test("ProPage redirects to native virtual payment when backend blocks mini-progr
   assert.match(source, /if \(isMiniProgramVirtualPaymentBlock\(errorMessage\)\) \{/);
   assert.match(source, /await openMiniProgramNativePro\(selected\)/);
   assert.match(source, /请在小程序原生订阅页完成微信虚拟支付/);
+  assert.match(source, /MINI_PROGRAM_NATIVE_PRO_FALLBACK_MESSAGE/);
+  assert.doesNotMatch(source, /setMessage\(opened \? "请在小程序原生订阅页完成微信虚拟支付。" : errorMessage\)/);
+  assert.doesNotMatch(source, /https:\/\/xianfeng\.xinzhi\.info\/api\/billing\/orders/);
 });
 
 test("ProPage opens native mini-program login when checkout auth is expired", () => {
   assert.match(source, /import \{ isMiniProgramWebView,[^}]*openMiniProgramNativeLogin[^}]*openMiniProgramNativePro[^}]*\} from "\.\.\/utils\/mpAuthBridge";/);
-  assert.match(source, /error\?\.response\?\.status === 401 && miniProgramWebView/);
+  assert.match(source, /error\?\.response\?\.status === 401 && isMiniProgramWebView\(\)/);
   assert.match(source, /openMiniProgramNativeLogin\(\)/);
   const catchBlock = source.match(/catch \(error: any\) \{[\s\S]*?\n    \} finally/);
   assert.ok(catchBlock, "checkout catch block should exist");

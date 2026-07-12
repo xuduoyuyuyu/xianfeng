@@ -4,28 +4,36 @@ declare global {
       miniProgram?: {
         navigateTo?: (options: { url: string }) => void;
         navigateBack?: (options: { delta?: number }) => void;
+        getEnv?: (callback: (res: { miniprogram?: boolean }) => void) => void;
         postMessage?: (options: { data: Record<string, unknown> }) => void;
         redirectTo?: (options: { url: string }) => void;
         reLaunch?: (options: { url: string }) => void;
         switchTab?: (options: { url: string }) => void;
       };
     };
+    WeixinJSBridge?: unknown;
   }
 }
 
 const WECHAT_JSSDK_URL = "https://res.wx.qq.com/open/js/jweixin-1.6.0.js";
 let wechatJssdkLoading: Promise<boolean> | null = null;
-const WECHAT_JSSDK_LOAD_TIMEOUT_MS = 1200;
+const WECHAT_JSSDK_LOAD_TIMEOUT_MS = 4000;
 const MINI_PROGRAM_FONT_SCALES: Record<string, string> = {
   small: "0.95",
   standard: "1",
   large: "1.1"
 };
 
-function hasMiniProgramNavigation() {
+function markMiniProgramWebView() {
+  window.sessionStorage.setItem("xf_mp_webview", "1");
+  document.documentElement.classList.add("xf-mp-webview");
+}
+
+function hasMiniProgramBridge() {
   return Boolean(
     window.wx?.miniProgram?.navigateTo ||
       window.wx?.miniProgram?.navigateBack ||
+      window.wx?.miniProgram?.getEnv ||
       window.wx?.miniProgram?.postMessage ||
       window.wx?.miniProgram?.reLaunch ||
       window.wx?.miniProgram?.switchTab
@@ -48,15 +56,57 @@ export function isMiniProgramWebView() {
     /miniprogram/i.test(userAgent)
   );
   if (detected) {
-    window.sessionStorage.setItem("xf_mp_webview", "1");
-    document.documentElement.classList.add("xf-mp-webview");
+    markMiniProgramWebView();
   }
   return detected;
 }
 
+function waitForWeixinBridgeReady() {
+  if (window.WeixinJSBridge || hasMiniProgramBridge()) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      document.removeEventListener("WeixinJSBridgeReady", finish);
+      window.clearTimeout(timer);
+      resolve();
+    };
+    const timer = window.setTimeout(finish, WECHAT_JSSDK_LOAD_TIMEOUT_MS);
+    document.addEventListener("WeixinJSBridgeReady", finish, { once: true });
+  });
+}
+
+async function detectMiniProgramEnvironment() {
+  const getEnv = window.wx?.miniProgram?.getEnv;
+  if (!getEnv) return isMiniProgramWebView();
+  return new Promise<boolean>((resolve) => {
+    let settled = false;
+    const finish = (inMiniProgram: boolean) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      if (inMiniProgram) markMiniProgramWebView();
+      resolve(inMiniProgram || isMiniProgramWebView());
+    };
+    const timer = window.setTimeout(() => finish(isMiniProgramWebView()), 500);
+    try {
+      getEnv((res) => finish(Boolean(res?.miniprogram)));
+    } catch (_error) {
+      finish(isMiniProgramWebView());
+    }
+  });
+}
+
+async function waitForMiniProgramBridge() {
+  await waitForWeixinBridgeReady();
+  const inMiniProgram = await detectMiniProgramEnvironment();
+  return hasMiniProgramBridge() || inMiniProgram;
+}
+
 function loadWechatJssdk() {
   if (typeof window === "undefined" || typeof document === "undefined") return Promise.resolve(false);
-  if (hasMiniProgramNavigation()) return Promise.resolve(true);
+  if (hasMiniProgramBridge()) return waitForMiniProgramBridge();
   if (wechatJssdkLoading) return wechatJssdkLoading;
 
   wechatJssdkLoading = new Promise((resolve) => {
@@ -67,18 +117,19 @@ function loadWechatJssdk() {
       window.clearTimeout(timer);
       resolve(loaded);
     };
-    const timer = window.setTimeout(() => finish(hasMiniProgramNavigation()), WECHAT_JSSDK_LOAD_TIMEOUT_MS);
+    const timer = window.setTimeout(() => finish(hasMiniProgramBridge()), WECHAT_JSSDK_LOAD_TIMEOUT_MS);
     const existing = document.querySelector<HTMLScriptElement>(`script[src="${WECHAT_JSSDK_URL}"]`);
     if (existing) {
-      existing.addEventListener("load", () => finish(hasMiniProgramNavigation()), { once: true });
+      existing.addEventListener("load", () => void waitForMiniProgramBridge().then(finish), { once: true });
       existing.addEventListener("error", () => finish(false), { once: true });
+      void waitForMiniProgramBridge().then(finish);
       return;
     }
 
     const script = document.createElement("script");
     script.src = WECHAT_JSSDK_URL;
     script.async = true;
-    script.onload = () => finish(hasMiniProgramNavigation());
+    script.onload = () => void waitForMiniProgramBridge().then(finish);
     script.onerror = () => finish(false);
     document.head.appendChild(script);
   });

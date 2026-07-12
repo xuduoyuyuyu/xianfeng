@@ -64,9 +64,10 @@ function isMiniProgramVirtualPaymentBlock(message: string) {
   return /微信虚拟支付|小程序内虚拟商品/.test(message);
 }
 
+const MINI_PROGRAM_NATIVE_PRO_FALLBACK_MESSAGE = "请返回小程序订阅页完成微信虚拟支付；如仍停留在网页，请关闭后重新进入最新体验版。";
+
 const ProPage: React.FC = () => {
   const superModePage = useXiaowanziEmbeddedLayer();
-  const miniProgramWebView = isMiniProgramWebView();
   const [plans, setPlans] = useState<Record<PlanCatalogId, BillingPlan> | null>(null);
   const [usagePolicy, setUsagePolicy] = useState<PointUsagePolicyItem[]>([]);
   const [membership, setMembership] = useState<BillingMembership | null>(null);
@@ -165,10 +166,11 @@ const ProPage: React.FC = () => {
     setOrdering(true);
     setMessage("");
     setWechatQr("");
+    const inMiniProgramWebView = isMiniProgramWebView();
     try {
-      if (miniProgramWebView) {
+      if (inMiniProgramWebView) {
         const opened = await openMiniProgramNativePro(selected);
-        setMessage(opened ? "请在小程序原生订阅页完成微信虚拟支付。" : "当前小程序版本不支持网页内购买，请返回小程序订阅页完成支付。");
+        setMessage(opened ? "请在小程序原生订阅页完成微信虚拟支付。" : MINI_PROGRAM_NATIVE_PRO_FALLBACK_MESSAGE);
         return;
       }
       const res = await billingApi.createOrder(selected, "wechat");
@@ -195,7 +197,7 @@ const ProPage: React.FC = () => {
       }
       setMessage("微信支付二维码生成失败，请稍后重试。");
     } catch (error: any) {
-      if (error?.response?.status === 401 && miniProgramWebView) {
+      if (error?.response?.status === 401 && isMiniProgramWebView()) {
         if (!error?.xfMiniProgramNativeLoginOpened) {
           await openMiniProgramNativeLogin();
         }
@@ -205,7 +207,7 @@ const ProPage: React.FC = () => {
       const errorMessage = error?.response?.data?.message || error?.message || "下单失败";
       if (isMiniProgramVirtualPaymentBlock(errorMessage)) {
         const opened = await openMiniProgramNativePro(selected);
-        setMessage(opened ? "请在小程序原生订阅页完成微信虚拟支付。" : errorMessage);
+        setMessage(opened ? "请在小程序原生订阅页完成微信虚拟支付。" : MINI_PROGRAM_NATIVE_PRO_FALLBACK_MESSAGE);
         return;
       }
       setMessage(errorMessage);
