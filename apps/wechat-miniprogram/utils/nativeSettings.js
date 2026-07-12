@@ -39,7 +39,7 @@ const SETTINGS_SECTIONS = [
     key: "ask",
     items: [
       { key: "topics", title: "请教一下", iconType: "emoji", emoji: "🙏🏻", page: "/pages/topics/index" },
-      { key: "worthbuy", title: "知物", iconType: "image", image: "/assets/menu/line-verified.png", path: "/worthbuy" },
+      { key: "worthbuy", title: "知物", iconType: "image", image: "/assets/menu/line-verified.png", page: "/pages/worthbuy/index" },
       { key: "welfare", title: "百宝箱", iconType: "image", image: "/assets/menu/welfare-gift-icon.png", page: "/pages/welfare/index" },
       { key: "mamaHaozhuan", title: "妈妈好赚", iconType: "image", image: "/assets/menu/mama-hao-zhuan-icon.png", page: "/pages/mama-resource-apply/index" }
     ]

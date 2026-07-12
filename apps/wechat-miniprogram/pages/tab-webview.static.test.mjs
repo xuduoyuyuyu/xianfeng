@@ -11909,13 +11909,13 @@ test("hamburger secondary entries keep restored wrapper routes", () => {
   assert.match(nativeSettings, /key: "experts"[\s\S]*page: "\/pages\/experts\/index"/);
   assert.doesNotMatch(nativeSettings, /key: "experts"[\s\S]*path: "\/experts\?xw_layer=1&xw_return=xiaowanzi"/);
   assert.match(nativeSettings, /key: "planning"[\s\S]*path: "\/planning"/);
-  assert.match(nativeSettings, /key: "worthbuy"[\s\S]*path: "\/worthbuy"/);
+  assert.match(nativeSettings, /key: "worthbuy"[\s\S]*page: "\/pages\/worthbuy\/index"/);
   assert.equal(appJson.pages.includes("pages/welfare/index"), true);
   assert.match(nativeSettings, /key: "welfare"[\s\S]*title: "百宝箱"[\s\S]*page: "\/pages\/welfare\/index"/);
   assert.equal(appJson.pages.includes("pages/mama-resource-apply/index"), true);
   assert.match(nativeSettings, /key: "mamaHaozhuan"[\s\S]*page: "\/pages\/mama-resource-apply\/index"/);
   assert.doesNotMatch(nativeSettings, /key: "planning"[\s\S]*page: "\/pages\/planning\/index"/);
-  assert.doesNotMatch(nativeSettings, /key: "worthbuy"[\s\S]*page: "\/pages\/worthbuy\/index"/);
+  assert.doesNotMatch(nativeSettings, /key: "worthbuy"[\s\S]*path: "\/worthbuy"/);
   assert.doesNotMatch(nativeSettings, /key: "mamaHaozhuan"[\s\S]*path: "\/mama-resources\/apply"/);
   assert.match(nativeSettings, /key: "archive"[\s\S]*page: "\/pages\/mine\/archive\/index"[\s\S]*panelView: "archive"/);
   assert.match(nativeSettings, /key: "memory"[\s\S]*page: "\/pages\/mine\/memory\/index"[\s\S]*panelView: "memory"/);
