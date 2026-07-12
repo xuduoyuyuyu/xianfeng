@@ -4,7 +4,7 @@ const { SETTINGS_SECTIONS, createNativeSettingsMethods } = require("../../utils/
 const { request } = require("../../utils/request");
 const { getToken, getUser, setSession } = require("../../utils/session");
 const { createWebviewShare, enableShareMenu } = require("../../utils/share");
-const { TOPIC_DETAIL_WEBVIEW_VERSION, WELFARE_WEBVIEW_VERSION, inferWebPageTitle, webUrl: buildWebUrl } = require("../../utils/webview");
+const { TOPIC_DETAIL_WEBVIEW_VERSION, WELFARE_WEBVIEW_VERSION, buildNativeProUrl, inferWebPageTitle, webUrl: buildWebUrl } = require("../../utils/webview");
 
 const LOGO_HEIGHT_RPX = 56;
 
@@ -24,6 +24,14 @@ function getUrlPathname(value) {
   const pathAndSearch = withoutOrigin || "/";
   const queryIndex = pathAndSearch.indexOf("?");
   return queryIndex >= 0 ? pathAndSearch.slice(0, queryIndex) || "/" : pathAndSearch;
+}
+
+function getUrlSearch(value) {
+  const source = String(value || "").trim();
+  const withoutHash = source.split("#")[0];
+  const queryStart = withoutHash.indexOf("?");
+  if (queryStart < 0) return "";
+  return withoutHash.slice(queryStart + 1);
 }
 
 function hasUrlParam(value, key) {
@@ -77,6 +85,11 @@ function isProgramDetailWebPath(value) {
 
 function isWelfareWebPath(value) {
   return getUrlPathname(value) === "/welfare";
+}
+
+function isProWebPath(value) {
+  const pathname = getUrlPathname(value);
+  return pathname === "/pro" || pathname === "/pro/success";
 }
 
 function withNativeWebviewParams(value) {
@@ -750,6 +763,13 @@ Page({
     const rawSrc = decodeURIComponent(options.url || "");
     const title = resolveWebviewTitle(rawSrc, decodeURIComponent(options.title || ""));
     const src = withNativeWebviewParams(rawSrc);
+    if (isProWebPath(src)) {
+      const openNativePro = wx.redirectTo || wx.navigateTo;
+      if (openNativePro) {
+        openNativePro({ url: buildNativeProUrl(getUrlSearch(src)) });
+        return;
+      }
+    }
     const webviewLoginRequired = options.login === "1" && !getToken();
     const hideTabbar = shouldHideNativeTabbar(src);
     const showXiaowanziClose = isXiaowanziSuperWebview(src);

@@ -145,11 +145,30 @@ test("webUrl versions the welfare webview to avoid stale phone cache", () => {
   assert.equal(url.searchParams.get("xf_wpv"), "20260706-welfare-compact");
 });
 
+test("webUrl versions Pro webviews to avoid stale virtual payment checkout code", () => {
+  const url = new URL(webUrl("/pro?plan=plus"));
+
+  assert.equal(url.pathname, "/pro");
+  assert.equal(url.searchParams.get("plan"), "plus");
+  assert.equal(url.searchParams.get("xf_mp"), "1");
+  assert.equal(url.searchParams.get("xf_pv"), "20260712-virtual-payment");
+});
+
 test("webview wrapper also versions welfare direct entries", () => {
   assert.match(webviewPageJs, /WELFARE_WEBVIEW_VERSION/);
   assert.match(webviewPageJs, /function isWelfareWebPath\(value\) \{/);
   assert.match(webviewPageJs, /isWelfareWebPath\(source\) && !hasUrlParam\(source, "xf_wpv"\)/);
   assert.match(webviewPageJs, /appendUrlParam\(source, "xf_wpv", WELFARE_WEBVIEW_VERSION\)/);
+});
+
+test("webview wrapper redirects Pro web URLs to the native virtual payment page", () => {
+  assert.match(webviewPageJs, /buildNativeProUrl/);
+  assert.match(webviewPageJs, /function isProWebPath\(value\) \{/);
+  assert.match(webviewPageJs, /const pathname = getUrlPathname\(value\);/);
+  assert.match(webviewPageJs, /return pathname === "\/pro" \|\| pathname === "\/pro\/success";/);
+  assert.match(webviewPageJs, /if \(isProWebPath\(src\)\) \{/);
+  assert.match(webviewPageJs, /const openNativePro = wx\.redirectTo \|\| wx\.navigateTo;/);
+  assert.match(webviewPageJs, /openNativePro\(\{ url: buildNativeProUrl\(getUrlSearch\(src\)\) \}\)/);
 });
 
 test("webUrl always appends mini program marker after caller params", () => {
