@@ -555,30 +555,35 @@ function formatAdminBookMetadata(metadata: any) {
   };
 }
 
-async function findPagedPublicBooksPrioritizingMetadata(current: number, size: number) {
+async function findPagedPublicBooksPrioritizingDescriptions(current: number, size: number) {
   const approvedBookIds = await listApprovedBookMetadataBookIds();
   const publishedFilter = { status: "published" };
+  const describedBookFilter = {
+    $or: [
+      { _id: { $in: approvedBookIds } },
+      { description: { $regex: /\S/ } },
+    ],
+  };
+  const undescribedBookFilter = { $nor: describedBookFilter.$or };
   const total = await Book.countDocuments(publishedFilter);
-  const approvedTotal = approvedBookIds.length
-    ? await Book.countDocuments({ ...publishedFilter, _id: { $in: approvedBookIds } })
-    : 0;
+  const describedTotal = await Book.countDocuments({ ...publishedFilter, ...describedBookFilter });
   const offset = (current - 1) * size;
-  const approvedTake = Math.min(size, Math.max(0, approvedTotal - offset));
+  const describedTake = Math.min(size, Math.max(0, describedTotal - offset));
   const books: any[] = [];
 
-  if (approvedTake > 0) {
-    books.push(...await Book.find({ ...publishedFilter, _id: { $in: approvedBookIds } })
+  if (describedTake > 0) {
+    books.push(...await Book.find({ ...publishedFilter, ...describedBookFilter })
       .sort({ publishedAt: -1, _id: -1 })
       .skip(offset)
-      .limit(approvedTake));
+      .limit(describedTake));
   }
 
   const remaining = size - books.length;
   if (remaining > 0) {
-    const nonApprovedOffset = Math.max(0, offset - approvedTotal);
-    books.push(...await Book.find({ ...publishedFilter, _id: { $nin: approvedBookIds } })
+    const undescribedOffset = Math.max(0, offset - describedTotal);
+    books.push(...await Book.find({ ...publishedFilter, ...undescribedBookFilter })
       .sort({ publishedAt: -1, _id: -1 })
-      .skip(nonApprovedOffset)
+      .skip(undescribedOffset)
       .limit(remaining));
   }
 
@@ -803,7 +808,7 @@ export class BookController {
       const current = Math.max(1, Number(req.query.current) || 1);
       const size = Math.min(100, Math.max(1, Number(req.query.size) || 24));
       const paged = Boolean(req.query.current || req.query.size);
-      const page = paged ? await findPagedPublicBooksPrioritizingMetadata(current, size) : null;
+      const page = paged ? await findPagedPublicBooksPrioritizingDescriptions(current, size) : null;
       const books = page
         ? page.books
         : await Book.find({ status: "published" }).sort({ publishedAt: -1 });
