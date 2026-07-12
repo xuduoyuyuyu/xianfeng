@@ -6,10 +6,12 @@ import {
   createWechatVirtualCheckout,
   exchangeWechatLoginCode,
   isWechatVirtualPaymentConfigured,
+  notifyWechatVirtualGoodsProvided,
   parseWechatVirtualNotification,
   queryWechatVirtualOrder,
   verifyWechatMessageCallback,
 } from "./wechatVirtualPayment";
+import { clearWechatMiniAccessTokenCache } from "./wechatMiniAuth";
 
 /*
 Official contract fixtures (2026-07-11):
@@ -34,6 +36,7 @@ const originalFetch = globalThis.fetch;
 afterEach(() => {
   process.env = { ...savedEnv };
   globalThis.fetch = originalFetch;
+  clearWechatMiniAccessTokenCache();
 });
 
 function configure() {
@@ -137,6 +140,22 @@ test("queries the official order endpoint with exact body and independent pay si
   assert.equal(result.environment, 1);
   assert.equal(result.amountCents, 1990);
   assert.equal(result.bizMeta.productId, "plus");
+});
+
+test("notifies WeChat that a direct goods order has been provided", async () => {
+  configure();
+  const calls: Array<{ url: string; body?: string }> = [];
+  globalThis.fetch = (async (input, init) => {
+    const url = String(input); calls.push({ url, body: init?.body ? String(init.body) : undefined });
+    if (url.includes("stable_token")) return new Response(JSON.stringify({ access_token: "access-1", expires_in: 7200 }), { status: 200 });
+    return new Response(JSON.stringify({ errcode: 0, errmsg: "ok" }), { status: 200 });
+  }) as typeof fetch;
+
+  await notifyWechatVirtualGoodsProvided({ outTradeNo: "VP20260711ABC123", environment: 1 });
+
+  assert.equal(new URL(calls[1].url).origin + new URL(calls[1].url).pathname, "https://api.weixin.qq.com/xpay/notify_provide_goods");
+  assert.equal(new URL(calls[1].url).searchParams.get("access_token"), "access-1");
+  assert.deepEqual(JSON.parse(calls[1].body || "{}"), { order_id: "VP20260711ABC123", env: 1 });
 });
 
 test("rejects malformed official query numeric and identity fields", async () => {

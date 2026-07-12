@@ -65,8 +65,10 @@
   `biz_meta.attach`, and paid virtual orders may report status `3`; both are
   accepted only when the paid amount matches the local order amount. The client
   may call `/api/billing/virtual-orders/:id/sync` after `wx.requestVirtualPayment`
-  succeeds to actively reconcile the order, while notification delivery remains
-  the backup trigger.
+  succeeds to actively reconcile the order; that active sync confirms delivery
+  to WeChat through `/xpay/notify_provide_goods` after local points are granted.
+  Normal `xpay_goods_deliver_notify` pushes still confirm delivery by returning
+  WeChat's `{ ErrCode: 0, ErrMsg: "success" }` response.
   `/api/billing/me` exposes recent paid/refunded `paymentOrders` with per-order
   refund eligibility so clients request refunds against a specific payment
   record instead of a single latest-order shortcut.

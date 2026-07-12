@@ -4,7 +4,7 @@ import PaymentOrderModel, { BillingPlanId as PaymentOrderPlanId, PaymentOrder, P
 import RefundRecordModel from "../models/RefundRecord";
 import User from "../models/User";
 import { getVirtualProduct } from "./virtualPaymentProducts";
-import { queryWechatVirtualOrder, type VerifiedVirtualOrder, type WechatVirtualNotification } from "./wechatVirtualPayment";
+import { notifyWechatVirtualGoodsProvided, queryWechatVirtualOrder, type VerifiedVirtualOrder, type WechatVirtualNotification } from "./wechatVirtualPayment";
 
 export type ProStatus = "none" | "active" | "expired" | "refunded";
 
@@ -477,6 +477,7 @@ export async function syncWechatVirtualPaidOrder(
   openid: string,
   dependencies: {
     queryOrder?: (input: { outTradeNo: string; openid: string }) => Promise<VerifiedVirtualOrder>;
+    notifyGoods?: (input: { outTradeNo: string; environment: 0 | 1 }) => Promise<void>;
     rawTrigger?: Record<string, any>;
   } = {},
 ): Promise<PaymentOrder> {
@@ -503,11 +504,23 @@ export async function syncWechatVirtualPaidOrder(
     || (boundOpenid && boundOpenid !== openid);
   if (mismatch) throw new Error("微信虚拟支付查单结果与本地订单不匹配");
 
-  return markOrderPaid({
+  const paidOrder = await markOrderPaid({
     outTradeNo: order.outTradeNo,
     providerTradeNo: trusted.transactionId,
     rawNotify: { trigger: dependencies.rawTrigger || { source: "wechat-virtual-sync" }, verifiedOrder: trusted.raw },
   });
+  const isDeliveryPush = dependencies.rawTrigger?.Event === "xpay_goods_deliver_notify";
+  if (!isDeliveryPush) {
+    try {
+      await (dependencies.notifyGoods || notifyWechatVirtualGoodsProvided)({
+        outTradeNo: order.outTradeNo,
+        environment: order.virtualEnvironment,
+      });
+    } catch (error) {
+      console.error("Wechat virtual goods delivery confirmation failed:", error);
+    }
+  }
+  return paidOrder;
 }
 
 export async function markOrderPaid(input: {

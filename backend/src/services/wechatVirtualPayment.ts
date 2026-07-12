@@ -183,3 +183,16 @@ export async function queryWechatVirtualOrder(input: { outTradeNo: string; openi
   const bizMeta = parseVerifiedOrderBizMeta(order.biz_meta);
   return { outTradeNo, status: nonNegativeInteger(order.status, "status"), amountCents: nonNegativeInteger(order.order_fee, "order_fee"), paidAmountCents: nonNegativeInteger(order.paid_fee, "paid_fee"), environment, transactionId: requiredString(order.wxpay_order_id || order.wx_order_id, "wxpay_order_id"), bizMeta, raw: order };
 }
+
+export async function notifyWechatVirtualGoodsProvided(input: { outTradeNo: string; environment?: VirtualEnvironment }): Promise<void> {
+  const cfg = requiredConfig();
+  const outTradeNo = requiredString(input.outTradeNo, "outTradeNo");
+  const environment = input.environment ?? cfg.environment;
+  const body = JSON.stringify({ order_id: outTradeNo, env: environment });
+  const accessToken = await fetchWechatMiniAccessToken();
+  const url = new URL("https://api.weixin.qq.com/xpay/notify_provide_goods");
+  url.searchParams.set("access_token", accessToken);
+  const response = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body, signal: AbortSignal.timeout(8000) });
+  const payload: any = await response.json().catch(() => ({}));
+  if (!response.ok || payload.errcode) throw new Error(payload.errmsg || "微信虚拟支付发货确认失败");
+}

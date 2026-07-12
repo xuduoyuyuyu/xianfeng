@@ -28,6 +28,7 @@ import {
   processWechatVirtualNotification,
   resetFreeAccountPointGrants,
   serializeBillingUser,
+  syncWechatVirtualPaidOrder,
 } from "./billing";
 
 function restoreEnvValue(key: string, value: string | undefined) {
@@ -344,7 +345,7 @@ describe("billing point consumption", () => {
       queryCount += 1;
       return { outTradeNo: order.outTradeNo, status: 3, amountCents: 1990, paidAmountCents: 1990, environment: 1 as const, transactionId: "wx-virtual-1", bizMeta: { orderId: order.outTradeNo, userId: String(user._id), productId: "plus", quantity: 1 }, raw: { trusted: true } };
     };
-    const trigger = { event: "xpay_goods_deliver_notify" as const, outTradeNo: order.outTradeNo, openid: "openid-1", productId: "plus", quantity: 1, raw: { untrusted: true } };
+    const trigger = { event: "xpay_goods_deliver_notify" as const, outTradeNo: order.outTradeNo, openid: "openid-1", productId: "plus", quantity: 1, raw: { Event: "xpay_goods_deliver_notify", untrusted: true } };
 
     await Promise.all([
       processWechatVirtualNotification(trigger, { queryOrder }),
@@ -359,6 +360,29 @@ describe("billing point consumption", () => {
     assert.equal(first?.proPointBalance, 200);
     assert.equal(second?.proPointBalance, 200);
     assert.equal(second?.proExpiresAt?.toISOString(), firstExpiry);
+  });
+
+  it("notifies WeChat delivery after a client-side virtual payment sync grants points", async () => {
+    await User.deleteMany({});
+    await PaymentOrderModel.deleteMany({});
+    const user = await User.create({ username: "virtual-sync-user", password: "hashed", wechatMiniOpenid: "openid-1", proPointBalance: 0 });
+    const order = await createVirtualPaymentOrder({ userId: String(user._id), productId: "plus", quantity: 1 });
+    order.virtualEnvironment = 1;
+    await order.save();
+    const queryOrder = async () => {
+      return { outTradeNo: order.outTradeNo, status: 3, amountCents: 1990, paidAmountCents: 1990, environment: 1 as const, transactionId: "wx-virtual-sync", bizMeta: { orderId: order.outTradeNo, userId: String(user._id), productId: "plus", quantity: 1 }, raw: { trusted: true } };
+    };
+    const delivered: Array<{ outTradeNo: string; environment: 0 | 1 }> = [];
+
+    await syncWechatVirtualPaidOrder(order, "openid-1", {
+      queryOrder,
+      notifyGoods: async (input) => { delivered.push(input); },
+      rawTrigger: { source: "client-sync" },
+    });
+
+    const savedUser = await User.findById(user._id).lean();
+    assert.equal(savedUser?.proPointBalance, 200);
+    assert.deepEqual(delivered, [{ outTradeNo: order.outTradeNo, environment: 1 }]);
   });
 
   it("rejects untrusted or mismatched virtual delivery without fulfilling", async () => {
