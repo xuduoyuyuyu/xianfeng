@@ -153,9 +153,12 @@ test("notifies WeChat that a direct goods order has been provided", async () => 
 
   await notifyWechatVirtualGoodsProvided({ outTradeNo: "VP20260711ABC123", environment: 1 });
 
+  const body = JSON.stringify({ order_id: "VP20260711ABC123", env: 1 });
+  const sig = createHmac("sha256", "app-key-test").update(`/xpay/notify_provide_goods&${body}`).digest("hex");
   assert.equal(new URL(calls[1].url).origin + new URL(calls[1].url).pathname, "https://api.weixin.qq.com/xpay/notify_provide_goods");
   assert.equal(new URL(calls[1].url).searchParams.get("access_token"), "access-1");
-  assert.deepEqual(JSON.parse(calls[1].body || "{}"), { order_id: "VP20260711ABC123", env: 1 });
+  assert.equal(new URL(calls[1].url).searchParams.get("pay_sig"), sig);
+  assert.equal(calls[1].body, body);
 });
 
 test("rejects malformed official query numeric and identity fields", async () => {

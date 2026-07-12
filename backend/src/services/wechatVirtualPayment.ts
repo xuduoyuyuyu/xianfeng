@@ -189,9 +189,11 @@ export async function notifyWechatVirtualGoodsProvided(input: { outTradeNo: stri
   const outTradeNo = requiredString(input.outTradeNo, "outTradeNo");
   const environment = input.environment ?? cfg.environment;
   const body = JSON.stringify({ order_id: outTradeNo, env: environment });
+  const paySig = hmac(cfg.appKey, `/xpay/notify_provide_goods&${body}`);
   const accessToken = await fetchWechatMiniAccessToken();
   const url = new URL("https://api.weixin.qq.com/xpay/notify_provide_goods");
   url.searchParams.set("access_token", accessToken);
+  url.searchParams.set("pay_sig", paySig);
   const response = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body, signal: AbortSignal.timeout(8000) });
   const payload: any = await response.json().catch(() => ({}));
   if (!response.ok || payload.errcode) throw new Error(payload.errmsg || "微信虚拟支付发货确认失败");
