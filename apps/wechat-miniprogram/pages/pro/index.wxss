@@ -438,33 +438,6 @@ page {
   line-height: 1.55;
 }
 
-.xf-pro-refund-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 84rpx;
-  width: 100%;
-  margin: 18rpx 0 0;
-  padding: 0;
-  border: 2rpx solid #f59e0b;
-  border-radius: 999rpx;
-  background: #fff7ed;
-  color: #9a3412;
-  font-size: 26rpx;
-  font-weight: 900;
-  line-height: 84rpx;
-}
-
-.xf-pro-refund-button::after {
-  border: 0;
-}
-
-.xf-pro-refund-button[disabled] {
-  border-color: #fed7aa;
-  background: #fffbeb;
-  color: #cbd5e1;
-}
-
 .xf-pro-payment-section {
   margin-top: 24rpx;
 }
@@ -505,18 +478,4 @@ page {
   color: #64748b;
   font-size: 22rpx;
   line-height: 1.45;
-}
-
-.xf-pro-refund-button.is-inline {
-  width: 176rpx;
-  height: 64rpx;
-  margin: 0;
-  font-size: 22rpx;
-  line-height: 64rpx;
-}
-
-.xf-pro-refund-button.is-guide {
-  border-color: rgba(108, 39, 214, 0.24);
-  background: rgba(108, 39, 214, 0.08);
-  color: #6c27d6;
 }

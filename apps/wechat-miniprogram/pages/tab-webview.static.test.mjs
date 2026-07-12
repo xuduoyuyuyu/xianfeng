@@ -6971,21 +6971,18 @@ test("pro page renders native subscription content instead of a web-view wrapper
     assert.match(wxml, /订阅中/);
     assert.doesNotMatch(wxml, /订阅已完成/);
     assert.match(wxml, /继续补充点数/);
-    assert.match(wxml, /bindtap="requestRefund"/);
+    assert.doesNotMatch(wxml, /bindtap="requestRefund"/);
     assert.match(wxml, /付款记录/);
     assert.match(wxml, /wx:for="\{\{paymentOrders\}\}"/);
     assert.match(wxml, /<view class="xf-pro-status-card">[\s\S]*<text class="xf-pro-section-title">订阅状态<\/text>[\s\S]*<text class="xf-pro-section-title is-sub">付款记录<\/text>[\s\S]*wx:for="\{\{paymentOrders\}\}"[\s\S]*<\/view>\s*<\/view>\s*<view class="xf-pro-pay-dock">/);
     assert.doesNotMatch(wxml, /<view wx:if="\{\{paymentOrders\.length\}\}" class="xf-pro-status-card">/);
-    assert.match(wxml, /data-order-id="\{\{item\.id\}\}"/);
     assert.match(wxml, /item\.refundStatusLabel/);
-    assert.match(wxml, /申请退款/);
-    assert.match(wxml, /item\.externalRefundGuide/);
-    assert.match(wxml, /bindtap="showExternalRefundGuide"/);
-    assert.match(wxml, /退款入口/);
-    assert.match(wxml, /退款按未使用点数折算/);
-    assert.match(wxml, /若无剩余有效套餐/);
+    assert.match(wxml, /虚拟支付订单不支持退款/);
+    assert.doesNotMatch(wxml, /申请退款|退款入口|item\.externalRefundGuide|bindtap="showExternalRefundGuide"/);
+    assert.doesNotMatch(wxml, /data-order-id="\{\{item\.id\}\}"/);
+    assert.doesNotMatch(wxml, /退款按未使用点数折算|若无剩余有效套餐/);
     assert.doesNotMatch(wxml, /membership && membership\.canRefundLatestOrder && latestRefundableOrder && latestRefundableOrder\.status === 'paid'/);
-    assert.match(wxml, /item\.canRefund/);
+    assert.doesNotMatch(wxml, /item\.canRefund/);
     assert.match(wxml, /当前可用点数/);
     assert.match(wxml, /wx:for="\{\{planCards\}\}"/);
     assert.match(wxml, /bindtap="selectPlan"/);
@@ -7003,21 +7000,16 @@ test("pro page renders native subscription content instead of a web-view wrapper
     assert.match(wxss, /\.xf-pro-complete-title \{[\s\S]*color: #f8d375;/);
     assert.match(wxss, /\.xf-pro-complete-copy \{[\s\S]*color: rgba\(248, 211, 117, 0\.82\);/);
     assert.match(wxss, /\.xf-pro-plan-list\.is-topup \{[\s\S]*margin-top: 16rpx;/);
-    assert.match(wxss, /\.xf-pro-refund-button \{[\s\S]*background: #fff7ed;/);
+    assert.doesNotMatch(wxss, /\.xf-pro-refund-button/);
     assert.match(wxss, /\.xf-pro-pay-dock \{[\s\S]*position: fixed;[\s\S]*bottom: 0;[\s\S]*padding: 18rpx 52rpx calc\(18rpx \+ env\(safe-area-inset-bottom\)\);/);
     assert.match(wxss, /\.xf-pro-main \{[\s\S]*padding: 22rpx 24rpx 200rpx;/);
     assert.match(js, /request\(\{ url: "\/api\/billing\/plans" \}\)/);
     assert.match(js, /request\(\{ url: "\/api\/billing\/me" \}\)/);
     assert.match(js, /request\(\{[\s\S]*method: "POST",[\s\S]*url: "\/api\/billing\/virtual-orders"/);
-    assert.match(js, /url: "\/api\/billing\/refunds"/);
+    assert.doesNotMatch(js, /url: "\/api\/billing\/refunds"/);
     assert.match(js, /paymentOrders/);
-    assert.match(js, /event[\s\S]*currentTarget[\s\S]*dataset[\s\S]*orderId/);
     assert.doesNotMatch(js, /const refundOrder = this\.data\.latestRefundableOrder \|\| this\.data\.latestOrder/);
-    assert.match(js, /response && response\.refund && response\.refund\.status === "pending"/);
-    assert.match(js, /微信处理中，处理完成后积分会自动扣回/);
-    assert.match(js, /externalRefundGuide/);
-    assert.match(js, /showExternalRefundGuide/);
-    assert.match(js, /reportaproblem\.apple\.com/);
+    assert.doesNotMatch(js, /requestRefund\(event\)|response && response\.refund|微信处理中，处理完成后积分会自动扣回|externalRefundGuide|showExternalRefundGuide|reportaproblem\.apple\.com/);
     assert.match(js, /selectedPlan: "pro"/);
     assert.match(js, /formatYuan/);
     assert.match(js, /formatPoints/);
@@ -7097,7 +7089,7 @@ test("pro page renders native subscription content instead of a web-view wrapper
   }
 });
 
-test("pro page renders completion state and submits refund requests", async () => {
+test("pro page renders completion state without refund actions", async () => {
   const definition = loadPageDefinition("pro");
   const context = {
     ...definition,
@@ -7163,14 +7155,7 @@ test("pro page renders completion state and submits refund requests", async () =
         }
         if (options.url.endsWith("/api/billing/refunds")) {
           refundRequests.push(options.data);
-          active = false;
-          options.success({
-            statusCode: 200,
-            data: {
-              refund: { id: "refund-1", orderId: "order-pro-1", status: "succeeded", amountCents: 9900 },
-              membership: membershipPayload()
-            }
-          });
+          options.fail({ errMsg: "refund endpoint should not be called" });
           return;
         }
         options.fail({ errMsg: "unexpected request" });
@@ -7186,14 +7171,12 @@ test("pro page renders completion state and submits refund requests", async () =
     assert.equal(context.data.latestOrder.status, "refunded");
     assert.equal(context.data.latestRefundableOrder.status, "paid");
 
-    await definition.requestRefund.call(context, { currentTarget: { dataset: { orderId: "order-pro-1" } } });
-
-    assert.equal(modalPrompts[0].confirmText, "申请退款");
-    assert.deepEqual(refundRequests, [{ orderId: "order-pro-1", reason: "按未使用点数折算退款" }]);
-    assert.equal(context.data.membership.isProActive, false);
+    assert.equal(definition.requestRefund, undefined);
+    assert.deepEqual(modalPrompts, []);
+    assert.deepEqual(refundRequests, []);
+    assert.equal(context.data.membership.isProActive, true);
     assert.equal(context.data.latestOrder.status, "refunded");
-    assert.equal(context.data.latestRefundableOrder, null);
-    assert.match(context.data.message, /退款成功/);
+    assert.equal(context.data.latestRefundableOrder.status, "paid");
   } finally {
     global.wx = originalWx;
   }

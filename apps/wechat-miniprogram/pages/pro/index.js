@@ -92,17 +92,12 @@ function paymentStatusLabel(order) {
   return "未知状态";
 }
 
-function isExternalRefundGuideLabel(label) {
-  return /微信或苹果付款记录|苹果付款记录|OS订单不支持开发者发起退款/.test(String(label || ""));
-}
-
 function normalizePaymentOrder(order) {
   const item = order || {};
   const amountYuan = formatYuan(item.amountYuan, item.amountCents ? (Number(item.amountCents) / 100).toFixed(2) : "");
   const refundableAmountYuan = formatYuan(item.refundableAmountYuan, item.refundableAmountCents ? (Number(item.refundableAmountCents) / 100).toFixed(2) : "");
   const paidAtText = item.paidAtText || formatDate(item.paidAt || item.createdAt).replace(/\//g, "-");
-  const refundStatusLabel = item.refundStatusLabel || (item.canRefund ? "可申请退款" : paymentStatusLabel(item));
-  const externalRefundGuide = isExternalRefundGuideLabel(refundStatusLabel);
+  const refundStatusLabel = item.status === "refunded" ? "已退款" : "虚拟支付不支持退款";
   return {
     ...item,
     planLabel: planLabel(item.plan),
@@ -110,7 +105,6 @@ function normalizePaymentOrder(order) {
     paidAtText,
     statusLabel: paymentStatusLabel(item),
     refundStatusLabel,
-    externalRefundGuide,
     refundablePointsText: formatPoints(item.refundablePoints || 0),
     refundableAmountYuan
   };
@@ -264,25 +258,6 @@ function paymentErrorMessage(error) {
 
 function isAuthExpiredError(error) {
   return Number(error && error.statusCode) === 401;
-}
-
-function confirmRefundRequest() {
-  if (!wx.showModal) return Promise.resolve(true);
-  return new Promise((resolve) => {
-    wx.showModal({
-      title: "申请退款",
-      content: "退款金额会按未使用点数折算，已使用点数对应费用不退；退款成功后会员权益和高级 AI 调用将立即关闭。",
-      confirmText: "申请退款",
-      confirmColor: "#b45309",
-      cancelText: "再想想",
-      success(result) {
-        resolve(!!result.confirm);
-      },
-      fail() {
-        resolve(false);
-      }
-    });
-  });
 }
 
 Page({
@@ -544,65 +519,6 @@ Page({
           message: paymentErrorMessage(error)
         });
       });
-  },
-
-  requestRefund(event) {
-    if (this.data.refunding) return Promise.resolve();
-    const orderId = event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.orderId;
-    if (!orderId) {
-      this.setData({ message: "请选择要退款的付款记录" });
-      return Promise.resolve();
-    }
-    return confirmRefundRequest().then((confirmed) => {
-      if (!confirmed) return null;
-      this.setData({ refunding: true, message: "" });
-      return request({
-        method: "POST",
-        url: "/api/billing/refunds",
-        data: { orderId, reason: "按未使用点数折算退款" }
-      })
-        .then((response) => this.loadBilling().then(() => {
-          const pending = response && response.refund && response.refund.status === "pending";
-          this.setData({
-            refunding: false,
-            message: pending
-              ? "退款申请已提交，微信处理中，处理完成后积分会自动扣回。"
-              : "退款成功，订阅状态已更新。"
-          });
-          return response;
-        }))
-        .catch((error) => {
-          this.setData({
-            refunding: false,
-            message: error && error.message ? error.message : "退款申请失败，请稍后重试"
-          });
-        });
-    });
-  },
-
-  showExternalRefundGuide() {
-    const appleRefundUrl = "https://reportaproblem.apple.com/";
-    const content = "iOS 虚拟支付退款需要由用户从 Apple 付款记录发起：打开 App Store > 头像 > 购买记录，找到对应订单后申请退款；也可以复制 Apple 退款入口链接到浏览器打开。退款完成后系统会自动同步并扣回对应点数。";
-    if (!wx.showModal) {
-      this.setData({ message: `Apple 退款入口：${appleRefundUrl}` });
-      return;
-    }
-    wx.showModal({
-      title: "苹果虚拟支付退款入口",
-      content,
-      confirmText: "复制链接",
-      confirmColor: "#6c27d6",
-      cancelText: "知道了",
-      success: (result) => {
-        if (!result.confirm || !wx.setClipboardData) return;
-        wx.setClipboardData({
-          data: appleRefundUrl,
-          success: () => {
-            this.setData({ message: "Apple 退款入口链接已复制，请在浏览器打开后按订单申请退款。" });
-          }
-        });
-      }
-    });
   },
 
   onShareAppMessage() {

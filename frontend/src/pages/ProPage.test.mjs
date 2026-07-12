@@ -67,28 +67,14 @@ test("ProPage opens native mini-program login when checkout auth is expired", ()
   );
 });
 
-test("ProPage describes pending WeChat refunds as processing, not succeeded", () => {
-  assert.match(source, /res\.data\.refund\?\.status === "pending"/);
-  assert.match(source, /微信处理中，处理完成后积分会自动扣回/);
-  assert.doesNotMatch(source, /setMessage\("退款成功，订阅状态已回到可用积分方案。"\);/);
-});
-
-test("ProPage renders payment records and refunds a selected payment order", () => {
+test("ProPage renders payment records without refund actions", () => {
   assert.match(source, /const \[paymentOrders, setPaymentOrders\] = useState<BillingOrder\[\]>\(\[\]\);/);
   assert.match(source, /setPaymentOrders\(meRes\.data\.paymentOrders \|\| \[\]\)/);
   assert.match(source, /付款记录/);
   assert.match(source, /paymentOrders\.map\(\(order\) =>/);
-  assert.match(source, /order\.refundStatusLabel/);
-  assert.match(source, /order\.canRefund/);
-  assert.match(source, /onClick=\{\(\) => requestRefund\(order\.id\)\}/);
-  assert.match(source, /billingApi\.requestRefund\(orderId\)/);
-  assert.doesNotMatch(source, /membership\?\.canRefundLatestOrder && latestOrder\?\.status === "paid"/);
-});
-
-test("ProPage exposes an Apple refund entry for iOS virtual payment records", () => {
-  assert.match(source, /EXTERNAL_REFUND_GUIDE_PATTERN/);
-  assert.match(source, /APPLE_REFUND_URL = "https:\/\/reportaproblem\.apple\.com\/"/);
-  assert.match(source, /needsExternalRefundGuide\(order\)/);
-  assert.match(source, /href=\{APPLE_REFUND_URL\}/);
-  assert.match(source, /退款入口/);
+  assert.match(source, /虚拟支付订单不支持退款/);
+  assert.doesNotMatch(source, /const requestRefund = async/);
+  assert.doesNotMatch(source, /billingApi\.requestRefund/);
+  assert.doesNotMatch(source, /onClick=\{\(\) => requestRefund\(order\.id\)\}/);
+  assert.doesNotMatch(source, /APPLE_REFUND_URL|EXTERNAL_REFUND_GUIDE_PATTERN|needsExternalRefundGuide|退款入口/);
 });

@@ -65,12 +65,6 @@ function isMiniProgramVirtualPaymentBlock(message: string) {
 }
 
 const MINI_PROGRAM_NATIVE_PRO_FALLBACK_MESSAGE = "请返回小程序订阅页完成微信虚拟支付；如仍停留在网页，请关闭后重新进入最新体验版。";
-const APPLE_REFUND_URL = "https://reportaproblem.apple.com/";
-const EXTERNAL_REFUND_GUIDE_PATTERN = /微信或苹果付款记录|苹果付款记录|OS订单不支持开发者发起退款/;
-
-function needsExternalRefundGuide(order: BillingOrder) {
-  return EXTERNAL_REFUND_GUIDE_PATTERN.test(order.refundStatusLabel || "");
-}
 
 const ProPage: React.FC = () => {
   const superModePage = useXiaowanziEmbeddedLayer();
@@ -82,7 +76,6 @@ const ProPage: React.FC = () => {
   const [selected, setSelected] = useState<PlanId>("pro");
   const [loading, setLoading] = useState(true);
   const [ordering, setOrdering] = useState(false);
-  const [refunding, setRefunding] = useState(false);
   const [message, setMessage] = useState("");
   const [wechatQr, setWechatQr] = useState("");
 
@@ -225,26 +218,6 @@ const ProPage: React.FC = () => {
     }
   };
 
-  const requestRefund = async (orderId?: string) => {
-    if (!orderId) return;
-    setRefunding(true);
-    setMessage("");
-    try {
-      const res = await billingApi.requestRefund(orderId);
-      setMembership(res.data.membership);
-      setMessage(
-        res.data.refund?.status === "pending"
-          ? "退款申请已提交，微信处理中，处理完成后积分会自动扣回。"
-          : "退款成功，订阅状态已回到可用积分方案。"
-      );
-      await load();
-    } catch (error: any) {
-      setMessage(error?.response?.data?.message || error?.message || "退款失败");
-    } finally {
-      setRefunding(false);
-    }
-  };
-
   const activePlan = plans?.[selected];
   const freePlan = plans?.free;
   const catalogPlanIds: PlanCatalogId[] = ["free", "plus", "pro"];
@@ -370,9 +343,9 @@ const ProPage: React.FC = () => {
                 </div>
                 <div>会员：{membership?.isProActive ? membership.membershipLabel || planLabel(normalizePlanId(membership.proPlan)) : "Free"}</div>
                 <div>到期：{formatDate(membership?.proExpiresAt)}</div>
-                <div>退款方式：{membership?.isProActive ? "按未使用点数折算" : "未开通"}</div>
+                <div>退款说明：虚拟支付订单不支持退款</div>
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
-                  退款按未使用点数折算，已使用点数对应费用不退；退款成功后高级 AI 调用立即不可用。
+                  重要提示：小程序虚拟支付订单不支持退款；购买前请确认套餐和点数需求。
                 </div>
                 {paymentOrders.length ? (
                   <div className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -384,27 +357,8 @@ const ProPage: React.FC = () => {
                             <div>
                               <div className="font-black text-slate-950">{planLabel(normalizePlanId(order.plan))} · ¥{formatYuan(order.amountYuan, order.amountCents ? (order.amountCents / 100).toFixed(2) : "")}</div>
                               <div className="mt-1 text-xs font-bold text-slate-500">{order.paidAtText || formatDate(order.paidAt || order.createdAt)} · {order.statusLabel || order.status}</div>
-                              <div className="mt-1 text-xs font-black text-slate-600">{order.refundStatusLabel || (order.canRefund ? "可申请退款" : "")}</div>
+                              <div className="mt-1 text-xs font-black text-slate-600">{order.status === "refunded" ? "已退款" : "虚拟支付不支持退款"}</div>
                             </div>
-                            {order.canRefund ? (
-                              <button
-                                type="button"
-                                disabled={refunding}
-                                onClick={() => requestRefund(order.id)}
-                                className="shrink-0 rounded-full border border-red-200 bg-white px-3 py-2 text-xs font-black text-red-600 disabled:opacity-50"
-                              >
-                                {refunding ? "申请中" : "申请退款"}
-                              </button>
-                            ) : needsExternalRefundGuide(order) ? (
-                              <a
-                                href={APPLE_REFUND_URL}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="shrink-0 rounded-full border border-[#d8ccff] bg-[#f7f4ff] px-3 py-2 text-xs font-black text-[#6c27d6]"
-                              >
-                                退款入口
-                              </a>
-                            ) : null}
                           </div>
                         </div>
                       ))}
