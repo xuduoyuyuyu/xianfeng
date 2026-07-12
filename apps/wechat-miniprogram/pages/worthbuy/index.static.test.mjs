@@ -1,0 +1,12 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+const root = new URL("../../", import.meta.url);
+const js = readFileSync(new URL("index.js", import.meta.url), "utf8");
+const wxml = readFileSync(new URL("index.wxml", import.meta.url), "utf8");
+const app = readFileSync(new URL("../../app.json", import.meta.url), "utf8");
+const nav = readFileSync(new URL("../../utils/nativePageNav.js", import.meta.url), "utf8");
+test("registers a native WorthBuy list before the generic webview", () => { assert.ok(app.indexOf('pages/worthbuy/index') < app.indexOf('pages/webview/index')); assert.match(nav, /pages\/worthbuy\/index/); });
+test("loads paged public items and keeps personal history owner scoped", () => { assert.match(js, /\/api\/worthbuy\/list\?current=\$\{current\}&size=\$\{PAGE_SIZE\}/); assert.match(js, /readWorthBuyCache\("history", ownerId\)/); assert.match(js, /\/api\/worthbuy\/my\?current=1&size=/); });
+test("submits once and separates auth, Pro, points, validation, and network states", () => { assert.match(js, /if \(this\._submitPromise\)/); assert.match(js, /classifyWorthBuyError/); assert.match(wxml, /bindgetphonenumber="loginWithPhone"/); assert.match(wxml, /actionErrorType === 'pro' \|\| actionErrorType === 'points'/); });
+test("renders public and personal cards as separate sections", () => { assert.match(wxml, /公开知物/); assert.match(wxml, /我的分析/); assert.match(wxml, /deleteHistoryItem/); });

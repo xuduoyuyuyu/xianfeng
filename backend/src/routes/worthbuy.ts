@@ -5,6 +5,13 @@ import { requirePro } from "../middlewares/requirePro";
 
 const router = Router();
 
+function parseWorthBuyPagination(req: Request) {
+  const paged = req.query.current !== undefined || req.query.size !== undefined;
+  const current = Math.max(1, Number(req.query.current) || 1);
+  const size = Math.min(50, Math.max(1, Number(req.query.size) || 20));
+  return { paged, current, size };
+}
+
 export const WORTHBUY_FAILURE_GUIDANCE = {
   message: "暂时没有解析到有效商品信息，请补充商品名称后再试。",
   tips: [
@@ -63,8 +70,12 @@ function requireProForNewAnalysis(req: Request, res: Response, next: any) {
 router.get("/my", async (req: Request, res: Response) => {
   try {
     const userId = resolveWorthBuyUserId(req);
-    const items = await WorthBuyAnalysis.find({ submittedBy: userId, status: { $ne: "deleted" } }).sort({ createdAt: -1 }).lean();
-    res.json({ items });
+    const filter = { submittedBy: userId, status: { $ne: "deleted" } };
+    const { paged, current, size } = parseWorthBuyPagination(req);
+    const query = WorthBuyAnalysis.find(filter).sort({ createdAt: -1 });
+    if (!paged) return res.json({ items: await query.lean() });
+    const [items, total] = await Promise.all([query.skip((current - 1) * size).limit(size).lean(), WorthBuyAnalysis.countDocuments(filter)]);
+    res.json({ items, total, current, pages: Math.max(1, Math.ceil(total / size)), size });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -84,10 +95,14 @@ router.delete("/my/:brand", async (req: Request, res: Response) => {
 });
 
 // GET 公开列表（只有 status=published 的）
-router.get("/list", async (_req: Request, res: Response) => {
+router.get("/list", async (req: Request, res: Response) => {
   try {
-    const items = await WorthBuyAnalysis.find({ status: "published" }).sort({ createdAt: -1 }).lean();
-    res.json({ items });
+    const filter = { status: "published" };
+    const { paged, current, size } = parseWorthBuyPagination(req);
+    const query = WorthBuyAnalysis.find(filter).sort({ createdAt: -1 });
+    if (!paged) return res.json({ items: await query.lean() });
+    const [items, total] = await Promise.all([query.skip((current - 1) * size).limit(size).lean(), WorthBuyAnalysis.countDocuments(filter)]);
+    res.json({ items, total, current, pages: Math.max(1, Math.ceil(total / size)), size });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

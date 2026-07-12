@@ -13,6 +13,8 @@
     "pages/home/index",
     "pages/pro/index",
     "pages/mama-resource-apply/index",
+    "pages/worthbuy/index",
+    "pages/worthbuy-detail/index",
     "pages/mine/index",
     "pages/mine/archive/index",
     "pages/mine/memory/index",

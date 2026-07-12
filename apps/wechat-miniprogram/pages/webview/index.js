@@ -1845,6 +1845,10 @@ Page({
     const programId = extractProgramId(src);
     const expertId = extractExpertId(src);
     const worthBuyQuery = extractWorthBuyQuery(src);
+    if (worthBuyQuery) {
+      wx.navigateTo({ url: `/pages/worthbuy-detail/index?query=${encodeURIComponent(worthBuyQuery)}` });
+      return;
+    }
     const bookId = extractBookId(src);
     const externalBookId = extractExternalBookId(src);
     const externalBookFallback = externalBookId ? getExternalBookFallback(src, externalBookId) : null;
