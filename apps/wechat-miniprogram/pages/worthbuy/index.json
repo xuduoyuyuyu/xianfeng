@@ -1,1 +1,8 @@
-{"navigationStyle":"custom","enablePullDownRefresh":true,"backgroundColor":"#f8f6ff"}
+{
+  "navigationStyle": "custom",
+  "enablePullDownRefresh": true,
+  "backgroundColor": "#f8f6ff",
+  "usingComponents": {
+    "custom-tab-bar": "../../custom-tab-bar/index"
+  }
+}

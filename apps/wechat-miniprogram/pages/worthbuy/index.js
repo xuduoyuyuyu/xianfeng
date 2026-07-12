@@ -10,7 +10,7 @@ const PAGE_SIZE = 20;
 const LOGO_HEIGHT_RPX = 56;
 
 Page({
-  data: { topbarHeight: 88, chromeHeight: 88, logoTop: 10, logoHeight: 28, welfareRight: 101, input: "", publicItems: [], myItems: [], loading: true, loadingMore: false, submitting: false, submitStage: "", error: "", actionError: "", actionErrorType: "", current: 1, pages: 1, showHistory: false, isLoggedIn: false },
+  data: { topbarHeight: 88, chromeHeight: 88, logoTop: 10, logoHeight: 28, welfareRight: 101, selected: 4, hideTabbar: false, input: "", publicItems: [], myItems: [], loading: true, loadingMore: false, submitting: false, submitStage: "", error: "", actionError: "", actionErrorType: "", current: 1, pages: 1, showHistory: false, isLoggedIn: false },
   onLoad() {
     enableShareMenu();
     this.syncTopbarMetrics();

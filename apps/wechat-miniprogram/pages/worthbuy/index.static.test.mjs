@@ -6,6 +6,7 @@ const js = readFileSync(new URL("index.js", import.meta.url), "utf8");
 const wxml = readFileSync(new URL("index.wxml", import.meta.url), "utf8");
 const app = readFileSync(new URL("../../app.json", import.meta.url), "utf8");
 const nav = readFileSync(new URL("../../utils/nativePageNav.js", import.meta.url), "utf8");
+const json = JSON.parse(readFileSync(new URL("index.json", import.meta.url), "utf8"));
 test("registers a native WorthBuy list before the generic webview", () => { assert.ok(app.indexOf('pages/worthbuy/index') < app.indexOf('pages/webview/index')); assert.match(nav, /pages\/worthbuy\/index/); });
 test("loads paged public items and keeps personal history owner scoped", () => { assert.match(js, /\/api\/worthbuy\/list\?current=\$\{current\}&size=\$\{PAGE_SIZE\}/); assert.match(js, /readWorthBuyCache\("history", ownerId\)/); assert.match(js, /\/api\/worthbuy\/my\?current=1&size=/); });
 test("submits once and separates auth, Pro, points, validation, and network states", () => { assert.match(js, /if \(this\._submitPromise\)/); assert.match(js, /classifyWorthBuyError/); assert.match(wxml, /bindgetphonenumber="loginWithPhone"/); assert.match(wxml, /actionErrorType === 'pro' \|\| actionErrorType === 'points'/); });
@@ -28,4 +29,10 @@ test("reuses the Topics native topbar shell", () => {
   assert.match(wxml, /class="xf-native-welfare-button"[\s\S]*catchtap="openWelfare"/);
   assert.match(js, /syncTopbarMetrics/);
   assert.doesNotMatch(wxml, /class="wb-back"/);
+});
+test("matches the Topics submit shape and mounts the shared bottom tabbar", () => {
+  assert.match(wxml, /class="wb-submit[^"]*\{\{input && !submitting \? '' : 'is-disabled'\}\}"/);
+  assert.match(wxml, /<custom-tab-bar selected="\{\{selected\}\}" hidden="\{\{hideTabbar\}\}" \/>/);
+  assert.equal(json.usingComponents["custom-tab-bar"], "../../custom-tab-bar/index");
+  assert.match(js, /selected: 4/);
 });

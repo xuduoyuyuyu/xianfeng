@@ -15,7 +15,7 @@
       <text class="wb-search-icon">⌕</text>
       <input value="{{input}}" bindinput="onInput" placeholder="粘贴商品链接或输入品牌名称…" maxlength="800"/>
     </view>
-    <button class="wb-submit" bindtap="submitAnalysis" loading="{{submitting}}" disabled="{{submitting || !input}}">{{submitting ? submitStage : '开始分析'}}</button>
+    <button class="wb-submit {{input && !submitting ? '' : 'is-disabled'}}" bindtap="submitAnalysis" loading="{{submitting}}" disabled="{{submitting || !input}}">{{submitting ? submitStage : '开始分析'}}</button>
     <text class="wb-support">支持淘宝、京东、拼多多等平台链接，或直接输入品牌名</text>
     <view wx:if="{{actionError}}" class="wb-error">
       <text>{{actionError}}</text>
@@ -58,3 +58,4 @@
     <view wx:if="{{loadingMore}}" class="wb-empty">正在加载更多…</view>
   </view>
 </view>
+<custom-tab-bar selected="{{selected}}" hidden="{{hideTabbar}}" />
