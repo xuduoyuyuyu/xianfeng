@@ -470,7 +470,7 @@ export async function processWechatVirtualNotification(
 }
 
 function isTrustedWechatVirtualPaymentPaid(trusted: VerifiedVirtualOrder, order: PaymentOrder) {
-  return (trusted.status === 2 || trusted.status === 3) && trusted.paidAmountCents === order.amountCents;
+  return (trusted.status === 2 || trusted.status === 3 || trusted.status === 4) && trusted.paidAmountCents === order.amountCents;
 }
 
 function assertTrustedWechatVirtualOrderMatches(trusted: VerifiedVirtualOrder, order: PaymentOrder, openid: string, boundOpenid = "") {

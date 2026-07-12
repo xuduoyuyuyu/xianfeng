@@ -399,7 +399,7 @@ describe("billing point consumption", () => {
     assert.equal((await User.findById(user._id).lean())?.proPointBalance, 200);
     assert.ok(paidOrder);
 
-    const trusted = { outTradeNo: order.outTradeNo, status: 3, amountCents: 1990, paidAmountCents: 1990, leftFeeCents: 1990, environment: 1 as const, transactionId: "wx-virtual-refund", bizMeta: { orderId: order.outTradeNo, userId: String(user._id), productId: "plus", quantity: 1 }, raw: { trusted: true } };
+    const trusted = { outTradeNo: order.outTradeNo, status: 4, amountCents: 1990, paidAmountCents: 1990, leftFeeCents: 1990, environment: 1 as const, transactionId: "wx-virtual-refund", bizMeta: { orderId: order.outTradeNo, userId: String(user._id), productId: "plus", quantity: 1 }, raw: { trusted: true } };
     let requestRefundCount = 0;
     const dependencies = {
       queryOrder: async () => trusted,
