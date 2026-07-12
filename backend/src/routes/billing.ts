@@ -36,6 +36,7 @@ import {
 import { createWechatVirtualCheckout, exchangeWechatLoginCode, isWechatVirtualPaymentConfigured, parseWechatVirtualNotification, verifyWechatMessageCallback } from "../services/wechatVirtualPayment";
 import { getVirtualProduct } from "../services/virtualPaymentProducts";
 import User from "../models/User";
+import RefundRecordModel from "../models/RefundRecord";
 
 const router = Router();
 
@@ -81,10 +82,22 @@ function formatPaymentTime(value: any) {
   return `${year}-${month}-${day} ${hour}:${minute}`;
 }
 
-function serializePaymentOrder(order: any, user: any) {
+function refundRecordStatusLabel(refund: any) {
+  if (!refund) return "";
+  if (refund.status === "pending") return "退款处理中";
+  if (refund.status === "succeeded") return "已退款";
+  if (refund.status === "failed") return refund.errorMessage ? `退款失败：${refund.errorMessage}` : "退款失败";
+  return "";
+}
+
+function serializePaymentOrder(order: any, user: any, latestRefund?: any) {
   const base = serializeOrder(order);
   const pointRefund = calculatePointBasedRefund(order, user);
-  const refundable = canRefundOrder(order).ok && pointRefund.ok;
+  const latestRefundLabel = refundRecordStatusLabel(latestRefund);
+  const refundRetryBlocked = latestRefund?.status === "pending"
+    || latestRefund?.status === "succeeded"
+    || (latestRefund?.status === "failed" && String(latestRefund?.errorMessage || "").includes("OS订单不支持开发者发起退款"));
+  const refundable = canRefundOrder(order).ok && pointRefund.ok && !refundRetryBlocked;
   return {
     ...base,
     amountYuan: formatAmount(order.amountCents),
@@ -94,8 +107,19 @@ function serializePaymentOrder(order: any, user: any) {
     refundablePoints: refundable ? pointRefund.refundablePoints : 0,
     refundableAmountCents: refundable ? pointRefund.amountCents : 0,
     refundableAmountYuan: formatAmount(refundable ? pointRefund.amountCents : 0),
+    latestRefund: latestRefund ? {
+      id: String(latestRefund._id),
+      status: latestRefund.status,
+      amountCents: latestRefund.amountCents,
+      refundablePoints: latestRefund.refundablePoints || 0,
+      errorMessage: latestRefund.errorMessage || "",
+      refundedAt: latestRefund.refundedAt ? new Date(latestRefund.refundedAt).toISOString() : null,
+      createdAt: latestRefund.createdAt ? new Date(latestRefund.createdAt).toISOString() : null,
+    } : null,
     refundStatusLabel: order.status === "refunded"
       ? "已退款"
+      : latestRefundLabel
+        ? latestRefundLabel
       : refundable
         ? "可申请退款"
         : order.status === "paid"
@@ -189,6 +213,15 @@ router.get("/me", authenticate, async (req: AuthenticatedRequest, res) => {
     getLatestRefundableOrder(userId),
     PaymentOrderModel.find({ userId: user._id, status: { $in: ["paid", "refunded"] } }).sort({ createdAt: -1 }).limit(20).lean(),
   ]);
+  const orderIds = paymentOrders.map((order) => order._id);
+  const refundRecords = orderIds.length
+    ? await RefundRecordModel.find({ userId: user._id, orderId: { $in: orderIds } }).sort({ createdAt: -1 }).lean()
+    : [];
+  const latestRefundByOrderId = new Map<string, any>();
+  for (const refund of refundRecords) {
+    const key = String(refund.orderId);
+    if (!latestRefundByOrderId.has(key)) latestRefundByOrderId.set(key, refund);
+  }
   const membership = serializeBillingUser(freshUser || user);
   membership.canRefundLatestOrder = !!(
     membership.isProActive
@@ -199,7 +232,7 @@ router.get("/me", authenticate, async (req: AuthenticatedRequest, res) => {
     membership,
     latestOrder: latestOrder ? serializeOrder(latestOrder) : null,
     latestRefundableOrder: latestRefundableOrder ? serializeOrder(latestRefundableOrder) : null,
-    paymentOrders: paymentOrders.map((order) => serializePaymentOrder(order, freshUser || user)),
+    paymentOrders: paymentOrders.map((order) => serializePaymentOrder(order, freshUser || user, latestRefundByOrderId.get(String(order._id)))),
   });
 });
 

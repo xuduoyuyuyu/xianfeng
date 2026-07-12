@@ -7,6 +7,7 @@ import { MongoMemoryServer } from "mongodb-memory-server";
 import billingRoutes from "./billing";
 import { BILLING_PLANS, FREE_BILLING_PLAN, serializePlan } from "../services/billing";
 import PaymentOrderModel from "../models/PaymentOrder";
+import RefundRecordModel from "../models/RefundRecord";
 import User from "../models/User";
 
 type TestServer = {
@@ -57,6 +58,7 @@ describe("billing routes", () => {
 
   beforeEach(async () => {
     await PaymentOrderModel.deleteMany({});
+    await RefundRecordModel.deleteMany({});
     await User.deleteMany({});
   });
 
@@ -187,5 +189,55 @@ describe("billing routes", () => {
     assert.equal(data.paymentOrders?.[1].refundablePoints, 200);
     assert.equal(data.paymentOrders?.[1].refundableAmountCents, 1990);
     assert.equal(data.paymentOrders?.[1].refundStatusLabel, "可申请退款");
+  });
+
+  it("returns latest refund record state on payment orders", async () => {
+    const user = await User.create({
+      username: "payment-refund-record-user",
+      password: "secret",
+      role: "user",
+      proStatus: "active",
+      proPlan: "plus",
+      proPointBalance: 200,
+      proExpiresAt: new Date("2026-08-12T00:00:00.000Z"),
+    });
+    const order = await PaymentOrderModel.create({
+      userId: user._id,
+      plan: "plus",
+      provider: "wechat",
+      paymentChannel: "wechat_virtual",
+      amountCents: 1990,
+      currency: "CNY",
+      subject: "订阅 Plus",
+      outTradeNo: "XFOSREFUNDFAILED",
+      status: "paid",
+      paidAt: new Date("2026-07-12T01:00:00.000Z"),
+      virtualProductId: "plus",
+      virtualQuantity: 1,
+      virtualEnvironment: 0,
+    });
+    await RefundRecordModel.create({
+      orderId: order._id,
+      userId: user._id,
+      provider: "wechat",
+      amountCents: 1990,
+      reason: "用户发起退款",
+      outRequestNo: "XFRFOSFAILED",
+      status: "failed",
+      refundablePoints: 200,
+      errorMessage: "OS订单不支持开发者发起退款",
+    });
+
+    const response = await fetch(`${server.url}/me`, {
+      headers: { "Authorization": `Bearer ${userToken(String(user._id))}` },
+    });
+
+    assert.equal(response.status, 200);
+    const data = await response.json() as { paymentOrders?: Array<any> };
+    assert.equal(data.paymentOrders?.[0].id, String(order._id));
+    assert.equal(data.paymentOrders?.[0].canRefund, false);
+    assert.equal(data.paymentOrders?.[0].latestRefund.status, "failed");
+    assert.equal(data.paymentOrders?.[0].latestRefund.refundablePoints, 200);
+    assert.match(data.paymentOrders?.[0].refundStatusLabel, /OS订单不支持开发者发起退款/);
   });
 });
