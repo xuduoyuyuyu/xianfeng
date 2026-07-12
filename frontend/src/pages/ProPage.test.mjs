@@ -72,3 +72,15 @@ test("ProPage describes pending WeChat refunds as processing, not succeeded", ()
   assert.match(source, /微信处理中，处理完成后积分会自动扣回/);
   assert.doesNotMatch(source, /setMessage\("退款成功，订阅状态已回到可用积分方案。"\);/);
 });
+
+test("ProPage renders payment records and refunds a selected payment order", () => {
+  assert.match(source, /const \[paymentOrders, setPaymentOrders\] = useState<BillingOrder\[\]>\(\[\]\);/);
+  assert.match(source, /setPaymentOrders\(meRes\.data\.paymentOrders \|\| \[\]\)/);
+  assert.match(source, /付款记录/);
+  assert.match(source, /paymentOrders\.map\(\(order\) =>/);
+  assert.match(source, /order\.refundStatusLabel/);
+  assert.match(source, /order\.canRefund/);
+  assert.match(source, /onClick=\{\(\) => requestRefund\(order\.id\)\}/);
+  assert.match(source, /billingApi\.requestRefund\(orderId\)/);
+  assert.doesNotMatch(source, /membership\?\.canRefundLatestOrder && latestOrder\?\.status === "paid"/);
+});

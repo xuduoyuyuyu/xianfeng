@@ -72,6 +72,7 @@ const ProPage: React.FC = () => {
   const [usagePolicy, setUsagePolicy] = useState<PointUsagePolicyItem[]>([]);
   const [membership, setMembership] = useState<BillingMembership | null>(null);
   const [latestOrder, setLatestOrder] = useState<BillingOrder | null>(null);
+  const [paymentOrders, setPaymentOrders] = useState<BillingOrder[]>([]);
   const [selected, setSelected] = useState<PlanId>("pro");
   const [loading, setLoading] = useState(true);
   const [ordering, setOrdering] = useState(false);
@@ -94,6 +95,7 @@ const ProPage: React.FC = () => {
       if (meRes?.data) {
         setMembership(meRes.data.membership);
         setLatestOrder(meRes.data.latestOrder);
+        setPaymentOrders(meRes.data.paymentOrders || []);
       } else {
         const profileRes = await userApi.getMe().catch(() => null);
         const profile = profileRes?.data;
@@ -112,6 +114,7 @@ const ProPage: React.FC = () => {
             canRefundLatestOrder: false,
           });
         }
+        setPaymentOrders([]);
       }
     } finally {
       setLoading(false);
@@ -216,12 +219,12 @@ const ProPage: React.FC = () => {
     }
   };
 
-  const requestRefund = async () => {
-    if (!latestOrder?.id) return;
+  const requestRefund = async (orderId?: string) => {
+    if (!orderId) return;
     setRefunding(true);
     setMessage("");
     try {
-      const res = await billingApi.requestRefund(latestOrder.id);
+      const res = await billingApi.requestRefund(orderId);
       setMembership(res.data.membership);
       setMessage(
         res.data.refund?.status === "pending"
@@ -365,15 +368,33 @@ const ProPage: React.FC = () => {
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
                   退款按未使用点数折算，已使用点数对应费用不退；退款成功后高级 AI 调用立即不可用。
                 </div>
-                {membership?.canRefundLatestOrder && latestOrder?.status === "paid" ? (
-                  <button
-                    type="button"
-                    disabled={refunding}
-                    onClick={requestRefund}
-                    className="h-11 w-full rounded-full border border-red-200 bg-white text-sm font-black text-red-600 disabled:opacity-50"
-                  >
-                    {refunding ? "退款处理中..." : "申请退款"}
-                  </button>
+                {paymentOrders.length ? (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="text-sm font-black text-slate-950">付款记录</div>
+                    <div className="mt-3 space-y-3">
+                      {paymentOrders.map((order) => (
+                        <div key={order.id} className="rounded-2xl bg-slate-50 p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="font-black text-slate-950">{planLabel(normalizePlanId(order.plan))} · ¥{formatYuan(order.amountYuan, order.amountCents ? (order.amountCents / 100).toFixed(2) : "")}</div>
+                              <div className="mt-1 text-xs font-bold text-slate-500">{order.paidAtText || formatDate(order.paidAt || order.createdAt)} · {order.statusLabel || order.status}</div>
+                              <div className="mt-1 text-xs font-black text-slate-600">{order.refundStatusLabel || (order.canRefund ? "可申请退款" : "")}</div>
+                            </div>
+                            {order.canRefund ? (
+                              <button
+                                type="button"
+                                disabled={refunding}
+                                onClick={() => requestRefund(order.id)}
+                                className="shrink-0 rounded-full border border-red-200 bg-white px-3 py-2 text-xs font-black text-red-600 disabled:opacity-50"
+                              >
+                                {refunding ? "申请中" : "申请退款"}
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 ) : null}
               </div>
             )}
