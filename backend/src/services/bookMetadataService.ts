@@ -109,7 +109,7 @@ export async function listApprovedBookMetadataByBookIds(bookIds: string[]) {
 }
 
 export async function listApprovedBookMetadataBookIds() {
-  const bookIds = await BookMetadataModel.distinct("bookId", { status: "auto_approved" });
+  const bookIds = await BookMetadataModel.distinct("bookId", { status: "auto_approved", description: { $regex: /\S/ } });
   return bookIds
     .map((bookId) => String(bookId || ""))
     .filter((bookId) => mongoose.Types.ObjectId.isValid(bookId));
