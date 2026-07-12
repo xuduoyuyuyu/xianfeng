@@ -1,0 +1,11 @@
+<view class="wb-page" style="padding-top: {{topbarHeight}}px;">
+  <view class="wb-topbar" style="height: {{topbarHeight}}px;"><button class="wb-back" bindtap="goBack">‹</button><image src="/assets/nav/logo.png" mode="aspectFit"/><text>知物</text></view>
+  <view class="wb-hero"><text class="wb-kicker">WORTH BUY</text><text class="wb-title">买之前，先知物</text><text class="wb-subtitle">从公开信息、真实体验与商业模式，给出可复核的购买判断。</text>
+    <textarea value="{{input}}" bindinput="onInput" placeholder="输入商品名、品牌型号、电商链接或分享文案" maxlength="800"/>
+    <button class="wb-submit" bindtap="submitAnalysis" loading="{{submitting}}" disabled="{{submitting}}">{{submitting ? submitStage : '开始分析 · 5 点'}}</button>
+    <view wx:if="{{actionError}}" class="wb-error"><text>{{actionError}}</text><button wx:if="{{actionErrorType === 'pro' || actionErrorType === 'points'}}" bindtap="openPro">查看 Pro</button><button wx:if="{{actionErrorType === 'auth'}}" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone">微信手机号登录</button></view>
+  </view>
+  <view class="wb-section-head"><text>公开知物</text><button bindtap="toggleHistory">{{showHistory ? '查看公开' : '我的分析'}}</button></view>
+  <view wx:if="{{showHistory}}" class="wb-list"><view wx:if="{{!myItems.length}}" class="wb-empty">暂无个人分析记录</view><view wx:for="{{myItems}}" wx:key="id" class="wb-card" data-index="{{index}}" data-scope="my" bindtap="openDetail"><text class="wb-score">{{item.score}}</text><view><text class="wb-card-title">{{item.title}}</text><text wx:if="{{item.reason}}" class="wb-reason">{{item.reason}}</text></view><button class="wb-delete" data-index="{{index}}" catchtap="deleteHistoryItem">删除</button></view></view>
+  <view wx:else class="wb-list"><view wx:if="{{loading}}" class="wb-empty">正在加载知物内容…</view><view wx:if="{{error}}" class="wb-empty">{{error}}<button bindtap="onPullDownRefresh">重试</button></view><view wx:for="{{publicItems}}" wx:key="id" class="wb-card" data-index="{{index}}" data-scope="public" bindtap="openDetail"><text class="wb-score">{{item.score}}</text><view><text class="wb-card-title">{{item.title}}</text><text wx:if="{{item.reason}}" class="wb-reason">{{item.reason}}</text><text class="wb-verdict">{{item.isIqTax ? '谨慎购买' : '值得了解'}}</text></view></view><view wx:if="{{loadingMore}}" class="wb-empty">正在加载更多…</view></view>
+</view>

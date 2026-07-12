@@ -608,6 +608,15 @@ Page({
       return;
     }
     if (result.path) {
+      if (result.path === "/worthbuy") {
+        wx.navigateTo({ url: "/pages/worthbuy/index" });
+        return;
+      }
+      const worthBuyMatch = String(result.path).match(/^\/worthbuy\/(.+)$/);
+      if (worthBuyMatch) {
+        wx.navigateTo({ url: `/pages/worthbuy-detail/index?query=${encodeURIComponent(decodeURIComponent(worthBuyMatch[1]))}` });
+        return;
+      }
       openWeb(result.path, result.title);
     }
   },

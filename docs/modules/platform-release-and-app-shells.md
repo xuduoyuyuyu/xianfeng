@@ -29,6 +29,10 @@
 
 ## WeChat Mini Program Shell
 
+- WorthBuy uses dedicated native routes `pages/worthbuy/index` and
+  `pages/worthbuy-detail/index`. They reuse `/api/worthbuy` for anonymous
+  public reads, owner-scoped history, Pro-gated analysis, deletion, and detail
+  access; browser `/worthbuy` routes remain owned by `frontend-web`.
 - The mini program is a hybrid shell: native bottom tabBar, native top
   shortcuts, and WeChat-native actions,
   with product content loaded from `https://xianfeng.xinzhi.info` through

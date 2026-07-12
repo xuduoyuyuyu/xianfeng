@@ -11897,11 +11897,13 @@ test("hamburger secondary entries keep restored wrapper routes", () => {
   const appJson = JSON.parse(fs.readFileSync(new URL("../app.json", import.meta.url), "utf8"));
   const programs = readPage("programs");
   const nativeSettings = readNativeSettings();
-  const pageNames = ["planning", "worthbuy"];
+  const pageNames = ["planning"];
 
   for (const name of pageNames) {
     assert.equal(appJson.pages.includes(`pages/${name}/index`), false, `${name} should not be registered as a native page`);
   }
+  assert.equal(appJson.pages.includes("pages/worthbuy/index"), true, "worthbuy should be registered as a native page");
+  assert.equal(appJson.pages.includes("pages/worthbuy-detail/index"), true, "worthbuy detail should be registered as a native page");
 
   assert.equal(appJson.pages.includes("pages/experts/index"), true);
   assert.match(nativeSettings, /key: "experts"[\s\S]*page: "\/pages\/experts\/index"/);
@@ -15627,27 +15629,8 @@ test("webview detail page keeps program, book, and topic details in the mobile w
       url: encodeURIComponent("https://xianfeng.xinzhi.info/worthbuy/item-1?xf_mp=1")
     });
 
-    assert.equal(worthBuyContext.data.src, "");
-    assert.equal(worthBuyContext.data.selected, 0);
-    assert.equal(worthBuyContext.data.nativeProgramMode, false);
-    assert.equal(worthBuyContext.data.nativeBookMode, false);
-    assert.equal(worthBuyContext.data.nativeMaterialMode, false);
-    assert.equal(worthBuyContext.data.nativeTopicMode, false);
-    assert.equal(worthBuyContext.data.nativeExpertMode, false);
-    assert.equal(worthBuyContext.data.nativeWorthBuyMode, true);
-    assert.equal(worthBuyContext.data.nativeWorthBuyLoading, false);
-    assert.equal(worthBuyContext.data.title, "护眼台灯");
-    assert.equal(worthBuyContext.data.nativeWorthBuy.score, 72);
-    assert.equal(worthBuyContext.data.nativeWorthBuy.scoreLabel, "值得考虑");
-    assert.equal(worthBuyContext.data.nativeWorthBuy.verdict, "非智商税");
-    assert.equal(worthBuyContext.data.nativeWorthBuy.reason, "基础照明和色温调节够用，宣传里的 AI 护眼需要谨慎看待。");
-    assert.equal(worthBuyContext.data.nativeWorthBuy.priceRange, "300-500 元");
-    assert.equal(worthBuyContext.data.nativeWorthBuy.pros[0], "照度稳定");
-    assert.equal(worthBuyContext.data.nativeWorthBuy.cons[0], "智能卖点偏营销");
-    assert.equal(worthBuyContext.data.nativeWorthBuy.dimensions[0].label, "性价比");
-    assert.equal(worthBuyContext.data.nativeWorthBuy.suitableFor[0], "小学家庭");
-    assert.equal(worthBuyContext.data.nativeWorthBuy.dataPoints[0], "照度覆盖普通书桌");
-    assert.equal(requests.some((url) => url.endsWith("/api/worthbuy/item-1")), true);
+    assert.equal(navigations.at(-1).url, "/pages/worthbuy-detail/index?query=item-1");
+    assert.equal(requests.some((url) => url.endsWith("/api/worthbuy/item-1")), false);
 
     const webContext = {
       ...definition,

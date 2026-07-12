@@ -1,6 +1,19 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { WORTHBUY_FAILURE_GUIDANCE, buildWorthBuyResultForSave, canReadWorthBuyItem, extractProductInfo, isUndeliverableWorthBuyAnalysis, resolveWorthBuyUserId } from "./worthbuy";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+const routeSource = readFileSync(resolve(process.cwd(), "src/routes/worthbuy.ts"), "utf8");
+
+describe("worthbuy public pagination contract", () => {
+  it("adds opt-in pagination without removing legacy list responses", () => {
+    assert.match(routeSource, /const paged = req\.query\.current !== undefined \|\| req\.query\.size !== undefined/);
+    assert.match(routeSource, /\.skip\(\(current - 1\) \* size\)\.limit\(size\)/);
+    assert.match(routeSource, /if \(!paged\) return res\.json\(\{ items: await query\.lean\(\) \}\)/);
+    assert.match(routeSource, /total, current, pages: Math\.max\(1, Math\.ceil\(total \/ size\)\), size/);
+  });
+});
 
 describe("worthbuy submit result shaping", () => {
   it("keeps the extracted product title instead of the model's short brand", () => {
