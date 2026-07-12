@@ -50,7 +50,13 @@
     <view wx:if="{{report.hasAudience}}" class="wbd-card"><text class="section-title">适用人群</text><view class="chips"><text wx:for="{{report.suitableFor}}" wx:key="*this" class="good">{{item}}</text><text wx:for="{{report.notSuitableFor}}" wx:key="*this" class="warn">{{item}}</text></view></view>
     <view wx:if="{{report.hasAlternatives}}" class="wbd-card"><text class="section-title">替代方案</text><view wx:for="{{report.alternatives}}" wx:key="name" class="alternative"><text>{{item.name}}</text><text>{{item.price}} · {{item.score}} 分</text><text>{{item.reason}}</text></view></view>
     <view wx:if="{{report.hasRecommendation || report.hasBuyAdvice}}" class="wbd-card advice"><text class="section-title">综合建议</text><text wx:if="{{report.recommendation}}" class="body">{{report.recommendation}}</text><text wx:if="{{report.buyAdvice}}" class="body">{{report.buyAdvice}}</text></view>
-    <view wx:if="{{report.hasReferences}}" class="wbd-card"><text class="section-title">参考来源</text><button wx:for="{{report.references}}" wx:key="url" data-url="{{item.url}}" bindtap="copyReference">{{item.title || item.url}} · 复制链接</button></view>
+    <view wx:if="{{report.hasReferences}}" class="wbd-card">
+      <text class="section-title">参考来源</text>
+      <view wx:for="{{report.references}}" wx:key="url" class="wbd-reference" data-url="{{item.url}}" bindtap="copyReference" role="button" aria-label="复制参考来源">
+        <text class="wbd-reference-index">{{index + 1}}.</text>
+        <text class="wbd-reference-content">{{item.title || item.url}}</text>
+      </view>
+    </view>
     <text wx:if="{{report.analyzedAt}}" class="wbd-time">分析时间：{{report.analyzedAt}}</text>
   </view>
 </view>

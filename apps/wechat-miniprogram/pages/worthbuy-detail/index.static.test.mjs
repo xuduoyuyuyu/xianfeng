@@ -8,6 +8,11 @@ const json = JSON.parse(readFileSync(new URL("index.json", import.meta.url), "ut
 test("loads WorthBuy detail into a dedicated native route without sharing identity", () => { assert.match(js, /\/api\/worthbuy\/\$\{encodeURIComponent\(this\.data\.query\)\}/); assert.match(js, /path: `\/pages\/worthbuy-detail\/index\?query=/); assert.doesNotMatch(js, /userId=.*path/); });
 test("conditionally renders every real Web report block", () => { for (const key of ["hasDimensions","hasPros","hasCons","hasBusinessModel","hasCommentAnalysis","hasDataPoints","hasAudience","hasAlternatives","hasRecommendation","hasBuyAdvice","hasReferences"]) assert.match(wxml, new RegExp(key)); });
 test("copies reference URLs when direct opening is unavailable", () => { assert.match(js, /setClipboardData/); assert.match(wxml, /copyReference/); });
+test("renders numbered reference content without copy-link labels", () => {
+  assert.match(wxml, /class="wbd-reference-index">\{\{index \+ 1\}\}\.<\/text>/);
+  assert.match(wxml, /class="wbd-reference-content">\{\{item\.title \|\| item\.url\}\}<\/text>/);
+  assert.doesNotMatch(wxml, /复制链接/);
+});
 test("matches the mobile web trust gauge and five-dimension score card", () => {
   assert.match(wxml, /深度分析报告/);
   assert.match(wxml, /可信指数/);
