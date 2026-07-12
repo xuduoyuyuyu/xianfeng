@@ -514,3 +514,9 @@ page {
   font-size: 22rpx;
   line-height: 64rpx;
 }
+
+.xf-pro-refund-button.is-guide {
+  border-color: rgba(108, 39, 214, 0.24);
+  background: rgba(108, 39, 214, 0.08);
+  color: #6c27d6;
+}

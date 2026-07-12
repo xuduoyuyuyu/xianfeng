@@ -84,3 +84,11 @@ test("ProPage renders payment records and refunds a selected payment order", () 
   assert.match(source, /billingApi\.requestRefund\(orderId\)/);
   assert.doesNotMatch(source, /membership\?\.canRefundLatestOrder && latestOrder\?\.status === "paid"/);
 });
+
+test("ProPage exposes an Apple refund entry for iOS virtual payment records", () => {
+  assert.match(source, /EXTERNAL_REFUND_GUIDE_PATTERN/);
+  assert.match(source, /APPLE_REFUND_URL = "https:\/\/reportaproblem\.apple\.com\/"/);
+  assert.match(source, /needsExternalRefundGuide\(order\)/);
+  assert.match(source, /href=\{APPLE_REFUND_URL\}/);
+  assert.match(source, /退款入口/);
+});

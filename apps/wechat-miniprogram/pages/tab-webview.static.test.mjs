@@ -6979,6 +6979,9 @@ test("pro page renders native subscription content instead of a web-view wrapper
     assert.match(wxml, /data-order-id="\{\{item\.id\}\}"/);
     assert.match(wxml, /item\.refundStatusLabel/);
     assert.match(wxml, /申请退款/);
+    assert.match(wxml, /item\.externalRefundGuide/);
+    assert.match(wxml, /bindtap="showExternalRefundGuide"/);
+    assert.match(wxml, /退款入口/);
     assert.match(wxml, /退款按未使用点数折算/);
     assert.match(wxml, /若无剩余有效套餐/);
     assert.doesNotMatch(wxml, /membership && membership\.canRefundLatestOrder && latestRefundableOrder && latestRefundableOrder\.status === 'paid'/);
@@ -7012,6 +7015,9 @@ test("pro page renders native subscription content instead of a web-view wrapper
     assert.doesNotMatch(js, /const refundOrder = this\.data\.latestRefundableOrder \|\| this\.data\.latestOrder/);
     assert.match(js, /response && response\.refund && response\.refund\.status === "pending"/);
     assert.match(js, /微信处理中，处理完成后积分会自动扣回/);
+    assert.match(js, /externalRefundGuide/);
+    assert.match(js, /showExternalRefundGuide/);
+    assert.match(js, /reportaproblem\.apple\.com/);
     assert.match(js, /selectedPlan: "pro"/);
     assert.match(js, /formatYuan/);
     assert.match(js, /formatPoints/);

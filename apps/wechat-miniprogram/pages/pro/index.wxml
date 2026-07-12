@@ -134,6 +134,14 @@
             >
               {{refunding ? "申请中" : "申请退款"}}
             </button>
+            <button
+              wx:elif="{{item.externalRefundGuide}}"
+              class="xf-pro-refund-button is-inline is-guide"
+              bindtap="showExternalRefundGuide"
+              data-order-id="{{item.id}}"
+            >
+              退款入口
+            </button>
           </view>
         </view>
       </view>

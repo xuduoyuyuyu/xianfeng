@@ -65,6 +65,12 @@ function isMiniProgramVirtualPaymentBlock(message: string) {
 }
 
 const MINI_PROGRAM_NATIVE_PRO_FALLBACK_MESSAGE = "请返回小程序订阅页完成微信虚拟支付；如仍停留在网页，请关闭后重新进入最新体验版。";
+const APPLE_REFUND_URL = "https://reportaproblem.apple.com/";
+const EXTERNAL_REFUND_GUIDE_PATTERN = /微信或苹果付款记录|苹果付款记录|OS订单不支持开发者发起退款/;
+
+function needsExternalRefundGuide(order: BillingOrder) {
+  return EXTERNAL_REFUND_GUIDE_PATTERN.test(order.refundStatusLabel || "");
+}
 
 const ProPage: React.FC = () => {
   const superModePage = useXiaowanziEmbeddedLayer();
@@ -389,6 +395,15 @@ const ProPage: React.FC = () => {
                               >
                                 {refunding ? "申请中" : "申请退款"}
                               </button>
+                            ) : needsExternalRefundGuide(order) ? (
+                              <a
+                                href={APPLE_REFUND_URL}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="shrink-0 rounded-full border border-[#d8ccff] bg-[#f7f4ff] px-3 py-2 text-xs font-black text-[#6c27d6]"
+                              >
+                                退款入口
+                              </a>
                             ) : null}
                           </div>
                         </div>
