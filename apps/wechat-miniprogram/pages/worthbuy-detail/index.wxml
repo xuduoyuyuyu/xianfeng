@@ -3,9 +3,41 @@
   <view wx:if="{{loading}}" class="wbd-state">正在加载完整分析…</view>
   <view wx:elif="{{error}}" class="wbd-state"><text>{{error}}</text><button bindtap="loadDetail">重试</button><button bindtap="goWorthBuyList">返回知物</button></view>
   <view wx:else class="wbd-content">
-    <view class="wbd-card hero"><view class="wbd-score"><text>{{report.score}}</text><small>分</small></view><view><text class="wbd-title">{{report.title}}</text><text class="wbd-verdict {{report.isIqTax ? 'warn' : 'good'}}">{{report.isIqTax ? '谨慎购买' : '值得购买'}}</text><text wx:if="{{report.priceRange}}" class="wbd-price">{{report.priceRange}}</text></view><text wx:if="{{report.reason}}" class="wbd-reason">{{report.reason}}</text></view>
-    <view wx:if="{{report.hasDimensions}}" class="wbd-card"><text class="section-title">多维评分</text><view wx:for="{{report.dimensions}}" wx:key="key" class="dimension"><text>{{item.key}}</text><view><view style="width:{{item.score}}%"></view></view><text>{{item.score}}</text></view></view>
-    <view wx:if="{{report.hasPros || report.hasCons}}" class="wbd-card cols"><view wx:if="{{report.hasPros}}"><text class="section-title good">优点</text><text wx:for="{{report.pros}}" wx:key="*this" class="bullet">{{item}}</text></view><view wx:if="{{report.hasCons}}"><text class="section-title warn">注意</text><text wx:for="{{report.cons}}" wx:key="*this" class="bullet">{{item}}</text></view></view>
+    <button class="wbd-back" bindtap="goBack">← 返回</button>
+    <text class="wbd-page-title">{{report.title}}</text>
+    <text class="wbd-page-subtitle">深度分析报告</text>
+
+    <view class="wbd-card wbd-trust-card">
+      <text class="wbd-trust-title">可信指数</text>
+      <view class="wbd-gauge" style="background: conic-gradient({{report.scoreColor}} {{report.score}}%, #F3F0FF 0);">
+        <view class="wbd-gauge-inner"><text style="color: {{report.scoreColor}};">{{report.score}}</text></view>
+      </view>
+      <text class="wbd-score-label" style="color: {{report.scoreColor}};">{{report.scoreLabel}}</text>
+      <text wx:if="{{report.brand}}" class="wbd-brand">{{report.brand}}</text>
+      <view class="wbd-tags">
+        <text class="wbd-tax {{report.isIqTax ? 'warn' : 'good'}}">{{report.isIqTax ? '🚨 智商税' : '✅ 非智商税'}}</text>
+        <text wx:if="{{report.priceRange}}" class="wbd-price">{{report.priceRange}}</text>
+      </view>
+      <text wx:if="{{report.reason}}" class="wbd-reason">{{report.reason}}</text>
+      <view wx:if="{{report.hasAudience}}" class="wbd-audience">
+        <text wx:for="{{report.suitableFor}}" wx:key="*this" class="good">✓ {{item}}</text>
+        <text wx:for="{{report.notSuitableFor}}" wx:key="*this" class="warn">✕ {{item}}</text>
+      </view>
+    </view>
+
+    <view wx:if="{{report.hasDimensions}}" class="wbd-card">
+      <text class="section-title">📊 多维评分</text>
+      <view wx:for="{{report.dimensions}}" wx:key="key" class="dimension">
+        <text class="dimension-label">{{item.label}}</text>
+        <view class="dimension-track"><view class="dimension-fill" style="width:{{item.score}}%;background:{{item.color}};"></view></view>
+        <text class="dimension-score" style="color:{{item.color}};">{{item.score}}</text>
+      </view>
+    </view>
+
+    <view wx:if="{{report.hasPros || report.hasCons}}" class="wbd-card cols">
+      <view wx:if="{{report.hasPros}}"><text class="section-title good">优点</text><text wx:for="{{report.pros}}" wx:key="*this" class="bullet">{{item}}</text></view>
+      <view wx:if="{{report.hasCons}}"><text class="section-title warn">注意</text><text wx:for="{{report.cons}}" wx:key="*this" class="bullet">{{item}}</text></view>
+    </view>
     <view wx:if="{{report.hasBusinessModel}}" class="wbd-card"><text class="section-title">商业模式</text><text class="body">{{report.businessModel}}</text></view>
     <view wx:if="{{report.hasCommentAnalysis}}" class="wbd-card"><text class="section-title">评论分析</text><text class="body">{{report.commentAnalysis}}</text></view>
     <view wx:if="{{report.hasDataPoints}}" class="wbd-card"><text class="section-title">关键依据</text><text wx:for="{{report.dataPoints}}" wx:key="*this" class="bullet">{{item}}</text></view>
