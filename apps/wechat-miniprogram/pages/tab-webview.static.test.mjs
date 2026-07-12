@@ -6974,6 +6974,8 @@ test("pro page renders native subscription content instead of a web-view wrapper
     assert.match(wxml, /bindtap="requestRefund"/);
     assert.match(wxml, /付款记录/);
     assert.match(wxml, /wx:for="\{\{paymentOrders\}\}"/);
+    assert.match(wxml, /<view class="xf-pro-status-card">[\s\S]*<text class="xf-pro-section-title">订阅状态<\/text>[\s\S]*<text class="xf-pro-section-title is-sub">付款记录<\/text>[\s\S]*wx:for="\{\{paymentOrders\}\}"[\s\S]*<\/view>\s*<\/view>\s*<view class="xf-pro-pay-dock">/);
+    assert.doesNotMatch(wxml, /<view wx:if="\{\{paymentOrders\.length\}\}" class="xf-pro-status-card">/);
     assert.match(wxml, /data-order-id="\{\{item\.id\}\}"/);
     assert.match(wxml, /item\.refundStatusLabel/);
     assert.match(wxml, /申请退款/);
