@@ -41,9 +41,13 @@ function chooseDisplayEmoji(source, fallbackTitle) {
 
 function normalizeWorthBuyResult(value, fallbackTitle) {
   const source = value && typeof value === "object" ? value : {};
-  const dimensions = source.ratingDimensions && typeof source.ratingDimensions === "object"
-    ? Object.entries(source.ratingDimensions).map(([key, score]) => ({ key, ...(DIMENSION_META[key] || { label: key, color: "#8B5CF6" }), score: Math.max(0, Math.min(100, Number(score) || 0)) }))
-    : [];
+  const rawDimensions = source.ratingDimensions && typeof source.ratingDimensions === "object"
+    ? Object.entries(source.ratingDimensions).map(([key, score]) => ({ key, score }))
+    : Array.isArray(source.dimensions) ? source.dimensions : [];
+  const dimensions = rawDimensions.map((item) => {
+    const key = text(item && item.key);
+    return { key, ...(DIMENSION_META[key] || { label: text(item && item.label) || key, color: text(item && item.color) || "#8B5CF6" }), score: Math.max(0, Math.min(100, Number(item && item.score) || 0)) };
+  });
   const score = Math.max(0, Math.min(100, Number(source.score) || 0));
   const result = {
     title: text(source.brand || source.title || fallbackTitle || "知物分析"),

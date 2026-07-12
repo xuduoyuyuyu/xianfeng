@@ -44,6 +44,18 @@ test("maps mobile web score, dimension, emoji, and category presentation", () =>
   assert.equal(item.title, "贝亲宽口径奶瓶");
 });
 
+test("re-normalizes cached dimension rows with labels and colors", () => {
+  const item = api.normalizeWorthBuyItem({
+    query: "缓存商品",
+    score: 65,
+    dimensions: [{ key: "cost", score: 25 }, { key: "quality", score: 72 }]
+  });
+  assert.deepEqual(item.dimensions, [
+    { key: "cost", label: "性价比", color: "#F59E0B", score: 25 },
+    { key: "quality", label: "质量", color: "#10B981", score: 72 }
+  ]);
+});
+
 test("classifies auth, pro, points, validation, and network errors separately", () => {
   assert.equal(api.classifyWorthBuyError({ statusCode: 401 }), "auth");
   assert.equal(api.classifyWorthBuyError({ statusCode: 402, data: { code: "PRO_REQUIRED" } }), "pro");

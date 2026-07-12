@@ -1,15 +1,18 @@
 <view class="wbd-page" style="padding-top: {{topbarHeight}}px;">
-  <view class="wbd-topbar" style="height: {{topbarHeight}}px;"><button bindtap="goBack">‹</button><text>知物报告</text></view>
+  <view class="wbd-topbar" style="height: {{topbarHeight}}px;">
+    <view class="xf-native-menu-button xf-native-back-button" style="top: {{backTop}}px; width: {{backSize}}px; height: {{backSize}}px;" catchtap="goBack" role="button" aria-label="返回"><view class="xf-native-back-icon" aria-hidden="true"></view></view>
+    <text>知物报告</text>
+  </view>
   <view wx:if="{{loading}}" class="wbd-state">正在加载完整分析…</view>
   <view wx:elif="{{error}}" class="wbd-state"><text>{{error}}</text><button bindtap="loadDetail">重试</button><button bindtap="goWorthBuyList">返回知物</button></view>
   <view wx:else class="wbd-content">
-    <button class="wbd-back" bindtap="goBack">← 返回</button>
     <text class="wbd-page-title">{{report.title}}</text>
     <text class="wbd-page-subtitle">深度分析报告</text>
 
     <view class="wbd-card wbd-trust-card">
       <text class="wbd-trust-title">可信指数</text>
-      <view class="wbd-gauge" style="background: conic-gradient({{report.scoreColor}} {{report.score}}%, #F3F0FF 0);">
+      <view class="wbd-gauge">
+        <canvas class="wbd-gauge-canvas" canvas-id="worthbuyGauge" width="180" height="180"></canvas>
         <view class="wbd-gauge-inner"><text style="color: {{report.scoreColor}};">{{report.score}}</text></view>
       </view>
       <text class="wbd-score-label" style="color: {{report.scoreColor}};">{{report.scoreLabel}}</text>

@@ -16,3 +16,11 @@ test("matches the mobile web trust gauge and five-dimension score card", () => {
   assert.match(wxml, /item\.color/);
   assert.match(wxml, /非智商税/);
 });
+test("uses the shared native back control and a canvas gauge", () => {
+  assert.match(wxml, /xf-native-menu-button xf-native-back-button/);
+  assert.doesNotMatch(wxml, /class="wbd-back"/);
+  assert.match(wxml, /canvas-id="worthbuyGauge"/);
+  assert.match(js, /drawGauge/);
+  assert.match(js, /normalizeWorthBuyItem\(cachedReport\)/);
+  assert.doesNotMatch(wxml, /conic-gradient/);
+});
