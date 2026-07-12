@@ -14,11 +14,10 @@ test("401 auth cleanup is scoped to the token used by the failed request", () =>
   assert.doesNotMatch(source, /if \(error\.response\?\.status === 401\) \{[\s\S]{0,120}localStorage\.removeItem\('token'\)[\s\S]{0,260}localStorage\.removeItem\('admin_token'\)/, "401 handler should not indiscriminately clear both login stores");
 });
 
-test("mini program webview 401 opens native login instead of showing text-only modal", () => {
+test("mini-program web-view 401 opens native WeChat login instead of the web login modal", () => {
   assert.match(source, /import \{ isMiniProgramWebView, openMiniProgramNativeLogin \} from '\.\.\/utils\/mpAuthBridge';/);
-  assert.match(
-    source,
-    /if \(isMiniProgramWebView\(\)\) \{[\s\S]*void openMiniProgramNativeLogin\(\);[\s\S]*return Promise\.reject\(error\);[\s\S]*\}[\s\S]*document\.dispatchEvent\(new CustomEvent\('xf-show-login-modal'/,
-    "webview auth expiry should launch the native login bridge before falling back to the normal web modal"
-  );
+  assert.match(source, /if \(isMiniProgramWebView\(\)\) \{[\s\S]*xfMiniProgramNativeLoginOpened[\s\S]*openMiniProgramNativeLogin\(\)[\s\S]*return Promise\.reject\(error\);[\s\S]*\}/);
+  const miniLoginIndex = source.indexOf("openMiniProgramNativeLogin()");
+  const modalIndex = source.indexOf("xf-show-login-modal");
+  assert.ok(miniLoginIndex > 0 && modalIndex > 0 && miniLoginIndex < modalIndex, "native mini login should run before the web login modal branch");
 });

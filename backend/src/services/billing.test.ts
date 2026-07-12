@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
+import crypto from "crypto";
 import { after, before, describe, it } from "node:test";
 import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import User from "../models/User";
 import PaymentOrderModel from "../models/PaymentOrder";
+import RefundRecordModel from "../models/RefundRecord";
+import { refundWechatOrder, syncWechatPaidOrder, syncWechatRefundRecord } from "./paymentProviders";
 import {
   BILLING_PLANS,
   FREE_BILLING_PLAN,
@@ -13,6 +16,7 @@ import {
   canRefundOrder,
   calculatePointBasedRefund,
   calculateFreeLoginPointGrant,
+  createVirtualPaymentOrder,
   consumeProPoints,
   getPointCostForFeature,
   getLatestRefundableOrder,
@@ -20,9 +24,19 @@ import {
   isProActive,
   isMockPaymentEnabled,
   normalizeBillingPlan,
+  markOrderPaid,
+  processWechatVirtualNotification,
+  refundWechatVirtualOrder,
   resetFreeAccountPointGrants,
   serializeBillingUser,
+  syncWechatVirtualRefundStateFromTrustedOrder,
+  syncWechatVirtualPaidOrder,
 } from "./billing";
+
+function restoreEnvValue(key: string, value: string | undefined) {
+  if (value === undefined) delete process.env[key];
+  else process.env[key] = value;
+}
 
 describe("billing rules", () => {
   it("exposes Plus and Pro plans, free 10 point login grants, and legacy plan aliases", () => {
@@ -289,6 +303,311 @@ describe("billing point consumption", () => {
     assert.equal(insufficient.remainingPointBalance, 1);
   });
 
+  it("creates a pending WeChat virtual order from the fixed product catalog", async () => {
+    await PaymentOrderModel.deleteMany({});
+    const userId = new mongoose.Types.ObjectId().toString();
+
+    const order = await createVirtualPaymentOrder({ userId, productId: "plus", quantity: 1 });
+
+    assert.equal(order.amountCents, 1990);
+    assert.equal(order.plan, "plus");
+    assert.equal(order.provider, "wechat");
+    assert.equal(order.paymentChannel, "wechat_virtual");
+    assert.equal(order.virtualProductId, "plus");
+    assert.equal(order.virtualQuantity, 1);
+    assert.equal(order.status, "pending");
+  });
+
+  it("rejects invalid virtual order product, quantity, and user IDs", async () => {
+    const userId = new mongoose.Types.ObjectId().toString();
+
+    await assert.rejects(
+      createVirtualPaymentOrder({ userId, productId: "plus", quantity: 2 }),
+      /数量非法/,
+    );
+    await assert.rejects(
+      createVirtualPaymentOrder({ userId, productId: "unknown", quantity: 1 }),
+      /商品不存在/,
+    );
+    await assert.rejects(
+      createVirtualPaymentOrder({ userId: "invalid", productId: "plus", quantity: 1 }),
+      /用户 ID 非法/,
+    );
+  });
+
+  it("queries every virtual delivery trigger and grants its entitlement only once", async () => {
+    await User.deleteMany({});
+    await PaymentOrderModel.deleteMany({});
+    const user = await User.create({ username: "virtual-paid-user", password: "hashed", wechatMiniOpenid: "openid-1", proPointBalance: 0 });
+    const order = await createVirtualPaymentOrder({ userId: String(user._id), productId: "plus", quantity: 1 });
+    order.virtualEnvironment = 1;
+    await order.save();
+    let queryCount = 0;
+    const queryOrder = async () => {
+      queryCount += 1;
+      return { outTradeNo: order.outTradeNo, status: 3, amountCents: 1990, paidAmountCents: 1990, leftFeeCents: 1990, environment: 1 as const, transactionId: "wx-virtual-1", bizMeta: { orderId: order.outTradeNo, userId: String(user._id), productId: "plus", quantity: 1 }, raw: { trusted: true } };
+    };
+    const trigger = { event: "xpay_goods_deliver_notify" as const, outTradeNo: order.outTradeNo, openid: "openid-1", productId: "plus", quantity: 1, raw: { Event: "xpay_goods_deliver_notify", untrusted: true } };
+
+    await Promise.all([
+      processWechatVirtualNotification(trigger, { queryOrder }),
+      processWechatVirtualNotification(trigger, { queryOrder }),
+    ]);
+    const first = await User.findById(user._id).lean();
+    const firstExpiry = first?.proExpiresAt?.toISOString();
+    await processWechatVirtualNotification(trigger, { queryOrder });
+    const second = await User.findById(user._id).lean();
+
+    assert.equal(queryCount, 2);
+    assert.equal(first?.proPointBalance, 200);
+    assert.equal(second?.proPointBalance, 200);
+    assert.equal(second?.proExpiresAt?.toISOString(), firstExpiry);
+  });
+
+  it("notifies WeChat delivery after a client-side virtual payment sync grants points", async () => {
+    await User.deleteMany({});
+    await PaymentOrderModel.deleteMany({});
+    const user = await User.create({ username: "virtual-sync-user", password: "hashed", wechatMiniOpenid: "openid-1", proPointBalance: 0 });
+    const order = await createVirtualPaymentOrder({ userId: String(user._id), productId: "plus", quantity: 1 });
+    order.virtualEnvironment = 1;
+    await order.save();
+    const queryOrder = async () => {
+      return { outTradeNo: order.outTradeNo, status: 3, amountCents: 1990, paidAmountCents: 1990, leftFeeCents: 1990, environment: 1 as const, transactionId: "wx-virtual-sync", bizMeta: { orderId: order.outTradeNo, userId: String(user._id), productId: "plus", quantity: 1 }, raw: { trusted: true } };
+    };
+    const delivered: Array<{ outTradeNo: string; environment: 0 | 1 }> = [];
+
+    await syncWechatVirtualPaidOrder(order, "openid-1", {
+      queryOrder,
+      notifyGoods: async (input) => { delivered.push(input); },
+      rawTrigger: { source: "client-sync" },
+    });
+
+    const savedUser = await User.findById(user._id).lean();
+    assert.equal(savedUser?.proPointBalance, 200);
+    assert.deepEqual(delivered, [{ outTradeNo: order.outTradeNo, environment: 1 }]);
+  });
+
+  it("starts a virtual payment refund task without deducting points until the refund notify succeeds", async () => {
+    await User.deleteMany({});
+    await PaymentOrderModel.deleteMany({});
+    await RefundRecordModel.deleteMany({});
+    const user = await User.create({ username: "virtual-refund-user", password: "hashed", wechatMiniOpenid: "openid-1", proPointBalance: 0 });
+    const order = await createVirtualPaymentOrder({ userId: String(user._id), productId: "plus", quantity: 1 });
+    order.virtualEnvironment = 1;
+    await order.save();
+    await markOrderPaid({ outTradeNo: order.outTradeNo, providerTradeNo: "wx-virtual-refund" });
+    const paidOrder = await PaymentOrderModel.findById(order._id);
+    assert.equal((await User.findById(user._id).lean())?.proPointBalance, 200);
+    assert.ok(paidOrder);
+
+    const trusted = { outTradeNo: order.outTradeNo, status: 4, amountCents: 1990, paidAmountCents: 1990, leftFeeCents: 1990, environment: 1 as const, transactionId: "wx-virtual-refund", bizMeta: { orderId: order.outTradeNo, userId: String(user._id), productId: "plus", quantity: 1 }, raw: { trusted: true } };
+    let requestRefundCount = 0;
+    const dependencies = {
+      queryOrder: async () => trusted,
+      requestRefund: async (input: any) => {
+        requestRefundCount += 1;
+        return {
+          outRequestNo: input.outRequestNo,
+          providerRefundId: "wx-refund-virtual-1",
+          outTradeNo: input.outTradeNo,
+          providerTradeNo: "wx-virtual-refund",
+          raw: { refund_order_id: input.outRequestNo, refund_wx_order_id: "wx-refund-virtual-1" },
+        };
+      },
+    };
+    const refund = await refundWechatVirtualOrder(paidOrder!, "用户自己发起退款", 1990, 200, dependencies);
+    const duplicateRefund = await refundWechatVirtualOrder(paidOrder!, "用户自己发起退款", 1990, 200, dependencies);
+
+    assert.equal(refund.status, "pending");
+    assert.equal(String(duplicateRefund._id), String(refund._id));
+    assert.equal(requestRefundCount, 1);
+    assert.equal(refund.amountCents, 1990);
+    assert.equal(refund.refundablePoints, 200);
+    assert.equal(refund.providerRefundId, "wx-refund-virtual-1");
+    assert.equal((await PaymentOrderModel.findById(order._id).lean())?.status, "paid");
+    assert.equal((await User.findById(user._id).lean())?.proPointBalance, 200);
+
+    await processWechatVirtualNotification({
+      event: "xpay_refund_notify",
+      outTradeNo: order.outTradeNo,
+      openid: "openid-1",
+      refundOutRequestNo: refund.outRequestNo,
+      providerRefundId: "wx-refund-virtual-1",
+      refundFee: 1990,
+      retCode: 0,
+      retMsg: "ok",
+      raw: { Event: "xpay_refund_notify", MchRefundId: refund.outRequestNo, WxRefundId: "wx-refund-virtual-1" },
+    });
+
+    const savedRefund = await RefundRecordModel.findById(refund._id).lean();
+    const savedOrder = await PaymentOrderModel.findById(order._id).lean();
+    const savedUser = await User.findById(user._id).lean();
+    assert.equal(savedRefund?.status, "succeeded");
+    assert.equal(savedOrder?.status, "refunded");
+    assert.equal(savedUser?.proPointBalance, 0);
+  });
+
+  it("records user-initiated virtual refunds even when no local refund task exists", async () => {
+    await User.deleteMany({});
+    await PaymentOrderModel.deleteMany({});
+    await RefundRecordModel.deleteMany({});
+    const user = await User.create({ username: "virtual-user-refund-notify", password: "hashed", wechatMiniOpenid: "openid-1", proPointBalance: 0 });
+    const order = await createVirtualPaymentOrder({ userId: String(user._id), productId: "plus", quantity: 1 });
+    order.virtualEnvironment = 1;
+    await order.save();
+    await markOrderPaid({ outTradeNo: order.outTradeNo, providerTradeNo: "wx-user-refund" });
+
+    await processWechatVirtualNotification({
+      event: "xpay_refund_notify",
+      outTradeNo: order.outTradeNo,
+      openid: "openid-1",
+      refundOutRequestNo: "wx-user-refund-1",
+      providerRefundId: "wx-user-refund-1",
+      refundFee: 1990,
+      retCode: 0,
+      retMsg: "ok",
+      raw: { Event: "xpay_refund_notify", WxRefundId: "wx-user-refund-1" },
+    });
+
+    const savedRefund = await RefundRecordModel.findOne({ orderId: order._id, outRequestNo: "wx-user-refund-1" }).lean();
+    const savedOrder = await PaymentOrderModel.findById(order._id).lean();
+    const savedUser = await User.findById(user._id).lean();
+    assert.equal(savedRefund?.status, "succeeded");
+    assert.equal(savedRefund?.reason, "用户通过微信或苹果付款记录发起退款");
+    assert.equal(savedRefund?.refundablePoints, 200);
+    assert.equal(savedOrder?.status, "refunded");
+    assert.equal(savedUser?.proPointBalance, 0);
+  });
+
+  it("syncs user-initiated virtual refunds from trusted order left fee", async () => {
+    await User.deleteMany({});
+    await PaymentOrderModel.deleteMany({});
+    await RefundRecordModel.deleteMany({});
+    const user = await User.create({ username: "virtual-user-refund-query", password: "hashed", wechatMiniOpenid: "openid-1", proPointBalance: 0 });
+    const order = await createVirtualPaymentOrder({ userId: String(user._id), productId: "plus", quantity: 1 });
+    order.virtualEnvironment = 1;
+    await order.save();
+    await markOrderPaid({ outTradeNo: order.outTradeNo, providerTradeNo: "wx-user-refund-query" });
+    const paidOrder = await PaymentOrderModel.findById(order._id);
+    assert.ok(paidOrder);
+
+    await syncWechatVirtualRefundStateFromTrustedOrder(paidOrder!, {
+      outTradeNo: order.outTradeNo,
+      status: 4,
+      amountCents: 1990,
+      paidAmountCents: 1990,
+      leftFeeCents: 0,
+      environment: 1,
+      transactionId: "wx-user-refund-query",
+      bizMeta: { orderId: order.outTradeNo, userId: String(user._id), productId: "plus", quantity: 1 },
+      raw: { order_id: order.outTradeNo, left_fee: 0 },
+    });
+
+    const savedRefund = await RefundRecordModel.findOne({ orderId: order._id }).lean();
+    const savedOrder = await PaymentOrderModel.findById(order._id).lean();
+    const savedUser = await User.findById(user._id).lean();
+    assert.equal(savedRefund?.status, "succeeded");
+    assert.equal(savedRefund?.amountCents, 1990);
+    assert.equal(savedRefund?.refundablePoints, 200);
+    assert.equal(savedOrder?.status, "refunded");
+    assert.equal(savedUser?.proPointBalance, 0);
+  });
+
+  it("rejects untrusted or mismatched virtual delivery without fulfilling", async () => {
+    await User.deleteMany({});
+    await PaymentOrderModel.deleteMany({});
+    const user = await User.create({ username: "virtual-mismatch-user", password: "hashed", wechatMiniOpenid: "openid-1", proPointBalance: 0 });
+    const order = await createVirtualPaymentOrder({ userId: String(user._id), productId: "plus", quantity: 1 });
+    order.virtualEnvironment = 1;
+    await order.save();
+    const base = { outTradeNo: order.outTradeNo, status: 2, amountCents: 1990, paidAmountCents: 1990, leftFeeCents: 1990, environment: 1 as const, transactionId: "wx-virtual-2", bizMeta: { orderId: order.outTradeNo, userId: String(user._id), productId: "plus", quantity: 1 }, raw: {} };
+    const trigger = { event: "xpay_goods_deliver_notify" as const, outTradeNo: order.outTradeNo, openid: "openid-1", productId: "plus", quantity: 1, raw: {} };
+    for (const queryResult of [{ ...base, amountCents: 9900 }, { ...base, environment: 0 as const }]) {
+      await assert.rejects(processWechatVirtualNotification(trigger, { queryOrder: async () => queryResult }), /不匹配/);
+    }
+    await assert.rejects(processWechatVirtualNotification(trigger, { queryOrder: async () => ({ ...base, bizMeta: { ...base.bizMeta, productId: "pro" } }) }), /不匹配/);
+    await assert.rejects(processWechatVirtualNotification({ ...trigger, openid: "other-openid" }, { queryOrder: async () => base }), /不匹配/);
+    const savedOrder = await PaymentOrderModel.findById(order._id).lean();
+    const savedUser = await User.findById(user._id).lean();
+    assert.equal(savedOrder?.status, "pending");
+    assert.equal(savedUser?.proPointBalance, 0);
+  });
+
+  it("retries order finalization without granting entitlement twice after a partial failure", async () => {
+    await User.deleteMany({});
+    await PaymentOrderModel.deleteMany({});
+    const user = await User.create({ username: "virtual-retry-user", password: "hashed", proPointBalance: 0 });
+    const order = await createVirtualPaymentOrder({ userId: String(user._id), productId: "plus", quantity: 1 });
+    await assert.rejects(markOrderPaid({ outTradeNo: order.outTradeNo, providerTradeNo: "wx-retry", afterEntitlement: async () => { throw new Error("simulated finalization failure"); } }), /simulated/);
+    assert.equal((await PaymentOrderModel.findById(order._id).lean())?.status, "pending");
+    assert.equal((await User.findById(user._id).lean())?.proPointBalance, 200);
+
+    await markOrderPaid({ outTradeNo: order.outTradeNo, providerTradeNo: "wx-retry" });
+    assert.equal((await PaymentOrderModel.findById(order._id).lean())?.status, "paid");
+    assert.equal((await User.findById(user._id).lean())?.proPointBalance, 200);
+  });
+
+  it("does not fulfill virtual orders through ordinary WeChat payment sync", async () => {
+    await User.deleteMany({});
+    await PaymentOrderModel.deleteMany({});
+    const user = await User.create({ username: "virtual-ordinary-sync-user", password: "hashed", proPointBalance: 0 });
+    const order = await createVirtualPaymentOrder({ userId: String(user._id), productId: "plus", quantity: 1 });
+    const oldEnv = {
+      nodeEnv: process.env.NODE_ENV,
+      disableMock: process.env.BILLING_DISABLE_MOCK_PAY,
+      gateway: process.env.WECHAT_PAY_GATEWAY,
+      mchId: process.env.WECHAT_PAY_MCH_ID,
+      appId: process.env.WECHAT_PAY_APP_ID,
+      apiV3Key: process.env.WECHAT_PAY_API_V3_KEY,
+      serialNo: process.env.WECHAT_PAY_SERIAL_NO,
+      privateKey: process.env.WECHAT_PAY_PRIVATE_KEY,
+    };
+    const originalFetch = globalThis.fetch;
+    const { privateKey } = crypto.generateKeyPairSync("rsa", {
+      modulusLength: 2048,
+      privateKeyEncoding: { type: "pkcs8", format: "pem" },
+      publicKeyEncoding: { type: "spki", format: "pem" },
+    });
+    let fetchCount = 0;
+    try {
+      process.env.NODE_ENV = "development";
+      process.env.BILLING_DISABLE_MOCK_PAY = "true";
+      process.env.WECHAT_PAY_GATEWAY = "https://wechat-pay.test";
+      process.env.WECHAT_PAY_MCH_ID = "1900000001";
+      process.env.WECHAT_PAY_APP_ID = "wx-mini-app";
+      process.env.WECHAT_PAY_API_V3_KEY = "12345678901234567890123456789012";
+      process.env.WECHAT_PAY_SERIAL_NO = "serial-no";
+      process.env.WECHAT_PAY_PRIVATE_KEY = privateKey;
+      globalThis.fetch = (async () => {
+        fetchCount += 1;
+        return new Response(JSON.stringify({
+          out_trade_no: order.outTradeNo,
+          transaction_id: "ordinary-wechat-transaction",
+          trade_state: "SUCCESS",
+          appid: "wx-mini-app",
+          mchid: "1900000001",
+          amount: { total: 1990, currency: "CNY" },
+        }), { status: 200 });
+      }) as typeof fetch;
+
+      await syncWechatPaidOrder(order);
+
+      assert.equal(fetchCount, 0);
+      assert.equal((await PaymentOrderModel.findById(order._id).lean())?.status, "pending");
+      assert.equal((await User.findById(user._id).lean())?.proPointBalance, 0);
+    } finally {
+      globalThis.fetch = originalFetch;
+      restoreEnvValue("NODE_ENV", oldEnv.nodeEnv);
+      restoreEnvValue("BILLING_DISABLE_MOCK_PAY", oldEnv.disableMock);
+      restoreEnvValue("WECHAT_PAY_GATEWAY", oldEnv.gateway);
+      restoreEnvValue("WECHAT_PAY_MCH_ID", oldEnv.mchId);
+      restoreEnvValue("WECHAT_PAY_APP_ID", oldEnv.appId);
+      restoreEnvValue("WECHAT_PAY_API_V3_KEY", oldEnv.apiV3Key);
+      restoreEnvValue("WECHAT_PAY_SERIAL_NO", oldEnv.serialNo);
+      restoreEnvValue("WECHAT_PAY_PRIVATE_KEY", oldEnv.privateKey);
+    }
+  });
+
   it("resets issued free account grants without clearing active paid Pro balances", async () => {
     await User.deleteMany({});
 
@@ -415,4 +734,160 @@ describe("billing point consumption", () => {
     assert.equal(String(refundableOrder?._id), String(firstPaidOrder._id));
     assert.equal(refundableOrder?.status, "paid");
   });
+
+  it("keeps WeChat PROCESSING refunds pending without deducting points immediately", async () => {
+    await User.deleteMany({});
+    await PaymentOrderModel.deleteMany({});
+    await RefundRecordModel.deleteMany({});
+    const user = await User.create({
+      username: "wechat-processing-refund-user",
+      password: "hashed",
+      proStatus: "active",
+      proPlan: "plus",
+      proExpiresAt: new Date("2026-08-06T00:00:00.000Z"),
+      proPointBalance: 200,
+    });
+    const order = await PaymentOrderModel.create({
+      userId: user._id,
+      plan: "plus",
+      provider: "wechat",
+      amountCents: 1990,
+      currency: "CNY",
+      subject: "订阅 Plus",
+      outTradeNo: "XFPROREFUNDPROCESSING",
+      providerTradeNo: "4200000000000000001",
+      status: "paid",
+      paidAt: new Date("2026-07-11T14:29:25.000Z"),
+    });
+    const oldEnv = withWechatTestEnv();
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = (async (url: any, options: any) => {
+        assert.equal(String(url), "https://wechat-pay.test/v3/refund/domestic/refunds");
+        assert.equal(options?.method, "POST");
+        return new Response(JSON.stringify({
+          out_refund_no: "XFRFPROCESSING",
+          out_trade_no: order.outTradeNo,
+          refund_id: "50303307832026071136102173078",
+          status: "PROCESSING",
+        }), { status: 200 });
+      }) as typeof fetch;
+
+      const refund = await refundWechatOrder(order, "按未使用点数折算退款", 1990, 200);
+
+      assert.equal(refund.status, "pending");
+      assert.equal(refund.providerRefundId, "50303307832026071136102173078");
+      assert.equal(refund.errorMessage, "微信退款处理中");
+      assert.equal((await PaymentOrderModel.findById(order._id).lean())?.status, "paid");
+      assert.equal((await User.findById(user._id).lean())?.proPointBalance, 200);
+    } finally {
+      globalThis.fetch = originalFetch;
+      restoreEnvValue("NODE_ENV", oldEnv.nodeEnv);
+      restoreEnvValue("BILLING_DISABLE_MOCK_PAY", oldEnv.disableMock);
+      restoreEnvValue("WECHAT_PAY_GATEWAY", oldEnv.gateway);
+      restoreEnvValue("WECHAT_PAY_MCH_ID", oldEnv.mchId);
+      restoreEnvValue("WECHAT_PAY_APP_ID", oldEnv.appId);
+      restoreEnvValue("WECHAT_PAY_API_V3_KEY", oldEnv.apiV3Key);
+      restoreEnvValue("WECHAT_PAY_SERIAL_NO", oldEnv.serialNo);
+      restoreEnvValue("WECHAT_PAY_PRIVATE_KEY", oldEnv.privateKey);
+    }
+  });
+
+  it("syncs a pending WeChat refund to succeeded and deducts refundable points", async () => {
+    await User.deleteMany({});
+    await PaymentOrderModel.deleteMany({});
+    await RefundRecordModel.deleteMany({});
+    const user = await User.create({
+      username: "wechat-sync-refund-user",
+      password: "hashed",
+      proStatus: "active",
+      proPlan: "plus",
+      proExpiresAt: new Date("2026-08-06T00:00:00.000Z"),
+      proPointBalance: 213,
+    });
+    const order = await PaymentOrderModel.create({
+      userId: user._id,
+      plan: "plus",
+      provider: "wechat",
+      amountCents: 1990,
+      currency: "CNY",
+      subject: "订阅 Plus",
+      outTradeNo: "XFPROREFUNDSUCCESS",
+      providerTradeNo: "4200000000000000002",
+      status: "paid",
+      paidAt: new Date("2026-07-11T14:29:25.000Z"),
+    });
+    const refund = await RefundRecordModel.create({
+      orderId: order._id,
+      userId: user._id,
+      provider: "wechat",
+      amountCents: 1990,
+      reason: "按未使用点数折算退款",
+      outRequestNo: "XFRFSUCCESS",
+      providerRefundId: "50303307832026071136102173079",
+      status: "pending",
+      refundablePoints: 200,
+      rawResult: { status: "PROCESSING" },
+    });
+    const oldEnv = withWechatTestEnv();
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = (async (url: any, options: any) => {
+        assert.equal(String(url), "https://wechat-pay.test/v3/refund/domestic/refunds/XFRFSUCCESS");
+        assert.equal(options?.method, "GET");
+        return new Response(JSON.stringify({
+          out_refund_no: "XFRFSUCCESS",
+          out_trade_no: order.outTradeNo,
+          refund_id: "50303307832026071136102173079",
+          status: "SUCCESS",
+        }), { status: 200 });
+      }) as typeof fetch;
+
+      await syncWechatRefundRecord(refund);
+
+      const savedRefund = await RefundRecordModel.findById(refund._id).lean();
+      const savedOrder = await PaymentOrderModel.findById(order._id).lean();
+      const savedUser = await User.findById(user._id).lean();
+      assert.equal(savedRefund?.status, "succeeded");
+      assert.equal(savedOrder?.status, "refunded");
+      assert.equal(savedUser?.proPointBalance, 13);
+    } finally {
+      globalThis.fetch = originalFetch;
+      restoreEnvValue("NODE_ENV", oldEnv.nodeEnv);
+      restoreEnvValue("BILLING_DISABLE_MOCK_PAY", oldEnv.disableMock);
+      restoreEnvValue("WECHAT_PAY_GATEWAY", oldEnv.gateway);
+      restoreEnvValue("WECHAT_PAY_MCH_ID", oldEnv.mchId);
+      restoreEnvValue("WECHAT_PAY_APP_ID", oldEnv.appId);
+      restoreEnvValue("WECHAT_PAY_API_V3_KEY", oldEnv.apiV3Key);
+      restoreEnvValue("WECHAT_PAY_SERIAL_NO", oldEnv.serialNo);
+      restoreEnvValue("WECHAT_PAY_PRIVATE_KEY", oldEnv.privateKey);
+    }
+  });
 });
+
+function withWechatTestEnv() {
+  const oldEnv = {
+    nodeEnv: process.env.NODE_ENV,
+    disableMock: process.env.BILLING_DISABLE_MOCK_PAY,
+    gateway: process.env.WECHAT_PAY_GATEWAY,
+    mchId: process.env.WECHAT_PAY_MCH_ID,
+    appId: process.env.WECHAT_PAY_APP_ID,
+    apiV3Key: process.env.WECHAT_PAY_API_V3_KEY,
+    serialNo: process.env.WECHAT_PAY_SERIAL_NO,
+    privateKey: process.env.WECHAT_PAY_PRIVATE_KEY,
+  };
+  const { privateKey } = crypto.generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+    publicKeyEncoding: { type: "spki", format: "pem" },
+  });
+  process.env.NODE_ENV = "development";
+  process.env.BILLING_DISABLE_MOCK_PAY = "true";
+  process.env.WECHAT_PAY_GATEWAY = "https://wechat-pay.test";
+  process.env.WECHAT_PAY_MCH_ID = "1900000001";
+  process.env.WECHAT_PAY_APP_ID = "wx-mini-app";
+  process.env.WECHAT_PAY_API_V3_KEY = "12345678901234567890123456789012";
+  process.env.WECHAT_PAY_SERIAL_NO = "serial-no";
+  process.env.WECHAT_PAY_PRIVATE_KEY = privateKey;
+  return oldEnv;
+}

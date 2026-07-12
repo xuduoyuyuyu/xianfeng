@@ -976,6 +976,23 @@ export interface BillingOrder {
   paidAt?: string | null;
   refundedAt?: string | null;
   createdAt?: string | null;
+  amountYuan?: string;
+  paidAtText?: string;
+  statusLabel?: string;
+  canRefund?: boolean;
+  refundablePoints?: number;
+  refundableAmountCents?: number;
+  refundableAmountYuan?: string;
+  refundStatusLabel?: string;
+  latestRefund?: {
+    id: string;
+    status: string;
+    amountCents: number;
+    refundablePoints?: number;
+    errorMessage?: string;
+    refundedAt?: string | null;
+    createdAt?: string | null;
+  } | null;
 }
 
 export interface UserPageStat {
@@ -1185,7 +1202,7 @@ export const billingApi = {
     providers: Record<string, { enabled: boolean; note?: string }>;
     usagePolicy: PointUsagePolicyItem[];
   }>('/billing/plans'),
-  getMe: () => api.get<{ membership: BillingMembership; latestOrder: BillingOrder | null }>('/billing/me'),
+  getMe: () => api.get<{ membership: BillingMembership; latestOrder: BillingOrder | null; paymentOrders?: BillingOrder[] }>('/billing/me'),
   createOrder: (plan: 'plus' | 'pro', provider: 'alipay' | 'wechat' = 'wechat') =>
     api.post<{ order: BillingOrder; checkout: { provider: 'alipay' | 'wechat'; mode?: 'alipay_page' | 'wechat_native' | 'wechat_jsapi' | 'mock'; paymentUrl?: string; paymentForm?: string; codeUrl?: string; paymentParams?: Record<string, string>; mockPayUrl?: string; message?: string } }>('/billing/orders', { plan, provider }),
   getOrder: (id: string) => api.get<{ order: BillingOrder }>(`/billing/orders/${id}`),

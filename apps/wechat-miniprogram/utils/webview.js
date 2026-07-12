@@ -10,6 +10,7 @@ const XIAOWANZI_LAYER_QUERY_KEYS = ["xw_layer", "xw_return"];
 const XIAOWANZI_ENTRY_QUERY_KEYS = ["xf_xw", "xf_xw_ts"];
 const TOPIC_DETAIL_WEBVIEW_VERSION = "20260630-topic-detail";
 const WELFARE_WEBVIEW_VERSION = "20260706-welfare-compact";
+const PRO_WEBVIEW_VERSION = "20260712-virtual-payment";
 
 function safeDecode(value) {
   try {
@@ -51,6 +52,25 @@ function isProgramDetailWebPath(pathname) {
 
 function isWelfareWebPath(pathname) {
   return pathname === "/welfare";
+}
+
+function isProWebPath(pathname) {
+  return pathname === "/pro" || pathname === "/pro/success";
+}
+
+function buildNativeProUrl(search) {
+  const query = new Map();
+  String(search || "")
+    .split("&")
+    .filter(Boolean)
+    .forEach((pair) => {
+      const equalIndex = pair.indexOf("=");
+      const rawKey = equalIndex >= 0 ? pair.slice(0, equalIndex) : pair;
+      const rawValue = equalIndex >= 0 ? pair.slice(equalIndex + 1) : "";
+      query.set(safeDecode(rawKey), safeDecode(rawValue));
+    });
+  const plan = query.get("plan") === "plus" || query.get("plan") === "pro" ? query.get("plan") : "";
+  return `/pages/pro/index${plan ? `?plan=${encodeURIComponent(plan)}&from=webview` : "?from=webview"}`;
 }
 
 function inferWebPageTitle(path, fallback = "家长先疯") {
@@ -128,6 +148,7 @@ function webUrl(path, params) {
   if (isProgramDetailWebPath(pathname)) query.set("xf_tab", "0");
   if (isTopicDetailWebPath(pathname)) query.set("xf_mpv", TOPIC_DETAIL_WEBVIEW_VERSION);
   if (isWelfareWebPath(pathname)) query.set("xf_wpv", WELFARE_WEBVIEW_VERSION);
+  if (isProWebPath(pathname)) query.set("xf_pv", PRO_WEBVIEW_VERSION);
 
   const queryParts = [];
   query.forEach((value, key) => {
@@ -140,12 +161,17 @@ function webUrl(path, params) {
 
 function openWeb(path, title, params) {
   clearXiaowanziEntryModeForContent(path);
-  if (isXiaowanziWebPath(parsePath(path).pathname)) {
+  const parsed = parsePath(path);
+  if (isXiaowanziWebPath(parsed.pathname)) {
     rememberCurrentExternalPage();
     try {
       wx.setStorageSync(XIAOWANZI_ENTRY_MODE_KEY, "home");
     } catch (_error) {}
     wx.switchTab({ url: "/pages/xiaowanzi/index" });
+    return;
+  }
+  if (parsed.pathname === "/pro" || parsed.pathname === "/pro/success") {
+    wx.navigateTo({ url: buildNativeProUrl(parsed.search) });
     return;
   }
   const webParams = {
@@ -161,6 +187,8 @@ function openWeb(path, title, params) {
 module.exports = {
   TOPIC_DETAIL_WEBVIEW_VERSION,
   WELFARE_WEBVIEW_VERSION,
+  PRO_WEBVIEW_VERSION,
+  buildNativeProUrl,
   webUrl,
   openWeb,
   inferWebPageTitle

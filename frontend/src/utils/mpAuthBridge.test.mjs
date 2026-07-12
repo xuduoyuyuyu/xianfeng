@@ -13,6 +13,8 @@ test("mini program auth bridge stores token only for xf_mp web-view entries", ()
   assert.match(source, /url\.searchParams\.has\("xf_tab"\)/);
   assert.match(source, /wechatEnvironment === "miniprogram"/);
   assert.match(source, /\/miniprogram\/i\.test\(userAgent\)/);
+  assert.match(source, /document\.referrer/);
+  assert.match(source, /referrer\.includes\("servicewechat\.com\/"\)/);
   assert.match(source, /document\.documentElement\.classList\.contains\("xf-mp-webview"\)/);
   assert.match(source, /if \(detected\) \{/);
   assert.match(source, /if \(!isMiniProgramWebView\(\)\) return;/);
@@ -50,13 +52,25 @@ test("mini program bridge opens native archive in add-child mode", () => {
   assert.doesNotMatch(source, /\/pages\/mine\/index\?panel=archive/);
 });
 
-test("mini program JSSDK loader cannot hang forever on an existing script tag", () => {
-  assert.match(source, /const WECHAT_JSSDK_LOAD_TIMEOUT_MS = 1200/);
+test("mini program bridge opens native Pro page for virtual payment", () => {
+  assert.match(source, /export async function openMiniProgramNativePro\(plan\?: "plus" \| "pro"\)/);
+  assert.match(source, /\/pages\/pro\/index/);
+  assert.match(source, /plan=\$\{encodeURIComponent\(plan\)\}/);
+  assert.match(source, /from=webview/);
+  assert.match(source, /window\.wx\?\.miniProgram\?\.navigateTo/);
+});
+
+test("mini program JSSDK loader waits for the WeChat bridge and environment", () => {
+  assert.match(source, /const WECHAT_JSSDK_LOAD_TIMEOUT_MS = 4000/);
+  assert.match(source, /WeixinJSBridgeReady/);
+  assert.match(source, /getEnv\?: \(callback: \(res: \{ miniprogram\?: boolean \}\) => void\) => void/);
+  assert.match(source, /window\.wx\?\.miniProgram\?\.getEnv/);
+  assert.match(source, /markMiniProgramWebView\(\)/);
   assert.match(source, /let settled = false/);
   assert.match(source, /const finish = \(loaded: boolean\) => \{/);
   assert.match(source, /window\.clearTimeout\(timer\)/);
-  assert.match(source, /window\.setTimeout\(\(\) => finish\(hasMiniProgramNavigation\(\)\), WECHAT_JSSDK_LOAD_TIMEOUT_MS\)/);
-  assert.match(source, /existing\.addEventListener\("load", \(\) => finish\(hasMiniProgramNavigation\(\)\), \{ once: true \}\)/);
+  assert.match(source, /window\.setTimeout\(\(\) => finish\(hasMiniProgramBridge\(\)\), WECHAT_JSSDK_LOAD_TIMEOUT_MS\)/);
+  assert.match(source, /existing\.addEventListener\("load", \(\) => void waitForMiniProgramBridge\(\)\.then\(finish\), \{ once: true \}\)/);
   assert.match(source, /existing\.addEventListener\("error", \(\) => finish\(false\), \{ once: true \}\)/);
 });
 

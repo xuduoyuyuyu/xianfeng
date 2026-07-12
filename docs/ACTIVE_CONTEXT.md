@@ -1,22 +1,24 @@
 # Active Context - Xianfeng
 
-Last rewritten: 2026-07-02
+Last rewritten: 2026-07-11
 
 > This file is a SNAPSHOT, not a journal. Rewrite it at every workstream close,
 > keep it around 60 lines, and use git history for older context.
 
 ## Current Focus
 
-Mama Haozhuan is moving from account-first task assignment to task-first
-dispatch. Operators list a task, open that task, then choose approved accounts
-directly or filter by tags/follower count before assigning. Mini-program users
-only see task assignments tied to the approved profile matching their bound
-mobile.
+WeChat mini-program virtual payment is being integrated for Plus and Pro
+virtual products. Backend owns virtual product pricing, checkout signatures,
+official query reconciliation, and idempotent point/membership delivery.
+The native Pro page calls `/api/billing/virtual-orders` with a fresh
+`wx.login` code and invokes `wx.requestVirtualPayment`; ordinary web WeChat
+Pay remains separate.
 
 ## Live / Waiting Workstreams
 
 | Workstream | State | Waiting on |
 | --- | --- | --- |
+| WeChat mini-program virtual payment | active | WeChat后台 product/callback config, public HTTPS sandbox callback/backend, and DevTools/device sandbox validation |
 | Mama Haozhuan task dispatch | active | Admin/product review of task-first assignment UX |
 | Governance bootstrap | active | Review of newly added docs and whether to keep the local `evolab/` clone inside this checkout |
 | Xiaowanzi treasure box welfare | active | Rendered public/admin review after the local app is running |
@@ -28,6 +30,8 @@ mobile.
 - `backend/uploads/` is runtime data. Code release does not carry uploaded media.
 - `backend/secrets/`, `.env`, `.env.production`, and `backend/.env` are not
   tracked release content and must not be overwritten by deploy syncs.
+- WeChat virtual-payment Offer ID, app key, callback URLs, and production
+  secrets are local/operations configuration, not repository content.
 - Production deploys should follow `RELEASE_GUIDE.md` and
   `RELEASE_CLEAN_FLOW.md`; release scripts are the guardrails.
 - AppleDouble files (`._*`) are macOS volume noise and must not be committed.
@@ -35,6 +39,10 @@ mobile.
 
 ## Recent Decisions
 
+- 2026-07-11 - Mini-program virtual products use WeChat Mini Program Virtual
+  Payment only. Client success and push notifications are triggers, not
+  delivery proof; entitlement is granted only after trusted official query
+  validation.
 - 2026-07-02 - Model Mama Haozhuan listed tasks separately from per-profile
   task assignments. The admin task workspace owns account selection and
   assignment review; account detail modals stay focused on review and manual
@@ -48,7 +56,3 @@ mobile.
   link to it from governance docs.
 - 2026-06-16 - Use three initial module docs: frontend web, backend API, and
   platform/release/app shells.
-- 2026-06-16 - Keep mobile invite activation quota in backend auth state, not
-  frontend display state.
-- 2026-06-16 - Manage mobile invite code, activation limit, used count, and
-  expiry from the admin system page; env values are fallback defaults only.

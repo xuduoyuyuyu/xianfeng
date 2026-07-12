@@ -246,43 +246,15 @@ test("mini program launches into the programs tab with custom native tab bar", (
   }
 });
 
-test("native Pro refund network failures expose the attempted refund URL", async () => {
-  const originalWx = global.wx;
-  const definition = loadPageDefinition("pro");
-  const context = {
-    ...definition,
-    data: {
-      ...definition.data,
-      refunding: false,
-      latestOrder: null,
-      latestRefundableOrder: { id: "order-1", status: "paid" }
-    },
-    setData(payload) {
-      this.data = { ...this.data, ...payload };
-    }
-  };
+test("native Pro page lists payments without refund actions", () => {
+  const { js, wxml } = readPage("pro");
 
-  try {
-    global.wx = {
-      getStorageSync() {
-        return "";
-      },
-      showModal(options) {
-        options.success({ confirm: true });
-      },
-      request(options) {
-        options.fail({ errMsg: "request:fail errcode:-102 cronet_error_code:-102 error_msg:net::ERR_CONNECTION_REFUSED" });
-      }
-    };
-
-    await definition.requestRefund.call(context);
-
-    assert.equal(context.data.refunding, false);
-    assert.match(context.data.message, /request:fail errcode:-102/);
-    assert.match(context.data.message, /\/api\/billing\/refunds/);
-  } finally {
-    global.wx = originalWx;
-  }
+  assert.doesNotMatch(js, /requestRefund/);
+  assert.doesNotMatch(js, /\/api\/billing\/refunds/);
+  assert.doesNotMatch(wxml, /申请退款/);
+  assert.match(wxml, /付款记录/);
+  assert.match(js, /虚拟支付不支持退款/);
+  assert.match(wxml, /小程序虚拟支付订单不支持退款/);
 });
 
 test("custom tab bar matches the website mobile tab sizing and opens Xiaowanzi super mode directly", () => {
@@ -10626,7 +10598,8 @@ test("pro page renders native subscription content instead of a web-view wrapper
   const definition = loadPageDefinition("pro");
   const requests = [];
   const createdOrders = [];
-  const paymentRequests = [];
+  const syncedOrders = [];
+  const virtualPaymentRequests = [];
   let billingMeActive = false;
   const context = {
     ...definition,
@@ -10648,6 +10621,9 @@ test("pro page renders native subscription content instead of a web-view wrapper
         return "";
       },
       setStorageSync() {},
+      login(options) {
+        options.success({ code: "wx-login-code" });
+      },
       request(options) {
         requests.push(options);
         if (options.url.endsWith("/api/billing/plans")) {
@@ -10683,26 +10659,52 @@ test("pro page renders native subscription content instead of a web-view wrapper
                 canRefundLatestOrder: billingMeActive
               },
               latestOrder: billingMeActive ? { id: "order-plus-1", plan: "plus", status: "paid" } : null,
-              latestRefundableOrder: billingMeActive ? { id: "order-plus-1", plan: "plus", status: "paid" } : null
+              latestRefundableOrder: billingMeActive ? { id: "order-plus-1", plan: "plus", status: "paid" } : null,
+              paymentOrders: billingMeActive
+                ? [
+                  { id: "order-plus-2", plan: "plus", amountYuan: "19.90", paidAtText: "2026-07-12 12:44", statusLabel: "已支付", refundStatusLabel: "可申请退款", canRefund: true, refundablePoints: 200, refundableAmountYuan: "19.90" },
+                  { id: "order-plus-1", plan: "plus", amountYuan: "19.90", paidAtText: "2026-07-12 12:42", statusLabel: "已支付", refundStatusLabel: "已退款", canRefund: false, refundablePoints: 0, refundableAmountYuan: "0.00" }
+                ]
+                : []
             }
           });
           return;
         }
-        if (options.url.endsWith("/api/billing/orders")) {
+        if (options.url.endsWith("/api/billing/virtual-orders")) {
           createdOrders.push(options.data);
           options.success({
             statusCode: 201,
             data: {
-              order: { id: "order-1", plan: options.data.plan, status: "pending" },
+              order: { id: "order-1", plan: options.data.productId, status: "pending" },
               checkout: {
-                mode: "wechat_jsapi",
+                paymentChannel: "wechat_virtual",
                 paymentParams: {
-                  timeStamp: "1780000000",
-                  nonceStr: "nonce-1",
-                  package: "prepay_id=wx-prepay-1",
-                  signType: "RSA",
-                  paySign: "signed-payment"
+                  mode: "short_series_goods",
+                  signData: "{\"offerId\":\"offer-test\"}",
+                  paySig: "pay-sig",
+                  signature: "session-signature"
                 }
+              }
+            }
+          });
+          return;
+        }
+        if (options.url.endsWith("/api/billing/virtual-orders/order-1/sync")) {
+          syncedOrders.push(options.url);
+          billingMeActive = true;
+          options.success({
+            statusCode: 200,
+            data: {
+              order: { id: "order-1", plan: "plus", status: "paid" },
+              membership: {
+                proPointBalance: 428,
+                proStatus: "active",
+                proPlan: "plus",
+                membershipTier: "plus",
+                membershipLabel: "Plus",
+                proExpiresAt: "2026-09-06T06:38:41.000Z",
+                isProActive: true,
+                canRefundLatestOrder: true
               }
             }
           });
@@ -10710,9 +10712,9 @@ test("pro page renders native subscription content instead of a web-view wrapper
         }
         options.fail({ errMsg: "unexpected request" });
       },
-      requestPayment(options) {
-        paymentRequests.push(options);
-        options.success({ errMsg: "requestPayment:ok" });
+      requestVirtualPayment(options) {
+        virtualPaymentRequests.push(options);
+        options.success({ errMsg: "requestVirtualPayment:ok" });
       },
       showToast() {}
     };
@@ -10735,6 +10737,10 @@ test("pro page renders native subscription content instead of a web-view wrapper
     assert.match(js, /const \{ SETTINGS_SECTIONS, createNativeSettingsMethods \} = require\("\.\.\/\.\.\/utils\/nativeSettings"\)/);
     assert.match(js, /const LOGO_HEIGHT_RPX = 56/);
     assert.match(js, /settingsSections: SETTINGS_SECTIONS/);
+    assert.match(js, /wx\.login/);
+    assert.match(js, /wx\.requestVirtualPayment/);
+    assert.match(js, /\/api\/billing\/virtual-orders/);
+    assert.doesNotMatch(js, /wx\.requestPayment/);
     assert.match(js, /launchedFromSettings: false/);
     assert.match(js, /backTop: 8/);
     assert.match(js, /backSize: 32/);
@@ -10749,15 +10755,22 @@ test("pro page renders native subscription content instead of a web-view wrapper
     assert.match(wxml, /订阅中/);
     assert.doesNotMatch(wxml, /订阅已完成/);
     assert.match(wxml, /继续补充点数/);
-    assert.match(wxml, /bindtap="requestRefund"/);
-    assert.match(wxml, /申请退款/);
-    assert.match(wxml, /退款按未使用点数折算/);
-    assert.match(wxml, /若无剩余有效套餐/);
-    assert.match(wxml, /membership && membership\.canRefundLatestOrder && latestRefundableOrder && latestRefundableOrder\.status === 'paid'/);
+    assert.doesNotMatch(wxml, /bindtap="requestRefund"/);
+    assert.match(wxml, /付款记录/);
+    assert.match(wxml, /wx:for="\{\{paymentOrders\}\}"/);
+    assert.match(wxml, /<view class="xf-pro-status-card">[\s\S]*<text class="xf-pro-section-title">订阅状态<\/text>[\s\S]*<text class="xf-pro-section-title is-sub">付款记录<\/text>[\s\S]*wx:for="\{\{paymentOrders\}\}"[\s\S]*<\/view>\s*<\/view>\s*<view class="xf-pro-pay-dock">/);
+    assert.doesNotMatch(wxml, /<view wx:if="\{\{paymentOrders\.length\}\}" class="xf-pro-status-card">/);
+    assert.match(wxml, /item\.refundStatusLabel/);
+    assert.match(wxml, /虚拟支付订单不支持退款/);
+    assert.doesNotMatch(wxml, /申请退款|退款入口|item\.externalRefundGuide|bindtap="showExternalRefundGuide"/);
+    assert.doesNotMatch(wxml, /data-order-id="\{\{item\.id\}\}"/);
+    assert.doesNotMatch(wxml, /退款按未使用点数折算|若无剩余有效套餐/);
+    assert.doesNotMatch(wxml, /membership && membership\.canRefundLatestOrder && latestRefundableOrder && latestRefundableOrder\.status === 'paid'/);
+    assert.doesNotMatch(wxml, /item\.canRefund/);
     assert.match(wxml, /当前可用点数/);
     assert.match(wxml, /wx:for="\{\{planCards\}\}"/);
     assert.match(wxml, /bindtap="selectPlan"/);
-    assert.match(wxml, /class="xf-pro-pay-dock"[\s\S]*class="xf-pro-pay-button" bindtap="createOrder" disabled="\{\{ordering \|\| loading\}\}"[\s\S]*立即订阅/);
+    assert.match(wxml, /class="xf-pro-pay-dock"[\s\S]*wx:if="\{\{!isLoggedIn\}\}" class="xf-pro-pay-button" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone"[\s\S]*wx:else class="xf-pro-pay-button" bindtap="createOrder" disabled="\{\{ordering \|\| loading\}\}"[\s\S]*立即订阅/);
     assert.match(wxml, /wx:for="\{\{usagePolicy\}\}"/);
     assert.match(wxml, /订阅状态/);
     assert.match(wxml, /xf-pro-primary-card[\s\S]*xf-pro-policy-card[\s\S]*xf-pro-status-card/);
@@ -10771,15 +10784,16 @@ test("pro page renders native subscription content instead of a web-view wrapper
     assert.match(wxss, /\.xf-pro-complete-title \{[\s\S]*color: #f8d375;/);
     assert.match(wxss, /\.xf-pro-complete-copy \{[\s\S]*color: rgba\(248, 211, 117, 0\.82\);/);
     assert.match(wxss, /\.xf-pro-plan-list\.is-topup \{[\s\S]*margin-top: 16rpx;/);
-    assert.match(wxss, /\.xf-pro-refund-button \{[\s\S]*background: #fff7ed;/);
+    assert.doesNotMatch(wxss, /\.xf-pro-refund-button/);
     assert.match(wxss, /\.xf-pro-pay-dock \{[\s\S]*position: fixed;[\s\S]*bottom: 0;[\s\S]*padding: 18rpx 52rpx calc\(18rpx \+ env\(safe-area-inset-bottom\)\);/);
     assert.match(wxss, /\.xf-pro-main \{[\s\S]*padding: 22rpx 24rpx 200rpx;/);
     assert.match(js, /request\(\{ url: "\/api\/billing\/plans" \}\)/);
     assert.match(js, /request\(\{ url: "\/api\/billing\/me" \}\)/);
-    assert.match(js, /request\(\{[\s\S]*method: "POST",[\s\S]*url: "\/api\/billing\/orders"/);
-    assert.match(js, /url: "\/api\/billing\/refunds"/);
-    assert.match(js, /latestRefundableOrder/);
-    assert.match(js, /const refundOrder = this\.data\.latestRefundableOrder \|\| this\.data\.latestOrder/);
+    assert.match(js, /request\(\{[\s\S]*method: "POST",[\s\S]*url: "\/api\/billing\/virtual-orders"/);
+    assert.doesNotMatch(js, /url: "\/api\/billing\/refunds"/);
+    assert.match(js, /paymentOrders/);
+    assert.doesNotMatch(js, /const refundOrder = this\.data\.latestRefundableOrder \|\| this\.data\.latestOrder/);
+    assert.doesNotMatch(js, /requestRefund\(event\)|response && response\.refund|微信处理中，处理完成后积分会自动扣回|externalRefundGuide|showExternalRefundGuide|reportaproblem\.apple\.com/);
     assert.match(js, /selectedPlan: "pro"/);
     assert.match(js, /formatYuan/);
     assert.match(js, /formatPoints/);
@@ -10814,6 +10828,8 @@ test("pro page renders native subscription content instead of a web-view wrapper
     assert.equal(context.data.memberBadgeLabel, "Plus");
     assert.equal(context.data.pointsText, "428 点");
     assert.equal(context.data.latestOrder.status, "paid");
+    assert.equal(context.data.paymentOrders.length, 2);
+    assert.equal(context.data.paymentOrders[0].id, "order-plus-2");
 
     await definition.onLoad.call(context, { from: "settings" });
     assert.equal(context.data.launchedFromSettings, true);
@@ -10825,8 +10841,19 @@ test("pro page renders native subscription content instead of a web-view wrapper
     billingMeActive = false;
 
     await definition.createOrder.call(context);
-    assert.deepEqual(createdOrders, [{ plan: "pro", provider: "wechat", channel: "mini_program" }]);
-    assert.equal(paymentRequests.length, 1);
+    assert.deepEqual(createdOrders, [{ productId: "pro", quantity: 1, loginCode: "wx-login-code" }]);
+    assert.equal(virtualPaymentRequests.length, 1);
+    assert.equal(syncedOrders.length, 1);
+    assert.match(syncedOrders[0], /\/api\/billing\/virtual-orders\/order-1\/sync$/);
+    assert.deepEqual(
+      Object.fromEntries(Object.entries(virtualPaymentRequests[0]).filter(([key]) => key !== "success" && key !== "fail")),
+      {
+        mode: "short_series_goods",
+        signData: "{\"offerId\":\"offer-test\"}",
+        paySig: "pay-sig",
+        signature: "session-signature"
+      }
+    );
 
     definition.selectPlan.call(context, { currentTarget: { dataset: { plan: "plus" } } });
     assert.equal(context.data.selectedPlan, "plus");
@@ -10834,19 +10861,19 @@ test("pro page renders native subscription content instead of a web-view wrapper
 
     await definition.createOrder.call(context);
     assert.deepEqual(createdOrders, [
-      { plan: "pro", provider: "wechat", channel: "mini_program" },
-      { plan: "plus", provider: "wechat", channel: "mini_program" }
+      { productId: "pro", quantity: 1, loginCode: "wx-login-code" },
+      { productId: "plus", quantity: 1, loginCode: "wx-login-code" }
     ]);
-    assert.equal(paymentRequests.length, 2);
-    assert.equal(paymentRequests[1].package, "prepay_id=wx-prepay-1");
-    assert.match(context.data.message, /等待微信确认/);
+    assert.equal(virtualPaymentRequests.length, 2);
+    assert.equal(virtualPaymentRequests[1].signData, "{\"offerId\":\"offer-test\"}");
+    assert.match(context.data.message, /订阅权益已生效/);
   } finally {
     global.wx = originalWx;
     global.setTimeout = originalSetTimeout;
   }
 });
 
-test("pro page renders completion state and submits refund requests", async () => {
+test("pro page renders completion state without refund actions", async () => {
   const definition = loadPageDefinition("pro");
   const context = {
     ...definition,
@@ -10912,14 +10939,7 @@ test("pro page renders completion state and submits refund requests", async () =
         }
         if (options.url.endsWith("/api/billing/refunds")) {
           refundRequests.push(options.data);
-          active = false;
-          options.success({
-            statusCode: 200,
-            data: {
-              refund: { id: "refund-1", orderId: "order-pro-1", status: "succeeded", amountCents: 9900 },
-              membership: membershipPayload()
-            }
-          });
+          options.fail({ errMsg: "refund endpoint should not be called" });
           return;
         }
         options.fail({ errMsg: "unexpected request" });
@@ -10935,14 +10955,12 @@ test("pro page renders completion state and submits refund requests", async () =
     assert.equal(context.data.latestOrder.status, "refunded");
     assert.equal(context.data.latestRefundableOrder.status, "paid");
 
-    await definition.requestRefund.call(context);
-
-    assert.equal(modalPrompts[0].confirmText, "申请退款");
-    assert.deepEqual(refundRequests, [{ orderId: "order-pro-1", reason: "按未使用点数折算退款" }]);
-    assert.equal(context.data.membership.isProActive, false);
+    assert.equal(definition.requestRefund, undefined);
+    assert.deepEqual(modalPrompts, []);
+    assert.deepEqual(refundRequests, []);
+    assert.equal(context.data.membership.isProActive, true);
     assert.equal(context.data.latestOrder.status, "refunded");
-    assert.equal(context.data.latestRefundableOrder, null);
-    assert.match(context.data.message, /退款申请已提交/);
+    assert.equal(context.data.latestRefundableOrder.status, "paid");
   } finally {
     global.wx = originalWx;
   }
@@ -10951,7 +10969,8 @@ test("pro page renders completion state and submits refund requests", async () =
 test("pro page waits for WeChat notify before showing paid membership", async () => {
   const definition = loadPageDefinition("pro");
   const requests = [];
-  const paymentRequests = [];
+  const syncRequests = [];
+  const virtualPaymentRequests = [];
   let billingMeCount = 0;
   const context = {
     ...definition,
@@ -10973,6 +10992,9 @@ test("pro page waits for WeChat notify before showing paid membership", async ()
         return "";
       },
       setStorageSync() {},
+      login(options) {
+        options.success({ code: "wx-login-code" });
+      },
       request(options) {
         requests.push(options.url);
         if (options.url.endsWith("/api/billing/plans")) {
@@ -11013,20 +11035,39 @@ test("pro page waits for WeChat notify before showing paid membership", async ()
           });
           return;
         }
-        if (options.url.endsWith("/api/billing/orders")) {
+        if (options.url.endsWith("/api/billing/virtual-orders")) {
           options.success({
             statusCode: 201,
             data: {
               order: { id: "order-1", plan: "plus", status: "pending" },
               checkout: {
-                mode: "wechat_jsapi",
+                paymentChannel: "wechat_virtual",
                 paymentParams: {
-                  timeStamp: "1780000000",
-                  nonceStr: "nonce-1",
-                  package: "prepay_id=wx-prepay-1",
-                  signType: "RSA",
-                  paySign: "signed-payment"
+                  mode: "short_series_goods",
+                  signData: "{\"offerId\":\"offer-test\"}",
+                  paySig: "pay-sig",
+                  signature: "session-signature"
                 }
+              }
+            }
+          });
+          return;
+        }
+        if (options.url.endsWith("/api/billing/virtual-orders/order-1/sync")) {
+          syncRequests.push(options.url);
+          options.success({
+            statusCode: 200,
+            data: {
+              order: { id: "order-1", plan: "plus", status: "paid" },
+              membership: {
+                proPointBalance: 200,
+                proStatus: "active",
+                proPlan: "plus",
+                membershipTier: "plus",
+                membershipLabel: "Plus",
+                proExpiresAt: "2026-08-06T00:00:00.000Z",
+                isProActive: true,
+                canRefundLatestOrder: true
               }
             }
           });
@@ -11034,9 +11075,9 @@ test("pro page waits for WeChat notify before showing paid membership", async ()
         }
         options.fail({ errMsg: "unexpected request" });
       },
-      requestPayment(options) {
-        paymentRequests.push(options);
-        options.success({ errMsg: "requestPayment:ok" });
+      requestVirtualPayment(options) {
+        virtualPaymentRequests.push(options);
+        options.success({ errMsg: "requestVirtualPayment:ok" });
       },
       showToast() {}
     };
@@ -11046,7 +11087,9 @@ test("pro page waits for WeChat notify before showing paid membership", async ()
 
     await definition.createOrder.call(context);
 
-    assert.equal(paymentRequests.length, 1);
+    assert.equal(virtualPaymentRequests.length, 1);
+    assert.equal(syncRequests.length, 1);
+    assert.match(syncRequests[0], /\/api\/billing\/virtual-orders\/order-1\/sync$/);
     assert.ok(billingMeCount >= 3);
     assert.equal(context.data.statusLabel, "Plus 会员");
     assert.equal(context.data.memberBadgeLabel, "Plus");
@@ -11075,6 +11118,9 @@ test("pro page payment request failures expose the attempted API url", async () 
         return "";
       },
       setStorageSync() {},
+      login(options) {
+        options.success({ code: "wx-login-code" });
+      },
       request(options) {
         options.fail({ errMsg: "request:fail" });
       },
@@ -11084,7 +11130,68 @@ test("pro page payment request failures expose the attempted API url", async () 
     await definition.createOrder.call(context);
 
     assert.match(context.data.message, /request:fail/);
-    assert.match(context.data.message, /\/api\/billing\/orders/);
+    assert.match(context.data.message, /\/api\/billing\/virtual-orders/);
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
+test("pro page unauthenticated checkout uses WeChat phone login instead of an error message", async () => {
+  const { wxml } = readPage("pro");
+  const definition = loadPageDefinition("pro");
+  const storage = new Map([
+    ["xf_token", "expired-token"],
+    ["xf_user", { mobile: "13500003069" }]
+  ]);
+  const context = {
+    ...definition,
+    data: { ...definition.data, isLoggedIn: true, hasMobile: true, maskedMobile: "135****3069" },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+  const originalWx = global.wx;
+  const requestedUrls = [];
+
+  try {
+    global.wx = {
+      getStorageSync(key) {
+        return storage.has(key) ? storage.get(key) : "";
+      },
+      setStorageSync(key, value) {
+        storage.set(key, value);
+      },
+      removeStorageSync(key) {
+        storage.delete(key);
+      },
+      login(options) {
+        options.success({ code: "wx-login-code" });
+      },
+      request(options) {
+        requestedUrls.push(options.url);
+        if (options.url.endsWith("/api/billing/virtual-orders")) {
+          options.success({
+            statusCode: 401,
+            data: { message: "未登录或登录已过期" }
+          });
+          return;
+        }
+        options.fail({ errMsg: "unexpected request" });
+      },
+      showToast() {}
+    };
+
+    assert.match(wxml, /<button wx:if="\{\{!isLoggedIn\}\}" class="xf-pro-pay-button" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone"/);
+    assert.match(wxml, /<button wx:else class="xf-pro-pay-button" bindtap="createOrder" disabled="\{\{ordering \|\| loading\}\}"/);
+
+    await definition.createOrder.call(context);
+
+    assert.equal(requestedUrls.some((url) => url.endsWith("/api/billing/virtual-orders")), true);
+    assert.equal(context.data.ordering, false);
+    assert.equal(context.data.isLoggedIn, false);
+    assert.equal(context.data.hasMobile, false);
+    assert.equal(context.data.maskedMobile, "未绑定");
+    assert.equal(context.data.message, "");
   } finally {
     global.wx = originalWx;
   }
@@ -11120,8 +11227,11 @@ test("pro page unauthenticated checkout uses the WeChat phone login button inste
       setStorageSync(key, value) {
         storage.set(key, value);
       },
+      login(options) {
+        options.success({ code: "wx-login-code" });
+      },
       request(options) {
-        if (options.url.endsWith("/api/billing/orders")) {
+        if (options.url.endsWith("/api/billing/virtual-orders")) {
           options.success({
             statusCode: 401,
             data: { message: "未登录或登录已过期" }

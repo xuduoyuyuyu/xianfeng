@@ -352,6 +352,10 @@ page {
   line-height: 1.2;
 }
 
+.xf-pro-section-title.is-sub {
+  font-size: 28rpx;
+}
+
 .xf-pro-policy-list {
   display: flex;
   flex-direction: column;
@@ -434,29 +438,44 @@ page {
   line-height: 1.55;
 }
 
-.xf-pro-refund-button {
+.xf-pro-payment-section {
+  margin-top: 24rpx;
+}
+
+.xf-pro-payment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  margin-top: 16rpx;
+}
+
+.xf-pro-payment-row {
   display: flex;
   align-items: center;
-  justify-content: center;
-  height: 84rpx;
-  width: 100%;
-  margin: 18rpx 0 0;
-  padding: 0;
-  border: 2rpx solid #f59e0b;
-  border-radius: 999rpx;
-  background: #fff7ed;
-  color: #9a3412;
+  gap: 18rpx;
+  padding: 18rpx;
+  border: 2rpx solid #e2e8f0;
+  border-radius: 24rpx;
+  background: #f8fafc;
+}
+
+.xf-pro-payment-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.xf-pro-payment-title {
+  color: #0f172a;
   font-size: 26rpx;
   font-weight: 900;
-  line-height: 84rpx;
 }
 
-.xf-pro-refund-button::after {
-  border: 0;
-}
-
-.xf-pro-refund-button[disabled] {
-  border-color: #fed7aa;
-  background: #fffbeb;
-  color: #cbd5e1;
+.xf-pro-payment-meta,
+.xf-pro-payment-refund {
+  color: #64748b;
+  font-size: 22rpx;
+  line-height: 1.45;
 }

@@ -11,6 +11,7 @@ export interface RefundRecord extends mongoose.Document {
   outRequestNo: string;
   providerRefundId?: string;
   status: RefundStatus;
+  refundablePoints?: number;
   refundedAt?: Date | null;
   rawResult?: Record<string, any>;
   errorMessage?: string;
@@ -28,6 +29,7 @@ const refundRecordSchema = new mongoose.Schema(
     outRequestNo: { type: String, required: true, unique: true, index: true },
     providerRefundId: { type: String, default: "" },
     status: { type: String, enum: ["pending", "succeeded", "failed"], default: "pending", index: true },
+    refundablePoints: { type: Number, default: 0, min: 0 },
     refundedAt: { type: Date, default: null },
     rawResult: { type: mongoose.Schema.Types.Mixed, default: {} },
     errorMessage: { type: String, default: "" },

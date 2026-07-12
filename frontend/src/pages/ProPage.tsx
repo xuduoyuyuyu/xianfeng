@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import { BillingMembership, BillingOrder, BillingPlan, PointUsagePolicyItem, billingApi, userApi } from "../services/api";
-import { isMiniProgramWebView, openMiniProgramNativeLogin } from "../utils/mpAuthBridge";
+import { isMiniProgramWebView, openMiniProgramNativeLogin, openMiniProgramNativePro } from "../utils/mpAuthBridge";
 import { useXiaowanziEmbeddedLayer } from "../utils/xiaowanziLayer";
 
 type PlanId = "plus" | "pro";
@@ -60,16 +60,22 @@ function normalizePlanId(planId?: string | null): PlanCatalogId {
   return "free";
 }
 
+function isMiniProgramVirtualPaymentBlock(message: string) {
+  return /微信虚拟支付|小程序内虚拟商品/.test(message);
+}
+
+const MINI_PROGRAM_NATIVE_PRO_FALLBACK_MESSAGE = "请返回小程序订阅页完成微信虚拟支付；如仍停留在网页，请关闭后重新进入最新体验版。";
+
 const ProPage: React.FC = () => {
   const superModePage = useXiaowanziEmbeddedLayer();
   const [plans, setPlans] = useState<Record<PlanCatalogId, BillingPlan> | null>(null);
   const [usagePolicy, setUsagePolicy] = useState<PointUsagePolicyItem[]>([]);
   const [membership, setMembership] = useState<BillingMembership | null>(null);
   const [latestOrder, setLatestOrder] = useState<BillingOrder | null>(null);
+  const [paymentOrders, setPaymentOrders] = useState<BillingOrder[]>([]);
   const [selected, setSelected] = useState<PlanId>("pro");
   const [loading, setLoading] = useState(true);
   const [ordering, setOrdering] = useState(false);
-  const [refunding, setRefunding] = useState(false);
   const [message, setMessage] = useState("");
   const [wechatQr, setWechatQr] = useState("");
 
@@ -88,6 +94,7 @@ const ProPage: React.FC = () => {
       if (meRes?.data) {
         setMembership(meRes.data.membership);
         setLatestOrder(meRes.data.latestOrder);
+        setPaymentOrders(meRes.data.paymentOrders || []);
       } else {
         const profileRes = await userApi.getMe().catch(() => null);
         const profile = profileRes?.data;
@@ -106,6 +113,7 @@ const ProPage: React.FC = () => {
             canRefundLatestOrder: false,
           });
         }
+        setPaymentOrders([]);
       }
     } finally {
       setLoading(false);
@@ -160,7 +168,13 @@ const ProPage: React.FC = () => {
     setOrdering(true);
     setMessage("");
     setWechatQr("");
+    const inMiniProgramWebView = isMiniProgramWebView();
     try {
+      if (inMiniProgramWebView) {
+        const opened = await openMiniProgramNativePro(selected);
+        setMessage(opened ? "请在小程序原生订阅页完成微信虚拟支付。" : MINI_PROGRAM_NATIVE_PRO_FALLBACK_MESSAGE);
+        return;
+      }
       const res = await billingApi.createOrder(selected, "wechat");
       setLatestOrder(res.data.order);
       const checkout = res.data.checkout;
@@ -192,25 +206,15 @@ const ProPage: React.FC = () => {
         setMessage("");
         return;
       }
-      setMessage(error?.response?.data?.message || error?.message || "下单失败");
+      const errorMessage = error?.response?.data?.message || error?.message || "下单失败";
+      if (isMiniProgramVirtualPaymentBlock(errorMessage)) {
+        const opened = await openMiniProgramNativePro(selected);
+        setMessage(opened ? "请在小程序原生订阅页完成微信虚拟支付。" : MINI_PROGRAM_NATIVE_PRO_FALLBACK_MESSAGE);
+        return;
+      }
+      setMessage(errorMessage);
     } finally {
       setOrdering(false);
-    }
-  };
-
-  const requestRefund = async () => {
-    if (!latestOrder?.id) return;
-    setRefunding(true);
-    setMessage("");
-    try {
-      const res = await billingApi.requestRefund(latestOrder.id);
-      setMembership(res.data.membership);
-      setMessage("退款成功，订阅状态已回到可用积分方案。");
-      await load();
-    } catch (error: any) {
-      setMessage(error?.response?.data?.message || error?.message || "退款失败");
-    } finally {
-      setRefunding(false);
     }
   };
 
@@ -339,19 +343,27 @@ const ProPage: React.FC = () => {
                 </div>
                 <div>会员：{membership?.isProActive ? membership.membershipLabel || planLabel(normalizePlanId(membership.proPlan)) : "Free"}</div>
                 <div>到期：{formatDate(membership?.proExpiresAt)}</div>
-                <div>退款方式：{membership?.isProActive ? "按未使用点数折算" : "未开通"}</div>
+                <div>退款说明：虚拟支付订单不支持退款</div>
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
-                  退款按未使用点数折算，已使用点数对应费用不退；退款成功后高级 AI 调用立即不可用。
+                  重要提示：小程序虚拟支付订单不支持退款；购买前请确认套餐和点数需求。
                 </div>
-                {membership?.canRefundLatestOrder && latestOrder?.status === "paid" ? (
-                  <button
-                    type="button"
-                    disabled={refunding}
-                    onClick={requestRefund}
-                    className="h-11 w-full rounded-full border border-red-200 bg-white text-sm font-black text-red-600 disabled:opacity-50"
-                  >
-                    {refunding ? "退款处理中..." : "申请退款"}
-                  </button>
+                {paymentOrders.length ? (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="text-sm font-black text-slate-950">付款记录</div>
+                    <div className="mt-3 space-y-3">
+                      {paymentOrders.map((order) => (
+                        <div key={order.id} className="rounded-2xl bg-slate-50 p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="font-black text-slate-950">{planLabel(normalizePlanId(order.plan))} · ¥{formatYuan(order.amountYuan, order.amountCents ? (order.amountCents / 100).toFixed(2) : "")}</div>
+                              <div className="mt-1 text-xs font-bold text-slate-500">{order.paidAtText || formatDate(order.paidAt || order.createdAt)} · {order.statusLabel || order.status}</div>
+                              <div className="mt-1 text-xs font-black text-slate-600">{order.status === "refunded" ? "已退款" : "虚拟支付不支持退款"}</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 ) : null}
               </div>
             )}

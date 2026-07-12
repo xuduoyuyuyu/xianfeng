@@ -47,6 +47,40 @@
   the current balance. Legacy stored plan ids `monthly` and `yearly` are read
   as Plus and Pro membership tiers. The education-planning generation flow
   consumes the `education_planning` point policy at 5 points per generated plan.
+- WeChat mini-program virtual payment is backend-owned for virtual products:
+  the API owns the Plus/Pro virtual catalog, amount, point grant, Offer ID
+  selection, environment, `wx.requestVirtualPayment` signatures, official order
+  query, notification reconciliation, and idempotent entitlement delivery.
+  Internal catalog ids remain `plus` and `pro`; the WeChat-published product
+  ids sent in `signData.productId` are configured separately with
+  `WECHAT_VIRTUAL_PAY_PRODUCT_PLUS` and `WECHAT_VIRTUAL_PAY_PRODUCT_PRO`.
+  Mini-program clients submit only `productId`, `quantity: 1`, and the current
+  one-time `wx.login` code to `/api/billing/virtual-orders`; the backend
+  exchanges that code for the current `session_key`, signs the exact
+  `signData`, and never persists, logs, or returns the `session_key`. Client
+  success callbacks and message pushes are untrusted triggers: paid state and
+  points are granted only after the official virtual-payment query matches the
+  local order, amount, environment, transaction id, and signed `biz_meta`
+  payload. Production query responses may wrap the signed payload inside
+  `biz_meta.attach`, and paid virtual orders may report status `3`; both are
+  accepted only when the paid amount matches the local order amount. The client
+  may call `/api/billing/virtual-orders/:id/sync` after `wx.requestVirtualPayment`
+  succeeds to actively reconcile the order; that active sync confirms delivery
+  to WeChat through `/xpay/notify_provide_goods` after local points are granted.
+  Normal `xpay_goods_deliver_notify` pushes still confirm delivery by returning
+  WeChat's `{ ErrCode: 0, ErrMsg: "success" }` response.
+  `/api/billing/me` exposes recent paid/refunded `paymentOrders` with per-order
+  refund eligibility so clients request refunds against a specific payment
+  record instead of a single latest-order shortcut. For
+  `paymentChannel=wechat_virtual`, refund requests call `/xpay/refund_order`
+  and store a pending `RefundRecord`; points and order status are changed only
+  after `xpay_refund_notify` reports success. User-initiated iOS/OS refunds
+  from WeChat or Apple payment records are treated separately: if WeChat sends
+  `xpay_refund_notify` without a local developer refund task, or `/xpay/query_order`
+  later reports no remaining `left_fee`, the backend creates a user-side
+  `RefundRecord`, marks the order refunded, and deducts the matching points.
+  Ordinary WeChat Pay V3 Native/JSAPI sync and notify paths explicitly do not
+  fulfill or refund `paymentChannel=wechat_virtual` orders.
 - Xiaowanzi image recognition uses the authenticated
   `/api/v1/tutorbot/xiaowanzi_debug_bot/attachments/recognize` endpoint before
   the normal chat send. It calls Volcengine Ark with endpoint id

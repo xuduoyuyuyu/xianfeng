@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 import PaymentOrderModel, { BillingPlanId as PaymentOrderPlanId, PaymentOrder, PaymentProviderId } from "../models/PaymentOrder";
 import RefundRecordModel from "../models/RefundRecord";
 import User from "../models/User";
+import { getVirtualProduct } from "./virtualPaymentProducts";
+import { notifyWechatVirtualGoodsProvided, queryWechatVirtualOrder, requestWechatVirtualRefund, type VerifiedVirtualOrder, type WechatVirtualNotification, type WechatVirtualRefundResult } from "./wechatVirtualPayment";
 
 export type ProStatus = "none" | "active" | "expired" | "refunded";
 
@@ -423,11 +425,288 @@ export async function createPaymentOrder(input: {
   return order;
 }
 
+export async function createVirtualPaymentOrder(input: {
+  userId: string;
+  productId: unknown;
+  quantity: number;
+}): Promise<PaymentOrder> {
+  if (!mongoose.Types.ObjectId.isValid(input.userId)) {
+    throw new Error("用户 ID 非法");
+  }
+  const product = getVirtualProduct(input.productId);
+  if (!product) {
+    throw new Error("虚拟商品不存在");
+  }
+  if (input.quantity !== product.maxQuantity) {
+    throw new Error("虚拟商品数量非法");
+  }
+  const environmentText = String(process.env.WECHAT_VIRTUAL_PAY_ENV || "").trim();
+  const virtualEnvironment: 0 | 1 | null = environmentText === "0" ? 0 : environmentText === "1" ? 1 : null;
+  return PaymentOrderModel.create({
+    userId: new mongoose.Types.ObjectId(input.userId),
+    plan: product.plan,
+    provider: "wechat",
+    paymentChannel: "wechat_virtual",
+    amountCents: product.amountCents,
+    currency: "CNY",
+    subject: `订阅 ${product.name}`,
+    outTradeNo: createTradeNo(),
+    status: "pending",
+    virtualProductId: product.productId,
+    virtualQuantity: input.quantity,
+    virtualEnvironment,
+  });
+}
+
+export async function processWechatVirtualNotification(
+  notification: WechatVirtualNotification,
+  dependencies: { queryOrder?: (input: { outTradeNo: string; openid: string }) => Promise<VerifiedVirtualOrder> } = {},
+): Promise<PaymentOrder | null> {
+  if (notification.event === "xpay_refund_notify") return processWechatVirtualRefundNotification(notification);
+  if (notification.event !== "xpay_goods_deliver_notify") return null;
+  const order = await PaymentOrderModel.findOne({ outTradeNo: notification.outTradeNo });
+  if (!order || order.paymentChannel !== "wechat_virtual") throw new Error("微信虚拟支付订单不存在");
+  return syncWechatVirtualPaidOrder(order, notification.openid, { queryOrder: dependencies.queryOrder, rawTrigger: notification.raw });
+}
+
+function isTrustedWechatVirtualPaymentPaid(trusted: VerifiedVirtualOrder, order: PaymentOrder) {
+  return (trusted.status === 2 || trusted.status === 3 || trusted.status === 4) && trusted.paidAmountCents === order.amountCents;
+}
+
+function assertTrustedWechatVirtualOrderMatches(trusted: VerifiedVirtualOrder, order: PaymentOrder, openid: string, boundOpenid = "") {
+  const product = getVirtualProduct(order.virtualProductId);
+  const mismatch = trusted.outTradeNo !== order.outTradeNo
+    || !isTrustedWechatVirtualPaymentPaid(trusted, order)
+    || trusted.amountCents !== order.amountCents
+    || trusted.environment !== order.virtualEnvironment
+    || !trusted.transactionId
+    || (order.providerTradeNo && order.providerTradeNo !== trusted.transactionId)
+    || !product
+    || trusted.bizMeta.orderId !== order.outTradeNo
+    || trusted.bizMeta.userId !== String(order.userId)
+    || trusted.bizMeta.productId !== order.virtualProductId
+    || trusted.bizMeta.quantity !== order.virtualQuantity
+    || (boundOpenid && boundOpenid !== openid);
+  if (mismatch) throw new Error("微信虚拟支付查单结果与本地订单不匹配");
+}
+
+function virtualRefundPointsForAmount(order: PaymentOrder, amountCents: number): number {
+  const plan = normalizeStoredBillingPlan(order.plan);
+  const totalPoints = plan ? planPoints(plan) : 0;
+  const orderAmountCents = Math.max(0, Math.floor(Number(order.amountCents) || 0));
+  const refundAmountCents = Math.max(0, Math.floor(Number(amountCents) || 0));
+  if (!plan || totalPoints <= 0 || orderAmountCents <= 0 || refundAmountCents <= 0) return 0;
+  return Math.min(totalPoints, Math.round((totalPoints * refundAmountCents) / orderAmountCents));
+}
+
+export async function syncWechatVirtualPaidOrder(
+  order: PaymentOrder,
+  openid: string,
+  dependencies: {
+    queryOrder?: (input: { outTradeNo: string; openid: string }) => Promise<VerifiedVirtualOrder>;
+    notifyGoods?: (input: { outTradeNo: string; environment: 0 | 1 }) => Promise<void>;
+    rawTrigger?: Record<string, any>;
+  } = {},
+): Promise<PaymentOrder> {
+  if (!order || order.paymentChannel !== "wechat_virtual") throw new Error("微信虚拟支付订单不存在");
+  if (order.status === "paid" || order.status === "refunded") return order;
+  const trusted = await (dependencies.queryOrder || queryWechatVirtualOrder)({
+    outTradeNo: order.outTradeNo,
+    openid,
+  });
+  const user = await User.findById(order.userId).select("wechatMiniOpenid").lean();
+  const boundOpenid = String(user?.wechatMiniOpenid || "").trim();
+  assertTrustedWechatVirtualOrderMatches(trusted, order, openid, boundOpenid);
+
+  const paidOrder = await markOrderPaid({
+    outTradeNo: order.outTradeNo,
+    providerTradeNo: trusted.transactionId,
+    rawNotify: { trigger: dependencies.rawTrigger || { source: "wechat-virtual-sync" }, verifiedOrder: trusted.raw },
+  });
+  const isDeliveryPush = dependencies.rawTrigger?.Event === "xpay_goods_deliver_notify";
+  if (!isDeliveryPush) {
+    try {
+      await (dependencies.notifyGoods || notifyWechatVirtualGoodsProvided)({
+        outTradeNo: order.outTradeNo,
+        environment: order.virtualEnvironment,
+      });
+    } catch (error) {
+      console.error("Wechat virtual goods delivery confirmation failed:", error);
+    }
+  }
+  return paidOrder;
+}
+
+async function createUserInitiatedVirtualRefundRecord(order: PaymentOrder, input: {
+  outRequestNo?: string;
+  providerRefundId?: string;
+  amountCents: number;
+  refundablePoints?: number;
+  rawResult?: Record<string, any>;
+  status?: "pending" | "failed";
+  errorMessage?: string;
+}) {
+  const outRequestNo = String(input.outRequestNo || "").trim() || createRefundNo();
+  const existing = await RefundRecordModel.findOne({ orderId: order._id, outRequestNo });
+  if (existing) return existing;
+  return RefundRecordModel.create({
+    orderId: order._id,
+    userId: order.userId,
+    provider: order.provider,
+    amountCents: Math.max(0, Math.floor(Number(input.amountCents) || 0)),
+    refundablePoints: safePointBalance(input.refundablePoints, virtualRefundPointsForAmount(order, input.amountCents)),
+    reason: "用户通过微信或苹果付款记录发起退款",
+    outRequestNo,
+    providerRefundId: input.providerRefundId || "",
+    status: input.status || "pending",
+    rawResult: input.rawResult || {},
+    errorMessage: input.errorMessage || "",
+  });
+}
+
+export async function syncWechatVirtualRefundStateFromTrustedOrder(order: PaymentOrder, trusted: VerifiedVirtualOrder) {
+  if (!order || order.paymentChannel !== "wechat_virtual") throw new Error("不是微信虚拟支付订单");
+  if (order.status === "refunded") return order;
+  assertTrustedWechatVirtualOrderMatches(trusted, order, "", "");
+  const refundedAmountCents = Math.max(0, Math.min(order.amountCents, order.amountCents - trusted.leftFeeCents));
+  if (refundedAmountCents <= 0) return order;
+  if (refundedAmountCents < order.amountCents) return order;
+
+  const existingSucceeded = await RefundRecordModel.findOne({ orderId: order._id, status: "succeeded" });
+  if (existingSucceeded) return order;
+  const refund = await createUserInitiatedVirtualRefundRecord(order, {
+    amountCents: refundedAmountCents,
+    refundablePoints: virtualRefundPointsForAmount(order, refundedAmountCents),
+    rawResult: trusted.raw || {},
+  });
+  await markRefundSucceeded(order, refund, { ...(trusted.raw || {}), refund_id: refund.providerRefundId || refund.outRequestNo }, { refundablePoints: safePointBalance((refund as any).refundablePoints, 0) });
+  return order;
+}
+
+export async function syncRecentWechatVirtualRefundsForUser(userId: string) {
+  if (!mongoose.Types.ObjectId.isValid(userId)) return;
+  const user = await User.findById(userId).select("wechatMiniOpenid").lean();
+  const openid = String(user?.wechatMiniOpenid || "").trim();
+  if (!openid) return;
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const orders = await PaymentOrderModel.find({
+    userId: new mongoose.Types.ObjectId(userId),
+    paymentChannel: "wechat_virtual",
+    status: "paid",
+    paidAt: { $gte: cutoff },
+  }).sort({ paidAt: -1, createdAt: -1 }).limit(10);
+  for (const order of orders) {
+    try {
+      const trusted = await queryWechatVirtualOrder({ outTradeNo: order.outTradeNo, openid });
+      await syncWechatVirtualRefundStateFromTrustedOrder(order, trusted);
+    } catch (error) {
+      console.error("Wechat virtual refund state sync failed:", error);
+    }
+  }
+}
+
+export async function refundWechatVirtualOrder(
+  order: PaymentOrder,
+  reason: string,
+  amountCents = order.amountCents,
+  refundablePoints = 0,
+  dependencies: {
+    queryOrder?: (input: { outTradeNo: string; openid: string }) => Promise<VerifiedVirtualOrder>;
+    requestRefund?: (input: {
+      openid: string;
+      outTradeNo: string;
+      outRequestNo: string;
+      leftFeeCents: number;
+      refundAmountCents: number;
+      environment: 0 | 1;
+      bizMeta?: Record<string, unknown>;
+    }) => Promise<WechatVirtualRefundResult>;
+  } = {},
+) {
+  if (!order || order.paymentChannel !== "wechat_virtual") throw new Error("不是微信虚拟支付订单");
+  const user = await User.findById(order.userId).select("wechatMiniOpenid").lean();
+  const openid = String(user?.wechatMiniOpenid || "").trim();
+  if (!openid) throw new Error("微信登录状态无效，无法发起虚拟支付退款");
+
+  const trusted = await (dependencies.queryOrder || queryWechatVirtualOrder)({ outTradeNo: order.outTradeNo, openid });
+  assertTrustedWechatVirtualOrderMatches(trusted, order, openid, openid);
+  if (trusted.leftFeeCents < amountCents) throw new Error("微信虚拟支付订单剩余可退金额不足");
+
+  const existingPendingRefund = await RefundRecordModel.findOne({ orderId: order._id, status: "pending" });
+  if (existingPendingRefund) return existingPendingRefund;
+
+  const refund = await createRefundRecord(order, reason, amountCents, { refundablePoints });
+  try {
+    const result = await (dependencies.requestRefund || requestWechatVirtualRefund)({
+      openid,
+      outTradeNo: order.outTradeNo,
+      outRequestNo: refund.outRequestNo,
+      leftFeeCents: trusted.leftFeeCents,
+      refundAmountCents: amountCents,
+      environment: order.virtualEnvironment,
+      bizMeta: { orderId: order.outTradeNo, refundOrderId: refund.outRequestNo, userId: String(order.userId), refundablePoints },
+    });
+    refund.status = "pending";
+    refund.errorMessage = "微信虚拟支付退款处理中";
+    refund.rawResult = result.raw || {};
+    refund.providerRefundId = result.providerRefundId || "";
+    await refund.save();
+    return refund;
+  } catch (error: any) {
+    refund.status = "failed";
+    refund.errorMessage = error?.message || "微信虚拟支付退款失败";
+    await refund.save();
+    throw error;
+  }
+}
+
+export async function processWechatVirtualRefundNotification(notification: Extract<WechatVirtualNotification, { event: "xpay_refund_notify" }>) {
+  const order = await PaymentOrderModel.findOne({ outTradeNo: notification.outTradeNo });
+  if (!order || order.paymentChannel !== "wechat_virtual") throw new Error("微信虚拟支付订单不存在");
+  let refund = await RefundRecordModel.findOne({ orderId: order._id, outRequestNo: notification.refundOutRequestNo });
+  const user = await User.findById(order.userId).select("wechatMiniOpenid").lean();
+  const boundOpenid = String(user?.wechatMiniOpenid || "").trim();
+  if (boundOpenid && boundOpenid !== notification.openid) throw new Error("微信虚拟支付退款通知 openid 不匹配");
+  if (!refund) {
+    refund = await createUserInitiatedVirtualRefundRecord(order, {
+      outRequestNo: notification.refundOutRequestNo,
+      providerRefundId: notification.providerRefundId,
+      amountCents: notification.refundFee,
+      refundablePoints: virtualRefundPointsForAmount(order, notification.refundFee),
+      rawResult: notification.raw || {},
+      status: notification.retCode === 0 ? "pending" : "failed",
+      errorMessage: notification.retCode === 0 ? "" : notification.retMsg || "微信虚拟支付退款失败",
+    });
+  }
+  if (notification.refundFee !== refund.amountCents) throw new Error("微信虚拟支付退款通知金额不匹配");
+
+  if (notification.retCode !== 0) {
+    refund.status = "failed";
+    refund.errorMessage = notification.retMsg || "微信虚拟支付退款失败";
+    refund.providerRefundId = notification.providerRefundId || refund.providerRefundId || "";
+    refund.rawResult = notification.raw || {};
+    await refund.save();
+    return order;
+  }
+  if (order.status === "refunded") {
+    refund.status = "succeeded";
+    refund.refundedAt = refund.refundedAt || new Date();
+    refund.providerRefundId = notification.providerRefundId || refund.providerRefundId || "";
+    refund.rawResult = notification.raw || {};
+    refund.errorMessage = "";
+    await refund.save();
+    return order;
+  }
+  await markRefundSucceeded(order, refund, { ...(notification.raw || {}), refund_id: notification.providerRefundId }, { refundablePoints: safePointBalance((refund as any).refundablePoints, 0) });
+  return order;
+}
+
 export async function markOrderPaid(input: {
   outTradeNo: string;
   providerTradeNo?: string;
   paidAt?: Date;
   rawNotify?: Record<string, any>;
+  afterEntitlement?: () => Promise<void>;
 }): Promise<PaymentOrder> {
   const order = await PaymentOrderModel.findOne({ outTradeNo: input.outTradeNo });
   if (!order) throw new Error("订单不存在");
@@ -435,12 +714,13 @@ export async function markOrderPaid(input: {
   if (order.status === "refunded") return order;
 
   const paidAt = input.paidAt || new Date();
+  await grantProForOrder(order, paidAt);
+  await input.afterEntitlement?.();
   order.status = "paid";
   order.providerTradeNo = input.providerTradeNo || order.providerTradeNo || "";
   order.paidAt = paidAt;
   order.rawNotify = input.rawNotify || {};
   await order.save();
-  await grantProForOrder(order, paidAt);
   return order;
 }
 
@@ -490,20 +770,21 @@ export async function consumeProPoints(input: SpendPointsInput): Promise<ProPoin
 }
 
 export async function grantProForOrder(order: PaymentOrder, paidAt = new Date()) {
-  const user = await User.findById(order.userId);
+  const user = await User.findById(order.userId).lean();
   if (!user) throw new Error("用户不存在");
   const plan = normalizeBillingPlan(order.plan);
   if (!plan) throw new Error("请选择有效套餐");
   const expiresAt = addPlanDuration(plan, paidAt, (user as any).proExpiresAt);
-  (user as any).proStatus = "active";
-  (user as any).proPlan = plan;
-  (user as any).proPurchasedAt = paidAt;
-  (user as any).proPointBalance = safePointBalance((user as any).proPointBalance, 0) + planPoints(plan);
-  (user as any).proExpiresAt = expiresAt;
-  (user as any).proRefundEligibleUntil = null;
-  (user as any).proLatestOrderId = order._id;
-  await user.save();
-  return user;
+  const updated = await User.findOneAndUpdate(
+    { _id: order.userId, fulfilledPaymentOrderIds: { $ne: order._id } },
+    {
+      $set: { proStatus: "active", proPlan: plan, proPurchasedAt: paidAt, proExpiresAt: expiresAt, proRefundEligibleUntil: null, proLatestOrderId: order._id },
+      $inc: { proPointBalance: planPoints(plan) },
+      $addToSet: { fulfilledPaymentOrderIds: order._id },
+    },
+    { returnDocument: "after" },
+  );
+  return updated || User.findById(order.userId);
 }
 
 export async function recomputeUserProFromOrders(userId: string) {
@@ -544,12 +825,13 @@ export async function recomputeUserProFromOrders(userId: string) {
   return user;
 }
 
-export async function createRefundRecord(order: PaymentOrder, reason: string, amountCents = order.amountCents) {
+export async function createRefundRecord(order: PaymentOrder, reason: string, amountCents = order.amountCents, options: { refundablePoints?: number } = {}) {
   return RefundRecordModel.create({
     orderId: order._id,
     userId: order.userId,
     provider: order.provider,
     amountCents,
+    refundablePoints: safePointBalance(options.refundablePoints, 0),
     reason: reason || "按未使用点数折算退款",
     outRequestNo: createRefundNo(),
     status: "pending",
@@ -561,6 +843,7 @@ export async function markRefundSucceeded(order: PaymentOrder, refund: any, rawR
   refund.refundedAt = new Date();
   refund.rawResult = rawResult;
   refund.providerRefundId = String(rawResult?.trade_no || rawResult?.refund_id || rawResult?.out_request_no || "");
+  refund.errorMessage = "";
   await refund.save();
 
   const refundablePoints = safePointBalance(options.refundablePoints, 0);

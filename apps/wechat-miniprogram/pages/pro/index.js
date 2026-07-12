@@ -83,6 +83,37 @@ function planLabel(planId) {
   return "Free";
 }
 
+function paymentStatusLabel(order) {
+  if (!order) return "未知状态";
+  if (order.statusLabel) return order.statusLabel;
+  if (order.status === "paid") return "已支付";
+  if (order.status === "refunded") return "已退款";
+  if (order.status === "pending") return "待支付";
+  return "未知状态";
+}
+
+function normalizePaymentOrder(order) {
+  const item = order || {};
+  const amountYuan = formatYuan(item.amountYuan, item.amountCents ? (Number(item.amountCents) / 100).toFixed(2) : "");
+  const refundableAmountYuan = formatYuan(item.refundableAmountYuan, item.refundableAmountCents ? (Number(item.refundableAmountCents) / 100).toFixed(2) : "");
+  const paidAtText = item.paidAtText || formatDate(item.paidAt || item.createdAt).replace(/\//g, "-");
+  const refundStatusLabel = item.status === "refunded" ? "已退款" : "虚拟支付不支持退款";
+  return {
+    ...item,
+    planLabel: planLabel(item.plan),
+    amountYuan,
+    paidAtText,
+    statusLabel: paymentStatusLabel(item),
+    refundStatusLabel,
+    refundablePointsText: formatPoints(item.refundablePoints || 0),
+    refundableAmountYuan
+  };
+}
+
+function normalizePaymentOrders(orders) {
+  return Array.isArray(orders) ? orders.map(normalizePaymentOrder).filter((item) => item.id) : [];
+}
+
 function normalizePlanId(planId) {
   if (planId === "plus" || planId === "monthly") return "plus";
   if (planId === "pro" || planId === "yearly") return "pro";
@@ -170,26 +201,45 @@ function buildStatusRows(membership) {
   return [
     { label: "套餐", value: activePlan },
     { label: "到期", value: formatDate(membership && membership.proExpiresAt) },
-    { label: "退款方式", value: membership && membership.isProActive ? "按未使用点数折算" : "未开通" }
+    { label: "购买说明", value: "虚拟支付不支持退款" }
   ];
 }
 
-function requestWechatPayment(paymentParams) {
-  const params = paymentParams || {};
-  const packageValue = String(params.package || "");
-  if (!params.timeStamp || !params.nonceStr || !packageValue || !params.paySign) {
-    return Promise.reject(new Error("微信支付参数缺失，请稍后重试"));
-  }
-  if (typeof wx.requestPayment !== "function") {
-    return Promise.reject(new Error("当前环境不支持微信支付"));
+function requestWechatLoginCode() {
+  if (typeof wx.login !== "function") {
+    return Promise.reject(new Error("当前环境不支持微信登录"));
   }
   return new Promise((resolve, reject) => {
-    wx.requestPayment({
-      timeStamp: String(params.timeStamp),
-      nonceStr: String(params.nonceStr),
-      package: packageValue,
-      signType: String(params.signType || "RSA"),
-      paySign: String(params.paySign),
+    wx.login({
+      success(result) {
+        const code = String(result && result.code || "").trim();
+        if (!code) {
+          reject(new Error("微信登录 code 不能为空"));
+          return;
+        }
+        resolve(code);
+      },
+      fail(error) {
+        reject(error);
+      }
+    });
+  });
+}
+
+function requestWechatVirtualPayment(paymentParams) {
+  const params = paymentParams || {};
+  if (!params.mode || !params.signData || !params.paySig || !params.signature) {
+    return Promise.reject(new Error("微信虚拟支付参数缺失，请稍后重试"));
+  }
+  if (typeof wx.requestVirtualPayment !== "function") {
+    return Promise.reject(new Error("当前微信版本不支持小程序虚拟支付，请升级微信后重试"));
+  }
+  return new Promise((resolve, reject) => {
+    wx.requestVirtualPayment({
+      mode: params.mode,
+      signData: params.signData,
+      paySig: params.paySig,
+      signature: params.signature,
       success: resolve,
       fail(error) {
         reject(error);
@@ -214,25 +264,6 @@ function requestErrorMessage(error, fallback) {
 
 function isAuthExpiredError(error) {
   return Number(error && error.statusCode) === 401;
-}
-
-function confirmRefundRequest() {
-  if (!wx.showModal) return Promise.resolve(true);
-  return new Promise((resolve) => {
-    wx.showModal({
-      title: "申请退款",
-      content: "退款金额会按未使用点数折算，已使用点数对应费用不退；退款成功后会员权益和高级 AI 调用将立即关闭。",
-      confirmText: "申请退款",
-      confirmColor: "#b45309",
-      cancelText: "再想想",
-      success(result) {
-        resolve(!!result.confirm);
-      },
-      fail() {
-        resolve(false);
-      }
-    });
-  });
 }
 
 Page({
@@ -264,6 +295,7 @@ Page({
     membership: null,
     latestOrder: null,
     latestRefundableOrder: null,
+    paymentOrders: [],
     pointsText: "-",
     memberBadgeLabel: "",
     statusLabel: "未开通订阅",
@@ -362,6 +394,7 @@ Page({
       membership,
       latestOrder: meResponse && meResponse.latestOrder ? meResponse.latestOrder : null,
       latestRefundableOrder: meResponse && meResponse.latestRefundableOrder ? meResponse.latestRefundableOrder : null,
+      paymentOrders: normalizePaymentOrders(meResponse && meResponse.paymentOrders),
       pointsText: membership && typeof membership.proPointBalance === "number" ? `${formatPoints(membership.proPointBalance)} 点` : "-",
       memberBadgeLabel: membershipBadgeLabel(membership),
       statusLabel: statusLabel(membership),
@@ -394,6 +427,26 @@ Page({
       });
   },
 
+  syncWechatVirtualOrder(orderId) {
+    if (!orderId) return Promise.resolve(null);
+    return request({
+      method: "POST",
+      url: `/api/billing/virtual-orders/${orderId}/sync`
+    }).then((response) => {
+      const membership = response && response.membership ? response.membership : null;
+      const order = response && response.order ? response.order : null;
+      this.setData({
+        membership: membership || this.data.membership,
+        latestOrder: order || this.data.latestOrder,
+        pointsText: membership && typeof membership.proPointBalance === "number" ? `${formatPoints(membership.proPointBalance)} 点` : this.data.pointsText,
+        memberBadgeLabel: membershipBadgeLabel(membership || this.data.membership),
+        statusLabel: statusLabel(membership || this.data.membership),
+        statusRows: buildStatusRows(membership || this.data.membership)
+      });
+      return response;
+    });
+  },
+
   selectPlan(event) {
     const plan = normalizePlanId(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.plan);
     if (plan !== "plus" && plan !== "pro") return;
@@ -411,11 +464,12 @@ Page({
       return Promise.resolve();
     }
     this.setData({ ordering: true, message: "" });
-    return request({
-      method: "POST",
-      url: "/api/billing/orders",
-      data: { plan, provider: "wechat", channel: "mini_program" }
-    })
+    return requestWechatLoginCode()
+      .then((loginCode) => request({
+        method: "POST",
+        url: "/api/billing/virtual-orders",
+        data: { productId: plan, quantity: 1, loginCode }
+      }))
       .then((response) => {
         const order = response && response.order ? response.order : null;
         const checkout = response && response.checkout ? response.checkout : {};
@@ -435,8 +489,9 @@ Page({
             return mockResponse;
           });
         }
-        if (checkout.mode === "wechat_jsapi") {
-          return requestWechatPayment(checkout.paymentParams)
+        if (checkout.paymentChannel === "wechat_virtual") {
+          return requestWechatVirtualPayment(checkout.paymentParams)
+            .then(() => this.syncWechatVirtualOrder(order && order.id).catch(() => null))
             .then(() => this.waitForWechatPaymentConfirmation())
             .then((meResponse) => {
               const membership = meResponse && meResponse.membership ? meResponse.membership : null;
@@ -470,38 +525,6 @@ Page({
           message: paymentErrorMessage(error)
         });
       });
-  },
-
-  requestRefund() {
-    if (this.data.refunding) return Promise.resolve();
-    const refundOrder = this.data.latestRefundableOrder || this.data.latestOrder;
-    const orderId = refundOrder && refundOrder.id;
-    if (!orderId) {
-      this.setData({ message: "没有可申请退款的订单" });
-      return Promise.resolve();
-    }
-    return confirmRefundRequest().then((confirmed) => {
-      if (!confirmed) return null;
-      this.setData({ refunding: true, message: "" });
-      return request({
-        method: "POST",
-        url: "/api/billing/refunds",
-        data: { orderId, reason: "按未使用点数折算退款" }
-      })
-        .then((response) => this.loadBilling().then(() => {
-          this.setData({
-            refunding: false,
-            message: "退款申请已提交，订阅状态已更新。"
-          });
-          return response;
-        }))
-        .catch((error) => {
-          this.setData({
-            refunding: false,
-            message: requestErrorMessage(error, "退款申请失败，请稍后重试")
-          });
-        });
-    });
   },
 
   onShareAppMessage() {

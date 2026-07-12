@@ -26,6 +26,7 @@ interface User extends mongoose.Document {
   proFreeGrantDate?: string;
   proFreeGrantMonth?: string;
   proFreeGrantedThisMonth?: number;
+  fulfilledPaymentOrderIds?: mongoose.Types.ObjectId[];
   city?: string;
   region?: string;
   childGrade?: string;
@@ -70,6 +71,7 @@ const userSchema = new mongoose.Schema(
     proFreeGrantMonth: { type: String, default: "" },
     proFreeGrantedThisMonth: { type: Number, default: 0, min: 0 },
     proLatestOrderId: { type: mongoose.Schema.Types.ObjectId, ref: "PaymentOrder", default: null },
+    fulfilledPaymentOrderIds: { type: [mongoose.Schema.Types.ObjectId], default: [] },
     city: { type: String, default: "" },
     region: { type: String, default: "" },
     childGrade: { type: String, default: "" },

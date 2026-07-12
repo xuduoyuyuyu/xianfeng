@@ -266,6 +266,9 @@ test("native settings account entry distinguishes Plus and Pro membership badges
 
   try {
     methods.syncAccountEntry.call(context);
+    assert.equal(context.data.isLoggedIn, true);
+    assert.equal(context.data.hasMobile, true);
+    assert.equal(context.data.maskedMobile, "135****3069");
     assert.equal(context.data.accountSubtitle, "查看和管理个人资料");
     assert.equal(context.data.settingsMemberBadgeLabel, "");
 
@@ -277,6 +280,9 @@ test("native settings account entry distinguishes Plus and Pro membership badges
 
     membershipTier = "pro";
     methods.syncAccountEntry.call(context);
+    assert.equal(context.data.isLoggedIn, true);
+    assert.equal(context.data.hasMobile, true);
+    assert.equal(context.data.maskedMobile, "135****3069");
     assert.equal(context.data.accountSubtitle, "查看和管理个人资料");
     assert.equal(context.data.settingsMemberBadgeLabel, "Plus");
 
