@@ -71,9 +71,12 @@
   WeChat's `{ ErrCode: 0, ErrMsg: "success" }` response.
   `/api/billing/me` exposes recent paid/refunded `paymentOrders` with per-order
   refund eligibility so clients request refunds against a specific payment
-  record instead of a single latest-order shortcut.
+  record instead of a single latest-order shortcut. For
+  `paymentChannel=wechat_virtual`, refund requests call `/xpay/refund_order`
+  and store a pending `RefundRecord`; points and order status are changed only
+  after `xpay_refund_notify` reports success.
   Ordinary WeChat Pay V3 Native/JSAPI sync and notify paths explicitly do not
-  fulfill `paymentChannel=wechat_virtual` orders.
+  fulfill or refund `paymentChannel=wechat_virtual` orders.
 - Xiaowanzi image recognition uses the authenticated
   `/api/v1/tutorbot/xiaowanzi_debug_bot/attachments/recognize` endpoint before
   the normal chat send. It calls Volcengine Ark with endpoint id

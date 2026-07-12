@@ -15,7 +15,7 @@ export type WechatVirtualCheckout = {
 
 export type WechatVirtualNotification =
   | { event: "xpay_goods_deliver_notify"; outTradeNo: string; openid: string; productId: string; quantity: number; raw: Record<string, unknown> }
-  | { event: "xpay_refund_notify"; outTradeNo: string; openid: string; refundFee: number; raw: Record<string, unknown> }
+  | { event: "xpay_refund_notify"; outTradeNo: string; openid: string; refundOutRequestNo: string; providerRefundId: string; refundFee: number; retCode: number; retMsg: string; raw: Record<string, unknown> }
   | { event: "xpay_complaint_notify"; outTradeNo: string; openid: string; transactionId: string; raw: Record<string, unknown> };
 
 export type VerifiedVirtualOrder = {
@@ -23,9 +23,18 @@ export type VerifiedVirtualOrder = {
   status: number;
   amountCents: number;
   paidAmountCents: number;
+  leftFeeCents: number;
   environment: VirtualEnvironment;
   transactionId: string;
   bizMeta: { orderId: string; userId: string; productId: string; quantity: number };
+  raw: Record<string, unknown>;
+};
+
+export type WechatVirtualRefundResult = {
+  outRequestNo: string;
+  providerRefundId: string;
+  outTradeNo: string;
+  providerTradeNo: string;
   raw: Record<string, unknown>;
 };
 
@@ -121,6 +130,12 @@ function nonNegativeInteger(value: unknown, field: string): number {
   return result;
 }
 
+function positiveInteger(value: unknown, field: string): number {
+  const result = nonNegativeInteger(value, field);
+  if (result <= 0) throw new Error(`微信虚拟支付字段 ${field} 必须是正整数`);
+  return result;
+}
+
 function parseVerifiedOrderBizMeta(value: unknown): VerifiedVirtualOrder["bizMeta"] {
   try {
     const parsed = JSON.parse(requiredString(value, "biz_meta"));
@@ -155,7 +170,17 @@ export function parseWechatVirtualNotification(rawBody: string | Buffer): Wechat
     return { event, outTradeNo: requiredString(raw.OutTradeNo, "OutTradeNo"), openid, productId: requiredString(raw.GoodsInfo?.ProductId, "GoodsInfo.ProductId"), quantity: nonNegativeInteger(raw.GoodsInfo?.Quantity, "Quantity"), raw };
   }
   if (event === "xpay_refund_notify") {
-    return { event, outTradeNo: requiredString(raw.MchOrderId, "MchOrderId"), openid, refundFee: nonNegativeInteger(raw.RefundFee, "RefundFee"), raw };
+    return {
+      event,
+      outTradeNo: requiredString(raw.MchOrderId, "MchOrderId"),
+      openid,
+      refundOutRequestNo: requiredString(raw.MchRefundId, "MchRefundId"),
+      providerRefundId: requiredString(raw.WxRefundId || raw.WxpayRefundTransactionId, "WxRefundId"),
+      refundFee: nonNegativeInteger(raw.RefundFee, "RefundFee"),
+      retCode: nonNegativeInteger(raw.RetCode, "RetCode"),
+      retMsg: String(raw.RetMsg || ""),
+      raw,
+    };
   }
   if (event === "xpay_complaint_notify") {
     return { event, outTradeNo: requiredString(raw.MchOrderId, "MchOrderId"), openid, transactionId: requiredString(raw.TransactionId, "TransactionId"), raw };
@@ -181,7 +206,17 @@ export async function queryWechatVirtualOrder(input: { outTradeNo: string; openi
   const environment = order.env_type === 1 ? 0 : order.env_type === 2 ? 1 : null;
   if (environment === null) throw new Error("微信虚拟支付查单返回环境无效");
   const bizMeta = parseVerifiedOrderBizMeta(order.biz_meta);
-  return { outTradeNo, status: nonNegativeInteger(order.status, "status"), amountCents: nonNegativeInteger(order.order_fee, "order_fee"), paidAmountCents: nonNegativeInteger(order.paid_fee, "paid_fee"), environment, transactionId: requiredString(order.wxpay_order_id || order.wx_order_id, "wxpay_order_id"), bizMeta, raw: order };
+  return {
+    outTradeNo,
+    status: nonNegativeInteger(order.status, "status"),
+    amountCents: nonNegativeInteger(order.order_fee, "order_fee"),
+    paidAmountCents: nonNegativeInteger(order.paid_fee, "paid_fee"),
+    leftFeeCents: nonNegativeInteger(order.left_fee ?? order.paid_fee, "left_fee"),
+    environment,
+    transactionId: requiredString(order.wxpay_order_id || order.wx_order_id, "wxpay_order_id"),
+    bizMeta,
+    raw: order,
+  };
 }
 
 export async function notifyWechatVirtualGoodsProvided(input: { outTradeNo: string; environment?: VirtualEnvironment }): Promise<void> {
@@ -197,4 +232,42 @@ export async function notifyWechatVirtualGoodsProvided(input: { outTradeNo: stri
   const response = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body, signal: AbortSignal.timeout(8000) });
   const payload: any = await response.json().catch(() => ({}));
   if (!response.ok || payload.errcode) throw new Error(payload.errmsg || "微信虚拟支付发货确认失败");
+}
+
+export async function requestWechatVirtualRefund(input: {
+  openid: string;
+  outTradeNo: string;
+  outRequestNo: string;
+  leftFeeCents: number;
+  refundAmountCents: number;
+  environment: VirtualEnvironment;
+  bizMeta?: Record<string, unknown>;
+}): Promise<WechatVirtualRefundResult> {
+  const cfg = requiredConfig();
+  const body = JSON.stringify({
+    openid: requiredString(input.openid, "openid"),
+    order_id: requiredString(input.outTradeNo, "outTradeNo"),
+    refund_order_id: requiredString(input.outRequestNo, "outRequestNo"),
+    left_fee: positiveInteger(input.leftFeeCents, "leftFeeCents"),
+    refund_fee: positiveInteger(input.refundAmountCents, "refundAmountCents"),
+    biz_meta: JSON.stringify(input.bizMeta || { orderId: input.outTradeNo, refundOrderId: input.outRequestNo }),
+    refund_reason: "3",
+    req_from: "2",
+    env: input.environment,
+  });
+  const paySig = hmac(cfg.appKey, `/xpay/refund_order&${body}`);
+  const accessToken = await fetchWechatMiniAccessToken();
+  const url = new URL("https://api.weixin.qq.com/xpay/refund_order");
+  url.searchParams.set("access_token", accessToken);
+  url.searchParams.set("pay_sig", paySig);
+  const response = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body, signal: AbortSignal.timeout(8000) });
+  const payload: any = await response.json().catch(() => ({}));
+  if (!response.ok || payload.errcode) throw new Error(payload.errmsg || "微信虚拟支付退款发起失败");
+  return {
+    outRequestNo: requiredString(payload.refund_order_id || input.outRequestNo, "refund_order_id"),
+    providerRefundId: String(payload.refund_wx_order_id || ""),
+    outTradeNo: String(payload.pay_order_id || input.outTradeNo),
+    providerTradeNo: String(payload.pay_wx_order_id || ""),
+    raw: payload,
+  };
 }

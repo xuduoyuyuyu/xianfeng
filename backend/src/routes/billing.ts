@@ -17,6 +17,7 @@ import {
   markOrderPaid,
   normalizeBillingPlan,
   processWechatVirtualNotification,
+  refundWechatVirtualOrder,
   serializeBillingUser,
   serializePlan,
   syncWechatVirtualPaidOrder,
@@ -404,10 +405,6 @@ router.post("/refunds", authenticate, async (req: AuthenticatedRequest, res) => 
     res.status(400).json({ message: refundCheck.reason, refundDeadline: refundCheck.deadline?.toISOString() || null });
     return;
   }
-  if (order.paymentChannel === "wechat_virtual") {
-    res.status(409).json({ message: "微信虚拟支付退款尚未接入，订单未变更" });
-    return;
-  }
   const userForRefund = await User.findById(order.userId).lean();
   const pointRefund = calculatePointBasedRefund(order, userForRefund);
   if (!pointRefund.ok) {
@@ -416,9 +413,11 @@ router.post("/refunds", authenticate, async (req: AuthenticatedRequest, res) => 
   }
   const defaultReason = `按未使用点数折算退款，已用 ${pointRefund.usedPoints} 点`;
   const refundReason = String(req.body?.reason || defaultReason);
-  const refund = order.provider === "wechat"
-    ? await refundWechatOrder(order, refundReason, pointRefund.amountCents, pointRefund.refundablePoints)
-    : await refundAlipayOrder(order, refundReason, pointRefund.amountCents, pointRefund.refundablePoints);
+  const refund = order.paymentChannel === "wechat_virtual"
+    ? await refundWechatVirtualOrder(order, refundReason, pointRefund.amountCents, pointRefund.refundablePoints)
+    : order.provider === "wechat"
+      ? await refundWechatOrder(order, refundReason, pointRefund.amountCents, pointRefund.refundablePoints)
+      : await refundAlipayOrder(order, refundReason, pointRefund.amountCents, pointRefund.refundablePoints);
   const user = await User.findById(order.userId).lean();
   res.json({
     refund: {

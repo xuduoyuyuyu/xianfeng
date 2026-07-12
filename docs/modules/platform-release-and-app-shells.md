@@ -78,8 +78,10 @@
   WeChat-side goods delivery after points are granted. Refund actions are
   rendered per payment record from `/api/billing/me.paymentOrders`; each refund
   request sends the selected order id rather than relying on the latest paid
-  order. It does not set membership from the client payment callback and does
-  not fall back to `wx.requestPayment` for virtual products.
+  order. Virtual-payment refunds may stay pending until WeChat sends the
+  `xpay_refund_notify` completion event. It does not set membership from the
+  client payment callback and does not fall back to `wx.requestPayment` for
+  virtual products.
   WeChat后台 product setup, sandbox Offer ID/app key, callback routing,
   production secrets, upload, review, and publication remain release/operations
   work and are not stored in this repo.

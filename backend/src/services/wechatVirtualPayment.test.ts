@@ -9,6 +9,7 @@ import {
   notifyWechatVirtualGoodsProvided,
   parseWechatVirtualNotification,
   queryWechatVirtualOrder,
+  requestWechatVirtualRefund,
   verifyWechatMessageCallback,
 } from "./wechatVirtualPayment";
 import { clearWechatMiniAccessTokenCache } from "./wechatMiniAuth";
@@ -106,12 +107,12 @@ test("parses official pushes as discriminated untrusted triggers", () => {
     event: "xpay_goods_deliver_notify", outTradeNo: "t1", openid: "o1", productId: "plus", quantity: 1,
     raw: { Event: "xpay_goods_deliver_notify", OpenId: "o1", OutTradeNo: "t1", GoodsInfo: { ProductId: "plus", Quantity: 1 } },
   });
-  assert.equal(parseWechatVirtualNotification(JSON.stringify({ Event: "xpay_refund_notify", OpenId: "o1", MchOrderId: "t1", RefundFee: 1990 })).refundFee, 1990);
+  assert.equal(parseWechatVirtualNotification(JSON.stringify({ Event: "xpay_refund_notify", OpenId: "o1", MchOrderId: "t1", MchRefundId: "r1", WxRefundId: "wr1", RefundFee: 1990, RetCode: 0 })).refundFee, 1990);
   assert.equal(parseWechatVirtualNotification(JSON.stringify({ Event: "xpay_complaint_notify", OpenId: "o1", MchOrderId: "t1", TransactionId: "wx1" })).event, "xpay_complaint_notify");
   assert.throws(() => parseWechatVirtualNotification('{"Event":"unknown"}'), /不支持/);
   assert.throws(() => parseWechatVirtualNotification(JSON.stringify({ Event: "xpay_goods_deliver_notify", OpenId: "o1", OutTradeNo: "t1", GoodsInfo: { ProductId: "plus", Quantity: -1 } })), /Quantity/);
   assert.throws(() => parseWechatVirtualNotification(JSON.stringify({ Event: "xpay_goods_deliver_notify", OpenId: "o1", OutTradeNo: "t1", GoodsInfo: { ProductId: "plus", Quantity: 1.5 } })), /Quantity/);
-  assert.throws(() => parseWechatVirtualNotification(JSON.stringify({ Event: "xpay_refund_notify", OpenId: "o1", MchOrderId: "t1" })), /RefundFee/);
+  assert.throws(() => parseWechatVirtualNotification(JSON.stringify({ Event: "xpay_refund_notify", OpenId: "o1", MchOrderId: "t1", MchRefundId: "r1", WxRefundId: "wr1", RetCode: 0 })), /RefundFee/);
 });
 
 test("exchanges a one-time code and requires both openid and session_key", async () => {
@@ -128,7 +129,7 @@ test("queries the official order endpoint with exact body and independent pay si
   globalThis.fetch = (async (input, init) => {
     const url = String(input); calls.push({ url, body: init?.body ? String(init.body) : undefined });
     if (url.includes("stable_token")) return new Response(JSON.stringify({ access_token: "access-1", expires_in: 7200 }), { status: 200 });
-    return new Response(JSON.stringify({ errcode: 0, errmsg: "", order: { order_id: "VP20260711ABC123", status: 3, order_fee: 1990, paid_fee: 1990, env_type: 2, wx_order_id: "wx-order", wxpay_order_id: "wxpay-order", biz_meta: JSON.stringify({ attach: JSON.stringify({ orderId: "VP20260711ABC123", userId: "507f1f77bcf86cd799439011", productId: "plus", quantity: 1 }) }) } }), { status: 200 });
+    return new Response(JSON.stringify({ errcode: 0, errmsg: "", order: { order_id: "VP20260711ABC123", status: 3, order_fee: 1990, paid_fee: 1990, left_fee: 1990, env_type: 2, wx_order_id: "wx-order", wxpay_order_id: "wxpay-order", biz_meta: JSON.stringify({ attach: JSON.stringify({ orderId: "VP20260711ABC123", userId: "507f1f77bcf86cd799439011", productId: "plus", quantity: 1 }) }) } }), { status: 200 });
   }) as typeof fetch;
   const result = await queryWechatVirtualOrder({ outTradeNo: "VP20260711ABC123", openid: "openid-test" });
   const body = JSON.stringify({ openid: "openid-test", env: 1, order_id: "VP20260711ABC123" });
@@ -139,6 +140,7 @@ test("queries the official order endpoint with exact body and independent pay si
   assert.equal(result.status, 3);
   assert.equal(result.environment, 1);
   assert.equal(result.amountCents, 1990);
+  assert.equal(result.leftFeeCents, 1990);
   assert.equal(result.bizMeta.productId, "plus");
 });
 
@@ -159,6 +161,63 @@ test("notifies WeChat that a direct goods order has been provided", async () => 
   assert.equal(new URL(calls[1].url).searchParams.get("access_token"), "access-1");
   assert.equal(new URL(calls[1].url).searchParams.get("pay_sig"), sig);
   assert.equal(calls[1].body, body);
+});
+
+test("starts a WeChat virtual refund task with exact body and pay signature", async () => {
+  configure();
+  const calls: Array<{ url: string; body?: string }> = [];
+  globalThis.fetch = (async (input, init) => {
+    const url = String(input); calls.push({ url, body: init?.body ? String(init.body) : undefined });
+    if (url.includes("stable_token")) return new Response(JSON.stringify({ access_token: "access-1", expires_in: 7200 }), { status: 200 });
+    return new Response(JSON.stringify({ errcode: 0, errmsg: "ok", refund_order_id: "RF20260712ABC", refund_wx_order_id: "wx-refund-1", pay_order_id: "VP20260711ABC123", pay_wx_order_id: "wxpay-order" }), { status: 200 });
+  }) as typeof fetch;
+
+  const result = await requestWechatVirtualRefund({
+    openid: "openid-test",
+    outTradeNo: "VP20260711ABC123",
+    outRequestNo: "RF20260712ABC",
+    leftFeeCents: 1990,
+    refundAmountCents: 1990,
+    environment: 1,
+    bizMeta: { orderId: "VP20260711ABC123", refundOrderId: "RF20260712ABC" },
+  });
+
+  const body = JSON.stringify({
+    openid: "openid-test",
+    order_id: "VP20260711ABC123",
+    refund_order_id: "RF20260712ABC",
+    left_fee: 1990,
+    refund_fee: 1990,
+    biz_meta: JSON.stringify({ orderId: "VP20260711ABC123", refundOrderId: "RF20260712ABC" }),
+    refund_reason: "3",
+    req_from: "2",
+    env: 1,
+  });
+  const sig = createHmac("sha256", "app-key-test").update(`/xpay/refund_order&${body}`).digest("hex");
+  assert.equal(new URL(calls[1].url).origin + new URL(calls[1].url).pathname, "https://api.weixin.qq.com/xpay/refund_order");
+  assert.equal(new URL(calls[1].url).searchParams.get("pay_sig"), sig);
+  assert.equal(calls[1].body, body);
+  assert.equal(result.outRequestNo, "RF20260712ABC");
+  assert.equal(result.providerRefundId, "wx-refund-1");
+});
+
+test("parses virtual refund notifications with merchant and provider refund ids", () => {
+  const notification = parseWechatVirtualNotification(JSON.stringify({
+    Event: "xpay_refund_notify",
+    OpenId: "openid-test",
+    MchOrderId: "VP20260711ABC123",
+    MchRefundId: "RF20260712ABC",
+    WxRefundId: "wx-refund-1",
+    RefundFee: 1990,
+    RetCode: 0,
+    RetMsg: "ok",
+  }));
+  assert.equal(notification.event, "xpay_refund_notify");
+  assert.equal(notification.outTradeNo, "VP20260711ABC123");
+  assert.equal(notification.refundOutRequestNo, "RF20260712ABC");
+  assert.equal(notification.providerRefundId, "wx-refund-1");
+  assert.equal(notification.refundFee, 1990);
+  assert.equal(notification.retCode, 0);
 });
 
 test("rejects malformed official query numeric and identity fields", async () => {

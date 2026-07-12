@@ -26,6 +26,7 @@ import {
   normalizeBillingPlan,
   markOrderPaid,
   processWechatVirtualNotification,
+  refundWechatVirtualOrder,
   resetFreeAccountPointGrants,
   serializeBillingUser,
   syncWechatVirtualPaidOrder,
@@ -343,7 +344,7 @@ describe("billing point consumption", () => {
     let queryCount = 0;
     const queryOrder = async () => {
       queryCount += 1;
-      return { outTradeNo: order.outTradeNo, status: 3, amountCents: 1990, paidAmountCents: 1990, environment: 1 as const, transactionId: "wx-virtual-1", bizMeta: { orderId: order.outTradeNo, userId: String(user._id), productId: "plus", quantity: 1 }, raw: { trusted: true } };
+      return { outTradeNo: order.outTradeNo, status: 3, amountCents: 1990, paidAmountCents: 1990, leftFeeCents: 1990, environment: 1 as const, transactionId: "wx-virtual-1", bizMeta: { orderId: order.outTradeNo, userId: String(user._id), productId: "plus", quantity: 1 }, raw: { trusted: true } };
     };
     const trigger = { event: "xpay_goods_deliver_notify" as const, outTradeNo: order.outTradeNo, openid: "openid-1", productId: "plus", quantity: 1, raw: { Event: "xpay_goods_deliver_notify", untrusted: true } };
 
@@ -370,7 +371,7 @@ describe("billing point consumption", () => {
     order.virtualEnvironment = 1;
     await order.save();
     const queryOrder = async () => {
-      return { outTradeNo: order.outTradeNo, status: 3, amountCents: 1990, paidAmountCents: 1990, environment: 1 as const, transactionId: "wx-virtual-sync", bizMeta: { orderId: order.outTradeNo, userId: String(user._id), productId: "plus", quantity: 1 }, raw: { trusted: true } };
+      return { outTradeNo: order.outTradeNo, status: 3, amountCents: 1990, paidAmountCents: 1990, leftFeeCents: 1990, environment: 1 as const, transactionId: "wx-virtual-sync", bizMeta: { orderId: order.outTradeNo, userId: String(user._id), productId: "plus", quantity: 1 }, raw: { trusted: true } };
     };
     const delivered: Array<{ outTradeNo: string; environment: 0 | 1 }> = [];
 
@@ -385,6 +386,66 @@ describe("billing point consumption", () => {
     assert.deepEqual(delivered, [{ outTradeNo: order.outTradeNo, environment: 1 }]);
   });
 
+  it("starts a virtual payment refund task without deducting points until the refund notify succeeds", async () => {
+    await User.deleteMany({});
+    await PaymentOrderModel.deleteMany({});
+    await RefundRecordModel.deleteMany({});
+    const user = await User.create({ username: "virtual-refund-user", password: "hashed", wechatMiniOpenid: "openid-1", proPointBalance: 0 });
+    const order = await createVirtualPaymentOrder({ userId: String(user._id), productId: "plus", quantity: 1 });
+    order.virtualEnvironment = 1;
+    await order.save();
+    await markOrderPaid({ outTradeNo: order.outTradeNo, providerTradeNo: "wx-virtual-refund" });
+    const paidOrder = await PaymentOrderModel.findById(order._id);
+    assert.equal((await User.findById(user._id).lean())?.proPointBalance, 200);
+    assert.ok(paidOrder);
+
+    const trusted = { outTradeNo: order.outTradeNo, status: 3, amountCents: 1990, paidAmountCents: 1990, leftFeeCents: 1990, environment: 1 as const, transactionId: "wx-virtual-refund", bizMeta: { orderId: order.outTradeNo, userId: String(user._id), productId: "plus", quantity: 1 }, raw: { trusted: true } };
+    let requestRefundCount = 0;
+    const dependencies = {
+      queryOrder: async () => trusted,
+      requestRefund: async (input: any) => {
+        requestRefundCount += 1;
+        return {
+          outRequestNo: input.outRequestNo,
+          providerRefundId: "wx-refund-virtual-1",
+          outTradeNo: input.outTradeNo,
+          providerTradeNo: "wx-virtual-refund",
+          raw: { refund_order_id: input.outRequestNo, refund_wx_order_id: "wx-refund-virtual-1" },
+        };
+      },
+    };
+    const refund = await refundWechatVirtualOrder(paidOrder!, "用户自己发起退款", 1990, 200, dependencies);
+    const duplicateRefund = await refundWechatVirtualOrder(paidOrder!, "用户自己发起退款", 1990, 200, dependencies);
+
+    assert.equal(refund.status, "pending");
+    assert.equal(String(duplicateRefund._id), String(refund._id));
+    assert.equal(requestRefundCount, 1);
+    assert.equal(refund.amountCents, 1990);
+    assert.equal(refund.refundablePoints, 200);
+    assert.equal(refund.providerRefundId, "wx-refund-virtual-1");
+    assert.equal((await PaymentOrderModel.findById(order._id).lean())?.status, "paid");
+    assert.equal((await User.findById(user._id).lean())?.proPointBalance, 200);
+
+    await processWechatVirtualNotification({
+      event: "xpay_refund_notify",
+      outTradeNo: order.outTradeNo,
+      openid: "openid-1",
+      refundOutRequestNo: refund.outRequestNo,
+      providerRefundId: "wx-refund-virtual-1",
+      refundFee: 1990,
+      retCode: 0,
+      retMsg: "ok",
+      raw: { Event: "xpay_refund_notify", MchRefundId: refund.outRequestNo, WxRefundId: "wx-refund-virtual-1" },
+    });
+
+    const savedRefund = await RefundRecordModel.findById(refund._id).lean();
+    const savedOrder = await PaymentOrderModel.findById(order._id).lean();
+    const savedUser = await User.findById(user._id).lean();
+    assert.equal(savedRefund?.status, "succeeded");
+    assert.equal(savedOrder?.status, "refunded");
+    assert.equal(savedUser?.proPointBalance, 0);
+  });
+
   it("rejects untrusted or mismatched virtual delivery without fulfilling", async () => {
     await User.deleteMany({});
     await PaymentOrderModel.deleteMany({});
@@ -392,7 +453,7 @@ describe("billing point consumption", () => {
     const order = await createVirtualPaymentOrder({ userId: String(user._id), productId: "plus", quantity: 1 });
     order.virtualEnvironment = 1;
     await order.save();
-    const base = { outTradeNo: order.outTradeNo, status: 2, amountCents: 1990, paidAmountCents: 1990, environment: 1 as const, transactionId: "wx-virtual-2", bizMeta: { orderId: order.outTradeNo, userId: String(user._id), productId: "plus", quantity: 1 }, raw: {} };
+    const base = { outTradeNo: order.outTradeNo, status: 2, amountCents: 1990, paidAmountCents: 1990, leftFeeCents: 1990, environment: 1 as const, transactionId: "wx-virtual-2", bizMeta: { orderId: order.outTradeNo, userId: String(user._id), productId: "plus", quantity: 1 }, raw: {} };
     const trigger = { event: "xpay_goods_deliver_notify" as const, outTradeNo: order.outTradeNo, openid: "openid-1", productId: "plus", quantity: 1, raw: {} };
     for (const queryResult of [{ ...base, amountCents: 9900 }, { ...base, environment: 0 as const }]) {
       await assert.rejects(processWechatVirtualNotification(trigger, { queryOrder: async () => queryResult }), /不匹配/);

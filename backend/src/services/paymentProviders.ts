@@ -537,6 +537,8 @@ async function markWechatRefundStillProcessing(refund: any, rawResult: Record<st
 
 export async function syncWechatRefundRecord(refund: any) {
   if (!shouldSyncWechatRefund(refund)) return refund;
+  const order = await PaymentOrderModel.findById(refund.orderId);
+  if (order?.paymentChannel === "wechat_virtual") return refund;
   const result = await queryWechatRefundByOutRefundNo(refund.outRequestNo);
   const status = String(result?.status || "").toUpperCase();
   if (status === "PROCESSING") return markWechatRefundStillProcessing(refund, result || {});
@@ -549,7 +551,6 @@ export async function syncWechatRefundRecord(refund: any) {
     return refund;
   }
 
-  const order = await PaymentOrderModel.findById(refund.orderId);
   if (!order) throw new Error("退款对应订单不存在");
   if (order.status === "refunded") {
     refund.status = "succeeded";
