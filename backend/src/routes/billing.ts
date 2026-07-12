@@ -21,6 +21,7 @@ import {
   serializeBillingUser,
   serializePlan,
   syncWechatVirtualPaidOrder,
+  syncRecentWechatVirtualRefundsForUser,
 } from "../services/billing";
 import {
   createAlipayCheckout,
@@ -86,6 +87,9 @@ function refundRecordStatusLabel(refund: any) {
   if (!refund) return "";
   if (refund.status === "pending") return "退款处理中";
   if (refund.status === "succeeded") return "已退款";
+  if (refund.status === "failed" && String(refund.errorMessage || "").includes("OS订单不支持开发者发起退款")) {
+    return "请在微信或苹果付款记录申请退款；完成后系统会自动同步";
+  }
   if (refund.status === "failed") return refund.errorMessage ? `退款失败：${refund.errorMessage}` : "退款失败";
   return "";
 }
@@ -97,7 +101,7 @@ function serializePaymentOrder(order: any, user: any, latestRefund?: any) {
   const developerRefundUnsupported = order.paymentChannel === "wechat_virtual"
     && Number(order.rawNotify?.verifiedOrder?.order_type) === 7;
   const unsupportedRefundLabel = developerRefundUnsupported
-    ? "iOS/OS订单不支持开发者发起退款，请在微信或苹果付款记录中申请退款"
+    ? "请在微信或苹果付款记录申请退款；完成后系统会自动同步"
     : "";
   const refundRetryBlocked = latestRefund?.status === "pending"
     || latestRefund?.status === "succeeded"
@@ -214,6 +218,7 @@ router.get("/me", authenticate, async (req: AuthenticatedRequest, res) => {
   await grantFreeLoginPointsForUser(user);
   await syncRecentPendingWechatOrders(userId);
   await syncRecentWechatRefundsForUser(userId);
+  await syncRecentWechatVirtualRefundsForUser(userId);
   const [freshUser, latestOrder, latestRefundableOrder, paymentOrders] = await Promise.all([
     User.findById(userId),
     PaymentOrderModel.findOne({ userId: user._id }).sort({ createdAt: -1 }).lean(),

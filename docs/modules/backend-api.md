@@ -74,7 +74,11 @@
   record instead of a single latest-order shortcut. For
   `paymentChannel=wechat_virtual`, refund requests call `/xpay/refund_order`
   and store a pending `RefundRecord`; points and order status are changed only
-  after `xpay_refund_notify` reports success.
+  after `xpay_refund_notify` reports success. User-initiated iOS/OS refunds
+  from WeChat or Apple payment records are treated separately: if WeChat sends
+  `xpay_refund_notify` without a local developer refund task, or `/xpay/query_order`
+  later reports no remaining `left_fee`, the backend creates a user-side
+  `RefundRecord`, marks the order refunded, and deducts the matching points.
   Ordinary WeChat Pay V3 Native/JSAPI sync and notify paths explicitly do not
   fulfill or refund `paymentChannel=wechat_virtual` orders.
 - Xiaowanzi image recognition uses the authenticated

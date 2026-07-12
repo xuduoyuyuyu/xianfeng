@@ -79,7 +79,11 @@
   rendered per payment record from `/api/billing/me.paymentOrders`; each refund
   request sends the selected order id rather than relying on the latest paid
   order. Virtual-payment refunds may stay pending until WeChat sends the
-  `xpay_refund_notify` completion event. It does not set membership from the
+  `xpay_refund_notify` completion event. iOS/OS orders that cannot be refunded
+  by the developer API direct users to WeChat or Apple payment records; after a
+  user-side refund completes, `/api/billing/me` polling or the WeChat refund
+  notification can still sync the refund back into membership points. It does
+  not set membership from the
   client payment callback and does not fall back to `wx.requestPayment` for
   virtual products.
   WeChat后台 product setup, sandbox Offer ID/app key, callback routing,

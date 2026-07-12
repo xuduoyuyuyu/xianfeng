@@ -108,6 +108,7 @@ test("parses official pushes as discriminated untrusted triggers", () => {
     raw: { Event: "xpay_goods_deliver_notify", OpenId: "o1", OutTradeNo: "t1", GoodsInfo: { ProductId: "plus", Quantity: 1 } },
   });
   assert.equal(parseWechatVirtualNotification(JSON.stringify({ Event: "xpay_refund_notify", OpenId: "o1", MchOrderId: "t1", MchRefundId: "r1", WxRefundId: "wr1", RefundFee: 1990, RetCode: 0 })).refundFee, 1990);
+  assert.equal(parseWechatVirtualNotification(JSON.stringify({ Event: "xpay_refund_notify", OpenId: "o1", MchOrderId: "t1", WxRefundId: "wr-user-1", RefundFee: 1990, RetCode: 0 })).refundOutRequestNo, "wr-user-1");
   assert.equal(parseWechatVirtualNotification(JSON.stringify({ Event: "xpay_complaint_notify", OpenId: "o1", MchOrderId: "t1", TransactionId: "wx1" })).event, "xpay_complaint_notify");
   assert.throws(() => parseWechatVirtualNotification('{"Event":"unknown"}'), /不支持/);
   assert.throws(() => parseWechatVirtualNotification(JSON.stringify({ Event: "xpay_goods_deliver_notify", OpenId: "o1", OutTradeNo: "t1", GoodsInfo: { ProductId: "plus", Quantity: -1 } })), /Quantity/);

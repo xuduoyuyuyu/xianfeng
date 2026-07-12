@@ -29,6 +29,7 @@ import {
   refundWechatVirtualOrder,
   resetFreeAccountPointGrants,
   serializeBillingUser,
+  syncWechatVirtualRefundStateFromTrustedOrder,
   syncWechatVirtualPaidOrder,
 } from "./billing";
 
@@ -442,6 +443,72 @@ describe("billing point consumption", () => {
     const savedOrder = await PaymentOrderModel.findById(order._id).lean();
     const savedUser = await User.findById(user._id).lean();
     assert.equal(savedRefund?.status, "succeeded");
+    assert.equal(savedOrder?.status, "refunded");
+    assert.equal(savedUser?.proPointBalance, 0);
+  });
+
+  it("records user-initiated virtual refunds even when no local refund task exists", async () => {
+    await User.deleteMany({});
+    await PaymentOrderModel.deleteMany({});
+    await RefundRecordModel.deleteMany({});
+    const user = await User.create({ username: "virtual-user-refund-notify", password: "hashed", wechatMiniOpenid: "openid-1", proPointBalance: 0 });
+    const order = await createVirtualPaymentOrder({ userId: String(user._id), productId: "plus", quantity: 1 });
+    order.virtualEnvironment = 1;
+    await order.save();
+    await markOrderPaid({ outTradeNo: order.outTradeNo, providerTradeNo: "wx-user-refund" });
+
+    await processWechatVirtualNotification({
+      event: "xpay_refund_notify",
+      outTradeNo: order.outTradeNo,
+      openid: "openid-1",
+      refundOutRequestNo: "wx-user-refund-1",
+      providerRefundId: "wx-user-refund-1",
+      refundFee: 1990,
+      retCode: 0,
+      retMsg: "ok",
+      raw: { Event: "xpay_refund_notify", WxRefundId: "wx-user-refund-1" },
+    });
+
+    const savedRefund = await RefundRecordModel.findOne({ orderId: order._id, outRequestNo: "wx-user-refund-1" }).lean();
+    const savedOrder = await PaymentOrderModel.findById(order._id).lean();
+    const savedUser = await User.findById(user._id).lean();
+    assert.equal(savedRefund?.status, "succeeded");
+    assert.equal(savedRefund?.reason, "用户通过微信或苹果付款记录发起退款");
+    assert.equal(savedRefund?.refundablePoints, 200);
+    assert.equal(savedOrder?.status, "refunded");
+    assert.equal(savedUser?.proPointBalance, 0);
+  });
+
+  it("syncs user-initiated virtual refunds from trusted order left fee", async () => {
+    await User.deleteMany({});
+    await PaymentOrderModel.deleteMany({});
+    await RefundRecordModel.deleteMany({});
+    const user = await User.create({ username: "virtual-user-refund-query", password: "hashed", wechatMiniOpenid: "openid-1", proPointBalance: 0 });
+    const order = await createVirtualPaymentOrder({ userId: String(user._id), productId: "plus", quantity: 1 });
+    order.virtualEnvironment = 1;
+    await order.save();
+    await markOrderPaid({ outTradeNo: order.outTradeNo, providerTradeNo: "wx-user-refund-query" });
+    const paidOrder = await PaymentOrderModel.findById(order._id);
+    assert.ok(paidOrder);
+
+    await syncWechatVirtualRefundStateFromTrustedOrder(paidOrder!, {
+      outTradeNo: order.outTradeNo,
+      status: 4,
+      amountCents: 1990,
+      paidAmountCents: 1990,
+      leftFeeCents: 0,
+      environment: 1,
+      transactionId: "wx-user-refund-query",
+      bizMeta: { orderId: order.outTradeNo, userId: String(user._id), productId: "plus", quantity: 1 },
+      raw: { order_id: order.outTradeNo, left_fee: 0 },
+    });
+
+    const savedRefund = await RefundRecordModel.findOne({ orderId: order._id }).lean();
+    const savedOrder = await PaymentOrderModel.findById(order._id).lean();
+    const savedUser = await User.findById(user._id).lean();
+    assert.equal(savedRefund?.status, "succeeded");
+    assert.equal(savedRefund?.amountCents, 1990);
+    assert.equal(savedRefund?.refundablePoints, 200);
     assert.equal(savedOrder?.status, "refunded");
     assert.equal(savedUser?.proPointBalance, 0);
   });

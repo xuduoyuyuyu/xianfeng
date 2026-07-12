@@ -170,12 +170,13 @@ export function parseWechatVirtualNotification(rawBody: string | Buffer): Wechat
     return { event, outTradeNo: requiredString(raw.OutTradeNo, "OutTradeNo"), openid, productId: requiredString(raw.GoodsInfo?.ProductId, "GoodsInfo.ProductId"), quantity: nonNegativeInteger(raw.GoodsInfo?.Quantity, "Quantity"), raw };
   }
   if (event === "xpay_refund_notify") {
+    const providerRefundId = requiredString(raw.WxRefundId || raw.WxpayRefundTransactionId, "WxRefundId");
     return {
       event,
       outTradeNo: requiredString(raw.MchOrderId, "MchOrderId"),
       openid,
-      refundOutRequestNo: requiredString(raw.MchRefundId, "MchRefundId"),
-      providerRefundId: requiredString(raw.WxRefundId || raw.WxpayRefundTransactionId, "WxRefundId"),
+      refundOutRequestNo: requiredString(raw.MchRefundId || providerRefundId, "MchRefundId"),
+      providerRefundId,
       refundFee: nonNegativeInteger(raw.RefundFee, "RefundFee"),
       retCode: nonNegativeInteger(raw.RetCode, "RetCode"),
       retMsg: String(raw.RetMsg || ""),

@@ -238,7 +238,7 @@ describe("billing routes", () => {
     assert.equal(data.paymentOrders?.[0].canRefund, false);
     assert.equal(data.paymentOrders?.[0].latestRefund.status, "failed");
     assert.equal(data.paymentOrders?.[0].latestRefund.refundablePoints, 200);
-    assert.match(data.paymentOrders?.[0].refundStatusLabel, /OS订单不支持开发者发起退款/);
+    assert.match(data.paymentOrders?.[0].refundStatusLabel, /完成后系统会自动同步/);
   });
 
   it("disables developer refunds for OS virtual payment orders", async () => {
