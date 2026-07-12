@@ -20,3 +20,12 @@ test("matches the mobile web hero and two-column product cards", () => {
   assert.match(wxml, /item\.categoryLabel/);
   assert.doesNotMatch(wxml, /class="wb-score"/);
 });
+test("reuses the Topics native topbar shell", () => {
+  assert.match(wxml, /class="xf-native-topbar"/);
+  assert.match(wxml, /class="xf-native-nav-row"/);
+  assert.match(wxml, /class="xf-native-menu-button"[\s\S]*catchtap="openSettings"/);
+  assert.match(wxml, /class="xf-native-logo"[\s\S]*bindtap="goProgramsHome"/);
+  assert.match(wxml, /class="xf-native-welfare-button"[\s\S]*catchtap="openWelfare"/);
+  assert.match(js, /syncTopbarMetrics/);
+  assert.doesNotMatch(wxml, /class="wb-back"/);
+});

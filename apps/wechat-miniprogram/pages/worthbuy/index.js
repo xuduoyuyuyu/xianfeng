@@ -3,16 +3,18 @@ const { getToken, getUser } = require("../../utils/session");
 const { getNativeTopbarMetrics } = require("../../utils/nativeChrome");
 const { createPageShare, enableShareMenu } = require("../../utils/share");
 const { createNativeSettingsMethods } = require("../../utils/nativeSettings");
+const { goProgramsHome: navigateProgramsHome } = require("../../utils/nativePageNav");
 const { normalizeWorthBuyItem, classifyWorthBuyError, worthBuyDetailPath, writeWorthBuyCache, readWorthBuyCache, parseWorthBuyInput } = require("../../utils/worthbuyNative");
 
 const PAGE_SIZE = 20;
+const LOGO_HEIGHT_RPX = 56;
 
 Page({
-  data: { topbarHeight: 88, input: "", publicItems: [], myItems: [], loading: true, loadingMore: false, submitting: false, submitStage: "", error: "", actionError: "", actionErrorType: "", current: 1, pages: 1, showHistory: false, isLoggedIn: false },
+  data: { topbarHeight: 88, chromeHeight: 88, logoTop: 10, logoHeight: 28, welfareRight: 101, input: "", publicItems: [], myItems: [], loading: true, loadingMore: false, submitting: false, submitStage: "", error: "", actionError: "", actionErrorType: "", current: 1, pages: 1, showHistory: false, isLoggedIn: false },
   onLoad() {
     enableShareMenu();
-    const metrics = getNativeTopbarMetrics();
-    this.setData({ topbarHeight: metrics.topbarHeight, isLoggedIn: !!getToken() });
+    this.syncTopbarMetrics();
+    this.setData({ isLoggedIn: !!getToken() });
     const cached = readWorthBuyCache("public", "public");
     if (Array.isArray(cached)) this.setData({ publicItems: cached, loading: false });
     this.loadPublic(1);
@@ -22,6 +24,15 @@ Page({
   onPullDownRefresh() { Promise.all([this.loadPublic(1), getToken() ? this.loadMyHistory() : Promise.resolve()]).finally(() => wx.stopPullDownRefresh()); },
   onReachBottom() { if (!this.data.loadingMore && this.data.current < this.data.pages) this.loadPublic(this.data.current + 1); },
   onInput(event) { this.setData({ input: event.detail.value, actionError: "", actionErrorType: "" }); },
+  syncTopbarMetrics() {
+    const metrics = getNativeTopbarMetrics();
+    const topbarHeight = Math.max(72, Math.round(metrics.topbarHeight || 88));
+    const windowWidth = Math.max(320, Number(metrics.windowWidth || 375));
+    const logoHeight = Math.round((LOGO_HEIGHT_RPX * windowWidth) / 750);
+    const capsuleHeight = Math.max(28, Math.round(metrics.capsuleHeight || 32));
+    const searchButtonTop = Math.max(8, Math.round(metrics.searchButtonTop || 8));
+    this.setData({ topbarHeight, chromeHeight: topbarHeight, logoHeight, logoTop: Math.max(0, Math.round(searchButtonTop + capsuleHeight / 2 - logoHeight / 2)), welfareRight: Math.max(72, Math.round(metrics.capsuleRight || 96) + 5) });
+  },
   loadPublic(current) {
     this.setData(current === 1 ? { loading: !this.data.publicItems.length, error: "" } : { loadingMore: true });
     return request({ url: `/api/worthbuy/list?current=${current}&size=${PAGE_SIZE}` }).then((response) => {
@@ -73,6 +84,7 @@ Page({
     wx.showModal({ title: "删除分析", content: `确认删除“${item.title}”吗？`, success: (modal) => { if (!modal.confirm) return; const user = getUser() || {}; const ownerId = String(user._id || user.id || ""); request({ method: "DELETE", url: `/api/worthbuy/my/${encodeURIComponent(item.brand || item.query)}?userId=${encodeURIComponent(ownerId)}` }).then(() => { const items = this.data.myItems.filter((entry) => entry.id !== item.id); this.setData({ myItems: items }); writeWorthBuyCache("history", ownerId, items); }); } });
   },
   openPro() { wx.navigateTo({ url: "/pages/pro/index" }); },
+  goProgramsHome() { navigateProgramsHome(); },
   goBack() { if (getCurrentPages().length > 1) wx.navigateBack(); else wx.switchTab({ url: "/pages/programs/index" }); },
   ...createNativeSettingsMethods(),
   ...createPageShare({ title: "知物｜真实产品与服务分析", path: "/pages/worthbuy/index" })
