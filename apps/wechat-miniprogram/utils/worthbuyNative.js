@@ -4,14 +4,53 @@ function text(value) { return String(value == null ? "" : value).trim(); }
 function list(value) { return Array.isArray(value) ? value.map(text).filter(Boolean) : []; }
 function objectList(value) { return Array.isArray(value) ? value.filter((item) => item && typeof item === "object") : []; }
 
+const DIMENSION_META = {
+  cost: { label: "性价比", color: "#F59E0B" },
+  quality: { label: "质量", color: "#10B981" },
+  safety: { label: "安全性", color: "#3B82F6" },
+  experience: { label: "使用体验", color: "#8B5CF6" },
+  afterSales: { label: "售后", color: "#EC4899" }
+};
+
+const EMOJI_RULES = [
+  ["💡", ["护眼灯", "大路灯", "台灯", "落地灯", "阅读灯", "照明"]],
+  ["🍼", ["奶瓶", "奶嘴", "喂养", "辅食", "吸奶", "ppsu"]],
+  ["⌚", ["电话手表", "儿童手表", "智能手表"]],
+  ["📱", ["学习机", "学练机", "平板", "教育硬件"]],
+  ["📚", ["课程", "ai课", "训练系统", "网课", "年卡"]],
+  ["🖊️", ["词典笔", "点读笔", "扫描笔", "翻译笔"]],
+  ["🧸", ["爬行垫", "爬爬垫", "地垫", "安抚玩具"]],
+  ["🪑", ["学习桌", "餐椅", "座椅", "儿童桌", "升降桌"]],
+  ["🧴", ["面霜", "润肤", "护肤", "乳液"]],
+  ["🚗", ["安全座椅", "儿童座椅"]]
+];
+
+function scorePresentation(score) {
+  if (score >= 85) return { scoreColor: "#10B981", scoreLabel: "强烈推荐 ✨" };
+  if (score >= 70) return { scoreColor: "#22C55E", scoreLabel: "值得考虑 👍" };
+  if (score >= 55) return { scoreColor: "#F59E0B", scoreLabel: "谨慎购买 🤔" };
+  if (score >= 40) return { scoreColor: "#F97316", scoreLabel: "不太推荐 ⚠️" };
+  return { scoreColor: "#EF4444", scoreLabel: "建议避坑 🚫" };
+}
+
+function chooseDisplayEmoji(source, fallbackTitle) {
+  const haystack = [fallbackTitle, source.brand, source.title, source.reason, source.recommendation, source.businessModel, source.commentAnalysis, ...list(source.pros), ...list(source.cons)].map(text).join(" ").toLowerCase();
+  const match = EMOJI_RULES.find(([, keywords]) => keywords.some((keyword) => haystack.includes(keyword)));
+  return match ? match[0] : "🛍️";
+}
+
 function normalizeWorthBuyResult(value, fallbackTitle) {
   const source = value && typeof value === "object" ? value : {};
   const dimensions = source.ratingDimensions && typeof source.ratingDimensions === "object"
-    ? Object.entries(source.ratingDimensions).map(([key, score]) => ({ key, score: Math.max(0, Math.min(100, Number(score) || 0)) }))
+    ? Object.entries(source.ratingDimensions).map(([key, score]) => ({ key, ...(DIMENSION_META[key] || { label: key, color: "#8B5CF6" }), score: Math.max(0, Math.min(100, Number(score) || 0)) }))
     : [];
+  const score = Math.max(0, Math.min(100, Number(source.score) || 0));
   const result = {
     title: text(source.brand || source.title || fallbackTitle || "知物分析"),
-    score: Math.max(0, Math.min(100, Number(source.score) || 0)),
+    score,
+    ...scorePresentation(score),
+    displayEmoji: chooseDisplayEmoji(source, fallbackTitle),
+    categoryLabel: source.isIqTax === true ? "智商税" : "非智商税",
     isIqTax: source.isIqTax === true,
     reason: text(source.reason || source.summary || source.verdict),
     priceRange: text(source.priceRange),
