@@ -240,4 +240,43 @@ describe("billing routes", () => {
     assert.equal(data.paymentOrders?.[0].latestRefund.refundablePoints, 200);
     assert.match(data.paymentOrders?.[0].refundStatusLabel, /OS订单不支持开发者发起退款/);
   });
+
+  it("disables developer refunds for OS virtual payment orders", async () => {
+    const user = await User.create({
+      username: "payment-os-order-user",
+      password: "secret",
+      role: "user",
+      proStatus: "active",
+      proPlan: "plus",
+      proPointBalance: 200,
+      proExpiresAt: new Date("2026-08-12T00:00:00.000Z"),
+    });
+    const order = await PaymentOrderModel.create({
+      userId: user._id,
+      plan: "plus",
+      provider: "wechat",
+      paymentChannel: "wechat_virtual",
+      amountCents: 1990,
+      currency: "CNY",
+      subject: "订阅 Plus",
+      outTradeNo: "XFOSORDER",
+      status: "paid",
+      paidAt: new Date("2026-07-12T01:00:00.000Z"),
+      virtualProductId: "plus",
+      virtualQuantity: 1,
+      virtualEnvironment: 0,
+      rawNotify: { verifiedOrder: { order_type: 7 } },
+    });
+
+    const response = await fetch(`${server.url}/me`, {
+      headers: { "Authorization": `Bearer ${userToken(String(user._id))}` },
+    });
+
+    assert.equal(response.status, 200);
+    const data = await response.json() as { paymentOrders?: Array<any> };
+    assert.equal(data.paymentOrders?.[0].id, String(order._id));
+    assert.equal(data.paymentOrders?.[0].canRefund, false);
+    assert.equal(data.paymentOrders?.[0].latestRefund, null);
+    assert.match(data.paymentOrders?.[0].refundStatusLabel, /微信或苹果付款记录/);
+  });
 });

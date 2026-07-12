@@ -94,10 +94,25 @@ function serializePaymentOrder(order: any, user: any, latestRefund?: any) {
   const base = serializeOrder(order);
   const pointRefund = calculatePointBasedRefund(order, user);
   const latestRefundLabel = refundRecordStatusLabel(latestRefund);
+  const developerRefundUnsupported = order.paymentChannel === "wechat_virtual"
+    && Number(order.rawNotify?.verifiedOrder?.order_type) === 7;
+  const unsupportedRefundLabel = developerRefundUnsupported
+    ? "iOS/OS订单不支持开发者发起退款，请在微信或苹果付款记录中申请退款"
+    : "";
   const refundRetryBlocked = latestRefund?.status === "pending"
     || latestRefund?.status === "succeeded"
-    || (latestRefund?.status === "failed" && String(latestRefund?.errorMessage || "").includes("OS订单不支持开发者发起退款"));
+    || (latestRefund?.status === "failed" && String(latestRefund?.errorMessage || "").includes("OS订单不支持开发者发起退款"))
+    || developerRefundUnsupported;
   const refundable = canRefundOrder(order).ok && pointRefund.ok && !refundRetryBlocked;
+  const refundStatusLabel = order.status === "refunded"
+    ? "已退款"
+    : latestRefundLabel || unsupportedRefundLabel || (
+      refundable
+        ? "可申请退款"
+        : order.status === "paid"
+          ? pointRefund.reason || "不可退款"
+          : statusLabel(order)
+    );
   return {
     ...base,
     amountYuan: formatAmount(order.amountCents),
@@ -116,15 +131,7 @@ function serializePaymentOrder(order: any, user: any, latestRefund?: any) {
       refundedAt: latestRefund.refundedAt ? new Date(latestRefund.refundedAt).toISOString() : null,
       createdAt: latestRefund.createdAt ? new Date(latestRefund.createdAt).toISOString() : null,
     } : null,
-    refundStatusLabel: order.status === "refunded"
-      ? "已退款"
-      : latestRefundLabel
-        ? latestRefundLabel
-      : refundable
-        ? "可申请退款"
-        : order.status === "paid"
-          ? pointRefund.reason || "不可退款"
-          : statusLabel(order),
+    refundStatusLabel,
   };
 }
 
