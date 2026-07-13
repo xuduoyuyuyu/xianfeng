@@ -283,10 +283,15 @@ function normalizeProgramGuests(item) {
   const bindings = Array.isArray(source.guestBindings)
     ? source.guestBindings.slice().sort((left, right) => Number(left?.order || 0) - Number(right?.order || 0))
     : [];
-  const candidates = bindings
+  const bindingGuests = bindings
     .map((binding) => binding && binding.guest)
-    .concat(Array.isArray(source.guests) ? source.guests : [])
-    .concat(source.guest || []);
+    .filter((guest) => {
+      const value = guest || {};
+      return Boolean(firstText([value._id, value.id, value.slug, value.name], ""));
+    });
+  const candidates = bindingGuests.length
+    ? bindingGuests
+    : [].concat(Array.isArray(source.guests) ? source.guests : []).concat(source.guest || []);
   const seen = new Set();
   return candidates
     .map((value) => {

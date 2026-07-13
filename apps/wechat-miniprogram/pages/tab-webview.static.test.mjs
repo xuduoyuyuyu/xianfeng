@@ -15246,6 +15246,12 @@ test("webview native program detail page keeps program, book, and topic details 
             ],
             guestBindings: [
               {
+                guestId: "missing-expert",
+                order: 0,
+                role: "嘉宾",
+                guest: null
+              },
+              {
                 guestId: "expert-1",
                 order: 1,
                 role: "嘉宾",
@@ -15271,11 +15277,10 @@ test("webview native program detail page keeps program, book, and topic details 
               }
             ],
             guest: {
-              _id: "expert-1",
-              name: "刘美文",
-              title: "美文工作室负责人",
-              bio: "上海教育出版社美文工作室负责人、副编审。",
-              avatar: "https://img.example/liu-meiwen.png"
+              name: "历史快照嘉宾",
+              title: "旧资料",
+              bio: "该嘉宾不在先疯智库。",
+              avatar: "/wel/assets/wel-avatar/no-hat.png"
             }
           }
         });
@@ -15450,6 +15455,10 @@ test("webview native program detail page keeps program, book, and topic details 
     assert.match(js, /function buildNativeCuratedReadingMeta\(value, book\)/);
     assert.match(js, /openNativeProgramCuratedBook\(event\)/);
     assert.match(js, /function normalizeProgramGuests\(item\)/);
+    assert.match(
+      js,
+      /const bindingGuests = bindings[\s\S]*const candidates = bindingGuests\.length[\s\S]*\? bindingGuests[\s\S]*:\s*\[\]\.concat\(Array\.isArray\(source\.guests\) \? source\.guests : \[\]\)[\s\S]*\.concat\(source\.guest \|\| \[\]\)/
+    );
     assert.match(js, /switchNativeProgramGuest\(event\)/);
     assert.match(js, /item\?\.passed === true/);
     assert.match(js, /item\?\.titleMatched === true/);
@@ -15758,6 +15767,10 @@ test("webview native program detail page keeps program, book, and topic details 
     assert.equal(navigations.length, 1);
     assert.equal(context.data.nativeProgram.guests.length, 2);
     assert.deepEqual(context.data.nativeProgram.guests.map((guest) => guest.name), ["刘美文", "王璇"]);
+    assert.equal(
+      context.data.nativeProgram.guests.some((guest) => guest.name === "历史快照嘉宾"),
+      false
+    );
     assert.equal(context.data.nativeProgram.activeGuestIndex, 0);
     assert.equal(context.data.nativeProgram.guestId, "expert-1");
     assert.equal(context.data.nativeProgram.guestName, "刘美文");
