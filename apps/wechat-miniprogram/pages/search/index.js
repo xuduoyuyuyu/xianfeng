@@ -329,12 +329,12 @@ function clearHistory() {
   return [];
 }
 
-function saveReadingKeyword(keyword, source) {
+function saveReadingKeyword(keyword) {
   const query = String(keyword || "").trim();
   if (!query) return;
   try {
     wx.setStorageSync(READING_PENDING_FILTER_KEY, {
-      source: source === "external" ? "external" : "native",
+      source: "native",
       keyword: query
     });
   } catch (_error) {}
@@ -590,7 +590,7 @@ Page({
     if (openMiniProgramShortLink(result.miniProgramShortLink)) return;
     if (result.page) {
       if (result.type === "books" && result.page === "/pages/reading/index") {
-        saveReadingKeyword(this.data.submittedQuery || this.data.searchInput || result.title, this.data.readingSource);
+        saveReadingKeyword(this.data.submittedQuery || this.data.searchInput || result.title);
       }
       wx.switchTab({ url: result.page });
       return;

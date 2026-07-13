@@ -6,7 +6,7 @@ import MamaResourceProfile from "../models/MamaResourceProfile";
 import MamaResourceTask from "../models/MamaResourceTask";
 import MamaResourceTaskAssignment from "../models/MamaResourceTaskAssignment";
 import User from "../models/User";
-import { authenticate, AuthenticatedRequest } from "../middlewares/auth";
+import { authenticate, optionalAuthenticate, AuthenticatedRequest } from "../middlewares/auth";
 
 const router = Router();
 const uploadDir = path.join(process.cwd(), "uploads", "mama-resources");
@@ -152,11 +152,23 @@ function mediaAccountsFromBody(body: any) {
   const legacyAccount = normalizeMediaAccount({
     platform: "xiaohongshu",
     profileUrl: body?.xiaohongshuProfileUrl || body?.profileUrl,
+    nickname: body?.xiaohongshuNickname || body?.nickname,
     screenshotUrl: body?.xiaohongshuScreenshotUrl || body?.screenshotUrl,
     followerCount: body?.followerCount,
     realNameVerified: body?.realNameVerified,
   });
   return legacyAccount.profileUrl && legacyAccount.normalizedProfileUrl ? [legacyAccount] : [];
+}
+
+function primaryXiaohongshuAccountForProfile(profile: any) {
+  const socialAccount = normalizeMediaAccount(profile?.socialAccount);
+  if (socialAccount.platform === "xiaohongshu" && socialAccount.profileUrl && socialAccount.normalizedProfileUrl) {
+    return socialAccount;
+  }
+  const mediaAccounts = Array.isArray(profile?.mediaAccounts) ? profile.mediaAccounts : [];
+  return mediaAccounts
+    .map(normalizeMediaAccount)
+    .find((account) => account.platform === "xiaohongshu" && account.profileUrl && account.normalizedProfileUrl) || null;
 }
 
 function publicProfilePayload(profile: any) {
@@ -423,12 +435,12 @@ router.post("/uploads", (req: Request, res: Response) => {
   });
 });
 
-router.post("/applications", async (req: Request, res: Response) => {
+router.post("/applications", optionalAuthenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const displayName = asText(req.body?.displayName);
     const contactPhone = asText(req.body?.contactPhone);
     const contactWechat = asText(req.body?.contactWechat);
-    const consentAccepted = req.body?.consentAccepted === true;
+    const consentAccepted = req.body?.consentAccepted !== false;
     const mediaAccounts = mediaAccountsFromBody(req.body);
     const primaryXiaohongshuAccount = mediaAccounts.find((account) => account.platform === "xiaohongshu");
 
@@ -444,32 +456,44 @@ router.post("/applications", async (req: Request, res: Response) => {
       res.status(400).json({ message: "请填写有效的小红书主页链接" });
       return;
     }
-    if (!consentAccepted) {
-      res.status(400).json({ message: "请确认资料用途和隐私说明" });
-      return;
-    }
-
     const normalizedProfileUrls = mediaAccounts.map((account) => account.normalizedProfileUrl).filter(Boolean);
     if (new Set(normalizedProfileUrls).size !== normalizedProfileUrls.length) {
-      res.status(400).json({ message: "同一个媒体账号不能重复提交" });
+      res.status(400).json({ message: "同一个主页链接不能重复提交" });
       return;
     }
 
-    const existing = await MamaResourceProfile.findOne({
+    const contactMatchClauses: any[] = [];
+    if (contactPhone) contactMatchClauses.push(contactPhoneQuery(contactPhone));
+    if (contactWechat) contactMatchClauses.push({ contactWechat });
+    const existingByContact = contactMatchClauses.length
+      ? await MamaResourceProfile.findOne({ $or: contactMatchClauses }).sort({ updatedAt: -1 }).lean()
+      : null;
+    const existingByProfileUrl = await MamaResourceProfile.findOne({
       $or: [
         { "socialAccount.normalizedProfileUrl": { $in: normalizedProfileUrls } },
         { "mediaAccounts.normalizedProfileUrl": { $in: normalizedProfileUrls } },
       ],
     }).lean();
-    if (existing) {
-      res.status(409).json({
-        message: "这个小红书账号已经提交过，请联系运营更新资料",
-        existingStatus: existing.status,
-      });
-      return;
-    }
-
-    const profile = await MamaResourceProfile.create({
+    const existingByContactPrimaryXiaohongshuAccount = primaryXiaohongshuAccountForProfile(existingByContact);
+    const existing = existingByContactPrimaryXiaohongshuAccount || !existingByProfileUrl
+      ? existingByContact
+      : existingByProfileUrl;
+    const existingPrimaryXiaohongshuAccount = primaryXiaohongshuAccountForProfile(existing);
+    const resolvedPrimaryXiaohongshuAccount = existingPrimaryXiaohongshuAccount
+      ? {
+        ...primaryXiaohongshuAccount,
+        profileUrl: existingPrimaryXiaohongshuAccount.profileUrl,
+        normalizedProfileUrl: existingPrimaryXiaohongshuAccount.normalizedProfileUrl,
+      }
+      : primaryXiaohongshuAccount;
+    let primaryAccountReplaced = false;
+    const resolvedMediaAccounts = mediaAccounts.map((account) => {
+      if (primaryAccountReplaced || account.platform !== "xiaohongshu") return account;
+      primaryAccountReplaced = true;
+      return resolvedPrimaryXiaohongshuAccount;
+    });
+    if (!primaryAccountReplaced) resolvedMediaAccounts.unshift(resolvedPrimaryXiaohongshuAccount);
+    const profilePayload = {
       displayName,
       contactPhone,
       contactWechat,
@@ -477,30 +501,47 @@ router.post("/applications", async (req: Request, res: Response) => {
       childStage: asText(req.body?.childStage),
       childGender: asText(req.body?.childGender),
       categories: asTextArray(req.body?.categories),
-      status: "pending",
+      status: "approved",
       accountPositioning: asText(req.body?.accountPositioning),
       consentAccepted,
       socialAccount: {
         platform: "xiaohongshu",
-        profileUrl: primaryXiaohongshuAccount.profileUrl,
-        normalizedProfileUrl: primaryXiaohongshuAccount.normalizedProfileUrl,
-        nickname: primaryXiaohongshuAccount.nickname,
-        followerCount: primaryXiaohongshuAccount.followerCount,
-        screenshotUrl: primaryXiaohongshuAccount.screenshotUrl,
-        realNameVerified: primaryXiaohongshuAccount.realNameVerified,
-        dataSource: primaryXiaohongshuAccount.dataSource,
+        profileUrl: resolvedPrimaryXiaohongshuAccount.profileUrl,
+        normalizedProfileUrl: resolvedPrimaryXiaohongshuAccount.normalizedProfileUrl,
+        nickname: resolvedPrimaryXiaohongshuAccount.nickname,
+        followerCount: resolvedPrimaryXiaohongshuAccount.followerCount,
+        screenshotUrl: resolvedPrimaryXiaohongshuAccount.screenshotUrl,
+        realNameVerified: resolvedPrimaryXiaohongshuAccount.realNameVerified,
+        dataSource: resolvedPrimaryXiaohongshuAccount.dataSource,
       },
-      mediaAccounts,
+      mediaAccounts: resolvedMediaAccounts,
       rateCard: {
         acceptsGiftExchange: req.body?.acceptsGiftExchange === true,
         blockedCategories: asTextArray(req.body?.blockedCategories),
       },
-    });
+      reviewNote: {
+        note: "资料已提交，可直接参与任务；运营按需备注跟进。",
+        suitableCategories: asTextArray(req.body?.categories),
+        riskTags: [],
+        reviewedAt: new Date(),
+      },
+    };
+
+    if (existing) {
+      const profile = await MamaResourceProfile.findByIdAndUpdate(existing._id, profilePayload, {
+        returnDocument: "after",
+        runValidators: true,
+      });
+      res.json({ profile: publicProfilePayload(profile) });
+      return;
+    }
+
+    const profile = await MamaResourceProfile.create(profilePayload);
 
     res.status(201).json({ profile: publicProfilePayload(profile) });
   } catch (error: any) {
     if (error?.code === 11000) {
-      res.status(409).json({ message: "这个小红书账号已经提交过，请联系运营更新资料" });
+      res.status(409).json({ message: "这个小红书主页链接已经提交过，请联系运营更新资料" });
       return;
     }
     res.status(400).json({ message: error?.message || "提交失败，请稍后重试" });

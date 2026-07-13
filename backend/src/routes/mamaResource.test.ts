@@ -123,7 +123,7 @@ describe("mama resource pool routes", () => {
 
     assert.equal(response.status, 201);
     const data = await response.json();
-    assert.equal(data.profile.status, "pending");
+    assert.equal(data.profile.status, "approved");
     assert.equal(data.profile.socialAccount.platform, "xiaohongshu");
     assert.equal(data.profile.socialAccount.profileUrl, "https://www.xiaohongshu.com/user/profile/abc123");
     assert.equal(data.profile.socialAccount.screenshotUrl, "/uploads/mama-resources/account.png");
@@ -178,7 +178,7 @@ describe("mama resource pool routes", () => {
 
     assert.equal(response.status, 201);
     const data = await response.json();
-    assert.equal(data.profile.status, "pending");
+    assert.equal(data.profile.status, "approved");
     assert.equal(data.profile.socialAccount.platform, "xiaohongshu");
     assert.equal(data.profile.socialAccount.profileUrl, "https://www.xiaohongshu.com/user/profile/primary");
     assert.equal(data.profile.socialAccount.normalizedProfileUrl, "xiaohongshu:user/profile/primary");
@@ -208,10 +208,131 @@ describe("mama resource pool routes", () => {
     assert.match(data.message, /微信/);
   });
 
-  it("rejects duplicate Xiaohongshu profile submissions", async () => {
+  it("updates an existing Xiaohongshu profile when the same profile link is submitted again", async () => {
     await MamaResourceProfile.create({
       displayName: "原账号",
       contactPhone: "13800000000",
+      contactWechat: "old-wechat",
+      status: "pending",
+      consentAccepted: true,
+      socialAccount: {
+        platform: "xiaohongshu",
+        profileUrl: "https://www.xiaohongshu.com/user/profile/abc123",
+        normalizedProfileUrl: "xiaohongshu:user/profile/abc123",
+        nickname: "旧昵称",
+      },
+    });
+
+    const response = await fetch(`${server.publicUrl}/applications`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        displayName: "更新账号",
+        contactPhone: "13900000000",
+        contactWechat: "new-wechat",
+        xiaohongshuProfileUrl: "https://www.xiaohongshu.com/user/profile/abc123?foo=bar",
+        xiaohongshuNickname: "新昵称",
+        consentAccepted: true,
+      }),
+    });
+
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.profile.status, "approved");
+    assert.equal(data.profile.displayName, "更新账号");
+    assert.equal(data.profile.contactPhone, "13900000000");
+    assert.equal(data.profile.contactWechat, "new-wechat");
+    assert.equal(data.profile.socialAccount.nickname, "新昵称");
+    assert.equal(await MamaResourceProfile.countDocuments(), 1);
+  });
+
+  it("updates the submitted Xiaohongshu profile when contact history has no valid account link", async () => {
+    await MamaResourceProfile.create({
+      displayName: "历史空资料",
+      contactPhone: "13800000000",
+      contactWechat: "old-wechat",
+      status: "approved",
+      consentAccepted: true,
+      socialAccount: {
+        platform: "xiaohongshu",
+        profileUrl: "legacy-no-valid-xhs-url",
+        normalizedProfileUrl: "legacy-no-valid-xhs-url",
+      },
+    });
+    const linkedProfile = await MamaResourceProfile.create({
+      displayName: "已提交账号",
+      contactPhone: "13900000000",
+      contactWechat: "linked-wechat",
+      status: "approved",
+      consentAccepted: true,
+      socialAccount: {
+        platform: "xiaohongshu",
+        profileUrl: "https://www.xiaohongshu.com/user/profile/already-submitted",
+        normalizedProfileUrl: "xiaohongshu:user/profile/already-submitted",
+        nickname: "旧昵称",
+      },
+    });
+
+    const response = await fetch(`${server.publicUrl}/applications`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        displayName: "已提交账号",
+        contactPhone: "13800000000",
+        contactWechat: "new-wechat",
+        xiaohongshuProfileUrl: "https://www.xiaohongshu.com/user/profile/already-submitted",
+        xiaohongshuNickname: "新昵称",
+        consentAccepted: true,
+      }),
+    });
+
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.profile._id, String(linkedProfile._id));
+    assert.equal(data.profile.contactPhone, "13800000000");
+    assert.equal(data.profile.contactWechat, "new-wechat");
+    assert.equal(data.profile.socialAccount.profileUrl, "https://www.xiaohongshu.com/user/profile/already-submitted");
+    assert.equal(data.profile.socialAccount.nickname, "新昵称");
+    assert.equal(await MamaResourceProfile.countDocuments(), 2);
+  });
+
+  it("allows repeated media account nicknames when profile links are different", async () => {
+    const response = await fetch(`${server.publicUrl}/applications`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        displayName: "同昵称账号",
+        contactPhone: "13800000001",
+        contactWechat: "same-nickname-mom",
+        mediaAccounts: [
+          {
+            platform: "xiaohongshu",
+            nickname: "测试昵称",
+            profileUrl: "https://www.xiaohongshu.com/user/profile/same-nickname-xhs",
+          },
+          {
+            platform: "douyin",
+            nickname: "测试昵称",
+            profileUrl: "https://www.douyin.com/user/same-nickname-douyin",
+          },
+        ],
+        categories: ["亲子阅读"],
+      }),
+    });
+
+    assert.equal(response.status, 201);
+    const data = await response.json();
+    assert.equal(data.profile.mediaAccounts.length, 2);
+    assert.equal(data.profile.mediaAccounts[0].nickname, "测试昵称");
+    assert.equal(data.profile.mediaAccounts[1].nickname, "测试昵称");
+    assert.notEqual(data.profile.mediaAccounts[0].normalizedProfileUrl, data.profile.mediaAccounts[1].normalizedProfileUrl);
+  });
+
+  it("updates an existing mama resource profile for the same contact phone", async () => {
+    await MamaResourceProfile.create({
+      displayName: "原账号",
+      contactPhone: "13800000000",
+      contactWechat: "old-wechat",
       status: "pending",
       consentAccepted: true,
       socialAccount: {
@@ -225,18 +346,112 @@ describe("mama resource pool routes", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        displayName: "重复账号",
-        contactPhone: "13900000000",
-        contactWechat: "duplicate-mom",
+        displayName: "更新账号",
+        contactPhone: "13800000000",
+        contactWechat: "new-wechat",
         xiaohongshuProfileUrl: "https://www.xiaohongshu.com/user/profile/abc123?foo=bar",
-        consentAccepted: true,
+        xiaohongshuNickname: "新昵称",
+        categories: ["亲子阅读"],
       }),
     });
 
-    assert.equal(response.status, 409);
+    assert.equal(response.status, 200);
     const data = await response.json();
-    assert.match(data.message, /已经提交/);
-    assert.equal(data.existingStatus, "pending");
+    assert.equal(data.profile.status, "approved");
+    assert.equal(data.profile.displayName, "更新账号");
+    assert.equal(data.profile.contactWechat, "new-wechat");
+    assert.equal(data.profile.socialAccount.nickname, "新昵称");
+    assert.deepEqual(data.profile.reviewNote.suitableCategories, ["亲子阅读"]);
+    assert.equal(await MamaResourceProfile.countDocuments(), 1);
+  });
+
+  it("preserves the submitted Xiaohongshu link when an existing contact edits only profile details", async () => {
+    await MamaResourceProfile.create({
+      displayName: "旧账号",
+      contactPhone: "13800000000",
+      contactWechat: "same-wechat",
+      status: "approved",
+      consentAccepted: true,
+      socialAccount: {
+        platform: "xiaohongshu",
+        profileUrl: "https://www.xiaohongshu.com/user/profile/original-link",
+        normalizedProfileUrl: "xiaohongshu:user/profile/original-link",
+        nickname: "旧昵称",
+      },
+      mediaAccounts: [
+        {
+          platform: "xiaohongshu",
+          profileUrl: "https://www.xiaohongshu.com/user/profile/original-link",
+          normalizedProfileUrl: "xiaohongshu:user/profile/original-link",
+          nickname: "旧昵称",
+          dataSource: "pending",
+        },
+      ],
+    });
+
+    const response = await fetch(`${server.publicUrl}/applications`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        displayName: "旧账号",
+        contactPhone: "13800000000",
+        contactWechat: "same-wechat",
+        xiaohongshuProfileUrl: "https://www.xiaohongshu.com/user/profile/changed-link",
+        xiaohongshuNickname: "新昵称",
+        followerCount: 4200,
+      }),
+    });
+
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.profile.socialAccount.profileUrl, "https://www.xiaohongshu.com/user/profile/original-link");
+    assert.equal(data.profile.socialAccount.normalizedProfileUrl, "xiaohongshu:user/profile/original-link");
+    assert.equal(data.profile.socialAccount.nickname, "新昵称");
+    assert.equal(data.profile.socialAccount.followerCount, 4200);
+    assert.equal(data.profile.mediaAccounts[0].profileUrl, "https://www.xiaohongshu.com/user/profile/original-link");
+    assert.equal(data.profile.mediaAccounts[0].nickname, "新昵称");
+    assert.equal(await MamaResourceProfile.countDocuments(), 1);
+  });
+
+  it("lets a signed-in user fill missing nickname on their legacy profile without a stored phone", async () => {
+    const user = await User.create({ username: "u13800001234", password: "hash", mobile: "13800001234", role: "user" });
+    const token = jwt.sign({ id: String(user._id), role: "user" }, process.env.JWT_SECRET || "your-secret-key");
+    await MamaResourceProfile.create({
+      displayName: "旧账号",
+      contactPhone: "",
+      contactWechat: "same-wechat",
+      status: "approved",
+      consentAccepted: true,
+      socialAccount: {
+        platform: "xiaohongshu",
+        profileUrl: "https://www.xiaohongshu.com/user/profile/legacy-no-phone",
+        normalizedProfileUrl: "xiaohongshu:user/profile/legacy-no-phone",
+        nickname: "",
+      },
+    });
+
+    const response = await fetch(`${server.publicUrl}/applications`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        displayName: "旧账号更新",
+        contactPhone: "13800001234",
+        contactWechat: "same-wechat",
+        xiaohongshuProfileUrl: "https://www.xiaohongshu.com/user/profile/legacy-no-phone?foo=bar",
+        xiaohongshuNickname: "补充昵称",
+        categories: ["亲子阅读"],
+      }),
+    });
+
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.profile.displayName, "旧账号更新");
+    assert.equal(data.profile.contactPhone, "13800001234");
+    assert.equal(data.profile.socialAccount.nickname, "补充昵称");
+    assert.equal(await MamaResourceProfile.countDocuments(), 1);
   });
 
   it("lets operators filter the resource pool and update review state", async () => {
@@ -739,7 +954,7 @@ describe("mama resource pool routes", () => {
     assert.equal(unassigned, null);
   });
 
-  it("returns a submitted mama profile as under review instead of showing the application form again", async () => {
+  it("returns a legacy pending mama profile without forcing a new application form", async () => {
     const user = await User.create({
       username: "u13800138001",
       password: "hash",

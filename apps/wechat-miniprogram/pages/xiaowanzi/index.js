@@ -410,6 +410,11 @@ function buildMarkdownDocumentContentParts(content) {
     const listMatch = parseMarkdownListItemSource(trimmed);
     if (listMatch) {
       pushParagraph();
+      const standaloneLink = parseStandaloneMarkdownLink(listMatch[1]);
+      if (standaloneLink) {
+        parts.push(standaloneLink);
+        return;
+      }
       const inlineParts = buildInlineMessageContentParts(listMatch[1]);
       const hasLink = inlineParts.some((part) => part.type === "link");
       if (hasLink) {
@@ -530,6 +535,63 @@ function getXiaowanziContentQueryParam(query, key) {
       return rawValue.replace(/\+/g, " ");
     }
   }
+  return "";
+}
+
+function decodeXiaowanziPathSegment(value) {
+  const source = String(value || "").trim();
+  try {
+    return decodeURIComponent(source);
+  } catch (_error) {
+    return source;
+  }
+}
+
+function buildXiaowanziNativeWebviewRoute(pathname, title) {
+  const safePath = String(pathname || "").trim();
+  if (!safePath) return "";
+  return `/pages/webview/index?url=${encodeURIComponent(safePath)}&title=${encodeURIComponent(title || "家长先疯")}`;
+}
+
+function getXiaowanziNativeDetailRoute(url, title) {
+  const parsed = parseXiaowanziContentLink(url);
+  if (!parsed) return "";
+  const pathname = String(parsed.pathname || "").trim();
+  const query = String(parsed.query || "");
+  const resolvedTitle = String(title || "").trim() || "家长先疯";
+  const topicMatch = pathname.match(/^\/topics\/([^/?#]+)$/);
+  if (topicMatch) {
+    const slug = decodeXiaowanziPathSegment(topicMatch[1]);
+    if (!slug) return "";
+    return `/pages/webview/index?nativeTopic=1&topicSlug=${encodeURIComponent(slug)}&title=${encodeURIComponent(resolvedTitle)}`;
+  }
+  const programMatch = pathname.match(/^\/programs\/([^/?#]+)$/);
+  if (programMatch) {
+    const id = decodeXiaowanziPathSegment(programMatch[1]);
+    return id ? buildXiaowanziNativeWebviewRoute(`/programs/${encodeURIComponent(id)}`, resolvedTitle) : "";
+  }
+  const readingMatch = pathname.match(/^\/reading\/([^/?#]+)$/);
+  if (readingMatch && !hasXiaowanziContentQueryParam(query, "xf_external_book_id")) {
+    const id = decodeXiaowanziPathSegment(readingMatch[1]);
+    return id ? buildXiaowanziNativeWebviewRoute(`/reading/${encodeURIComponent(id)}`, resolvedTitle) : "";
+  }
+  const materialMatch = pathname.match(/^\/materials\/([^/?#]+)$/);
+  if (materialMatch) {
+    const id = decodeXiaowanziPathSegment(materialMatch[1]);
+    return id ? buildXiaowanziNativeWebviewRoute(`/materials/${encodeURIComponent(id)}`, resolvedTitle) : "";
+  }
+  const expertMatch = pathname.match(/^\/experts\/([^/?#]+)$/);
+  if (expertMatch) {
+    const id = decodeXiaowanziPathSegment(expertMatch[1]);
+    return id ? buildXiaowanziNativeWebviewRoute(`/experts/${encodeURIComponent(id)}`, resolvedTitle) : "";
+  }
+  const worthBuyMatch = pathname.match(/^\/worthbuy\/([^/?#]+)$/);
+  if (worthBuyMatch) {
+    const queryText = decodeXiaowanziPathSegment(worthBuyMatch[1]);
+    return queryText ? `/pages/worthbuy-detail/index?query=${encodeURIComponent(queryText)}` : "";
+  }
+  if (pathname === "/worthbuy") return "/pages/worthbuy/index";
+  if (pathname === "/experts") return "/pages/experts/index?from=xiaowanzi";
   return "";
 }
 
@@ -1161,9 +1223,13 @@ function normalizeShareCanvasText(text) {
 }
 
 function parseStandaloneMarkdownLink(line) {
-  const match = String(line || "").trim().match(/^\[([^\]]+)\]\(((?:https?:\/\/|\/)[^)]+)\)$/);
+  const source = String(line || "")
+    .trim()
+    .replace(/^\*\*\s*([\s\S]+?)\s*\*\*$/g, "$1")
+    .trim();
+  const match = source.match(/^\[([^\]]+)\]\(((?:https?:\/\/|\/)[^)]+)\)$/);
   if (!match) return null;
-  const text = String(match[1] || "").trim();
+  const text = stripMarkdownInline(match[1]).trim();
   const url = String(match[2] || "").trim();
   return text && url ? { type: "link", text, url } : null;
 }
@@ -2411,6 +2477,7 @@ Page({
     archiveGradeOptions: [],
     archiveStageGradeColumns: [],
     archiveStageGradeValue: [0, 0],
+    archiveGradeDisplayText: "请选择年级",
     archiveGradeSelectOptions: [],
     archiveGradeName: "小班",
     archiveGradeDropdownOpen: false,
@@ -3099,6 +3166,11 @@ Page({
     const readingSearchQuery = getXiaowanziReadingSearchQuery(url, title);
     if (readingSearchQuery) {
       openNativeSearch(readingSearchQuery, { source: "reading", readingSource: "native" });
+      return;
+    }
+    const nativeDetailRoute = getXiaowanziNativeDetailRoute(url, title);
+    if (nativeDetailRoute) {
+      wx.navigateTo({ url: nativeDetailRoute });
       return;
     }
     const nativeTabRoute = getXiaowanziNativeTabRoute(url);

@@ -142,6 +142,10 @@ page {
 }
 
 .xf-mama-editor-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
   margin: 0;
   padding: 14rpx 18rpx;
   border: 0;
@@ -234,6 +238,11 @@ page {
   font-weight: 500;
   line-height: 78rpx;
   padding: 0 22rpx;
+}
+
+.xf-mama-field input.is-locked {
+  background: #f6f2ff;
+  color: #70687f;
 }
 
 .xf-mama-field textarea {

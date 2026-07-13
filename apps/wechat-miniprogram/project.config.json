@@ -35,55 +35,55 @@
       "outputPath": ""
     }
   },
-  "libVersion": "latest",
+  "libVersion": "3.15.2",
   "simulatorPluginLibVersion": {
     "wxext14566970e7e9f62": "2.27.3"
   },
   "packOptions": {
     "ignore": [
       {
-        "type": "file",
-        "value": "app.miniapp.json"
+        "value": "app.miniapp.json",
+        "type": "file"
       },
       {
-        "type": "suffix",
-        "value": ".test.mjs"
+        "value": ".test.mjs",
+        "type": "suffix"
       },
       {
-        "type": "prefix",
-        "value": "._"
+        "value": "._",
+        "type": "prefix"
       },
       {
-        "type": "file",
-        "value": ".DS_Store"
+        "value": ".DS_Store",
+        "type": "file"
       },
       {
-        "type": "file",
-        "value": "README.md"
+        "value": "README.md",
+        "type": "file"
       },
       {
-        "type": "file",
-        "value": ".gitignore"
+        "value": ".gitignore",
+        "type": "file"
       },
       {
-        "type": "file",
-        "value": "project.private.config.json"
+        "value": "project.private.config.json",
+        "type": "file"
       },
       {
-        "type": "file",
-        "value": "project.miniapp.json"
+        "value": "project.miniapp.json",
+        "type": "file"
       },
       {
-        "type": "file",
-        "value": "utils/config.local.js"
+        "value": "utils/config.local.js",
+        "type": "file"
       },
       {
-        "type": "file",
-        "value": "utils/config.local.example.js"
+        "value": "utils/config.local.example.js",
+        "type": "file"
       },
       {
-        "type": "folder",
-        "value": "miniapp"
+        "value": "miniapp",
+        "type": "folder"
       }
     ],
     "include": []

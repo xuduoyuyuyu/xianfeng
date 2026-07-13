@@ -24,10 +24,12 @@ test("mama resource form keeps an unsent draft across page exits", () => {
 
   assert.match(wxmlSource, /name="displayName"[^>]*value="\{\{formDraft\.displayName\}\}"[^>]*bindinput="updateDraftField"/);
   assert.match(wxmlSource, /name="xiaohongshuProfileUrl"[^>]*value="\{\{formDraft\.xiaohongshuProfileUrl\}\}"[^>]*bindinput="updateDraftField"/);
+  assert.match(wxmlSource, /name="xiaohongshuProfileUrl"[^>]*disabled="\{\{formDraft\.originalXiaohongshuProfileUrl\}\}"/);
+  assert.match(wxmlSource, /主页链接已锁定，保存时只更新昵称等资料。/);
   assert.match(wxmlSource, /name="followerCount"[^>]*value="\{\{formDraft\.followerCount\}\}"[^>]*bindinput="updateDraftField"/);
   assert.match(wxmlSource, /name="blockedCategories"[^>]*value="\{\{formDraft\.blockedCategories\}\}"[^>]*bindinput="updateDraftField"/);
-  assert.match(wxmlSource, /checkbox-group name="consentAccepted" bindchange="toggleConsentAccepted"/);
-  assert.match(wxmlSource, /<checkbox class="xf-mama-check-circle" value="1" checked="\{\{formDraft\.consentAccepted\}\}"/);
+  assert.doesNotMatch(wxmlSource, /checkbox-group name="consentAccepted"|请先勾选资料使用授权/);
+  assert.match(wxmlSource, /资料会用于任务匹配和运营联系，可联系运营停用或更新。/);
 });
 
 test("mama resource profile management is always available and separates personal and media data", () => {
@@ -42,7 +44,7 @@ test("mama resource profile management is always available and separates persona
   assert.match(jsSource, /openPersonalInfoEditor\(\)/);
   assert.match(jsSource, /openMediaAccountsManager\(\)/);
   assert.match(jsSource, /openPreferenceEditor\(\)/);
-  assert.match(jsSource, /backToProfileOverview\(\)/);
+  assert.match(jsSource, /saveCurrentProfileSectionAndBack\(\)/);
   assert.match(jsSource, /addMediaAccount\(\)/);
   assert.doesNotMatch(jsSource, /dataset && event\.currentTarget\.dataset\.platform/);
   const addMediaAccountSource = jsSource.match(/addMediaAccount\(\) \{[\s\S]*?\n  \},/)?.[0] || "";
@@ -57,7 +59,7 @@ test("mama resource profile management is always available and separates persona
   assert.match(jsSource, /account\.profileUrl && account\.platform/);
   assert.match(jsSource, /updateMediaAccountField\(event\)/);
   assert.match(jsSource, /removeMediaAccount\(event\)/);
-  assert.match(jsSource, /submitProfileDraft\(\)/);
+  assert.match(jsSource, /submitProfileDraft/);
   assert.match(jsSource, /submit\(event\)[\s\S]*mediaAccounts: buildSubmitMediaAccounts\(payload\)/);
   const normalizeExtraMediaAccounts = jsSource.match(/function normalizeExtraMediaAccounts\(value\) \{[\s\S]*?\n\}/)?.[0] || "";
   assert.match(normalizeExtraMediaAccounts, /return value\.map\(normalizeMediaAccount\);/);
@@ -80,6 +82,12 @@ test("mama resource profile management is always available and separates persona
   assert.match(wxmlSource, /catchtap="openMediaAccountsManager"/);
   assert.match(wxmlSource, /catchtap="openPreferenceEditor"/);
   assert.match(wxmlSource, /catchtap="submitProfileDraft"/);
+  assert.match(wxmlSource, /catchtap="saveCurrentProfileSectionAndBack"/);
+  assert.match(wxmlSource, /<view class="xf-mama-editor-back" catchtap="saveCurrentProfileSectionAndBack" role="button">保存并返回<\/view>/);
+  assert.doesNotMatch(wxmlSource, /<button type="button" class="xf-mama-editor-back"/);
+  assert.match(wxmlSource, /profileManagerMode === 'media'[\s\S]*<view wx:if="\{\{message\}\}" class="xf-mama-message \{\{messageType\}\}">\{\{message\}\}<\/view>[\s\S]*保存社交媒体账号/);
+  assert.match(wxmlSource, /保存资料/);
+  assert.doesNotMatch(wxmlSource, /进入待审核|资料使用授权/);
   assert.match(wxmlSource, /个人信息/);
   assert.match(wxmlSource, /媒体账号/);
   assert.match(wxmlSource, /wx:for="\{\{mediaAccounts\}\}"/);
@@ -106,6 +114,11 @@ test("mama resource profile management is always available and separates persona
   assert.match(wxmlSource, /mamaResourceView === 'reviewing'[\s\S]*资料管理/);
 
   assert.match(jsSource, /xiaohongshuNickname: ""/);
+  assert.match(jsSource, /originalXiaohongshuProfileUrl: ""/);
+  assert.match(jsSource, /originalXiaohongshuProfileUrl: primary\.profileUrl \|\| ""/);
+  assert.match(jsSource, /const lockedXiaohongshuProfileUrl = asText\(draft\.originalXiaohongshuProfileUrl\)\.trim\(\);/);
+  assert.match(jsSource, /xiaohongshuProfileUrl: lockedXiaohongshuProfileUrl \|\| draft\.xiaohongshuProfileUrl/);
+  assert.match(wxssSource, /\.xf-mama-field input\.is-locked \{/);
   assert.match(jsSource, /nickname: draft\.xiaohongshuNickname/);
   assert.match(jsSource, /title: account\.nickname \|\| `\$\{account\.platformLabel \|\| "媒体"\}账号 \$\{index \+ 1\}`/);
   assert.match(jsSource, /summary: account\.platform === "xiaohongshu" \? "" :/);
@@ -171,7 +184,7 @@ test("logged-out mama resource users must authorize phone before seeing apply fo
   assert.match(jsSource, /mamaResourceView: "login"[\s\S]*mamaTasks: \[\]/);
   assert.match(wxmlSource, /mamaResourceView === 'login'/);
   assert.match(wxmlSource, /open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone"/);
-  assert.match(wxmlSource, /已审核通过的账号会直接进入任务列表/);
+  assert.match(wxmlSource, /提交资料后即可进入任务列表/);
 });
 
 test("mama resource task share image includes a direct mini-program qrcode", () => {
@@ -229,13 +242,14 @@ test("mama resource task example images use native-loadable URLs without a fixed
   assert.doesNotMatch(imageStyle, /background:/);
 });
 
-test("submitted mama resource account stays in review status instead of the application form", () => {
-  assert.match(jsSource, /profile\.status !== "approved"/);
-  assert.match(jsSource, /mamaResourceView: "reviewing"/);
-  assert.match(jsSource, /mamaTasks: \[\]/);
-  const nonApprovedBranch = jsSource.match(/if \(profile\.status !== "approved"\) \{[\s\S]*?\n          return;\n        \}/)?.[0] || "";
-  assert.match(nonApprovedBranch, /mamaResourceView: "reviewing"/);
-  assert.doesNotMatch(nonApprovedBranch, /mamaResourceView: "apply"/);
+test("mama resource profile saves directly without a review gate", () => {
+  assert.doesNotMatch(jsSource, /profile\.status !== "approved"[\s\S]*mamaResourceView: "reviewing"/);
+  assert.match(jsSource, /submitProfileDraft\(options = \{\}\)/);
+  assert.match(jsSource, /saveCurrentProfileSectionAndBack\(\)[\s\S]*submitProfileDraft\(\{ stayInApply: true \}\)/);
+  assert.match(jsSource, /status: "approved"/);
+  assert.match(jsSource, /mamaResourceView: "tasks"/);
+  assert.match(jsSource, /资料已保存，运营会按备注跟进/);
+  assert.match(jsSource, /if \(options\.stayInApply\)[\s\S]*mamaResourceView: "apply"[\s\S]*profileManagerMode: "overview"/);
   assert.match(jsSource, /readStoredUserMobile\(\)/);
   assert.match(jsSource, /contactPhone: storedDraft\.contactPhone \|\| userMobile/);
 

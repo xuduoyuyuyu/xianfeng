@@ -98,6 +98,8 @@ function buildExternalLibraryApiUrl(current, options = {}) {
   const tags = normalizeFilterTags(options.tags);
   for (const tag of tags) params.push(`tags=${encodeURIComponent(tag)}`);
   if (tags.length > 1) params.push("tagMode=any");
+  const keyword = String(options.keyword || "").trim();
+  if (keyword) params.push(`q=${encodeURIComponent(keyword)}`);
   if (options.includeFilters) params.push("includeFilters=1");
   return `${DEFAULT_WEB_ORIGIN}/api/books/external?${params.join("&")}`;
 }
@@ -116,8 +118,18 @@ function normalizeImage(value) {
   return `${DEFAULT_WEB_ORIGIN}${source.startsWith("/") ? source : `/${source}`}`;
 }
 
+function isFallbackReadingCoverImage(value) {
+  const source = String(value || "").trim();
+  if (!source) return true;
+  return source.indexOf("via.placeholder.com") >= 0
+    || /placeholder/i.test(source)
+    || source.indexOf(DEFAULT_READING_COVER_IMAGE) >= 0;
+}
+
 function normalizeReadingCoverImage(value) {
-  return normalizeImage(value) || DEFAULT_READING_COVER_IMAGE;
+  if (isFallbackReadingCoverImage(value)) return "";
+  const image = normalizeImage(value);
+  return isFallbackReadingCoverImage(image) ? "" : image;
 }
 
 function firstText(values, fallback) {
@@ -645,11 +657,11 @@ function buildReadingFilterTags(books) {
 }
 
 function bookDisplayPriority(book, index) {
-  const hasCover = !!book.coverImage;
   const hasDetail = !!book.detailEnabled;
+  const hasDescription = !!book.hasListDescription;
   let score = 0;
-  if (hasCover && hasDetail) score = 4;
-  else if (hasCover) score = 3;
+  if (hasDetail && hasDescription) score = 4;
+  else if (hasDescription) score = 3;
   else if (hasDetail) score = 2;
   else score = 1;
   return { book, index, score };
@@ -839,10 +851,10 @@ function loadExternalLibraryPage(current, tags, size = EXTERNAL_LIBRARY_PAGE_SIZ
   const normalizedTags = normalizeFilterTags(tags);
   if (normalizedTags.length > 1) {
     return Promise.all(normalizedTags.map((tag) => (
-      request({ url: buildExternalLibraryApiUrl(current, { tags: [tag], size, includeFilters: !!options.includeFilters }) })
+      request({ url: buildExternalLibraryApiUrl(current, { tags: [tag], size, keyword: options.keyword, includeFilters: !!options.includeFilters }) })
     ))).then((responses) => mergeExternalLibraryResponses(responses, current, size));
   }
-  return request({ url: buildExternalLibraryApiUrl(current, { tags: normalizedTags, size, includeFilters: !!options.includeFilters }) });
+  return request({ url: buildExternalLibraryApiUrl(current, { tags: normalizedTags, size, keyword: options.keyword, includeFilters: !!options.includeFilters }) });
 }
 
 function loadExternalLibraryFirstPage(tags) {
@@ -999,9 +1011,7 @@ Page({
   },
 
   loadPreferredReadingSource() {
-    try {
-      this.setData({ useExternalLibrarySource: wx.getStorageSync(READING_SOURCE_KEY) === "external" });
-    } catch (_error) {}
+    this.setData({ useExternalLibrarySource: false });
   },
 
   persistPreferredReadingSource(useExternalLibrarySource) {
@@ -1293,6 +1303,7 @@ Page({
     const useExternalLibrarySource = !!currentData.useExternalLibrarySource;
     const requestId = (this._readingSourceRequestId || 0) + 1;
     this._readingSourceRequestId = requestId;
+    this._externalLibraryKeyword = "";
     const activeReadingTags = normalizeFilterTags(currentData.activeReadingTags || currentData.activeReadingTag);
     const useNativePagedRequest = !useExternalLibrarySource && !activeReadingTags.length;
     this.setData({
@@ -1468,7 +1479,8 @@ Page({
     this._externalLibraryLoadingMore = true;
     const requestId = this._readingSourceRequestId;
     const activeReadingTags = normalizeFilterTags(this.data.activeReadingTags || this.data.activeReadingTag);
-    return loadExternalLibraryPage(currentPage + 1, activeReadingTags)
+    const keyword = String(this._externalLibraryKeyword || "").trim();
+    return loadExternalLibraryPage(currentPage + 1, activeReadingTags, EXTERNAL_LIBRARY_PAGE_SIZE, { keyword })
       .then((response) => {
         if (this._readingSourceRequestId !== requestId || !this.data.useExternalLibrarySource) return;
         const nextBooks = normalizeExternalLibraryBooks(response);
@@ -1536,6 +1548,7 @@ Page({
   toggleReadingLibrarySource() {
     const useExternalLibrarySource = !this.data.useExternalLibrarySource;
     this.persistPreferredReadingSource(useExternalLibrarySource);
+    this._externalLibraryKeyword = "";
     const hasTargetCache = useExternalLibrarySource
       ? !!(this._externalLibraryFirstPageCache || this.hydrateExternalLibraryFirstPageCacheFromStorage())
       : false;
@@ -1590,7 +1603,7 @@ Page({
 
   openSearch() {
     openNativeSearch("", {
-      readingSource: this.data.useExternalLibrarySource ? "external" : "native"
+      readingSource: "native"
     });
   },
 
@@ -1734,6 +1747,7 @@ Page({
     const activeReadingTag = activeReadingTags.length ? `#${activeReadingTags[0]}` : "";
     const activeReadingTagLabel = buildFilterLabel(activeReadingTags);
     if (this.data.useExternalLibrarySource) {
+      this._externalLibraryKeyword = "";
       this.setData({
         activeReadingTag,
         activeReadingTags,
@@ -1774,6 +1788,54 @@ Page({
   applyReadingKeywordFilter(keyword) {
     const query = String(keyword || "").trim();
     if (!query) return Promise.resolve(false);
+    if (this.data.useExternalLibrarySource) {
+      const requestId = this._readingSourceRequestId;
+      this._externalLibraryKeyword = query;
+      this.setData({
+        activeReadingTag: "",
+        activeReadingTags: [],
+        draftReadingTags: [],
+        activeReadingTagLabel: query,
+        isReadingFilterAllSelected: true,
+        visibleBookCount: BOOK_PAGE_SIZE,
+        loading: !((this.data.books || []).length),
+        refreshing: true,
+        error: ""
+      });
+      return loadExternalLibraryPage(1, [], EXTERNAL_LIBRARY_PAGE_SIZE, { keyword: query })
+        .then((response) => {
+          if (this._readingSourceRequestId !== requestId || !this.data.useExternalLibrarySource) return false;
+          const allBooks = normalizeExternalLibraryBooks(response);
+          const books = sliceBooksForDisplay(allBooks, BOOK_PAGE_SIZE);
+          const total = getExternalLibraryTotal(response, allBooks.length);
+          this.allBooks = allBooks;
+          cacheExternalBookLibraryRecords(allBooks);
+          this._externalLibraryCurrentPage = getExternalLibraryCurrent(response, 1);
+          this._externalLibraryPages = getExternalLibraryPages(response);
+          this._externalLibraryTotal = total;
+          this.setData({
+            books,
+            readingFilterPreviewCount: total,
+            readingFilterGroups: this.getExternalLibraryFilterGroups([]),
+            visibleBookCount: BOOK_PAGE_SIZE,
+            hasMoreBooks: books.length < total,
+            loading: false,
+            refreshing: false,
+            error: books.length ? "" : `没有匹配的 ${query} 图书`
+          });
+          this.scrollBelowSearchPanel();
+          return true;
+        })
+        .catch(() => {
+          if (this._readingSourceRequestId !== requestId) return false;
+          this.setData({
+            loading: false,
+            refreshing: false,
+            error: `没有匹配的 ${query} 图书`
+          });
+          return false;
+        });
+    }
     const runFilter = (sourceBooks) => {
       const source = Array.isArray(sourceBooks) && sourceBooks.length ? sourceBooks : this.getReadingSource();
       const books = filterBooksByKeyword(source, query);
@@ -1820,8 +1882,8 @@ Page({
     }
     const rawTag = typeof pending === "string" ? pending : pending && pending.tag;
     const rawKeyword = pending && pending.keyword;
-    const source = pending && pending.source === "external" ? "external" : "native";
     const keyword = String(rawKeyword || "").trim();
+    const source = pending && pending.source === "external" && !keyword ? "external" : "native";
     if (keyword) {
       const useExternalLibrarySource = source === "external";
       this.persistPreferredReadingSource(useExternalLibrarySource);
@@ -1922,6 +1984,7 @@ Page({
     const source = this.getReadingSource();
     setSettingsTabbarHidden(this, false);
     if (this.data.useExternalLibrarySource) {
+      this._externalLibraryKeyword = "";
       this.setData({
         activeReadingTag: "",
         activeReadingTags: [],

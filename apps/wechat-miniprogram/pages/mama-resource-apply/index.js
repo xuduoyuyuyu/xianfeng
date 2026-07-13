@@ -32,6 +32,7 @@ const EMPTY_APPLY_DRAFT = {
   childGender: "",
   xiaohongshuNickname: "",
   xiaohongshuProfileUrl: "",
+  originalXiaohongshuProfileUrl: "",
   xiaohongshuScreenshotUrl: "",
   followerCount: "",
   realNameVerified: null,
@@ -153,7 +154,7 @@ function buildProfileOverview(formDraft) {
     personalSummary: personalItems.join(" · "),
     mediaSummary: filledAccounts.length ? `${filledAccounts.length} 个媒体账号` : "未添加媒体账号",
     preferenceSummary: `${selectedCategories}${draft.blockedCategories ? ` · 暂不接：${draft.blockedCategories}` : ""}`,
-    consentSummary: draft.consentAccepted ? "已确认资料使用授权" : "待确认资料使用授权",
+    consentSummary: "资料提交后将用于任务匹配和运营联系",
     accounts: filledAccounts.map((account, index) => ({
       ...account,
       title: account.nickname || `${account.platformLabel || "媒体"}账号 ${index + 1}`,
@@ -181,6 +182,7 @@ function normalizeApplyDraft(value) {
     childGender: asText(source.childGender).trim(),
     xiaohongshuNickname: asText(source.xiaohongshuNickname).trim(),
     xiaohongshuProfileUrl: asText(source.xiaohongshuProfileUrl).trim(),
+    originalXiaohongshuProfileUrl: asText(source.originalXiaohongshuProfileUrl).trim(),
     xiaohongshuScreenshotUrl: asText(source.xiaohongshuScreenshotUrl).trim(),
     followerCount: asText(source.followerCount).trim(),
     realNameVerified: source.realNameVerified === true ? true : source.realNameVerified === false ? false : null,
@@ -479,6 +481,7 @@ function buildProfileDraftPatch(profile) {
     childGender: source.childGender || "",
     xiaohongshuNickname: primary.nickname || "",
     xiaohongshuProfileUrl: primary.profileUrl || "",
+    originalXiaohongshuProfileUrl: primary.profileUrl || "",
     xiaohongshuScreenshotUrl: primary.screenshotUrl || "",
     followerCount: primary.followerCount ? String(primary.followerCount) : "",
     realNameVerified: primary.realNameVerified === true ? true : primary.realNameVerified === false ? false : null,
@@ -700,21 +703,6 @@ Page({
         const tasks = assignedTasks.concat(availableTasks);
         if (data && data.profile) {
           const profile = buildProfileView(data.profile);
-          if (profile.status !== "approved") {
-            updatePageApplyDraft(this, buildProfileDraftPatch(profile));
-            this.setData({
-              mamaResourceView: "reviewing",
-              mamaResourceProfile: profile,
-              mamaTasks: [],
-              currentMamaTask: null,
-              taskProofLink: "",
-              taskProofScreenshotUrl: "",
-              mamaTasksLoading: false,
-              message: profile.reviewMessage || "",
-              messageType: profile.reviewMessage ? "error" : ""
-            });
-            return;
-          }
           const pendingTaskId = asText(this.data.pendingMamaTaskId).trim();
           const currentId = this.data.currentMamaTask && this.data.currentMamaTask._id;
           const currentMamaTask = pendingTaskId
@@ -1075,6 +1063,11 @@ Page({
     this.setData({ profileManagerMode: "overview", message: "", messageType: "" });
   },
 
+  saveCurrentProfileSectionAndBack() {
+    if (this.data.submitting) return;
+    this.submitProfileDraft({ stayInApply: true });
+  },
+
   updateTaskProofLink(event) {
     this.setData({
       taskProofLink: String(event && event.detail ? event.detail.value : "").trim()
@@ -1211,7 +1204,7 @@ Page({
       childStage: this.data.childStage,
       childGender: this.data.childGender
     });
-    this.backToProfileOverview();
+    this.submitProfileDraft({ stayInApply: true });
   },
 
   saveMediaAccounts() {
@@ -1225,7 +1218,7 @@ Page({
       this.setData({ message: `请填写第${missingNicknameIndex + 2}个账号的账号昵称`, messageType: "error" });
       return;
     }
-    this.backToProfileOverview();
+    this.submitProfileDraft({ stayInApply: true });
   },
 
   savePreferences(event) {
@@ -1235,9 +1228,9 @@ Page({
       categories: this.data.selectedCategories,
       selectedCategories: this.data.selectedCategories,
       blockedCategories: String(values.blockedCategories || "").trim(),
-      consentAccepted: Array.isArray(values.consentAccepted) && values.consentAccepted.indexOf("1") >= 0
+      consentAccepted: true
     });
-    this.backToProfileOverview();
+    this.submitProfileDraft({ stayInApply: true });
   },
 
   updateMediaAccountField(event) {
@@ -1384,6 +1377,7 @@ Page({
 
   submit(event) {
     const values = (event && event.detail && event.detail.value) || {};
+    const lockedXiaohongshuProfileUrl = asText(this.data.formDraft && this.data.formDraft.originalXiaohongshuProfileUrl).trim();
     const payload = updatePageApplyDraft(this, {
       displayName: String(values.displayName || "").trim(),
       contactPhone: String(values.contactPhone || "").trim(),
@@ -1392,7 +1386,7 @@ Page({
       childStage: this.data.childStage,
       childGender: this.data.childGender,
       xiaohongshuNickname: String(values.xiaohongshuNickname || "").trim(),
-      xiaohongshuProfileUrl: String(values.xiaohongshuProfileUrl || "").trim(),
+      xiaohongshuProfileUrl: lockedXiaohongshuProfileUrl || String(values.xiaohongshuProfileUrl || "").trim(),
       xiaohongshuScreenshotUrl: this.data.xiaohongshuScreenshotUrl,
       followerCount: String(values.followerCount || "").trim(),
       realNameVerified: this.data.realNameVerified,
@@ -1401,29 +1395,32 @@ Page({
       categories: this.data.selectedCategories,
       selectedCategories: this.data.selectedCategories,
       blockedCategories: String(values.blockedCategories || "").trim(),
-      consentAccepted: Array.isArray(values.consentAccepted) && values.consentAccepted.indexOf("1") >= 0
+      consentAccepted: true
     });
     payload.categories = payload.selectedCategories;
     this.submitMamaResourcePayload(payload);
   },
 
-  submitProfileDraft() {
+  submitProfileDraft(options = {}) {
     const draft = this.data.formDraft || {};
+    const lockedXiaohongshuProfileUrl = asText(draft.originalXiaohongshuProfileUrl).trim();
     const payload = updatePageApplyDraft(this, {
       ...draft,
+      xiaohongshuProfileUrl: lockedXiaohongshuProfileUrl || draft.xiaohongshuProfileUrl,
       childStage: this.data.childStage,
       childGender: this.data.childGender,
       xiaohongshuScreenshotUrl: this.data.xiaohongshuScreenshotUrl,
       realNameVerified: this.data.realNameVerified,
       categories: this.data.selectedCategories,
       selectedCategories: this.data.selectedCategories,
-      mediaAccounts: this.data.mediaAccounts
+      mediaAccounts: this.data.mediaAccounts,
+      consentAccepted: true
     });
     payload.categories = payload.selectedCategories;
-    this.submitMamaResourcePayload(payload);
+    return this.submitMamaResourcePayload(payload, options);
   },
 
-  submitMamaResourcePayload(payload) {
+  submitMamaResourcePayload(payload, options = {}) {
     const submitPayload = {
       ...payload,
       mediaAccounts: buildSubmitMediaAccounts(payload)
@@ -1442,30 +1439,38 @@ Page({
       this.setData({ message: `请填写第${missingNicknameIndex + 2}个账号的账号昵称`, messageType: "error" });
       return;
     }
-    if (!payload.consentAccepted) {
-      this.setData({ message: "请先勾选资料使用授权", messageType: "error" });
-      return;
-    }
-
     this.setData({ submitting: true, message: "", messageType: "" });
-    request({
+    return request({
       url: "/api/mama-resources/applications",
       method: "POST",
       data: submitPayload
     })
       .then((data) => {
-        const profile = data && data.profile ? data.profile : { ...submitPayload, status: "pending", createdAt: new Date().toISOString() };
+        const profile = data && data.profile ? data.profile : { ...submitPayload, status: "approved", createdAt: new Date().toISOString() };
+        const nextDraft = buildProfileDraftPatch(profile);
         clearApplyDraft();
-            this.setData({
-              ...buildApplyDraftState(cloneEmptyApplyDraft()),
-              mamaResourceView: "reviewing",
-              profileManagerMode: "overview",
-              mamaResourceProfile: buildProfileView(profile),
-              mamaTasks: [],
-              submitting: false,
-          message: "",
-          messageType: ""
+        if (options.stayInApply) {
+          this.setData({
+            ...buildApplyDraftState(nextDraft),
+            mamaResourceView: "apply",
+            profileManagerMode: "overview",
+            mamaResourceProfile: buildProfileView(profile),
+            submitting: false,
+            message: "资料已保存，运营会按备注跟进",
+            messageType: "success"
+          });
+          return;
+        }
+        this.setData({
+          ...buildApplyDraftState(nextDraft),
+          mamaResourceView: "tasks",
+          profileManagerMode: "overview",
+          mamaResourceProfile: buildProfileView(profile),
+          submitting: false,
+          message: "资料已保存，运营会按备注跟进",
+          messageType: "success"
         });
+        this.loadMamaTasks();
       })
       .catch((error) => {
         this.setData({

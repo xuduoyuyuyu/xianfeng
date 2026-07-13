@@ -20,10 +20,10 @@
           <image class="xf-mama-icon" src="/assets/menu/mama-hao-zhuan-icon.png" mode="aspectFit" />
           <view>
             <text class="xf-mama-title">妈妈好赚</text>
-            <text class="xf-mama-subtitle">授权手机号后查看审核状态和任务</text>
+            <text class="xf-mama-subtitle">授权手机号后保存资料并查看任务</text>
           </view>
         </view>
-        <text class="xf-mama-intro-text">已审核通过的账号会直接进入任务列表；还没有提交过资料的账号，会进入资料提交。</text>
+        <text class="xf-mama-intro-text">提交资料后即可进入任务列表；后续修改会直接保存，运营按备注跟进。</text>
         <button class="xf-mama-submit" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone" loading="{{bindingPhone}}" disabled="{{bindingPhone}}">
           {{bindingPhone ? "登录中..." : "手机号授权登录"}}
         </button>
@@ -39,11 +39,11 @@
             <text class="xf-mama-title">妈妈好赚</text>
           </view>
         </view>
-        <text class="xf-mama-intro-text">如果你愿意用自己的社交媒体账号接亲子、教育、家庭消费相关发稿，可以先把基础资料提交给我们，通过审核，我们会联系您入群，进行后续任务派发。</text>
+        <text class="xf-mama-intro-text">如果你愿意用自己的社交媒体账号接亲子、教育、家庭消费相关发稿，可以先把基础资料提交给我们，运营会按备注联系你。</text>
         <view class="xf-mama-notes">
           <text>小红书、抖音账号优先，收主页链接</text>
           <text>不需要账号密码，不要求代登录</text>
-          <text>数据用于审核匹配，可联系运营更新或停用资料</text>
+          <text>数据用于任务匹配和运营联系，可随时回来更新</text>
         </view>
       </view>
 
@@ -91,13 +91,13 @@
             </view>
           </view>
           <view wx:if="{{message}}" class="xf-mama-message {{messageType}}">{{message}}</view>
-          <button class="xf-mama-submit" disabled="{{submitting}}" catchtap="submitProfileDraft">{{submitting ? "提交中..." : "提交资料，进入待审核"}}</button>
+          <button class="xf-mama-submit" disabled="{{submitting}}" catchtap="submitProfileDraft">{{submitting ? "保存中..." : "保存资料"}}</button>
         </block>
 
         <form wx:elif="{{profileManagerMode === 'personal'}}" class="xf-mama-form" bindsubmit="savePersonalInfo">
           <view class="xf-mama-editor-head">
             <text class="xf-mama-section-heading">个人信息</text>
-            <button type="button" class="xf-mama-editor-back" catchtap="backToProfileOverview">返回总览</button>
+            <view class="xf-mama-editor-back" catchtap="saveCurrentProfileSectionAndBack" role="button">保存并返回</view>
           </view>
           <view class="xf-mama-grid">
             <label class="xf-mama-field">姓名/昵称<input name="displayName" value="{{formDraft.displayName}}" data-field="displayName" bindinput="updateDraftField" placeholder="例如：安安妈妈" placeholder-class="xf-mama-placeholder" /></label>
@@ -117,16 +117,18 @@
               <button wx:for="{{childGenderOptions}}" wx:key="value" class="xf-mama-gender-chip {{childGender === item.value ? 'is-active' : ''}}" data-value="{{item.value}}" catchtap="toggleChildGender" aria-label="选择孩子性别 {{item.label}}">{{item.label}}</button>
             </view>
           </label>
+          <view wx:if="{{message}}" class="xf-mama-message {{messageType}}">{{message}}</view>
           <button form-type="submit" class="xf-mama-submit">保存个人信息</button>
         </form>
 
         <view wx:elif="{{profileManagerMode === 'media'}}">
           <view class="xf-mama-editor-head">
             <text class="xf-mama-section-heading">社交媒体账号</text>
-            <button type="button" class="xf-mama-editor-back" catchtap="backToProfileOverview">返回总览</button>
+            <view class="xf-mama-editor-back" catchtap="saveCurrentProfileSectionAndBack" role="button">保存并返回</view>
           </view>
           <label class="xf-mama-field">账号昵称<input name="xiaohongshuNickname" value="{{formDraft.xiaohongshuNickname}}" data-field="xiaohongshuNickname" bindinput="updateDraftField" placeholder="必填" placeholder-class="xf-mama-placeholder" /></label>
-          <label class="xf-mama-field">小红书主页链接<input name="xiaohongshuProfileUrl" value="{{formDraft.xiaohongshuProfileUrl}}" data-field="xiaohongshuProfileUrl" bindinput="updateDraftField" placeholder="https://www.xiaohongshu.com/user/profile/..." placeholder-class="xf-mama-placeholder" /></label>
+          <label class="xf-mama-field">小红书主页链接<input class="{{formDraft.originalXiaohongshuProfileUrl ? 'is-locked' : ''}}" name="xiaohongshuProfileUrl" value="{{formDraft.xiaohongshuProfileUrl}}" data-field="xiaohongshuProfileUrl" bindinput="updateDraftField" disabled="{{formDraft.originalXiaohongshuProfileUrl}}" placeholder="https://www.xiaohongshu.com/user/profile/..." placeholder-class="xf-mama-placeholder" /></label>
+          <text wx:if="{{formDraft.originalXiaohongshuProfileUrl}}" class="xf-mama-upload-hint">主页链接已锁定，保存时只更新昵称等资料。</text>
           <view class="xf-mama-field">
             <text>小红书页面截图</text>
             <button class="xf-mama-upload-button" type="button" loading="{{xiaohongshuScreenshotUploading}}" disabled="{{xiaohongshuScreenshotUploading}}" catchtap="chooseXiaohongshuScreenshot">
@@ -165,13 +167,14 @@
           <view class="xf-mama-add-account-row">
             <button type="button" class="xf-mama-add-account" catchtap="addMediaAccount">添加新账号</button>
           </view>
+          <view wx:if="{{message}}" class="xf-mama-message {{messageType}}">{{message}}</view>
           <button class="xf-mama-submit" catchtap="saveMediaAccounts">保存社交媒体账号</button>
         </view>
 
         <form wx:else class="xf-mama-form" bindsubmit="savePreferences">
           <view class="xf-mama-editor-head">
             <text class="xf-mama-section-heading">接单偏好</text>
-            <button type="button" class="xf-mama-editor-back" catchtap="backToProfileOverview">返回总览</button>
+            <view class="xf-mama-editor-back" catchtap="saveCurrentProfileSectionAndBack" role="button">保存并返回</view>
           </view>
           <label class="xf-mama-field">账号定位<textarea name="accountPositioning" value="{{formDraft.accountPositioning}}" data-field="accountPositioning" bindinput="updateDraftField" placeholder="例如：亲子阅读、学习规划、家居收纳、母婴好物" placeholder-class="xf-mama-textarea-placeholder"></textarea></label>
           <view class="xf-mama-field">
@@ -182,10 +185,9 @@
           </view>
           <view class="xf-mama-panel">
             <label class="xf-mama-field is-nested">暂不接的品类<input name="blockedCategories" value="{{formDraft.blockedCategories}}" data-field="blockedCategories" bindinput="updateDraftField" placeholder="例如：医美、金融、成人用品" placeholder-class="xf-mama-placeholder" /></label>
-            <checkbox-group name="consentAccepted" bindchange="toggleConsentAccepted">
-              <label class="xf-mama-check"><checkbox class="xf-mama-check-circle" value="1" checked="{{formDraft.consentAccepted}}" />我同意家和万事团队为发稿资源匹配和运营联系使用以上资料</label>
-            </checkbox-group>
+            <text class="xf-mama-check">资料会用于任务匹配和运营联系，可联系运营停用或更新。</text>
           </view>
+          <view wx:if="{{message}}" class="xf-mama-message {{messageType}}">{{message}}</view>
           <button form-type="submit" class="xf-mama-submit">保存接单偏好</button>
         </form>
       </view>
@@ -194,9 +196,9 @@
     <block wx:elif="{{mamaResourceView === 'reviewing'}}">
       <view class="xf-mama-review-card {{mamaResourceProfile.status}}">
         <view class="xf-mama-review-icon">{{mamaResourceProfile.status === "needs_info" ? "!" : (mamaResourceProfile.status === "rejected" ? "×" : "✓")}}</view>
-        <text class="xf-mama-review-title">{{mamaResourceProfile.statusText || "资料正在审核"}}</text>
-        <text wx:if="{{mamaResourceProfile.status === 'pending'}}" class="xf-mama-review-copy">你的妈妈好赚资料已经提交，运营会核对小红书主页、粉丝数、实名状态和可发品类。</text>
-        <text wx:elif="{{mamaResourceProfile.status === 'needs_info'}}" class="xf-mama-review-copy">运营需要你补充或修正部分资料。补充后我们会继续审核。</text>
+        <text class="xf-mama-review-title">{{mamaResourceProfile.statusText || "资料已保存"}}</text>
+        <text wx:if="{{mamaResourceProfile.status === 'pending'}}" class="xf-mama-review-copy">你的妈妈好赚资料已经保存，运营会按备注联系你。</text>
+        <text wx:elif="{{mamaResourceProfile.status === 'needs_info'}}" class="xf-mama-review-copy">运营需要你补充或修正部分资料。补充后会继续用于任务匹配。</text>
         <text wx:elif="{{mamaResourceProfile.status === 'rejected'}}" class="xf-mama-review-copy">当前资料暂未通过本期任务匹配。你可以按运营建议调整后重新提交。</text>
         <text wx:else class="xf-mama-review-copy">资料状态已更新，请稍后刷新查看最新结果。</text>
 
@@ -221,7 +223,7 @@
         </view>
 
         <view class="xf-mama-review-next">
-          <text>审核通过后会进入任务中心，任务会以项目列表展示，可进入详情提交链接和完成截图。</text>
+          <text>资料保存后会进入任务中心，任务会以项目列表展示，可进入详情提交链接和完成截图。</text>
         </view>
 
         <button class="xf-mama-review-action" catchtap="openProfileManager">
@@ -420,7 +422,7 @@
         </view>
       </block>
       <template wx:elif="{{settingsPanelView === 'profile'}}" is="xfSettingsProfilePanel" data="{{profileHeaderHeight: profileHeaderHeight, profileDraft: profileDraft, profileAvatar: profileAvatar, profileGenderOptions: profileGenderOptions, profilePanelMessage: profilePanelMessage}}"></template>
-      <template wx:elif="{{settingsPanelView === 'archive'}}" is="xfSettingsArchivePanel" data="{{profileHeaderHeight: profileHeaderHeight, archiveHasChildren: archiveHasChildren, archiveChildren: archiveChildren, archiveInsightGrade: archiveInsightGrade, archiveDraft: archiveDraft, archiveProfileStatus: archiveProfileStatus, archiveRelationOptions: archiveRelationOptions, archiveRegionOptions: archiveRegionOptions, archiveRegionIndex: archiveRegionIndex, archiveStageOptions: archiveStageOptions, archiveStageIndex: archiveStageIndex, archiveStage: archiveStage, archiveGradeOptions: archiveGradeOptions, archiveStageGradeColumns: archiveStageGradeColumns, archiveStageGradeValue: archiveStageGradeValue, archiveGradeSelectOptions: archiveGradeSelectOptions, archiveGradeName: archiveGradeName, archiveGradeDropdownOpen: archiveGradeDropdownOpen, archiveTagOptions: archiveTagOptions, profilePanelMessage: profilePanelMessage}}"></template>
+      <template wx:elif="{{settingsPanelView === 'archive'}}" is="xfSettingsArchivePanel" data="{{profileHeaderHeight: profileHeaderHeight, archiveHasChildren: archiveHasChildren, archiveChildren: archiveChildren, archiveInsightGrade: archiveInsightGrade, archiveDraft: archiveDraft, archiveProfileStatus: archiveProfileStatus, archiveRelationOptions: archiveRelationOptions, archiveRegionOptions: archiveRegionOptions, archiveRegionIndex: archiveRegionIndex, archiveStageOptions: archiveStageOptions, archiveStageIndex: archiveStageIndex, archiveStage: archiveStage, archiveGradeOptions: archiveGradeOptions, archiveStageGradeColumns: archiveStageGradeColumns, archiveStageGradeValue: archiveStageGradeValue, archiveGradeDisplayText: archiveGradeDisplayText, archiveGradeSelectOptions: archiveGradeSelectOptions, archiveGradeName: archiveGradeName, archiveGradeDropdownOpen: archiveGradeDropdownOpen, archiveTagOptions: archiveTagOptions, profilePanelMessage: profilePanelMessage}}"></template>
       <template wx:elif="{{settingsPanelView === 'memory'}}" is="xfSettingsMemoryPanel" data="{{profileHeaderHeight: profileHeaderHeight, memoryEnabled: memoryEnabled}}"></template>
       <template wx:elif="{{settingsPanelView === 'memoryManager'}}" is="xfSettingsMemoryManagerPanel" data="{{profileHeaderHeight: profileHeaderHeight, memorySearchQuery: memorySearchQuery, filteredMemoryItems: filteredMemoryItems, memoryPanelMessage: memoryPanelMessage}}"></template>
       <template wx:elif="{{settingsPanelView === 'settings'}}" is="xfSettingsAppPanel" data="{{profileHeaderHeight: profileHeaderHeight, isLoggedIn: isLoggedIn, hasMobile: hasMobile, bindingPhone: bindingPhone, maskedMobile: maskedMobile, fontSizeClass: fontSizeClass, fontOptions: fontOptions, profilePanelMessage: profilePanelMessage}}"></template>

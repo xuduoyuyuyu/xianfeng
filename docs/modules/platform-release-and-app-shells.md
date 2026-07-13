@@ -42,6 +42,12 @@
   and open details through the shared `pages/webview` wrapper. Topic search,
   creation, Pro/login states, and the full knowledge-tree experience remain
   owned by the web frontend and are reached from the native Topics list.
+  The native Reading tab defaults to the local `/api/books` library so list
+  results use the complete curated book set and can hydrate real metadata
+  descriptions. The external Readly library is opt-in only through an explicit
+  in-page source switch or an external-library tag coming from an external book
+  detail; native search and stale source preferences must not silently reopen
+  Reading on the external library.
   The Baibaoxiang welfare shortcut opens native `pages/welfare/index` so the
   page uses mini-program chrome and hides backend 404s as an empty welfare
   state. Claim success is handled in the native page with the configured claim

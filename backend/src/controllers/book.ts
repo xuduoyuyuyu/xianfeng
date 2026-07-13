@@ -143,6 +143,14 @@ function parseExternalBookFilterMatchMode(value: unknown): ExternalBookFilterMat
   return String(value || "").trim().toLowerCase() === "any" ? "any" : "all";
 }
 
+function parseExternalBookKeyword(value: unknown): string {
+  return String(value || "").trim().slice(0, 80);
+}
+
+function normalizeExternalBookSearchText(value: unknown): string {
+  return String(value || "").trim().toLowerCase().replace(/\s+/g, "");
+}
+
 function pushExternalBookFilterOption(values: string[], value: unknown) {
   const label = normalizeExternalBookFilterValue(value);
   if (label && values.indexOf(label) < 0) values.push(label);
@@ -163,6 +171,24 @@ function externalBookRecordMatchesTags(record: any, tags: string[], mode: Extern
     .filter(Boolean);
   if (mode === "any") return tags.some((tag) => values.includes(tag));
   return tags.every((tag) => values.includes(tag));
+}
+
+function externalBookRecordMatchesKeyword(record: any, keyword: string): boolean {
+  const query = normalizeExternalBookSearchText(keyword);
+  if (!query) return true;
+  const haystack = normalizeExternalBookSearchText([
+    pick(record, ["title"]),
+    pick(record, ["author"]),
+    pick(record, ["publisher"]),
+    pick(record, ["isbn"]),
+    pick(record, ["levelRange"]),
+    pick(record, ["fiction"]),
+    pick(record, ["series"]),
+    pick(record, ["tags"]),
+    pick(record, ["category"]),
+    pick(record, ["description", "intro", "summary", "contentIntro", "abstract", "简介", "图书简介", "内容简介"]),
+  ].filter(Boolean).join(" "));
+  return haystack.includes(query);
 }
 
 function countExternalBookFilterMatches(records: any[], label: string): number {
@@ -236,22 +262,24 @@ function normalizeExternalBookLibraryRecord(record: any): ExternalBookLibraryRec
     series: pick(record, ["series"]),
     fiction: pick(record, ["fiction"]),
     levelRange: pick(record, ["levelRange"]),
-    description: pick(record, ["description"]),
+    description: pick(record, ["description", "intro", "summary", "contentIntro", "abstract", "简介", "图书简介", "内容简介"]),
   };
 }
 
-async function fetchExternalBookLibraryPage(current: number, size: number, filters?: { category?: string; tags?: string }) {
+async function fetchExternalBookLibraryPage(current: number, size: number, filters?: { category?: string; tags?: string; title?: string }) {
   const query = {
     current: String(current),
     size: String(size),
     category: normalizeExternalBookFilterValue(filters?.category),
     tags: normalizeExternalBookFilterValue(filters?.tags),
+    title: String(filters?.title || "").trim(),
   };
   const upstreamUrl = new URL(READLY_BOOK_PAGE_URL);
   upstreamUrl.searchParams.set("current", query.current);
   upstreamUrl.searchParams.set("size", query.size);
   if (query.category) upstreamUrl.searchParams.set("category", query.category);
   if (query.tags) upstreamUrl.searchParams.set("tags", query.tags);
+  if (query.title) upstreamUrl.searchParams.set("title", query.title);
 
   const response = await fetch(upstreamUrl, {
     headers: {
@@ -379,22 +407,25 @@ async function fetchExternalBookLibraryFilterRecords(): Promise<any[]> {
   }
 }
 
-async function fetchExternalBookLibraryFilteredPage(current: number, size: number, tags: string[], mode: ExternalBookFilterMatchMode = "all") {
-  if (!tags.length) return fetchExternalBookLibraryPage(current, size);
+async function fetchExternalBookLibraryFilteredPage(current: number, size: number, tags: string[], mode: ExternalBookFilterMatchMode = "all", keyword = "") {
+  const normalizedKeyword = parseExternalBookKeyword(keyword);
+  if (!tags.length && !normalizedKeyword) return fetchExternalBookLibraryPage(current, size);
+  if (!tags.length && normalizedKeyword) return fetchExternalBookLibraryPage(current, size, { title: normalizedKeyword });
 
-  if (tags.length === 1) {
+  if (tags.length === 1 && !normalizedKeyword) {
     const categoryPage = await fetchExternalBookLibraryCategoryPage(current, size, tags[0]);
     if (categoryPage.total > 0) return categoryPage;
     const tagPage = await fetchExternalBookLibraryTagPage(current, size, tags[0]);
     if (tagPage.total > 0) return tagPage;
   }
 
-  const bestCategory = mode === "all" ? await findExternalBookLibraryBestCategory(tags) : null;
+  const bestCategory = tags.length && mode === "all" ? await findExternalBookLibraryBestCategory(tags) : null;
   const sourceRecords = bestCategory
     ? (await fetchExternalBookLibraryCategoryRecords(bestCategory.tag)).records
     : await fetchExternalBookLibraryFilterRecords();
   const records = sourceRecords
-    .filter((record) => externalBookRecordMatchesTags(record, tags, mode));
+    .filter((record) => externalBookRecordMatchesTags(record, tags, mode))
+    .filter((record) => externalBookRecordMatchesKeyword(record, normalizedKeyword));
   const start = Math.max(0, (current - 1) * size);
   const pageRecords = records.slice(start, start + size);
   return {
@@ -597,12 +628,13 @@ export class BookController {
       const safeSize = clampInteger(req.query.size, 24, 1, 60);
       const filterTags = parseExternalBookFilterTags(req.query.tags);
       const filterTagMode = parseExternalBookFilterMatchMode(req.query.tagMode);
+      const keyword = parseExternalBookKeyword(req.query.q || req.query.keyword);
       const includeFilters = String(req.query.includeFilters || "") === "1";
       const query = {
         current: String(safeCurrent),
         size: String(safeSize),
       };
-      const data = await fetchExternalBookLibraryFilteredPage(Number(query.current), Number(query.size), filterTags, filterTagMode);
+      const data = await fetchExternalBookLibraryFilteredPage(Number(query.current), Number(query.size), filterTags, filterTagMode, keyword);
       const records = data.records;
       const filterRecords = includeFilters ? await fetchExternalBookLibraryFilterRecords() : [];
       res.status(200).json({

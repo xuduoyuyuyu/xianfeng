@@ -112,10 +112,13 @@ test("public books expose a read-only external library proxy before dynamic rout
   assert.match(controllerSource, /current: String\(safeCurrent\)/, "proxy should forward a sanitized current page value");
   assert.match(controllerSource, /size: String\(safeSize\)/, "proxy should forward a sanitized page size value");
   assert.match(controllerSource, /parseExternalBookFilterTags\(req\.query\.tags\)/, "proxy should accept tag filters without requiring the mini program to fetch all records");
+  assert.match(controllerSource, /parseExternalBookKeyword\(req\.query\.q \|\| req\.query\.keyword\)/, "proxy should accept keyword searches for the external library");
   assert.match(controllerSource, /String\(req\.query\.includeFilters \|\| ""\) === "1"/, "proxy should compute full filter options only when requested");
-  assert.match(controllerSource, /fetchExternalBookLibraryFilteredPage\(Number\(query\.current\), Number\(query\.size\), filterTags, filterTagMode\)/, "proxy should return a filtered page with the matched total");
+  assert.match(controllerSource, /fetchExternalBookLibraryFilteredPage\(Number\(query\.current\), Number\(query\.size\), filterTags, filterTagMode, keyword\)/, "proxy should return a filtered page with the matched total");
+  assert.match(controllerSource, /externalBookRecordMatchesKeyword\(record, normalizedKeyword\)/, "external keyword searches should run against the full external snapshot instead of the first page");
   assert.match(controllerSource, /upstreamUrl\.searchParams\.set\("category", query\.category\)/, "proxy should translate category-like filter tags to the upstream category parameter");
   assert.match(controllerSource, /upstreamUrl\.searchParams\.set\("tags", query\.tags\)/, "proxy should translate booklist-like filter tags to the upstream tags parameter");
+  assert.match(controllerSource, /upstreamUrl\.searchParams\.set\("title", query\.title\)/, "proxy should use the upstream title search instead of scanning the full external library for plain keywords");
   assert.match(controllerSource, /fetchExternalBookLibraryTagPage\(current, size, tags\[0\]\)/, "single-tag filtering should retry upstream tags when category matching is empty");
   assert.match(controllerSource, /findExternalBookLibraryBestCategory\(tags\)/, "multi-tag filtering should choose the smallest upstream category candidate before local matching");
   assert.match(controllerSource, /fetchExternalBookLibraryCategoryRecords\(bestCategory\.tag\)/, "multi-tag filtering should scan only the chosen category candidate set");
@@ -132,6 +135,7 @@ test("public books expose a read-only external library proxy before dynamic rout
   assert.match(controllerSource, /buildExternalBookLibraryFilterGroups\(filterRecords\)/, "proxy should return filter options from the full external API snapshot");
   assert.match(controllerSource, /externalBookRecordMatchesTags\(record, tags, mode\)/, "filtered pages should match normalized external tag values");
   assert.match(controllerSource, /records: records\.map\(normalizeExternalBookLibraryRecord\)/, "proxy should return normalized external records");
+  assert.match(controllerSource, /description: pick\(record, \["description", "intro", "summary", "contentIntro", "abstract", "简介", "图书简介", "内容简介"\]\)/, "external records should expose real list descriptions from known upstream field names");
 
   const externalIndex = publicRouteSource.indexOf('router.get("/external"');
   const externalDetailIndex = publicRouteSource.indexOf('router.get("/external/:id"');

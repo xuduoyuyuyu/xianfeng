@@ -2212,7 +2212,7 @@ page {
   height: 100vh;
   box-sizing: border-box;
   padding: 86rpx 28rpx 56rpx;
-  background: linear-gradient(180deg, #f6f7fb 0, #f6f7fb calc(100% - 96rpx), transparent calc(100% - 96rpx), transparent 100%);
+  background: #f6f7fb;
   border-radius: 0 0 0 36rpx;
   box-shadow: -22rpx 0 52rpx rgba(31, 20, 71, 0.16);
   overflow-y: auto;

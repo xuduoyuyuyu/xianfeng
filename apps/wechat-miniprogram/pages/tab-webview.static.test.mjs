@@ -1360,6 +1360,13 @@ test("native search stores reading keyword before opening fallback reading list"
       keyword: "中考作文"
     });
     assert.deepEqual(switchCalls, [{ url: "/pages/reading/index" }]);
+
+    context.data.readingSource = "external";
+    definition.openResult.call(context, { currentTarget: { dataset: { index: 0 } } });
+    assert.deepEqual(storage.get("xf_reading_pending_filter_v1"), {
+      source: "native",
+      keyword: "中考作文"
+    });
   } finally {
     global.wx.switchTab = originalSwitchTab;
     global.wx.setStorageSync = originalSetStorageSync;
@@ -4075,13 +4082,11 @@ test("Xiaowanzi assistant cards render topic Markdown as native tappable links",
     });
 
     const wrapperUrl = new URL(navigations[0].url, "https://mini.local");
-    const embeddedUrl = new URL(wrapperUrl.searchParams.get("url"));
     assert.equal(wrapperUrl.pathname, "/pages/webview/index");
+    assert.equal(wrapperUrl.searchParams.get("nativeTopic"), "1");
+    assert.equal(wrapperUrl.searchParams.get("topicSlug"), "si-bian-ke-cheng-bao-ban-bi-yao-xing-fen-xi");
     assert.equal(wrapperUrl.searchParams.get("title"), "思辨课程报班必要性分析");
-    assert.equal(embeddedUrl.pathname, "/topics/si-bian-ke-cheng-bao-ban-bi-yao-xing-fen-xi");
-    assert.equal(embeddedUrl.searchParams.get("xw_layer"), "1");
-    assert.equal(embeddedUrl.searchParams.get("xw_return"), "xiaowanzi");
-    assert.equal(embeddedUrl.searchParams.get("xf_mpv"), "20260630-topic-detail");
+    assert.equal(wrapperUrl.searchParams.has("url"), false);
   } finally {
     global.wx.request = originalRequest;
     global.wx.getStorageSync = originalGetStorageSync;
@@ -4181,9 +4186,62 @@ test("Xiaowanzi assistant book links open details or native search results by li
     assert.equal(switches.length, 0);
     assert.equal(navigations.length, 3);
     assert.match(navigations[0].url, /pages\/webview\/index\?url=/);
-    assert.match(decodeURIComponent(navigations[0].url), /\/reading\/book-detail-1/);
+    assert.equal(new URL(navigations[0].url, "https://mini.local").searchParams.get("url"), "/reading/book-detail-1");
     assert.equal(navigations[1].url, "/pages/search/index?q=%E7%AC%AC%E4%B8%80%E6%AC%A1%E4%B8%8A%E8%A1%97&source=reading&readingSource=native");
     assert.equal(navigations[2].url, "/pages/search/index?q=%E7%AC%AC%E4%B8%80%E6%AC%A1%E4%B8%8A%E8%A1%97%E4%B9%B0%E4%B8%9C%E8%A5%BF&source=reading&readingSource=native");
+  } finally {
+    global.wx.navigateTo = originalNavigateTo;
+    global.wx.switchTab = originalSwitchTab;
+  }
+});
+
+test("Xiaowanzi assistant site index links route to native mini program detail surfaces", () => {
+  const definition = loadPageDefinition("xiaowanzi");
+  const originalNavigateTo = global.wx.navigateTo;
+  const originalSwitchTab = global.wx.switchTab;
+  const navigations = [];
+  const switches = [];
+  const context = {
+    ...definition,
+    data: { ...definition.data },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+
+  try {
+    global.wx.navigateTo = (options) => {
+      navigations.push(options);
+    };
+    global.wx.switchTab = (options) => {
+      switches.push(options);
+    };
+
+    [
+      { url: "/programs/006-yuwen-xuexi?xw_layer=1&xw_return=xiaowanzi", title: "语文学习节目" },
+      { url: "https://xianfeng.xinzhi.info/materials/reading-test?xw_layer=1&xw_return=xiaowanzi", title: "阅读测试资料" },
+      { url: "/experts/teacher-xia?xw_layer=1&xw_return=xiaowanzi", title: "夏老师" },
+      { url: "/worthbuy/game-guide?xw_layer=1&xw_return=xiaowanzi", title: "游戏选择" }
+    ].forEach((item) => {
+      definition.openMessageLink.call(context, {
+        currentTarget: { dataset: item }
+      });
+    });
+
+    assert.deepEqual(switches, []);
+    assert.equal(navigations.length, 4);
+    const programUrl = new URL(navigations[0].url, "https://mini.local");
+    assert.equal(programUrl.pathname, "/pages/webview/index");
+    assert.equal(programUrl.searchParams.get("url"), "/programs/006-yuwen-xuexi");
+    assert.equal(programUrl.searchParams.get("title"), "语文学习节目");
+    const materialUrl = new URL(navigations[1].url, "https://mini.local");
+    assert.equal(materialUrl.pathname, "/pages/webview/index");
+    assert.equal(materialUrl.searchParams.get("url"), "/materials/reading-test");
+    const expertUrl = new URL(navigations[2].url, "https://mini.local");
+    assert.equal(expertUrl.pathname, "/pages/webview/index");
+    assert.equal(expertUrl.searchParams.get("url"), "/experts/teacher-xia");
+    assert.equal(navigations[3].url, "/pages/worthbuy-detail/index?query=game-guide");
+    assert.equal(navigations.some((item) => String(item.url || "").includes("xianfeng.xinzhi.info")), false);
   } finally {
     global.wx.navigateTo = originalNavigateTo;
     global.wx.switchTab = originalSwitchTab;
@@ -4289,7 +4347,11 @@ test("Xiaowanzi assistant cards format Markdown-like document replies", async ()
       }
     });
     assert.equal(navigations.length, 1);
-    assert.match(decodeURIComponent(navigations[0].url), /\/topics\/you-er-bao-hu-yan-jing/);
+    const topicNavigation = new URL(navigations[0].url, "https://mini.local");
+    assert.equal(topicNavigation.pathname, "/pages/webview/index");
+    assert.equal(topicNavigation.searchParams.get("nativeTopic"), "1");
+    assert.equal(topicNavigation.searchParams.get("topicSlug"), "you-er-bao-hu-yan-jing");
+    assert.equal(topicNavigation.searchParams.has("url"), false);
 
     const { wxml, wxss } = readPage("xiaowanzi");
     assert.match(wxml, /part\.type === 'md_heading'/);
@@ -4316,7 +4378,7 @@ test("Xiaowanzi assistant cards keep program links inside Markdown list replies"
   const markdownReply = [
     "推荐你收听这几期节目：",
     "",
-    `- [006.中考命题人视角下的语文学习，作文写不好不是孩子的问题](${programPath})`,
+    `- **[006.中考命题人视角下的语文学习，作文写不好不是孩子的问题](${programPath})**`,
     "- 先从阅读兴趣开始，不急着刷题"
   ].join("\n");
   const context = {
@@ -4362,6 +4424,7 @@ test("Xiaowanzi assistant cards keep program links inside Markdown list replies"
     ]);
     assert.equal(assistant.contentParts[1].text, "006.中考命题人视角下的语文学习，作文写不好不是孩子的问题");
     assert.equal(assistant.contentParts[1].url, programPath);
+    assert.equal(assistant.contentParts.some((part) => part.text === "**"), false);
     assert.equal(context.data.homeConversationMessages.at(-1).contentParts[1].type, "link");
   } finally {
     global.wx.request = originalRequest;
@@ -5574,7 +5637,8 @@ test("native first-level content tabs fetch API data and open detail wrapper rou
   assert.match(reading.js, /switchBookViewMode\(\)/);
   assert.match(reading.js, /const compactMode = !this\.data\.compactMode/);
   assert.match(reading.js, /function bookDisplayPriority\(book, index\)/);
-  assert.match(reading.js, /if \(hasCover && hasDetail\) score = 4/);
+  assert.match(reading.js, /if \(hasDetail && hasDescription\) score = 4/);
+  assert.match(reading.js, /else if \(hasDescription\) score = 3/);
   assert.match(reading.js, /const recommendedGuest = displayText\(item\.recommendedGuest\)/);
   assert.match(reading.js, /const recommenderTag = recommendedGuest \? `推荐：\$\{recommendedGuest\}` : ""/);
   assert.match(reading.js, /recommenderTag,\n\s+fieldTags,\n\s+displayTags,/);
@@ -5945,8 +6009,10 @@ test("native first-level content tabs fetch API data and open detail wrapper rou
   assert.doesNotMatch(xiaowanzi.wxss.match(/\.xf-xiaowanzi-history-exit-mark \{[^}]*\}/)?.[0] || "", /font-family: "Material Symbols Rounded"/);
   assert.doesNotMatch(xiaowanzi.wxss, /\.xf-xiaowanzi-history-exit-mark::before|\.xf-xiaowanzi-history-exit-mark::after/);
   assert.match(xiaowanzi.wxss, /\.xf-xiaowanzi-archive-scrim \{[^}]*width: 16vw;[^}]*background: rgba\(15, 12, 35, 0\.42\);[^}]*\}/);
-  assert.match(xiaowanzi.wxss, /\.xf-xiaowanzi-archive-panel \{[^}]*right: 0;[^}]*width: 84vw;[^}]*padding: 86rpx 28rpx 56rpx;[^}]*background: linear-gradient\(180deg, #f6f7fb 0, #f6f7fb calc\(100% - 96rpx\), transparent calc\(100% - 96rpx\), transparent 100%\);[^}]*overflow-y: auto;[^}]*\}/);
+  assert.match(xiaowanzi.wxss, /\.xf-xiaowanzi-archive-panel \{[^}]*right: 0;[^}]*width: 84vw;[^}]*padding: 86rpx 28rpx 56rpx;[^}]*background: #f6f7fb;[^}]*overflow-y: auto;[^}]*\}/);
+  assert.doesNotMatch(xiaowanzi.wxss.match(/\.xf-xiaowanzi-archive-panel \{[^}]*\}/)?.[0] || "", /transparent calc\(100% - 96rpx\)/);
   assert.match(xiaowanzi.wxml, /is="xfSettingsArchivePanel"/);
+  assert.match(xiaowanzi.wxml, /archiveGradeDisplayText: archiveGradeDisplayText/);
   assert.doesNotMatch(xiaowanzi.wxml, /☰|↪/);
   assert.doesNotMatch(xiaowanzi.wxml, /class="xf-xiaowanzi-share-panel"|class="xf-xiaowanzi-share-scrim"/);
   assert.match(xiaowanzi.wxml, /open-type="share"/);
@@ -6432,9 +6498,10 @@ test("reading tab switches between feature and compact book layouts", async () =
         return Promise.resolve(allBooks);
       }
     };
-    storage.set("xf_reading_pending_filter_v1", { source: "native", keyword: "中考作文" });
+    storage.set("xf_reading_pending_filter_v1", { source: "external", keyword: "中考作文" });
     await definition.consumePendingReadingFilter.call(pendingKeywordContext);
     assert.equal(storage.get("xf_reading_pending_filter_v1"), "");
+    assert.equal(pendingKeywordContext.data.useExternalLibrarySource, false);
     assert.equal(pendingKeywordContext.data.activeReadingTagLabel, "中考作文");
     assert.deepEqual(pendingKeywordContext.data.books.map((book) => book.title), ["中考作文素材与表达"]);
     assert.equal(pendingKeywordContext.data.books[0].hasListDescription, true);
@@ -6452,6 +6519,68 @@ test("reading external library cards use tighter tag spacing", () => {
   assert.match(reading.wxml, /<view class="xf-native-page xf-reading-page \{\{fontSizeClass\}\} \{\{compactMode \? 'is-compact' : 'is-feature'\}\} \{\{useExternalLibrarySource \? 'is-external-library' : 'is-native-library'\}\}" style="padding-top: \{\{chromeHeight\}\}px;">/);
   assert.match(reading.wxss, /\.xf-reading-tags \{[\s\S]*gap: 14rpx;/);
   assert.match(reading.wxss, /\.xf-reading-page\.is-external-library \.xf-reading-tags \{[\s\S]*gap: 6rpx 10rpx;[\s\S]*margin-top: 8rpx;[\s\S]*min-height: 32rpx;/);
+});
+
+test("reading external keyword search queries the live library instead of filtering the loaded page", async () => {
+  const definition = loadPageDefinition("reading");
+  const originalRequest = global.wx.request;
+  const requests = [];
+  const context = {
+    ...definition,
+    allBooks: [
+      { id: "loaded-first-page", title: "首屏无关图书", author: "作者", fieldTags: [], displayTags: [] }
+    ],
+    data: {
+      ...definition.data,
+      useExternalLibrarySource: true,
+      books: [
+        { id: "loaded-first-page", title: "首屏无关图书", author: "作者", fieldTags: [], displayTags: [] }
+      ],
+      activeReadingTag: "",
+      activeReadingTags: []
+    },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    },
+    scrollBelowSearchPanel() {}
+  };
+
+  try {
+    global.wx.request = (options) => {
+      requests.push(options.url);
+      if (String(options.url).includes("/api/books/external") && String(options.url).includes("q=")) {
+        options.success({
+          statusCode: 200,
+          data: {
+            records: [
+              {
+                id: "gaokao-1",
+                title: "高考志愿填报指南",
+                author: "志愿专家",
+                description: "围绕院校选择、专业匹配和志愿梯度给家长做系统说明。",
+                category: "高考志愿;升学规划",
+                levelRange: "高中"
+              }
+            ],
+            total: 1,
+            current: 1,
+            pages: 1
+          }
+        });
+      }
+    };
+
+    await definition.applyReadingKeywordFilter.call(context, "高考志愿");
+
+    assert.equal(requests.some((url) => String(url).includes("/api/books/external") && String(url).includes("q=%E9%AB%98%E8%80%83%E5%BF%97%E6%84%BF")), true);
+    assert.deepEqual(context.data.books.map((book) => book.title), ["高考志愿填报指南"]);
+    assert.equal(context.data.books[0].description, "围绕院校选择、专业匹配和志愿梯度给家长做系统说明。");
+    assert.equal(context.data.books[0].hasListDescription, true);
+    assert.equal(context.data.readingFilterPreviewCount, 1);
+    assert.equal(context.data.hasMoreBooks, false);
+  } finally {
+    global.wx.request = originalRequest;
+  }
 });
 
 test("reading search opens with the current reading library source", () => {
@@ -6474,7 +6603,7 @@ test("reading search opens with the current reading library source", () => {
       url: "/pages/search/index?readingSource=native"
     });
     assert.deepEqual(navigateCalls[1], {
-      url: "/pages/search/index?readingSource=external"
+      url: "/pages/search/index?readingSource=native"
     });
   } finally {
     global.wx.navigateTo = originalNavigateTo;
@@ -6543,7 +6672,7 @@ test("reading tab renders app-preloaded native first-page cache before full refr
     assert.equal(context.data.books[0].id, "raw-preloaded");
     assert.equal(context.data.books[0].description, "这本书讲一棵大树上的字母如何学会组合成词语和句子，适合一年级孩子理解文字的力量。");
     assert.equal(requests.some((url) => String(url).endsWith("/api/books/raw-preloaded/metadata")), true);
-    assert.equal(context.data.books[0].coverImage, "/assets/menu/jiyue-logo.png");
+    assert.equal(context.data.books[0].coverImage, "");
     assert.equal(context.data.books[0].path, "/reading/raw-preloaded");
     assert.equal(context.data.books[0].displayTags.includes("#阅读指南"), true);
     assert.equal(context.data.readingFilterPreviewCount, 2777);
@@ -6879,6 +7008,141 @@ test("reading tab falls back to local detail when metadata has no list descripti
   } finally {
     global.wx.request = originalRequest;
     global.wx.setStorageSync = originalSetStorageSync;
+  }
+});
+
+test("reading tab prioritizes local books that have both detail and list descriptions", async () => {
+  const definition = loadPageDefinition("reading");
+  const originalRequest = global.wx.request;
+  const context = {
+    ...definition,
+    allBooks: [],
+    data: {
+      ...definition.data,
+      books: [],
+      loading: true,
+      activeReadingTag: "",
+      activeReadingTags: []
+    },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+
+  try {
+    global.wx.request = (options) => {
+      if (String(options.url).includes("/api/books?") && String(options.url).includes("current=1")) {
+        options.success({
+          statusCode: 200,
+          data: {
+            records: [
+              {
+                _id: "detail-without-description",
+                title: "有详情但无简介",
+                author: "作者",
+                coverImage: "/uploads/cover-a.jpg",
+                hasMetadataDetail: true
+              },
+              {
+                _id: "detail-with-description",
+                title: "有详情且有简介",
+                author: "作者",
+                hasMetadataDetail: true,
+                description: "这本书有真实简介，应该在及阅列表靠前展示。"
+              },
+              {
+                _id: "description-without-detail",
+                title: "有简介但无详情",
+                author: "作者",
+                description: "只有简介，没有详情。"
+              }
+            ],
+            total: 3,
+            current: 1,
+            pages: 1,
+            size: 24
+          }
+        });
+        return;
+      }
+      options.success({ statusCode: 200, data: [] });
+    };
+
+    await definition.loadBooks.call(context);
+
+    assert.deepEqual(context.data.books.map((book) => book.title), [
+      "有详情且有简介",
+      "有简介但无详情",
+      "有详情但无简介"
+    ]);
+    assert.equal(context.data.books[0].hasListDescription, true);
+    assert.equal(context.data.books[0].description, "这本书有真实简介，应该在及阅列表靠前展示。");
+  } finally {
+    global.wx.request = originalRequest;
+  }
+});
+
+test("reading tab treats fallback book covers as missing covers", async () => {
+  const definition = loadPageDefinition("reading");
+  const originalRequest = global.wx.request;
+  const context = {
+    ...definition,
+    allBooks: [],
+    data: {
+      ...definition.data,
+      books: [],
+      loading: true,
+      activeReadingTag: "",
+      activeReadingTags: []
+    },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+
+  try {
+    global.wx.request = (options) => {
+      if (String(options.url).includes("/api/books?") && String(options.url).includes("current=1")) {
+        options.success({
+          statusCode: 200,
+          data: {
+            records: [
+              {
+                _id: "placeholder-cover",
+                title: "兜底封面图书",
+                author: "作者",
+                coverImage: "https://via.placeholder.com/240x320/630ed4/ffffff?text=Book",
+                hasMetadataDetail: true,
+                description: "这本书有真实简介，但封面是兜底图。"
+              },
+              {
+                _id: "real-cover",
+                title: "真实封面图书",
+                author: "作者",
+                coverImage: "/uploads/books/real-cover.jpg",
+                hasMetadataDetail: true,
+                description: "这本书有真实简介，也有真实封面。"
+              }
+            ],
+            total: 2,
+            current: 1,
+            pages: 1,
+            size: 24
+          }
+        });
+        return;
+      }
+      options.success({ statusCode: 200, data: [] });
+    };
+
+    await definition.loadBooks.call(context);
+
+    const placeholderBook = context.data.books.find((book) => book.title === "兜底封面图书");
+    const realCoverBook = context.data.books.find((book) => book.title === "真实封面图书");
+    assert.equal(placeholderBook.coverImage, "");
+    assert.equal(realCoverBook.coverImage, "https://xianfeng.xinzhi.info/uploads/books/real-cover.jpg");
+  } finally {
+    global.wx.request = originalRequest;
   }
 });
 
@@ -7374,7 +7638,7 @@ test("reading tab preloads the live library first page and switches from cache i
   }
 });
 
-test("reading tab restores the preferred live library source before rendering first-screen cache", () => {
+test("reading tab ignores stale preferred live library source before rendering first-screen cache", () => {
   const definition = loadPageDefinition("reading");
   const originalGetStorageSync = global.wx.getStorageSync;
   const originalSetStorageSync = global.wx.setStorageSync;
@@ -7424,10 +7688,10 @@ test("reading tab restores the preferred live library source before rendering fi
     if (context.data.useExternalLibrarySource) definition.renderExternalLibraryFirstPageFromCache.call(context);
     else definition.renderNativeBooksFirstPageFromCache.call(context);
 
-    assert.equal(context.data.useExternalLibrarySource, true);
-    assert.equal(context.data.books[0].id, "cached-external-1");
-    assert.equal(context.data.books.some((book) => book.id === "cached-local-1"), false);
-    assert.equal(context.data.readingFilterPreviewCount, 187104);
+    assert.equal(context.data.useExternalLibrarySource, false);
+    assert.equal(context.data.books[0].id, "cached-local-1");
+    assert.equal(context.data.books.some((book) => book.id === "cached-external-1"), false);
+    assert.equal(context.data.readingFilterPreviewCount, 1);
   } finally {
     global.wx.getStorageSync = originalGetStorageSync;
     global.wx.setStorageSync = originalSetStorageSync;
@@ -12182,7 +12446,8 @@ test("shared native settings drawer renders profile subviews in place on first-l
   assert.match(template, /<view class="xf-settings-bottom">\s*<button wx:if="\{\{isLoggedIn\}\}" class="xf-profile-danger xf-settings-danger" bindtap="deleteAccount">注销账户<\/button>/);
   assert.match(nativeListStyles, /\.xf-settings-panel \{[\s\S]*display: flex;[\s\S]*flex-direction: column;[\s\S]*min-height: calc\(100vh - 190rpx\);/);
   assert.match(nativeListStyles, /\.xf-settings-bottom \{[\s\S]*margin-top: auto;[\s\S]*padding-top: 120rpx;[\s\S]*padding-bottom: 86rpx;/);
-  assert.match(archivePanelStyles, /\.xf-profile-panel \{[\s\S]*background: linear-gradient\(180deg, #f6f7fb 0, #f6f7fb calc\(100% - 96rpx\), transparent calc\(100% - 96rpx\), transparent 100%\);/);
+  assert.match(archivePanelStyles, /\.xf-profile-panel \{[\s\S]*background: #f6f7fb;/);
+  assert.doesNotMatch(archivePanelStyles.match(/\.xf-profile-panel \{[\s\S]*?\n\}/)?.[0] || "", /transparent calc\(100% - 96rpx\)/);
   assert.match(template, /class="xf-profile-delete-child" bindtap="deleteArchiveChild">删除<\/button>/);
   assert.match(archivePageTemplate, /class="xf-profile-delete-child" bindtap="deleteChild">删除<\/button>/);
   assert.match(template, /<button class="xf-profile-secondary" bindtap="findXiaowanzi">找小玩子<\/button>\s*<\/view>\s*<\/view>\s*<view class="xf-profile-message">\{\{profilePanelMessage\}\}<\/view>\s*<view class="xf-profile-delete-zone">\s*<button class="xf-profile-delete-child" bindtap="deleteArchiveChild">删除<\/button>\s*<\/view>/);
@@ -12252,6 +12517,7 @@ test("shared native settings drawer renders profile subviews in place on first-l
     assert.match(page.wxml, /archiveStageIndex: archiveStageIndex/, pageName);
     assert.match(page.wxml, /archiveStageGradeColumns: archiveStageGradeColumns/, pageName);
     assert.match(page.wxml, /archiveStageGradeValue: archiveStageGradeValue/, pageName);
+    assert.match(page.wxml, /archiveGradeDisplayText: archiveGradeDisplayText/, pageName);
     assert.match(page.wxml, /template wx:elif="\{\{settingsPanelView === 'memory'\}\}" is="xfSettingsMemoryPanel"/, pageName);
     assert.match(page.wxml, /template wx:elif="\{\{settingsPanelView === 'memoryManager'\}\}" is="xfSettingsMemoryManagerPanel"/, pageName);
     assert.match(page.wxml, /template wx:elif="\{\{settingsPanelView === 'settings'\}\}" is="xfSettingsAppPanel"/, pageName);
@@ -12788,10 +13054,10 @@ test("mama haozhuan opens a native mini program form instead of program detail w
     assert.match(page.wxml, /wx:if="\{\{settingsPanelOpen\}\}" class="xf-native-settings-mask" style="height: \{\{settingsPanelHeight\}\}px;" catchtap="closeSettings"/);
     assert.match(page.wxml, /wx:for="\{\{settingsSections\}\}"/);
     assert.doesNotMatch(page.wxml, /xf-mama-back/);
-    assert.match(page.wxml, /xf-mama-intro-card[\s\S]*妈妈好赚[\s\S]*<view class="xf-mama-card xf-mama-profile-manager">[\s\S]*资料管理[\s\S]*提交资料，进入待审核/);
+    assert.match(page.wxml, /xf-mama-intro-card[\s\S]*妈妈好赚[\s\S]*<view class="xf-mama-card xf-mama-profile-manager">[\s\S]*资料管理[\s\S]*保存资料/);
     assert.doesNotMatch(page.wxml, /<view class="xf-mama-card">[\s\S]*<form class="xf-mama-form" bindsubmit="submit">\s*<view class="xf-mama-head">\s*<image class="xf-mama-icon"/);
-    assert.match(page.wxml, /后续任务派发。/);
-    assert.match(page.wxml, /我同意家和万事团队为发稿资源匹配和运营联系使用以上资料/);
+    assert.match(page.wxml, /运营会按备注联系你。/);
+    assert.doesNotMatch(page.wxml, /我同意家和万事团队为发稿资源匹配和运营联系使用以上资料/);
     assert.doesNotMatch(page.wxml, /我同意家长先疯为发稿资源匹配/);
     assert.match(page.wxml, /<input name="displayName"[\s\S]*placeholder-class="xf-mama-placeholder"/);
     assert.match(page.wxml, /账号定位[\s\S]*<textarea name="accountPositioning"[\s\S]*placeholder-class="xf-mama-textarea-placeholder"/);
@@ -12845,10 +13111,13 @@ test("mama haozhuan category chips toggle without checkbox controls", async () =
   const requests = [];
   const originalWx = global.wx;
 
-  assert.match(page.wxml, /暂不接的品类[\s\S]*name="blockedCategories"[\s\S]*name="consentAccepted"[\s\S]*我同意家和万事团队/);
+  assert.match(page.wxml, /暂不接的品类[\s\S]*name="blockedCategories"/);
+  assert.doesNotMatch(page.wxml, /name="consentAccepted"|我同意家和万事团队/);
+  assert.match(page.wxml, /name="xiaohongshuProfileUrl"[\s\S]*disabled="\{\{formDraft\.originalXiaohongshuProfileUrl\}\}"/);
+  assert.match(page.wxml, /主页链接已锁定，保存时只更新昵称等资料。/);
   assert.doesNotMatch(page.wxml, /acceptsGiftExchange|可以接受产品置换|低预算试单/);
   assert.doesNotMatch(page.js, /acceptsGiftExchange/);
-  assert.match(page.wxss, /\.xf-mama-check-circle[\s\S]*border-radius: 999rpx[\s\S]*color: #6c27d6/);
+  assert.match(page.wxss, /\.xf-mama-field input\.is-locked \{/);
 
   try {
     global.wx = {
