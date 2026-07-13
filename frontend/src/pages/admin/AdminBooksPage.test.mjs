@@ -56,5 +56,6 @@ test("admin book editor can manually add missing metadata details", () => {
   assert.match(pageSource, /const metadataPayload = \{/, "book save should build one metadata payload for create and edit");
   assert.match(pageSource, /cover: metadataFormData\.cover\.trim\(\) \|\| formData\.coverImage\.trim\(\)/, "metadata creation should fall back to the uploaded base cover");
   assert.match(pageSource, /if \(metadataId\) \{[\s\S]*reviewBookMetadata\(metadataId, metadataPayload\)[\s\S]*\} else \{[\s\S]*upsertBookMetadata\(editingBook\._id, metadataPayload\)/, "books without detail rows should create metadata on save");
+  assert.match(pageSource, /暂无详情记录，保存后将自动创建图书详情。/, "books without detail rows should clearly remain editable and create details on save");
   assert.doesNotMatch(pageSource, /这本书暂无详情记录；当前弹窗只编辑基础图书字段。/, "missing metadata should no longer hide the detail form");
 });

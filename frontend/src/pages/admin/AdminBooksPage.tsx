@@ -1176,6 +1176,11 @@ const AdminBooksPage: React.FC = () => {
                 </div>
                 {editingBook ? (
                     <div className="space-y-4 rounded-2xl border border-violet-100 bg-violet-50/30 p-4">
+                      {!editingBook.metadataDetail && !editingBook.metadataId ? (
+                        <div className="rounded-xl border border-violet-100 bg-white px-3 py-2 text-xs font-bold text-[#5e17eb]">
+                          暂无详情记录，保存后将自动创建图书详情。
+                        </div>
+                      ) : null}
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="block text-[11px] font-medium text-stone-500 mb-1">详情标题</label>
