@@ -16211,6 +16211,59 @@ test("webview native program detail page keeps program, book, and topic details 
   }
 });
 
+test("native program detail falls back to legacy guests when bindings have no valid guest", async () => {
+  const definition = loadPageDefinition("webview");
+  const originalWx = global.wx;
+  const context = {
+    ...definition,
+    data: { ...definition.data },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+
+  try {
+    global.wx = {
+      getStorageSync() { return ""; },
+      request(options) {
+        options.success({
+          statusCode: 200,
+          data: {
+            _id: "legacy-fallback-program",
+            title: "旧嘉宾回退节目",
+            guestBindings: [
+              { guestId: "missing-null", guest: null },
+              { guestId: "missing-guest" },
+              { guestId: "blank-guest", guest: { name: "   " } }
+            ],
+            guests: [
+              { _id: "legacy-1", name: "旧嘉宾一" },
+              { _id: "legacy-1", name: "旧嘉宾一重复", avatar: "https://img.example/duplicate.png" }
+            ],
+            guest: {
+              _id: "legacy-2",
+              name: "旧嘉宾二",
+              title: "旧资料职称",
+              avatar: "https://img.example/legacy-2.png"
+            }
+          }
+        });
+      }
+    };
+
+    await definition.loadNativeProgram.call(context, "legacy-fallback-program");
+
+    assert.deepEqual(context.data.nativeProgram.guests.map((guest) => guest.name), ["旧嘉宾一", "旧嘉宾二"]);
+    assert.equal(context.data.nativeProgram.guests[0].avatar, "/assets/wel-avatar/no-hat.png");
+    assert.equal(context.data.nativeProgram.guests[0].avatarFallback, true);
+    assert.equal(context.data.nativeProgram.guests[0].title, "教育与成长观察者");
+    assert.equal(context.data.nativeProgram.guests[1].avatar, "https://img.example/legacy-2.png");
+    assert.equal(context.data.nativeProgram.guestName, "旧嘉宾一");
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
 test("webview detail wrapper keeps the native bottom menu below website content", () => {
   const { js, json, wxml } = readPage("webview");
   const definition = loadPageDefinition("webview");
