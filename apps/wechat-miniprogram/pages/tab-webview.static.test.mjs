@@ -15370,9 +15370,10 @@ test("webview native program detail page keeps program, book, and topic details 
     assert.match(wxml, /class="xf-program-detail-content-panel is-transcript"/);
     assert.match(wxml, /class="xf-program-detail-content-row \{\{item\.featured \? 'is-featured' : ''\}\}"/);
     assert.match(wxml, /class="xf-program-detail-transcript-meta"[\s\S]*class="xf-program-detail-time">\{\{item\.time\}\}<\/text>[\s\S]*wx:if="\{\{item\.time && item\.speakerLabel\}\}" class="xf-program-detail-transcript-separator">·<\/text>[\s\S]*class="xf-program-detail-speaker">\{\{item\.speakerLabel\}\}<\/text>/);
-    assert.match(wxml, /wx:for="\{\{item\.contentNodes\}\}"[\s\S]*wx:if="\{\{node\.type === 'dictionary'\}\}"[\s\S]*data-entry-id="\{\{node\.entryId\}\}"[\s\S]*catchtap="openProgramDictionaryEntry"/);
+    assert.match(wxml, /wx:for="\{\{item\.contentNodes\}\}"[\s\S]*wx:if="\{\{node\.type === 'dictionary'\}\}"[\s\S]*role="button"[\s\S]*aria-label="查看\{\{node\.term\}\}释义"[\s\S]*data-entry-id="\{\{node\.entryId\}\}"[\s\S]*catchtap="openProgramDictionaryEntry"/);
     assert.match(wxml, /wx:if="\{\{selectedProgramDictionaryEntry\}\}" class="xf-program-dictionary-overlay" catchtap="closeProgramDictionaryEntry"/);
-    assert.match(wxml, /class="xf-program-dictionary-sheet" catchtap="stopNativeEvent"/);
+    assert.match(wxml, /class="xf-program-dictionary-sheet" catchtap="stopNativeEvent" role="dialog" aria-label="\{\{selectedProgramDictionaryEntry\.term\}\}释义"/);
+    assert.match(wxml, /class="xf-program-dictionary-close" catchtap="closeProgramDictionaryEntry" aria-label="关闭"/);
     assert.match(wxml, /\{\{selectedProgramDictionaryEntry\.term\}\}[\s\S]*\{\{selectedProgramDictionaryEntry\.definition\}\}/);
     assert.match(wxss, /\.xf-program-dictionary-term \{[\s\S]*color: #5e17eb;[\s\S]*background:/);
     assert.match(wxss, /\.xf-program-dictionary-overlay \{[\s\S]*position: fixed;[\s\S]*z-index:/);
@@ -15648,6 +15649,7 @@ test("webview native program detail page keeps program, book, and topic details 
     assert.match(wxss, /\.xf-expert-detail-wish/);
     assert.equal(js.includes("webUrl("), false);
 
+    context.data.selectedProgramDictionaryEntry = { id: "stale-entry" };
     const requestCountBeforeProgram = requests.length;
     const loadPromise = definition.onLoad.call(context, {
       title: encodeURIComponent("节目详情"),
@@ -15660,6 +15662,7 @@ test("webview native program detail page keeps program, book, and topic details 
     assert.equal(context.data.hideTabbar, true);
     assert.equal(context.data.nativeProgramMode, true);
     assert.equal(context.data.nativeProgramLoading, false);
+    assert.equal(context.data.selectedProgramDictionaryEntry, null);
     assert.equal(context.data.showNativePageNav, false);
     assert.equal(context.data.nativeBookMode, false);
     assert.equal(context.data.nativeMaterialMode, false);
@@ -15709,14 +15712,30 @@ test("webview native program detail page keeps program, book, and topic details 
       { type: "text", text: "这段没有词典内容。" }
     ]);
     assert.equal(context.data.nativeProgram.dictionaryEntries.length, 2);
+    const requestCountBeforeDictionaryInteraction = requests.length;
+    const navigationCountBeforeDictionaryInteraction = navigations.length;
     definition.openProgramDictionaryEntry.call(context, {
       currentTarget: { dataset: { entryId: "dictionary-international-education" } }
     });
     assert.equal(context.data.selectedProgramDictionaryEntry.term, "国际教育");
     assert.equal(context.data.selectedProgramDictionaryEntry.definition, "以国际视野为指导的教育理念和实践。");
     assert.deepEqual(context.data.selectedProgramDictionaryEntry.aliases, ["国际化教育"]);
+    const selectedDictionaryEntry = context.data.selectedProgramDictionaryEntry;
+    definition.openProgramDictionaryEntry.call(context, {
+      currentTarget: { dataset: { entryId: "unknown-entry" } }
+    });
+    assert.equal(context.data.selectedProgramDictionaryEntry, selectedDictionaryEntry);
+    definition.stopNativeEvent.call(context);
+    assert.equal(context.data.selectedProgramDictionaryEntry, selectedDictionaryEntry);
     definition.closeProgramDictionaryEntry.call(context);
     assert.equal(context.data.selectedProgramDictionaryEntry, null);
+    assert.equal(requests.length, requestCountBeforeDictionaryInteraction);
+    assert.equal(navigations.length, navigationCountBeforeDictionaryInteraction);
+    context.data.selectedProgramDictionaryEntry = selectedDictionaryEntry;
+    await definition.loadNativeProgram.call(context, "abc");
+    assert.equal(context.data.selectedProgramDictionaryEntry, null);
+    requests.pop();
+    requestOptions.pop();
     assert.equal(context.data.nativeProgram.hasExtension, true);
     assert.equal(context.data.nativeProgram.curatedReading.length, 2);
     assert.equal(context.data.nativeProgram.curatedReading[0].title, "把阅读变成表达");

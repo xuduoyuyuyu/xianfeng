@@ -165,6 +165,8 @@
               <text
                 wx:if="{{node.type === 'dictionary'}}"
                 class="xf-program-dictionary-term"
+                role="button"
+                aria-label="查看{{node.term}}释义"
                 data-entry-id="{{node.entryId}}"
                 catchtap="openProgramDictionaryEntry"
               >{{node.text}}</text>
@@ -221,7 +223,7 @@
   <button wx:if="{{nativeProgram.audioUrl}}" class="xf-program-detail-player-fab {{isAudioPlaying ? 'is-playing' : ''}}" catchtap="toggleNativeAudio" aria-label="{{isAudioPlaying ? '暂停节目' : '播放节目'}}"><image class="xf-program-detail-player-fab-icon" src="{{isAudioPlaying ? '/assets/program-detail/program-pause-white.png' : '/assets/program-detail/program-play-white.png'}}" mode="aspectFit" /></button>
 
   <view wx:if="{{selectedProgramDictionaryEntry}}" class="xf-program-dictionary-overlay" catchtap="closeProgramDictionaryEntry">
-    <view class="xf-program-dictionary-sheet" catchtap="stopNativeEvent">
+    <view class="xf-program-dictionary-sheet" catchtap="stopNativeEvent" role="dialog" aria-label="{{selectedProgramDictionaryEntry.term}}释义">
       <view class="xf-program-dictionary-head">
         <text class="xf-program-dictionary-title">{{selectedProgramDictionaryEntry.term}}</text>
         <button class="xf-program-dictionary-close" catchtap="closeProgramDictionaryEntry" aria-label="关闭">×</button>

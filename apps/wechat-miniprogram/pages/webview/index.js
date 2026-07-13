@@ -1986,6 +1986,7 @@ Page({
         nativeProgramLoading: true,
         nativeProgramError: "",
         nativeProgram: null,
+        selectedProgramDictionaryEntry: null,
         nativeProgramMindMapCollapsedBranches: [],
         nativeProgramMindMapOutline: { root: { title: "", summary: "" }, branches: [] },
         activeContentMode: "mindmap",
@@ -2902,6 +2903,7 @@ Page({
         this.setData({
           title: nativeProgram.title,
           nativeProgram,
+          selectedProgramDictionaryEntry: null,
           nativeProgramMindMapCollapsedBranches: [],
           nativeProgramMindMapOutline: mindMapOutline,
           activeContentMode: firstMode || "quickview",
