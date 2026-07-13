@@ -569,13 +569,30 @@ function formatProgramTranscriptSpeaker(value) {
   return `嘉宾·${speaker}`;
 }
 
+function normalizeProgramTranscriptTime(value) {
+  const source = String(value || "").trim();
+  if (!source) return "";
+  const start = source.split("-")[0].trim().replace(/\.\d+$/, "");
+  const parts = start.split(":");
+  if (parts.length !== 2 && parts.length !== 3) return "";
+  const numbers = parts.map((part) => Number(part));
+  if (numbers.some((part) => !Number.isInteger(part) || part < 0)) return "";
+  const totalSeconds = parts.length === 3
+    ? numbers[0] * 3600 + numbers[1] * 60 + numbers[2]
+    : numbers[0] * 60 + numbers[1];
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return [hours, minutes, seconds].map((part) => String(part).padStart(2, "0")).join(":");
+}
+
 function normalizeTranscript(value) {
   return Array.isArray(value)
     ? value
       .map((item) => {
         const speaker = firstText([item && item.speaker], "");
         return {
-          time: firstText([item && item.time], ""),
+          time: normalizeProgramTranscriptTime(item && item.time),
           speaker,
           speakerLabel: formatProgramTranscriptSpeaker(speaker),
           text: firstText([item && item.text], ""),
@@ -583,7 +600,6 @@ function normalizeTranscript(value) {
         };
       })
       .filter((item) => item.text)
-      .slice(0, 8)
     : [];
 }
 

@@ -15212,7 +15212,18 @@ test("webview detail page keeps program, book, and topic details in the mobile w
                 }
               }
             },
-            transcript: [{ time: "00:10", speaker: "阿力", text: "先从阅读停留说起。", featured: true }],
+            transcript: [
+              { time: "0:00:05", speaker: "阿力", text: "第一段。", featured: true },
+              { time: "00:00:22-00:00:26", speaker: "张琳", text: "第二段。" },
+              { time: "00:20-00:35", speaker: "张琳", text: "第三段。" },
+              { time: "00:00:20.66", speaker: "张琳", text: "第四段。" },
+              { time: "00:22", speaker: "张琳", text: "第五段。" },
+              { time: "", speaker: "张琳", text: "第六段。" },
+              { time: "00:01:10", speaker: "张琳", text: "第七段。" },
+              { time: "00:01:20", speaker: "张琳", text: "第八段。" },
+              { time: "00:01:30", speaker: "张琳", text: "第九段。" },
+              { time: "00:01:40", speaker: "张琳", text: "第十段。" }
+            ],
             guestBindings: [
               {
                 guestId: "expert-1",
@@ -15647,9 +15658,16 @@ test("webview detail page keeps program, book, and topic details in the mobile w
     assert.deepEqual(context.data.nativeProgramMindMapCollapsedBranches, []);
     assert.equal(context.data.nativeProgramMindMapOutline.branches[0].children.length, 1);
     assert.equal(context.data.nativeProgram.quickView[0].summary, "为什么孩子写不出来");
+    assert.equal(context.data.nativeProgram.transcript.length, 10);
+    assert.deepEqual(
+      context.data.nativeProgram.transcript.slice(0, 6).map((item) => item.time),
+      ["00:00:05", "00:00:22", "00:00:20", "00:00:20", "00:00:22", ""]
+    );
     assert.equal(context.data.nativeProgram.transcript[0].speaker, "阿力");
     assert.equal(context.data.nativeProgram.transcript[0].speakerLabel, "主播·阿力");
     assert.equal(context.data.nativeProgram.transcript[0].featured, true);
+    assert.equal(context.data.nativeProgram.transcript[5].speakerLabel, "嘉宾·张琳");
+    assert.equal(context.data.nativeProgram.transcript[9].text, "第十段。");
     assert.equal(context.data.nativeProgram.hasExtension, true);
     assert.equal(context.data.nativeProgram.curatedReading.length, 2);
     assert.equal(context.data.nativeProgram.curatedReading[0].title, "把阅读变成表达");
