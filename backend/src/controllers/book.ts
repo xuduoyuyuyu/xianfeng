@@ -10,6 +10,11 @@ import {
   upsertBookMetadataManually,
 } from "../services/bookMetadataService";
 import { getOrCreateExternalBookDescriptionTranslation } from "../services/externalBookDescriptionTranslation";
+import {
+  calculateBookQualityScore,
+  compareBookQualityScores,
+  type BookQualityScore,
+} from "../services/bookQualityScore";
 
 type BookCoverProxyCacheEntry = {
   contentType: string;
@@ -567,18 +572,12 @@ function pickPublicBookCover(bookCover: unknown, metadataCover: unknown): string
   return normalizeBookCoverUrl(bookCover);
 }
 
-function getPublicBookListHealthScore(book: any, metadata: any): number {
-  const metadataCover = normalizeBookCoverUrl(metadata?.cover);
-  const effectiveCover = pickPublicBookCover(book?.coverImage, metadataCover);
-  const hasDetail = Boolean(metadata);
-  const hasDescription = Boolean(String(metadata?.description || book?.description || "").trim());
-  let score = 0;
-  if (hasUsableBookCover(effectiveCover)) score += 8;
-  if (hasDetail && hasDescription) score += 4;
-  else if (hasDescription) score += 3;
-  else if (hasDetail) score += 2;
-  else score += 1;
-  return score;
+function formatPublicBookQualityScore(score: BookQualityScore) {
+  return {
+    totalScore: score.totalScore,
+    level: score.level,
+    tier: score.tier,
+  };
 }
 
 async function formatPublicBookMetadata(metadata: any, book: any) {
@@ -636,28 +635,28 @@ function formatAdminBookMetadata(metadata: any) {
   };
 }
 
-async function findPagedPublicBooksPrioritizingDescriptions(current: number, size: number) {
+async function findPagedPublicBooksPrioritizingDescriptions(current: number, size: number, slicePage = true) {
   const publishedFilter = { status: "published" };
   const offset = (current - 1) * size;
   const allBooks = await Book.find(publishedFilter).sort({ publishedAt: -1, _id: -1 });
   const metadataRows = await listApprovedBookMetadataByBookIds(allBooks.map((book: any) => String(book?._id || "")));
   const metadataByBookId = new Map(metadataRows.map((item: any) => [String(item?.bookId || ""), item]));
-  const books = allBooks
+  const rankedBooks = allBooks
     .map((book: any, index: number) => {
       const plain = typeof book.toObject === "function" ? book.toObject() : book;
       const metadata = metadataByBookId.get(String(plain?._id || ""));
       return {
         book,
         index,
-        score: getPublicBookListHealthScore(plain, metadata),
+        qualityScore: calculateBookQualityScore(plain, metadata),
       };
     })
     .sort((left, right) => {
-      const scoreDiff = right.score - left.score;
-      return scoreDiff !== 0 ? scoreDiff : left.index - right.index;
-    })
-    .slice(offset, offset + size)
-    .map((item) => item.book);
+      const qualityDiff = compareBookQualityScores(left.qualityScore, right.qualityScore);
+      return qualityDiff !== 0 ? qualityDiff : left.index - right.index;
+    });
+  const selectedBooks = slicePage ? rankedBooks.slice(offset, offset + size) : rankedBooks;
+  const books = selectedBooks.map((item) => item.book);
 
   return { books, total: allBooks.length };
 }
@@ -881,22 +880,22 @@ export class BookController {
       const current = Math.max(1, Number(req.query.current) || 1);
       const size = Math.min(100, Math.max(1, Number(req.query.size) || 24));
       const paged = Boolean(req.query.current || req.query.size);
-      const page = paged ? await findPagedPublicBooksPrioritizingDescriptions(current, size) : null;
-      const books = page
-        ? page.books
-        : await Book.find({ status: "published" }).sort({ publishedAt: -1 });
+      const page = await findPagedPublicBooksPrioritizingDescriptions(current, size, paged);
+      const books = page.books;
       const metadataRows = await listApprovedBookMetadataByBookIds(books.map((book: any) => String(book?._id || "")));
       const metadataByBookId = new Map(metadataRows.map((item: any) => [String(item?.bookId || ""), item]));
       const enrichedBooks = books.map((book: any) => {
         const plain = typeof book.toObject === "function" ? book.toObject() : book;
         const metadata = metadataByBookId.get(String(plain?._id || ""));
         const metadataCover = normalizeBookCoverUrl(metadata?.cover);
+        const qualityScore = calculateBookQualityScore(plain, metadata);
         return {
           ...plain,
           coverImage: pickPublicBookCover(plain?.coverImage, metadataCover),
           description: String(metadata?.description || plain?.description || ""),
           hasMetadataDetail: Boolean(metadata),
           metadataCover,
+          qualityScore: formatPublicBookQualityScore(qualityScore),
         };
       });
       if (paged) {
@@ -926,12 +925,14 @@ export class BookController {
       }
       const metadata = await findApprovedBookMetadataByBookId(String((book as any)._id || ""));
       const metadataCover = normalizeBookCoverUrl(metadata?.cover);
+      const qualityScore = calculateBookQualityScore(book as any, metadata);
       res.status(200).json({
         ...book,
         coverImage: pickPublicBookCover((book as any)?.coverImage, metadataCover),
         description: String(metadata?.description || (book as any)?.description || ""),
         hasMetadataDetail: Boolean(metadata),
         metadataCover,
+        qualityScore: formatPublicBookQualityScore(qualityScore),
       });
     } catch (error) {
       res.status(500).json({ message: "获取书籍失败", error });
@@ -979,6 +980,7 @@ export class BookController {
           metadataStatus: metadataDetail?.status || "",
           metadataId: metadataDetail?._id || "",
           metadataDetail,
+          qualityScore: calculateBookQualityScore(plain, metadata),
         };
       });
       res.status(200).json(enrichedBooks);

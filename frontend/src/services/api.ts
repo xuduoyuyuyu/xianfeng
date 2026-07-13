@@ -459,6 +459,16 @@ export interface Program {
   updatedAt: string;
 }
 
+export interface BookQualityScore {
+  totalScore: number;
+  rawScore: number;
+  contentScore: number;
+  confidenceScore: number;
+  tier: 'normal' | 'missing_description' | 'fallback_cover';
+  level: '完整可信' | '较完整' | '待补充' | '低完整' | '强降级';
+  reasons: string[];
+}
+
 export interface Book {
   _id: string;
   categoryLabel: string;
@@ -495,6 +505,7 @@ export interface Book {
   metadataStatus?: 'auto_approved' | 'needs_review' | 'rejected' | '';
   metadataId?: string;
   metadataDetail?: AdminBookMetadata | null;
+  qualityScore?: BookQualityScore;
 }
 
 export interface BookMetadataDetail {

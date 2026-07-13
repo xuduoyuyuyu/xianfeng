@@ -1,6 +1,6 @@
 # Active Context - Xianfeng
 
-Last rewritten: 2026-07-11
+Last rewritten: 2026-07-13
 
 > This file is a SNAPSHOT, not a journal. Rewrite it at every workstream close,
 > keep it around 60 lines, and use git history for older context.
@@ -43,6 +43,10 @@ Pay remains separate.
   Payment only. Client success and push notifications are triggers, not
   delivery proof; entitlement is granted only after trusted official query
   validation.
+- 2026-07-13 - Local Jiyue books use a live 100-point quality score owned by
+  the backend. Public ordering is normal records, then real-cover records with
+  no introduction, then fallback-cover records. Scores are derived at request
+  time rather than stored, and admin book rows expose deduction details.
 - 2026-07-02 - Model Mama Haozhuan listed tasks separately from per-profile
   task assignments. The admin task workspace owns account selection and
   assignment review; account detail modals stay focused on review and manual

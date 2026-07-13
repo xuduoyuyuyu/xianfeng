@@ -627,6 +627,7 @@ const AdminBooksPage: React.FC = () => {
                   <th className="px-6 py-4">出版社/年级</th>
                   <th className="px-6 py-4">微信小店</th>
                   <th className="px-6 py-4">出处</th>
+                  <th className="px-6 py-4">质量评分</th>
                   <th className="px-6 py-4">绑定嘉宾</th>
                   <th className="px-6 py-4">状态</th>
                   <th className="px-6 py-4 text-right">操作</th>
@@ -685,6 +686,40 @@ const AdminBooksPage: React.FC = () => {
                       )}
                     </td>
                     <td className="px-6 py-4 text-sm text-stone-600">{book.sourceName || '-'}</td>
+                    <td className="px-6 py-4 align-top">
+                      {book.qualityScore ? (
+                        <details className="group min-w-36">
+                          <summary className="cursor-pointer list-none">
+                            <div className="flex items-center gap-2">
+                              <span className={`rounded-full px-2.5 py-1 text-xs font-black ${
+                                book.qualityScore.tier === 'fallback_cover'
+                                  ? 'bg-red-50 text-red-700'
+                                  : book.qualityScore.tier === 'missing_description'
+                                    ? 'bg-amber-50 text-amber-700'
+                                    : 'bg-emerald-50 text-emerald-700'
+                              }`}>
+                                {book.qualityScore.totalScore} / 100
+                              </span>
+                              <span className="text-[10px] font-bold text-stone-500">{book.qualityScore.level}</span>
+                            </div>
+                          </summary>
+                          <div className="mt-2 w-72 rounded-xl border border-stone-200 bg-white p-3 text-[11px] leading-5 text-stone-600 shadow-lg">
+                            <div className="font-bold text-stone-700">
+                              内容 {book.qualityScore.contentScore} · 置信 {book.qualityScore.confidenceScore} · 原始 {book.qualityScore.rawScore}
+                            </div>
+                            {book.qualityScore.reasons.length ? (
+                              <ul className="mt-1 list-disc pl-4">
+                                {book.qualityScore.reasons.map((reason) => <li key={reason}>{reason}</li>)}
+                              </ul>
+                            ) : (
+                              <div className="mt-1 text-emerald-700">字段完整，无扣分项</div>
+                            )}
+                          </div>
+                        </details>
+                      ) : (
+                        <span className="text-xs text-stone-400">-</span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-sm text-stone-600">{renderSourceGuest(book)}</td>
                     <td className="px-6 py-4">
                       <button

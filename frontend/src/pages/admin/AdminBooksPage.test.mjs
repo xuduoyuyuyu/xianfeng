@@ -12,6 +12,16 @@ test("admin book api carries editable metadata details", () => {
   assert.match(apiSource, /metadataDetail\?: AdminBookMetadata \| null;/, "Book rows should expose full metadata detail for admin editing");
 });
 
+test("admin book list shows the live quality score and breakdown", () => {
+  assert.match(apiSource, /export interface BookQualityScore \{/, "API types should describe the full quality score");
+  assert.match(apiSource, /qualityScore\?: BookQualityScore;/, "admin book rows should carry the quality score");
+  assert.match(pageSource, />质量评分</, "admin table should include a quality score column");
+  assert.match(pageSource, /book\.qualityScore\.totalScore/, "admin table should show the total score");
+  assert.match(pageSource, /内容 \{book\.qualityScore\.contentScore\} · 置信 \{book\.qualityScore\.confidenceScore\} · 原始 \{book\.qualityScore\.rawScore\}/, "score details should show all components");
+  assert.match(pageSource, /book\.qualityScore\.reasons\.map/, "score details should list deduction reasons");
+  assert.match(pageSource, /book\.qualityScore \? \(/, "missing score data should render a fallback instead of failing");
+});
+
 test("admin book editor exposes a manual purchase jump link", () => {
   assert.match(apiSource, /wxPurchaseLink\?: string;/, "Book rows should carry the purchase jump link");
   assert.match(pageSource, /wxPurchaseLink: '',/, "new book forms should initialize an empty purchase jump link");

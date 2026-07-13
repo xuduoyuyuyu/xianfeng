@@ -112,12 +112,15 @@
   records with descriptions rank within that cover bucket. Placeholder cover
   URLs are treated as no-cover records. Full-corpus cache work remains reserved
   for filter counts and complex local filtering paths that need global matches.
-- Public `/api/books` paginated reading-list responses are backend-sorted by
-  content health before slicing the requested page. Real covers rank ahead of
-  placeholder or Jiyue fallback-logo covers, and books with accepted metadata
-  detail plus a real description rank ahead of sparse records. The mini-program
-  can therefore load pages incrementally while still receiving fuller records
-  first.
+- Public `/api/books` reading-list responses use a derived 100-point quality
+  score before pagination. Content completeness contributes 75 points and
+  source confidence contributes 25; the score is calculated from the current
+  `Book` and `BookMetadata` records and is not persisted. Normal records rank
+  first, real-cover records with no description rank second with a 30-point
+  cap, and placeholder/Jiyue-fallback cover records rank last with a 15-point
+  cap (10 when the description is also empty). The public response exposes a
+  compact score summary, while the admin response includes score components
+  and deduction reasons for content repair.
 - Admin book editing can create or update the public detail metadata through
   `PUT /api/admin/books/:id/metadata`. The endpoint upserts by `bookId`, so a
   book without a metadata row becomes editable without creating duplicate
