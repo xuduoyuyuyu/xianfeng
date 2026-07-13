@@ -586,16 +586,70 @@ function normalizeProgramTranscriptTime(value) {
   return [hours, minutes, seconds].map((part) => String(part).padStart(2, "0")).join(":");
 }
 
-function normalizeTranscript(value) {
+function normalizeProgramDictionaryEntries(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item, index) => {
+      const term = firstText([item && item.term, item && item.name], "");
+      const definition = firstText([item && item.definition, item && item.description], "");
+      if (!term || !definition) return null;
+      const aliases = Array.isArray(item && item.aliases)
+        ? item.aliases.map((alias) => String(alias || "").trim()).filter(Boolean)
+        : [];
+      const matchTerms = Array.from(new Set([term, ...aliases])).sort((a, b) => b.length - a.length);
+      const normalizedAliases = matchTerms.filter((alias) => alias !== term);
+      return {
+        id: firstText([item && item._id, item && item.id], `dictionary-${index}`),
+        term,
+        definition,
+        aliases: normalizedAliases,
+        aliasLabel: normalizedAliases.join("、"),
+        matchTerms
+      };
+    })
+    .filter(Boolean);
+}
+
+function buildTranscriptDictionaryNodes(value, entries) {
+  const text = String(value || "");
+  const candidates = (Array.isArray(entries) ? entries : [])
+    .flatMap((entry) => entry.matchTerms.map((matchText) => ({ entry, matchText })))
+    .sort((left, right) => right.matchText.length - left.matchText.length);
+  if (!text || !candidates.length) return text ? [{ type: "text", text }] : [];
+  const nodes = [];
+  let cursor = 0;
+  while (cursor < text.length) {
+    const matched = candidates.find((candidate) => text.startsWith(candidate.matchText, cursor));
+    if (matched) {
+      nodes.push({
+        type: "dictionary",
+        text: matched.matchText,
+        entryId: matched.entry.id,
+        term: matched.entry.term
+      });
+      cursor += matched.matchText.length;
+      continue;
+    }
+    const previous = nodes[nodes.length - 1];
+    if (previous && previous.type === "text") previous.text += text[cursor];
+    else nodes.push({ type: "text", text: text[cursor] });
+    cursor += 1;
+  }
+  return nodes;
+}
+
+function normalizeTranscript(value, dictionaryEntries) {
   return Array.isArray(value)
     ? value
       .map((item) => {
         const speaker = firstText([item && item.speaker], "");
+        const text = firstText([item && item.text], "");
         return {
           time: normalizeProgramTranscriptTime(item && item.time),
           speaker,
           speakerLabel: formatProgramTranscriptSpeaker(speaker),
-          text: firstText([item && item.text], ""),
+          text,
+          contentNodes: buildTranscriptDictionaryNodes(text, dictionaryEntries),
           featured: Boolean(item && item.featured)
         };
       })
@@ -763,7 +817,8 @@ function normalizeProgramDetail(program) {
     item.agentOutputs && item.agentOutputs.enrichment && item.agentOutputs.enrichment.readingVerificationReport
   );
   const quickView = normalizeQuickView(item.contentPack && item.contentPack.quickView);
-  const transcript = normalizeTranscript(item.transcript);
+  const dictionaryEntries = normalizeProgramDictionaryEntries(item.dictionaryEntries);
+  const transcript = normalizeTranscript(item.transcript, dictionaryEntries);
   const guests = normalizeProgramGuests(item);
   const guestState = buildNativeProgramGuestState(guests, 0);
   const tags = normalizeTags(summary.tags);
@@ -795,6 +850,7 @@ function normalizeProgramDetail(program) {
     hasExtension: curatedReading.length > 0,
     quickView,
     transcript,
+    dictionaryEntries,
     hasMindMap: !!(mindMap && mindMap.root),
     hasQuickView: quickView.length > 0,
     hasTranscript: transcript.length > 0,

@@ -15212,9 +15212,29 @@ test("webview detail page keeps program, book, and topic details in the mobile w
                 }
               }
             },
+            dictionaryEntries: [
+              {
+                _id: "dictionary-international-education",
+                term: "国际教育",
+                definition: "以国际视野为指导的教育理念和实践。",
+                aliases: ["国际化教育", "国际教育", ""]
+              },
+              {
+                _id: "dictionary-education",
+                term: "教育",
+                definition: "培养人的社会活动。",
+                aliases: []
+              },
+              {
+                _id: "dictionary-empty-definition",
+                term: "无释义词",
+                definition: "",
+                aliases: []
+              }
+            ],
             transcript: [
-              { time: "0:00:05", speaker: "阿力", text: "第一段。", featured: true },
-              { time: "00:00:22-00:00:26", speaker: "张琳", text: "第二段。" },
+              { time: "0:00:05", speaker: "阿力", text: "国际教育也叫国际化教育，教育需要长期投入。", featured: true },
+              { time: "00:00:22-00:00:26", speaker: "张琳", text: "这段没有词典内容。" },
               { time: "00:20-00:35", speaker: "张琳", text: "第三段。" },
               { time: "00:00:20.66", speaker: "张琳", text: "第四段。" },
               { time: "00:22", speaker: "张琳", text: "第五段。" },
@@ -15668,6 +15688,21 @@ test("webview detail page keeps program, book, and topic details in the mobile w
     assert.equal(context.data.nativeProgram.transcript[0].featured, true);
     assert.equal(context.data.nativeProgram.transcript[5].speakerLabel, "嘉宾·张琳");
     assert.equal(context.data.nativeProgram.transcript[9].text, "第十段。");
+    assert.deepEqual(
+      context.data.nativeProgram.transcript[0].contentNodes.map((node) => [node.type, node.text, node.term || ""]),
+      [
+        ["dictionary", "国际教育", "国际教育"],
+        ["text", "也叫", ""],
+        ["dictionary", "国际化教育", "国际教育"],
+        ["text", "，", ""],
+        ["dictionary", "教育", "教育"],
+        ["text", "需要长期投入。", ""]
+      ]
+    );
+    assert.deepEqual(context.data.nativeProgram.transcript[1].contentNodes, [
+      { type: "text", text: "这段没有词典内容。" }
+    ]);
+    assert.equal(context.data.nativeProgram.dictionaryEntries.length, 2);
     assert.equal(context.data.nativeProgram.hasExtension, true);
     assert.equal(context.data.nativeProgram.curatedReading.length, 2);
     assert.equal(context.data.nativeProgram.curatedReading[0].title, "把阅读变成表达");
