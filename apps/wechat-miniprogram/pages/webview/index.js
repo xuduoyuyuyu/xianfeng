@@ -1832,6 +1832,7 @@ Page({
     nativeProgramLoading: false,
     nativeProgramError: "",
     nativeProgram: null,
+    selectedProgramDictionaryEntry: null,
     nativeProgramMindMapCollapsedBranches: [],
     nativeProgramMindMapOutline: { root: { title: "", summary: "" }, branches: [] },
     nativeBookMode: false,
@@ -3214,6 +3215,24 @@ Page({
     const mode = String(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.mode || "");
     if (!mode) return;
     this.setData({ activeContentMode: mode });
+  },
+
+  openProgramDictionaryEntry(event) {
+    const entryId = String(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.entryId || "");
+    const entries = this.data.nativeProgram && Array.isArray(this.data.nativeProgram.dictionaryEntries)
+      ? this.data.nativeProgram.dictionaryEntries
+      : [];
+    const entry = entries.find((item) => item.id === entryId);
+    if (!entry) return;
+    this.setData({ selectedProgramDictionaryEntry: entry });
+  },
+
+  closeProgramDictionaryEntry() {
+    this.setData({ selectedProgramDictionaryEntry: null });
+  },
+
+  stopNativeEvent() {
+    return false;
   },
 
   toggleNativeProgramMindMapBranch(event) {

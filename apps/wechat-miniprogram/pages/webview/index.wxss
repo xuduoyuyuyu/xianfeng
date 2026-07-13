@@ -599,6 +599,85 @@ page {
   margin-top: 12rpx;
 }
 
+.xf-program-dictionary-term {
+  margin: 0 2rpx;
+  padding: 1rpx 6rpx;
+  border-radius: 8rpx;
+  color: #5e17eb;
+  background: rgba(94, 23, 235, 0.1);
+  font-weight: 800;
+}
+
+.xf-program-dictionary-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(20, 16, 28, 0.42);
+}
+
+.xf-program-dictionary-sheet {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 34rpx 34rpx calc(34rpx + env(safe-area-inset-bottom));
+  border-radius: 32rpx 32rpx 0 0;
+  background: #ffffff;
+}
+
+.xf-program-dictionary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+}
+
+.xf-program-dictionary-title {
+  color: #211a18;
+  font-size: 36rpx;
+  font-weight: 900;
+}
+
+.xf-program-dictionary-close {
+  width: 56rpx;
+  min-width: 56rpx;
+  height: 56rpx;
+  min-height: 56rpx;
+  margin: 0;
+  padding: 0;
+  border-radius: 28rpx;
+  background: #f4f0ff;
+  color: #5e17eb;
+  font-size: 40rpx;
+  line-height: 56rpx;
+}
+
+.xf-program-dictionary-close::after {
+  border: 0;
+}
+
+.xf-program-dictionary-definition {
+  display: block;
+  margin-top: 24rpx;
+  color: #4f4854;
+  font-size: 28rpx;
+  line-height: 1.7;
+}
+
+.xf-program-dictionary-aliases {
+  display: flex;
+  align-items: baseline;
+  gap: 16rpx;
+  margin-top: 22rpx;
+  color: #6f6874;
+  font-size: 24rpx;
+}
+
+.xf-program-dictionary-alias-label {
+  color: #5e17eb;
+  font-weight: 800;
+}
+
 .xf-program-detail-card.is-guest {
   display: flex;
   align-items: flex-start;

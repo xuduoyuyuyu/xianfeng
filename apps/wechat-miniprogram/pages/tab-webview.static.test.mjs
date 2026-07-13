@@ -14632,7 +14632,7 @@ test("native expert participated-program lists show three rows and scroll the re
   assert.match(wxss, /\.xf-expert-detail-static-program-list\.is-scrollable \{[\s\S]*height: 310rpx;/);
 });
 
-test("webview detail page keeps program, book, and topic details in the mobile web style", async () => {
+test("webview native program detail page keeps program, book, and topic details in the mobile web style", async () => {
   const { js, json, wxml, wxss } = readPage("webview");
   const definition = loadPageDefinition("webview");
   const originalWx = global.wx;
@@ -15370,6 +15370,12 @@ test("webview detail page keeps program, book, and topic details in the mobile w
     assert.match(wxml, /class="xf-program-detail-content-panel is-transcript"/);
     assert.match(wxml, /class="xf-program-detail-content-row \{\{item\.featured \? 'is-featured' : ''\}\}"/);
     assert.match(wxml, /class="xf-program-detail-transcript-meta"[\s\S]*class="xf-program-detail-time">\{\{item\.time\}\}<\/text>[\s\S]*wx:if="\{\{item\.time && item\.speakerLabel\}\}" class="xf-program-detail-transcript-separator">·<\/text>[\s\S]*class="xf-program-detail-speaker">\{\{item\.speakerLabel\}\}<\/text>/);
+    assert.match(wxml, /wx:for="\{\{item\.contentNodes\}\}"[\s\S]*wx:if="\{\{node\.type === 'dictionary'\}\}"[\s\S]*data-entry-id="\{\{node\.entryId\}\}"[\s\S]*catchtap="openProgramDictionaryEntry"/);
+    assert.match(wxml, /wx:if="\{\{selectedProgramDictionaryEntry\}\}" class="xf-program-dictionary-overlay" catchtap="closeProgramDictionaryEntry"/);
+    assert.match(wxml, /class="xf-program-dictionary-sheet" catchtap="stopNativeEvent"/);
+    assert.match(wxml, /\{\{selectedProgramDictionaryEntry\.term\}\}[\s\S]*\{\{selectedProgramDictionaryEntry\.definition\}\}/);
+    assert.match(wxss, /\.xf-program-dictionary-term \{[\s\S]*color: #5e17eb;[\s\S]*background:/);
+    assert.match(wxss, /\.xf-program-dictionary-overlay \{[\s\S]*position: fixed;[\s\S]*z-index:/);
     assert.doesNotMatch(wxml, /activeContentMode === 'mindmap' && nativeProgram\.hasMindMap\}\}" class="xf-program-detail-card is-mindmap"/);
     assert.doesNotMatch(wxml, /activeContentMode === 'quickview' && nativeProgram\.quickView\.length\}\}" class="xf-program-detail-card"/);
     assert.doesNotMatch(wxml, /activeContentMode === 'transcript' && nativeProgram\.transcript\.length\}\}" class="xf-program-detail-card"/);
@@ -15703,6 +15709,14 @@ test("webview detail page keeps program, book, and topic details in the mobile w
       { type: "text", text: "这段没有词典内容。" }
     ]);
     assert.equal(context.data.nativeProgram.dictionaryEntries.length, 2);
+    definition.openProgramDictionaryEntry.call(context, {
+      currentTarget: { dataset: { entryId: "dictionary-international-education" } }
+    });
+    assert.equal(context.data.selectedProgramDictionaryEntry.term, "国际教育");
+    assert.equal(context.data.selectedProgramDictionaryEntry.definition, "以国际视野为指导的教育理念和实践。");
+    assert.deepEqual(context.data.selectedProgramDictionaryEntry.aliases, ["国际化教育"]);
+    definition.closeProgramDictionaryEntry.call(context);
+    assert.equal(context.data.selectedProgramDictionaryEntry, null);
     assert.equal(context.data.nativeProgram.hasExtension, true);
     assert.equal(context.data.nativeProgram.curatedReading.length, 2);
     assert.equal(context.data.nativeProgram.curatedReading[0].title, "把阅读变成表达");

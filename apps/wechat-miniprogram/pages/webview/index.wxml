@@ -160,7 +160,17 @@
             <text wx:if="{{item.time && item.speakerLabel}}" class="xf-program-detail-transcript-separator">·</text>
             <text wx:if="{{item.speakerLabel}}" class="xf-program-detail-speaker">{{item.speakerLabel}}</text>
           </view>
-          <text class="xf-program-detail-content-text">{{item.text}}</text>
+          <text class="xf-program-detail-content-text">
+            <block wx:for="{{item.contentNodes}}" wx:for-item="node" wx:key="index">
+              <text
+                wx:if="{{node.type === 'dictionary'}}"
+                class="xf-program-dictionary-term"
+                data-entry-id="{{node.entryId}}"
+                catchtap="openProgramDictionaryEntry"
+              >{{node.text}}</text>
+              <text wx:else>{{node.text}}</text>
+            </block>
+          </text>
         </view>
       </view>
     </view>
@@ -209,6 +219,20 @@
     <button class="xf-program-detail-rail-button is-speed" aria-label="切换播放倍速" catchtap="toggleNativeAudioSpeed">{{audioSpeedLabel}}</button>
   </view>
   <button wx:if="{{nativeProgram.audioUrl}}" class="xf-program-detail-player-fab {{isAudioPlaying ? 'is-playing' : ''}}" catchtap="toggleNativeAudio" aria-label="{{isAudioPlaying ? '暂停节目' : '播放节目'}}"><image class="xf-program-detail-player-fab-icon" src="{{isAudioPlaying ? '/assets/program-detail/program-pause-white.png' : '/assets/program-detail/program-play-white.png'}}" mode="aspectFit" /></button>
+
+  <view wx:if="{{selectedProgramDictionaryEntry}}" class="xf-program-dictionary-overlay" catchtap="closeProgramDictionaryEntry">
+    <view class="xf-program-dictionary-sheet" catchtap="stopNativeEvent">
+      <view class="xf-program-dictionary-head">
+        <text class="xf-program-dictionary-title">{{selectedProgramDictionaryEntry.term}}</text>
+        <button class="xf-program-dictionary-close" catchtap="closeProgramDictionaryEntry" aria-label="关闭">×</button>
+      </view>
+      <text class="xf-program-dictionary-definition">{{selectedProgramDictionaryEntry.definition}}</text>
+      <view wx:if="{{selectedProgramDictionaryEntry.aliasLabel}}" class="xf-program-dictionary-aliases">
+        <text class="xf-program-dictionary-alias-label">别名</text>
+        <text>{{selectedProgramDictionaryEntry.aliasLabel}}</text>
+      </view>
+    </view>
+  </view>
 </view>
 
 <view wx:elif="{{nativeBookMode}}" class="xf-book-detail-page {{fontSizeClass}}" style="padding-top: {{chromeHeight}}px;">
