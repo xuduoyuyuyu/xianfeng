@@ -15,6 +15,7 @@ const UserLoginPage: React.FC = () => {
   const [inviteCode, setInviteCode] = useState("");
   const [verifiedInviteCode, setVerifiedInviteCode] = useState(storedInviteCode);
   const [inviteVerified, setInviteVerified] = useState(!!storedInviteCode);
+  const [inviteRequired, setInviteRequired] = useState(false);
   const [isVerifyingInvite, setIsVerifyingInvite] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [isSendingCode, setIsSendingCode] = useState(false);
@@ -43,6 +44,21 @@ const UserLoginPage: React.FC = () => {
   }, [navigate, user]);
 
   useEffect(() => {
+    let cancelled = false;
+    userApi.getInviteStatus()
+      .then((response) => {
+        if (cancelled) return;
+        setInviteRequired(Boolean(response.data.isActive));
+      })
+      .catch(() => {
+        if (!cancelled) setInviteRequired(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (countdown <= 0) return;
     const timer = window.setInterval(() => {
       setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
@@ -50,8 +66,8 @@ const UserLoginPage: React.FC = () => {
     return () => window.clearInterval(timer);
   }, [countdown]);
 
-  const inviteReady = inviteVerified;
-  const activeInviteCode = verifiedInviteCode || inviteCode.trim() || undefined;
+  const inviteReady = !inviteRequired || inviteVerified;
+  const activeInviteCode = inviteRequired ? (verifiedInviteCode || inviteCode.trim() || undefined) : undefined;
   const canGetCode = useMemo(() => inviteReady && PHONE_REGEX.test(phone) && countdown === 0 && !isSendingCode, [inviteReady, phone, countdown, isSendingCode]);
 
   const getErrorMessage = (value: any, fallback: string) =>
@@ -68,6 +84,7 @@ const UserLoginPage: React.FC = () => {
     setVerifyCode("");
     setCountdown(0);
     setHint("");
+    setInviteRequired(true);
     setLocalError(message);
   };
 
@@ -518,28 +535,30 @@ const UserLoginPage: React.FC = () => {
             <img alt="家长先疯" src="/assets/logo.png" />
           </div>
           <form onSubmit={handleSubmit}>
-            {inviteReady ? (
-              <div className="invite-ok">邀请码已校准</div>
-            ) : (
-              <>
-                <label className="field-label">邀请码</label>
-                <div className="row">
-                  <input
-                    className="input"
-                    placeholder="请输入邀请码"
-                    value={inviteCode}
-                    onChange={(e) => setInviteCode(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    className="code-btn"
-                    onClick={handleVerifyInvite}
-                    disabled={!inviteCode.trim() || isVerifyingInvite}
-                  >
-                    {isVerifyingInvite ? "校准中..." : "校准邀请码"}
-                  </button>
-                </div>
-              </>
+            {inviteRequired && (
+              inviteReady ? (
+                <div className="invite-ok">邀请码已校准</div>
+              ) : (
+                <>
+                  <label className="field-label">邀请码</label>
+                  <div className="row">
+                    <input
+                      className="input"
+                      placeholder="请输入邀请码"
+                      value={inviteCode}
+                      onChange={(e) => setInviteCode(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="code-btn"
+                      onClick={handleVerifyInvite}
+                      disabled={!inviteCode.trim() || isVerifyingInvite}
+                    >
+                      {isVerifyingInvite ? "校准中..." : "校准邀请码"}
+                    </button>
+                  </div>
+                </>
+              )
             )}
 
             {inviteReady && (

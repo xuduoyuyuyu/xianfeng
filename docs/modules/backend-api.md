@@ -32,7 +32,9 @@
   Admin `SystemSetting` config now controls the active code, activation limit,
   used count, and expiry time. `LOGIN_INVITE_CODE` and
   `LOGIN_INVITE_ACTIVATION_LIMIT` are fallback defaults when no admin config
-  has been saved.
+  has been saved. Public login forms read `/api/users/invite/status` to decide
+  whether to show the invite-calibration step; the endpoint exposes only the
+  active gate flag and never returns the configured invite code.
 - Mini-program login requires a WeChat phone-number authorization code.
   `/api/wechat-mini/login` exchanges `wx.login` code for openid and
   `getPhoneNumber` code for mobile, then creates or updates the local user.

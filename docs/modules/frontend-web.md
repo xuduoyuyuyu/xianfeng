@@ -42,9 +42,13 @@
   user-triggered action. It renders the saved translation returned by the
   backend cache endpoint and does not translate automatically on page load.
 - `/mama-resources/apply` is the public lightweight supply intake form for
-  mothers willing to accept Xiaohongshu posting work. It collects Xiaohongshu
-  profile URL, optional profile screenshot upload, follower count, and
-  real-name verification status without asking for account credentials.
+  mothers willing to accept social-media posting work. It renders an inline
+  mobile login first when the visitor is not signed in, then uses a
+  mini-program-aligned `资料管理` flow with separate personal profile,
+  social-media account, and task-preference sections. It collects Xiaohongshu
+  and optional extra account profile data, optional profile screenshot upload,
+  follower count, and real-name verification status without asking for account
+  credentials.
   `/admin/mama-resources` is the operator review and manual data-completion
   screen. The admin task workflow is task-first: operators list a task, open the
   task workspace, then either directly choose approved accounts or filter them

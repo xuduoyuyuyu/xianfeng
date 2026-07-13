@@ -62,6 +62,7 @@ test("mobile login submits invite code from every login form", () => {
     /async \(\{ mobile, code, inviteCode \}:[\s\S]*userApi\.mobileAuth\(mobile, code, inviteCode\)/,
     "mobile auth thunk should forward inviteCode to the API"
   );
+  assert.match(apiSource, /getInviteStatus: \(\) =>\s*api\.get<\{ isActive: boolean \}>\("\/users\/invite\/status"\)/, "public API should expose the current invite gate status");
 
   for (const [name, text] of [
     ["login modal", modalSource],
@@ -69,7 +70,10 @@ test("mobile login submits invite code from every login form", () => {
     ["inline login form", inlineSource],
   ]) {
     assert.match(text, /const \[inviteCode, setInviteCode\] = useState\(""\);/, `${name} should store an invite code`);
-    assert.match(text, /placeholder="请输入邀请码"/, `${name} should render an invite code input`);
+    assert.match(text, /const \[inviteRequired, setInviteRequired\] = useState\(false\);/, `${name} should default to open registration before the status check returns`);
+    assert.match(text, /userApi\.getInviteStatus\(\)/, `${name} should read the public invite gate status`);
+    assert.match(text, /inviteRequired && \(/, `${name} should render invite code UI only when the gate is active`);
+    assert.match(text, /placeholder="请输入邀请码"/, `${name} should keep invite code input available when the gate is active`);
     assert.match(text, /loginByMobile\(\{ mobile: phone, code: verifyCode, inviteCode/, `${name} should submit the invite code`);
   }
 });
@@ -83,8 +87,9 @@ test("mobile login forms restore invite-ready state from a stored cookie", () =>
     assert.match(text, /readLoginInviteCookie\(\)/, `${name} should read the stored invite cookie`);
     assert.match(text, /const \[verifiedInviteCode, setVerifiedInviteCode\] = useState\(storedInviteCode\);/, `${name} should boot the verified invite value from cookie`);
     assert.match(text, /const \[inviteVerified, setInviteVerified\] = useState\(!!storedInviteCode\);/, `${name} should boot invite-ready state from cookie`);
-    assert.match(text, /const activeInviteCode = verifiedInviteCode \|\| inviteCode\.trim\(\) \|\| undefined;/, `${name} should reuse the remembered invite code for later requests`);
-    assert.match(text, /const canGetCode = useMemo\(\(\) => inviteReady && PHONE_REGEX\.test\(phone\)/, `${name} should go straight to SMS flow when invite cookie exists`);
+    assert.match(text, /const inviteReady = !inviteRequired \|\| inviteVerified;/, `${name} should treat disabled invite gate as ready`);
+    assert.match(text, /const activeInviteCode = inviteRequired \? \(verifiedInviteCode \|\| inviteCode\.trim\(\) \|\| undefined\) : undefined;/, `${name} should only send invite code when the gate is active`);
+    assert.match(text, /const canGetCode = useMemo\(\(\) => inviteReady && PHONE_REGEX\.test\(phone\)/, `${name} should go straight to SMS flow when invite is disabled or already verified`);
     assert.match(text, /sendMobileCode\(phone, activeInviteCode\)/, `${name} should send the cookie-backed invite code with SMS`);
     assert.match(text, /loginByMobile\(\{ mobile: phone, code: verifyCode, inviteCode: activeInviteCode/, `${name} should send the cookie-backed invite code with login`);
     assert.match(text, /邀请码已校准/, `${name} should keep the lightweight verified state when cookie exists`);

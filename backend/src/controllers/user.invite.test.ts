@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { canAuthenticateWithMobileInvite, canSendMobileCodeWithInvite, canVerifyLoginInvite } from "./user";
+
+const userRouteSource = readFileSync(new URL("../routes/user.ts", import.meta.url), "utf8");
 
 describe("mobile invite gate", () => {
   it("allows existing mobile users without an invite when the gate is configured", () => {
@@ -131,6 +134,15 @@ describe("mobile invite gate", () => {
       }),
       true
     );
+  });
+
+  it("exposes only invite gate status for public login forms", () => {
+    const statusRoute = userRouteSource.match(/router\.get\("\/invite\/status"[\s\S]*?router\.post\("\/invite\/verify"/)?.[0] || "";
+
+    assert.match(statusRoute, /getLoginInviteConfig/);
+    assert.match(statusRoute, /json\(\{ isActive: inviteConfig\.isActive \}\)/);
+    assert.doesNotMatch(statusRoute, /code:/);
+    assert.doesNotMatch(statusRoute, /inviteConfig\.code/);
   });
 
   it("verifies the configured invite before the mobile flow starts", () => {

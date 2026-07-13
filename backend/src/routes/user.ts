@@ -17,6 +17,7 @@ import {
 } from "../services/childMemory";
 import { enqueueToMemoryQueue } from "../services/memoryScheduler";
 import { emptyXiaowanziSyncState, mergeXiaowanziSyncState, sanitizeXiaowanziSyncState } from "../services/xiaowanziSync";
+import { getLoginInviteConfig } from "../services/loginInvite";
 
 const router = express.Router();
 const userController = new UserController();
@@ -70,6 +71,14 @@ const avatarUpload = multer({
 });
 
 router.post("/login", userController.login);
+router.get("/invite/status", async (_req, res) => {
+  try {
+    const inviteConfig = await getLoginInviteConfig();
+    res.status(200).json({ isActive: inviteConfig.isActive });
+  } catch (error) {
+    res.status(500).json({ message: "获取邀请码状态失败", error });
+  }
+});
 router.post("/invite/verify", userController.verifyInviteCode);
 router.post("/sms/send-code", userController.sendMobileCode);
 router.post("/auth/mobile", userController.mobileAuth);

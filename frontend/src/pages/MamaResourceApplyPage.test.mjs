@@ -19,7 +19,7 @@ test("mama resource application route is public and avoids account credentials",
   assert.match(source, /#5e17eb/);
   assert.doesNotMatch(source, /#eefaf5/);
   assert.doesNotMatch(source, /#fff7e8/);
-  assert.match(source, /后续任务派发。/);
+  assert.match(source, /运营会按备注联系你。/);
   assert.match(staticSource, /后续任务派发。/);
   assert.match(source, /小红书主页链接/);
   assert.doesNotMatch(source, /历史案例链接/);
@@ -28,8 +28,16 @@ test("mama resource application route is public and avoids account credentials",
 });
 
 test("mama resource application opens with the icon intro card before the form", () => {
-  assert.match(source, /<div className="rounded-\[17px\][\s\S]*妈妈好赚[\s\S]*<form id="mama-resource-apply-form"[\s\S]*className="rounded-\[17px\]/);
-  assert.match(source, /<h1 className="text-\[19px\][^"]*">资料提交<\/h1>/);
+  assert.match(source, /<div className="rounded-\[17px\][\s\S]*妈妈好赚[\s\S]*资料管理/);
+  assert.match(source, /type ProfileManagerMode = "overview" \| "personal" \| "media" \| "preference";/);
+  assert.match(source, /const \[profileManagerMode, setProfileManagerMode\] = useState<ProfileManagerMode>\("overview"\);/);
+  assert.match(source, /profileManagerMode === "overview"[\s\S]*个人资料[\s\S]*社交媒体账号[\s\S]*接单偏好/);
+  assert.match(source, /profileManagerMode === "personal"[\s\S]*保存个人信息/);
+  assert.match(source, /profileManagerMode === "media"[\s\S]*保存社交媒体账号/);
+  assert.match(source, /profileManagerMode === "preference"[\s\S]*保存接单偏好/);
+  assert.match(source, /profileOverview/);
+  assert.match(source, /保存并返回/);
+  assert.match(source, /<h1 className="text-\[19px\][^"]*">资料管理<\/h1>/);
   assert.doesNotMatch(source, /妈妈好赚资料提交/);
   assert.doesNotMatch(source, /<form id="mama-resource-apply-form"[\s\S]*<img src="\/assets\/mama-hao-zhuan-icon\.png"/);
   assert.match(source, /max-w-\[760px\]/);

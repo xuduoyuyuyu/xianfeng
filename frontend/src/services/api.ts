@@ -1504,6 +1504,8 @@ export const adminApi = {
 export const userApi = {
   login: (username: string, password: string) => 
     api.post<LoginResponse>('/users/login', { username, password }),
+  getInviteStatus: () =>
+    api.get<{ isActive: boolean }>("/users/invite/status"),
   verifyInviteCode: (inviteCode: string) =>
     api.post<{ ok: boolean }>("/users/invite/verify", { inviteCode }),
   sendMobileCode: (mobile: string, inviteCode?: string) =>

@@ -28,6 +28,7 @@ const LoginRequiredModal: React.FC<Props> = ({
   const [inviteCode, setInviteCode] = useState("");
   const [verifiedInviteCode, setVerifiedInviteCode] = useState(storedInviteCode);
   const [inviteVerified, setInviteVerified] = useState(!!storedInviteCode);
+  const [inviteRequired, setInviteRequired] = useState(false);
   const [isVerifyingInvite, setIsVerifyingInvite] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [isSendingCode, setIsSendingCode] = useState(false);
@@ -56,6 +57,21 @@ const LoginRequiredModal: React.FC<Props> = ({
   }, [user]);
 
   useEffect(() => {
+    let cancelled = false;
+    userApi.getInviteStatus()
+      .then((response) => {
+        if (cancelled) return;
+        setInviteRequired(Boolean(response.data.isActive));
+      })
+      .catch(() => {
+        if (!cancelled) setInviteRequired(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (countdown <= 0) return;
     const timer = window.setInterval(() => {
       setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
@@ -63,8 +79,8 @@ const LoginRequiredModal: React.FC<Props> = ({
     return () => window.clearInterval(timer);
   }, [countdown]);
 
-  const inviteReady = inviteVerified;
-  const activeInviteCode = verifiedInviteCode || inviteCode.trim() || undefined;
+  const inviteReady = !inviteRequired || inviteVerified;
+  const activeInviteCode = inviteRequired ? (verifiedInviteCode || inviteCode.trim() || undefined) : undefined;
   const canGetCode = useMemo(() => inviteReady && PHONE_REGEX.test(phone) && countdown === 0 && !isSendingCode, [inviteReady, phone, countdown, isSendingCode]);
 
   const getErrorMessage = (value: any, fallback: string) =>
@@ -81,6 +97,7 @@ const LoginRequiredModal: React.FC<Props> = ({
     setVerifyCode("");
     setCountdown(0);
     setHint("");
+    setInviteRequired(true);
     setLocalError(message);
   };
 
@@ -649,30 +666,32 @@ const LoginRequiredModal: React.FC<Props> = ({
               <div className="xf-mini-login-note">使用小程序微信身份登录，登录成功后回到当前内容。</div>
             </div>
           ) : (
-            <form className="xf-login-form-section" onSubmit={handleSubmit}>
-              {inviteReady ? (
-                <div className="xf-invite-ok">邀请码已校准</div>
-              ) : (
-                <>
-                  <label>邀请码</label>
-                  <div className="xf-field-row">
-                    <input
-                      className="xf-input"
-                      placeholder="请输入邀请码"
-                      value={inviteCode}
-                      onChange={(e) => setInviteCode(e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      className="xf-code-btn"
-                      onClick={handleVerifyInvite}
-                      disabled={!inviteCode.trim() || isVerifyingInvite}
-                    >
-                      {isVerifyingInvite ? "校准中..." : "校准邀请码"}
-                    </button>
-                  </div>
-                </>
-              )}
+                <form className="xf-login-form-section" onSubmit={handleSubmit}>
+                  {inviteRequired && (
+                    inviteReady ? (
+                      <div className="xf-invite-ok">邀请码已校准</div>
+                    ) : (
+                      <>
+                        <label>邀请码</label>
+                        <div className="xf-field-row">
+                          <input
+                            className="xf-input"
+                            placeholder="请输入邀请码"
+                            value={inviteCode}
+                            onChange={(e) => setInviteCode(e.target.value)}
+                          />
+                          <button
+                            type="button"
+                            className="xf-code-btn"
+                            onClick={handleVerifyInvite}
+                            disabled={!inviteCode.trim() || isVerifyingInvite}
+                          >
+                            {isVerifyingInvite ? "校准中..." : "校准邀请码"}
+                          </button>
+                        </div>
+                      </>
+                    )
+                  )}
 
               {inviteReady && (
                 <>
