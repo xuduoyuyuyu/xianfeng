@@ -870,7 +870,7 @@ function buildNativeBookDetailTags(item) {
 function hasExternalBookValue(value) {
   const text = String(value == null ? "" : value).trim();
   if (!text) return false;
-  return ["none", "null", "undefined", "n/a", "na", "-"].indexOf(text.toLowerCase()) < 0;
+  return ["none", "null", "undefined", "n/a", "na", "-", "未标注", "作者未标注", "暂无", "未知", "无"].indexOf(text.toLowerCase()) < 0;
 }
 
 function formatExternalBookValue(value) {
@@ -1655,8 +1655,8 @@ function normalizeBookDetail(book, metadata) {
   const item = book || {};
   const meta = metadata || {};
   const title = firstText([item.title, meta.title], "图书详情");
-  const author = firstText([meta.author, item.author], "作者未标注");
-  const publisher = firstText([meta.publisher, item.publisher], "");
+  const author = formatExternalBookValue(firstText([meta.author, item.author], ""));
+  const publisher = formatExternalBookValue(firstText([meta.publisher, item.publisher], ""));
   const coverImage = normalizeBookCoverImage(firstText([meta.cover, item.metadataCover, item.coverImage], ""));
   const intro = firstText([
     meta.description,
@@ -1675,10 +1675,10 @@ function normalizeBookDetail(book, metadata) {
     title,
     author,
     publisher,
-    isbn: firstText([meta.isbn, item.isbn], ""),
+    isbn: formatExternalBookValue(firstText([meta.isbn, item.isbn], "")),
     coverImage,
     hasCover: !!coverImage,
-    publishedDate: firstText([item.publishedDate], ""),
+    publishedDate: formatExternalBookValue(firstText([item.publishedDate], "")),
     ratingText: "",
     ratingCount: "",
     hasRating: false,

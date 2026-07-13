@@ -93,11 +93,23 @@
 - `WorthBuyAnalysis.status=deleted` is a logical deletion state for admin
   worthbuy records. Admin lists hide deleted records by default and can request
   them explicitly for recovery.
+- Public topic and worthbuy list endpoints are first-screen summary APIs.
+  `/api/topic-hub` excludes long `layers.*.content` fields while preserving
+  enough layer structure for node counts, and `/api/worthbuy/list` plus
+  `/api/worthbuy/my` return only card-level analysis fields. Detail endpoints
+  remain responsible for full topic nodes and complete worthbuy reports.
 - External `/library` book description translations are persisted by external
   book id after the first user-triggered successful translation. Later requests
   return the saved translation instead of calling the AI provider again. The
   default translation model is DeepSeek Flash via the translation-specific
   `BOOK_TRANSLATION_AI_MODEL` setting.
+- External `/api/books/external` default display pages fetch and return the
+  requested upstream page first, then sort only that current page so cold-start
+  first paint does not wait for the full external corpus cache. Records with
+  real covers rank before records that would fall back to the Jiyue logo, and
+  records with descriptions rank within that cover bucket. Placeholder cover
+  URLs are treated as no-cover records. Full-corpus cache work remains reserved
+  for filter counts and complex local filtering paths that need global matches.
 - Admin book editing can create or update the public detail metadata through
   `PUT /api/admin/books/:id/metadata`. The endpoint upserts by `bookId`, so a
   book without a metadata row becomes editable without creating duplicate

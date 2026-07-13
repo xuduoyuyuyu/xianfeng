@@ -118,12 +118,17 @@ function normalizeImage(value) {
   return `${DEFAULT_WEB_ORIGIN}${source.startsWith("/") ? source : `/${source}`}`;
 }
 
-function isFallbackReadingCoverImage(value) {
+function isRealReadingCoverImage(value) {
   const source = String(value || "").trim();
-  if (!source) return true;
-  return source.indexOf("via.placeholder.com") >= 0
-    || /placeholder/i.test(source)
-    || source.indexOf(DEFAULT_READING_COVER_IMAGE) >= 0;
+  if (!source) return false;
+  if (source.indexOf("via.placeholder.com") >= 0) return false;
+  if (/placeholder/i.test(source)) return false;
+  if (source.indexOf(DEFAULT_READING_COVER_IMAGE) >= 0) return false;
+  return true;
+}
+
+function isFallbackReadingCoverImage(value) {
+  return !isRealReadingCoverImage(value);
 }
 
 function normalizeReadingCoverImage(value) {
@@ -281,6 +286,7 @@ function normalizeBook(book) {
     cleanRealBookDescription(item.contentIntro),
     cleanRealBookDescription(item.summary)
   ], "");
+  const coverImage = normalizeReadingCoverImage(item.coverImage || item.metadataCover);
 
   return {
     id: id || title,
@@ -289,7 +295,8 @@ function normalizeBook(book) {
     publisher: displayText(item.publisher),
     sourceName: displayText(item.sourceName),
     date: formatDate(item.publishedAt || item.createdAt),
-    coverImage: normalizeReadingCoverImage(item.coverImage || item.metadataCover),
+    coverImage,
+    hasRealCover: isRealReadingCoverImage(coverImage),
     description: realDescription,
     hasListDescription: !!realDescription,
     descriptionIsFallback: false,
@@ -330,11 +337,14 @@ function normalizeCachedBook(book) {
       cleanRealBookDescription(item.contentIntro),
       cleanRealBookDescription(item.summary)
     ], "");
+    const coverImage = normalizeReadingCoverImage(item.coverImage || item.metadataCover);
     return {
       ...item,
       author: displayText(item.author),
       publisher: displayText(item.publisher),
       sourceName: displayText(item.sourceName),
+      coverImage,
+      hasRealCover: isRealReadingCoverImage(coverImage),
       description: realDescription,
       hasListDescription: !!realDescription,
       descriptionIsFallback: false,
@@ -363,11 +373,14 @@ function normalizeCachedBook(book) {
     cleanRealBookDescription(item.contentIntro),
     cleanRealBookDescription(item.summary)
   ], "");
+  const coverImage = normalizeReadingCoverImage(item.coverImage || item.metadataCover);
   return {
     ...item,
     author: displayText(item.author),
     publisher: displayText(item.publisher),
     sourceName: displayText(item.sourceName),
+    coverImage,
+    hasRealCover: isRealReadingCoverImage(coverImage),
     description: realDescription,
     hasListDescription: !!realDescription,
     descriptionIsFallback: false,
@@ -660,10 +673,11 @@ function bookDisplayPriority(book, index) {
   const hasDetail = !!book.detailEnabled;
   const hasDescription = !!book.hasListDescription;
   let score = 0;
-  if (hasDetail && hasDescription) score = 4;
-  else if (hasDescription) score = 3;
-  else if (hasDetail) score = 2;
-  else score = 1;
+  if (book.hasRealCover) score += 8;
+  if (hasDetail && hasDescription) score += 4;
+  else if (hasDescription) score += 3;
+  else if (hasDetail) score += 2;
+  else score += 1;
   return { book, index, score };
 }
 
@@ -684,7 +698,7 @@ function normalizeExternalLibraryBook(record) {
   const item = record || {};
   const id = String(item.id || "").trim();
   const title = firstText([item.title], "未命名书籍");
-  const author = firstText([item.author], "作者未标注");
+  const author = displayText(item.author);
   const categories = splitValues(item.tags || item.category)
     .map(normalizeExternalLibraryTag)
     .filter(Boolean)
@@ -694,6 +708,7 @@ function normalizeExternalLibraryBook(record) {
   for (const category of categories) pushTag(fieldTags, category);
   const displayTags = fieldTags.map((tag) => `#${tag}`);
   const description = cleanRealBookDescription(item.description);
+  const coverImage = normalizeReadingCoverImage(item.coverPic);
 
   return {
     id: id || title,
@@ -702,7 +717,8 @@ function normalizeExternalLibraryBook(record) {
     publisher: firstText([item.publisher], ""),
     sourceName: "及阅书库",
     date: formatDate(item.pubDate),
-    coverImage: normalizeReadingCoverImage(item.coverPic),
+    coverImage,
+    hasRealCover: isRealReadingCoverImage(coverImage),
     description,
     hasListDescription: !!description,
     detailEnabled: !!id,

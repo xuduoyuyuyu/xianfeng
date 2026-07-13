@@ -5,6 +5,22 @@ import { requirePro } from "../middlewares/requirePro";
 
 const router = Router();
 
+const WORTHBUY_LIST_SELECT = [
+  "brand",
+  "query",
+  "submittedBy",
+  "status",
+  "createdAt",
+  "updatedAt",
+  "result.score",
+  "result.isIqTax",
+  "result.reason",
+  "result.brand",
+  "result.title",
+  "result.url",
+  "result.priceRange",
+].join(" ");
+
 function parseWorthBuyPagination(req: Request) {
   const paged = req.query.current !== undefined || req.query.size !== undefined;
   const current = Math.max(1, Number(req.query.current) || 1);
@@ -72,7 +88,7 @@ router.get("/my", async (req: Request, res: Response) => {
     const userId = resolveWorthBuyUserId(req);
     const filter = { submittedBy: userId, status: { $ne: "deleted" } };
     const { paged, current, size } = parseWorthBuyPagination(req);
-    const query = WorthBuyAnalysis.find(filter).sort({ createdAt: -1 });
+    const query = WorthBuyAnalysis.find(filter).select(WORTHBUY_LIST_SELECT).sort({ createdAt: -1 });
     if (!paged) return res.json({ items: await query.lean() });
     const [items, total] = await Promise.all([query.skip((current - 1) * size).limit(size).lean(), WorthBuyAnalysis.countDocuments(filter)]);
     res.json({ items, total, current, pages: Math.max(1, Math.ceil(total / size)), size });
@@ -99,7 +115,7 @@ router.get("/list", async (req: Request, res: Response) => {
   try {
     const filter = { status: "published" };
     const { paged, current, size } = parseWorthBuyPagination(req);
-    const query = WorthBuyAnalysis.find(filter).sort({ createdAt: -1 });
+    const query = WorthBuyAnalysis.find(filter).select(WORTHBUY_LIST_SELECT).sort({ createdAt: -1 });
     if (!paged) return res.json({ items: await query.lean() });
     const [items, total] = await Promise.all([query.skip((current - 1) * size).limit(size).lean(), WorthBuyAnalysis.countDocuments(filter)]);
     res.json({ items, total, current, pages: Math.max(1, Math.ceil(total / size)), size });

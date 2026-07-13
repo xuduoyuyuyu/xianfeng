@@ -122,6 +122,15 @@ async function retrieveTopicGuestShares(query: string, limit = 8): Promise<Topic
 // ============================================================
 export const publicRouter = Router();
 
+const TOPIC_LIST_SELECT = [
+  "-layers.layer1.content",
+  "-layers.layer2.content",
+  "-layers.layer3.content",
+  "-layers.layer4.content",
+  "-layers.layer5.content",
+  "-userOriginalInput",
+].join(" ");
+
 function requireProForTopicSubmission(req: Request, res: Response, next: any) {
   authenticate(req as any, res, () => {
     requirePro("topic_submit")(req as any, res, next);
@@ -185,6 +194,7 @@ publicRouter.get("/", async (req: Request, res: Response) => {
 
     const [topics, total] = await Promise.all([
       Topic.find(filter)
+        .select(TOPIC_LIST_SELECT)
         .sort(sortObj)
         .skip((pageNum - 1) * limitNum)
         .limit(limitNum)
@@ -223,6 +233,7 @@ publicRouter.get("/", async (req: Request, res: Response) => {
         createdBy: userId,
         hiddenForUsers: { $ne: userId },
       })
+        .select(TOPIC_LIST_SELECT)
         .sort({ createdAt: -1 })
         .lean();
 

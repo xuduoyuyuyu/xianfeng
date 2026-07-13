@@ -264,6 +264,33 @@ function normalizeExternalBookLibraryRecord(record: any): ExternalBookLibraryRec
   };
 }
 
+function hasRealExternalBookCover(record: any): boolean {
+  const value = pick(record, ["coverPic"]);
+  if (!value) return false;
+  if (value.includes("via.placeholder.com")) return false;
+  if (/placeholder/i.test(value)) return false;
+  return true;
+}
+
+function hasExternalBookDescription(record: any): boolean {
+  return Boolean(pick(record, ["description", "intro", "summary", "contentIntro", "abstract", "简介", "图书简介", "内容简介"]));
+}
+
+function sortExternalBookLibraryRecordsForDisplay(records: any[]): any[] {
+  return (Array.isArray(records) ? records : [])
+    .map((record, index) => {
+      let score = 0;
+      if (hasRealExternalBookCover(record)) score += 8;
+      if (hasExternalBookDescription(record)) score += 4;
+      return { record, index, score };
+    })
+    .sort((left, right) => {
+      const scoreDiff = right.score - left.score;
+      return scoreDiff !== 0 ? scoreDiff : left.index - right.index;
+    })
+    .map((item) => item.record);
+}
+
 async function fetchExternalBookLibraryPage(current: number, size: number, filters?: { category?: string; tags?: string; title?: string }) {
   const query = {
     current: String(current),
@@ -407,7 +434,16 @@ async function fetchExternalBookLibraryFilterRecords(): Promise<any[]> {
 
 async function fetchExternalBookLibraryFilteredPage(current: number, size: number, tags: string[], mode: ExternalBookFilterMatchMode = "all", keyword = "") {
   const normalizedKeyword = parseExternalBookKeyword(keyword);
-  if (!tags.length && !normalizedKeyword) return fetchExternalBookLibraryPage(current, size);
+  if (!tags.length && !normalizedKeyword) {
+    const page = await fetchExternalBookLibraryPage(current, size);
+    return {
+      records: sortExternalBookLibraryRecordsForDisplay(page.records),
+      total: Number(page.total || 0),
+      size: Number(page.size || size),
+      current: Number(page.current || current),
+      pages: Number(page.pages || 0),
+    };
+  }
   if (!tags.length && normalizedKeyword) return fetchExternalBookLibraryPage(current, size, { title: normalizedKeyword });
 
   if (tags.length === 1 && !normalizedKeyword) {
@@ -424,14 +460,15 @@ async function fetchExternalBookLibraryFilteredPage(current: number, size: numbe
   const records = sourceRecords
     .filter((record) => externalBookRecordMatchesTags(record, tags, mode))
     .filter((record) => externalBookRecordMatchesKeyword(record, normalizedKeyword));
+  const sortedRecords = sortExternalBookLibraryRecordsForDisplay(records);
   const start = Math.max(0, (current - 1) * size);
-  const pageRecords = records.slice(start, start + size);
+  const pageRecords = sortedRecords.slice(start, start + size);
   return {
     records: pageRecords,
-    total: records.length,
+    total: sortedRecords.length,
     size,
     current,
-    pages: Math.max(1, Math.ceil(records.length / size)),
+    pages: Math.max(1, Math.ceil(sortedRecords.length / size)),
   };
 }
 

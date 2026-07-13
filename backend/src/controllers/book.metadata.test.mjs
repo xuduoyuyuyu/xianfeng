@@ -73,6 +73,19 @@ test("admin book list exposes editable metadata detail fields", () => {
   assert.match(controllerSource, /ratingCount: metadata\?\.ratingCount \?\? null/, "metadata detail should include rating count");
 });
 
+test("external book library default pages avoid full-cache blocking and only sort the current page", () => {
+  assert.match(controllerSource, /function hasRealExternalBookCover\(record: any\): boolean/, "external library should centralize real-cover detection");
+  assert.match(controllerSource, /value\.includes\("via\.placeholder\.com"\)/, "external library should treat placeholder URLs as no cover");
+  assert.match(controllerSource, /function sortExternalBookLibraryRecordsForDisplay\(records: any\[\]\): any\[\]/, "external library should centralize display sorting");
+  assert.match(controllerSource, /if \(hasRealExternalBookCover\(record\)\) score \+= 8;/, "real covers should outrank default logo fallback cards");
+  assert.match(controllerSource, /const page = await fetchExternalBookLibraryPage\(current, size\);[\s\S]*records: sortExternalBookLibraryRecordsForDisplay\(page\.records\)/, "unfiltered external library pages should fetch only the requested upstream page before sorting");
+  const defaultBranchStart = controllerSource.indexOf("if (!tags.length && !normalizedKeyword)");
+  const keywordBranchStart = controllerSource.indexOf("if (!tags.length && normalizedKeyword)");
+  assert.ok(defaultBranchStart > -1 && keywordBranchStart > defaultBranchStart, "default external branch should be explicit");
+  const defaultBranchSource = controllerSource.slice(defaultBranchStart, keywordBranchStart);
+  assert.doesNotMatch(defaultBranchSource, /fetchExternalBookLibraryFilterRecords\(\)/, "default external pages must not wait for the full external cache before first paint");
+});
+
 test("admin can manually create metadata for a book without an existing detail row", () => {
   assert.match(metadataServiceSource, /export async function upsertBookMetadataManually\(/, "metadata service should expose a manual upsert path");
   assert.match(metadataServiceSource, /BookMetadataModel\.findOneAndUpdate\([\s\S]*\{ bookId: new mongoose\.Types\.ObjectId\(bookId\) \}[\s\S]*upsert: true/, "manual metadata should upsert by book id");

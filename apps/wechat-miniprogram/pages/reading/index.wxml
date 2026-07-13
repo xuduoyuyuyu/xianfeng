@@ -83,8 +83,6 @@
     <button class="xf-native-retry" bindtap="retryLoad">重试</button>
   </view>
 
-  <view wx:if="{{hasCache}}" class="xf-native-cache-tip">已先显示上次缓存，正在同步最新内容</view>
-
   <view wx:if="{{filterDrawerOpen}}" class="xf-native-filter-mask" catchtap="closeFilterDrawer" catchtouchmove="noop">
     <view
       class="xf-native-filter-drawer"

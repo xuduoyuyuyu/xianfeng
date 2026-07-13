@@ -5637,8 +5637,8 @@ test("native first-level content tabs fetch API data and open detail wrapper rou
   assert.match(reading.js, /switchBookViewMode\(\)/);
   assert.match(reading.js, /const compactMode = !this\.data\.compactMode/);
   assert.match(reading.js, /function bookDisplayPriority\(book, index\)/);
-  assert.match(reading.js, /if \(hasDetail && hasDescription\) score = 4/);
-  assert.match(reading.js, /else if \(hasDescription\) score = 3/);
+  assert.match(reading.js, /if \(hasDetail && hasDescription\) score \+= 4/);
+  assert.match(reading.js, /else if \(hasDescription\) score \+= 3/);
   assert.match(reading.js, /const recommendedGuest = displayText\(item\.recommendedGuest\)/);
   assert.match(reading.js, /const recommenderTag = recommendedGuest \? `推荐：\$\{recommendedGuest\}` : ""/);
   assert.match(reading.js, /recommenderTag,\n\s+fieldTags,\n\s+displayTags,/);
@@ -6521,6 +6521,22 @@ test("reading external library cards use tighter tag spacing", () => {
   assert.match(reading.wxss, /\.xf-reading-page\.is-external-library \.xf-reading-tags \{[\s\S]*gap: 6rpx 10rpx;[\s\S]*margin-top: 8rpx;[\s\S]*min-height: 32rpx;/);
 });
 
+test("reading external library does not show a manual cache sync tip", () => {
+  const reading = readPage("reading");
+
+  assert.doesNotMatch(reading.wxml, /已先显示上次缓存，正在同步最新内容/);
+  assert.doesNotMatch(reading.wxml, /xf-native-cache-tip/);
+});
+
+test("reading external library treats the Jiyue default logo as a non-cover for ordering", () => {
+  const reading = readPage("reading");
+
+  assert.match(reading.js, /function isRealReadingCoverImage\(value\)/);
+  assert.match(reading.js, /source\.indexOf\(DEFAULT_READING_COVER_IMAGE\) >= 0/);
+  assert.match(reading.js, /hasRealCover: isRealReadingCoverImage\(coverImage\)/);
+  assert.match(reading.js, /if \(book\.hasRealCover\) score \+= 8;/);
+});
+
 test("reading external keyword search queries the live library instead of filtering the loaded page", async () => {
   const definition = loadPageDefinition("reading");
   const originalRequest = global.wx.request;
@@ -7047,6 +7063,7 @@ test("reading tab prioritizes local books that have both detail and list descrip
                 _id: "detail-with-description",
                 title: "有详情且有简介",
                 author: "作者",
+                coverImage: "/uploads/cover-b.jpg",
                 hasMetadataDetail: true,
                 description: "这本书有真实简介，应该在及阅列表靠前展示。"
               },
@@ -7054,6 +7071,7 @@ test("reading tab prioritizes local books that have both detail and list descrip
                 _id: "description-without-detail",
                 title: "有简介但无详情",
                 author: "作者",
+                coverImage: "/uploads/cover-c.jpg",
                 description: "只有简介，没有详情。"
               }
             ],
@@ -9048,10 +9066,12 @@ test("topics tab disables zero-node topics before they can open an empty detail"
 test("topics tab prefetches visible topic details and first nodes for instant native open", async () => {
   const definition = loadPageDefinition("topics");
   const originalWx = global.wx;
+  const originalSetTimeout = global.setTimeout;
   const storage = new Map([
     ["xf_user", { _id: "user-1" }]
   ]);
   const requestUrls = [];
+  const timers = [];
   const context = {
     ...definition,
     data: { ...definition.data },
@@ -9102,8 +9122,19 @@ test("topics tab prefetches visible topic details and first nodes for instant na
         options.fail({ errMsg: `unexpected request: ${options.url}` });
       }
     };
+    global.setTimeout = (callback, delay) => {
+      timers.push({ callback, delay });
+      return timers.length;
+    };
 
     await definition.loadTopics.call(context);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    assert.equal(requestUrls.some((url) => url.includes("/api/topic-hub/topic-1?userId=user-1")), false);
+    assert.equal(timers.length, 1);
+    assert.equal(timers[0].delay, 300);
+    timers[0].callback();
     await Promise.resolve();
     await Promise.resolve();
 
@@ -9115,6 +9146,7 @@ test("topics tab prefetches visible topic details and first nodes for instant na
     assert.equal(detailCache.firstNodeResponse.node.content, "预热的节点正文");
   } finally {
     global.wx = originalWx;
+    global.setTimeout = originalSetTimeout;
   }
 });
 
@@ -9188,7 +9220,7 @@ test("topics tab derives guide tags and opens the full tag drawer from expand al
     const topicListUrl = new URL(requestUrls[0], "https://xianfeng.xinzhi.info");
     assert.equal(topicListUrl.pathname, "/api/topic-hub");
     assert.equal(topicListUrl.searchParams.get("page"), "1");
-    assert.equal(topicListUrl.searchParams.get("limit"), "30");
+    assert.equal(topicListUrl.searchParams.get("limit"), "10");
     assert.equal(topicListUrl.searchParams.get("userId"), "user-1");
     assert.equal(topicListUrl.searchParams.get("grade"), "小学一年级");
     assert.equal(storage.get("xf_native_topics_cache").version, 3);
@@ -9264,6 +9296,8 @@ test("topics cache expires and invalidated detail cards are removed on return", 
 test("topics tab removes cached cards when detail prefetch returns not found", async () => {
   const definition = loadPageDefinition("topics");
   const originalWx = global.wx;
+  const originalSetTimeout = global.setTimeout;
+  const timers = [];
   const staleTopic = {
     id: "deleted-topic",
     slug: "deleted-topic",
@@ -9305,8 +9339,14 @@ test("topics tab removes cached cards when detail prefetch returns not found", a
         options.fail({ errMsg: `unexpected request: ${options.url}` });
       }
     };
+    global.setTimeout = (callback, delay) => {
+      timers.push({ callback, delay });
+      return timers.length;
+    };
 
     definition.loadCachedTopics.call(context);
+    assert.equal(timers.length, 1);
+    timers[0].callback();
     await Promise.resolve();
     await Promise.resolve();
 
@@ -9314,6 +9354,7 @@ test("topics tab removes cached cards when detail prefetch returns not found", a
     assert.deepEqual(storage.get("xf_native_topics_cache").topics, []);
   } finally {
     global.wx = originalWx;
+    global.setTimeout = originalSetTimeout;
   }
 });
 
@@ -9375,14 +9416,14 @@ test("topics tab loads every page for filter counts but displays one page at a t
     definition.applyTopicFilterDraft.call(context);
 
     assert.equal(context.data.topicFilterPreviewCount, 35);
-    assert.equal(context.data.topics.length, 30);
+    assert.equal(context.data.topics.length, 10);
     assert.equal(context.data.hasMoreTopics, true);
-    assert.equal(context.data.visibleTopicCount, 30);
+    assert.equal(context.data.visibleTopicCount, 10);
 
     definition.loadMoreTopics.call(context);
 
-    assert.equal(context.data.topics.length, 35);
-    assert.equal(context.data.hasMoreTopics, false);
+    assert.equal(context.data.topics.length, 20);
+    assert.equal(context.data.hasMoreTopics, true);
   } finally {
     global.wx = originalWx;
   }
@@ -9892,8 +9933,10 @@ test("native first-level tabs match web paging and append on scroll", () => {
   assert.match(materials.js, /const nextCount = Math\.min\(filteredMaterials\.length, currentCount \+ MATERIAL_PAGE_SIZE\);/);
   assert.match(materials.js, /onReachBottom\(\)\s*\{[\s\S]*this\.loadMoreMaterials\(\);[\s\S]*\}/);
 
-  assert.match(topics.js, /const TOPIC_PAGE_SIZE = 30;/, "topics should match web ITEMS_PER_PAGE");
+  assert.match(topics.js, /const TOPIC_PAGE_SIZE = 10;/, "topics should use small native pages for fast first paint");
   assert.match(topics.js, /const TOPIC_FILTER_PAGE_SIZE = 100;/, "topic filters should load a larger source page");
+  assert.match(topics.js, /const TOPIC_DETAIL_PREFETCH_LIMIT = 1;/, "topics should not prefetch multiple heavy details on first paint");
+  assert.match(topics.js, /const TOPIC_DETAIL_PREFETCH_DELAY_MS = 300;/, "topic detail prefetch should be delayed until after first paint");
   assert.match(topics.js, /currentTopicPage: 1/);
   assert.match(topics.js, /totalTopicPages: 1/);
   assert.match(topics.js, /hasMoreTopics: false/);
@@ -9966,13 +10009,13 @@ test("topics tab displays appended normal list pages instead of resetting to the
       request(options) {
         const url = new URL(options.url, "https://mp.local");
         const page = Number(url.searchParams.get("page") || 1);
-        const start = (page - 1) * 30 + 1;
+        const start = (page - 1) * 10 + 1;
         options.success({
           statusCode: 200,
           data: {
-            topics: Array.from({ length: 30 }, (_, index) => makeTopic(start + index)),
+            topics: Array.from({ length: 10 }, (_, index) => makeTopic(start + index)),
             total: 75,
-            totalPages: 3
+            totalPages: 8
           }
         });
       },
@@ -9990,9 +10033,9 @@ test("topics tab displays appended normal list pages instead of resetting to the
     await definition.loadTopics.call(context);
     await definition.loadTopics.call(context, { page: 2, append: true });
 
-    assert.equal(context.data.allTopics.length, 60);
-    assert.equal(context.data.topics.length, 60);
-    assert.equal(context.data.visibleTopicCount, 60);
+    assert.equal(context.data.allTopics.length, 20);
+    assert.equal(context.data.topics.length, 20);
+    assert.equal(context.data.visibleTopicCount, 20);
     assert.equal(context.data.hasMoreTopics, true);
   } finally {
     global.wx = originalWx;
@@ -10191,7 +10234,7 @@ test("topics tab waits for the full filter source before applying filters", asyn
     ...definition,
     data: {
       ...definition.data,
-      allTopics: topics.slice(0, 30),
+      allTopics: topics.slice(0, 10),
       allFilterTopics: [],
       filterSourceLoaded: false,
       activeTopicTags: [],
@@ -10215,13 +10258,13 @@ test("topics tab waits for the full filter source before applying filters", asyn
   const drawerContext = createContext();
   await definition.applyTopicFilterDraft.call(drawerContext);
   assert.equal(drawerContext.data.topicFilterPreviewCount, 35);
-  assert.equal(drawerContext.data.topics.length, 30);
+  assert.equal(drawerContext.data.topics.length, 10);
   assert.equal(drawerContext.data.hasMoreTopics, true);
 
   const tagContext = createContext();
   await definition.applyTopicTagFilter.call(tagContext, "升学");
   assert.equal(tagContext.data.topicFilterPreviewCount, 35);
-  assert.equal(tagContext.data.topics.length, 30);
+  assert.equal(tagContext.data.topics.length, 10);
   assert.equal(tagContext.data.hasMoreTopics, true);
 });
 
@@ -14804,6 +14847,28 @@ test("webview detail page keeps program, book, and topic details in the mobile w
           });
           return;
         }
+        if (options.url.endsWith("/api/books/book-unmarked")) {
+          options.success({
+            statusCode: 200,
+            data: {
+              _id: "book-unmarked",
+              title: "未标注信息的本地图书",
+              author: "未标注",
+              publisher: "未标注"
+            }
+          });
+          return;
+        }
+        if (options.url.endsWith("/api/books/book-unmarked/metadata")) {
+          options.success({
+            statusCode: 200,
+            data: {
+              author: "未标注",
+              publisher: "未标注"
+            }
+          });
+          return;
+        }
         if (options.url.endsWith("/api/books/external/external-book-1")) {
           options.success({
             statusCode: 200,
@@ -15786,6 +15851,21 @@ test("webview detail page keeps program, book, and topic details in the mobile w
     assert.deepEqual(emptyNativeBookContext.data.nativeBook.facts, []);
     assert.equal(emptyNativeBookContext.data.nativeBook.hasRelatedBooks, false);
     assert.deepEqual(emptyNativeBookContext.data.nativeBook.relatedBooks, []);
+
+    const unmarkedNativeBookContext = {
+      ...definition,
+      data: { ...definition.data },
+      setData(payload) {
+        this.data = { ...this.data, ...payload };
+      }
+    };
+    await definition.onLoad.call(unmarkedNativeBookContext, {
+      title: encodeURIComponent("及阅详情"),
+      url: encodeURIComponent("https://xianfeng.xinzhi.info/reading/book-unmarked?xf_mp=1")
+    });
+    assert.equal(unmarkedNativeBookContext.data.nativeBook.author, "");
+    assert.equal(unmarkedNativeBookContext.data.nativeBook.hasFacts, false);
+    assert.deepEqual(unmarkedNativeBookContext.data.nativeBook.facts, []);
 
     const externalBookContext = {
       ...definition,

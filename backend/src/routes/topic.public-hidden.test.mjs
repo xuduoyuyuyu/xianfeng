@@ -39,3 +39,26 @@ test("public topic detail can open generated user pending topics without creator
     "topic detail should still allow user-generated pending topics when no userId is available"
   );
 });
+
+test("public topic list keeps heavy layer content out of list responses", () => {
+  assert.match(
+    source,
+    /const TOPIC_LIST_SELECT = /,
+    "public topic list should define a list projection"
+  );
+  assert.match(
+    source,
+    /"-layers\.layer1\.content"[\s\S]*"-layers\.layer2\.content"[\s\S]*"-layers\.layer3\.content"[\s\S]*"-layers\.layer4\.content"[\s\S]*"-layers\.layer5\.content"/,
+    "public topic list should exclude long node content while preserving node count"
+  );
+  assert.match(
+    source,
+    /Topic\.find\(filter\)[\s\S]*\.select\(TOPIC_LIST_SELECT\)[\s\S]*\.skip\(\(pageNum - 1\) \* limitNum\)/,
+    "public topic list projection should be applied before paginated list reads"
+  );
+  assert.match(
+    source,
+    /Topic\.find\(\{[\s\S]*status: "pending",[\s\S]*createdBy: userId,[\s\S]*\}\)[\s\S]*\.select\(TOPIC_LIST_SELECT\)/,
+    "user pending topic list merge should use the same lightweight projection"
+  );
+});

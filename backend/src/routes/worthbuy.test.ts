@@ -13,6 +13,14 @@ describe("worthbuy public pagination contract", () => {
     assert.match(routeSource, /if \(!paged\) return res\.json\(\{ items: await query\.lean\(\) \}\)/);
     assert.match(routeSource, /total, current, pages: Math\.max\(1, Math\.ceil\(total \/ size\)\), size/);
   });
+
+  it("keeps full analysis content out of public list responses", () => {
+    assert.match(routeSource, /const WORTHBUY_LIST_SELECT = /);
+    assert.match(routeSource, /WorthBuyAnalysis\.find\(filter\)\.select\(WORTHBUY_LIST_SELECT\)\.sort\(\{ createdAt: -1 \}\)/);
+    assert.match(routeSource, /"result\.score"[\s\S]*"result\.isIqTax"[\s\S]*"result\.reason"[\s\S]*"result\.brand"[\s\S]*"result\.url"[\s\S]*"result\.priceRange"/);
+    assert.doesNotMatch(routeSource, /WORTHBUY_LIST_SELECT[\s\S]*"result\.recommendation"/);
+    assert.doesNotMatch(routeSource, /WORTHBUY_LIST_SELECT[\s\S]*"result\.pros"/);
+  });
 });
 
 describe("worthbuy submit result shaping", () => {

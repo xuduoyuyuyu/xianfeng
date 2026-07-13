@@ -13,9 +13,10 @@ const TOPIC_CACHE_KEY = "xf_native_topics_cache";
 const TOPIC_CACHE_VERSION = 3;
 const TOPIC_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const INVALID_TOPIC_CACHE_KEY = "xf_native_topic_invalidated_v1";
-const TOPIC_PAGE_SIZE = 30;
+const TOPIC_PAGE_SIZE = 10;
 const TOPIC_FILTER_PAGE_SIZE = 100;
-const TOPIC_DETAIL_PREFETCH_LIMIT = 4;
+const TOPIC_DETAIL_PREFETCH_LIMIT = 1;
+const TOPIC_DETAIL_PREFETCH_DELAY_MS = 300;
 const LOGO_HEIGHT_RPX = 56;
 const TOPIC_FILTER_TAG_LIMIT = 24;
 const GUIDE_TAG_VISIBLE_LIMIT = 11;
@@ -586,6 +587,7 @@ Page({
   },
 
   onUnload() {
+    this.clearTopicDetailPrefetchTimer();
     this.stopTopicProgressPolling();
     setSettingsTabbarHidden(this, false);
   },
@@ -646,7 +648,7 @@ Page({
         error: visibleTopics.length ? "" : buildNoTopicsMessage(activeTopicTagLabel, this.data.askInput),
         hasCache: true
       });
-      this.prefetchVisibleTopicDetails(visibleTopics);
+      this.scheduleVisibleTopicDetailPrefetch(visibleTopics);
     } catch (_error) {}
   },
 
@@ -700,7 +702,7 @@ Page({
             : buildNoTopicsMessage(activeTopicTagLabel, this.data.askInput)
         });
         if (!append && allTopics.length) saveTopicCache(allTopics);
-        if (!append && visibleTopics.length) this.prefetchVisibleTopicDetails(visibleTopics);
+        if (!append && visibleTopics.length) this.scheduleVisibleTopicDetailPrefetch(visibleTopics);
         this.syncTopicProgressPolling(allTopics);
       })
       .catch((error) => {
@@ -774,6 +776,23 @@ Page({
     ];
     if (userId) params.push(`userId=${encodeURIComponent(userId)}`);
     wx.navigateTo({ url: `/pages/webview/index?${params.join("&")}` });
+  },
+
+  clearTopicDetailPrefetchTimer() {
+    if (!this._topicDetailPrefetchTimer) return;
+    if (typeof clearTimeout === "function") {
+      clearTimeout(this._topicDetailPrefetchTimer);
+    }
+    this._topicDetailPrefetchTimer = null;
+  },
+
+  scheduleVisibleTopicDetailPrefetch(topics) {
+    if (!Array.isArray(topics) || !topics.length) return;
+    this.clearTopicDetailPrefetchTimer();
+    this._topicDetailPrefetchTimer = setTimeout(() => {
+      this._topicDetailPrefetchTimer = null;
+      this.prefetchVisibleTopicDetails(topics);
+    }, TOPIC_DETAIL_PREFETCH_DELAY_MS);
   },
 
   prefetchVisibleTopicDetails(topics) {

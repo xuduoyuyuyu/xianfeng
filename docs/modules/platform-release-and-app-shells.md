@@ -47,7 +47,13 @@
   descriptions. The external Readly library is opt-in only through an explicit
   in-page source switch or an external-library tag coming from an external book
   detail; native search and stale source preferences must not silently reopen
-  Reading on the external library.
+  Reading on the external library. Reading lists refresh silently after showing
+  cached content, without rendering a manual cache-sync hint. The Jiyue default
+  logo is a fallback asset rather than a real book cover, so native list sorting
+  treats those cards as no-cover cards.
+  The native Topics list prioritizes fast first paint: it loads 10 topics per
+  page and delays detail prefetch to one visible topic after the list is already
+  rendered, while filter data can still use the larger background source.
   The Baibaoxiang welfare shortcut opens native `pages/welfare/index` so the
   page uses mini-program chrome and hides backend 404s as an empty welfare
   state. Claim success is handled in the native page with the configured claim
