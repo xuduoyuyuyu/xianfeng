@@ -39,13 +39,13 @@ test("admin book editor uploads cover images before saving books", () => {
 test("admin book editor can maintain existing metadata detail fields", () => {
   assert.match(pageSource, /type MetadataFormData = \{/, "admin page should have a separate metadata form state");
   assert.match(pageSource, /setMetadataFormData\(toMetadataForm\(book\)\)/, "editing a book should hydrate metadata detail into the modal");
-  assert.match(pageSource, /adminApi\.reviewBookMetadata\(metadataId/, "saving an edited book should persist metadata detail changes");
+  assert.match(pageSource, /adminApi\.upsertBookMetadata\(editingBook\._id, metadataPayload\)/, "saving an edited book should persist metadata detail changes through the book-scoped upsert path");
   assert.match(pageSource, /图书详情内容/, "edit modal should expose a book detail section");
   assert.match(pageSource, /内容简介/, "edit modal should expose the public introduction field");
   assert.match(pageSource, /详情封面 URL/, "edit modal should expose the metadata cover field");
   assert.match(pageSource, /数据来源/, "edit modal should expose the metadata source field");
-  assert.match(pageSource, /详情状态/, "edit modal should expose the metadata approval state");
-  assert.match(pageSource, /详情 \{book\.metadataStatus === 'auto_approved'/, "admin table should show whether a row already has accepted details");
+  assert.doesNotMatch(pageSource, /详情状态/, "edit modal should not expose metadata approval state");
+  assert.match(pageSource, /详情已采纳/, "admin table should show whether a row already has accepted details");
 });
 
 test("admin book editor can manually add missing metadata details", () => {
@@ -55,7 +55,17 @@ test("admin book editor can manually add missing metadata details", () => {
   assert.match(pageSource, /description: detail\?\.description \|\| book\?\.description \|\| '',/, "manual books without metadata should prefill the editable introduction from base book data");
   assert.match(pageSource, /const metadataPayload = \{/, "book save should build one metadata payload for create and edit");
   assert.match(pageSource, /cover: metadataFormData\.cover\.trim\(\) \|\| formData\.coverImage\.trim\(\)/, "metadata creation should fall back to the uploaded base cover");
-  assert.match(pageSource, /if \(metadataId\) \{[\s\S]*reviewBookMetadata\(metadataId, metadataPayload\)[\s\S]*\} else \{[\s\S]*upsertBookMetadata\(editingBook\._id, metadataPayload\)/, "books without detail rows should create metadata on save");
+  assert.match(pageSource, /adminApi\.upsertBookMetadata\(editingBook\._id, metadataPayload\)/, "books without detail rows should create metadata on save");
   assert.match(pageSource, /暂无详情记录，保存后将自动创建图书详情。/, "books without detail rows should clearly remain editable and create details on save");
   assert.doesNotMatch(pageSource, /这本书暂无详情记录；当前弹窗只编辑基础图书字段。/, "missing metadata should no longer hide the detail form");
+});
+
+test("admin book page does not expose a metadata review queue", () => {
+  assert.doesNotMatch(pageSource, /图书详情审核/, "admin page should not render a separate detail review section");
+  assert.doesNotMatch(pageSource, /待审核详情/, "admin stats should not count pending detail reviews");
+  assert.doesNotMatch(pageSource, /fetchMetadataRows/, "admin page should not fetch a pending detail review queue");
+  assert.doesNotMatch(pageSource, /handleReviewMetadata/, "admin page should not keep accept-or-ignore review actions");
+  assert.doesNotMatch(pageSource, /adminApi\.reviewBookMetadata/, "admin page should not save detail edits through the review endpoint");
+  assert.doesNotMatch(pageSource, /needs_review/, "admin page should not expose a pending metadata status");
+  assert.doesNotMatch(pageSource, /rejected/, "admin page should not expose a rejected metadata status");
 });

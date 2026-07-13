@@ -44,7 +44,7 @@ const bookMetadataSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: ["auto_approved", "needs_review", "rejected"],
-      default: "needs_review",
+      default: "auto_approved",
       index: true,
     },
     reviewedAt: { type: Date, default: null },

@@ -103,7 +103,10 @@
   book without a metadata row becomes editable without creating duplicate
   detail records on later saves. Uploaded covers are mirrored to both the base
   book and metadata form; metadata upsert falls back to the base cover instead
-  of replacing it with an empty detail cover.
+  of replacing it with an empty detail cover. Book detail metadata no longer
+  has an operator review queue: collected and manually edited metadata is
+  treated as accepted, and public/admin readers do not filter detail records by
+  the legacy `status` value.
 - Public program details preserve concrete curated-reading titles for static
   display, but only expose a URL when its landing-page title verification
   passes. Generic category placeholders such as `教育相关推荐`, `延伸阅读`, and

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AxiosError } from 'axios';
-import { adminApi, AdminBookMetadata, Book, Guest } from '../../services/api';
+import { adminApi, Book, Guest } from '../../services/api';
 
 const PAGE_SIZE = 20;
 
@@ -51,8 +51,6 @@ function inferFromFirstStringColumns(row: ImportRow): { title: string; author: s
   };
 }
 
-type MetadataStatus = 'auto_approved' | 'needs_review' | 'rejected';
-
 type MetadataFormData = {
   title: string;
   author: string;
@@ -65,7 +63,6 @@ type MetadataFormData = {
   rating: string;
   ratingCount: string;
   ratingLabel: string;
-  status: MetadataStatus;
   reviewNote: string;
 };
 
@@ -82,7 +79,6 @@ function createEmptyMetadataForm(): MetadataFormData {
     rating: '',
     ratingCount: '',
     ratingLabel: '',
-    status: 'auto_approved',
     reviewNote: '',
   };
 }
@@ -101,7 +97,6 @@ function toMetadataForm(book: Book | null): MetadataFormData {
     rating: detail?.rating === null || detail?.rating === undefined ? '' : String(detail.rating),
     ratingCount: detail?.ratingCount === null || detail?.ratingCount === undefined ? '' : String(detail.ratingCount),
     ratingLabel: detail?.ratingLabel || '',
-    status: detail?.status || 'auto_approved',
     reviewNote: detail?.reviewNote || '',
   };
 }
@@ -116,8 +111,6 @@ function parseOptionalNumber(value: string): number | null {
 const AdminBooksPage: React.FC = () => {
   const [books, setBooks] = useState<Book[]>([]);
   const [guests, setGuests] = useState<Guest[]>([]);
-  const [metadataRows, setMetadataRows] = useState<AdminBookMetadata[]>([]);
-  const [metadataLoading, setMetadataLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'published' | 'draft'>('all');
   const [searchText, setSearchText] = useState('');
@@ -166,7 +159,6 @@ const AdminBooksPage: React.FC = () => {
 
   useEffect(() => {
     fetchGuests();
-    fetchMetadataRows();
   }, []);
 
   const fetchGuests = async () => {
@@ -188,43 +180,6 @@ const AdminBooksPage: React.FC = () => {
       console.error('获取图书列表失败:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchMetadataRows = async () => {
-    try {
-      setMetadataLoading(true);
-      const response = await adminApi.getBookMetadataReview('needs_review');
-      setMetadataRows(response.data || []);
-    } catch (error) {
-      console.error('获取图书详情审核列表失败:', error);
-    } finally {
-      setMetadataLoading(false);
-    }
-  };
-
-  const getMetadataBookTitle = (row: AdminBookMetadata) => {
-    const linkedBook = typeof row.bookId === 'object' ? row.bookId : null;
-    return linkedBook?.title || row.title || '未命名图书';
-  };
-
-  const handleReviewMetadata = async (row: AdminBookMetadata, status: 'auto_approved' | 'rejected') => {
-    try {
-      let description = row.description || '';
-      if (status === 'auto_approved') {
-        const nextDescription = window.prompt('可在采纳前微调简介：', description);
-        if (nextDescription === null) return;
-        description = nextDescription;
-      }
-      await adminApi.reviewBookMetadata(row._id, {
-        status,
-        description,
-        reviewNote: status === 'auto_approved' ? '后台审核采纳' : '后台审核忽略',
-      });
-      await Promise.all([fetchMetadataRows(), fetchBooks()]);
-    } catch (error) {
-      console.error('更新图书详情审核失败:', error);
-      alert('更新图书详情审核失败');
     }
   };
 
@@ -319,7 +274,6 @@ const AdminBooksPage: React.FC = () => {
     try {
       if (editingBook) {
         await adminApi.updateBook(editingBook._id, formData);
-        const metadataId = editingBook.metadataDetail?._id || editingBook.metadataId || '';
         const metadataPayload = {
           title: metadataFormData.title.trim() || formData.title,
           author: metadataFormData.author.trim() || formData.author,
@@ -332,19 +286,14 @@ const AdminBooksPage: React.FC = () => {
           rating: parseOptionalNumber(metadataFormData.rating),
           ratingCount: parseOptionalNumber(metadataFormData.ratingCount),
           ratingLabel: metadataFormData.ratingLabel.trim(),
-          status: metadataFormData.status,
           reviewNote: metadataFormData.reviewNote.trim() || '后台编辑详情',
         };
-        if (metadataId) {
-          await adminApi.reviewBookMetadata(metadataId, metadataPayload);
-        } else {
-          await adminApi.upsertBookMetadata(editingBook._id, metadataPayload);
-        }
+        await adminApi.upsertBookMetadata(editingBook._id, metadataPayload);
       } else {
         await adminApi.createBook(formData);
       }
       setShowModal(false);
-      await Promise.all([fetchBooks(), fetchMetadataRows()]);
+      await fetchBooks();
     } catch (error) {
       console.error('图书保存失败:', error);
       alert('图书保存失败，请重试');
@@ -587,7 +536,7 @@ const AdminBooksPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 bg-[#5e17eb]/10 rounded-xl flex items-center justify-center text-[#5e17eb]">
@@ -621,70 +570,6 @@ const AdminBooksPage: React.FC = () => {
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-violet-100 rounded-xl flex items-center justify-center text-[#5e17eb]">
-              <span className="material-symbols-outlined">fact_check</span>
-            </div>
-            <div>
-              <p className="text-2xl font-black">{metadataRows.length}</p>
-              <p className="text-xs text-stone-400">待审核详情</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between gap-4 border-b border-stone-100 px-6 py-4">
-          <div>
-            <h2 className="text-lg font-black text-stone-900">图书详情审核</h2>
-            <p className="mt-1 text-xs text-stone-400">低置信候选只在这里处理，采纳后才会进入前台详情。</p>
-          </div>
-          <button
-            onClick={fetchMetadataRows}
-            className="admin-pill-btn admin-pill-btn-secondary"
-          >
-            <span className="material-symbols-outlined text-base">refresh</span>
-            刷新
-          </button>
-        </div>
-        {metadataLoading ? (
-          <div className="px-6 py-8 text-sm text-stone-400">正在加载审核候选...</div>
-        ) : metadataRows.length === 0 ? (
-          <div className="px-6 py-8 text-sm text-stone-400">暂无待审核图书详情。</div>
-        ) : (
-          <div className="divide-y divide-stone-100">
-            {metadataRows.slice(0, 8).map((row) => (
-              <div key={row._id} className="grid gap-4 px-6 py-5 lg:grid-cols-[1.4fr_2fr_auto]">
-                <div>
-                  <div className="font-black text-stone-900">{getMetadataBookTitle(row)}</div>
-                  <div className="mt-1 text-xs text-stone-500">
-                    {row.author || '未知作者'} · {row.publisher || '未知出版社'}
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-2 text-[10px] font-black">
-                    <span className="rounded-full bg-violet-50 px-2.5 py-1 text-[#5e17eb]">{row.source || 'unknown'}</span>
-                    <span className="rounded-full bg-stone-100 px-2.5 py-1 text-stone-500">匹配 {Math.round(Number(row.matchScore || 0) * 100)}%</span>
-                  </div>
-                </div>
-                <p className="line-clamp-3 text-sm leading-6 text-stone-600">{row.description || '暂无简介'}</p>
-                <div className="flex items-center gap-2 lg:justify-end">
-                  <button
-                    onClick={() => handleReviewMetadata(row, 'auto_approved')}
-                    className="rounded-xl bg-[#5e17eb] px-4 py-2 text-xs font-black text-white"
-                  >
-                    采纳
-                  </button>
-                  <button
-                    onClick={() => handleReviewMetadata(row, 'rejected')}
-                    className="rounded-xl bg-stone-100 px-4 py-2 text-xs font-black text-stone-600"
-                  >
-                    忽略
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       <div className="flex items-center gap-4 flex-wrap">
@@ -765,14 +650,8 @@ const AdminBooksPage: React.FC = () => {
                           </div>
                           <div className="mt-1 flex flex-wrap gap-1.5">
                             {book.metadataStatus ? (
-                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
-                                book.metadataStatus === 'auto_approved'
-                                  ? 'bg-violet-50 text-[#5e17eb]'
-                                  : book.metadataStatus === 'needs_review'
-                                  ? 'bg-amber-50 text-amber-700'
-                                  : 'bg-stone-100 text-stone-500'
-                              }`}>
-                                详情 {book.metadataStatus === 'auto_approved' ? '已采纳' : book.metadataStatus === 'needs_review' ? '待审核' : '已忽略'}
+                              <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-black text-[#5e17eb]">
+                                详情已采纳
                               </span>
                             ) : (
                               <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-black text-stone-400">无详情</span>
@@ -1270,7 +1149,7 @@ const AdminBooksPage: React.FC = () => {
                           />
                         </div>
                       </div>
-                      <div className="grid grid-cols-3 gap-4">
+                      <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="block text-[11px] font-medium text-stone-500 mb-1">数据来源</label>
                           <input
@@ -1290,21 +1169,9 @@ const AdminBooksPage: React.FC = () => {
                             className="w-full bg-white border border-stone-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[#5e17eb]/10 focus:border-[#5e17eb]"
                           />
                         </div>
-                        <div>
-                          <label className="block text-[11px] font-medium text-stone-500 mb-1">详情状态</label>
-                          <select
-                            value={metadataFormData.status}
-                            onChange={(e) => setMetadataFormData({ ...metadataFormData, status: e.target.value as MetadataStatus })}
-                            className="w-full bg-white border border-stone-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-[#5e17eb]/10 focus:border-[#5e17eb]"
-                          >
-                            <option value="auto_approved">已采纳</option>
-                            <option value="needs_review">待审核</option>
-                            <option value="rejected">已忽略</option>
-                          </select>
-                        </div>
                       </div>
                       <div>
-                        <label className="block text-[11px] font-medium text-stone-500 mb-1">审核备注</label>
+                        <label className="block text-[11px] font-medium text-stone-500 mb-1">编辑备注</label>
                         <input
                           type="text"
                           value={metadataFormData.reviewNote}

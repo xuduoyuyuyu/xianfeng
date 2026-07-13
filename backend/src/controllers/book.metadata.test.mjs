@@ -25,7 +25,7 @@ test("public book metadata reads the formal metadata table", () => {
   assert.match(controllerSource, /const paged = Boolean\(req\.query\.current \|\| req\.query\.size\);/, "public book list should support opt-in pagination for mini-program first-page preload");
   assert.match(modelSource, /description: \{ type: String, default: "", trim: true \}/, "base book records should persist imported list descriptions");
   assert.match(metadataServiceSource, /export async function listApprovedBookMetadataBookIds\(\)/, "paged book loading should be able to identify approved metadata descriptions");
-  assert.match(metadataServiceSource, /distinct\("bookId", \{ status: "auto_approved", description: \{ \$regex: \/\\S\/ \} \}\)/, "metadata priority ids should exclude approved rows without an introduction");
+  assert.match(metadataServiceSource, /distinct\("bookId", \{ description: \{ \$regex: \/\\S\/ \} \}\)/, "metadata priority ids should include every metadata row with an introduction");
   assert.match(controllerSource, /async function findPagedPublicBooksPrioritizingDescriptions\(current: number, size: number\)/, "paged public books should keep every described book first");
   assert.match(
     controllerSource,
@@ -54,12 +54,14 @@ test("public book metadata reads the formal metadata table", () => {
   assert.doesNotMatch(controllerSource, /findHighConfidenceBookMetadataForBook|loadHighConfidenceBookMetadata/, "public endpoints should not read tmp high confidence files");
 });
 
-test("admin book routes expose metadata review before dynamic book id routes", () => {
-  const metadataIndex = routeSource.indexOf('router.get("/metadata"');
+test("admin book routes expose metadata upsert before dynamic book id routes", () => {
+  const metadataIndex = routeSource.indexOf('router.put("/:id/metadata"');
   const idIndex = routeSource.indexOf('router.get("/:id"');
-  assert.ok(metadataIndex > -1, "admin metadata review route should exist");
+  assert.ok(metadataIndex > -1, "admin metadata upsert route should exist");
   assert.ok(idIndex > -1, "dynamic admin book route should exist");
-  assert.ok(metadataIndex < idIndex, "metadata review route must be registered before /:id");
+  assert.ok(metadataIndex < idIndex, "metadata upsert route must be registered before /:id");
+  assert.doesNotMatch(routeSource, /router\.get\("\/metadata"/, "admin metadata review route should be removed");
+  assert.doesNotMatch(routeSource, /router\.patch\("\/metadata\/:metadataId"/, "admin metadata review action should be removed");
 });
 
 test("admin book list exposes editable metadata detail fields", () => {

@@ -10884,11 +10884,6 @@
       grid-template-columns: 1.2fr 0.9fr 0.9fr 0.8fr auto;
     }
   }
-  .lg\:grid-cols-\[1\.4fr_2fr_auto\] {
-    @media (width >= 64rem) {
-      grid-template-columns: 1.4fr 2fr auto;
-    }
-  }
   .lg\:grid-cols-\[280px_minmax\(0\,1fr\)\] {
     @media (width >= 64rem) {
       grid-template-columns: 280px minmax(0,1fr);
@@ -10947,11 +10942,6 @@
   .lg\:justify-between {
     @media (width >= 64rem) {
       justify-content: space-between;
-    }
-  }
-  .lg\:justify-end {
-    @media (width >= 64rem) {
-      justify-content: flex-end;
     }
   }
   .lg\:gap-5 {

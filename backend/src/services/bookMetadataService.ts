@@ -40,13 +40,14 @@ function cleanText(value: unknown): string {
 }
 
 export function getMetadataStatusForScore(score: number, threshold = AUTO_APPROVE_THRESHOLD): BookMetadataStatus {
-  return Number(score || 0) >= threshold ? "auto_approved" : "needs_review";
+  void score;
+  void threshold;
+  return "auto_approved";
 }
 
 export function shouldProtectExistingBookMetadata(existing: ExistingBookMetadataState): boolean {
   if (!existing) return false;
-  if (existing.reviewedAt) return true;
-  return existing.status === "needs_review" || existing.status === "rejected";
+  return Boolean(existing.reviewedAt);
 }
 
 export function buildBookMetadataPayload(match: SampleMatchResult, threshold = AUTO_APPROVE_THRESHOLD): BookMetadataPayload {
@@ -99,17 +100,17 @@ export async function upsertBookMetadataFromMatch(match: SampleMatchResult, thre
 
 export async function findApprovedBookMetadataByBookId(bookId: string) {
   if (!mongoose.Types.ObjectId.isValid(bookId)) return null;
-  return BookMetadataModel.findOne({ bookId, status: "auto_approved" }).lean();
+  return BookMetadataModel.findOne({ bookId }).lean();
 }
 
 export async function listApprovedBookMetadataByBookIds(bookIds: string[]) {
   const validIds = bookIds.filter((id) => mongoose.Types.ObjectId.isValid(id));
   if (!validIds.length) return [];
-  return BookMetadataModel.find({ bookId: { $in: validIds }, status: "auto_approved" }).lean();
+  return BookMetadataModel.find({ bookId: { $in: validIds } }).lean();
 }
 
 export async function listApprovedBookMetadataBookIds() {
-  const bookIds = await BookMetadataModel.distinct("bookId", { status: "auto_approved", description: { $regex: /\S/ } });
+  const bookIds = await BookMetadataModel.distinct("bookId", { description: { $regex: /\S/ } });
   return bookIds
     .map((bookId) => String(bookId || ""))
     .filter((bookId) => mongoose.Types.ObjectId.isValid(bookId));
@@ -126,9 +127,7 @@ export async function listBookMetadataForReview(status?: string) {
   return BookMetadataModel.find(filter).populate("bookId", "title author publisher coverImage").sort({ updatedAt: -1 }).lean();
 }
 
-function buildManualMetadataSetPayload(payload: ManualBookMetadataPayload, defaultStatus?: BookMetadataStatus) {
-  const allowed: BookMetadataStatus[] = ["auto_approved", "needs_review", "rejected"];
-  const status = payload.status && allowed.includes(payload.status) ? payload.status : defaultStatus;
+function buildManualMetadataSetPayload(payload: ManualBookMetadataPayload) {
   const setPayload: Record<string, any> = {};
   for (const key of ["title", "author", "publisher", "isbn", "cover", "description", "source", "sourceId", "ratingLabel", "reviewNote"] as const) {
     if (payload[key] !== undefined) setPayload[key] = cleanText(payload[key]);
@@ -136,7 +135,7 @@ function buildManualMetadataSetPayload(payload: ManualBookMetadataPayload, defau
   for (const key of ["rating", "ratingCount", "matchScore"] as const) {
     if (payload[key] !== undefined) setPayload[key] = payload[key] === null ? null : Number(payload[key]);
   }
-  if (status) setPayload.status = status;
+  setPayload.status = "auto_approved";
   setPayload.reviewedAt = new Date();
   return setPayload;
 }
@@ -146,7 +145,7 @@ export async function upsertBookMetadataManually(bookId: string, payload: Manual
   return BookMetadataModel.findOneAndUpdate(
     { bookId: new mongoose.Types.ObjectId(bookId) },
     {
-      $set: buildManualMetadataSetPayload(payload, "auto_approved"),
+      $set: buildManualMetadataSetPayload(payload),
       $setOnInsert: {
         matchScore: 0,
         matchReason: [],

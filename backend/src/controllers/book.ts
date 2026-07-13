@@ -8,8 +8,6 @@ import {
   listApprovedBookMetadataByBookIds,
   listApprovedBookMetadataBookIds,
   listBookMetadataByBookIds,
-  listBookMetadataForReview,
-  reviewBookMetadata,
   upsertBookMetadataManually,
 } from "../services/bookMetadataService";
 import { getOrCreateExternalBookDescriptionTranslation } from "../services/externalBookDescriptionTranslation";
@@ -934,7 +932,7 @@ export class BookController {
         const metadataDetail = formatAdminBookMetadata(metadata);
         return {
           ...plain,
-          hasMetadataDetail: metadataDetail?.status === "auto_approved",
+          hasMetadataDetail: Boolean(metadataDetail),
           metadataStatus: metadataDetail?.status || "",
           metadataId: metadataDetail?._id || "",
           metadataDetail,
@@ -943,29 +941,6 @@ export class BookController {
       res.status(200).json(enrichedBooks);
     } catch (error) {
       res.status(500).json({ message: "获取管理书单失败", error });
-    }
-  }
-
-  async getMetadataAdmin(req: Request, res: Response): Promise<void> {
-    try {
-      const status = String(req.query.status || "");
-      const rows = await listBookMetadataForReview(status);
-      res.status(200).json(rows);
-    } catch (error) {
-      res.status(500).json({ message: "获取图书详情审核列表失败", error });
-    }
-  }
-
-  async reviewMetadataAdmin(req: Request, res: Response): Promise<void> {
-    try {
-      const metadata = await reviewBookMetadata(String(req.params.metadataId || ""), req.body || {});
-      if (!metadata) {
-        res.status(404).json({ message: "图书详情不存在" });
-        return;
-      }
-      res.status(200).json(metadata);
-    } catch (error) {
-      res.status(400).json({ message: "更新图书详情审核状态失败", error });
     }
   }
 

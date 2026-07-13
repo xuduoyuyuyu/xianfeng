@@ -1425,12 +1425,8 @@ export const adminApi = {
     data,
     { timeout: 120000 }
   ),
-  getBookMetadataReview: (status?: string) =>
-    api.get<AdminBookMetadata[]>('/admin/books/metadata', { params: { status } }),
   upsertBookMetadata: (bookId: string, data: Partial<AdminBookMetadata>) =>
     api.put<AdminBookMetadata>(`/admin/books/${bookId}/metadata`, data),
-  reviewBookMetadata: (id: string, data: Partial<AdminBookMetadata>) =>
-    api.patch<AdminBookMetadata>(`/admin/books/metadata/${id}`, data),
   
   // 学习资料管理
   getMaterials: (params?: { status?: string; search?: string }) => api.get<LearningMaterial[]>('/admin/learning-materials', { params }),

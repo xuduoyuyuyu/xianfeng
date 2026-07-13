@@ -6,16 +6,18 @@ import { MongoMemoryServer } from "mongodb-memory-server";
 import {
   buildBookMetadataPayload,
   getMetadataStatusForScore,
+  listApprovedBookMetadataBookIds,
+  listApprovedBookMetadataByBookIds,
   shouldProtectExistingBookMetadata,
   upsertBookMetadataManually,
 } from "./bookMetadataService";
 import BookMetadata from "../models/BookMetadata";
 
-test("getMetadataStatusForScore auto-approves high-confidence metadata only", () => {
+test("getMetadataStatusForScore auto-approves metadata at every confidence level", () => {
   assert.equal(getMetadataStatusForScore(0.85), "auto_approved");
   assert.equal(getMetadataStatusForScore(1), "auto_approved");
-  assert.equal(getMetadataStatusForScore(0.8499), "needs_review");
-  assert.equal(getMetadataStatusForScore(0), "needs_review");
+  assert.equal(getMetadataStatusForScore(0.8499), "auto_approved");
+  assert.equal(getMetadataStatusForScore(0), "auto_approved");
 });
 
 test("buildBookMetadataPayload keeps source book identity and candidate fields", () => {
@@ -61,7 +63,7 @@ test("buildBookMetadataPayload keeps source book identity and candidate fields",
   assert.equal(payload.status, "auto_approved");
 });
 
-test("buildBookMetadataPayload sends low-confidence metadata to review", () => {
+test("buildBookMetadataPayload auto-approves low-confidence metadata", () => {
   const payload = buildBookMetadataPayload({
     sourceBook: {
       _id: "book-2",
@@ -81,14 +83,14 @@ test("buildBookMetadataPayload sends low-confidence metadata to review", () => {
     errors: [],
   });
 
-  assert.equal(payload.status, "needs_review");
+  assert.equal(payload.status, "auto_approved");
 });
 
-test("shouldProtectExistingBookMetadata protects reviewed or rejected records from auto overwrite", () => {
+test("shouldProtectExistingBookMetadata only protects records that were manually reviewed", () => {
   assert.equal(shouldProtectExistingBookMetadata(null), false);
   assert.equal(shouldProtectExistingBookMetadata({ status: "auto_approved" }), false);
-  assert.equal(shouldProtectExistingBookMetadata({ status: "needs_review" }), true);
-  assert.equal(shouldProtectExistingBookMetadata({ status: "rejected" }), true);
+  assert.equal(shouldProtectExistingBookMetadata({ status: "needs_review" }), false);
+  assert.equal(shouldProtectExistingBookMetadata({ status: "rejected" }), false);
   assert.equal(shouldProtectExistingBookMetadata({ status: "auto_approved", reviewedAt: new Date() }), true);
 });
 
@@ -115,8 +117,44 @@ test("upsertBookMetadataManually creates and updates one detail row per book", {
 
     assert.ok(updated);
     assert.equal(updated.description, "更新后的详情");
-    assert.equal(updated.status, "needs_review");
+    assert.equal(updated.status, "auto_approved");
     assert.equal(await BookMetadata.countDocuments({ bookId }), 1);
+  } finally {
+    await mongoose.disconnect();
+    await mongo.stop();
+  }
+});
+
+test("approved metadata readers include legacy review statuses", { timeout: 30_000 }, async () => {
+  const mongo = await MongoMemoryServer.create({ instance: { ip: "127.0.0.1" } });
+  await mongoose.connect(mongo.getUri());
+
+  try {
+    const approvedBookId = new mongoose.Types.ObjectId();
+    const pendingBookId = new mongoose.Types.ObjectId();
+    const rejectedBookId = new mongoose.Types.ObjectId();
+    await BookMetadata.insertMany([
+      { bookId: approvedBookId, title: "已采纳", description: "已采纳简介", status: "auto_approved" },
+      { bookId: pendingBookId, title: "待审", description: "待审简介", status: "needs_review" },
+      { bookId: rejectedBookId, title: "忽略", description: "忽略简介", status: "rejected" },
+    ]);
+
+    const metadataRows = await listApprovedBookMetadataByBookIds([
+      String(approvedBookId),
+      String(pendingBookId),
+      String(rejectedBookId),
+    ]);
+    const metadataBookIds = await listApprovedBookMetadataBookIds();
+
+    assert.equal(metadataRows.length, 3);
+    assert.deepEqual(
+      metadataRows.map((row) => String(row.bookId)).sort(),
+      [String(approvedBookId), String(pendingBookId), String(rejectedBookId)].sort()
+    );
+    assert.deepEqual(
+      metadataBookIds.sort(),
+      [String(approvedBookId), String(pendingBookId), String(rejectedBookId)].sort()
+    );
   } finally {
     await mongoose.disconnect();
     await mongo.stop();
