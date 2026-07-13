@@ -16,7 +16,7 @@ test("public book metadata reads the formal metadata table", () => {
   assert.match(controllerSource, /listApprovedBookMetadataByBookIds/, "public book list should derive hasMetadataDetail from approved BookMetadata rows");
   assert.match(controllerSource, /function pickPublicBookCover\(bookCover: unknown, metadataCover: unknown\): string/, "public book list should use one cover picker for base and metadata covers");
   assert.doesNotMatch(controllerSource, /value\.includes\("\/uploads\/images\/"\)/, "admin-uploaded covers should remain visible on the public list");
-  assert.match(controllerSource, /value\.includes\("placeholder"\)/, "placeholder covers should not block metadata covers on the public list");
+  assert.match(controllerSource, /normalized\.includes\("placeholder"\)/, "placeholder covers should not block metadata covers on the public list");
   assert.match(controllerSource, /const metadataByBookId = new Map\(metadataRows\.map/, "public book list should index approved metadata by book id");
   assert.match(controllerSource, /metadataCover = normalizeBookCoverUrl\(metadata\?\.cover\)/, "public book list should expose the normalized metadata cover");
   assert.match(controllerSource, /coverImage: pickPublicBookCover\(plain\?\.coverImage, metadataCover\)/, "public book list should prefer metadata cover before stale base covers");
@@ -24,21 +24,20 @@ test("public book metadata reads the formal metadata table", () => {
   assert.match(controllerSource, /metadataCover,/, "public book list should return metadataCover for frontend list/detail consistency");
   assert.match(controllerSource, /const paged = Boolean\(req\.query\.current \|\| req\.query\.size\);/, "public book list should support opt-in pagination for mini-program first-page preload");
   assert.match(modelSource, /description: \{ type: String, default: "", trim: true \}/, "base book records should persist imported list descriptions");
-  assert.match(metadataServiceSource, /export async function listApprovedBookMetadataBookIds\(\)/, "paged book loading should be able to identify approved metadata descriptions");
-  assert.match(metadataServiceSource, /distinct\("bookId", \{ description: \{ \$regex: \/\\S\/ \} \}\)/, "metadata priority ids should include every metadata row with an introduction");
-  assert.match(controllerSource, /async function findPagedPublicBooksPrioritizingDescriptions\(current: number, size: number\)/, "paged public books should keep every described book first");
-  assert.match(
-    controllerSource,
-    /const describedBookFilter = \{[\s\S]*_id: \{ \$in: approvedBookIds \}[\s\S]*description: \{ \$regex: \/\\S\/ \}[\s\S]*\};/,
-    "paged public books should treat approved metadata or a non-blank base description as described"
-  );
-  assert.match(controllerSource, /const undescribedBookFilter = \{ \$nor: describedBookFilter\.\$or \};/, "undescribed pagination should invert the shared description predicate");
-  assert.match(
-    controllerSource,
-    /countDocuments\(\{ \.\.\.publishedFilter, \.\.\.describedBookFilter \}\)[\s\S]*Book\.find\(\{ \.\.\.publishedFilter, \.\.\.describedBookFilter \}\)[\s\S]*Book\.find\(\{ \.\.\.publishedFilter, \.\.\.undescribedBookFilter \}\)/,
-    "counting and both page segments should use the same global description partition"
-  );
-  assert.match(controllerSource, /const page = paged \? await findPagedPublicBooksPrioritizingDescriptions\(current, size\) : null;/, "public first-page loading should use description-priority pagination");
+  assert.match(controllerSource, /normalized\.includes\("jiyue-logo\.png"\)/, "Jiyue fallback logo should be treated as no real cover");
+  assert.match(controllerSource, /function getPublicBookListHealthScore\(book: any, metadata: any\): number/, "paged public books should score content health before slicing");
+  assert.match(controllerSource, /if \(hasUsableBookCover\(effectiveCover\)\) score \+= 8;/, "real covers should be the strongest public book list signal");
+  assert.match(controllerSource, /if \(hasDetail && hasDescription\) score \+= 4;/, "books with accepted detail and descriptions should outrank sparse books");
+  assert.match(controllerSource, /else if \(hasDescription\) score \+= 3;/, "books with base descriptions should still outrank no-intro books");
+  assert.match(controllerSource, /else if \(hasDetail\) score \+= 2;/, "books with metadata but no intro should still get a smaller health bump");
+  assert.match(controllerSource, /async function findPagedPublicBooksPrioritizingDescriptions\(current: number, size: number\)/, "paged public books should keep backend-owned priority pagination");
+  assert.match(controllerSource, /const allBooks = await Book\.find\(publishedFilter\)[\s\S]*\.sort\(\{ publishedAt: -1, _id: -1 \}\);/, "public pagination should collect the published set before global health sorting");
+  assert.match(controllerSource, /const metadataRows = await listApprovedBookMetadataByBookIds\(allBooks\.map/, "public pagination should include metadata when scoring every published book");
+  assert.match(controllerSource, /getPublicBookListHealthScore\(plain, metadata\)/, "public pagination should score each published book before slicing a page");
+  assert.match(controllerSource, /const scoreDiff = right\.score - left\.score;/, "public pagination should sort by health score descending");
+  assert.match(controllerSource, /\.slice\(offset, offset \+ size\)/, "public pagination should slice only after global health sorting");
+  assert.doesNotMatch(controllerSource, /const describedTake = Math\.min/, "public pagination should not page described and undescribed buckets separately");
+  assert.match(controllerSource, /const page = paged \? await findPagedPublicBooksPrioritizingDescriptions\(current, size\) : null;/, "public first-page loading should use health-priority pagination");
   assert.match(controllerSource, /records: enrichedBooks,[\s\S]*total,[\s\S]*current,[\s\S]*pages:/, "paged public book list should return records and totals for native first-page cache");
   assert.match(controllerSource, /res\.status\(200\)\.json\(enrichedBooks\);/, "unpaged public book list should keep the legacy array response for existing clients");
   assert.match(controllerSource, /const metadata = await findApprovedBookMetadataByBookId\(String\(\(book as any\)\._id \|\| ""\)\);|const metadata = await findApprovedBookMetadataByBookId\(String\(plain\?\._id \|\| ""\)\);/, "public book detail should read approved metadata before returning a book");

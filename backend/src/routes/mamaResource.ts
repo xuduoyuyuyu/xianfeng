@@ -438,7 +438,12 @@ router.post("/uploads", (req: Request, res: Response) => {
 router.post("/applications", optionalAuthenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const displayName = asText(req.body?.displayName);
-    const contactPhone = asText(req.body?.contactPhone);
+    const submittedContactPhone = asText(req.body?.contactPhone);
+    const authenticatedUser = req.user?.id
+      ? await User.findById(req.user.id, { mobile: 1 }).lean()
+      : null;
+    const authenticatedMobile = normalizePhoneDigits((authenticatedUser as any)?.mobile);
+    const contactPhone = authenticatedMobile || submittedContactPhone;
     const contactWechat = asText(req.body?.contactWechat);
     const consentAccepted = req.body?.consentAccepted !== false;
     const mediaAccounts = mediaAccountsFromBody(req.body);

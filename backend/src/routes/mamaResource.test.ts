@@ -454,6 +454,49 @@ describe("mama resource pool routes", () => {
     assert.equal(await MamaResourceProfile.countDocuments(), 1);
   });
 
+  it("uses the signed-in user's mobile as the application owner phone", async () => {
+    const user = await User.create({ username: "u13800005555", password: "hash", mobile: "13800005555", role: "user" });
+    const token = jwt.sign({ id: String(user._id), role: "user" }, process.env.JWT_SECRET || "your-secret-key");
+
+    const response = await fetch(`${server.publicUrl}/applications`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        displayName: "登录妈妈",
+        contactPhone: "13999990000",
+        contactWechat: "login-mom",
+        mediaAccounts: [
+          {
+            platform: "xiaohongshu",
+            nickname: "登录小红书",
+            profileUrl: "https://www.xiaohongshu.com/user/profile/login-owner",
+            followerCount: "6200",
+          },
+          {
+            platform: "douyin",
+            nickname: "登录抖音",
+            profileUrl: "https://www.douyin.com/user/login-owner",
+            followerCount: "9100",
+          },
+        ],
+        consentAccepted: true,
+      }),
+    });
+
+    assert.equal(response.status, 201);
+    const data = await response.json();
+    assert.equal(data.profile.contactPhone, "13800005555");
+    assert.equal(data.profile.mediaAccounts.length, 2);
+    assert.equal(data.profile.mediaAccounts[0].nickname, "登录小红书");
+    assert.equal(data.profile.mediaAccounts[1].platform, "douyin");
+
+    const saved = await MamaResourceProfile.findById(data.profile._id).lean();
+    assert.equal(saved?.contactPhone, "13800005555");
+  });
+
   it("lets operators filter the resource pool and update review state", async () => {
     const [readingProfile, toyProfile] = await MamaResourceProfile.create([
       {

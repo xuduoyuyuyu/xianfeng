@@ -46,6 +46,12 @@ test("mini program mama entry uses a static form page instead of SPA fallback", 
 });
 
 test("mama resource application form submits a light supply profile", () => {
+  assert.match(source, /import InlineLoginForm from "\.\.\/components\/InlineLoginForm";/);
+  assert.match(source, /useSelector\(\(state: RootState\) => state\.user\)/);
+  assert.match(source, /const loggedInMobile = String\(user\?\.mobile \|\| ""\)\.trim\(\);/);
+  assert.match(source, /useEffect\(\(\) => \{[\s\S]*loggedInMobile[\s\S]*contactPhone: current\.contactPhone \|\| loggedInMobile[\s\S]*\}, \[loggedInMobile\]\);/);
+  assert.match(source, /!\s*token \|\| !user \? \([\s\S]*<InlineLoginForm[\s\S]*onSuccess=\{\(\) => setMessage\("登录成功，请继续填写资料。"\)\}[\s\S]*\/>[\s\S]*\) : \(/);
+  assert.doesNotMatch(source, /if \(!token \|\| !user\)[\s\S]*xf-show-login-modal/, "standalone apply page should render an inline login form instead of only dispatching a login prompt");
   assert.match(source, /displayName/);
   assert.match(source, /contactPhone/);
   assert.match(source, /contactWechat/);
@@ -80,6 +86,16 @@ test("mama resource application form submits a light supply profile", () => {
   assert.match(source, /accountPositioning/);
   assert.match(source, /账号定位[\s\S]*min-h-\[40px\]/);
   assert.match(staticSource, /textarea \{ min-height: 40px;/);
+  assert.match(source, /type MediaPlatform = "xiaohongshu" \| "douyin";/);
+  assert.match(source, /type MediaAccountForm = \{[\s\S]*platform: MediaPlatform \| "";[\s\S]*nickname: string;[\s\S]*profileUrl: string;[\s\S]*followerCount: string;[\s\S]*realNameVerified: "" \| "yes" \| "no";[\s\S]*\};/);
+  assert.match(source, /mediaAccounts: MediaAccountForm\[\];/);
+  assert.match(source, /function blankMediaAccount\(\): MediaAccountForm/);
+  assert.match(source, /添加新账号/);
+  assert.match(source, /platformOptions\.map/);
+  assert.match(source, /updateMediaAccount\(index, "nickname", event\.target\.value\)/);
+  assert.match(source, /updateMediaAccount\(index, "profileUrl", event\.target\.value\)/);
+  assert.match(source, /removeMediaAccount\(index\)/);
+  assert.match(source, /mediaAccounts: buildSubmitMediaAccounts\(form\)/);
   assert.match(source, /categories/);
   assert.doesNotMatch(source, /报价区间|可接频率|历史案例链接/);
   assert.doesNotMatch(staticSource, /报价区间|可接频率|历史案例链接/);

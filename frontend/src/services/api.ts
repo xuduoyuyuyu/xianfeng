@@ -656,6 +656,7 @@ export interface MamaResourceApplicationInput {
   city?: string;
   childStage?: string;
   childGender?: string;
+  xiaohongshuNickname?: string;
   xiaohongshuProfileUrl: string;
   xiaohongshuScreenshotUrl?: string;
   followerCount?: number | string;

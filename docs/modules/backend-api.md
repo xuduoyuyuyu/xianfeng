@@ -110,6 +110,12 @@
   records with descriptions rank within that cover bucket. Placeholder cover
   URLs are treated as no-cover records. Full-corpus cache work remains reserved
   for filter counts and complex local filtering paths that need global matches.
+- Public `/api/books` paginated reading-list responses are backend-sorted by
+  content health before slicing the requested page. Real covers rank ahead of
+  placeholder or Jiyue fallback-logo covers, and books with accepted metadata
+  detail plus a real description rank ahead of sparse records. The mini-program
+  can therefore load pages incrementally while still receiving fuller records
+  first.
 - Admin book editing can create or update the public detail metadata through
   `PUT /api/admin/books/:id/metadata`. The endpoint upserts by `bookId`, so a
   book without a metadata row becomes editable without creating duplicate
@@ -129,8 +135,11 @@
   intake without account credentials, including profile screenshot URL, follower
   count, and real-name verification status. Public
   `/api/mama-resources/uploads` accepts image-only Xiaohongshu profile
-  screenshots; admin `/api/admin/mama-resources` handles review state,
-  filtering, manual metrics, screenshots, and operator notes.
+  screenshots. When a web user is authenticated, application ownership is bound
+  to the authenticated user's normalized mobile instead of any editable form
+  phone, so future task access and profile updates resolve through the same
+  account. Admin `/api/admin/mama-resources` handles review state, filtering,
+  manual metrics, screenshots, and operator notes.
 - Mama Haozhuan tasks are listed independently from accounts.
   `MamaResourceTask` stores the listed project/campaign, while
   `MamaResourceTaskAssignment` stores which approved profile was selected for

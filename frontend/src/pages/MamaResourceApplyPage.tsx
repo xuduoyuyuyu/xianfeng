@@ -1,14 +1,31 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { useSelector } from "react-redux";
 import GlobalPublicNav from "../components/GlobalPublicNav";
+import InlineLoginForm from "../components/InlineLoginForm";
 import { publicApi } from "../services/api";
+import type { RootState } from "../store";
 
 const categoryOptions = ["亲子阅读", "学习用品", "母婴", "儿童健康", "家庭消费", "教育规划"];
 const childStageOptions = ["孕产/婴幼儿", "幼儿园", "小学", "初中", "高中", "多孩家庭"];
 const childGenderOptions = ["男孩", "女孩"];
+const platformOptions = [
+  { value: "xiaohongshu", label: "小红书" },
+  { value: "douyin", label: "抖音" },
+] as const;
 const realNameVerifiedOptions = [
   { value: "yes", label: "已实名" },
   { value: "no", label: "未实名" },
 ] as const;
+
+type MediaPlatform = "xiaohongshu" | "douyin";
+
+type MediaAccountForm = {
+  platform: MediaPlatform | "";
+  nickname: string;
+  profileUrl: string;
+  followerCount: string;
+  realNameVerified: "" | "yes" | "no";
+};
 
 type FormState = {
   displayName: string;
@@ -17,15 +34,27 @@ type FormState = {
   city: string;
   childStage: string;
   childGender: string;
+  xiaohongshuNickname: string;
   xiaohongshuProfileUrl: string;
   xiaohongshuScreenshotUrl: string;
   followerCount: string;
   realNameVerified: "" | "yes" | "no";
+  mediaAccounts: MediaAccountForm[];
   accountPositioning: string;
   categories: string[];
   blockedCategories: string;
   consentAccepted: boolean;
 };
+
+function blankMediaAccount(): MediaAccountForm {
+  return {
+    platform: "",
+    nickname: "",
+    profileUrl: "",
+    followerCount: "",
+    realNameVerified: "",
+  };
+}
 
 const initialForm: FormState = {
   displayName: "",
@@ -34,10 +63,12 @@ const initialForm: FormState = {
   city: "",
   childStage: "",
   childGender: "",
+  xiaohongshuNickname: "",
   xiaohongshuProfileUrl: "",
   xiaohongshuScreenshotUrl: "",
   followerCount: "",
   realNameVerified: "",
+  mediaAccounts: [],
   accountPositioning: "",
   categories: [],
   blockedCategories: "",
@@ -48,18 +79,57 @@ function toggleValue(values: string[], value: string): string[] {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
 }
 
+function parseFollowerCount(value: string): number | null {
+  const numeric = Number(value.trim());
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function buildSubmitMediaAccounts(form: FormState) {
+  const primary = {
+    platform: "xiaohongshu" as const,
+    nickname: form.xiaohongshuNickname.trim(),
+    profileUrl: form.xiaohongshuProfileUrl.trim(),
+    screenshotUrl: form.xiaohongshuScreenshotUrl,
+    followerCount: parseFollowerCount(form.followerCount),
+    realNameVerified: form.realNameVerified ? form.realNameVerified === "yes" : null,
+  };
+  const extras = form.mediaAccounts
+    .filter((account): account is MediaAccountForm & { platform: MediaPlatform } =>
+      Boolean(account.platform && account.nickname.trim() && account.profileUrl.trim())
+    )
+    .map((account) => ({
+      platform: account.platform,
+      nickname: account.nickname.trim(),
+      profileUrl: account.profileUrl.trim(),
+      followerCount: parseFollowerCount(account.followerCount),
+      realNameVerified: account.realNameVerified ? account.realNameVerified === "yes" : null,
+    }));
+  return [primary, ...extras];
+}
+
 const MamaResourceApplyPage: React.FC = () => {
+  const { user, token } = useSelector((state: RootState) => state.user);
   const [form, setForm] = useState<FormState>(initialForm);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingScreenshot, setUploadingScreenshot] = useState(false);
   const [message, setMessage] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const loggedInMobile = String(user?.mobile || "").trim();
+
+  useEffect(() => {
+    if (!loggedInMobile) return;
+    setForm((current) => ({
+      ...current,
+      contactPhone: current.contactPhone || loggedInMobile,
+    }));
+  }, [loggedInMobile]);
 
   const canSubmit = useMemo(() => {
     return Boolean(
       form.displayName.trim() &&
       form.contactWechat.trim() &&
       form.xiaohongshuProfileUrl.trim() &&
+      form.xiaohongshuNickname.trim() &&
       form.consentAccepted &&
       !uploadingScreenshot &&
       !submitting
@@ -68,6 +138,25 @@ const MamaResourceApplyPage: React.FC = () => {
 
   const updateField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
+  };
+
+  const updateMediaAccount = <K extends keyof MediaAccountForm>(index: number, key: K, value: MediaAccountForm[K]) => {
+    setForm((current) => {
+      const mediaAccounts = [...current.mediaAccounts];
+      mediaAccounts[index] = { ...(mediaAccounts[index] || blankMediaAccount()), [key]: value };
+      return { ...current, mediaAccounts };
+    });
+  };
+
+  const addMediaAccount = () => {
+    setForm((current) => ({ ...current, mediaAccounts: [...current.mediaAccounts, blankMediaAccount()] }));
+  };
+
+  const removeMediaAccount = (index: number) => {
+    setForm((current) => ({
+      ...current,
+      mediaAccounts: current.mediaAccounts.filter((_item, itemIndex) => itemIndex !== index),
+    }));
   };
 
   const handleScreenshotChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -102,17 +191,19 @@ const MamaResourceApplyPage: React.FC = () => {
         city: form.city.trim(),
         childStage: form.childStage,
         childGender: form.childGender,
+        xiaohongshuNickname: form.xiaohongshuNickname.trim(),
         xiaohongshuProfileUrl: form.xiaohongshuProfileUrl.trim(),
         xiaohongshuScreenshotUrl: form.xiaohongshuScreenshotUrl,
         followerCount: form.followerCount.trim(),
         realNameVerified: form.realNameVerified ? form.realNameVerified === "yes" : null,
+        mediaAccounts: buildSubmitMediaAccounts(form),
         accountPositioning: form.accountPositioning.trim(),
         categories: form.categories,
         blockedCategories: form.blockedCategories,
         consentAccepted: form.consentAccepted,
       });
       setSubmitted(true);
-      setForm(initialForm);
+      setForm({ ...initialForm, contactPhone: loggedInMobile });
       setMessage("资料已提交，我们会先完成账号审核，再联系你确认适合的发稿机会。");
     } catch (error: any) {
       const nextMessage =
@@ -146,6 +237,16 @@ const MamaResourceApplyPage: React.FC = () => {
               <div className="flex min-h-[52px] items-center rounded-[16px] border border-[#5e17eb]/10 bg-[#f1eaff] px-[14px]">数据用于审核匹配，可联系运营更新或停用资料</div>
             </div>
           </div>
+
+          {!token || !user ? (
+            <div className="rounded-[17px] border border-[#5e17eb]/15 bg-white px-[14px] py-[15px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
+              <h1 className="text-[19px] font-black leading-[1.18] text-[#151222]">登录后开始填写</h1>
+              <p className="mb-[14px] mt-[5px] text-[12px] font-bold leading-[1.6] text-[#6b6474]">
+                这个页面可以直接发给用户。先用手机号验证码登录，登录后资料会归属到当前账号，后续可继续查看任务和更新资料。
+              </p>
+              <InlineLoginForm compact onSuccess={() => setMessage("登录成功，请继续填写资料。")} />
+            </div>
+          ) : (
 
           <form id="mama-resource-apply-form" onSubmit={handleSubmit} className="rounded-[17px] border border-[#5e17eb]/15 bg-white px-[14px] py-[15px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
             <div className="mb-[11px] flex items-center gap-[9px]">
@@ -227,6 +328,16 @@ const MamaResourceApplyPage: React.FC = () => {
                 </div>
               </div>
               <label className="mt-[10px] block text-[12.5px] font-extrabold text-[#4b4453]">
+                小红书账号昵称
+                <input
+                  name="xiaohongshuNickname"
+                  className="mt-[6px] h-[39px] min-h-[39px] w-full rounded-[11px] border border-[#ddd7e8] px-[11px] text-[13px] font-medium leading-[39px] outline-none focus:border-[#6c27d6]"
+                  value={form.xiaohongshuNickname}
+                  onChange={(event) => updateField("xiaohongshuNickname", event.target.value)}
+                  placeholder="账号主页展示的昵称"
+                />
+              </label>
+              <label className="mt-[10px] block text-[12.5px] font-extrabold text-[#4b4453]">
                 小红书主页链接
                 <input
                   className="mt-[6px] h-[39px] min-h-[39px] w-full rounded-[11px] border border-[#ddd7e8] px-[11px] text-[13px] font-medium leading-[39px] outline-none focus:border-[#6c27d6]"
@@ -277,6 +388,96 @@ const MamaResourceApplyPage: React.FC = () => {
                   ))}
                 </div>
               </div>
+            </div>
+
+            <div className="mt-[12px] rounded-[12px] bg-[#f8f6ff] p-[10px]">
+              <div className="flex items-center justify-between gap-[10px]">
+                <div>
+                  <div className="text-[12.5px] font-extrabold text-[#4b4453]">其他媒体账号</div>
+                  <p className="mt-[2px] text-[11px] font-bold text-[#8b8792]">可继续补充小红书或抖音账号。</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={addMediaAccount}
+                  className="shrink-0 rounded-full border border-[#6c27d6] px-[12px] py-[7px] text-[12px] font-black text-[#6c27d6]"
+                >
+                  添加新账号
+                </button>
+              </div>
+              {form.mediaAccounts.map((account, index) => (
+                <div key={index} className="mt-[10px] rounded-[11px] border border-[#e5def4] bg-white p-[10px]">
+                  <div className="flex items-center justify-between gap-[10px]">
+                    <div className="text-[12px] font-black text-[#4b4453]">账号 {index + 2}</div>
+                    <button
+                      type="button"
+                      onClick={() => removeMediaAccount(index)}
+                      className="text-[12px] font-black text-[#be123c]"
+                    >
+                      删除
+                    </button>
+                  </div>
+                  <div className="mt-[8px] flex flex-wrap gap-[6px]">
+                    {platformOptions.map((item) => (
+                      <button
+                        key={item.value}
+                        type="button"
+                        onClick={() => updateMediaAccount(index, "platform", item.value)}
+                        className={`min-h-[27px] rounded-full border px-[12px] text-[12px] font-extrabold leading-[27px] ${
+                          account.platform === item.value
+                            ? "border-[#8f4dff] bg-[#f3eaff] text-[#7c2ce6]"
+                            : "border-[#ddd7e8] bg-[#f5f6fa] text-[#6b6474]"
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                  <label className="mt-[8px] block text-[12px] font-extrabold text-[#4b4453]">
+                    账号昵称
+                    <input
+                      className="mt-[5px] h-[37px] w-full rounded-[10px] border border-[#ddd7e8] px-[10px] text-[13px] font-medium outline-none focus:border-[#6c27d6]"
+                      value={account.nickname}
+                      onChange={(event) => updateMediaAccount(index, "nickname", event.target.value)}
+                      placeholder="必填"
+                    />
+                  </label>
+                  <label className="mt-[8px] block text-[12px] font-extrabold text-[#4b4453]">
+                    主页链接
+                    <input
+                      className="mt-[5px] h-[37px] w-full rounded-[10px] border border-[#ddd7e8] px-[10px] text-[13px] font-medium outline-none focus:border-[#6c27d6]"
+                      value={account.profileUrl}
+                      onChange={(event) => updateMediaAccount(index, "profileUrl", event.target.value)}
+                      placeholder="账号主页链接"
+                    />
+                  </label>
+                  <label className="mt-[8px] block text-[12px] font-extrabold text-[#4b4453]">
+                    粉丝数
+                    <input
+                      inputMode="numeric"
+                      className="mt-[5px] h-[37px] w-full rounded-[10px] border border-[#ddd7e8] px-[10px] text-[13px] font-medium outline-none focus:border-[#6c27d6]"
+                      value={account.followerCount}
+                      onChange={(event) => updateMediaAccount(index, "followerCount", event.target.value)}
+                      placeholder="例如：8000"
+                    />
+                  </label>
+                  <div className="mt-[8px] flex flex-wrap gap-[6px]">
+                    {realNameVerifiedOptions.map((item) => (
+                      <button
+                        key={item.value}
+                        type="button"
+                        onClick={() => updateMediaAccount(index, "realNameVerified", account.realNameVerified === item.value ? "" : item.value)}
+                        className={`min-h-[27px] rounded-full border px-[12px] text-[12px] font-extrabold leading-[27px] ${
+                          account.realNameVerified === item.value
+                            ? "border-[#8f4dff] bg-[#f3eaff] text-[#7c2ce6]"
+                            : "border-[#ddd7e8] bg-[#f5f6fa] text-[#6b6474]"
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
 
             <label className="mt-[10px] block text-[12.5px] font-extrabold text-[#4b4453]">
@@ -345,6 +546,7 @@ const MamaResourceApplyPage: React.FC = () => {
               {submitting ? "提交中..." : "提交资料，进入待审核"}
             </button>
           </form>
+          )}
         </section>
       </main>
     </div>

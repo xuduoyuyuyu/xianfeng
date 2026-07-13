@@ -6,7 +6,6 @@ import Program from "../models/Program";
 import {
   findApprovedBookMetadataByBookId,
   listApprovedBookMetadataByBookIds,
-  listApprovedBookMetadataBookIds,
   listBookMetadataByBookIds,
   upsertBookMetadataManually,
 } from "../services/bookMetadataService";
@@ -546,8 +545,10 @@ function statusUpdatePayload(status: "draft" | "published") {
 function hasUsableBookCover(url: unknown): boolean {
   const value = String(url || "").trim();
   if (!value) return false;
-  if (value.includes("via.placeholder.com")) return false;
-  if (value.includes("placeholder")) return false;
+  const normalized = value.toLowerCase();
+  if (normalized.includes("via.placeholder.com")) return false;
+  if (normalized.includes("placeholder")) return false;
+  if (normalized.includes("jiyue-logo.png")) return false;
   return true;
 }
 
@@ -564,6 +565,20 @@ function pickPublicBookCover(bookCover: unknown, metadataCover: unknown): string
   const normalizedMetadataCover = normalizeBookCoverUrl(metadataCover);
   if (normalizedMetadataCover) return normalizedMetadataCover;
   return normalizeBookCoverUrl(bookCover);
+}
+
+function getPublicBookListHealthScore(book: any, metadata: any): number {
+  const metadataCover = normalizeBookCoverUrl(metadata?.cover);
+  const effectiveCover = pickPublicBookCover(book?.coverImage, metadataCover);
+  const hasDetail = Boolean(metadata);
+  const hasDescription = Boolean(String(metadata?.description || book?.description || "").trim());
+  let score = 0;
+  if (hasUsableBookCover(effectiveCover)) score += 8;
+  if (hasDetail && hasDescription) score += 4;
+  else if (hasDescription) score += 3;
+  else if (hasDetail) score += 2;
+  else score += 1;
+  return score;
 }
 
 async function formatPublicBookMetadata(metadata: any, book: any) {
@@ -622,38 +637,29 @@ function formatAdminBookMetadata(metadata: any) {
 }
 
 async function findPagedPublicBooksPrioritizingDescriptions(current: number, size: number) {
-  const approvedBookIds = await listApprovedBookMetadataBookIds();
   const publishedFilter = { status: "published" };
-  const describedBookFilter = {
-    $or: [
-      { _id: { $in: approvedBookIds } },
-      { description: { $regex: /\S/ } },
-    ],
-  };
-  const undescribedBookFilter = { $nor: describedBookFilter.$or };
-  const total = await Book.countDocuments(publishedFilter);
-  const describedTotal = await Book.countDocuments({ ...publishedFilter, ...describedBookFilter });
   const offset = (current - 1) * size;
-  const describedTake = Math.min(size, Math.max(0, describedTotal - offset));
-  const books: any[] = [];
+  const allBooks = await Book.find(publishedFilter).sort({ publishedAt: -1, _id: -1 });
+  const metadataRows = await listApprovedBookMetadataByBookIds(allBooks.map((book: any) => String(book?._id || "")));
+  const metadataByBookId = new Map(metadataRows.map((item: any) => [String(item?.bookId || ""), item]));
+  const books = allBooks
+    .map((book: any, index: number) => {
+      const plain = typeof book.toObject === "function" ? book.toObject() : book;
+      const metadata = metadataByBookId.get(String(plain?._id || ""));
+      return {
+        book,
+        index,
+        score: getPublicBookListHealthScore(plain, metadata),
+      };
+    })
+    .sort((left, right) => {
+      const scoreDiff = right.score - left.score;
+      return scoreDiff !== 0 ? scoreDiff : left.index - right.index;
+    })
+    .slice(offset, offset + size)
+    .map((item) => item.book);
 
-  if (describedTake > 0) {
-    books.push(...await Book.find({ ...publishedFilter, ...describedBookFilter })
-      .sort({ publishedAt: -1, _id: -1 })
-      .skip(offset)
-      .limit(describedTake));
-  }
-
-  const remaining = size - books.length;
-  if (remaining > 0) {
-    const undescribedOffset = Math.max(0, offset - describedTotal);
-    books.push(...await Book.find({ ...publishedFilter, ...undescribedBookFilter })
-      .sort({ publishedAt: -1, _id: -1 })
-      .skip(undescribedOffset)
-      .limit(remaining));
-  }
-
-  return { books, total };
+  return { books, total: allBooks.length };
 }
 
 export class BookController {
