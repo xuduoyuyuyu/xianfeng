@@ -1,5 +1,6 @@
 const { API_ORIGIN } = require("./config");
 const { getToken, clearSession } = require("./session");
+const { notifyAuthExpired } = require("./authExpiry");
 
 function buildUrl(path) {
   if (/^https?:\/\//.test(path)) return path;
@@ -28,7 +29,10 @@ function request(options) {
           resolve(res.data);
           return;
         }
-        if (res.statusCode === 401) clearSession();
+        if (res.statusCode === 401) {
+          clearSession();
+          notifyAuthExpired();
+        }
         reject({
           statusCode: res.statusCode,
           data: res.data,

@@ -33,6 +33,8 @@ export interface MamaResourceProfile extends mongoose.Document {
   displayName: string;
   contactPhone?: string;
   contactWechat: string;
+  alipayAccount?: string;
+  alipayVerifiedName?: string;
   city?: string;
   childStage?: string;
   childGender?: string;
@@ -107,6 +109,8 @@ const mamaResourceProfileSchema = new mongoose.Schema(
     displayName: { type: String, required: true, trim: true },
     contactPhone: { type: String, default: "", trim: true },
     contactWechat: { type: String, default: "", trim: true },
+    alipayAccount: { type: String, default: "", trim: true },
+    alipayVerifiedName: { type: String, default: "", trim: true },
     city: { type: String, default: "", trim: true },
     childStage: { type: String, default: "", trim: true },
     childGender: { type: String, default: "", trim: true },

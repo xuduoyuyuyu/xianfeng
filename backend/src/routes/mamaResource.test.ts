@@ -106,6 +106,8 @@ describe("mama resource pool routes", () => {
       body: JSON.stringify({
         displayName: "安安妈妈",
         contactWechat: "anan-mom",
+        alipayAccount: "anan@example.com",
+        alipayVerifiedName: "安安妈妈",
         city: "上海",
         childStage: "小学",
         childGender: "男孩",
@@ -139,6 +141,36 @@ describe("mama resource pool routes", () => {
     assert.equal("password" in data.profile, false);
   });
 
+  it("requires and trims Alipay payout details on applications", async () => {
+    const basePayload = {
+      displayName: "收款妈妈",
+      contactWechat: "payout-mom",
+      xiaohongshuProfileUrl: "https://www.xiaohongshu.com/user/profile/payout-mom",
+      consentAccepted: true,
+    };
+    const missingResponse = await fetch(`${server.publicUrl}/applications`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...basePayload, alipayVerifiedName: "张三" }),
+    });
+    assert.equal(missingResponse.status, 400);
+    assert.equal((await missingResponse.json()).message, "请填写支付宝账号");
+
+    const response = await fetch(`${server.publicUrl}/applications`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...basePayload,
+        alipayAccount: "  payout@example.com  ",
+        alipayVerifiedName: "  张三  ",
+      }),
+    });
+    assert.equal(response.status, 201);
+    const data = await response.json();
+    assert.equal(data.profile.alipayAccount, "payout@example.com");
+    assert.equal(data.profile.alipayVerifiedName, "张三");
+  });
+
   it("accepts separated personal info with multiple media accounts while keeping a primary account", async () => {
     const response = await fetch(`${server.publicUrl}/applications`, {
       method: "POST",
@@ -146,6 +178,8 @@ describe("mama resource pool routes", () => {
       body: JSON.stringify({
         displayName: "多账号妈妈",
         contactWechat: "multi-mom",
+        alipayAccount: "multi@example.com",
+        alipayVerifiedName: "多账号妈妈",
         contactPhone: "13800001111",
         city: "上海",
         childStage: "小学",
@@ -231,6 +265,8 @@ describe("mama resource pool routes", () => {
         displayName: "更新账号",
         contactPhone: "13900000000",
         contactWechat: "new-wechat",
+        alipayAccount: "new@example.com",
+        alipayVerifiedName: "更新账号",
         xiaohongshuProfileUrl: "https://www.xiaohongshu.com/user/profile/abc123?foo=bar",
         xiaohongshuNickname: "新昵称",
         consentAccepted: true,
@@ -281,6 +317,8 @@ describe("mama resource pool routes", () => {
         displayName: "已提交账号",
         contactPhone: "13800000000",
         contactWechat: "new-wechat",
+        alipayAccount: "linked@example.com",
+        alipayVerifiedName: "已提交账号",
         xiaohongshuProfileUrl: "https://www.xiaohongshu.com/user/profile/already-submitted",
         xiaohongshuNickname: "新昵称",
         consentAccepted: true,
@@ -305,6 +343,8 @@ describe("mama resource pool routes", () => {
         displayName: "同昵称账号",
         contactPhone: "13800000001",
         contactWechat: "same-nickname-mom",
+        alipayAccount: "same@example.com",
+        alipayVerifiedName: "同昵称账号",
         mediaAccounts: [
           {
             platform: "xiaohongshu",
@@ -350,6 +390,8 @@ describe("mama resource pool routes", () => {
         displayName: "更新账号",
         contactPhone: "13800000000",
         contactWechat: "new-wechat",
+        alipayAccount: "update@example.com",
+        alipayVerifiedName: "更新账号",
         xiaohongshuProfileUrl: "https://www.xiaohongshu.com/user/profile/abc123?foo=bar",
         xiaohongshuNickname: "新昵称",
         categories: ["亲子阅读"],
@@ -397,6 +439,8 @@ describe("mama resource pool routes", () => {
         displayName: "旧账号",
         contactPhone: "13800000000",
         contactWechat: "same-wechat",
+        alipayAccount: "same-wechat@example.com",
+        alipayVerifiedName: "旧账号",
         xiaohongshuProfileUrl: "https://www.xiaohongshu.com/user/profile/changed-link",
         xiaohongshuNickname: "新昵称",
         followerCount: 4200,
@@ -441,6 +485,8 @@ describe("mama resource pool routes", () => {
         displayName: "旧账号更新",
         contactPhone: "13800001234",
         contactWechat: "same-wechat",
+        alipayAccount: "legacy@example.com",
+        alipayVerifiedName: "旧账号更新",
         xiaohongshuProfileUrl: "https://www.xiaohongshu.com/user/profile/legacy-no-phone?foo=bar",
         xiaohongshuNickname: "补充昵称",
         categories: ["亲子阅读"],
@@ -469,6 +515,8 @@ describe("mama resource pool routes", () => {
         displayName: "登录妈妈",
         contactPhone: "13999990000",
         contactWechat: "login-mom",
+        alipayAccount: "login@example.com",
+        alipayVerifiedName: "登录妈妈",
         mediaAccounts: [
           {
             platform: "xiaohongshu",
@@ -699,6 +747,25 @@ describe("mama resource pool routes", () => {
     const reviewed = await reviewResponse.json();
     assert.equal(reviewed.task.status, "collected");
     assert.equal(reviewed.task.reviewNote, "已收录");
+
+    const transferResponse = await fetch(`${server.adminUrl}/tasks/assignments/${assigned.assignments[0]._id}/transfer-screenshot`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transferScreenshotUrl: "/uploads/images/transfer.png" }),
+    });
+    assert.equal(transferResponse.status, 200);
+    const transferred = await transferResponse.json();
+    assert.equal(transferred.assignment.status, "collected");
+    assert.equal(transferred.assignment.transferScreenshotUrl, "/uploads/images/transfer.png");
+    assert.ok(transferred.assignment.transferScreenshotUpdatedAt);
+
+    const detailResponse = await fetch(`${server.publicUrl}/me/tasks/${assigned.assignments[0]._id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(detailResponse.status, 200);
+    const detail = await detailResponse.json();
+    assert.equal(detail.task.transferScreenshotUrl, "/uploads/images/transfer.png");
+    assert.ok(detail.task.transferScreenshotUpdatedAt);
   });
 
   it("reports the active promotion count from live task assignments", async () => {
@@ -1264,6 +1331,8 @@ describe("mama resource pool routes", () => {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        alipayAccount: "case@example.com",
+        alipayVerifiedName: "案例妈妈",
         socialAccount: { followerCount: 5200, dataSource: "manual" },
         contentCases: [
           {

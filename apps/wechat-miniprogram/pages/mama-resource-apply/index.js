@@ -27,6 +27,8 @@ const EMPTY_APPLY_DRAFT = {
   displayName: "",
   contactWechat: "",
   contactPhone: "",
+  alipayAccount: "",
+  alipayVerifiedName: "",
   city: "",
   childStage: "",
   childGender: "",
@@ -138,7 +140,9 @@ function buildProfileOverview(formDraft) {
   const personalItems = [
     draft.displayName || "未填姓名/昵称",
     draft.contactWechat ? `微信 ${draft.contactWechat}` : "",
-    draft.contactPhone ? `手机 ${draft.contactPhone}` : ""
+    draft.contactPhone ? `手机 ${draft.contactPhone}` : "",
+    draft.alipayAccount ? `支付宝 ${draft.alipayAccount}` : "",
+    draft.alipayVerifiedName ? `验证姓名 ${draft.alipayVerifiedName}` : ""
   ].filter(Boolean);
   const allAccounts = [normalizeMediaAccount({
     platform: "xiaohongshu",
@@ -177,6 +181,8 @@ function normalizeApplyDraft(value) {
     displayName: asText(source.displayName).trim(),
     contactWechat: asText(source.contactWechat).trim(),
     contactPhone: asText(source.contactPhone).trim(),
+    alipayAccount: asText(source.alipayAccount).trim(),
+    alipayVerifiedName: asText(source.alipayVerifiedName).trim(),
     city: asText(source.city).trim(),
     childStage: asText(source.childStage).trim(),
     childGender: asText(source.childGender).trim(),
@@ -384,6 +390,8 @@ function buildTaskView(task) {
     announcement: asText(source.announcement).trim(),
     proofLink: asText(source.proofLink).trim(),
     proofScreenshotUrl: asText(source.proofScreenshotUrl).trim(),
+    transferScreenshotUrl: normalizeMamaResourceImageUrl(source.transferScreenshotUrl),
+    transferScreenshotUpdatedAt: source.transferScreenshotUpdatedAt || null,
     contentUrl,
     hasContentUrl: Boolean(contentUrl),
     exampleImageUrls: Array.isArray(source.exampleImageUrls) ? source.exampleImageUrls.map(normalizeMamaResourceImageUrl).filter(Boolean) : []
@@ -479,6 +487,8 @@ function buildProfileDraftPatch(profile) {
     displayName: source.displayName || "",
     contactWechat: source.contactWechat || "",
     contactPhone: source.contactPhone || readStoredUserMobile(),
+    alipayAccount: source.alipayAccount || "",
+    alipayVerifiedName: source.alipayVerifiedName || "",
     city: source.city || "",
     childStage: source.childStage || "",
     childGender: source.childGender || "",
@@ -1051,6 +1061,12 @@ Page({
     });
   },
 
+  previewTransferScreenshot() {
+    const current = asText(this.data.currentMamaTask && this.data.currentMamaTask.transferScreenshotUrl).trim();
+    if (!current || !wx.previewImage) return;
+    wx.previewImage({ current, urls: [current] });
+  },
+
   showApplyForm() {
     const profile = this.data.mamaResourceProfile || {};
     updatePageApplyDraft(this, buildProfileDraftPatch(profile));
@@ -1214,6 +1230,8 @@ Page({
       displayName: String(values.displayName || "").trim(),
       contactPhone: String(values.contactPhone || "").trim(),
       contactWechat: String(values.contactWechat || "").trim(),
+      alipayAccount: String(values.alipayAccount || "").trim(),
+      alipayVerifiedName: String(values.alipayVerifiedName || "").trim(),
       city: String(values.city || "").trim(),
       childStage: this.data.childStage,
       childGender: this.data.childGender
@@ -1396,6 +1414,8 @@ Page({
       displayName: String(values.displayName || "").trim(),
       contactPhone: String(values.contactPhone || "").trim(),
       contactWechat: String(values.contactWechat || "").trim(),
+      alipayAccount: String(values.alipayAccount || "").trim(),
+      alipayVerifiedName: String(values.alipayVerifiedName || "").trim(),
       city: String(values.city || "").trim(),
       childStage: this.data.childStage,
       childGender: this.data.childGender,
@@ -1442,6 +1462,14 @@ Page({
 
     if (!payload.displayName || !payload.contactWechat || !payload.xiaohongshuProfileUrl) {
       this.setData({ message: "请先填写姓名/昵称、微信号和小红书主页链接", messageType: "error" });
+      return;
+    }
+    if (!payload.alipayAccount) {
+      this.setData({ message: "请填写支付宝账号", messageType: "error" });
+      return;
+    }
+    if (!payload.alipayVerifiedName) {
+      this.setData({ message: "请填写支付宝验证姓名", messageType: "error" });
       return;
     }
     if (!payload.xiaohongshuNickname) {

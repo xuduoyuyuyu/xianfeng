@@ -8,6 +8,8 @@ export interface MamaResourceTaskAssignment extends mongoose.Document {
   status: MamaResourceTaskAssignmentStatus;
   proofLink?: string;
   proofScreenshotUrl?: string;
+  transferScreenshotUrl?: string;
+  transferScreenshotUpdatedAt?: Date | null;
   contentUrl?: string;
   contentUpdatedAt?: Date | null;
   submittedAt?: Date | null;
@@ -29,6 +31,8 @@ const mamaResourceTaskAssignmentSchema = new mongoose.Schema(
     },
     proofLink: { type: String, default: "", trim: true },
     proofScreenshotUrl: { type: String, default: "", trim: true },
+    transferScreenshotUrl: { type: String, default: "", trim: true },
+    transferScreenshotUpdatedAt: { type: Date, default: null },
     contentUrl: { type: String, default: "", trim: true },
     contentUpdatedAt: { type: Date, default: null },
     submittedAt: { type: Date, default: null },

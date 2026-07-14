@@ -250,6 +250,8 @@ function publicTaskPayload(assignment: any, activePromotionCounts?: Map<string, 
     status: source.status,
     proofLink: source.proofLink,
     proofScreenshotUrl: source.proofScreenshotUrl,
+    transferScreenshotUrl: source.transferScreenshotUrl || "",
+    transferScreenshotUpdatedAt: source.transferScreenshotUpdatedAt || null,
     contentUrl: source.contentUrl || "",
     contentUpdatedAt: source.contentUpdatedAt || null,
     submittedAt: source.submittedAt,
@@ -447,6 +449,8 @@ router.post("/applications", optionalAuthenticate, async (req: AuthenticatedRequ
     const authenticatedMobile = normalizePhoneDigits((authenticatedUser as any)?.mobile);
     const contactPhone = authenticatedMobile || submittedContactPhone;
     const contactWechat = asText(req.body?.contactWechat);
+    const alipayAccount = asText(req.body?.alipayAccount);
+    const alipayVerifiedName = asText(req.body?.alipayVerifiedName);
     const consentAccepted = req.body?.consentAccepted !== false;
     const mediaAccounts = mediaAccountsFromBody(req.body);
     const primaryXiaohongshuAccount = mediaAccounts.find((account) => account.platform === "xiaohongshu");
@@ -457,6 +461,14 @@ router.post("/applications", optionalAuthenticate, async (req: AuthenticatedRequ
     }
     if (!contactWechat) {
       res.status(400).json({ message: "请填写微信号" });
+      return;
+    }
+    if (!alipayAccount) {
+      res.status(400).json({ message: "请填写支付宝账号" });
+      return;
+    }
+    if (!alipayVerifiedName) {
+      res.status(400).json({ message: "请填写支付宝验证姓名" });
       return;
     }
     if (!primaryXiaohongshuAccount) {
@@ -504,6 +516,8 @@ router.post("/applications", optionalAuthenticate, async (req: AuthenticatedRequ
       displayName,
       contactPhone,
       contactWechat,
+      alipayAccount,
+      alipayVerifiedName,
       city: asText(req.body?.city),
       childStage: asText(req.body?.childStage),
       childGender: asText(req.body?.childGender),

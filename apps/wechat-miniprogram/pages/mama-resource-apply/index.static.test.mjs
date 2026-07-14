@@ -23,6 +23,8 @@ test("mama resource form keeps an unsent draft across page exits", () => {
   assert.match(jsSource, /submit\(event\)[\s\S]*clearApplyDraft\(\)/);
 
   assert.match(wxmlSource, /name="displayName"[^>]*value="\{\{formDraft\.displayName\}\}"[^>]*bindinput="updateDraftField"/);
+  assert.match(wxmlSource, /name="alipayAccount"[^>]*value="\{\{formDraft\.alipayAccount\}\}"[^>]*bindinput="updateDraftField"/);
+  assert.match(wxmlSource, /name="alipayVerifiedName"[^>]*value="\{\{formDraft\.alipayVerifiedName\}\}"[^>]*bindinput="updateDraftField"/);
   assert.match(wxmlSource, /name="xiaohongshuProfileUrl"[^>]*value="\{\{formDraft\.xiaohongshuProfileUrl\}\}"[^>]*bindinput="updateDraftField"/);
   assert.match(wxmlSource, /name="xiaohongshuProfileUrl"[^>]*disabled="\{\{formDraft\.originalXiaohongshuProfileUrl\}\}"/);
   assert.match(wxmlSource, /主页链接已锁定，保存时只更新昵称等资料。/);
@@ -30,6 +32,19 @@ test("mama resource form keeps an unsent draft across page exits", () => {
   assert.match(wxmlSource, /name="blockedCategories"[^>]*value="\{\{formDraft\.blockedCategories\}\}"[^>]*bindinput="updateDraftField"/);
   assert.doesNotMatch(wxmlSource, /checkbox-group name="consentAccepted"|请先勾选资料使用授权/);
   assert.match(wxmlSource, /资料会用于任务匹配和运营联系，可联系运营停用或更新。/);
+});
+
+test("mama resource form persists and submits required Alipay profile fields", () => {
+  assert.match(jsSource, /alipayAccount: asText\(source\.alipayAccount\)\.trim\(\)/);
+  assert.match(jsSource, /alipayVerifiedName: asText\(source\.alipayVerifiedName\)\.trim\(\)/);
+  assert.match(jsSource, /alipayAccount: source\.alipayAccount \|\| ""/);
+  assert.match(jsSource, /alipayVerifiedName: source\.alipayVerifiedName \|\| ""/);
+  assert.match(jsSource, /alipayAccount: String\(values\.alipayAccount \|\| ""\)\.trim\(\)/);
+  assert.match(jsSource, /alipayVerifiedName: String\(values\.alipayVerifiedName \|\| ""\)\.trim\(\)/);
+  assert.match(jsSource, /draft\.alipayAccount \? `支付宝 \$\{draft\.alipayAccount\}`/);
+  assert.match(jsSource, /draft\.alipayVerifiedName \? `验证姓名 \$\{draft\.alipayVerifiedName\}`/);
+  assert.match(jsSource, /if \(!payload\.alipayAccount\)[\s\S]*请填写支付宝账号/);
+  assert.match(jsSource, /if \(!payload\.alipayVerifiedName\)[\s\S]*请填写支付宝验证姓名/);
 });
 
 test("mama resource profile management is always available and separates personal and media data", () => {
@@ -195,6 +210,13 @@ test("assigned users open a selectable personal content link modal", () => {
   assert.match(wxssSource, /\.xf-mama-content-link-dialog \{/);
   assert.match(wxssSource, /\.xf-mama-content-link-value \{[\s\S]*user-select: text;/);
   assert.doesNotMatch(wxmlSource, /短信|已发送短信/);
+});
+
+test("assigned users can preview a read-only transfer credential", () => {
+  assert.match(jsSource, /transferScreenshotUrl: normalizeMamaResourceImageUrl\(source\.transferScreenshotUrl\)/);
+  assert.match(jsSource, /previewTransferScreenshot\(\)[\s\S]*wx\.previewImage\(\{ current, urls: \[current\] \}\)/);
+  assert.match(wxmlSource, /wx:if="\{\{currentMamaTask\.transferScreenshotUrl\}\}"[\s\S]*转账凭证/);
+  assert.match(wxmlSource, /src="\{\{currentMamaTask\.transferScreenshotUrl\}\}"[^>]*catchtap="previewTransferScreenshot"/);
 });
 
 test("logged-out mama resource users must authorize phone before seeing apply form", () => {

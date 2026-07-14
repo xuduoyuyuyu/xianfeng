@@ -623,6 +623,8 @@ export interface MamaResourceProfile {
   displayName: string;
   contactPhone?: string;
   contactWechat: string;
+  alipayAccount?: string;
+  alipayVerifiedName?: string;
   city?: string;
   childStage?: string;
   childGender?: string;
@@ -664,6 +666,8 @@ export interface MamaResourceApplicationInput {
   displayName: string;
   contactPhone?: string;
   contactWechat: string;
+  alipayAccount: string;
+  alipayVerifiedName: string;
   city?: string;
   childStage?: string;
   childGender?: string;
@@ -737,6 +741,8 @@ export interface MamaResourceTask {
   status: MamaResourceTaskStatus | MamaResourceTaskAssignmentStatus;
   proofLink?: string;
   proofScreenshotUrl?: string;
+  transferScreenshotUrl?: string;
+  transferScreenshotUpdatedAt?: string | null;
   submittedAt?: string | null;
   reviewedAt?: string | null;
   reviewNote?: string;
@@ -753,6 +759,8 @@ export interface MamaResourceTaskAssignment {
   status: MamaResourceTaskAssignmentStatus;
   proofLink?: string;
   proofScreenshotUrl?: string;
+  transferScreenshotUrl?: string;
+  transferScreenshotUpdatedAt?: string | null;
   submittedAt?: string | null;
   reviewedAt?: string | null;
   reviewNote?: string;
@@ -1498,6 +1506,8 @@ export const adminApi = {
     api.patch<{ task: MamaResourceTaskAssignment; assignment: MamaResourceTaskAssignment }>(`/admin/mama-resources/tasks/assignments/${id}/review`, data),
   updateMamaResourceAssignmentContent: (id: string, contentUrl: string) =>
     api.patch<{ assignment: MamaResourceTaskAssignment }>(`/admin/mama-resources/tasks/assignments/${id}/content`, { contentUrl }),
+  updateMamaResourceAssignmentTransferScreenshot: (id: string, transferScreenshotUrl: string) =>
+    api.patch<{ assignment: MamaResourceTaskAssignment }>(`/admin/mama-resources/tasks/assignments/${id}/transfer-screenshot`, { transferScreenshotUrl }),
   downloadMamaResourceContentImportTemplate: () =>
     api.get<Blob>('/admin/mama-resources/tasks/content-import/template', { responseType: 'blob' }),
   previewMamaResourceContentImport: (id: string, file: File) => {

@@ -175,6 +175,13 @@ function toCount(value?: number | null): string {
   return Number(value).toLocaleString("zh-CN");
 }
 
+function maskAlipayAccount(value: string | undefined): string {
+  const account = String(value || "").trim();
+  if (!account) return "未填支付宝";
+  if (account.length <= 4) return `${account.slice(0, 1)}***`;
+  return `${account.slice(0, 3)}****${account.slice(-3)}`;
+}
+
 function realNameLabel(value?: boolean | null): string {
   if (value === true) return "已实名认证";
   if (value === false) return "未实名认证";
@@ -222,6 +229,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
   const [loading, setLoading] = useState(false);
   const [taskLoading, setTaskLoading] = useState(false);
   const [taskImageUploading, setTaskImageUploading] = useState(false);
+  const [transferScreenshotUploadingId, setTransferScreenshotUploadingId] = useState("");
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [page, setPage] = useState(1);
@@ -242,6 +250,8 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
   const [riskTagsText, setRiskTagsText] = useState("");
   const [manualFollowerCount, setManualFollowerCount] = useState("");
   const [manualNickname, setManualNickname] = useState("");
+  const [manualAlipayAccount, setManualAlipayAccount] = useState("");
+  const [manualAlipayVerifiedName, setManualAlipayVerifiedName] = useState("");
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const isReviewMode = mode === "review";
@@ -322,6 +332,8 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
     setRiskTagsText((profile.reviewNote?.riskTags || []).join("、"));
     setManualFollowerCount(profile.socialAccount?.followerCount ? String(profile.socialAccount.followerCount) : "");
     setManualNickname(profile.socialAccount?.nickname || "");
+    setManualAlipayAccount(profile.alipayAccount || "");
+    setManualAlipayVerifiedName(profile.alipayVerifiedName || "");
   };
 
   const closeEdit = () => {
@@ -356,10 +368,20 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
 
   const saveManualData = async () => {
     if (!editing || saving) return;
+    if (!manualAlipayAccount.trim()) {
+      setToast("请填写支付宝账号");
+      return;
+    }
+    if (!manualAlipayVerifiedName.trim()) {
+      setToast("请填写支付宝验证姓名");
+      return;
+    }
     setSaving(true);
     setToast("");
     try {
       const updateResponse = await adminApi.updateMamaResource(editing._id, {
+        alipayAccount: manualAlipayAccount.trim(),
+        alipayVerifiedName: manualAlipayVerifiedName.trim(),
         socialAccount: {
           ...editing.socialAccount,
           nickname: manualNickname.trim(),
@@ -568,6 +590,24 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
     }
   };
 
+  const handleTransferScreenshotUpload = async (assignmentId: string, file?: File) => {
+    if (!file || transferScreenshotUploadingId) return;
+    setTransferScreenshotUploadingId(assignmentId);
+    setToast("");
+    try {
+      const uploadResponse = await adminApi.uploadAdminImage(file);
+      const transferScreenshotUrl = uploadResponse.data.url;
+      if (!transferScreenshotUrl) throw new Error("转账截图上传失败");
+      const response = await adminApi.updateMamaResourceAssignmentTransferScreenshot(assignmentId, transferScreenshotUrl);
+      setAssignments((current) => current.map((item) => item._id === assignmentId ? response.data.assignment : item));
+      setToast("转账截图已保存");
+    } catch (uploadError: any) {
+      setToast(requestErrorMessage(uploadError, "转账截图上传失败"));
+    } finally {
+      setTransferScreenshotUploadingId("");
+    }
+  };
+
   const downloadContentImportTemplate = async () => {
     try {
       const response = await adminApi.downloadMamaResourceContentImportTemplate();
@@ -734,6 +774,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                 <div className="font-black text-stone-900">{profile.displayName}</div>
                 <a className="mt-1 block truncate text-xs font-semibold text-[#6c27d6]" href={profile.socialAccount.profileUrl} target="_blank" rel="noreferrer">{profile.socialAccount.nickname || profile.socialAccount.profileUrl}</a>
                 <div className="mt-1 text-xs text-stone-500">{profile.city || "未填城市"} · {profile.childStage || "未填阶段"} · {profile.childGender || "未填性别"}</div>
+                <div className="mt-1 text-xs font-semibold text-stone-500">{maskAlipayAccount(profile.alipayAccount)}</div>
                 <div className="mt-1 text-xs font-semibold text-stone-500">
                   {realNameLabel(profile.socialAccount.realNameVerified)}
                   {profile.socialAccount.screenshotUrl ? <a className="ml-2 text-[#6c27d6]" href={profile.socialAccount.screenshotUrl} target="_blank" rel="noreferrer">主页截图</a> : <span className="ml-2">未传截图</span>}
@@ -782,6 +823,8 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <label className="text-sm font-bold text-stone-700">账号昵称<input value={manualNickname} onChange={(event) => setManualNickname(event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" /></label>
                   <label className="text-sm font-bold text-stone-700">粉丝数<input value={manualFollowerCount} onChange={(event) => setManualFollowerCount(event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="人工补录" /></label>
+                  <label className="text-sm font-bold text-stone-700">支付宝账号<input value={manualAlipayAccount} onChange={(event) => setManualAlipayAccount(event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="用于任务结算转账" /></label>
+                  <label className="text-sm font-bold text-stone-700">支付宝验证姓名<input value={manualAlipayVerifiedName} onChange={(event) => setManualAlipayVerifiedName(event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="支付宝实名认证姓名" /></label>
                 </div>
                 <div className="mt-3 grid gap-3">
                   <label className="text-sm font-bold text-stone-700">审核状态<select value={reviewStatus} onChange={(event) => setReviewStatus(event.target.value as MamaResourceStatus)} className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm">{statusOptions.filter((item) => item.value !== "all").map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
@@ -987,6 +1030,23 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                               {assignment.proofScreenshotUrl ? <a className="rounded-full bg-[#f6f0ff] px-2.5 py-1 text-[#6c27d6]" href={assignment.proofScreenshotUrl} target="_blank" rel="noreferrer">完成截图</a> : null}
                             </div>
                           ) : <div className="mt-2 text-xs font-semibold text-stone-400">用户尚未提交证明</div>}
+                          <div className="mt-3 rounded-xl bg-stone-50 p-3">
+                            <div className="text-xs font-black text-stone-600">转账截图</div>
+                            {assignment.transferScreenshotUrl ? (
+                              <a href={assignment.transferScreenshotUrl} target="_blank" rel="noreferrer" className="mt-2 block">
+                                <img src={assignment.transferScreenshotUrl} alt="任务转账凭证" className="max-h-40 w-full rounded-lg object-contain" />
+                              </a>
+                            ) : null}
+                            {assignment.transferScreenshotUpdatedAt ? <div className="mt-2 text-xs font-semibold text-stone-400">更新于 {toDateText(assignment.transferScreenshotUpdatedAt)}</div> : null}
+                            <label className="mt-2 inline-flex cursor-pointer rounded-lg border border-[#6c27d6] bg-white px-3 py-2 text-xs font-black text-[#5e17eb]">
+                              {transferScreenshotUploadingId === assignment._id ? "上传中..." : assignment.transferScreenshotUrl ? "替换截图" : "上传转账截图"}
+                              <input type="file" accept="image/*" disabled={Boolean(transferScreenshotUploadingId)} onChange={(event) => {
+                                const file = event.target.files?.[0];
+                                event.target.value = "";
+                                void handleTransferScreenshotUpload(assignment._id, file);
+                              }} className="hidden" />
+                            </label>
+                          </div>
                           {assignment.status === "submitted" ? (
                             <div className="mt-3 grid grid-cols-2 gap-2">
                               <button type="button" onClick={() => reviewAssignment(assignment, "collected", "已核对链接和截图，标记收录")} disabled={taskLoading} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white disabled:bg-stone-300">标记已收录</button>

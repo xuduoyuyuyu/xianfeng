@@ -308,8 +308,8 @@ test("custom tab bar matches the website mobile tab sizing and opens Xiaowanzi s
   assert.match(wxss, /\.xf-custom-tabbar__item\.is-xiaowanzi\.is-pressed \.xf-custom-tabbar__orb \{[\s\S]*transform: scale\(1\.16\);/);
   assert.match(wxss, /\.xf-custom-tabbar__icon \{[\s\S]*width: 22px;[\s\S]*height: 22px;/);
   assert.match(wxss, /\.xf-custom-tabbar__icon\.is-reading-source-switching \{[\s\S]*animation: xf-reading-source-bounce 520ms cubic-bezier\(0\.2, 0\.9, 0\.22, 1\);[\s\S]*transform-origin: 50% 50%;/);
-  assert.match(wxss, /\.xf-custom-tabbar__icon\.is-xiaowanzi-icon \{[\s\S]*width: 42px;[\s\S]*height: 42px;/);
-  assert.match(wxss, /\.xf-custom-tabbar__orb \{[\s\S]*width: 42px;[\s\S]*height: 42px;[\s\S]*background: transparent;[\s\S]*box-shadow: none;/);
+  assert.match(wxss, /\.xf-custom-tabbar__icon\.is-xiaowanzi-icon \{[\s\S]*width: 48px;[\s\S]*height: 48px;/);
+  assert.match(wxss, /\.xf-custom-tabbar__orb \{[\s\S]*width: 48px;[\s\S]*height: 48px;[\s\S]*background: transparent;[\s\S]*box-shadow: none;/);
   assert.match(wxss, /@keyframes xf-reading-source-bounce/);
   assert.doesNotMatch(wxss, /xf-reading-source-aura|xf-reading-source-morph|rotateY|radial-gradient/);
   assert.match(wxss, /translateY\(-5px\) scale\(1\.14\)/);
@@ -646,11 +646,13 @@ test("welfare opens as a native mini program page and hides backend 404 noise", 
   assert.match(page.wxml, /copyActivationCode/);
   assert.match(page.wxml, /复制链接/);
   assert.match(page.wxml, /class="xf-welfare-dialog-link"[^>]*bindtap="openClaimLink"/);
-  assert.match(page.wxml, /<button catchtap="copyClaimLink">复制链接<\/button>/);
+  assert.match(page.wxml, /<button catchtap="copyClaimLink">\{\{claimDialogIsMiniProgramLink \? '点击获取' : '复制链接'\}\}<\/button>/);
   assert.doesNotMatch(page.wxml, /xf-welfare-item-status/);
   assert.doesNotMatch(page.wxml, /Request failed with status code 404/);
   assert.match(page.js, /request\(\{ url: "\/api\/welfare\/campaigns" \}\)/);
   assert.match(page.js, /claimDialogInstructions/);
+  assert.match(page.js, /claimDialogIsMiniProgramLink:\s*[^,]*\.includes\("小程序"\)/);
+  assert.match(page.js, /closeClaimDialog\(\)[\s\S]*claimDialogIsMiniProgramLink:\s*false/);
   assert.match(page.js, /copyActivationCode\(\)/);
   assert.match(page.js, /copyClaimLink\(\)/);
   assert.match(page.js, /wx\.navigateToMiniProgram\(\{[\s\S]*shortLink: link/);
@@ -705,6 +707,91 @@ test("welfare opens as a native mini program page and hides backend 404 noise", 
     assert.equal(state.message, "");
   } finally {
     global.wx = originalWx;
+  }
+});
+
+test("welfare opens phone login on auth expiry and reloads after login", async () => {
+  const page = readPage("welfare");
+  assert.match(page.wxml, /wx:if="\{\{loginRequired\}\}"[^>]*open-type="getPhoneNumber"[^>]*bindgetphonenumber="loginWithPhone"/);
+  assert.match(page.js, /subscribeAuthExpired/);
+  assert.match(page.js, /onUnload\(\)[\s\S]*_unsubscribeAuthExpired/);
+  assert.match(page.js, /loginWithPhone\(event\)[\s\S]*\/api\/wechat-mini\/login[\s\S]*setSession\(payload\)[\s\S]*resolveAuthExpired\(\)[\s\S]*loadCampaigns\(\)/);
+
+  const definition = loadPageDefinition("welfare");
+  const originalWx = global.wx;
+  const originalGetApp = global.getApp;
+  const state = { ...definition.data };
+  const stored = {};
+  let campaignRequests = 0;
+  let appSession = null;
+
+  const context = {
+    ...definition,
+    data: state,
+    setData(patch) {
+      Object.assign(state, patch);
+    }
+  };
+
+  try {
+    global.getApp = () => ({
+      setLoginSession(payload) {
+        appSession = payload;
+      }
+    });
+    global.wx = {
+      showShareMenu() {},
+      getStorageSync(key) {
+        return stored[key] || (key === "xf_token" ? "expired-token" : "");
+      },
+      setStorageSync(key, value) {
+        stored[key] = value;
+      },
+      removeStorageSync(key) {
+        delete stored[key];
+      },
+      getWindowInfo() {
+        return { statusBarHeight: 20, windowWidth: 375 };
+      },
+      getMenuButtonBoundingClientRect() {
+        return { top: 28, height: 32, left: 280 };
+      },
+      login(options) {
+        options.success({ code: "wx-login-code" });
+      },
+      request(options) {
+        if (options.url.endsWith("/api/wechat-mini/login")) {
+          options.success({ statusCode: 200, data: { token: "fresh-token", user: { id: "user-1" } } });
+          return;
+        }
+        campaignRequests += 1;
+        if (campaignRequests === 1) {
+          options.success({ statusCode: 401, data: { message: "未登录或登录已过期" } });
+          return;
+        }
+        options.success({ statusCode: 200, data: { active: [], history: [] } });
+      }
+    };
+
+    definition.onLoad.call(context, {});
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(state.loginRequired, true);
+    assert.equal(state.message, "");
+
+    definition.loginWithPhone.call(context, { detail: { code: "phone-code" } });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(stored.xf_token, "fresh-token");
+    assert.deepEqual(appSession, { token: "fresh-token", user: { id: "user-1" } });
+    assert.equal(state.loginRequired, false);
+    assert.equal(state.message, "");
+    assert.equal(campaignRequests, 2);
+
+    definition.onUnload.call(context);
+  } finally {
+    const { resolveAuthExpired } = require("../utils/authExpiry.js");
+    resolveAuthExpired();
+    global.wx = originalWx;
+    global.getApp = originalGetApp;
   }
 });
 
@@ -13204,6 +13291,8 @@ test("mama haozhuan category chips toggle without checkbox controls", async () =
           displayName: "安安妈妈",
           contactPhone: "13800000000",
           contactWechat: "anan-mom",
+          alipayAccount: "anan@example.com",
+          alipayVerifiedName: "安安妈妈",
           city: "上海",
           xiaohongshuProfileUrl: "https://www.xiaohongshu.com/user/profile/demo",
           xiaohongshuNickname: "安安妈",
@@ -13220,6 +13309,8 @@ test("mama haozhuan category chips toggle without checkbox controls", async () =
 
     assert.deepEqual(requests[0].data.categories, ["学习用品"]);
     assert.equal(requests[0].data.followerCount, "12800");
+    assert.equal(requests[0].data.alipayAccount, "anan@example.com");
+    assert.equal(requests[0].data.alipayVerifiedName, "安安妈妈");
     assert.equal(requests[0].data.realNameVerified, true);
     assert.equal(requests[0].data.xiaohongshuScreenshotUrl, "/uploads/images/profile.png");
     assert.equal("rateRange" in requests[0].data, false);

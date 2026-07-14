@@ -103,6 +103,8 @@
             <label class="xf-mama-field">姓名/昵称<input name="displayName" value="{{formDraft.displayName}}" data-field="displayName" bindinput="updateDraftField" placeholder="例如：安安妈妈" placeholder-class="xf-mama-placeholder" /></label>
             <label class="xf-mama-field">微信号<input name="contactWechat" value="{{formDraft.contactWechat}}" data-field="contactWechat" bindinput="updateDraftField" placeholder="优先通过微信添加" placeholder-class="xf-mama-placeholder" /></label>
             <label class="xf-mama-field">手机号<input name="contactPhone" value="{{formDraft.contactPhone}}" data-field="contactPhone" bindinput="updateDraftField" placeholder="备用联系电话" placeholder-class="xf-mama-placeholder" /></label>
+            <label class="xf-mama-field">支付宝账号<input name="alipayAccount" value="{{formDraft.alipayAccount}}" data-field="alipayAccount" bindinput="updateDraftField" placeholder="用于任务结算转账" placeholder-class="xf-mama-placeholder" /></label>
+            <label class="xf-mama-field">支付宝验证姓名<input name="alipayVerifiedName" value="{{formDraft.alipayVerifiedName}}" data-field="alipayVerifiedName" bindinput="updateDraftField" placeholder="支付宝实名认证姓名" placeholder-class="xf-mama-placeholder" /></label>
             <label class="xf-mama-field">城市<input name="city" value="{{formDraft.city}}" data-field="city" bindinput="updateDraftField" placeholder="上海 / 杭州" placeholder-class="xf-mama-placeholder" /></label>
           </view>
           <label class="xf-mama-field">
@@ -329,6 +331,11 @@
               <text class="xf-mama-content-hint">打开后下载图片、复制文案并按要求发布</text>
             </view>
             <button type="button" class="xf-mama-content-button" catchtap="openMamaTaskContent">打开专属内容</button>
+          </view>
+
+          <view wx:if="{{currentMamaTask.transferScreenshotUrl}}" class="xf-mama-transfer-card">
+            <text class="xf-mama-section-title">转账凭证</text>
+            <image class="xf-mama-transfer-image" src="{{currentMamaTask.transferScreenshotUrl}}" mode="widthFix" catchtap="previewTransferScreenshot" />
           </view>
 
           <view wx:if="{{currentMamaTask.isClaimable}}" class="xf-mama-task-actions">

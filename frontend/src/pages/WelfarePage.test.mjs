@@ -55,6 +55,8 @@ test("welfare page separates claimable and historical welfare states", () => {
   assert.match(source, /claimDialog/);
   assert.match(source, /领取成功/);
   assert.match(source, /复制链接/);
+  assert.match(source, /claimDialog\.externalUrl\.includes\("小程序"\)\s*\?\s*"点击获取"\s*:\s*"复制链接"/);
+  assert.match(source, /onClick=\{copyClaimLink\}/);
   assert.doesNotMatch(source, /statusText/);
   assert.match(source, /availability === "expired"/);
   assert.match(source, /availability === "sold_out"/);

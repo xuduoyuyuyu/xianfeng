@@ -41,6 +41,8 @@ type FormState = {
   displayName: string;
   contactPhone: string;
   contactWechat: string;
+  alipayAccount: string;
+  alipayVerifiedName: string;
   city: string;
   childStage: string;
   childGender: string;
@@ -70,6 +72,8 @@ const initialForm: FormState = {
   displayName: "",
   contactPhone: "",
   contactWechat: "",
+  alipayAccount: "",
+  alipayVerifiedName: "",
   city: "",
   childStage: "",
   childGender: "",
@@ -95,6 +99,8 @@ export function formStateFromProfile(profile: MamaResourceProfile, loggedInMobil
     displayName: profile.displayName || "",
     contactPhone: profile.contactPhone || loggedInMobile,
     contactWechat: profile.contactWechat || "",
+    alipayAccount: profile.alipayAccount || "",
+    alipayVerifiedName: profile.alipayVerifiedName || "",
     city: profile.city || "",
     childStage: profile.childStage || "",
     childGender: profile.childGender || "",
@@ -288,6 +294,12 @@ function MamaResourceTaskDetail({ task, claiming, claimError, proofLink, proofSc
         {task.claimable ? <button type="button" disabled={claiming} onClick={onClaim} className="mt-[15px] w-full rounded-[13px] bg-[#6c27d6] p-[13px] text-[14px] font-black text-white disabled:bg-[#c8c2d3]">{claiming ? "领取中..." : "立即领取"}</button> : null}
         {claimError ? <p className="mt-[10px] text-[12px] font-bold text-[#be123c]">{claimError}</p> : null}
       </div>
+      {task.transferScreenshotUrl ? <div className="rounded-[18px] bg-white p-[15px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
+        <h3 className="text-[16px] font-black text-[#151222]">转账凭证</h3>
+        <a href={task.transferScreenshotUrl} target="_blank" rel="noreferrer" className="mt-[10px] block">
+          <img src={task.transferScreenshotUrl} alt="任务转账凭证" className="max-h-[260px] w-full rounded-[11px] object-contain" />
+        </a>
+      </div> : null}
       {!task.claimable ? <div className="rounded-[18px] bg-white p-[15px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
         <h3 className="text-[16px] font-black text-[#151222]">任务回填</h3>
         <label className="mt-[12px] block text-[12.5px] font-extrabold text-[#4b4453]">完成链接
@@ -472,6 +484,8 @@ const MamaResourceApplyPage: React.FC = () => {
     return Boolean(
       form.displayName.trim() &&
       form.contactWechat.trim() &&
+      form.alipayAccount.trim() &&
+      form.alipayVerifiedName.trim() &&
       form.xiaohongshuProfileUrl.trim() &&
       form.xiaohongshuNickname.trim() &&
       form.consentAccepted &&
@@ -631,6 +645,16 @@ const MamaResourceApplyPage: React.FC = () => {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!form.alipayAccount.trim()) {
+      setSubmitted(false);
+      setMessage("请填写支付宝账号");
+      return;
+    }
+    if (!form.alipayVerifiedName.trim()) {
+      setSubmitted(false);
+      setMessage("请填写支付宝验证姓名");
+      return;
+    }
     if (!canSubmit) {
       setSubmitted(false);
       setMessage("请先补齐个人资料、社交媒体账号，并勾选资料使用授权。");
@@ -644,6 +668,8 @@ const MamaResourceApplyPage: React.FC = () => {
         displayName: form.displayName.trim(),
         contactPhone: form.contactPhone.trim(),
         contactWechat: form.contactWechat.trim(),
+        alipayAccount: form.alipayAccount.trim(),
+        alipayVerifiedName: form.alipayVerifiedName.trim(),
         city: form.city.trim(),
         childStage: form.childStage,
         childGender: form.childGender,
@@ -838,6 +864,14 @@ const MamaResourceApplyPage: React.FC = () => {
                   <label className={fieldClass}>
                     手机号
                     <input name="contactPhone" className={inputClass} value={form.contactPhone} onChange={(event) => updateField("contactPhone", event.target.value)} placeholder="备用联系电话" />
+                  </label>
+                  <label className={fieldClass}>
+                    支付宝账号
+                    <input name="alipayAccount" className={inputClass} value={form.alipayAccount} onChange={(event) => updateField("alipayAccount", event.target.value)} placeholder="手机号或邮箱账号" />
+                  </label>
+                  <label className={fieldClass}>
+                    支付宝验证姓名
+                    <input name="alipayVerifiedName" className={inputClass} value={form.alipayVerifiedName} onChange={(event) => updateField("alipayVerifiedName", event.target.value)} placeholder="支付宝实名认证姓名" />
                   </label>
                   <label className={fieldClass}>
                     城市
