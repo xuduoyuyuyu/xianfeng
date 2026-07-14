@@ -1,61 +1,69 @@
-# Task 3 Report
+# Task 3 Report: Selectable content link and proof submission
 
 ## Status
 
-Implemented the authenticated virtual checkout route, public virtual product
-metadata, official virtual notification route, trusted-query reconciliation,
-idempotent fulfillment, retryable entitlement failure handling, and virtual
-refund isolation.
+Implemented and committed as `5f1ced5f feat(frontend): add mama task proof submission`.
 
-## RED evidence
+## RED / GREEN
 
-- `cd backend && node --test --import tsx src/routes/billing.test.ts`
-  - Failed as expected: `/virtual-orders` and `/wechat/virtual/notify` were absent.
-- `cd backend && node --test --import tsx src/services/billing.test.ts src/routes/billing.test.ts`
-  - Failed as expected: `processWechatVirtualNotification is not a function`,
-    plus the missing route surface.
+- RED: Added source tests for the selectable private content-link dialog and proof upload/submission. The focused suite failed 2 tests because the dialog copy, selectable URL, proof fields, and submission binding were absent.
+- GREEN: Added the minimal page state and handlers. The focused suite then passed all 17 tests.
 
-## GREEN evidence
+## Changed files
 
-- `cd backend && node --test --import tsx src/services/virtualPaymentProducts.test.ts src/services/wechatVirtualPayment.test.ts src/services/billing.test.ts src/routes/billing.test.ts src/services/paymentProviders.wechat.test.ts`
-  - Passed: 36 tests, 5 suites, 0 failures.
+- `frontend/src/pages/MamaResourceApplyPage.test.mjs`
+- `frontend/src/pages/MamaResourceApplyPage.tsx`
+- `docs/ACTIVE_CONTEXT.md`
 
-## Files
+The detail view now initializes proof fields from the selected task, exposes a non-navigating in-page content-link dialog only for a non-empty `contentUrl`, uploads screenshots through `uploadMamaResourceScreenshot`, and submits through `submitMamaResourceTaskProof`. While upload or submission is active, duplicate actions are disabled. Errors retain both proof fields. A successful submission replaces the selected detail task and its matching list entry.
 
-- `backend/src/routes/billing.ts`
-- `backend/src/routes/billing.test.ts`
-- `backend/src/services/billing.ts`
-- `backend/src/services/billing.test.ts`
+## Verification
 
-## Commit
-
-- `4787074` (`feat: process virtual payment orders`; report hash recorded before final amend)
+- `/Users/xuduoyu/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node --test frontend/src/pages/MamaResourceApplyPage.test.mjs`: PASS, 17/17.
+- `npm run build` from `frontend/`: PASS (`tsc` and Vite build exited 0). Vite retained its existing large-chunk warning.
+- `git diff --check`: PASS before commit.
 
 ## Self-review
 
-- Push JSON is parsed only as an untrusted trigger. Every goods-delivery trigger
-  queries the official order API before fulfillment, including duplicates.
-- Reconciliation checks the trusted order number, paid status, exact order and
-  paid amounts, environment, and transaction identity against the immutable
-  local order. Product and quantity are checked only against the trigger and
-  local order; they are not invented as official query response fields.
-- A locally bound mini-program openid must match both checkout exchange and the
-  notification query selector. Unbound accounts are allowed by the stated
-  required-openid behavior.
-- The one-time `loginCode` is exchanged server-side. `session_key` is passed
-  directly to signing and is neither persisted nor serialized.
-- Virtual refunds return 409 before provider dispatch and never call the
-  ordinary `refundWechatOrder` path.
-- If entitlement persistence throws after the paid-state save,
-  `markOrderPaid` restores the order to pending so reconciliation can retry.
+- No iframe, anchor navigation, `window.open`, or location assignment was added for Feishu/content URLs.
+- The URL block uses selectable text and wraps long URLs.
+- The overlay and explicit close control both dismiss the dialog; clicking inside the card does not.
+- Upload and submit failures only update their local error state, leaving entered link and uploaded screenshot URL intact.
+- The build-generated screen CSS was restored so the commit contains only Task 3's named project files.
 
-## Concerns / not verified
+## Visual verification
 
-- No live WeChat virtual payment sandbox callback or checkout was executed.
-- The current paid-state idempotency prevents duplicate sequential grants. A
-  truly simultaneous duplicate callback can observe the transient paid state
-  while the first callback is still persisting entitlement; production-grade
-  cross-document atomicity would require a MongoDB transaction/replica set or
-  a dedicated fulfillment state machine.
-- Git emits warnings for macOS AppleDouble `._pack-*.idx` files in the shared
-  object store. They did not prevent focused tests, staging, or committing.
+Not completed. The approved-account home, assigned task detail, and private link dialog require a real authenticated approved profile/task response. No authenticated fixture was available in this task, and fake authenticated data was explicitly avoided. No screenshot is claimed.
+
+## Remaining concerns
+
+- Runtime API success/error behavior and mobile visual hierarchy still need verification with a real approved account and assigned task containing `contentUrl`.
+- Git commands emit repeated warnings for malformed macOS AppleDouble `._pack-*.idx` files in the shared object store. They did not prevent the focused tests, build, diff check, restore, or commit, but repository maintenance should remove that Git object-store noise separately.
+
+## Review fix: async task isolation and modal accessibility
+
+### RED / GREEN
+
+- RED: Added a pure identity-guard behavioral test covering task A versus task B, plus focused source coverage for async guard placement and modal focus/keyboard behavior. The suite failed 2 tests because the guard and accessibility behavior did not exist.
+- GREEN: Added `isSameTaskIdentity`, tracked the currently selected task in a ref, and captured the initiating identity for proof upload/submission. Upload success/error and submission detail fields/messages now update only when the initiating task remains selected. Submission success still replaces the matching list item after navigation. Added modal initial focus, document-level Escape dismissal, Tab focus containment, and focus restoration to the content-link opener. The focused suite passed 19/19.
+
+### Additional changed files
+
+- `frontend/src/pages/MamaResourceApplyPage.test.mjs`
+- `frontend/src/pages/MamaResourceApplyPage.tsx`
+- `docs/ACTIVE_CONTEXT.md`
+
+`docs/ACTIVE_CONTEXT.md` now explicitly lists mobile Web authenticated runtime and visual review in the Mama Haozhuan waiting condition.
+
+### Verification
+
+- `/Users/xuduoyu/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node --test frontend/src/pages/MamaResourceApplyPage.test.mjs`: PASS, 19/19.
+- `npm run build` from `frontend/`: PASS (`tsc` and Vite build exited 0); the existing large-chunk warning remains.
+
+### Review-fix self-review
+
+- A late upload result cannot replace task B's screenshot, error, or success message.
+- A late submit result updates task A in the list but cannot replace task B's detail, proof fields, error, or success message.
+- Closing by overlay, close button, or Escape uses the same close state and returns focus to the opener.
+- While the modal is open, captured Tab/Shift+Tab stays on its only interactive control, so background controls are not keyboard reachable.
+- Authenticated runtime and visual verification remain unperformed; no screenshot is claimed.

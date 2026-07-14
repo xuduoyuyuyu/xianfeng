@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import InlineLoginForm from "../components/InlineLoginForm";
@@ -159,6 +159,11 @@ function taskIdentity(task: MamaResourceTask): string {
   return String(task.taskId || task._id || "").trim();
 }
 
+function isSameTaskIdentity(task: MamaResourceTask | null, identity: string): boolean {
+  const currentIdentity = String(task?.taskId || task?._id || "").trim();
+  return Boolean(currentIdentity && identity && currentIdentity === identity);
+}
+
 function replaceClaimedTask(tasks: MamaResourceTask[], availableTasks: MamaResourceTask[], claimedTask: MamaResourceTask) {
   const identity = (task: MamaResourceTask) => String(task.taskId || task._id || "").trim();
   const claimedId = identity(claimedTask);
@@ -209,6 +214,28 @@ function MamaResourceTaskCard({ task, onOpen }: { task: MamaResourceTask; onOpen
 
 function MamaResourceTaskDetail({ task, claiming, claimError, proofLink, proofScreenshotUrl, proofUploading, proofSubmitting, proofError, proofMessage, linkDialogOpen, onBack, onClaim, onOpenLink, onCloseLink, onProofLinkChange, onProofScreenshotChange, onSubmitProof }: { task: MamaResourceTask; claiming: boolean; claimError: string; proofLink: string; proofScreenshotUrl: string; proofUploading: boolean; proofSubmitting: boolean; proofError: string; proofMessage: string; linkDialogOpen: boolean; onBack: () => void; onClaim: () => void; onOpenLink: () => void; onCloseLink: () => void; onProofLinkChange: (value: string) => void; onProofScreenshotChange: (event: React.ChangeEvent<HTMLInputElement>) => void; onSubmitProof: () => void }) {
   const contentUrl = task.contentUrl?.trim() || "";
+  const contentLinkOpenerRef = useRef<HTMLButtonElement | null>(null);
+  const contentLinkCloseRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!linkDialogOpen) return;
+    contentLinkCloseRef.current?.focus();
+    const handleModalKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseLink();
+      } else if (event.key === "Tab") {
+        event.preventDefault();
+        contentLinkCloseRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", handleModalKeyDown, true);
+    return () => {
+      document.removeEventListener("keydown", handleModalKeyDown, true);
+      contentLinkOpenerRef.current?.focus();
+    };
+  }, [linkDialogOpen]);
+
   return (
     <div className="grid gap-[12px]">
       <button type="button" onClick={onBack} className="w-fit rounded-full bg-white px-[13px] py-[8px] text-[12px] font-black text-[#6c27d6]">‹ 返回任务列表</button>
@@ -229,7 +256,7 @@ function MamaResourceTaskDetail({ task, claiming, claimError, proofLink, proofSc
         <div className="mt-[14px] border-t border-[#eee9f4] pt-[12px]"><div className="text-[13px] font-black">结算标准</div><p className="mt-[5px] text-[12px] font-semibold leading-[1.65] text-[#6b6474]">{task.settlementStandard || "按项目要求发布并保留，后台审核通过后结算。"}</p></div>
         <div className="mt-[12px] border-t border-[#eee9f4] pt-[12px]"><div className="text-[13px] font-black">项目要求</div><p className="mt-[5px] text-[12px] font-semibold leading-[1.65] text-[#6b6474]">{task.requirement || "提交小红书笔记链接和完成截图，否则无法结算。"}</p></div>
         {task.exampleImageUrls?.length ? <div className="mt-[10px] grid grid-cols-2 gap-[8px]">{task.exampleImageUrls.map((url) => <img key={url} src={url} alt="任务示例" className="w-full rounded-[10px] object-cover" />)}</div> : null}
-        {contentUrl ? <button type="button" onClick={onOpenLink} className="mt-[15px] w-full rounded-[13px] border border-[#d9c8ff] bg-[#f7f2ff] p-[13px] text-left text-[14px] font-black text-[#6c27d6]">你的专属任务内容 <span className="float-right">查看 ›</span></button> : null}
+        {contentUrl ? <button ref={contentLinkOpenerRef} type="button" onClick={onOpenLink} className="mt-[15px] w-full rounded-[13px] border border-[#d9c8ff] bg-[#f7f2ff] p-[13px] text-left text-[14px] font-black text-[#6c27d6]">你的专属任务内容 <span className="float-right">查看 ›</span></button> : null}
         {task.claimable ? <button type="button" disabled={claiming} onClick={onClaim} className="mt-[15px] w-full rounded-[13px] bg-[#6c27d6] p-[13px] text-[14px] font-black text-white disabled:bg-[#c8c2d3]">{claiming ? "领取中..." : "立即领取"}</button> : null}
         {claimError ? <p className="mt-[10px] text-[12px] font-bold text-[#be123c]">{claimError}</p> : null}
       </div>
@@ -248,7 +275,7 @@ function MamaResourceTaskDetail({ task, claiming, claimError, proofLink, proofSc
       </div> : null}
       {linkDialogOpen && contentUrl ? <div role="presentation" onClick={onCloseLink} className="fixed inset-0 z-[80] flex items-end justify-center bg-black/45 p-[14px] sm:items-center">
         <div role="dialog" aria-modal="true" aria-labelledby="mama-content-link-title" onClick={(event) => event.stopPropagation()} className="w-full max-w-[520px] rounded-[20px] bg-white p-[17px] shadow-2xl">
-          <div className="flex items-start justify-between gap-[12px]"><div><h3 id="mama-content-link-title" className="text-[18px] font-black text-[#151222]">资料链接</h3><p className="mt-[4px] text-[12px] font-bold text-[#6b6474]">{task.title}</p></div><button type="button" aria-label="关闭资料链接" onClick={onCloseLink} className="h-[32px] w-[32px] rounded-full bg-[#f3eaff] text-[18px] font-black text-[#6c27d6]">×</button></div>
+          <div className="flex items-start justify-between gap-[12px]"><div><h3 id="mama-content-link-title" className="text-[18px] font-black text-[#151222]">资料链接</h3><p className="mt-[4px] text-[12px] font-bold text-[#6b6474]">{task.title}</p></div><button ref={contentLinkCloseRef} type="button" aria-label="关闭资料链接" onClick={onCloseLink} className="h-[32px] w-[32px] rounded-full bg-[#f3eaff] text-[18px] font-black text-[#6c27d6]">×</button></div>
           <p className="mt-[16px] text-[12px] font-extrabold text-[#6b6474]">长按可复制：</p>
           <div className="mt-[7px] select-all break-all rounded-[12px] bg-[#f7f3ff] p-[12px] text-[13px] font-bold leading-[1.65] text-[#3f246f]">{contentUrl}</div>
         </div>
@@ -321,6 +348,7 @@ const MamaResourceApplyPage: React.FC = () => {
   const [tasks, setTasks] = useState<MamaResourceTask[]>([]);
   const [availableTasks, setAvailableTasks] = useState<MamaResourceTask[]>([]);
   const [selectedTask, setSelectedTask] = useState<MamaResourceTask | null>(null);
+  const selectedTaskRef = useRef<MamaResourceTask | null>(null);
   const [taskClaiming, setTaskClaiming] = useState(false);
   const [taskClaimError, setTaskClaimError] = useState("");
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
@@ -419,6 +447,7 @@ const MamaResourceApplyPage: React.FC = () => {
   };
 
   const openTask = (task: MamaResourceTask) => {
+    selectedTaskRef.current = task;
     setSelectedTask(task);
     setTaskClaimError("");
     setLinkDialogOpen(false);
@@ -439,6 +468,7 @@ const MamaResourceApplyPage: React.FC = () => {
       const replacement = replaceClaimedTask(tasks, availableTasks, claimedTask);
       setTasks(replacement.tasks);
       setAvailableTasks(replacement.availableTasks);
+      selectedTaskRef.current = claimedTask;
       setSelectedTask(claimedTask);
       setProofLink(claimedTask.proofLink || "");
       setProofScreenshotUrl(claimedTask.proofScreenshotUrl || "");
@@ -452,15 +482,18 @@ const MamaResourceApplyPage: React.FC = () => {
 
   const handleProofScreenshotChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || proofUploading || proofSubmitting) return;
+    if (!file || !selectedTask || proofUploading || proofSubmitting) return;
+    const initiatingTaskId = taskIdentity(selectedTask);
     setProofUploading(true);
     setProofError("");
     setProofMessage("");
     try {
       const response = await publicApi.uploadMamaResourceScreenshot(file);
+      if (!isSameTaskIdentity(selectedTaskRef.current, initiatingTaskId)) return;
       setProofScreenshotUrl(response.data.url || "");
       setProofMessage("完成截图已上传。");
     } catch (error: any) {
+      if (!isSameTaskIdentity(selectedTaskRef.current, initiatingTaskId)) return;
       setProofError(error?.response?.data?.message || error?.message || "截图上传失败，请稍后重试");
     } finally {
       setProofUploading(false);
@@ -470,6 +503,7 @@ const MamaResourceApplyPage: React.FC = () => {
 
   const submitSelectedTaskProof = async () => {
     if (!selectedTask || selectedTask.claimable || proofUploading || proofSubmitting) return;
+    const initiatingTaskId = taskIdentity(selectedTask);
     setProofSubmitting(true);
     setProofError("");
     setProofMessage("");
@@ -479,12 +513,15 @@ const MamaResourceApplyPage: React.FC = () => {
         proofScreenshotUrl,
       });
       const updatedTask = response.data.task;
-      setSelectedTask(updatedTask);
       setTasks((current) => current.map((task) => taskIdentity(task) === taskIdentity(updatedTask) ? updatedTask : task));
+      if (!isSameTaskIdentity(selectedTaskRef.current, initiatingTaskId)) return;
+      selectedTaskRef.current = updatedTask;
+      setSelectedTask(updatedTask);
       setProofLink(updatedTask.proofLink || proofLink);
       setProofScreenshotUrl(updatedTask.proofScreenshotUrl || proofScreenshotUrl);
       setProofMessage("回填已提交。");
     } catch (error: any) {
+      if (!isSameTaskIdentity(selectedTaskRef.current, initiatingTaskId)) return;
       setProofError(error?.response?.data?.message || error?.message || "回填提交失败，请稍后重试");
     } finally {
       setProofSubmitting(false);
@@ -623,7 +660,10 @@ const MamaResourceApplyPage: React.FC = () => {
               proofError={proofError}
               proofMessage={proofMessage}
               linkDialogOpen={linkDialogOpen}
-              onBack={() => setPageMode("tasks")}
+              onBack={() => {
+                selectedTaskRef.current = null;
+                setPageMode("tasks");
+              }}
               onClaim={claimSelectedTask}
               onOpenLink={() => setLinkDialogOpen(true)}
               onCloseLink={() => setLinkDialogOpen(false)}

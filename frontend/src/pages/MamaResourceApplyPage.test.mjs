@@ -21,6 +21,7 @@ function sourceFunction(name) {
     if (depth === 0) {
       return source.slice(start, index + 1)
         .replaceAll(": MamaResourceTask[]", "")
+        .replaceAll(": MamaResourceTask | null", "")
         .replaceAll(": MamaResourceTask", "")
         .replaceAll(": boolean", "")
         .replaceAll(": string", "");
@@ -246,6 +247,27 @@ test("assigned task detail uploads and submits proof while preserving returned t
   assert.match(source, /提交回填/);
   assert.match(source, /setSelectedTask\(updatedTask\)/);
   assert.match(source, /setTasks\(\(current\) => current\.map/);
+});
+
+test("proof async results only update the task that initiated the action", () => {
+  const isSameTaskIdentity = evaluateHelper("isSameTaskIdentity");
+  assert.equal(isSameTaskIdentity({ _id: "task-a" }, "task-a"), true);
+  assert.equal(isSameTaskIdentity({ _id: "task-b" }, "task-a"), false);
+  assert.equal(isSameTaskIdentity(null, "task-a"), false);
+  assert.match(source, /const initiatingTaskId = taskIdentity\(selectedTask\);/);
+  assert.match(source, /if \(!isSameTaskIdentity\(selectedTaskRef\.current, initiatingTaskId\)\) return;/);
+  assert.match(source, /setTasks\(\(current\) => current\.map[\s\S]*if \(!isSameTaskIdentity\(selectedTaskRef\.current, initiatingTaskId\)\) return;/);
+});
+
+test("content-link modal owns focus and supports Escape dismissal", () => {
+  assert.match(source, /const contentLinkOpenerRef = useRef<HTMLButtonElement \| null>\(null\);/);
+  assert.match(source, /const contentLinkCloseRef = useRef<HTMLButtonElement \| null>\(null\);/);
+  assert.match(source, /contentLinkCloseRef\.current\?\.focus\(\)/);
+  assert.match(source, /event\.key === "Escape"/);
+  assert.match(source, /event\.key === "Tab"/);
+  assert.match(source, /contentLinkOpenerRef\.current\?\.focus\(\)/);
+  assert.match(source, /ref=\{contentLinkOpenerRef\}/);
+  assert.match(source, /ref=\{contentLinkCloseRef\}/);
 });
 
 test("mama resource tasks expose assignment content URLs", () => {

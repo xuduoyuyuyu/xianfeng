@@ -26,7 +26,7 @@ submission.
 | Workstream | State | Waiting on |
 | --- | --- | --- |
 | WeChat mini-program virtual payment | active | WeChat后台 product/callback config, public HTTPS sandbox callback/backend, and DevTools/device sandbox validation |
-| Mama Haozhuan task dispatch | active | Admin and mini-program runtime review of per-user content links; SMS intentionally excluded |
+| Mama Haozhuan task dispatch | active | Admin and mini-program runtime review of per-user content links, plus mobile Web authenticated runtime and visual review; SMS intentionally excluded |
 | Governance bootstrap | active | Review of newly added docs and whether to keep the local `evolab/` clone inside this checkout |
 | Xiaowanzi treasure box welfare | active | Rendered public/admin review after the local app is running |
 | Existing frontend visual changes | unknown | Owner of pre-existing modifications in `frontend/public/screens/admin.css`, `frontend/public/screens/public.css`, and `frontend/src/pages/LandingPage.tsx` |
