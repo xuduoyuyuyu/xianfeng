@@ -759,6 +759,8 @@ export interface MamaResourceTaskAssignment {
   status: MamaResourceTaskAssignmentStatus;
   proofLink?: string;
   proofScreenshotUrl?: string;
+  transferScreenshotUrl?: string;
+  transferScreenshotUpdatedAt?: string | null;
   submittedAt?: string | null;
   reviewedAt?: string | null;
   reviewNote?: string;

@@ -272,6 +272,14 @@ test("assigned task detail uploads and submits proof while preserving returned t
   assert.match(source, /setTasks\(\(current\) => current\.map/);
 });
 
+test("assigned task detail shows a read-only transfer credential when present", () => {
+  assert.match(source, /task\.transferScreenshotUrl \? <div/);
+  assert.match(source, /转账凭证/);
+  assert.match(source, /href=\{task\.transferScreenshotUrl\}/);
+  assert.match(source, /src=\{task\.transferScreenshotUrl\}/);
+  assert.match(source, /alt="任务转账凭证"/);
+});
+
 test("proof async results only update the task that initiated the action", () => {
   const isSameTaskIdentity = evaluateHelper("isSameTaskIdentity");
   assert.equal(isSameTaskIdentity({ _id: "task-a" }, "task-a"), true);
