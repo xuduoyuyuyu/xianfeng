@@ -174,3 +174,36 @@ test("reviewing profiles show status, review note, and profile management", () =
   assert.match(source, /资料管理/);
   assert.match(source, /setPageMode\("apply"\)/);
 });
+
+test("approved profiles render account home and complete task cards", () => {
+  assert.match(source, /function MamaResourceAccountCard/);
+  assert.match(source, /账号已通过/);
+  assert.match(source, /资料管理/);
+  assert.match(source, /function MamaResourceTaskCard/);
+  assert.match(source, /任务单价/);
+  assert.match(source, /投流补贴/);
+  assert.match(source, /推广 \{promotionCountText\(task\)\} 人/);
+  assert.match(source, /\{remainingCountText\(task\)\}/);
+  assert.match(source, /task\.contentUrl \? <span[^>]*>内容已下发<\/span> : null/);
+  assert.match(source, /暂时没有可接任务/);
+  assert.match(source, /const assignedTaskIds = new Set\(tasks\.map\(taskIdentity\)\)/);
+  assert.match(source, /availableTasks\.filter\(\(task\) => !assignedTaskIds\.has\(taskIdentity\(task\)\)\)/);
+});
+
+test("task cards open an in-page detail with claim behavior", () => {
+  assert.match(source, /function MamaResourceTaskDetail/);
+  assert.match(source, /项目信息/);
+  assert.match(source, /项目价格/);
+  assert.match(source, /结算标准/);
+  assert.match(source, /项目要求/);
+  assert.match(source, /exampleImageUrls/);
+  assert.match(source, /返回任务列表/);
+  assert.match(source, /const \[selectedTask, setSelectedTask\] = useState<MamaResourceTask \| null>\(null\);/);
+  assert.match(source, /publicApi\.claimMamaResourceTask\(taskIdentity\(selectedTask\)\)/);
+  assert.match(source, /setSelectedTask\(claimedTask\)/);
+  assert.match(source, /setPageMode\("detail"\)/);
+});
+
+test("mama resource tasks expose assignment content URLs", () => {
+  assert.match(apiSource, /export interface MamaResourceTask \{[\s\S]*contentUrl\?: string;/);
+});

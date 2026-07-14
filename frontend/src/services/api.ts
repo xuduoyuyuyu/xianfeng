@@ -732,6 +732,7 @@ export interface MamaResourceTask {
   requirement?: string;
   externalUrl?: string;
   exampleImageUrls?: string[];
+  contentUrl?: string;
   status: MamaResourceTaskStatus | MamaResourceTaskAssignmentStatus;
   proofLink?: string;
   proofScreenshotUrl?: string;

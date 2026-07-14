@@ -117,6 +117,102 @@ function profileStatusLabel(status: MamaResourceProfile["status"]): string {
   return "审核中";
 }
 
+function moneyText(value?: number | null): string {
+  const cents = Number(value || 0);
+  return cents > 0 ? `¥${(cents / 100).toFixed(2)}` : "待定";
+}
+
+function taskStatusText(status: MamaResourceTask["status"]): string {
+  if (status === "listed") return "可领取";
+  if (status === "submitted") return "待审核";
+  if (status === "collected") return "已收录";
+  if (status === "rejected") return "已驳回";
+  return "进行中";
+}
+
+function promotionCountText(task: MamaResourceTask): string {
+  const count = Number(task.promotionCount || 0);
+  return count > 0 ? String(Math.floor(count)) : "待补";
+}
+
+function remainingCountText(task: MamaResourceTask): string {
+  if (task.remainingClaimCount == null) return "不限名额";
+  const count = Number(task.remainingClaimCount);
+  if (!Number.isFinite(count)) return "不限名额";
+  return count > 0 ? `剩余${Math.floor(count)}个名额` : "已领完";
+}
+
+function taskIdentity(task: MamaResourceTask): string {
+  return String(task.taskId || task._id || "").trim();
+}
+
+function MamaResourceAccountCard({ profile, onManage }: { profile: MamaResourceProfile; onManage: () => void }) {
+  return (
+    <div className="grid grid-cols-[48px_1fr_auto] items-center gap-[11px] rounded-[18px] bg-white p-[15px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
+      <img src="/assets/mama-hao-zhuan-icon.png" alt="" className="h-[48px] w-[48px] object-contain" />
+      <div className="min-w-0">
+        <div className="text-[11px] font-black text-[#7c2ce6]">账号已通过</div>
+        <div className="mt-[2px] text-[17px] font-black text-[#151222]">妈妈好赚</div>
+        <div className="mt-[3px] truncate text-[11.5px] font-bold text-[#6b6474]">{profile.displayName || "已审核账号"} · 可接：{profile.categories.length ? profile.categories.join("、") : "亲子阅读、学习用品"}</div>
+      </div>
+      <button type="button" onClick={onManage} className="rounded-full bg-[#f3eaff] px-[12px] py-[8px] text-[12px] font-black text-[#6c27d6]">资料管理</button>
+    </div>
+  );
+}
+
+function MamaResourceTaskCard({ task, onOpen }: { task: MamaResourceTask; onOpen: () => void }) {
+  return (
+    <button type="button" onClick={onOpen} className="w-full rounded-[17px] border border-[#5e17eb]/10 bg-white p-[14px] text-left shadow-[0_7px_18px_rgba(94,23,235,0.07)]">
+      <div className="grid grid-cols-[42px_1fr_auto] gap-[10px]">
+        <img src="/assets/mama-hao-zhuan-icon.png" alt="" className="h-[42px] w-[42px] object-contain" />
+        <div className="min-w-0">
+          <div className="text-[14px] font-black text-[#151222]">{task.title}</div>
+          <div className="mt-[4px] text-[11.5px] font-bold text-[#6b6474]">{task.category || "小红书"} · {task.dataCycle || task.settlementCycle || "T+9"}</div>
+        </div>
+        <div className="text-right">
+          <div className="text-[10px] font-bold text-[#82798d]">任务单价</div>
+          <div className="mt-[2px] text-[17px] font-black text-[#ee4d87]">{moneyText(task.unitPriceCents)}</div>
+          <div className="mt-[2px] text-[10px] font-extrabold text-[#7c2ce6]">投流补贴 {moneyText(task.trafficFeeCents)}</div>
+        </div>
+      </div>
+      <div className="mt-[12px] flex flex-wrap gap-[7px] text-[10.5px] font-extrabold text-[#655d70]">
+        <span className="rounded-full bg-[#f3eaff] px-[9px] py-[5px] text-[#6c27d6]">{taskStatusText(task.status)}</span>
+        <span className="rounded-full bg-[#f6f3f9] px-[9px] py-[5px]">推广 {promotionCountText(task)} 人</span>
+        <span className="rounded-full bg-[#f6f3f9] px-[9px] py-[5px]">{remainingCountText(task)}</span>
+        {task.contentUrl ? <span className="rounded-full bg-[#efe8ff] px-[9px] py-[5px] text-[#6c27d6]">内容已下发</span> : null}
+      </div>
+    </button>
+  );
+}
+
+function MamaResourceTaskDetail({ task, claiming, claimError, onBack, onClaim }: { task: MamaResourceTask; claiming: boolean; claimError: string; onBack: () => void; onClaim: () => void }) {
+  return (
+    <div className="grid gap-[12px]">
+      <button type="button" onClick={onBack} className="w-fit rounded-full bg-white px-[13px] py-[8px] text-[12px] font-black text-[#6c27d6]">‹ 返回任务列表</button>
+      <div className="rounded-[18px] bg-white p-[15px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
+        <div className="flex items-center gap-[10px]">
+          <img src="/assets/mama-hao-zhuan-icon.png" alt="" className="h-[44px] w-[44px] object-contain" />
+          <div><h2 className="text-[18px] font-black text-[#151222]">{task.title}</h2><p className="mt-[4px] text-[11.5px] font-bold text-[#6b6474]">{task.difficulty || "简单"} · {task.phase || "测试期"} · {task.category || "小红书"}</p></div>
+        </div>
+      </div>
+      <div className="rounded-[18px] bg-white p-[15px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
+        <h3 className="text-[16px] font-black text-[#151222]">项目信息</h3>
+        <h4 className="mt-[14px] text-[13px] font-black text-[#151222]">项目价格</h4>
+        <div className="mt-[9px] grid grid-cols-3 gap-[8px] rounded-[12px] bg-[#faf8fd] p-[11px] text-center text-[11px] font-bold text-[#6b6474]">
+          <div>任务单价<strong className="mt-[4px] block text-[14px] text-[#ee4d87]">{moneyText(task.unitPriceCents)}</strong></div>
+          <div>投流补贴<strong className="mt-[4px] block text-[14px] text-[#151222]">{moneyText(task.trafficFeeCents)}</strong></div>
+          <div>结算周期<strong className="mt-[4px] block text-[14px] text-[#151222]">{task.settlementCycle || "T+9"}</strong></div>
+        </div>
+        <div className="mt-[14px] border-t border-[#eee9f4] pt-[12px]"><div className="text-[13px] font-black">结算标准</div><p className="mt-[5px] text-[12px] font-semibold leading-[1.65] text-[#6b6474]">{task.settlementStandard || "按项目要求发布并保留，后台审核通过后结算。"}</p></div>
+        <div className="mt-[12px] border-t border-[#eee9f4] pt-[12px]"><div className="text-[13px] font-black">项目要求</div><p className="mt-[5px] text-[12px] font-semibold leading-[1.65] text-[#6b6474]">{task.requirement || "提交小红书笔记链接和完成截图，否则无法结算。"}</p></div>
+        {task.exampleImageUrls?.length ? <div className="mt-[10px] grid grid-cols-2 gap-[8px]">{task.exampleImageUrls.map((url) => <img key={url} src={url} alt="任务示例" className="w-full rounded-[10px] object-cover" />)}</div> : null}
+        {task.claimable ? <button type="button" disabled={claiming} onClick={onClaim} className="mt-[15px] w-full rounded-[13px] bg-[#6c27d6] p-[13px] text-[14px] font-black text-white disabled:bg-[#c8c2d3]">{claiming ? "领取中..." : "立即领取"}</button> : null}
+        {claimError ? <p className="mt-[10px] text-[12px] font-bold text-[#be123c]">{claimError}</p> : null}
+      </div>
+    </div>
+  );
+}
+
 function toggleValue(values: string[], value: string): string[] {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
 }
@@ -180,6 +276,9 @@ const MamaResourceApplyPage: React.FC = () => {
   const [profile, setProfile] = useState<MamaResourceProfile | null>(null);
   const [tasks, setTasks] = useState<MamaResourceTask[]>([]);
   const [availableTasks, setAvailableTasks] = useState<MamaResourceTask[]>([]);
+  const [selectedTask, setSelectedTask] = useState<MamaResourceTask | null>(null);
+  const [taskClaiming, setTaskClaiming] = useState(false);
+  const [taskClaimError, setTaskClaimError] = useState("");
   const [loadError, setLoadError] = useState("");
   const [requiresLogin, setRequiresLogin] = useState(false);
   const loggedInMobile = String(user?.mobile || "").trim();
@@ -223,6 +322,10 @@ const MamaResourceApplyPage: React.FC = () => {
   }, [loggedInMobile]);
 
   const profileOverview = useMemo(() => buildProfileOverview(form), [form]);
+  const visibleTasks = useMemo(() => {
+    const assignedTaskIds = new Set(tasks.map(taskIdentity));
+    return [...tasks, ...availableTasks.filter((task) => !assignedTaskIds.has(taskIdentity(task)))];
+  }, [tasks, availableTasks]);
 
   const canSubmit = useMemo(() => {
     return Boolean(
@@ -262,6 +365,31 @@ const MamaResourceApplyPage: React.FC = () => {
   const saveCurrentProfileSectionAndBack = () => {
     setMessage("");
     setProfileManagerMode("overview");
+  };
+
+  const openTask = (task: MamaResourceTask) => {
+    setSelectedTask(task);
+    setTaskClaimError("");
+    setPageMode("detail");
+  };
+
+  const claimSelectedTask = async () => {
+    if (!selectedTask || taskClaiming) return;
+    setTaskClaiming(true);
+    setTaskClaimError("");
+    try {
+      const response = await publicApi.claimMamaResourceTask(taskIdentity(selectedTask));
+      const claimedTask = response.data.task;
+      const claimedId = taskIdentity(claimedTask);
+      setTasks((current) => [...current.filter((task) => taskIdentity(task) !== claimedId), claimedTask]);
+      setAvailableTasks((current) => current.filter((task) => taskIdentity(task) !== claimedId));
+      setSelectedTask(claimedTask);
+      setPageMode("detail");
+    } catch (error: any) {
+      setTaskClaimError(error?.response?.data?.message || error?.message || "领取失败，请稍后重试");
+    } finally {
+      setTaskClaiming(false);
+    }
   };
 
   const handleScreenshotChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -378,11 +506,20 @@ const MamaResourceApplyPage: React.FC = () => {
               <button type="button" onClick={() => setPageMode("apply")} className="mt-[14px] rounded-full border border-[#6c27d6] px-[15px] py-[8px] text-[12px] font-black text-[#6c27d6]">资料管理</button>
             </div>
           ) : pageMode === "tasks" && profile ? (
-            <div className="rounded-[17px] border border-[#5e17eb]/15 bg-white px-[14px] py-[18px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
-              <h2 className="text-[19px] font-black text-[#151222]">账号已通过</h2>
-              <p className="mt-[6px] text-[12px] font-bold text-[#6b6474]">已分配 {tasks.length} 个任务，可领取 {availableTasks.length} 个任务</p>
-              <button type="button" onClick={() => setPageMode("apply")} className="mt-[14px] rounded-full border border-[#6c27d6] px-[15px] py-[8px] text-[12px] font-black text-[#6c27d6]">资料管理</button>
+            <div className="grid gap-[12px]">
+              <MamaResourceAccountCard profile={profile} onManage={() => setPageMode("apply")} />
+              {visibleTasks.length ? visibleTasks.map((task) => (
+                <MamaResourceTaskCard key={taskIdentity(task)} task={task} onOpen={() => openTask(task)} />
+              )) : <div className="rounded-[17px] bg-white px-[14px] py-[24px] text-center text-[13px] font-bold text-[#6b6474]">暂时没有可接任务</div>}
             </div>
+          ) : pageMode === "detail" && selectedTask ? (
+            <MamaResourceTaskDetail
+              task={selectedTask}
+              claiming={taskClaiming}
+              claimError={taskClaimError}
+              onBack={() => setPageMode("tasks")}
+              onClaim={claimSelectedTask}
+            />
           ) : pageMode === "apply" ? (
             <form id="mama-resource-apply-form" onSubmit={handleSubmit} className="rounded-[17px] border border-[#5e17eb]/15 bg-white px-[14px] py-[15px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
               <div className="mb-[11px] flex items-center justify-between gap-[9px]">
