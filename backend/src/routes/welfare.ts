@@ -91,7 +91,7 @@ router.post("/campaigns/:id/claims", authenticate, async (req: AuthenticatedRequ
         return;
       }
       const updated = await WelfareCampaign.findOneAndUpdate(
-        { _id: campaign._id, claimedCount: { $lt: campaign.totalStock } },
+        { _id: campaign._id, $expr: { $lt: ["$claimedCount", "$totalStock"] } },
         { $inc: { claimedCount: 1 } },
         { returnDocument: "after" }
       );
@@ -139,7 +139,7 @@ router.post("/campaigns/:id/claims", authenticate, async (req: AuthenticatedRequ
     }
 
     const updated = await WelfareCampaign.findOneAndUpdate(
-      { _id: campaign._id, claimedCount: { $lt: campaign.totalStock } },
+      { _id: campaign._id, $expr: { $lt: ["$claimedCount", "$totalStock"] } },
       { $inc: { claimedCount: 1 } },
       { returnDocument: "after" }
     );

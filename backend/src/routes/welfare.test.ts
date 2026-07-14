@@ -351,6 +351,87 @@ describe("welfare campaign routes", () => {
     }
   });
 
+  it("uses current campaign stock when reserving activation-code and ordinary claims", async () => {
+    const now = new Date("2026-07-02T08:00:00.000Z");
+    const activationUser = await User.create({
+      username: "activation-stock-race-user",
+      password: "hash",
+      mobile: "13800138007",
+      role: "user",
+    });
+    const activationCampaign = await WelfareCampaign.create({
+      title: "激活码并发降库存",
+      totalStock: 1,
+      startsAt: new Date("2026-07-01T00:00:00.000Z"),
+      endsAt: new Date("2026-07-08T00:00:00.000Z"),
+      status: "published",
+    });
+    const activationCode = await WelfareActivationCode.create({
+      campaignId: activationCampaign._id,
+      code: "STOCK-RACE-CODE",
+      importIndex: 0,
+    });
+    const originalFindOneAndUpdate = WelfareActivationCode.findOneAndUpdate.bind(WelfareActivationCode);
+    WelfareActivationCode.findOneAndUpdate = (async (...args: any[]) => {
+      const code = await originalFindOneAndUpdate(...args);
+      await WelfareCampaign.updateOne({ _id: activationCampaign._id }, { $set: { totalStock: 0 } });
+      return code;
+    }) as any;
+
+    try {
+      const response = await fetch(`${server.publicUrl}/campaigns/${activationCampaign._id}/claims`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${userToken(String(activationUser._id))}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ now: now.toISOString() }),
+      });
+      assert.equal(response.status, 409);
+      assert.equal((await WelfareCampaign.findById(activationCampaign._id).lean())?.claimedCount, 0);
+      assert.equal(await WelfareClaim.countDocuments({ campaignId: activationCampaign._id }), 0);
+      assert.equal((await WelfareActivationCode.findById(activationCode._id).lean())?.claimId, null);
+    } finally {
+      WelfareActivationCode.findOneAndUpdate = originalFindOneAndUpdate as any;
+    }
+
+    const ordinaryUser = await User.create({
+      username: "ordinary-stock-race-user",
+      password: "hash",
+      mobile: "13800138008",
+      role: "user",
+    });
+    const ordinaryCampaign = await WelfareCampaign.create({
+      title: "普通并发降库存",
+      totalStock: 1,
+      startsAt: new Date("2026-07-01T00:00:00.000Z"),
+      endsAt: new Date("2026-07-08T00:00:00.000Z"),
+      status: "published",
+    });
+    const originalCountDocuments = WelfareActivationCode.countDocuments.bind(WelfareActivationCode);
+    WelfareActivationCode.countDocuments = (async (...args: any[]) => {
+      const count = await originalCountDocuments(...args);
+      await WelfareCampaign.updateOne({ _id: ordinaryCampaign._id }, { $set: { totalStock: 0 } });
+      return count;
+    }) as any;
+
+    try {
+      const response = await fetch(`${server.publicUrl}/campaigns/${ordinaryCampaign._id}/claims`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${userToken(String(ordinaryUser._id))}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ now: now.toISOString() }),
+      });
+      assert.equal(response.status, 409);
+      assert.equal((await WelfareCampaign.findById(ordinaryCampaign._id).lean())?.claimedCount, 0);
+      assert.equal(await WelfareClaim.countDocuments({ campaignId: ordinaryCampaign._id }), 0);
+    } finally {
+      WelfareActivationCode.countDocuments = originalCountDocuments as any;
+    }
+  });
+
   it("imports activation codes, assigns them in order, and exports claim reconciliation data", async () => {
     const now = new Date("2026-07-02T08:00:00.000Z");
     const firstUser = await User.create({
