@@ -15234,7 +15234,7 @@ test("webview native program detail page keeps program, book, and topic details 
             ],
             transcript: [
               { time: "0:00:05", speaker: "阿力", text: "国际教育也叫国际化教育，教育需要长期投入。", featured: true },
-              { time: "00:00:22-00:00:26", speaker: "张琳", text: "这段没有词典内容。" },
+              { time: "00:00:22-00:00:26", speaker: "张琳", text: "后面再说国际化教育和教育。" },
               { time: "00:20-00:35", speaker: "张琳", text: "第三段。" },
               { time: "00:00:20.66", speaker: "张琳", text: "第四段。" },
               { time: "00:22", speaker: "张琳", text: "第五段。" },
@@ -15710,15 +15710,13 @@ test("webview native program detail page keeps program, book, and topic details 
       context.data.nativeProgram.transcript[0].contentNodes.map((node) => [node.type, node.text, node.term || ""]),
       [
         ["dictionary", "国际教育", "国际教育"],
-        ["text", "也叫", ""],
-        ["dictionary", "国际化教育", "国际教育"],
-        ["text", "，", ""],
+        ["text", "也叫国际化教育，", ""],
         ["dictionary", "教育", "教育"],
         ["text", "需要长期投入。", ""]
       ]
     );
     assert.deepEqual(context.data.nativeProgram.transcript[1].contentNodes, [
-      { type: "text", text: "这段没有词典内容。" }
+      { type: "text", text: "后面再说国际化教育和教育。" }
     ]);
     assert.equal(context.data.nativeProgram.dictionaryEntries.length, 2);
     const requestCountBeforeDictionaryInteraction = requests.length;
@@ -15743,6 +15741,7 @@ test("webview native program detail page keeps program, book, and topic details 
     context.data.selectedProgramDictionaryEntry = selectedDictionaryEntry;
     await definition.loadNativeProgram.call(context, "abc");
     assert.equal(context.data.selectedProgramDictionaryEntry, null);
+    assert.equal(context.data.nativeProgram.transcript[0].contentNodes[0].type, "dictionary");
     requests.pop();
     requestOptions.pop();
     assert.equal(context.data.nativeProgram.hasExtension, true);

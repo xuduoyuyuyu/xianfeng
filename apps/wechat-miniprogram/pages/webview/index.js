@@ -615,7 +615,7 @@ function normalizeProgramDictionaryEntries(value) {
     .filter(Boolean);
 }
 
-function buildTranscriptDictionaryNodes(value, entries) {
+function buildTranscriptDictionaryNodes(value, entries, seenEntryIds) {
   const text = String(value || "");
   const candidates = (Array.isArray(entries) ? entries : [])
     .flatMap((entry) => entry.matchTerms.map((matchText) => ({ entry, matchText })))
@@ -626,12 +626,19 @@ function buildTranscriptDictionaryNodes(value, entries) {
   while (cursor < text.length) {
     const matched = candidates.find((candidate) => text.startsWith(candidate.matchText, cursor));
     if (matched) {
-      nodes.push({
-        type: "dictionary",
-        text: matched.matchText,
-        entryId: matched.entry.id,
-        term: matched.entry.term
-      });
+      if (!seenEntryIds.has(matched.entry.id)) {
+        nodes.push({
+          type: "dictionary",
+          text: matched.matchText,
+          entryId: matched.entry.id,
+          term: matched.entry.term
+        });
+        seenEntryIds.add(matched.entry.id);
+      } else {
+        const previous = nodes[nodes.length - 1];
+        if (previous && previous.type === "text") previous.text += matched.matchText;
+        else nodes.push({ type: "text", text: matched.matchText });
+      }
       cursor += matched.matchText.length;
       continue;
     }
@@ -644,6 +651,7 @@ function buildTranscriptDictionaryNodes(value, entries) {
 }
 
 function normalizeTranscript(value, dictionaryEntries) {
+  const seenEntryIds = new Set();
   return Array.isArray(value)
     ? value
       .map((item) => {
@@ -654,7 +662,7 @@ function normalizeTranscript(value, dictionaryEntries) {
           speaker,
           speakerLabel: formatProgramTranscriptSpeaker(speaker),
           text,
-          contentNodes: buildTranscriptDictionaryNodes(text, dictionaryEntries),
+          contentNodes: buildTranscriptDictionaryNodes(text, dictionaryEntries, seenEntryIds),
           featured: Boolean(item && item.featured)
         };
       })
