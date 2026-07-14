@@ -89,6 +89,7 @@ describe("welfare campaign routes", () => {
         endsAt: "2026-07-08T00:00:00.000Z",
         status: "published",
         sortOrder: 9,
+        now: now.toISOString(),
       }),
     });
     assert.equal(activeResponse.status, 201);
