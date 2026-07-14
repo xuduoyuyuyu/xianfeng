@@ -21,6 +21,10 @@ mobile Web task-management dialog and open it externally. The mobile Web flow
 now mirrors account-state routing, assigned/claimable tasks, detail, and proof
 submission.
 
+Welfare campaigns with activation codes cap total stock at the imported-code
+count and floor it at the claimed count. The admin UI reports the actual saved
+stock whenever the backend adjusts an operator-entered value.
+
 ## Live / Waiting Workstreams
 
 | Workstream | State | Waiting on |
