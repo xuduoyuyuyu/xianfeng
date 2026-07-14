@@ -76,13 +76,13 @@
 }
 
 .xf-custom-tabbar__icon.is-xiaowanzi-icon {
-  width: 42px;
-  height: 42px;
+  width: 48px;
+  height: 48px;
 }
 
 .xf-custom-tabbar__orb {
-  width: 42px;
-  height: 42px;
+  width: 48px;
+  height: 48px;
   border-radius: 999px;
   display: flex;
   align-items: center;

@@ -308,8 +308,8 @@ test("custom tab bar matches the website mobile tab sizing and opens Xiaowanzi s
   assert.match(wxss, /\.xf-custom-tabbar__item\.is-xiaowanzi\.is-pressed \.xf-custom-tabbar__orb \{[\s\S]*transform: scale\(1\.16\);/);
   assert.match(wxss, /\.xf-custom-tabbar__icon \{[\s\S]*width: 22px;[\s\S]*height: 22px;/);
   assert.match(wxss, /\.xf-custom-tabbar__icon\.is-reading-source-switching \{[\s\S]*animation: xf-reading-source-bounce 520ms cubic-bezier\(0\.2, 0\.9, 0\.22, 1\);[\s\S]*transform-origin: 50% 50%;/);
-  assert.match(wxss, /\.xf-custom-tabbar__icon\.is-xiaowanzi-icon \{[\s\S]*width: 42px;[\s\S]*height: 42px;/);
-  assert.match(wxss, /\.xf-custom-tabbar__orb \{[\s\S]*width: 42px;[\s\S]*height: 42px;[\s\S]*background: transparent;[\s\S]*box-shadow: none;/);
+  assert.match(wxss, /\.xf-custom-tabbar__icon\.is-xiaowanzi-icon \{[\s\S]*width: 48px;[\s\S]*height: 48px;/);
+  assert.match(wxss, /\.xf-custom-tabbar__orb \{[\s\S]*width: 48px;[\s\S]*height: 48px;[\s\S]*background: transparent;[\s\S]*box-shadow: none;/);
   assert.match(wxss, /@keyframes xf-reading-source-bounce/);
   assert.doesNotMatch(wxss, /xf-reading-source-aura|xf-reading-source-morph|rotateY|radial-gradient/);
   assert.match(wxss, /translateY\(-5px\) scale\(1\.14\)/);
