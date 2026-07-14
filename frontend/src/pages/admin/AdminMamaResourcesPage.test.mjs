@@ -155,6 +155,17 @@ test("admin mama resources detail editing is handled in a modal instead of a rig
   assert.doesNotMatch(source, /选择一条资源后，可以补充账号基础数据/);
 });
 
+test("admin mama resource profiles mask Alipay accounts in lists and edit full settlement details", () => {
+  assert.match(source, /function maskAlipayAccount\(value: string \| undefined\)/);
+  assert.match(source, /maskAlipayAccount\(profile\.alipayAccount\)/);
+  assert.match(source, /setManualAlipayAccount\(profile\.alipayAccount \|\| ""\)/);
+  assert.match(source, /setManualAlipayVerifiedName\(profile\.alipayVerifiedName \|\| ""\)/);
+  assert.match(source, /alipayAccount: manualAlipayAccount\.trim\(\)/);
+  assert.match(source, /alipayVerifiedName: manualAlipayVerifiedName\.trim\(\)/);
+  assert.match(source, /支付宝账号[\s\S]*value=\{manualAlipayAccount\}/);
+  assert.match(source, /支付宝验证姓名[\s\S]*value=\{manualAlipayVerifiedName\}/);
+});
+
 test("admin task assignments support manual and previewed personal content link imports", () => {
   assert.match(source, /已配置 \{configuredContentCount\}\/\{assignments\.length\}/);
   assert.match(source, /专属内容链接/);

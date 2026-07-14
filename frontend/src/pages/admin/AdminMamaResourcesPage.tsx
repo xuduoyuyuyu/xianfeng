@@ -175,6 +175,13 @@ function toCount(value?: number | null): string {
   return Number(value).toLocaleString("zh-CN");
 }
 
+function maskAlipayAccount(value: string | undefined): string {
+  const account = String(value || "").trim();
+  if (!account) return "未填支付宝";
+  if (account.length <= 4) return `${account.slice(0, 1)}***`;
+  return `${account.slice(0, 3)}****${account.slice(-3)}`;
+}
+
 function realNameLabel(value?: boolean | null): string {
   if (value === true) return "已实名认证";
   if (value === false) return "未实名认证";
@@ -242,6 +249,8 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
   const [riskTagsText, setRiskTagsText] = useState("");
   const [manualFollowerCount, setManualFollowerCount] = useState("");
   const [manualNickname, setManualNickname] = useState("");
+  const [manualAlipayAccount, setManualAlipayAccount] = useState("");
+  const [manualAlipayVerifiedName, setManualAlipayVerifiedName] = useState("");
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const isReviewMode = mode === "review";
@@ -322,6 +331,8 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
     setRiskTagsText((profile.reviewNote?.riskTags || []).join("、"));
     setManualFollowerCount(profile.socialAccount?.followerCount ? String(profile.socialAccount.followerCount) : "");
     setManualNickname(profile.socialAccount?.nickname || "");
+    setManualAlipayAccount(profile.alipayAccount || "");
+    setManualAlipayVerifiedName(profile.alipayVerifiedName || "");
   };
 
   const closeEdit = () => {
@@ -356,10 +367,20 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
 
   const saveManualData = async () => {
     if (!editing || saving) return;
+    if (!manualAlipayAccount.trim()) {
+      setToast("请填写支付宝账号");
+      return;
+    }
+    if (!manualAlipayVerifiedName.trim()) {
+      setToast("请填写支付宝验证姓名");
+      return;
+    }
     setSaving(true);
     setToast("");
     try {
       const updateResponse = await adminApi.updateMamaResource(editing._id, {
+        alipayAccount: manualAlipayAccount.trim(),
+        alipayVerifiedName: manualAlipayVerifiedName.trim(),
         socialAccount: {
           ...editing.socialAccount,
           nickname: manualNickname.trim(),
@@ -734,6 +755,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                 <div className="font-black text-stone-900">{profile.displayName}</div>
                 <a className="mt-1 block truncate text-xs font-semibold text-[#6c27d6]" href={profile.socialAccount.profileUrl} target="_blank" rel="noreferrer">{profile.socialAccount.nickname || profile.socialAccount.profileUrl}</a>
                 <div className="mt-1 text-xs text-stone-500">{profile.city || "未填城市"} · {profile.childStage || "未填阶段"} · {profile.childGender || "未填性别"}</div>
+                <div className="mt-1 text-xs font-semibold text-stone-500">{maskAlipayAccount(profile.alipayAccount)}</div>
                 <div className="mt-1 text-xs font-semibold text-stone-500">
                   {realNameLabel(profile.socialAccount.realNameVerified)}
                   {profile.socialAccount.screenshotUrl ? <a className="ml-2 text-[#6c27d6]" href={profile.socialAccount.screenshotUrl} target="_blank" rel="noreferrer">主页截图</a> : <span className="ml-2">未传截图</span>}
@@ -782,6 +804,8 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <label className="text-sm font-bold text-stone-700">账号昵称<input value={manualNickname} onChange={(event) => setManualNickname(event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" /></label>
                   <label className="text-sm font-bold text-stone-700">粉丝数<input value={manualFollowerCount} onChange={(event) => setManualFollowerCount(event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="人工补录" /></label>
+                  <label className="text-sm font-bold text-stone-700">支付宝账号<input value={manualAlipayAccount} onChange={(event) => setManualAlipayAccount(event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="用于任务结算转账" /></label>
+                  <label className="text-sm font-bold text-stone-700">支付宝验证姓名<input value={manualAlipayVerifiedName} onChange={(event) => setManualAlipayVerifiedName(event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="支付宝实名认证姓名" /></label>
                 </div>
                 <div className="mt-3 grid gap-3">
                   <label className="text-sm font-bold text-stone-700">审核状态<select value={reviewStatus} onChange={(event) => setReviewStatus(event.target.value as MamaResourceStatus)} className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm">{statusOptions.filter((item) => item.value !== "all").map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
