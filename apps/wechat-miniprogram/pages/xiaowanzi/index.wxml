@@ -15,7 +15,7 @@
     <text wx:if="{{childContextStatus}}" class="xf-xiaowanzi-child-boundary" style="top: {{childBoundaryTop}}px;">{{childContextStatus}}</text>
   </view>
 
-  <phone-login-gate visible="{{xiaowanziLoginRequired}}" title="登录后使用小玩子" description="授权手机号后恢复你的对话和孩子档案。" bind:success="handleXiaowanziLoginSuccess" />
+  <phone-login-gate id="xiaowanziPhoneLoginGate" visible="{{false}}" bind:success="handleXiaowanziLoginSuccess" bind:failure="handleXiaowanziLoginFailure" />
 
   <scroll-view class="xf-xiaowanzi-chat-list {{homeMode ? 'is-home' : 'is-chat'}} {{attachmentMenuOpen ? 'has-attachment-menu' : ''}} {{shareSelectionMode ? 'has-share-selection' : ''}}" scroll-y="{{true}}" enhanced="{{true}}" show-scrollbar="{{false}}" scroll-into-view="{{scrollIntoView}}" bindscroll="handleKnowledgePillScroll" style="top: {{chatTop}}px;">
     <view wx:if="{{homeMode}}" class="xf-xiaowanzi-home">
@@ -51,7 +51,7 @@
           <text class="xf-xiaowanzi-prompt-bar"></text>
           <text>可以这样问</text>
         </view>
-        <button class="xf-xiaowanzi-prompt-card {{item.compact ? 'is-compact' : ''}}" wx:for="{{quickPrompts}}" wx:key="prompt" data-value="{{item.prompt}}" catchtap="useQuickPrompt" aria-label="提交问题示例">
+        <button class="xf-xiaowanzi-prompt-card {{item.compact ? 'is-compact' : ''}}" wx:for="{{quickPrompts}}" wx:key="prompt" data-value="{{item.prompt}}" open-type="{{isLoggedIn ? '' : 'getPhoneNumber'}}" bindgetphonenumber="authorizeXiaowanziPrompt" catchtap="useQuickPrompt" aria-label="提交问题示例">
           <text class="xf-xiaowanzi-prompt-mark"></text>
           <text class="xf-xiaowanzi-prompt-text">{{item.label}}</text>
           <text class="xf-xiaowanzi-prompt-arrow"></text>
@@ -202,7 +202,7 @@
           <image class="xf-xiaowanzi-voice-icon" src="/assets/xiaowanzi-icons/voice-dark.png" mode="aspectFit" />
         </button>
         <input class="xf-xiaowanzi-input" value="{{inputValue}}" placeholder="{{pendingAttachments.length ? '帮我解读下图片内容' : '对话内容已开启隐私保护'}}" placeholder-class="xf-xiaowanzi-input-placeholder" confirm-type="send" disabled="{{sending}}" bindinput="updateInput" bindfocus="handleInputFocus" bindblur="handleInputBlur" bindconfirm="handleSend" />
-        <button class="xf-xiaowanzi-send {{sending ? 'is-stop' : 'is-send'}} {{sendPressing ? 'is-pressing' : ''}}" hover-class="is-pressed" disabled="{{!sending && !inputReady}}" bindtouchstart="startSendPress" bindtouchend="endSendPress" bindtouchcancel="endSendPress" catchtap="handleSend" aria-label="{{sending ? '停止生成' : '发送'}}">
+        <button class="xf-xiaowanzi-send {{sending ? 'is-stop' : 'is-send'}} {{sendPressing ? 'is-pressing' : ''}}" open-type="{{isLoggedIn ? '' : 'getPhoneNumber'}}" bindgetphonenumber="authorizeXiaowanziSend" hover-class="is-pressed" disabled="{{!sending && !inputReady}}" bindtouchstart="startSendPress" bindtouchend="endSendPress" bindtouchcancel="endSendPress" catchtap="handleSend" aria-label="{{sending ? '停止生成' : '发送'}}">
           <image class="xf-xiaowanzi-send-mark" src="{{sending ? '/assets/xiaowanzi-icons/stop-white.png' : '/assets/xiaowanzi-icons/send-white.png'}}" mode="aspectFit" />
         </button>
       </view>

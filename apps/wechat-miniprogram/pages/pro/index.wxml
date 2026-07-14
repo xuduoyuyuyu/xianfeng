@@ -132,7 +132,7 @@
   </view>
 
   <view class="xf-pro-pay-dock">
-    <button wx:if="{{!isLoggedIn}}" class="xf-pro-pay-button" bindtap="showLoginGate" disabled="{{loading}}">
+    <button wx:if="{{!isLoggedIn}}" class="xf-pro-pay-button" open-type="getPhoneNumber" bindgetphonenumber="loginForSubscription" disabled="{{loading}}">
       {{membership && membership.isProActive ? "登录后补充点数" : "立即订阅"}}
     </button>
     <button wx:else class="xf-pro-pay-button" bindtap="createOrder" disabled="{{ordering || loading}}">
@@ -208,4 +208,4 @@
     </scroll-view>
   </view>
 </view>
-<phone-login-gate visible="{{loginRequired}}" title="登录后订阅" description="登录成功后会刷新会员状态，不会自动创建订单。" bind:success="handleLoginSuccess" />
+<phone-login-gate id="proPhoneLoginGate" visible="{{false}}" bind:success="handleLoginSuccess" bind:failure="handleLoginFailure" />

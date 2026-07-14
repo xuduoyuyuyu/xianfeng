@@ -361,14 +361,19 @@ Page({
 
   ...createNativeSettingsMethods(),
 
-  showLoginGate() {
-    this.setData({ loginRequired: true, message: "" });
+  loginForSubscription(event) {
+    const loginGate = this.selectComponent("#proPhoneLoginGate");
+    if (loginGate && typeof loginGate.loginWithPhone === "function") loginGate.loginWithPhone(event);
   },
 
   handleLoginSuccess() {
     this.setData({ loginRequired: false });
     this.syncAccountEntry();
     this.loadBilling();
+  },
+
+  handleLoginFailure(event) {
+    wx.showToast({ title: String(event && event.detail && event.detail.message || "登录失败，请重试"), icon: "none" });
   },
 
   loadBilling() {

@@ -1805,7 +1805,8 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.match(wxml, /bindinput="updateInput"/);
     assert.match(wxml, /catchtap="handleSend"/);
     assert.match(wxml, /class="xf-xiaowanzi-native-shell"/);
-    assert.match(wxml, /<phone-login-gate[^>]*visible="\{\{xiaowanziLoginRequired\}\}"[^>]*bind:success="handleXiaowanziLoginSuccess"/);
+    assert.match(wxml, /<phone-login-gate[^>]*visible="\{\{false\}\}"[^>]*bind:success="handleXiaowanziLoginSuccess"/);
+    assert.match(wxml, /class="xf-xiaowanzi-send[^>]*open-type="\{\{isLoggedIn \? '' : 'getPhoneNumber'\}\}"[^>]*bindgetphonenumber="authorizeXiaowanziSend"/);
     assert.doesNotMatch(wxml, /xf-xiaowanzi-login-panel|进入家长先疯|使用微信身份创建或恢复家长先疯账号/);
     assert.doesNotMatch(js, /\/pages\/login\/index/);
     assert.equal(appJson.pages.includes("pages/login/index"), false);
@@ -1917,7 +1918,7 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.match(wxml, /class="xf-xiaowanzi-voice-icon" src="\/assets\/xiaowanzi-icons\/voice-dark\.png" mode="aspectFit"/);
     assert.doesNotMatch(wxml, /class="xf-xiaowanzi-voice-person"|class="xf-xiaowanzi-voice-wave/);
     assert.match(wxml, /placeholder="\{\{pendingAttachments\.length \? '帮我解读下图片内容' : '对话内容已开启隐私保护'\}\}"[\s\S]*bindfocus="handleInputFocus"[\s\S]*bindblur="handleInputBlur"/);
-    assert.match(wxml, /class="xf-xiaowanzi-send \{\{sending \? 'is-stop' : 'is-send'\}\} \{\{sendPressing \? 'is-pressing' : ''\}\}" hover-class="is-pressed" disabled="\{\{!sending && !inputReady\}\}" bindtouchstart="startSendPress" bindtouchend="endSendPress" bindtouchcancel="endSendPress" catchtap="handleSend" aria-label="\{\{sending \? '停止生成' : '发送'\}\}"/);
+    assert.match(wxml, /class="xf-xiaowanzi-send \{\{sending \? 'is-stop' : 'is-send'\}\} \{\{sendPressing \? 'is-pressing' : ''\}\}"[^>]*hover-class="is-pressed"[^>]*disabled="\{\{!sending && !inputReady\}\}"[^>]*bindtouchstart="startSendPress"[^>]*catchtap="handleSend"/);
     assert.match(wxml, /class="xf-xiaowanzi-send-mark" src="\{\{sending \? '\/assets\/xiaowanzi-icons\/stop-white\.png' : '\/assets\/xiaowanzi-icons\/send-white\.png'\}\}" mode="aspectFit"/);
     assert.match(wxml, /class="xf-xiaowanzi-plus \{\{attachmentMenuOpen \? 'is-open' : ''\}\}"[\s\S]*catchtap="toggleAttachmentMenu"[\s\S]*aria-label="\{\{attachmentMenuOpen \? '收起更多' : '更多'\}\}"/);
     assert.match(wxml, /class="xf-xiaowanzi-plus-mark" src="\{\{attachmentMenuOpen \? '\/assets\/xiaowanzi-icons\/close-purple\.png' : '\/assets\/xiaowanzi-icons\/add-dark\.png'\}\}" mode="aspectFit"/);
@@ -2506,7 +2507,7 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
   }
 });
 
-test("Xiaowanzi page gates unauthenticated entry with in-page phone authorization", () => {
+test("Xiaowanzi page keeps public content visible until a protected action", () => {
   const definition = loadPageDefinition("xiaowanzi");
   const originalGetStorageSync = global.wx.getStorageSync;
   const originalGetWindowInfo = global.wx.getWindowInfo;
@@ -2536,7 +2537,8 @@ test("Xiaowanzi page gates unauthenticated entry with in-page phone authorizatio
 
     definition.onLoad.call(context);
 
-    assert.equal(context.data.xiaowanziLoginRequired, true);
+    assert.equal(context.data.xiaowanziLoginRequired, false);
+    assert.equal(context.data.isLoggedIn, false);
     assert.equal(context.data.shellLogoTop, 67);
     assert.equal(context.data.shellAvatarTop, 64);
     assert.equal(context.data.shellKnowledgeTop, 67);
@@ -2881,7 +2883,7 @@ test("Xiaowanzi authenticated page show clears explicit entry mode and advances 
   }
 });
 
-test("Xiaowanzi unauthenticated entry stays on the current page and opens the phone auth gate", () => {
+test("Xiaowanzi unauthenticated entry stays on the current public page", () => {
   const definition = loadPageDefinition("xiaowanzi");
   const originalGetStorageSync = global.wx.getStorageSync;
   const originalNavigateTo = global.wx.navigateTo;
@@ -2914,13 +2916,13 @@ test("Xiaowanzi unauthenticated entry stays on the current page and opens the ph
 
     definition.onLoad.call(context, { from: "tab" });
 
-    assert.equal(context.data.xiaowanziLoginRequired, true);
+    assert.equal(context.data.xiaowanziLoginRequired, false);
     assert.equal(context.data.canUseBot, false);
     assert.equal(context.data.sending, false);
     assert.equal(context.data.pendingMessageId, "");
     assert.equal(context.data.errorText, "");
     assert.equal(context.data.actionLabel, "");
-    assert.equal(initialized, 0);
+    assert.equal(initialized, 1);
     assert.equal(navigations.length, 0);
     assert.notEqual(tabBarData.hidden, false);
   } finally {
@@ -11197,7 +11199,7 @@ test("pro page renders native subscription content instead of a web-view wrapper
     assert.match(wxml, /当前可用点数/);
     assert.match(wxml, /wx:for="\{\{planCards\}\}"/);
     assert.match(wxml, /bindtap="selectPlan"/);
-    assert.match(wxml, /class="xf-pro-pay-dock"[\s\S]*wx:if="\{\{!isLoggedIn\}\}" class="xf-pro-pay-button" bindtap="showLoginGate"[\s\S]*wx:else class="xf-pro-pay-button" bindtap="createOrder" disabled="\{\{ordering \|\| loading\}\}"[\s\S]*立即订阅/);
+    assert.match(wxml, /class="xf-pro-pay-dock"[\s\S]*wx:if="\{\{!isLoggedIn\}\}" class="xf-pro-pay-button" open-type="getPhoneNumber" bindgetphonenumber="loginForSubscription"[\s\S]*wx:else class="xf-pro-pay-button" bindtap="createOrder" disabled="\{\{ordering \|\| loading\}\}"[\s\S]*立即订阅/);
     assert.match(wxml, /wx:for="\{\{usagePolicy\}\}"/);
     assert.match(wxml, /订阅状态/);
     assert.match(wxml, /xf-pro-primary-card[\s\S]*xf-pro-policy-card[\s\S]*xf-pro-status-card/);
@@ -11608,7 +11610,7 @@ test("pro page unauthenticated checkout uses WeChat phone login instead of an er
       showToast() {}
     };
 
-    assert.match(wxml, /<button wx:if="\{\{!isLoggedIn\}\}" class="xf-pro-pay-button" bindtap="showLoginGate"/);
+    assert.match(wxml, /<button wx:if="\{\{!isLoggedIn\}\}" class="xf-pro-pay-button" open-type="getPhoneNumber" bindgetphonenumber="loginForSubscription"/);
     assert.match(wxml, /<button wx:else class="xf-pro-pay-button" bindtap="createOrder" disabled="\{\{ordering \|\| loading\}\}"/);
 
     await definition.createOrder.call(context);
@@ -11641,7 +11643,7 @@ test("pro page unauthenticated checkout uses the WeChat phone login button inste
   ]);
 
   try {
-    assert.match(wxml, /class="xf-pro-pay-dock"[\s\S]*wx:if="\{\{!isLoggedIn\}\}"[\s\S]*bindtap="showLoginGate"/);
+    assert.match(wxml, /class="xf-pro-pay-dock"[\s\S]*wx:if="\{\{!isLoggedIn\}\}"[\s\S]*bindgetphonenumber="loginForSubscription"/);
     assert.match(wxml, /class="xf-pro-pay-dock"[\s\S]*wx:else[\s\S]*bindtap="createOrder"/);
 
     global.wx = {

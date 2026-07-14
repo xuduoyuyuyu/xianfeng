@@ -2451,6 +2451,7 @@ Page({
     attachmentPreviewText: "",
     attachmentContextText: "",
     canUseBot: true,
+    isLoggedIn: false,
     xiaowanziLoginRequired: false,
     bindingPhone: false,
     statusText: "准备就绪",
@@ -2499,7 +2500,7 @@ Page({
     enableShareMenu();
     if (wx.setNavigationBarTitle) wx.setNavigationBarTitle({ title: "" });
     setSelectedTab(this, 2, { hidden: true });
-    if (!this.requireXiaowanziLogin()) return;
+    this.requireXiaowanziLogin();
     this.initializeXiaowanzi(options);
   },
 
@@ -2522,7 +2523,7 @@ Page({
   onShow() {
     enableShareMenu();
     setSelectedTab(this, 2, { hidden: true });
-    if (!this.requireXiaowanziLogin()) return;
+    this.requireXiaowanziLogin();
     const entryTriggered = consumeXiaowanziEntryTrigger();
     if (entryTriggered) this.restoreTopbarAvatar({ advance: true });
     this.syncNativeShellState();
@@ -2531,12 +2532,13 @@ Page({
 
   requireXiaowanziLogin() {
     if (getToken()) {
-      if (this.data.xiaowanziLoginRequired) this.setData({ xiaowanziLoginRequired: false, profilePanelMessage: "" });
+      this.setData({ isLoggedIn: true, xiaowanziLoginRequired: false, profilePanelMessage: "" });
       return true;
     }
     this.setData({
       ...buildNativeShellData(),
-      xiaowanziLoginRequired: true,
+      isLoggedIn: false,
+      xiaowanziLoginRequired: false,
       canUseBot: false,
       sending: false,
       pendingMessageId: "",
@@ -2774,7 +2776,6 @@ Page({
     }
     if (!getToken()) {
       this.setData({ sendPressing: false });
-      this.requireXiaowanziLogin();
       return;
     }
     const activeChild = activeChildProfile();
@@ -3759,9 +3760,30 @@ Page({
 
   ...nativeSettingsMethods,
 
+  authorizeXiaowanziPrompt(event) {
+    const prompt = String(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.value || "").trim();
+    if (prompt) this.setData({ selectedHomePrompt: prompt, inputReady: true });
+    this.authorizeXiaowanziSend(event);
+  },
+
+  authorizeXiaowanziSend(event) {
+    if (getToken()) return;
+    this._pendingXiaowanziAction = "send";
+    const gate = this.selectComponent("#xiaowanziPhoneLoginGate");
+    if (gate && typeof gate.loginWithPhone === "function") gate.loginWithPhone(event);
+  },
+
   handleXiaowanziLoginSuccess() {
-    this.setData({ xiaowanziLoginRequired: false, profilePanelMessage: "" });
+    const action = this._pendingXiaowanziAction;
+    this._pendingXiaowanziAction = "";
+    this.setData({ isLoggedIn: true, xiaowanziLoginRequired: false, profilePanelMessage: "" });
     this.initializeXiaowanzi(this._initialOptions || {});
+    if (action === "send") this.handleSend();
+  },
+
+  handleXiaowanziLoginFailure(event) {
+    this._pendingXiaowanziAction = "";
+    wx.showToast({ title: String(event && event.detail && event.detail.message || "登录失败，请重试"), icon: "none" });
   },
 
   selectArchiveChild(event) {

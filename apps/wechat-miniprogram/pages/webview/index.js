@@ -2303,8 +2303,9 @@ Page({
 
   ...createNativeSettingsMethods(),
 
-  showLoginGate() {
-    this.setData({ webviewLoginRequired: true, profilePanelMessage: "" });
+  authorizeNativeExpert(event) {
+    const gate = this.selectComponent("#webviewPhoneLoginGate");
+    if (gate && typeof gate.loginWithPhone === "function") gate.loginWithPhone(event);
   },
 
   handleWebviewLoginSuccess() {
@@ -2320,6 +2321,10 @@ Page({
     });
     const expert = this.data.nativeExpert || {};
     if (this.data.nativeExpertMode && expert.id) this.loadNativeExpertAgentSession(expert);
+  },
+
+  handleWebviewLoginFailure(event) {
+    wx.showToast({ title: String(event && event.detail && event.detail.message || "登录失败，请重试"), icon: "none" });
   },
 
   syncTopbarMetrics() {
@@ -3471,7 +3476,6 @@ Page({
     }
     if (!getToken()) {
       this.setData({ nativeExpertAuthed: false });
-      this.showLoginGate();
       return Promise.resolve();
     }
     const expert = this.data.nativeExpert || {};

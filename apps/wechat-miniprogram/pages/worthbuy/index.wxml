@@ -15,7 +15,7 @@
       <text class="wb-search-icon">⌕</text>
       <input value="{{input}}" bindinput="onInput" placeholder="粘贴商品链接或输入品牌名称…" maxlength="800"/>
     </view>
-    <button class="wb-submit {{input && !submitting ? '' : 'is-disabled'}}" bindtap="submitAnalysis" loading="{{submitting}}">{{submitting ? submitStage : '开始分析'}}</button>
+    <button class="wb-submit {{input && !submitting ? '' : 'is-disabled'}}" open-type="{{isLoggedIn ? '' : 'getPhoneNumber'}}" bindtap="submitAnalysis" bindgetphonenumber="authorizeAnalysis" loading="{{submitting}}">{{submitting ? submitStage : '开始分析'}}</button>
     <text class="wb-support">支持淘宝、京东、拼多多等平台链接，或直接输入品牌名</text>
     <view wx:if="{{actionError}}" class="wb-error">
       <text>{{actionError}}</text>
@@ -25,7 +25,7 @@
 
   <view class="wb-section-head">
     <text>{{showHistory ? '我的分析' : '公开知物'}}</text>
-    <button bindtap="toggleHistory">{{showHistory ? '查看公开' : '我的分析'}}</button>
+    <button open-type="{{isLoggedIn || showHistory ? '' : 'getPhoneNumber'}}" bindtap="toggleHistory" bindgetphonenumber="authorizeHistory">{{showHistory ? '查看公开' : '我的分析'}}</button>
   </view>
 
   <view wx:if="{{showHistory}}" class="wb-list">
@@ -57,5 +57,5 @@
     <view wx:if="{{loadingMore}}" class="wb-empty">正在加载更多…</view>
   </view>
 </view>
-<phone-login-gate visible="{{loginRequired}}" title="登录后继续分析" description="登录成功后会保留当前输入，请手动再次发起分析。" bind:success="handleLoginSuccess" />
+<phone-login-gate id="worthbuyPhoneLoginGate" visible="{{false}}" bind:success="handleLoginSuccess" bind:failure="handleLoginFailure" />
 <custom-tab-bar selected="{{selected}}" hidden="{{hideTabbar}}" />

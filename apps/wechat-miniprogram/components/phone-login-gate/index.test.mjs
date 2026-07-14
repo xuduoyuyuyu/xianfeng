@@ -62,3 +62,24 @@ test("shared phone login gate owns the only phone authorization button", () => {
   assert.match(wxml, /bindgetphonenumber="loginWithPhone"/);
   assert.match(wxml, /wx:if="\{\{visible\}\}"/);
 });
+
+test("shared phone login gate emits failure when phone authorization is rejected", () => {
+  const originalComponent = global.Component;
+  let definition;
+  global.Component = (value) => { definition = value; };
+  try {
+    delete require.cache[componentPath];
+    require(componentPath);
+    const events = [];
+    const context = {
+      data: { bindingPhone: false },
+      setData(patch) { Object.assign(this.data, patch); },
+      triggerEvent(name, detail) { events.push({ name, detail }); }
+    };
+    definition.methods.loginWithPhone.call(context, { detail: {} });
+    assert.deepEqual(events, [{ name: "failure", detail: { message: "需要授权手机号后登录", reason: "phone-denied" } }]);
+  } finally {
+    delete require.cache[componentPath];
+    global.Component = originalComponent;
+  }
+});

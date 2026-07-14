@@ -55,13 +55,13 @@ Page({
     }).catch(() => {});
   },
   toggleHistory() {
-    if (!getToken()) return this.showLoginGate();
+    if (!getToken()) return;
     this.setData({ showHistory: !this.data.showHistory });
     if (!this.data.myItems.length) this.loadMyHistory();
   },
   submitAnalysis() {
     if (this._submitPromise) return this._submitPromise;
-    if (!getToken()) return this.showLoginGate();
+    if (!getToken()) return;
     const parsed = parseWorthBuyInput(this.data.input);
     if (!parsed.raw || (!parsed.title && !parsed.url)) return this.setData({ actionErrorType: "validation", actionError: "请输入完整商品名称、链接或分享文案" });
     const user = getUser() || {};
@@ -76,7 +76,7 @@ Page({
       })
       .catch((error) => {
         const type = classifyWorthBuyError(error);
-        if (type === "auth") return this.showLoginGate();
+        if (type === "auth") return this.setData({ isLoggedIn: false, actionError: "登录已过期，请再次点击分析", actionErrorType: "auth" });
         this.setData({ actionErrorType: type, actionError: error.message || "分析失败，请稍后重试" });
       })
       .finally(() => { this._submitPromise = null; this.setData({ submitting: false, submitStage: "" }); });
@@ -88,10 +88,25 @@ Page({
     wx.showModal({ title: "删除分析", content: `确认删除“${item.title}”吗？`, success: (modal) => { if (!modal.confirm) return; const user = getUser() || {}; const ownerId = String(user._id || user.id || ""); request({ method: "DELETE", url: `/api/worthbuy/my/${encodeURIComponent(item.brand || item.query)}?userId=${encodeURIComponent(ownerId)}` }).then(() => { const items = this.data.myItems.filter((entry) => entry.id !== item.id); this.setData({ myItems: items }); writeWorthBuyCache("history", ownerId, items); }); } });
   },
   openPro() { wx.navigateTo({ url: "/pages/pro/index" }); },
-  showLoginGate() { this.setData({ loginRequired: true, actionError: "", actionErrorType: "" }); },
+  authorizeAnalysis(event) { this.authorizeWorthBuyAction("analysis", event); },
+  authorizeHistory(event) { this.authorizeWorthBuyAction("history", event); },
+  authorizeWorthBuyAction(type, event) {
+    if (getToken()) return;
+    this._pendingWorthBuyAction = type;
+    const gate = this.selectComponent("#worthbuyPhoneLoginGate");
+    if (gate && typeof gate.loginWithPhone === "function") gate.loginWithPhone(event);
+  },
   handleLoginSuccess() {
-    this.setData({ loginRequired: false, isLoggedIn: true, actionError: "", actionErrorType: "" });
+    const action = this._pendingWorthBuyAction;
+    this._pendingWorthBuyAction = "";
+    this.setData({ isLoggedIn: true, actionError: "", actionErrorType: "" });
     this.loadMyHistory();
+    if (action === "analysis") this.submitAnalysis();
+    if (action === "history") this.toggleHistory();
+  },
+  handleLoginFailure(event) {
+    this._pendingWorthBuyAction = "";
+    wx.showToast({ title: String(event && event.detail && event.detail.message || "登录失败，请重试"), icon: "none" });
   },
   goProgramsHome() { navigateProgramsHome(); },
   goBack() { if (getCurrentPages().length > 1) wx.navigateBack(); else wx.switchTab({ url: "/pages/programs/index" }); },

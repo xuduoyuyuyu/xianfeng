@@ -586,7 +586,8 @@ Page({
     childGender: "",
     xiaohongshuScreenshotUrl: "",
     xiaohongshuScreenshotUploading: false,
-    mamaResourceView: "login",
+    mamaResourceView: "apply",
+    isLoggedIn: false,
     mamaResourceProfile: null,
     mamaTasks: [],
     mamaTasksLoading: false,
@@ -695,14 +696,35 @@ Page({
 
   handleLoginSuccess(event) {
     const payload = event && event.detail && event.detail.session;
-    return this.onNativeSettingsLoginSuccess(payload);
+    const action = this._pendingMamaResourceAction;
+    this._pendingMamaResourceAction = "";
+    this.setData({ isLoggedIn: true });
+    return this.onNativeSettingsLoginSuccess(payload).then(() => {
+      if (action === "save") return this.submitProfileDraft({ stayInApply: true });
+      if (action === "claim") return this.claimMamaTask();
+      if (action === "proof") return this.submitTaskProof();
+      return undefined;
+    });
+  },
+
+  authorizeMamaResourceAction(event) {
+    if (getToken()) return;
+    this._pendingMamaResourceAction = String(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.action || "");
+    const gate = this.selectComponent("#mamaResourcePhoneLoginGate");
+    if (gate && typeof gate.loginWithPhone === "function") gate.loginWithPhone(event);
+  },
+
+  handleMamaResourceLoginFailure(event) {
+    this._pendingMamaResourceAction = "";
+    wx.showToast({ title: String(event && event.detail && event.detail.message || "登录失败，请重试"), icon: "none" });
   },
 
   loadMamaTasks() {
     if (this.data.mamaTasksLoading) return Promise.resolve();
     if (!getToken()) {
       this.setData({
-        mamaResourceView: "login",
+        mamaResourceView: "apply",
+        isLoggedIn: false,
         mamaResourceProfile: null,
         mamaTasks: [],
         currentMamaTask: null,
@@ -712,6 +734,7 @@ Page({
       });
       return Promise.resolve();
     }
+    if (!this.data.isLoggedIn) this.setData({ isLoggedIn: true });
     this.setData({ mamaTasksLoading: true });
     return request({
       url: "/api/mama-resources/me/tasks",
@@ -752,7 +775,8 @@ Page({
       .catch((error) => {
         if (isUnauthorizedError(error)) {
           this.setData({
-            mamaResourceView: "login",
+            mamaResourceView: "apply",
+            isLoggedIn: false,
             mamaResourceProfile: null,
             mamaTasks: [],
             currentMamaTask: null,
@@ -790,6 +814,7 @@ Page({
   },
 
   claimMamaTask() {
+    if (!getToken()) return;
     const task = this.data.currentMamaTask || {};
     const taskId = asText(task.taskId || task._id).trim();
     if (!taskId || this.data.taskClaiming || !task.isClaimable) return;
@@ -1184,6 +1209,7 @@ Page({
   },
 
   submitTaskProof() {
+    if (!getToken()) return;
     const taskId = this.data.currentMamaTask && this.data.currentMamaTask._id;
     const proofLink = String(this.data.taskProofLink || "").trim();
     const proofScreenshotUrl = String(this.data.taskProofScreenshotUrl || "").trim();
@@ -1442,6 +1468,7 @@ Page({
   },
 
   submitProfileDraft(options = {}) {
+    if (!getToken()) return;
     const draft = this.data.formDraft || {};
     const lockedXiaohongshuProfileUrl = asText(draft.originalXiaohongshuProfileUrl).trim();
     const payload = updatePageApplyDraft(this, {

@@ -14,9 +14,7 @@
   </view>
 
   <view class="xf-mama-content">
-    <block wx:if="{{mamaResourceView === 'login'}}"></block>
-
-    <block wx:elif="{{mamaResourceView === 'apply'}}">
+    <block wx:if="{{mamaResourceView === 'apply'}}">
       <view class="xf-mama-intro-card">
         <view class="xf-mama-head">
           <image class="xf-mama-icon" src="/assets/menu/mama-hao-zhuan-icon.png" mode="aspectFit" />
@@ -76,7 +74,7 @@
             </view>
           </view>
           <view wx:if="{{message}}" class="xf-mama-message {{messageType}}">{{message}}</view>
-          <button class="xf-mama-submit" disabled="{{submitting}}" catchtap="submitProfileDraft">{{submitting ? "保存中..." : "保存资料"}}</button>
+          <button class="xf-mama-submit" data-action="save" open-type="{{isLoggedIn ? '' : 'getPhoneNumber'}}" bindgetphonenumber="authorizeMamaResourceAction" disabled="{{submitting}}" catchtap="submitProfileDraft">{{submitting ? "保存中..." : "保存资料"}}</button>
         </block>
 
         <form wx:elif="{{profileManagerMode === 'personal'}}" class="xf-mama-form" bindsubmit="savePersonalInfo">
@@ -319,7 +317,7 @@
           </view>
 
           <view wx:if="{{currentMamaTask.isClaimable}}" class="xf-mama-task-actions">
-            <button class="xf-mama-submit" disabled="{{taskClaiming}}" catchtap="claimMamaTask">{{taskClaiming ? "领取中..." : "立即领取"}}</button>
+            <button class="xf-mama-submit" data-action="claim" open-type="{{isLoggedIn ? '' : 'getPhoneNumber'}}" bindgetphonenumber="authorizeMamaResourceAction" disabled="{{taskClaiming}}" catchtap="claimMamaTask">{{taskClaiming ? "领取中..." : "立即领取"}}</button>
           </view>
 
           <view wx:if="{{taskMessage}}" class="xf-mama-message {{taskMessageType}}">{{taskMessage}}</view>
@@ -331,7 +329,7 @@
               {{taskProofScreenshotUrl ? "已上传，重新选择" : "上传完成截图"}}
             </button>
             <text class="xf-mama-upload-hint">{{taskProofScreenshotUploading ? "截图上传中..." : (taskProofScreenshotUrl ? "已上传，可提交回填" : "上传发布完成后的页面截图")}}</text>
-            <button class="xf-mama-submit" disabled="{{taskSubmitting}}" catchtap="submitTaskProof">{{taskSubmitting ? "提交中..." : "提交回填"}}</button>
+            <button class="xf-mama-submit" data-action="proof" open-type="{{isLoggedIn ? '' : 'getPhoneNumber'}}" bindgetphonenumber="authorizeMamaResourceAction" disabled="{{taskSubmitting}}" catchtap="submitTaskProof">{{taskSubmitting ? "提交中..." : "提交回填"}}</button>
           </view>
 
           <view wx:if="{{currentMamaTask.transferScreenshotUrl}}" class="xf-mama-transfer-card">
@@ -441,4 +439,4 @@
     </scroll-view>
   </view>
 </view>
-<phone-login-gate visible="{{mamaResourceView === 'login'}}" title="登录后查看任务" description="授权手机号后恢复资料和任务列表。" bind:success="handleLoginSuccess" />
+<phone-login-gate id="mamaResourcePhoneLoginGate" visible="{{false}}" bind:success="handleLoginSuccess" bind:failure="handleMamaResourceLoginFailure" />

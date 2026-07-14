@@ -226,16 +226,16 @@ test("assigned users can preview a read-only transfer credential", () => {
   assert.doesNotMatch(wxmlSource, /class="xf-mama-transfer-card"[\s\S]*转账凭证[\s\S]*class="xf-mama-proof-card"/);
 });
 
-test("logged-out mama resource users must authorize phone before seeing apply form", () => {
+test("logged-out mama resource users see the apply form and authorize on protected actions", () => {
   assert.match(jsSource, /const \{ getToken, getUser \} = require\("\.\.\/\.\.\/utils\/session"\)/);
   assert.match(jsSource, /function isUnauthorizedError\(error\)/);
-  assert.match(jsSource, /mamaResourceView: "login"/);
+  assert.match(jsSource, /mamaResourceView: "apply"/);
   assert.match(jsSource, /if \(!getToken\(\)\) \{/);
   assert.match(jsSource, /isUnauthorizedError\(error\)/);
-  assert.match(jsSource, /mamaResourceView: "login"[\s\S]*mamaTasks: \[\]/);
-  assert.match(wxmlSource, /mamaResourceView === 'login'/);
-  assert.match(wxmlSource, /<phone-login-gate[^>]*visible="\{\{mamaResourceView === 'login'\}\}"[^>]*bind:success="handleLoginSuccess"/);
-  assert.match(wxmlSource, /授权手机号后恢复资料和任务列表/);
+  assert.match(jsSource, /mamaResourceView: "apply"[\s\S]*isLoggedIn: false/);
+  assert.doesNotMatch(wxmlSource, /mamaResourceView === 'login'/);
+  assert.match(wxmlSource, /<phone-login-gate[^>]*visible="\{\{false\}\}"[^>]*bind:success="handleLoginSuccess"/);
+  assert.match(wxmlSource, /open-type="\{\{isLoggedIn \? '' : 'getPhoneNumber'\}\}"/);
 });
 
 test("mama resource task share image includes a direct mini-program qrcode", () => {

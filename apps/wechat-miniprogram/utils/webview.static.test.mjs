@@ -250,9 +250,10 @@ test("openWeb keeps Xiaowanzi entry mode for the Xiaowanzi standalone route", ()
   assert.equal(global.__lastRemoveStorageSync, "");
 });
 
-test("webview page opens the shared phone login gate in the current page", () => {
+test("webview page authorizes native expert actions directly", () => {
   assert.match(webviewPageWxml, /<web-view wx:elif="\{\{src\}\}" src="\{\{src\}\}" \/>/);
-  assert.match(webviewPageWxml, /<phone-login-gate visible="\{\{webviewLoginRequired\}\}"[^>]*bind:success="handleWebviewLoginSuccess" \/>/);
+  assert.match(webviewPageWxml, /class="xf-expert-detail-login"[\s\S]*open-type="getPhoneNumber"[\s\S]*bindgetphonenumber="authorizeNativeExpert"/);
+  assert.match(webviewPageWxml, /<phone-login-gate[^>]*visible="\{\{false\}\}"[^>]*bind:success="handleWebviewLoginSuccess"/);
   assert.match(webviewPageJs, /const webviewLoginRequired = options\.login === "1" && !getToken\(\);/);
   assert.match(webviewPageJs, /handleWebviewLoginSuccess\(\)[\s\S]*buildWebUrl\(currentSrc, \{ preserveXiaowanziLayer:[\s\S]*webviewLoginRequired: false/);
   assert.doesNotMatch(webviewPageJs, /\/pages\/login\/index/);

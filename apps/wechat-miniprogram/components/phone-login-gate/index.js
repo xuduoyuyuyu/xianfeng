@@ -2,6 +2,11 @@ const { request } = require("../../utils/request");
 const { setSession } = require("../../utils/session");
 const { resolveAuthExpired } = require("../../utils/authExpiry");
 
+function failLogin(component, message, reason) {
+  component.setData({ bindingPhone: false, loginMessage: message });
+  component.triggerEvent("failure", { message, reason });
+}
+
 Component({
   properties: {
     visible: { type: Boolean, value: false },
@@ -19,14 +24,14 @@ Component({
       if (this.data.bindingPhone) return;
       const phoneCode = String(event && event.detail && event.detail.code || "");
       if (!phoneCode) {
-        this.setData({ loginMessage: "需要授权手机号后登录" });
+        failLogin(this, "需要授权手机号后登录", "phone-denied");
         return;
       }
       this.setData({ bindingPhone: true, loginMessage: "" });
       wx.login({
         success: ({ code }) => {
           if (!code) {
-            this.setData({ bindingPhone: false, loginMessage: "微信登录失败，请重试" });
+            failLogin(this, "微信登录失败，请重试", "wx-code-missing");
             return;
           }
           request({ method: "POST", url: "/api/wechat-mini/login", data: { code, phoneCode } })
@@ -39,10 +44,10 @@ Component({
               this.triggerEvent("success", { session: payload });
             })
             .catch((error) => {
-              this.setData({ bindingPhone: false, loginMessage: String(error && error.message || "登录失败，请重试") });
+              failLogin(this, String(error && error.message || "登录失败，请重试"), "request-failed");
             });
         },
-        fail: () => this.setData({ bindingPhone: false, loginMessage: "无法调用微信登录" })
+        fail: () => failLogin(this, "无法调用微信登录", "wx-login-failed")
       });
     }
   }
