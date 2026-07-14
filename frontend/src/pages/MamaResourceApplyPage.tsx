@@ -22,6 +22,11 @@ type MediaPlatform = "xiaohongshu" | "douyin";
 type ProfileManagerMode = "overview" | "personal" | "media" | "preference";
 export type PageMode = "loading" | "apply" | "reviewing" | "tasks" | "detail" | "error";
 
+type ProfileTaskRequest = {
+  generation: number;
+  authIdentity: string;
+};
+
 type MediaAccountForm = {
   platform: MediaPlatform | "";
   nickname: string;
@@ -155,13 +160,30 @@ function remainingCountText(task: MamaResourceTask): string {
   return count > 0 ? `剩余${Math.floor(count)}个名额` : "已领完";
 }
 
-function taskIdentity(task: MamaResourceTask): string {
+function templateTaskIdentity(task: MamaResourceTask): string {
   return String(task.taskId || task._id || "").trim();
+}
+
+function assignmentTaskIdentity(task: MamaResourceTask): string {
+  return task.taskId ? String(task._id || "").trim() : "";
+}
+
+function taskIdentity(task: MamaResourceTask): string {
+  return templateTaskIdentity(task);
 }
 
 function isSameTaskIdentity(task: MamaResourceTask | null, identity: string): boolean {
   const currentIdentity = String(task?.taskId || task?._id || "").trim();
   return Boolean(currentIdentity && identity && currentIdentity === identity);
+}
+
+function shouldApplyTaskDetailResult(task: MamaResourceTask | null, initiatingTemplateId: string): boolean {
+  const currentIdentity = String(task?.taskId || task?._id || "").trim();
+  return Boolean(currentIdentity && initiatingTemplateId && currentIdentity === initiatingTemplateId);
+}
+
+function isCurrentProfileTaskRequest(current: ProfileTaskRequest, request: ProfileTaskRequest): boolean {
+  return current.generation === request.generation && current.authIdentity === request.authIdentity;
 }
 
 function replaceClaimedTask(tasks: MamaResourceTask[], availableTasks: MamaResourceTask[], claimedTask: MamaResourceTask) {
@@ -361,12 +383,18 @@ const MamaResourceApplyPage: React.FC = () => {
   const [loadError, setLoadError] = useState("");
   const [requiresLogin, setRequiresLogin] = useState(false);
   const loggedInMobile = String(user?.mobile || "").trim();
+  const authIdentity = String(token || "");
+  const profileTaskRequestRef = useRef<ProfileTaskRequest>({ generation: 0, authIdentity });
+  const [loadedAuthIdentity, setLoadedAuthIdentity] = useState("");
 
   const loadProfileAndTasks = useCallback(async () => {
+    const request = { generation: profileTaskRequestRef.current.generation + 1, authIdentity };
+    profileTaskRequestRef.current = request;
     setPageMode("loading");
     setLoadError("");
     try {
       const response = await publicApi.getMyMamaResourceTasks();
+      if (!isCurrentProfileTaskRequest(profileTaskRequestRef.current, request)) return;
       const nextProfile = response.data.profile;
       setProfile(nextProfile);
       setTasks(response.data.tasks || []);
@@ -374,23 +402,35 @@ const MamaResourceApplyPage: React.FC = () => {
       if (nextProfile) setForm(formStateFromProfile(nextProfile, loggedInMobile));
       else setForm({ ...initialForm, contactPhone: loggedInMobile });
       setRequiresLogin(false);
+      setLoadedAuthIdentity(authIdentity);
       setPageMode(nextProfile === null ? "apply" : nextProfile.status === "approved" ? "tasks" : "reviewing");
     } catch (error: any) {
+      if (!isCurrentProfileTaskRequest(profileTaskRequestRef.current, request)) return;
       if (error?.response?.status === 401) {
         setRequiresLogin(true);
         return;
       }
+      setLoadedAuthIdentity(authIdentity);
       setLoadError(error?.response?.data?.message || error?.message || "资料加载失败，请稍后重试");
       setPageMode("error");
     }
-  }, [loggedInMobile]);
+  }, [authIdentity, loggedInMobile]);
 
   const handleLoginSuccess = useCallback(() => undefined, []);
 
   useEffect(() => {
+    profileTaskRequestRef.current = { generation: profileTaskRequestRef.current.generation + 1, authIdentity };
+    setLoadedAuthIdentity("");
+    setRequiresLogin(false);
+    setProfile(null);
+    setTasks([]);
+    setAvailableTasks([]);
+    selectedTaskRef.current = null;
+    setSelectedTask(null);
+    setLinkDialogOpen(false);
     if (!token || !user) return;
     void loadProfileAndTasks();
-  }, [token, user, loadProfileAndTasks]);
+  }, [authIdentity, token, user, loadProfileAndTasks]);
 
   useEffect(() => {
     if (!loggedInMobile) return;
@@ -460,21 +500,25 @@ const MamaResourceApplyPage: React.FC = () => {
 
   const claimSelectedTask = async () => {
     if (!selectedTask || taskClaiming) return;
+    const initiatingTemplateId = templateTaskIdentity(selectedTask);
     setTaskClaiming(true);
     setTaskClaimError("");
     try {
-      const response = await publicApi.claimMamaResourceTask(taskIdentity(selectedTask));
+      const response = await publicApi.claimMamaResourceTask(initiatingTemplateId);
       const claimedTask = response.data.task;
       const replacement = replaceClaimedTask(tasks, availableTasks, claimedTask);
       setTasks(replacement.tasks);
       setAvailableTasks(replacement.availableTasks);
+      if (!shouldApplyTaskDetailResult(selectedTaskRef.current, initiatingTemplateId)) return;
       selectedTaskRef.current = claimedTask;
       setSelectedTask(claimedTask);
       setProofLink(claimedTask.proofLink || "");
       setProofScreenshotUrl(claimedTask.proofScreenshotUrl || "");
       setPageMode("detail");
     } catch (error: any) {
-      setTaskClaimError(error?.response?.data?.message || error?.message || "领取失败，请稍后重试");
+      if (shouldApplyTaskDetailResult(selectedTaskRef.current, initiatingTemplateId)) {
+        setTaskClaimError(error?.response?.data?.message || error?.message || "领取失败，请稍后重试");
+      }
     } finally {
       setTaskClaiming(false);
     }
@@ -508,7 +552,7 @@ const MamaResourceApplyPage: React.FC = () => {
     setProofError("");
     setProofMessage("");
     try {
-      const response = await publicApi.submitMamaResourceTaskProof(taskIdentity(selectedTask), {
+      const response = await publicApi.submitMamaResourceTaskProof(assignmentTaskIdentity(selectedTask), {
         proofLink,
         proofScreenshotUrl,
       });
@@ -626,7 +670,7 @@ const MamaResourceApplyPage: React.FC = () => {
               </p>
               <InlineLoginForm compact onSuccess={handleLoginSuccess} />
             </div>
-          ) : pageMode === "loading" ? (
+          ) : loadedAuthIdentity !== authIdentity || pageMode === "loading" ? (
             <div className="rounded-[17px] border border-[#5e17eb]/15 bg-white px-[14px] py-[24px] text-center text-[13px] font-bold text-[#6b6474]">资料加载中...</div>
           ) : pageMode === "error" ? (
             <div className="rounded-[17px] border border-[#5e17eb]/15 bg-white px-[14px] py-[18px] text-center">

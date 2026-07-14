@@ -23,6 +23,7 @@ function sourceFunction(name) {
         .replaceAll(": MamaResourceTask[]", "")
         .replaceAll(": MamaResourceTask | null", "")
         .replaceAll(": MamaResourceTask", "")
+        .replaceAll(": ProfileTaskRequest", "")
         .replaceAll(": boolean", "")
         .replaceAll(": string", "");
     }
@@ -176,7 +177,7 @@ test("authenticated mama resource page hydrates profile and routes returned stat
 test("authentication transitions own loading without stale-token retry loops", () => {
   assert.match(source, /if \(error\?\.response\?\.status === 401\) \{\s*setRequiresLogin\(true\);\s*return;\s*\}/);
   assert.match(source, /const handleLoginSuccess = useCallback\(\(\) => undefined, \[\]\);/);
-  assert.match(source, /useEffect\(\(\) => \{\s*if \(!token \|\| !user\) return;\s*void loadProfileAndTasks\(\);\s*\}, \[token, user, loadProfileAndTasks\]\);/);
+  assert.match(source, /profileTaskRequestRef\.current = \{ generation: profileTaskRequestRef\.current\.generation \+ 1, authIdentity \};[\s\S]*if \(!token \|\| !user\) return;\s*void loadProfileAndTasks\(\);/);
   assert.equal(source.match(/void loadProfileAndTasks\(\)/g)?.length, 1, "normal login should have one automatic loader trigger");
 });
 
@@ -214,6 +215,18 @@ test("approved profiles render account home and complete task cards", () => {
   assert.match(source, /availableTasks\.filter\(\(task\) => !assignedTaskIds\.has\(taskIdentity\(task\)\)\)/);
 });
 
+test("task identities keep template claims separate from assignment proof submissions", () => {
+  const templateTaskIdentity = evaluateHelper("templateTaskIdentity");
+  const assignmentTaskIdentity = evaluateHelper("assignmentTaskIdentity");
+  const assignment = { _id: "assignment-a", taskId: "template-a" };
+  assert.equal(templateTaskIdentity(assignment), "template-a");
+  assert.equal(assignmentTaskIdentity(assignment), "assignment-a");
+  assert.equal(templateTaskIdentity({ _id: "template-b" }), "template-b");
+  assert.equal(assignmentTaskIdentity({ _id: "template-b" }), "");
+  assert.match(source, /const initiatingTemplateId = templateTaskIdentity\(selectedTask\);[\s\S]*publicApi\.claimMamaResourceTask\(initiatingTemplateId\)/);
+  assert.match(source, /publicApi\.submitMamaResourceTaskProof\(assignmentTaskIdentity\(selectedTask\), \{/);
+});
+
 test("task cards open an in-page detail with claim behavior", () => {
   assert.match(source, /function MamaResourceTaskDetail/);
   assert.match(source, /项目信息/);
@@ -223,7 +236,7 @@ test("task cards open an in-page detail with claim behavior", () => {
   assert.match(source, /exampleImageUrls/);
   assert.match(source, /返回任务列表/);
   assert.match(source, /const \[selectedTask, setSelectedTask\] = useState<MamaResourceTask \| null>\(null\);/);
-  assert.match(source, /publicApi\.claimMamaResourceTask\(taskIdentity\(selectedTask\)\)/);
+  assert.match(source, /publicApi\.claimMamaResourceTask\(initiatingTemplateId\)/);
   assert.match(source, /setSelectedTask\(claimedTask\)/);
   assert.match(source, /setPageMode\("detail"\)/);
 });
@@ -243,7 +256,7 @@ test("assigned task detail uploads and submits proof while preserving returned t
   assert.match(source, /name="proofLink"/);
   assert.match(source, /type="file"[\s\S]*accept="image\/\*"/);
   assert.match(source, /publicApi\.uploadMamaResourceScreenshot\(file\)/);
-  assert.match(source, /publicApi\.submitMamaResourceTaskProof\(taskIdentity\(selectedTask\), \{\s*proofLink,\s*proofScreenshotUrl,?\s*\}\)/);
+  assert.match(source, /publicApi\.submitMamaResourceTaskProof\(assignmentTaskIdentity\(selectedTask\), \{\s*proofLink,\s*proofScreenshotUrl,?\s*\}\)/);
   assert.match(source, /提交回填/);
   assert.match(source, /setSelectedTask\(updatedTask\)/);
   assert.match(source, /setTasks\(\(current\) => current\.map/);
@@ -257,6 +270,25 @@ test("proof async results only update the task that initiated the action", () =>
   assert.match(source, /const initiatingTaskId = taskIdentity\(selectedTask\);/);
   assert.match(source, /if \(!isSameTaskIdentity\(selectedTaskRef\.current, initiatingTaskId\)\) return;/);
   assert.match(source, /setTasks\(\(current\) => current\.map[\s\S]*if \(!isSameTaskIdentity\(selectedTaskRef\.current, initiatingTaskId\)\) return;/);
+});
+
+test("late claim results update lists but only update matching selected detail", () => {
+  const shouldApplyTaskDetailResult = evaluateHelper("shouldApplyTaskDetailResult");
+  assert.equal(shouldApplyTaskDetailResult({ _id: "template-a" }, "template-a"), true);
+  assert.equal(shouldApplyTaskDetailResult({ _id: "template-b" }, "template-a"), false);
+  assert.equal(shouldApplyTaskDetailResult(null, "template-a"), false);
+  assert.match(source, /const initiatingTemplateId = templateTaskIdentity\(selectedTask\);/);
+  assert.match(source, /const replacement = replaceClaimedTask[\s\S]*setAvailableTasks\(replacement\.availableTasks\);[\s\S]*if \(!shouldApplyTaskDetailResult\(selectedTaskRef\.current, initiatingTemplateId\)\) return;/);
+});
+
+test("profile task loads reject stale generations and changed auth identities", () => {
+  const isCurrentProfileTaskRequest = evaluateHelper("isCurrentProfileTaskRequest");
+  const current = { generation: 2, authIdentity: "token-b" };
+  assert.equal(isCurrentProfileTaskRequest(current, { generation: 2, authIdentity: "token-b" }), true);
+  assert.equal(isCurrentProfileTaskRequest(current, { generation: 1, authIdentity: "token-b" }), false);
+  assert.equal(isCurrentProfileTaskRequest(current, { generation: 2, authIdentity: "token-a" }), false);
+  assert.match(source, /if \(!isCurrentProfileTaskRequest\(profileTaskRequestRef\.current, request\)\) return;/);
+  assert.match(source, /setLoadedAuthIdentity\(authIdentity\);\s*setLoadError[\s\S]*setPageMode\("error"\);/);
 });
 
 test("content-link modal owns focus and supports Escape dismissal", () => {
