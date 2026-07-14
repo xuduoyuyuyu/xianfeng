@@ -5,6 +5,7 @@ import { after, before, beforeEach, describe, it } from "node:test";
 import express from "express";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
+import * as XLSX from "xlsx";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import mamaResourceRoutes from "./mamaResource";
 import adminMamaResourceRoutes from "./adminMamaResource";
@@ -867,6 +868,142 @@ describe("mama resource pool routes", () => {
       headers: { Authorization: `Bearer ${firstToken}` },
     });
     assert.equal(forbiddenResponse.status, 404);
+  });
+
+  it("lets operators edit and import personal task content links after preview", async () => {
+    const [existingProfile, newProfile, pendingProfile] = await MamaResourceProfile.create([
+      {
+        displayName: "已有分配账号",
+        contactWechat: "existing-content-account",
+        status: "approved",
+        consentAccepted: true,
+        categories: ["箱包"],
+        socialAccount: {
+          platform: "xiaohongshu",
+          profileUrl: "https://www.xiaohongshu.com/user/profile/existing-content",
+          normalizedProfileUrl: "xiaohongshu:user/profile/existing-content",
+        },
+      },
+      {
+        displayName: "待新增分配账号",
+        contactWechat: "new-content-account",
+        status: "approved",
+        consentAccepted: true,
+        categories: ["箱包"],
+        socialAccount: {
+          platform: "xiaohongshu",
+          profileUrl: "https://www.xiaohongshu.com/user/profile/new-content",
+          normalizedProfileUrl: "xiaohongshu:user/profile/new-content",
+        },
+      },
+      {
+        displayName: "未审核账号",
+        contactWechat: "pending-content-account",
+        status: "pending",
+        consentAccepted: true,
+        categories: ["箱包"],
+        socialAccount: {
+          platform: "xiaohongshu",
+          profileUrl: "https://www.xiaohongshu.com/user/profile/pending-content",
+          normalizedProfileUrl: "xiaohongshu:user/profile/pending-content",
+        },
+      },
+    ]);
+    const task = await MamaResourceTask.create({
+      title: "专属链接导入任务",
+      category: "箱包",
+      unitPriceCents: 3000,
+      status: "listed",
+    });
+    const existingAssignment = await MamaResourceTaskAssignment.create({
+      taskId: task._id,
+      profileId: existingProfile._id,
+      status: "assigned",
+    });
+
+    const manualResponse = await fetch(`${server.adminUrl}/tasks/assignments/${existingAssignment._id}/content`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contentUrl: "https://my.feishu.cn/wiki/manual-link" }),
+    });
+    assert.equal(manualResponse.status, 200);
+    const manualData = await manualResponse.json();
+    assert.equal(manualData.assignment.contentUrl, "https://my.feishu.cn/wiki/manual-link");
+
+    const invalidManualResponse = await fetch(`${server.adminUrl}/tasks/assignments/${existingAssignment._id}/content`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contentUrl: "ftp://my.feishu.cn/wiki/not-allowed" }),
+    });
+    assert.equal(invalidManualResponse.status, 400);
+
+    const templateResponse = await fetch(`${server.adminUrl}/tasks/content-import/template`);
+    assert.equal(templateResponse.status, 200);
+    assert.equal(
+      templateResponse.headers.get("content-type"),
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    const templateBook = XLSX.read(Buffer.from(await templateResponse.arrayBuffer()));
+    const templateRows = XLSX.utils.sheet_to_json<Record<string, string>>(templateBook.Sheets[templateBook.SheetNames[0]], { defval: "" });
+    assert.deepEqual(Object.keys(templateRows[0]), ["妈妈好赚账号ID", "专属内容链接"]);
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([
+      { 妈妈好赚账号ID: String(existingProfile._id), 专属内容链接: "https://my.feishu.cn/wiki/import-existing" },
+      { 妈妈好赚账号ID: String(newProfile._id), 专属内容链接: "https://my.feishu.cn/wiki/import-new" },
+      { 妈妈好赚账号ID: String(pendingProfile._id), 专属内容链接: "https://my.feishu.cn/wiki/import-pending" },
+      { 妈妈好赚账号ID: "invalid-id", 专属内容链接: "https://my.feishu.cn/wiki/import-invalid" },
+    ]), "专属链接");
+    const form = new FormData();
+    form.append("file", new Blob([XLSX.write(workbook, { type: "buffer", bookType: "xlsx" })]), "content-links.xlsx");
+    const previewResponse = await fetch(`${server.adminUrl}/tasks/${task._id}/content-import/preview`, {
+      method: "POST",
+      body: form,
+    });
+    assert.equal(previewResponse.status, 200);
+    const previewData = await previewResponse.json();
+    assert.equal(previewData.summary.valid, 2);
+    assert.equal(previewData.summary.invalid, 2);
+    assert.equal(previewData.rows.find((row: any) => row.profileId === String(existingProfile._id)).action, "update_link");
+    assert.equal(previewData.rows.find((row: any) => row.profileId === String(newProfile._id)).action, "create_assignment");
+    assert.deepEqual(
+      previewData.rows.find((row: any) => row.profileId === String(pendingProfile._id)).errors,
+      ["账号尚未通过审核"]
+    );
+    assert.equal(await MamaResourceTaskAssignment.countDocuments({ taskId: task._id }), 1);
+
+    const validRows = previewData.rows
+      .filter((row: any) => row.valid)
+      .map((row: any) => ({ profileId: row.profileId, contentUrl: row.contentUrl }));
+    const commitResponse = await fetch(`${server.adminUrl}/tasks/${task._id}/content-import/commit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rows: validRows }),
+    });
+    assert.equal(commitResponse.status, 200);
+    const commitData = await commitResponse.json();
+    assert.deepEqual(commitData.summary, { created: 1, updated: 1, unchanged: 0 });
+    assert.equal(await MamaResourceTaskAssignment.countDocuments({ taskId: task._id }), 2);
+    assert.equal(
+      (await MamaResourceTaskAssignment.findOne({ taskId: task._id, profileId: newProfile._id }))?.contentUrl,
+      "https://my.feishu.cn/wiki/import-new"
+    );
+
+    const duplicateBook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(duplicateBook, XLSX.utils.json_to_sheet([
+      { 妈妈好赚账号ID: String(newProfile._id), 专属内容链接: "https://my.feishu.cn/wiki/duplicate-one" },
+      { 妈妈好赚账号ID: String(newProfile._id), 专属内容链接: "https://my.feishu.cn/wiki/duplicate-two" },
+    ]), "专属链接");
+    const duplicateForm = new FormData();
+    duplicateForm.append("file", new Blob([XLSX.write(duplicateBook, { type: "buffer", bookType: "xlsx" })]), "duplicates.xlsx");
+    const duplicateResponse = await fetch(`${server.adminUrl}/tasks/${task._id}/content-import/preview`, {
+      method: "POST",
+      body: duplicateForm,
+    });
+    assert.equal(duplicateResponse.status, 200);
+    const duplicateData = await duplicateResponse.json();
+    assert.equal(duplicateData.summary.valid, 0);
+    assert.equal(duplicateData.rows.every((row: any) => row.errors.includes("账号ID重复")), true);
   });
 
   it("lets approved users claim listed tasks until the claim limit is reached", async () => {

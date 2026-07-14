@@ -1,5 +1,7 @@
 import { Router, Request, Response } from "express";
 import mongoose from "mongoose";
+import multer from "multer";
+import * as XLSX from "xlsx";
 import MamaResourceProfile, { MamaResourceStatus } from "../models/MamaResourceProfile";
 import MamaResourceTask, { MamaResourceTaskStatus } from "../models/MamaResourceTask";
 import MamaResourceTaskAssignment, { MamaResourceTaskAssignmentStatus } from "../models/MamaResourceTaskAssignment";
@@ -8,6 +10,10 @@ const router = Router();
 const STATUSES: MamaResourceStatus[] = ["pending", "approved", "needs_info", "rejected"];
 const TASK_STATUSES: MamaResourceTaskStatus[] = ["listed", "paused", "archived"];
 const ASSIGNMENT_STATUSES: MamaResourceTaskAssignmentStatus[] = ["assigned", "submitted", "collected", "rejected"];
+const contentImportUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
 
 function asText(value: unknown): string {
   if (value === undefined || value === null) return "";
@@ -42,6 +48,69 @@ function escapeRegex(value: string): string {
 function idQuery(id: string) {
   if (mongoose.Types.ObjectId.isValid(id)) return { _id: id };
   return { _id: null };
+}
+
+function normalizeContentUrl(value: unknown): string {
+  const text = asText(value);
+  if (!text) return "";
+  const url = new URL(text);
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error("链接仅支持 HTTP(S)");
+  }
+  return url.toString();
+}
+
+type ContentImportSourceRow = {
+  rowNumber: number;
+  profileId: string;
+  rawContentUrl: unknown;
+};
+
+async function analyzeContentImportRows(taskId: mongoose.Types.ObjectId, sourceRows: ContentImportSourceRow[]) {
+  const idCounts = new Map<string, number>();
+  sourceRows.forEach((row) => idCounts.set(row.profileId, (idCounts.get(row.profileId) || 0) + 1));
+  const validObjectIds = sourceRows
+    .map((row) => row.profileId)
+    .filter((id) => mongoose.Types.ObjectId.isValid(id));
+  const [profiles, assignments] = await Promise.all([
+    MamaResourceProfile.find({ _id: { $in: validObjectIds } }).lean(),
+    MamaResourceTaskAssignment.find({ taskId, profileId: { $in: validObjectIds } }).lean(),
+  ]);
+  const profilesById = new Map(profiles.map((profile) => [String(profile._id), profile]));
+  const assignmentsByProfileId = new Map(assignments.map((assignment) => [String(assignment.profileId), assignment]));
+
+  return sourceRows.map((row) => {
+    const errors: string[] = [];
+    let contentUrl = "";
+    if (!mongoose.Types.ObjectId.isValid(row.profileId)) errors.push("账号ID格式错误");
+    if ((idCounts.get(row.profileId) || 0) > 1) errors.push("账号ID重复");
+    const profile = profilesById.get(row.profileId);
+    if (mongoose.Types.ObjectId.isValid(row.profileId)) {
+      if (!profile) errors.push("账号不存在");
+      else if (profile.status !== "approved") errors.push("账号尚未通过审核");
+    }
+    try {
+      contentUrl = normalizeContentUrl(row.rawContentUrl);
+      if (!contentUrl) errors.push("专属内容链接为空");
+    } catch (error: any) {
+      errors.push(error?.message || "专属内容链接格式错误");
+    }
+    const assignment = assignmentsByProfileId.get(row.profileId);
+    const action = !assignment
+      ? "create_assignment"
+      : assignment.contentUrl === contentUrl
+        ? "unchanged"
+        : "update_link";
+    return {
+      rowNumber: row.rowNumber,
+      profileId: row.profileId,
+      displayName: asText(profile?.displayName),
+      contentUrl,
+      action,
+      valid: errors.length === 0,
+      errors,
+    };
+  });
 }
 
 function buildListFilter(query: Request["query"]) {
@@ -179,6 +248,132 @@ router.get("/tasks", async (_req: Request, res: Response) => {
     res.json({ tasks: tasks.map(serializeTask) });
   } catch (error: any) {
     res.status(500).json({ message: error?.message || "获取任务失败" });
+  }
+});
+
+router.get("/tasks/content-import/template", (_req: Request, res: Response) => {
+  const sheet = XLSX.utils.json_to_sheet([
+    { 妈妈好赚账号ID: "请填写系统账号ID", 专属内容链接: "https://my.feishu.cn/wiki/example" },
+  ]);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, sheet, "专属链接");
+  const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", 'attachment; filename="mama-resource-content-import.xlsx"');
+  res.send(buffer);
+});
+
+router.patch("/tasks/assignments/:assignmentId/content", async (req: Request, res: Response) => {
+  try {
+    const contentUrl = normalizeContentUrl(req.body?.contentUrl);
+    if (!contentUrl) {
+      res.status(400).json({ message: "请填写专属内容链接" });
+      return;
+    }
+    const assignment = await MamaResourceTaskAssignment.findOneAndUpdate(
+      idQuery(asText(req.params.assignmentId)),
+      { contentUrl, contentUpdatedAt: new Date() },
+      { returnDocument: "after", runValidators: true }
+    )
+      .populate("taskId")
+      .populate("profileId");
+    if (!assignment) {
+      res.status(404).json({ message: "任务账号不存在" });
+      return;
+    }
+    res.json({ assignment: serializeAssignment(assignment) });
+  } catch (error: any) {
+    res.status(400).json({ message: error?.message || "保存专属内容链接失败" });
+  }
+});
+
+router.post(
+  "/tasks/:taskId/content-import/preview",
+  contentImportUpload.single("file"),
+  async (req: Request, res: Response) => {
+    try {
+      const task = await MamaResourceTask.findOne(idQuery(asText(req.params.taskId))).lean();
+      if (!task) {
+        res.status(404).json({ message: "任务不存在" });
+        return;
+      }
+      if (!req.file) {
+        res.status(400).json({ message: "请上传 Excel 文件" });
+        return;
+      }
+      const workbook = XLSX.read(req.file.buffer);
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, { defval: "" });
+      const rows = await analyzeContentImportRows(
+        task._id,
+        rawRows.map((row, index) => ({
+          rowNumber: index + 2,
+          profileId: asText(row["妈妈好赚账号ID"]),
+          rawContentUrl: row["专属内容链接"],
+        }))
+      );
+      const valid = rows.filter((row) => row.valid).length;
+      res.json({ rows, summary: { total: rows.length, valid, invalid: rows.length - valid } });
+    } catch (error: any) {
+      res.status(400).json({ message: error?.message || "Excel 预检失败" });
+    }
+  }
+);
+
+router.post("/tasks/:taskId/content-import/commit", async (req: Request, res: Response) => {
+  try {
+    const task = await MamaResourceTask.findOne(idQuery(asText(req.params.taskId))).lean();
+    if (!task) {
+      res.status(404).json({ message: "任务不存在" });
+      return;
+    }
+    const inputRows = Array.isArray(req.body?.rows) ? req.body.rows.slice(0, 1000) : [];
+    if (inputRows.length === 0) {
+      res.status(400).json({ message: "没有可导入的数据" });
+      return;
+    }
+    const rows = await analyzeContentImportRows(
+      task._id,
+      inputRows.map((row: any, index: number) => ({
+        rowNumber: index + 1,
+        profileId: asText(row?.profileId),
+        rawContentUrl: row?.contentUrl,
+      }))
+    );
+    const invalidRows = rows.filter((row) => !row.valid);
+    if (invalidRows.length > 0) {
+      res.status(400).json({ message: "导入数据已失效，请重新预检", rows: invalidRows });
+      return;
+    }
+    let created = 0;
+    let updated = 0;
+    let unchanged = 0;
+    for (const row of rows) {
+      if (row.action === "unchanged") {
+        unchanged += 1;
+        continue;
+      }
+      const now = new Date();
+      if (row.action === "create_assignment") {
+        await MamaResourceTaskAssignment.create({
+          taskId: task._id,
+          profileId: row.profileId,
+          status: "assigned",
+          contentUrl: row.contentUrl,
+          contentUpdatedAt: now,
+        });
+        created += 1;
+      } else {
+        await MamaResourceTaskAssignment.updateOne(
+          { taskId: task._id, profileId: row.profileId },
+          { contentUrl: row.contentUrl, contentUpdatedAt: now }
+        );
+        updated += 1;
+      }
+    }
+    res.json({ summary: { created, updated, unchanged } });
+  } catch (error: any) {
+    res.status(400).json({ message: error?.message || "导入专属内容链接失败" });
   }
 });
 
