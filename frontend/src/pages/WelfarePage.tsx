@@ -215,7 +215,7 @@ const WelfarePage: React.FC = () => {
               <div className="mt-4 flex items-center gap-3 rounded-2xl bg-[#f5f2ff] p-3">
                 <span className="min-w-0 flex-1 truncate text-sm font-bold text-[#5e43e6]">{claimDialog.externalUrl}</span>
                 <button type="button" onClick={copyClaimLink} className="shrink-0 rounded-full bg-white px-3 py-2 text-xs font-black text-[#5e43e6]">
-                  复制链接
+                  {claimDialog.externalUrl.includes("小程序") ? "点击获取" : "复制链接"}
                 </button>
               </div>
             ) : null}
