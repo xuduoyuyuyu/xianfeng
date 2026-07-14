@@ -722,6 +722,7 @@ export interface MamaResourceTask {
   dataCycle?: string;
   settlementCycle?: string;
   promotionCount?: number | null;
+  activePromotionCount?: number;
   claimLimit?: number | null;
   claimedCount?: number;
   remainingClaimCount?: number | null;

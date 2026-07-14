@@ -131,8 +131,21 @@ function taskStatusText(status: MamaResourceTask["status"]): string {
 }
 
 function promotionCountText(task: MamaResourceTask): string {
+  if (task.activePromotionCount !== undefined && task.activePromotionCount !== null) {
+    const activeCount = Number(task.activePromotionCount);
+    return Number.isFinite(activeCount) && activeCount >= 0 ? String(Math.floor(activeCount)) : "待补";
+  }
   const count = Number(task.promotionCount || 0);
   return count > 0 ? String(Math.floor(count)) : "待补";
+}
+
+function hasPositiveTrafficFee(task: MamaResourceTask): boolean {
+  return Number(task.trafficFeeCents || 0) > 0;
+}
+
+function trafficFeeDetailText(task: MamaResourceTask): string {
+  const cents = Number(task.trafficFeeCents || 0);
+  return cents > 0 ? `¥${(cents / 100).toFixed(2)}` : "-";
 }
 
 function remainingCountText(task: MamaResourceTask): string {
@@ -144,6 +157,15 @@ function remainingCountText(task: MamaResourceTask): string {
 
 function taskIdentity(task: MamaResourceTask): string {
   return String(task.taskId || task._id || "").trim();
+}
+
+function replaceClaimedTask(tasks: MamaResourceTask[], availableTasks: MamaResourceTask[], claimedTask: MamaResourceTask) {
+  const identity = (task: MamaResourceTask) => String(task.taskId || task._id || "").trim();
+  const claimedId = identity(claimedTask);
+  return {
+    tasks: [...tasks.filter((task) => identity(task) !== claimedId), claimedTask],
+    availableTasks: availableTasks.filter((task) => identity(task) !== claimedId),
+  };
 }
 
 function MamaResourceAccountCard({ profile, onManage }: { profile: MamaResourceProfile; onManage: () => void }) {
@@ -172,7 +194,7 @@ function MamaResourceTaskCard({ task, onOpen }: { task: MamaResourceTask; onOpen
         <div className="text-right">
           <div className="text-[10px] font-bold text-[#82798d]">任务单价</div>
           <div className="mt-[2px] text-[17px] font-black text-[#ee4d87]">{moneyText(task.unitPriceCents)}</div>
-          <div className="mt-[2px] text-[10px] font-extrabold text-[#7c2ce6]">投流补贴 {moneyText(task.trafficFeeCents)}</div>
+          {hasPositiveTrafficFee(task) ? <div className="mt-[2px] text-[10px] font-extrabold text-[#7c2ce6]">投流补贴 {moneyText(task.trafficFeeCents)}</div> : null}
         </div>
       </div>
       <div className="mt-[12px] flex flex-wrap gap-[7px] text-[10.5px] font-extrabold text-[#655d70]">
@@ -200,7 +222,7 @@ function MamaResourceTaskDetail({ task, claiming, claimError, onBack, onClaim }:
         <h4 className="mt-[14px] text-[13px] font-black text-[#151222]">项目价格</h4>
         <div className="mt-[9px] grid grid-cols-3 gap-[8px] rounded-[12px] bg-[#faf8fd] p-[11px] text-center text-[11px] font-bold text-[#6b6474]">
           <div>任务单价<strong className="mt-[4px] block text-[14px] text-[#ee4d87]">{moneyText(task.unitPriceCents)}</strong></div>
-          <div>投流补贴<strong className="mt-[4px] block text-[14px] text-[#151222]">{moneyText(task.trafficFeeCents)}</strong></div>
+          <div>投流补贴<strong className="mt-[4px] block text-[14px] text-[#151222]">{trafficFeeDetailText(task)}</strong></div>
           <div>结算周期<strong className="mt-[4px] block text-[14px] text-[#151222]">{task.settlementCycle || "T+9"}</strong></div>
         </div>
         <div className="mt-[14px] border-t border-[#eee9f4] pt-[12px]"><div className="text-[13px] font-black">结算标准</div><p className="mt-[5px] text-[12px] font-semibold leading-[1.65] text-[#6b6474]">{task.settlementStandard || "按项目要求发布并保留，后台审核通过后结算。"}</p></div>
@@ -380,9 +402,9 @@ const MamaResourceApplyPage: React.FC = () => {
     try {
       const response = await publicApi.claimMamaResourceTask(taskIdentity(selectedTask));
       const claimedTask = response.data.task;
-      const claimedId = taskIdentity(claimedTask);
-      setTasks((current) => [...current.filter((task) => taskIdentity(task) !== claimedId), claimedTask]);
-      setAvailableTasks((current) => current.filter((task) => taskIdentity(task) !== claimedId));
+      const replacement = replaceClaimedTask(tasks, availableTasks, claimedTask);
+      setTasks(replacement.tasks);
+      setAvailableTasks(replacement.availableTasks);
       setSelectedTask(claimedTask);
       setPageMode("detail");
     } catch (error: any) {

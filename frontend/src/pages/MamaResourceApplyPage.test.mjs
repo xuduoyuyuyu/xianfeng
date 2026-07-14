@@ -10,6 +10,29 @@ const appSource = readFileSync(resolve(__dirname, "../App.tsx"), "utf8");
 const apiSource = readFileSync(resolve(__dirname, "../services/api.ts"), "utf8");
 const staticSource = readFileSync(resolve(__dirname, "../../public/screens/public-mama-resource-apply.html"), "utf8");
 
+function sourceFunction(name) {
+  const start = source.indexOf(`function ${name}(`);
+  assert.notEqual(start, -1, `missing function ${name}`);
+  const bodyStart = source.indexOf("{", start);
+  let depth = 0;
+  for (let index = bodyStart; index < source.length; index += 1) {
+    if (source[index] === "{") depth += 1;
+    if (source[index] === "}") depth -= 1;
+    if (depth === 0) {
+      return source.slice(start, index + 1)
+        .replaceAll(": MamaResourceTask[]", "")
+        .replaceAll(": MamaResourceTask", "")
+        .replaceAll(": boolean", "")
+        .replaceAll(": string", "");
+    }
+  }
+  throw new Error(`unterminated function ${name}`);
+}
+
+function evaluateHelper(name) {
+  return Function(`${sourceFunction(name)}; return ${name};`)();
+}
+
 test("mama resource application route is public and avoids account credentials", () => {
   assert.match(appSource, /import MamaResourceApplyPage from "\.\/pages\/MamaResourceApplyPage";/);
   assert.match(appSource, /if \(normalizedPathname === "\/mama-resources\/apply"\) \{\s*return <MamaResourceApplyPage \/>;\s*\}/s);
@@ -206,4 +229,33 @@ test("task cards open an in-page detail with claim behavior", () => {
 
 test("mama resource tasks expose assignment content URLs", () => {
   assert.match(apiSource, /export interface MamaResourceTask \{[\s\S]*contentUrl\?: string;/);
+});
+
+test("promotion count prefers the active assignment count", () => {
+  const promotionCountText = evaluateHelper("promotionCountText");
+  assert.equal(promotionCountText({ activePromotionCount: 0, promotionCount: 9 }), "0");
+  assert.equal(promotionCountText({ activePromotionCount: 3, promotionCount: 9 }), "3");
+  assert.equal(promotionCountText({ promotionCount: 9 }), "9");
+  assert.match(apiSource, /activePromotionCount\?: number;/);
+});
+
+test("zero traffic subsidy is omitted on cards and shown as a dash in detail", () => {
+  const hasPositiveTrafficFee = evaluateHelper("hasPositiveTrafficFee");
+  const trafficFeeDetailText = evaluateHelper("trafficFeeDetailText");
+  assert.equal(hasPositiveTrafficFee({ trafficFeeCents: 0 }), false);
+  assert.equal(hasPositiveTrafficFee({ trafficFeeCents: 250 }), true);
+  assert.equal(trafficFeeDetailText({ trafficFeeCents: 0 }), "-");
+  assert.equal(trafficFeeDetailText({ trafficFeeCents: 250 }), "¥2.50");
+  assert.match(source, /hasPositiveTrafficFee\(task\) \? <div[^>]*>投流补贴/);
+});
+
+test("claim replacement removes the available duplicate and retains one task identity", () => {
+  const replaceClaimedTask = evaluateHelper("replaceClaimedTask");
+  const result = replaceClaimedTask(
+    [{ _id: "assignment-old", taskId: "task-1", title: "old" }],
+    [{ _id: "task-1", title: "available" }, { _id: "task-2", title: "other" }],
+    { _id: "assignment-new", taskId: "task-1", title: "claimed" },
+  );
+  assert.deepEqual(result.tasks.map((task) => task.title), ["claimed"]);
+  assert.deepEqual(result.availableTasks.map((task) => task._id), ["task-2"]);
 });
