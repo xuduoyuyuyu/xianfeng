@@ -1,5 +1,4 @@
 const {
-  CITIES,
   STAGES,
   dismissProfileOnboardingForSession,
   districtsFor,
@@ -18,14 +17,9 @@ Component({
     region: "",
     stage: "",
     gradeName: "",
-    cities: CITIES,
-    regions: [],
-    stages: STAGES,
-    grades: [],
-    cityIndex: 0,
-    regionIndex: 0,
-    stageIndex: 0,
-    gradeIndex: 0,
+    regionOptions: [],
+    educationRange: [STAGES, gradesFor(STAGES[0], "")],
+    educationValue: [0, 0],
   },
 
   pageLifetimes: {
@@ -38,10 +32,8 @@ Component({
     refresh() {
       const state = getProfileOnboardingState();
       const parsed = parseGrade(state.grade);
-      const cityIndex = Math.max(0, CITIES.indexOf(state.city));
-      const city = state.city || CITIES[cityIndex] || "";
-      const regions = districtsFor(city);
-      const regionIndex = Math.max(0, regions.indexOf(state.region));
+      const city = state.city || "";
+      const regionOptions = districtsFor(city);
       const stageIndex = Math.max(0, STAGES.indexOf(parsed.stage));
       const stage = parsed.stage || STAGES[stageIndex] || "";
       const grades = gradesFor(stage, city);
@@ -53,12 +45,9 @@ Component({
         region: state.region,
         stage: parsed.stage,
         gradeName: parsed.gradeName,
-        regions,
-        grades,
-        cityIndex,
-        regionIndex,
-        stageIndex,
-        gradeIndex,
+        regionOptions,
+        educationRange: [STAGES, grades],
+        educationValue: [stageIndex, gradeIndex],
       });
     },
 
@@ -69,30 +58,59 @@ Component({
       this.setData({ visible: false, message: "" });
     },
 
-    chooseCity(event) {
-      const cityIndex = Number(event.detail.value) || 0;
-      const city = CITIES[cityIndex] || "";
-      this.setData({ city, cityIndex, region: "", regionIndex: 0, regions: districtsFor(city) });
-      if (this.data.stage) {
-        const grades = gradesFor(this.data.stage, city);
-        this.setData({ grades, gradeName: "", gradeIndex: 0 });
-      }
+    updateCity(event) {
+      const city = String(event.detail.value || "");
+      const regionOptions = districtsFor(city);
+      const stageIndex = this.data.educationValue[0] || 0;
+      const stage = this.data.stage || STAGES[stageIndex] || STAGES[0] || "";
+      const grades = gradesFor(stage, city);
+      const gradeIndex = Math.max(0, grades.indexOf(this.data.gradeName));
+      this.setData({
+        city,
+        region: "",
+        regionOptions,
+        gradeName: grades.includes(this.data.gradeName) ? this.data.gradeName : "",
+        educationRange: [STAGES, grades],
+        educationValue: [stageIndex, gradeIndex],
+      });
     },
 
     chooseRegion(event) {
       const regionIndex = Number(event.detail.value) || 0;
-      this.setData({ regionIndex, region: this.data.regions[regionIndex] || "" });
+      this.setData({ region: this.data.regionOptions[regionIndex] || "" });
     },
 
-    chooseStage(event) {
-      const stageIndex = Number(event.detail.value) || 0;
+    updateRegionInput(event) {
+      this.setData({ region: String(event.detail.value || "") });
+    },
+
+    changeEducationColumn(event) {
+      const column = Number(event.detail.column) || 0;
+      const value = Number(event.detail.value) || 0;
+      const educationValue = this.data.educationValue.slice();
+      educationValue[column] = value;
+      if (column === 0) {
+        const stage = STAGES[value] || STAGES[0] || "";
+        const city = this.data.city || "";
+        educationValue[1] = 0;
+        this.setData({ educationRange: [STAGES, gradesFor(stage, city)], educationValue });
+        return;
+      }
+      this.setData({ educationValue });
+    },
+
+    chooseEducation(event) {
+      const stageIndex = Number(event.detail.value[0]) || 0;
+      const gradeIndex = Number(event.detail.value[1]) || 0;
       const stage = STAGES[stageIndex] || "";
-      this.setData({ stageIndex, stage, gradeName: "", gradeIndex: 0, grades: gradesFor(stage, this.data.city) });
-    },
-
-    chooseGrade(event) {
-      const gradeIndex = Number(event.detail.value) || 0;
-      this.setData({ gradeIndex, gradeName: this.data.grades[gradeIndex] || "" });
+      const city = this.data.city || "";
+      const grades = gradesFor(stage, city);
+      this.setData({
+        stage,
+        gradeName: grades[gradeIndex] || "",
+        educationRange: [STAGES, grades],
+        educationValue: [stageIndex, gradeIndex],
+      });
     },
 
     async save() {

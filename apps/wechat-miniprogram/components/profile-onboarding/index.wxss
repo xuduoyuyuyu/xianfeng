@@ -78,6 +78,10 @@
   margin-bottom: 22rpx;
 }
 
+.xf-profile-onboarding-grade-field {
+  width: 100%;
+}
+
 .xf-profile-onboarding-label {
   display: block;
   margin-bottom: 10rpx;
@@ -86,7 +90,8 @@
   font-weight: 600;
 }
 
-.xf-profile-onboarding-picker {
+.xf-profile-onboarding-picker,
+.xf-profile-onboarding-input {
   display: flex;
   box-sizing: border-box;
   align-items: center;
@@ -100,9 +105,8 @@
   font-size: 27rpx;
 }
 
-.xf-profile-onboarding-picker.is-disabled {
-  color: #b4aeba;
-  background: #f4f2f6;
+.xf-profile-onboarding-input {
+  width: 100%;
 }
 
 .xf-profile-onboarding-message {

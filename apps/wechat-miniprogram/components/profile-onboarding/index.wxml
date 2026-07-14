@@ -5,31 +5,24 @@
     <text class="xf-profile-onboarding-title">完善基础信息</text>
     <text class="xf-profile-onboarding-subtitle">填写后，为你优先展示更匹配的内容</text>
 
-    <view class="xf-profile-onboarding-field">
-      <text class="xf-profile-onboarding-label">城市</text>
-      <picker mode="selector" range="{{cities}}" value="{{cityIndex}}" bindchange="chooseCity">
-        <view class="xf-profile-onboarding-picker">{{city || '请选择城市'}}<text>⌄</text></view>
-      </picker>
-    </view>
-    <view class="xf-profile-onboarding-field">
-      <text class="xf-profile-onboarding-label">区域</text>
-      <picker mode="selector" range="{{regions}}" value="{{regionIndex}}" bindchange="chooseRegion" disabled="{{!city}}">
-        <view class="xf-profile-onboarding-picker {{!city ? 'is-disabled' : ''}}">{{region || '请选择区域'}}<text>⌄</text></view>
-      </picker>
-    </view>
     <view class="xf-profile-onboarding-grid">
       <view class="xf-profile-onboarding-field">
-        <text class="xf-profile-onboarding-label">学段</text>
-        <picker mode="selector" range="{{stages}}" value="{{stageIndex}}" bindchange="chooseStage">
-          <view class="xf-profile-onboarding-picker">{{stage || '请选择'}}<text>⌄</text></view>
-        </picker>
+        <text class="xf-profile-onboarding-label">城市</text>
+        <input class="xf-profile-onboarding-input" value="{{city}}" placeholder="如：上海" bindinput="updateCity" />
       </view>
       <view class="xf-profile-onboarding-field">
-        <text class="xf-profile-onboarding-label">年级</text>
-        <picker mode="selector" range="{{grades}}" value="{{gradeIndex}}" bindchange="chooseGrade" disabled="{{!stage}}">
-          <view class="xf-profile-onboarding-picker {{!stage ? 'is-disabled' : ''}}">{{gradeName || '请选择'}}<text>⌄</text></view>
+        <text class="xf-profile-onboarding-label">区域</text>
+        <picker wx:if="{{regionOptions.length}}" range="{{regionOptions}}" value="0" bindchange="chooseRegion">
+          <view class="xf-profile-onboarding-picker">{{region || '请选择区域'}}<text>⌄</text></view>
         </picker>
+        <input wx:else class="xf-profile-onboarding-input" value="{{region}}" placeholder="{{city ? '手动输入区域' : '先填城市'}}" bindinput="updateRegionInput" />
       </view>
+    </view>
+    <view class="xf-profile-onboarding-field xf-profile-onboarding-grade-field">
+      <text class="xf-profile-onboarding-label">学段 / 年级</text>
+      <picker mode="multiSelector" range="{{educationRange}}" value="{{educationValue}}" bindcolumnchange="changeEducationColumn" bindchange="chooseEducation">
+        <view class="xf-profile-onboarding-picker">{{stage && gradeName ? stage + ' · ' + gradeName : '请选择学段和年级'}}<text>⌄</text></view>
+      </picker>
     </view>
     <text wx:if="{{message}}" class="xf-profile-onboarding-message">{{message}}</text>
     <button class="xf-profile-onboarding-submit" loading="{{saving}}" disabled="{{saving}}" bindtap="save">{{saving ? '保存中' : '保存并开启个性化推荐'}}</button>

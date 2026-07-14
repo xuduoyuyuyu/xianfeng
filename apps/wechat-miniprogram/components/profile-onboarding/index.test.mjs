@@ -30,3 +30,19 @@ test("profile dialog matches the reference card hierarchy", () => {
   assert.match(wxss, /background:\s*rgba\(/);
   assert.match(wxss, /border-radius:/);
 });
+
+test("profile dialog reuses manual location fields and linked education picker", () => {
+  const wxml = fs.readFileSync(path.join(dir, "index.wxml"), "utf8");
+  const js = fs.readFileSync(path.join(dir, "index.js"), "utf8");
+
+  assert.equal((wxml.match(/mode="multiSelector"/g) || []).length, 1);
+  assert.doesNotMatch(wxml, /mode="selector"/);
+  assert.match(wxml, /<input[^>]*value="\{\{city\}\}"[^>]*bindinput="updateCity"/);
+  assert.match(wxml, /wx:if="\{\{regionOptions\.length\}\}"[\s\S]*bindchange="chooseRegion"/);
+  assert.match(wxml, /<input[^>]*wx:else[^>]*value="\{\{region\}\}"[^>]*bindinput="updateRegionInput"/);
+  assert.match(wxml, /range="\{\{educationRange\}\}"[\s\S]*bindcolumnchange="changeEducationColumn"[\s\S]*bindchange="chooseEducation"/);
+  assert.match(js, /updateCity\(event\)/);
+  assert.match(js, /updateRegionInput\(event\)/);
+  assert.match(js, /changeEducationColumn\(event\)/);
+  assert.match(js, /educationRange: \[STAGES, gradesFor\(STAGES\[0\], ""\)\]/);
+});
