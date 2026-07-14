@@ -263,6 +263,7 @@
             <text>{{item.statusText}}</text>
             <text>推广 {{item.promotionCountText}} 人</text>
             <text>{{item.remainingClaimText}}</text>
+            <text wx:if="{{item.hasContentUrl}}">内容已下发</text>
           </view>
         </view>
       </view>
@@ -320,6 +321,14 @@
             <view wx:if="{{currentMamaTask.exampleImageUrls.length}}" class="xf-mama-example-gallery">
               <image wx:for="{{currentMamaTask.exampleImageUrls}}" wx:key="*this" class="xf-mama-example-image" src="{{item}}" mode="widthFix" data-index="{{index}}" catchtap="previewTaskExampleImage" />
             </view>
+          </view>
+
+          <view wx:if="{{currentMamaTask.hasContentUrl}}" class="xf-mama-content-card">
+            <view>
+              <text class="xf-mama-content-title">你的专属任务内容</text>
+              <text class="xf-mama-content-hint">打开后下载图片、复制文案并按要求发布</text>
+            </view>
+            <button type="button" class="xf-mama-content-button" catchtap="openMamaTaskContent">打开专属内容</button>
           </view>
 
           <view wx:if="{{currentMamaTask.isClaimable}}" class="xf-mama-task-actions">

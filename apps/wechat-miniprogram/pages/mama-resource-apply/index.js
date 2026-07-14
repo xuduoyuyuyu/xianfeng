@@ -369,6 +369,7 @@ function buildTaskView(task) {
   const source = task && typeof task === "object" ? task : {};
   const trafficFeeCents = Number(source.trafficFeeCents || 0);
   const isClaimable = source.claimable === true || source.status === "listed";
+  const contentUrl = asText(source.contentUrl).trim();
   return {
     ...source,
     _id: asText(source._id || source.taskId).trim(),
@@ -383,6 +384,8 @@ function buildTaskView(task) {
     announcement: asText(source.announcement).trim(),
     proofLink: asText(source.proofLink).trim(),
     proofScreenshotUrl: asText(source.proofScreenshotUrl).trim(),
+    contentUrl,
+    hasContentUrl: Boolean(contentUrl),
     exampleImageUrls: Array.isArray(source.exampleImageUrls) ? source.exampleImageUrls.map(normalizeMamaResourceImageUrl).filter(Boolean) : []
   };
 }
@@ -801,6 +804,17 @@ Page({
         });
         this.loadMamaTasks();
       });
+  },
+
+  openMamaTaskContent() {
+    const contentUrl = asText(this.data.currentMamaTask && this.data.currentMamaTask.contentUrl).trim();
+    if (!contentUrl) return;
+    wx.navigateTo({
+      url: `/pages/webview/index?url=${encodeURIComponent(contentUrl)}`,
+      fail: () => {
+        wx.setClipboardData({ data: contentUrl });
+      }
+    });
   },
 
   openMamaTaskSharePoster() {

@@ -175,6 +175,19 @@ test("approved mama resource account can view assigned tasks and submit proof", 
   assert.match(wxssSource, /\.xf-mama-proof-card \.xf-mama-section-title \{[\s\S]*padding-left: 0;[\s\S]*padding-right: 0;/);
 });
 
+test("assigned users can open their personal content link with clipboard fallback", () => {
+  assert.match(jsSource, /const contentUrl = asText\(source\.contentUrl\)\.trim\(\)/);
+  assert.match(jsSource, /hasContentUrl: Boolean\(contentUrl\)/);
+  assert.match(jsSource, /openMamaTaskContent\(\)/);
+  assert.match(jsSource, /\/pages\/webview\/index\?url=\$\{encodeURIComponent\(contentUrl\)\}/);
+  assert.match(jsSource, /wx\.setClipboardData\(\{ data: contentUrl/);
+  assert.match(wxmlSource, /wx:if="\{\{item\.hasContentUrl\}\}"[^>]*>内容已下发</);
+  assert.match(wxmlSource, /wx:if="\{\{currentMamaTask\.hasContentUrl\}\}"/);
+  assert.match(wxmlSource, /catchtap="openMamaTaskContent"/);
+  assert.match(wxmlSource, /打开专属内容/);
+  assert.doesNotMatch(wxmlSource, /短信|已发送短信/);
+});
+
 test("logged-out mama resource users must authorize phone before seeing apply form", () => {
   assert.match(jsSource, /const \{ getToken, getUser \} = require\("\.\.\/\.\.\/utils\/session"\)/);
   assert.match(jsSource, /function isUnauthorizedError\(error\)/);

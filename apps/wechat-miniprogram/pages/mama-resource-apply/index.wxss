@@ -1131,6 +1131,51 @@ page {
   background: #ffffff;
 }
 
+.xf-mama-content-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+  margin: 24rpx;
+  padding: 24rpx;
+  border-radius: 22rpx;
+  background: #f7f2ff;
+}
+
+.xf-mama-content-title,
+.xf-mama-content-hint {
+  display: block;
+}
+
+.xf-mama-content-title {
+  color: #2f185b;
+  font-size: 27rpx;
+  font-weight: 900;
+}
+
+.xf-mama-content-hint {
+  margin-top: 8rpx;
+  color: #75668e;
+  font-size: 22rpx;
+  line-height: 1.45;
+}
+
+.xf-mama-content-button {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0 22rpx;
+  border-radius: 999rpx;
+  background: #6c27d6;
+  color: #ffffff;
+  font-size: 23rpx;
+  font-weight: 900;
+  line-height: 64rpx;
+}
+
+.xf-mama-content-button::after {
+  border: 0;
+}
+
 .xf-mama-task-actions .xf-mama-submit {
   margin-top: 0;
 }
