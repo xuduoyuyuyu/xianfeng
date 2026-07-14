@@ -147,7 +147,13 @@ test("authenticated mama resource page hydrates profile and routes returned stat
   assert.match(source, /pageMode === "loading"[\s\S]*资料加载中/);
   assert.match(source, /pageMode === "error"[\s\S]*加载失败[\s\S]*onClick=\{loadProfileAndTasks\}[\s\S]*重新加载/);
   assert.match(source, /onSuccess=\{handleLoginSuccess\}/);
-  assert.match(source, /const handleLoginSuccess = \(\) => \{[\s\S]*loadProfileAndTasks\(\)/);
+});
+
+test("authentication transitions own loading without stale-token retry loops", () => {
+  assert.match(source, /if \(error\?\.response\?\.status === 401\) \{\s*setRequiresLogin\(true\);\s*return;\s*\}/);
+  assert.match(source, /const handleLoginSuccess = useCallback\(\(\) => undefined, \[\]\);/);
+  assert.match(source, /useEffect\(\(\) => \{\s*if \(!token \|\| !user\) return;\s*void loadProfileAndTasks\(\);\s*\}, \[token, user, loadProfileAndTasks\]\);/);
+  assert.equal(source.match(/void loadProfileAndTasks\(\)/g)?.length, 1, "normal login should have one automatic loader trigger");
 });
 
 test("profile form hydration maps every editable profile field", () => {

@@ -207,10 +207,7 @@ const MamaResourceApplyPage: React.FC = () => {
     }
   }, [loggedInMobile]);
 
-  const handleLoginSuccess = () => {
-    setRequiresLogin(false);
-    void loadProfileAndTasks();
-  };
+  const handleLoginSuccess = useCallback(() => undefined, []);
 
   useEffect(() => {
     if (!token || !user) return;
