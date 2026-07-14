@@ -754,8 +754,25 @@ export interface MamaResourceTaskAssignment {
   submittedAt?: string | null;
   reviewedAt?: string | null;
   reviewNote?: string;
+  contentUrl?: string;
+  contentUpdatedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface MamaResourceContentImportRow {
+  rowNumber: number;
+  profileId: string;
+  displayName?: string;
+  contentUrl: string;
+  action: 'create_assignment' | 'update_link' | 'unchanged';
+  valid: boolean;
+  errors: string[];
+}
+
+export interface MamaResourceContentImportPreview {
+  rows: MamaResourceContentImportRow[];
+  summary: { total: number; valid: number; invalid: number };
 }
 
 export interface MamaResourceTaskCandidate extends MamaResourceProfile {
@@ -1471,6 +1488,17 @@ export const adminApi = {
     api.post<{ assignments: MamaResourceTaskAssignment[] }>(`/admin/mama-resources/tasks/${id}/assignments`, { profileIds }),
   reviewMamaResourceTaskAssignment: (id: string, data: { status: MamaResourceTaskAssignmentStatus; reviewNote?: string }) =>
     api.patch<{ task: MamaResourceTaskAssignment; assignment: MamaResourceTaskAssignment }>(`/admin/mama-resources/tasks/assignments/${id}/review`, data),
+  updateMamaResourceAssignmentContent: (id: string, contentUrl: string) =>
+    api.patch<{ assignment: MamaResourceTaskAssignment }>(`/admin/mama-resources/tasks/assignments/${id}/content`, { contentUrl }),
+  downloadMamaResourceContentImportTemplate: () =>
+    api.get<Blob>('/admin/mama-resources/tasks/content-import/template', { responseType: 'blob' }),
+  previewMamaResourceContentImport: (id: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post<MamaResourceContentImportPreview>(`/admin/mama-resources/tasks/${id}/content-import/preview`, formData);
+  },
+  commitMamaResourceContentImport: (id: string, rows: MamaResourceContentImportRow[]) =>
+    api.post<{ summary: { created: number; updated: number; unchanged: number } }>(`/admin/mama-resources/tasks/${id}/content-import/commit`, { rows }),
   getAdminWelfareCampaigns: () =>
     api.get<{ items: WelfareCampaign[] }>('/admin/welfare'),
   createWelfareCampaign: (data: WelfareCampaignInput) =>

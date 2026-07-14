@@ -154,3 +154,22 @@ test("admin mama resources detail editing is handled in a modal instead of a rig
   assert.doesNotMatch(source, /xl:grid-cols-\[1fr_420px\]/);
   assert.doesNotMatch(source, /选择一条资源后，可以补充账号基础数据/);
 });
+
+test("admin task assignments support manual and previewed personal content link imports", () => {
+  assert.match(source, /已配置 \{configuredContentCount\}\/\{assignments\.length\}/);
+  assert.match(source, /专属内容链接/);
+  assert.match(source, /saveAssignmentContentUrl/);
+  assert.match(source, /批量导入专属链接/);
+  assert.match(source, /下载导入模板/);
+  assert.match(source, /previewMamaResourceContentImport/);
+  assert.match(source, /commitMamaResourceContentImport/);
+  assert.match(source, /确认导入/);
+  assert.doesNotMatch(source, /短信|已发送短信/);
+
+  assert.match(apiSource, /contentUrl\?: string;/);
+  assert.match(apiSource, /contentUpdatedAt\?: string \| null;/);
+  assert.match(apiSource, /downloadMamaResourceContentImportTemplate/);
+  assert.match(apiSource, /updateMamaResourceAssignmentContent/);
+  assert.match(apiSource, /previewMamaResourceContentImport/);
+  assert.match(apiSource, /commitMamaResourceContentImport/);
+});

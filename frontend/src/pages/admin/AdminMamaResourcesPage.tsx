@@ -8,6 +8,7 @@ import {
   MamaResourceTaskAssignment,
   MamaResourceTaskAssignmentStatus,
   MamaResourceTaskCandidate,
+  MamaResourceContentImportPreview,
 } from "../../services/api";
 
 const PAGE_SIZE = 20;
@@ -208,6 +209,9 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
   const [tasks, setTasks] = useState<MamaResourceTask[]>([]);
   const [candidates, setCandidates] = useState<MamaResourceTaskCandidate[]>([]);
   const [assignments, setAssignments] = useState<MamaResourceTaskAssignment[]>([]);
+  const [contentUrlDrafts, setContentUrlDrafts] = useState<Record<string, string>>({});
+  const [contentImportPreview, setContentImportPreview] = useState<MamaResourceContentImportPreview | null>(null);
+  const [contentImportOpen, setContentImportOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<MamaResourceTask | null>(null);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
   const [taskManagerOpen, setTaskManagerOpen] = useState(false);
@@ -293,6 +297,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
       ]);
       setCandidates(candidateResponse.data.items || []);
       setAssignments(assignmentResponse.data.assignments || []);
+      setContentUrlDrafts(Object.fromEntries((assignmentResponse.data.assignments || []).map((assignment) => [assignment._id, assignment.contentUrl || ""])));
       setSelectedCandidateIds([]);
     } catch (loadError: any) {
       setToast(loadError?.response?.data?.message || loadError?.message || "任务账号加载失败");
@@ -542,6 +547,69 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
       setToast(status === "collected" ? "任务已标记收录" : "任务已驳回");
     } catch (reviewError: any) {
       setToast(reviewError?.response?.data?.message || reviewError?.message || "任务审核失败");
+    } finally {
+      setTaskLoading(false);
+    }
+  };
+
+  const configuredContentCount = assignments.filter((assignment) => Boolean(assignment.contentUrl)).length;
+
+  const saveAssignmentContentUrl = async (assignment: MamaResourceTaskAssignment) => {
+    if (taskLoading) return;
+    setTaskLoading(true);
+    try {
+      const response = await adminApi.updateMamaResourceAssignmentContent(assignment._id, contentUrlDrafts[assignment._id] || "");
+      setAssignments((current) => current.map((item) => item._id === assignment._id ? response.data.assignment : item));
+      setToast("专属内容链接已保存");
+    } catch (saveError: any) {
+      setToast(requestErrorMessage(saveError, "专属内容链接保存失败"));
+    } finally {
+      setTaskLoading(false);
+    }
+  };
+
+  const downloadContentImportTemplate = async () => {
+    try {
+      const response = await adminApi.downloadMamaResourceContentImportTemplate();
+      const url = URL.createObjectURL(response.data);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "妈妈好赚专属链接导入模板.xlsx";
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (downloadError: any) {
+      setToast(requestErrorMessage(downloadError, "模板下载失败"));
+    }
+  };
+
+  const previewContentImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!selectedTask || !file || taskLoading) return;
+    setTaskLoading(true);
+    try {
+      const response = await adminApi.previewMamaResourceContentImport(selectedTask._id, file);
+      setContentImportPreview(response.data);
+      setContentImportOpen(true);
+    } catch (previewError: any) {
+      setToast(requestErrorMessage(previewError, "Excel 预检失败"));
+    } finally {
+      setTaskLoading(false);
+    }
+  };
+
+  const commitContentImport = async () => {
+    if (!selectedTask || !contentImportPreview || contentImportPreview.summary.invalid > 0 || taskLoading) return;
+    setTaskLoading(true);
+    try {
+      const response = await adminApi.commitMamaResourceContentImport(selectedTask._id, contentImportPreview.rows);
+      const { created, updated, unchanged } = response.data.summary;
+      setToast(`导入完成：新增 ${created}，更新 ${updated}，未变化 ${unchanged}`);
+      setContentImportOpen(false);
+      setContentImportPreview(null);
+      await loadTaskWorkspace(selectedTask._id);
+    } catch (commitError: any) {
+      setToast(requestErrorMessage(commitError, "确认导入失败"));
     } finally {
       setTaskLoading(false);
     }
@@ -876,7 +944,19 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                     </div>
                   </div>
                   <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
-                    <div className="mb-3 text-sm font-black text-stone-900">已分配账号</div>
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <div className="text-sm font-black text-stone-900">已分配账号</div>
+                        <div className="mt-1 text-xs font-semibold text-stone-500">已配置 {configuredContentCount}/{assignments.length}</div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" onClick={downloadContentImportTemplate} className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs font-black text-stone-700">下载导入模板</button>
+                        <label className="cursor-pointer rounded-lg bg-[#6c27d6] px-2.5 py-1.5 text-xs font-black text-white">
+                          批量导入专属链接
+                          <input type="file" accept=".xlsx,.xls" onChange={previewContentImport} className="hidden" />
+                        </label>
+                      </div>
+                    </div>
                     <div className="max-h-[460px] space-y-2 overflow-y-auto pr-1">
                       {assignments.length === 0 ? (
                         <div className="rounded-xl bg-white px-3 py-6 text-center text-sm font-semibold text-stone-500">暂无已分配账号</div>
@@ -888,6 +968,18 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                               <div className="mt-1 text-xs font-semibold text-stone-500">粉丝 {toCount(assignment.profile?.socialAccount?.followerCount)} · {toDateText(assignment.updatedAt)}</div>
                             </div>
                             {assignmentBadge(assignment.status)}
+                          </div>
+                          <div className="mt-3">
+                            <div className="mb-1 text-xs font-black text-stone-600">专属内容链接</div>
+                            <div className="flex gap-2">
+                              <input
+                                value={contentUrlDrafts[assignment._id] ?? assignment.contentUrl ?? ""}
+                                onChange={(event) => setContentUrlDrafts((current) => ({ ...current, [assignment._id]: event.target.value }))}
+                                placeholder="https://my.feishu.cn/wiki/..."
+                                className="min-w-0 flex-1 rounded-lg border border-stone-200 px-2.5 py-2 text-xs outline-none focus:border-[#6c27d6]"
+                              />
+                              <button type="button" onClick={() => saveAssignmentContentUrl(assignment)} disabled={taskLoading} className="rounded-lg border border-[#6c27d6] bg-[#f7f2ff] px-3 py-2 text-xs font-black text-[#5e17eb] disabled:opacity-50">保存</button>
+                            </div>
                           </div>
                           {assignment.proofLink || assignment.proofScreenshotUrl ? (
                             <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
@@ -909,6 +1001,32 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
               </div>
             </div>
           </aside>
+        </div>
+      ) : null}
+      {contentImportOpen && contentImportPreview ? (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 p-4" role="dialog" aria-modal="true">
+          <div className="flex max-h-[80vh] w-full max-w-3xl flex-col rounded-2xl bg-white p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-lg font-black text-stone-900">专属链接导入预检</div>
+                <div className="mt-1 text-sm font-semibold text-stone-500">共 {contentImportPreview.summary.total} 行，可导入 {contentImportPreview.summary.valid} 行，错误 {contentImportPreview.summary.invalid} 行</div>
+              </div>
+              <button type="button" onClick={() => setContentImportOpen(false)} className="text-xl font-black text-stone-400">×</button>
+            </div>
+            <div className="mt-4 flex-1 space-y-2 overflow-y-auto">
+              {contentImportPreview.rows.map((row) => (
+                <div key={`${row.rowNumber}-${row.profileId}`} className={`rounded-xl border p-3 text-xs ${row.valid ? "border-emerald-200 bg-emerald-50" : "border-rose-200 bg-rose-50"}`}>
+                  <div className="font-black text-stone-900">第 {row.rowNumber} 行 · {row.displayName || row.profileId || "未填写账号ID"}</div>
+                  <div className="mt-1 break-all font-semibold text-stone-600">{row.contentUrl || "未填写链接"}</div>
+                  {row.errors.length > 0 ? <div className="mt-1 font-bold text-rose-700">{row.errors.join("；")}</div> : null}
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <button type="button" onClick={() => setContentImportOpen(false)} className="rounded-xl border border-stone-300 px-4 py-3 text-sm font-black text-stone-700">取消</button>
+              <button type="button" onClick={commitContentImport} disabled={taskLoading || contentImportPreview.summary.invalid > 0} className="rounded-xl bg-[#6c27d6] px-4 py-3 text-sm font-black text-white disabled:bg-stone-300">确认导入</button>
+            </div>
+          </div>
         </div>
       ) : null}
     </div>
