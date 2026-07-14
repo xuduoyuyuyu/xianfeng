@@ -16,15 +16,17 @@ Pay remains separate.
 
 Mama Haozhuan task assignments now also carry one private posting-content link
 per user. Operators can fill links individually or import an Excel file after
-preflight; assigned users copy the selectable link from a mini-program dialog
-and open it externally.
+preflight; assigned users copy the selectable link from the mini-program or
+mobile Web task-management dialog and open it externally. The mobile Web flow
+now mirrors account-state routing, assigned/claimable tasks, detail, and proof
+submission.
 
 ## Live / Waiting Workstreams
 
 | Workstream | State | Waiting on |
 | --- | --- | --- |
 | WeChat mini-program virtual payment | active | WeChat后台 product/callback config, public HTTPS sandbox callback/backend, and DevTools/device sandbox validation |
-| Mama Haozhuan task dispatch | active | Admin and mini-program runtime review of per-user content links; SMS intentionally excluded |
+| Mama Haozhuan task dispatch | active | Admin and mini-program runtime review of per-user content links, plus mobile Web authenticated runtime and visual review; SMS intentionally excluded |
 | Governance bootstrap | active | Review of newly added docs and whether to keep the local `evolab/` clone inside this checkout |
 | Xiaowanzi treasure box welfare | active | Rendered public/admin review after the local app is running |
 | Existing frontend visual changes | unknown | Owner of pre-existing modifications in `frontend/public/screens/admin.css`, `frontend/public/screens/public.css`, and `frontend/src/pages/LandingPage.tsx` |

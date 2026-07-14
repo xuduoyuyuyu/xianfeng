@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import InlineLoginForm from "../components/InlineLoginForm";
 import { publicApi } from "../services/api";
+import type { MamaResourceProfile, MamaResourceTask } from "../services/api";
 import type { RootState } from "../store";
 
 const categoryOptions = ["亲子阅读", "学习用品", "母婴", "儿童健康", "家庭消费", "教育规划"];
@@ -19,6 +20,14 @@ const realNameVerifiedOptions = [
 
 type MediaPlatform = "xiaohongshu" | "douyin";
 type ProfileManagerMode = "overview" | "personal" | "media" | "preference";
+export type PageMode = "loading" | "apply" | "reviewing" | "tasks" | "detail" | "error";
+
+type ProfileTaskRequest = {
+  generation: number;
+  authIdentity: string;
+};
+
+type AuthMutationRequest = ProfileTaskRequest;
 
 type MediaAccountForm = {
   platform: MediaPlatform | "";
@@ -75,6 +84,233 @@ const initialForm: FormState = {
   blockedCategories: "",
   consentAccepted: false,
 };
+
+export function formStateFromProfile(profile: MamaResourceProfile, loggedInMobile: string): FormState {
+  const primaryProfileUrl = profile.socialAccount?.profileUrl || "";
+  const extraAccounts = (profile.mediaAccounts || []).filter((account) =>
+    (account.platform === "xiaohongshu" || account.platform === "douyin") &&
+    account.profileUrl !== primaryProfileUrl
+  );
+  return {
+    displayName: profile.displayName || "",
+    contactPhone: profile.contactPhone || loggedInMobile,
+    contactWechat: profile.contactWechat || "",
+    city: profile.city || "",
+    childStage: profile.childStage || "",
+    childGender: profile.childGender || "",
+    xiaohongshuNickname: profile.socialAccount?.nickname || "",
+    xiaohongshuProfileUrl: profile.socialAccount?.profileUrl || "",
+    xiaohongshuScreenshotUrl: profile.socialAccount?.screenshotUrl || "",
+    followerCount: profile.socialAccount?.followerCount == null ? "" : String(profile.socialAccount.followerCount),
+    realNameVerified: profile.socialAccount?.realNameVerified == null ? "" : profile.socialAccount.realNameVerified ? "yes" : "no",
+    mediaAccounts: extraAccounts.map((account) => ({
+      platform: account.platform === "xiaohongshu" || account.platform === "douyin" ? account.platform : "",
+      nickname: account.nickname || "",
+      profileUrl: account.profileUrl || "",
+      followerCount: account.followerCount == null ? "" : String(account.followerCount),
+      realNameVerified: account.realNameVerified == null ? "" : account.realNameVerified ? "yes" : "no",
+    })),
+    accountPositioning: profile.accountPositioning || "",
+    categories: profile.categories || [],
+    blockedCategories: (profile.rateCard?.blockedCategories || []).join("、"),
+    consentAccepted: Boolean(profile.consentAccepted),
+  };
+}
+
+function profileStatusLabel(status: MamaResourceProfile["status"]): string {
+  if (status === "needs_info") return "待补充资料";
+  if (status === "rejected") return "暂未通过";
+  if (status === "approved") return "账号已通过";
+  return "审核中";
+}
+
+function moneyText(value?: number | null): string {
+  const cents = Number(value || 0);
+  return cents > 0 ? `¥${(cents / 100).toFixed(2)}` : "待定";
+}
+
+function taskStatusText(status: MamaResourceTask["status"]): string {
+  if (status === "listed") return "可领取";
+  if (status === "submitted") return "待审核";
+  if (status === "collected") return "已收录";
+  if (status === "rejected") return "已驳回";
+  return "进行中";
+}
+
+function promotionCountText(task: MamaResourceTask): string {
+  if (task.activePromotionCount !== undefined && task.activePromotionCount !== null) {
+    const activeCount = Number(task.activePromotionCount);
+    return Number.isFinite(activeCount) && activeCount >= 0 ? String(Math.floor(activeCount)) : "待补";
+  }
+  const count = Number(task.promotionCount || 0);
+  return count > 0 ? String(Math.floor(count)) : "待补";
+}
+
+function hasPositiveTrafficFee(task: MamaResourceTask): boolean {
+  return Number(task.trafficFeeCents || 0) > 0;
+}
+
+function trafficFeeDetailText(task: MamaResourceTask): string {
+  const cents = Number(task.trafficFeeCents || 0);
+  return cents > 0 ? `¥${(cents / 100).toFixed(2)}` : "-";
+}
+
+function remainingCountText(task: MamaResourceTask): string {
+  if (task.remainingClaimCount == null) return "不限名额";
+  const count = Number(task.remainingClaimCount);
+  if (!Number.isFinite(count)) return "不限名额";
+  return count > 0 ? `剩余${Math.floor(count)}个名额` : "已领完";
+}
+
+function templateTaskIdentity(task: MamaResourceTask): string {
+  return String(task.taskId || task._id || "").trim();
+}
+
+function assignmentTaskIdentity(task: MamaResourceTask): string {
+  return task.taskId ? String(task._id || "").trim() : "";
+}
+
+function taskIdentity(task: MamaResourceTask): string {
+  return templateTaskIdentity(task);
+}
+
+function isSameTaskIdentity(task: MamaResourceTask | null, identity: string): boolean {
+  const currentIdentity = String(task?.taskId || task?._id || "").trim();
+  return Boolean(currentIdentity && identity && currentIdentity === identity);
+}
+
+function shouldApplyTaskDetailResult(task: MamaResourceTask | null, initiatingTemplateId: string): boolean {
+  const currentIdentity = String(task?.taskId || task?._id || "").trim();
+  return Boolean(currentIdentity && initiatingTemplateId && currentIdentity === initiatingTemplateId);
+}
+
+function isCurrentProfileTaskRequest(current: ProfileTaskRequest, request: ProfileTaskRequest): boolean {
+  return current.generation === request.generation && current.authIdentity === request.authIdentity;
+}
+
+function isCurrentAuthMutation(current: AuthMutationRequest, request: AuthMutationRequest): boolean {
+  return current.generation === request.generation && current.authIdentity === request.authIdentity;
+}
+
+function replaceClaimedTask(tasks: MamaResourceTask[], availableTasks: MamaResourceTask[], claimedTask: MamaResourceTask) {
+  const identity = (task: MamaResourceTask) => String(task.taskId || task._id || "").trim();
+  const claimedId = identity(claimedTask);
+  return {
+    tasks: [...tasks.filter((task) => identity(task) !== claimedId), claimedTask],
+    availableTasks: availableTasks.filter((task) => identity(task) !== claimedId),
+  };
+}
+
+function MamaResourceAccountCard({ profile, onManage }: { profile: MamaResourceProfile; onManage: () => void }) {
+  return (
+    <div className="grid grid-cols-[48px_1fr_auto] items-center gap-[11px] rounded-[18px] bg-white p-[15px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
+      <img src="/assets/mama-hao-zhuan-icon.png" alt="" className="h-[48px] w-[48px] object-contain" />
+      <div className="min-w-0">
+        <div className="text-[11px] font-black text-[#7c2ce6]">账号已通过</div>
+        <div className="mt-[2px] text-[17px] font-black text-[#151222]">妈妈好赚</div>
+        <div className="mt-[3px] truncate text-[11.5px] font-bold text-[#6b6474]">{profile.displayName || "已审核账号"} · 可接：{profile.categories.length ? profile.categories.join("、") : "亲子阅读、学习用品"}</div>
+      </div>
+      <button type="button" onClick={onManage} className="rounded-full bg-[#f3eaff] px-[12px] py-[8px] text-[12px] font-black text-[#6c27d6]">资料管理</button>
+    </div>
+  );
+}
+
+function MamaResourceTaskCard({ task, onOpen }: { task: MamaResourceTask; onOpen: () => void }) {
+  return (
+    <button type="button" onClick={onOpen} className="w-full rounded-[17px] border border-[#5e17eb]/10 bg-white p-[14px] text-left shadow-[0_7px_18px_rgba(94,23,235,0.07)]">
+      <div className="grid grid-cols-[42px_1fr_auto] gap-[10px]">
+        <img src="/assets/mama-hao-zhuan-icon.png" alt="" className="h-[42px] w-[42px] object-contain" />
+        <div className="min-w-0">
+          <div className="text-[14px] font-black text-[#151222]">{task.title}</div>
+          <div className="mt-[4px] text-[11.5px] font-bold text-[#6b6474]">{task.category || "小红书"} · {task.dataCycle || task.settlementCycle || "T+9"}</div>
+        </div>
+        <div className="text-right">
+          <div className="text-[10px] font-bold text-[#82798d]">任务单价</div>
+          <div className="mt-[2px] text-[17px] font-black text-[#ee4d87]">{moneyText(task.unitPriceCents)}</div>
+          {hasPositiveTrafficFee(task) ? <div className="mt-[2px] text-[10px] font-extrabold text-[#7c2ce6]">投流补贴 {moneyText(task.trafficFeeCents)}</div> : null}
+        </div>
+      </div>
+      <div className="mt-[12px] flex flex-wrap gap-[7px] text-[10.5px] font-extrabold text-[#655d70]">
+        <span className="rounded-full bg-[#f3eaff] px-[9px] py-[5px] text-[#6c27d6]">{taskStatusText(task.status)}</span>
+        <span className="rounded-full bg-[#f6f3f9] px-[9px] py-[5px]">推广 {promotionCountText(task)} 人</span>
+        <span className="rounded-full bg-[#f6f3f9] px-[9px] py-[5px]">{remainingCountText(task)}</span>
+        {task.contentUrl ? <span className="rounded-full bg-[#efe8ff] px-[9px] py-[5px] text-[#6c27d6]">内容已下发</span> : null}
+      </div>
+    </button>
+  );
+}
+
+function MamaResourceTaskDetail({ task, claiming, claimError, proofLink, proofScreenshotUrl, proofUploading, proofSubmitting, proofError, proofMessage, linkDialogOpen, onBack, onClaim, onOpenLink, onCloseLink, onProofLinkChange, onProofScreenshotChange, onSubmitProof }: { task: MamaResourceTask; claiming: boolean; claimError: string; proofLink: string; proofScreenshotUrl: string; proofUploading: boolean; proofSubmitting: boolean; proofError: string; proofMessage: string; linkDialogOpen: boolean; onBack: () => void; onClaim: () => void; onOpenLink: () => void; onCloseLink: () => void; onProofLinkChange: (value: string) => void; onProofScreenshotChange: (event: React.ChangeEvent<HTMLInputElement>) => void; onSubmitProof: () => void }) {
+  const contentUrl = task.contentUrl?.trim() || "";
+  const contentLinkOpenerRef = useRef<HTMLButtonElement | null>(null);
+  const contentLinkCloseRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!linkDialogOpen) return;
+    contentLinkCloseRef.current?.focus();
+    const handleModalKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseLink();
+      } else if (event.key === "Tab") {
+        event.preventDefault();
+        contentLinkCloseRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", handleModalKeyDown, true);
+    return () => {
+      document.removeEventListener("keydown", handleModalKeyDown, true);
+      contentLinkOpenerRef.current?.focus();
+    };
+  }, [linkDialogOpen]);
+
+  return (
+    <div className="grid gap-[12px]">
+      <button type="button" onClick={onBack} className="w-fit rounded-full bg-white px-[13px] py-[8px] text-[12px] font-black text-[#6c27d6]">‹ 返回任务列表</button>
+      <div className="rounded-[18px] bg-white p-[15px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
+        <div className="flex items-center gap-[10px]">
+          <img src="/assets/mama-hao-zhuan-icon.png" alt="" className="h-[44px] w-[44px] object-contain" />
+          <div><h2 className="text-[18px] font-black text-[#151222]">{task.title}</h2><p className="mt-[4px] text-[11.5px] font-bold text-[#6b6474]">{task.difficulty || "简单"} · {task.phase || "测试期"} · {task.category || "小红书"}</p></div>
+        </div>
+      </div>
+      <div className="rounded-[18px] bg-white p-[15px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
+        <h3 className="text-[16px] font-black text-[#151222]">项目信息</h3>
+        <h4 className="mt-[14px] text-[13px] font-black text-[#151222]">项目价格</h4>
+        <div className="mt-[9px] grid grid-cols-3 gap-[8px] rounded-[12px] bg-[#faf8fd] p-[11px] text-center text-[11px] font-bold text-[#6b6474]">
+          <div>任务单价<strong className="mt-[4px] block text-[14px] text-[#ee4d87]">{moneyText(task.unitPriceCents)}</strong></div>
+          <div>投流补贴<strong className="mt-[4px] block text-[14px] text-[#151222]">{trafficFeeDetailText(task)}</strong></div>
+          <div>结算周期<strong className="mt-[4px] block text-[14px] text-[#151222]">{task.settlementCycle || "T+9"}</strong></div>
+        </div>
+        <div className="mt-[14px] border-t border-[#eee9f4] pt-[12px]"><div className="text-[13px] font-black">结算标准</div><p className="mt-[5px] text-[12px] font-semibold leading-[1.65] text-[#6b6474]">{task.settlementStandard || "按项目要求发布并保留，后台审核通过后结算。"}</p></div>
+        <div className="mt-[12px] border-t border-[#eee9f4] pt-[12px]"><div className="text-[13px] font-black">项目要求</div><p className="mt-[5px] text-[12px] font-semibold leading-[1.65] text-[#6b6474]">{task.requirement || "提交小红书笔记链接和完成截图，否则无法结算。"}</p></div>
+        {task.exampleImageUrls?.length ? <div className="mt-[10px] grid grid-cols-2 gap-[8px]">{task.exampleImageUrls.map((url) => <img key={url} src={url} alt="任务示例" className="w-full rounded-[10px] object-cover" />)}</div> : null}
+        {contentUrl ? <button ref={contentLinkOpenerRef} type="button" onClick={onOpenLink} className="mt-[15px] w-full rounded-[13px] border border-[#d9c8ff] bg-[#f7f2ff] p-[13px] text-left text-[14px] font-black text-[#6c27d6]">你的专属任务内容 <span className="float-right">查看 ›</span></button> : null}
+        {task.claimable ? <button type="button" disabled={claiming} onClick={onClaim} className="mt-[15px] w-full rounded-[13px] bg-[#6c27d6] p-[13px] text-[14px] font-black text-white disabled:bg-[#c8c2d3]">{claiming ? "领取中..." : "立即领取"}</button> : null}
+        {claimError ? <p className="mt-[10px] text-[12px] font-bold text-[#be123c]">{claimError}</p> : null}
+      </div>
+      {!task.claimable ? <div className="rounded-[18px] bg-white p-[15px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
+        <h3 className="text-[16px] font-black text-[#151222]">任务回填</h3>
+        <label className="mt-[12px] block text-[12.5px] font-extrabold text-[#4b4453]">完成链接
+          <input name="proofLink" value={proofLink} onChange={(event) => onProofLinkChange(event.target.value)} placeholder="请粘贴已发布内容链接" className="mt-[6px] h-[39px] w-full rounded-[11px] border border-[#ddd7e8] px-[11px] text-[13px] outline-none focus:border-[#6c27d6]" />
+        </label>
+        <label className="mt-[12px] block text-[12.5px] font-extrabold text-[#4b4453]">完成截图
+          <input type="file" accept="image/*" disabled={proofUploading || proofSubmitting} onChange={onProofScreenshotChange} className="mt-[6px] block w-full text-[12px] font-bold text-[#6b6474] file:mr-[10px] file:rounded-full file:border-0 file:bg-[#f3eaff] file:px-[12px] file:py-[8px] file:font-black file:text-[#6c27d6]" />
+        </label>
+        {proofScreenshotUrl ? <img src={proofScreenshotUrl} alt="完成截图" className="mt-[10px] max-h-[220px] w-full rounded-[11px] object-contain" /> : null}
+        <button type="button" disabled={proofUploading || proofSubmitting} onClick={onSubmitProof} className="mt-[14px] w-full rounded-[13px] bg-[#6c27d6] p-[13px] text-[14px] font-black text-white disabled:bg-[#c8c2d3]">{proofSubmitting ? "提交中..." : proofUploading ? "截图上传中..." : "提交回填"}</button>
+        {proofError ? <p className="mt-[10px] text-[12px] font-bold text-[#be123c]">{proofError}</p> : null}
+        {proofMessage ? <p className="mt-[10px] text-[12px] font-bold text-[#15803d]">{proofMessage}</p> : null}
+      </div> : null}
+      {linkDialogOpen && contentUrl ? <div role="presentation" onClick={onCloseLink} className="fixed inset-0 z-[80] flex items-end justify-center bg-black/45 p-[14px] sm:items-center">
+        <div role="dialog" aria-modal="true" aria-labelledby="mama-content-link-title" onClick={(event) => event.stopPropagation()} className="w-full max-w-[520px] rounded-[20px] bg-white p-[17px] shadow-2xl">
+          <div className="flex items-start justify-between gap-[12px]"><div><h3 id="mama-content-link-title" className="text-[18px] font-black text-[#151222]">资料链接</h3><p className="mt-[4px] text-[12px] font-bold text-[#6b6474]">{task.title}</p></div><button ref={contentLinkCloseRef} type="button" aria-label="关闭资料链接" onClick={onCloseLink} className="h-[32px] w-[32px] rounded-full bg-[#f3eaff] text-[18px] font-black text-[#6c27d6]">×</button></div>
+          <p className="mt-[16px] text-[12px] font-extrabold text-[#6b6474]">长按可复制：</p>
+          <div className="mt-[7px] select-all break-all rounded-[12px] bg-[#f7f3ff] p-[12px] text-[13px] font-bold leading-[1.65] text-[#3f246f]">{contentUrl}</div>
+        </div>
+      </div> : null}
+    </div>
+  );
+}
 
 function toggleValue(values: string[], value: string): string[] {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
@@ -135,7 +371,88 @@ const MamaResourceApplyPage: React.FC = () => {
   const [uploadingScreenshot, setUploadingScreenshot] = useState(false);
   const [message, setMessage] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [pageMode, setPageMode] = useState<PageMode>("loading");
+  const [profile, setProfile] = useState<MamaResourceProfile | null>(null);
+  const [tasks, setTasks] = useState<MamaResourceTask[]>([]);
+  const [availableTasks, setAvailableTasks] = useState<MamaResourceTask[]>([]);
+  const [selectedTask, setSelectedTask] = useState<MamaResourceTask | null>(null);
+  const selectedTaskRef = useRef<MamaResourceTask | null>(null);
+  const [taskClaiming, setTaskClaiming] = useState(false);
+  const [taskClaimError, setTaskClaimError] = useState("");
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [proofLink, setProofLink] = useState("");
+  const [proofScreenshotUrl, setProofScreenshotUrl] = useState("");
+  const [proofUploading, setProofUploading] = useState(false);
+  const [proofSubmitting, setProofSubmitting] = useState(false);
+  const [proofError, setProofError] = useState("");
+  const [proofMessage, setProofMessage] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [requiresLogin, setRequiresLogin] = useState(false);
   const loggedInMobile = String(user?.mobile || "").trim();
+  const authIdentity = String(token || "");
+  const profileTaskRequestRef = useRef<ProfileTaskRequest>({ generation: 0, authIdentity });
+  const authMutationRef = useRef<AuthMutationRequest>({ generation: 0, authIdentity });
+  if (authMutationRef.current.authIdentity !== authIdentity) {
+    authMutationRef.current = { generation: authMutationRef.current.generation + 1, authIdentity };
+  }
+  const [loadedAuthIdentity, setLoadedAuthIdentity] = useState("");
+
+  const loadProfileAndTasks = useCallback(async () => {
+    const request = { generation: profileTaskRequestRef.current.generation + 1, authIdentity };
+    profileTaskRequestRef.current = request;
+    setPageMode("loading");
+    setLoadError("");
+    try {
+      const response = await publicApi.getMyMamaResourceTasks();
+      if (!isCurrentProfileTaskRequest(profileTaskRequestRef.current, request)) return;
+      const nextProfile = response.data.profile;
+      setProfile(nextProfile);
+      setTasks(response.data.tasks || []);
+      setAvailableTasks(response.data.availableTasks || []);
+      if (nextProfile) setForm(formStateFromProfile(nextProfile, loggedInMobile));
+      else setForm({ ...initialForm, contactPhone: loggedInMobile });
+      setRequiresLogin(false);
+      setLoadedAuthIdentity(authIdentity);
+      setPageMode(nextProfile === null ? "apply" : nextProfile.status === "approved" ? "tasks" : "reviewing");
+    } catch (error: any) {
+      if (!isCurrentProfileTaskRequest(profileTaskRequestRef.current, request)) return;
+      if (error?.response?.status === 401) {
+        setRequiresLogin(true);
+        return;
+      }
+      setLoadedAuthIdentity(authIdentity);
+      setLoadError(error?.response?.data?.message || error?.message || "资料加载失败，请稍后重试");
+      setPageMode("error");
+    }
+  }, [authIdentity, loggedInMobile]);
+
+  const handleLoginSuccess = useCallback(() => undefined, []);
+
+  useEffect(() => {
+    profileTaskRequestRef.current = { generation: profileTaskRequestRef.current.generation + 1, authIdentity };
+    setLoadedAuthIdentity("");
+    setRequiresLogin(false);
+    setProfile(null);
+    setTasks([]);
+    setAvailableTasks([]);
+    selectedTaskRef.current = null;
+    setSelectedTask(null);
+    setLinkDialogOpen(false);
+    setTaskClaiming(false);
+    setProofUploading(false);
+    setProofSubmitting(false);
+    setUploadingScreenshot(false);
+    setSubmitting(false);
+    setTaskClaimError("");
+    setProofError("");
+    setProofMessage("");
+    setProofLink("");
+    setProofScreenshotUrl("");
+    setMessage("");
+    setSubmitted(false);
+    if (!token || !user) return;
+    void loadProfileAndTasks();
+  }, [authIdentity, token, user, loadProfileAndTasks]);
 
   useEffect(() => {
     if (!loggedInMobile) return;
@@ -146,6 +463,10 @@ const MamaResourceApplyPage: React.FC = () => {
   }, [loggedInMobile]);
 
   const profileOverview = useMemo(() => buildProfileOverview(form), [form]);
+  const visibleTasks = useMemo(() => {
+    const assignedTaskIds = new Set(tasks.map(taskIdentity));
+    return [...tasks, ...availableTasks.filter((task) => !assignedTaskIds.has(taskIdentity(task)))];
+  }, [tasks, availableTasks]);
 
   const canSubmit = useMemo(() => {
     return Boolean(
@@ -187,20 +508,122 @@ const MamaResourceApplyPage: React.FC = () => {
     setProfileManagerMode("overview");
   };
 
+  const openTask = (task: MamaResourceTask) => {
+    selectedTaskRef.current = task;
+    setSelectedTask(task);
+    setTaskClaimError("");
+    setLinkDialogOpen(false);
+    setProofLink(task.proofLink || "");
+    setProofScreenshotUrl(task.proofScreenshotUrl || "");
+    setProofError("");
+    setProofMessage("");
+    setPageMode("detail");
+  };
+
+  const claimSelectedTask = async () => {
+    if (!selectedTask || taskClaiming) return;
+    const initiatingTemplateId = templateTaskIdentity(selectedTask);
+    const mutation = authMutationRef.current;
+    setTaskClaiming(true);
+    setTaskClaimError("");
+    try {
+      const response = await publicApi.claimMamaResourceTask(initiatingTemplateId);
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
+      const claimedTask = response.data.task;
+      const replacement = replaceClaimedTask(tasks, availableTasks, claimedTask);
+      setTasks(replacement.tasks);
+      setAvailableTasks(replacement.availableTasks);
+      if (!shouldApplyTaskDetailResult(selectedTaskRef.current, initiatingTemplateId)) return;
+      selectedTaskRef.current = claimedTask;
+      setSelectedTask(claimedTask);
+      setProofLink(claimedTask.proofLink || "");
+      setProofScreenshotUrl(claimedTask.proofScreenshotUrl || "");
+      setPageMode("detail");
+    } catch (error: any) {
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
+      if (shouldApplyTaskDetailResult(selectedTaskRef.current, initiatingTemplateId)) {
+        setTaskClaimError(error?.response?.data?.message || error?.message || "领取失败，请稍后重试");
+      }
+    } finally {
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
+      setTaskClaiming(false);
+    }
+  };
+
+  const handleProofScreenshotChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !selectedTask || proofUploading || proofSubmitting) return;
+    const initiatingTaskId = taskIdentity(selectedTask);
+    const mutation = authMutationRef.current;
+    setProofUploading(true);
+    setProofError("");
+    setProofMessage("");
+    try {
+      const response = await publicApi.uploadMamaResourceScreenshot(file);
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
+      if (!isSameTaskIdentity(selectedTaskRef.current, initiatingTaskId)) return;
+      setProofScreenshotUrl(response.data.url || "");
+      setProofMessage("完成截图已上传。");
+    } catch (error: any) {
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
+      if (!isSameTaskIdentity(selectedTaskRef.current, initiatingTaskId)) return;
+      setProofError(error?.response?.data?.message || error?.message || "截图上传失败，请稍后重试");
+    } finally {
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
+      setProofUploading(false);
+      event.target.value = "";
+    }
+  };
+
+  const submitSelectedTaskProof = async () => {
+    if (!selectedTask || selectedTask.claimable || proofUploading || proofSubmitting) return;
+    const initiatingTaskId = taskIdentity(selectedTask);
+    const mutation = authMutationRef.current;
+    setProofSubmitting(true);
+    setProofError("");
+    setProofMessage("");
+    try {
+      const response = await publicApi.submitMamaResourceTaskProof(assignmentTaskIdentity(selectedTask), {
+        proofLink,
+        proofScreenshotUrl,
+      });
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
+      const updatedTask = response.data.task;
+      setTasks((current) => current.map((task) => taskIdentity(task) === taskIdentity(updatedTask) ? updatedTask : task));
+      if (!isSameTaskIdentity(selectedTaskRef.current, initiatingTaskId)) return;
+      selectedTaskRef.current = updatedTask;
+      setSelectedTask(updatedTask);
+      setProofLink(updatedTask.proofLink || proofLink);
+      setProofScreenshotUrl(updatedTask.proofScreenshotUrl || proofScreenshotUrl);
+      setProofMessage("回填已提交。");
+    } catch (error: any) {
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
+      if (!isSameTaskIdentity(selectedTaskRef.current, initiatingTaskId)) return;
+      setProofError(error?.response?.data?.message || error?.message || "回填提交失败，请稍后重试");
+    } finally {
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
+      setProofSubmitting(false);
+    }
+  };
+
   const handleScreenshotChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    const mutation = authMutationRef.current;
     setUploadingScreenshot(true);
     setMessage("");
     try {
       const response = await publicApi.uploadMamaResourceScreenshot(file);
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
       updateField("xiaohongshuScreenshotUrl", response.data.url || "");
       setMessage("小红书页面截图已上传。");
       setSubmitted(true);
     } catch (error: any) {
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
       setMessage(error?.response?.data?.message || error?.message || "截图上传失败，请稍后重试");
       setSubmitted(false);
     } finally {
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
       setUploadingScreenshot(false);
       event.target.value = "";
     }
@@ -213,6 +636,7 @@ const MamaResourceApplyPage: React.FC = () => {
       setMessage("请先补齐个人资料、社交媒体账号，并勾选资料使用授权。");
       return;
     }
+    const mutation = authMutationRef.current;
     setSubmitting(true);
     setMessage("");
     try {
@@ -234,11 +658,13 @@ const MamaResourceApplyPage: React.FC = () => {
         blockedCategories: form.blockedCategories,
         consentAccepted: form.consentAccepted,
       });
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
       setSubmitted(true);
       setProfileManagerMode("overview");
-      setForm({ ...initialForm, contactPhone: loggedInMobile });
       setMessage("资料已提交，我们会先完成账号审核，再联系你确认适合的发稿机会。");
+      await loadProfileAndTasks();
     } catch (error: any) {
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
       const nextMessage =
         error?.response?.data?.message ||
         error?.message ||
@@ -246,6 +672,7 @@ const MamaResourceApplyPage: React.FC = () => {
       setSubmitted(false);
       setMessage(nextMessage);
     } finally {
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
       setSubmitting(false);
     }
   };
@@ -277,15 +704,60 @@ const MamaResourceApplyPage: React.FC = () => {
             </div>
           </div>
 
-          {!token || !user ? (
+          {!token || !user || requiresLogin ? (
             <div className="rounded-[17px] border border-[#5e17eb]/15 bg-white px-[14px] py-[15px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
               <h1 className="text-[19px] font-black leading-[1.18] text-[#151222]">登录后开始填写</h1>
               <p className="mb-[14px] mt-[5px] text-[12px] font-bold leading-[1.6] text-[#6b6474]">
                 这个页面可以直接发给用户。先用手机号验证码登录，登录后资料会归属到当前账号，后续可继续查看任务和更新资料。
               </p>
-              <InlineLoginForm compact onSuccess={() => setMessage("登录成功，请继续填写资料。")} />
+              <InlineLoginForm compact onSuccess={handleLoginSuccess} />
             </div>
-          ) : (
+          ) : loadedAuthIdentity !== authIdentity || pageMode === "loading" ? (
+            <div className="rounded-[17px] border border-[#5e17eb]/15 bg-white px-[14px] py-[24px] text-center text-[13px] font-bold text-[#6b6474]">资料加载中...</div>
+          ) : pageMode === "error" ? (
+            <div className="rounded-[17px] border border-[#5e17eb]/15 bg-white px-[14px] py-[18px] text-center">
+              <h2 className="text-[17px] font-black text-[#151222]">加载失败</h2>
+              <p className="mt-[6px] text-[12px] font-bold text-[#6b6474]">{loadError}</p>
+              <button type="button" onClick={loadProfileAndTasks} className="mt-[14px] rounded-full bg-[#6c27d6] px-[18px] py-[9px] text-[13px] font-black text-white">重新加载</button>
+            </div>
+          ) : pageMode === "reviewing" && profile ? (
+            <div className="rounded-[17px] border border-[#5e17eb]/15 bg-white px-[14px] py-[18px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
+              <div className="text-[12px] font-extrabold text-[#6b6474]">账号状态</div>
+              <h2 className="mt-[5px] text-[19px] font-black text-[#151222]">{profileStatusLabel(profile.status)}</h2>
+              {profile.reviewNote?.note ? <p className="mt-[9px] rounded-[11px] bg-[#f8f6ff] p-[10px] text-[12px] font-bold leading-[1.6] text-[#6b6474]">{profile.reviewNote.note}</p> : null}
+              <button type="button" onClick={() => setPageMode("apply")} className="mt-[14px] rounded-full border border-[#6c27d6] px-[15px] py-[8px] text-[12px] font-black text-[#6c27d6]">资料管理</button>
+            </div>
+          ) : pageMode === "tasks" && profile ? (
+            <div className="grid gap-[12px]">
+              <MamaResourceAccountCard profile={profile} onManage={() => setPageMode("apply")} />
+              {visibleTasks.length ? visibleTasks.map((task) => (
+                <MamaResourceTaskCard key={taskIdentity(task)} task={task} onOpen={() => openTask(task)} />
+              )) : <div className="rounded-[17px] bg-white px-[14px] py-[24px] text-center text-[13px] font-bold text-[#6b6474]">暂时没有可接任务</div>}
+            </div>
+          ) : pageMode === "detail" && selectedTask ? (
+            <MamaResourceTaskDetail
+              task={selectedTask}
+              claiming={taskClaiming}
+              claimError={taskClaimError}
+              proofLink={proofLink}
+              proofScreenshotUrl={proofScreenshotUrl}
+              proofUploading={proofUploading}
+              proofSubmitting={proofSubmitting}
+              proofError={proofError}
+              proofMessage={proofMessage}
+              linkDialogOpen={linkDialogOpen}
+              onBack={() => {
+                selectedTaskRef.current = null;
+                setPageMode("tasks");
+              }}
+              onClaim={claimSelectedTask}
+              onOpenLink={() => setLinkDialogOpen(true)}
+              onCloseLink={() => setLinkDialogOpen(false)}
+              onProofLinkChange={setProofLink}
+              onProofScreenshotChange={handleProofScreenshotChange}
+              onSubmitProof={submitSelectedTaskProof}
+            />
+          ) : pageMode === "apply" ? (
             <form id="mama-resource-apply-form" onSubmit={handleSubmit} className="rounded-[17px] border border-[#5e17eb]/15 bg-white px-[14px] py-[15px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
               <div className="mb-[11px] flex items-center justify-between gap-[9px]">
                 <div>
@@ -504,7 +976,7 @@ const MamaResourceApplyPage: React.FC = () => {
                 </div>
               ) : null}
             </form>
-          )}
+          ) : null}
         </section>
       </main>
     </div>

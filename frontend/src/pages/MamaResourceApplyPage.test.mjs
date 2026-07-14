@@ -10,6 +10,32 @@ const appSource = readFileSync(resolve(__dirname, "../App.tsx"), "utf8");
 const apiSource = readFileSync(resolve(__dirname, "../services/api.ts"), "utf8");
 const staticSource = readFileSync(resolve(__dirname, "../../public/screens/public-mama-resource-apply.html"), "utf8");
 
+function sourceFunction(name) {
+  const start = source.indexOf(`function ${name}(`);
+  assert.notEqual(start, -1, `missing function ${name}`);
+  const bodyStart = source.indexOf("{", start);
+  let depth = 0;
+  for (let index = bodyStart; index < source.length; index += 1) {
+    if (source[index] === "{") depth += 1;
+    if (source[index] === "}") depth -= 1;
+    if (depth === 0) {
+      return source.slice(start, index + 1)
+        .replaceAll(": MamaResourceTask[]", "")
+        .replaceAll(": MamaResourceTask | null", "")
+        .replaceAll(": MamaResourceTask", "")
+        .replaceAll(": ProfileTaskRequest", "")
+        .replaceAll(": AuthMutationRequest", "")
+        .replaceAll(": boolean", "")
+        .replaceAll(": string", "");
+    }
+  }
+  throw new Error(`unterminated function ${name}`);
+}
+
+function evaluateHelper(name) {
+  return Function(`${sourceFunction(name)}; return ${name};`)();
+}
+
 test("mama resource application route is public and avoids account credentials", () => {
   assert.match(appSource, /import MamaResourceApplyPage from "\.\/pages\/MamaResourceApplyPage";/);
   assert.match(appSource, /if \(normalizedPathname === "\/mama-resources\/apply"\) \{\s*return <MamaResourceApplyPage \/>;\s*\}/s);
@@ -58,7 +84,7 @@ test("mama resource application form submits a light supply profile", () => {
   assert.match(source, /useSelector\(\(state: RootState\) => state\.user\)/);
   assert.match(source, /const loggedInMobile = String\(user\?\.mobile \|\| ""\)\.trim\(\);/);
   assert.match(source, /useEffect\(\(\) => \{[\s\S]*loggedInMobile[\s\S]*contactPhone: current\.contactPhone \|\| loggedInMobile[\s\S]*\}, \[loggedInMobile\]\);/);
-  assert.match(source, /!\s*token \|\| !user \? \([\s\S]*<InlineLoginForm[\s\S]*onSuccess=\{\(\) => setMessage\("登录成功，请继续填写资料。"\)\}[\s\S]*\/>[\s\S]*\) : \(/);
+  assert.match(source, /!\s*token \|\| !user \|\| requiresLogin \? \([\s\S]*<InlineLoginForm[\s\S]*onSuccess=\{handleLoginSuccess\}[\s\S]*\/>/);
   assert.doesNotMatch(source, /if \(!token \|\| !user\)[\s\S]*xf-show-login-modal/, "standalone apply page should render an inline login form instead of only dispatching a login prompt");
   assert.match(source, /displayName/);
   assert.match(source, /contactPhone/);
@@ -134,4 +160,191 @@ test("mama resource public api posts applications", () => {
   assert.match(apiSource, /api\.post<\{ url: string; filename: string \}>\('\/mama-resources\/uploads'/);
   assert.match(apiSource, /submitMamaResourceApplication: \(data: MamaResourceApplicationInput\)/);
   assert.match(apiSource, /api\.post<\{ profile: MamaResourceProfile \}>\('\/mama-resources\/applications', data\)/);
+});
+
+test("authenticated mama resource page hydrates profile and routes returned states", () => {
+  assert.match(apiSource, /export interface MyMamaResourceTasksResponse/);
+  assert.match(apiSource, /getMyMamaResourceTasks: \(\) =>\s*api\.get<MyMamaResourceTasksResponse>\('\/mama-resources\/me\/tasks'\)/);
+  assert.match(source, /export type PageMode = "loading" \| "apply" \| "reviewing" \| "tasks" \| "detail" \| "error";/);
+  assert.match(source, /publicApi\.getMyMamaResourceTasks\(\)/);
+  assert.match(source, /nextProfile === null \? "apply" : nextProfile\.status === "approved" \? "tasks" : "reviewing"/);
+  assert.match(source, /setTasks\(response\.data\.tasks \|\| \[\]\)/);
+  assert.match(source, /setAvailableTasks\(response\.data\.availableTasks \|\| \[\]\)/);
+  assert.match(source, /pageMode === "loading"[\s\S]*资料加载中/);
+  assert.match(source, /pageMode === "error"[\s\S]*加载失败[\s\S]*onClick=\{loadProfileAndTasks\}[\s\S]*重新加载/);
+  assert.match(source, /onSuccess=\{handleLoginSuccess\}/);
+});
+
+test("authentication transitions own loading without stale-token retry loops", () => {
+  assert.match(source, /if \(error\?\.response\?\.status === 401\) \{\s*setRequiresLogin\(true\);\s*return;\s*\}/);
+  assert.match(source, /const handleLoginSuccess = useCallback\(\(\) => undefined, \[\]\);/);
+  assert.match(source, /profileTaskRequestRef\.current = \{ generation: profileTaskRequestRef\.current\.generation \+ 1, authIdentity \};[\s\S]*if \(!token \|\| !user\) return;\s*void loadProfileAndTasks\(\);/);
+  assert.equal(source.match(/void loadProfileAndTasks\(\)/g)?.length, 1, "normal login should have one automatic loader trigger");
+});
+
+test("profile form hydration maps every editable profile field", () => {
+  assert.match(source, /export function formStateFromProfile\(/);
+  assert.match(source, /displayName: profile\.displayName \|\| ""/);
+  assert.match(source, /contactPhone: profile\.contactPhone \|\| loggedInMobile/);
+  assert.match(source, /xiaohongshuNickname: profile\.socialAccount\?\.nickname \|\| ""/);
+  assert.match(source, /xiaohongshuProfileUrl: profile\.socialAccount\?\.profileUrl \|\| ""/);
+  assert.match(source, /const extraAccounts = \(profile\.mediaAccounts \|\| \[\]\)\.filter[\s\S]*mediaAccounts: extraAccounts\.map/);
+  assert.match(source, /blockedCategories: \(profile\.rateCard\?\.blockedCategories \|\| \[\]\)\.join\("、"\)/);
+  assert.match(source, /consentAccepted: Boolean\(profile\.consentAccepted\)/);
+});
+
+test("reviewing profiles show status, review note, and profile management", () => {
+  assert.match(source, /pageMode === "reviewing"[\s\S]*账号状态/);
+  assert.match(source, /profileStatusLabel\(profile\.status\)/);
+  assert.match(source, /profile\.reviewNote\?\.note/);
+  assert.match(source, /资料管理/);
+  assert.match(source, /setPageMode\("apply"\)/);
+});
+
+test("approved profiles render account home and complete task cards", () => {
+  assert.match(source, /function MamaResourceAccountCard/);
+  assert.match(source, /账号已通过/);
+  assert.match(source, /资料管理/);
+  assert.match(source, /function MamaResourceTaskCard/);
+  assert.match(source, /任务单价/);
+  assert.match(source, /投流补贴/);
+  assert.match(source, /推广 \{promotionCountText\(task\)\} 人/);
+  assert.match(source, /\{remainingCountText\(task\)\}/);
+  assert.match(source, /task\.contentUrl \? <span[^>]*>内容已下发<\/span> : null/);
+  assert.match(source, /暂时没有可接任务/);
+  assert.match(source, /const assignedTaskIds = new Set\(tasks\.map\(taskIdentity\)\)/);
+  assert.match(source, /availableTasks\.filter\(\(task\) => !assignedTaskIds\.has\(taskIdentity\(task\)\)\)/);
+});
+
+test("task identities keep template claims separate from assignment proof submissions", () => {
+  const templateTaskIdentity = evaluateHelper("templateTaskIdentity");
+  const assignmentTaskIdentity = evaluateHelper("assignmentTaskIdentity");
+  const assignment = { _id: "assignment-a", taskId: "template-a" };
+  assert.equal(templateTaskIdentity(assignment), "template-a");
+  assert.equal(assignmentTaskIdentity(assignment), "assignment-a");
+  assert.equal(templateTaskIdentity({ _id: "template-b" }), "template-b");
+  assert.equal(assignmentTaskIdentity({ _id: "template-b" }), "");
+  assert.match(source, /const initiatingTemplateId = templateTaskIdentity\(selectedTask\);[\s\S]*publicApi\.claimMamaResourceTask\(initiatingTemplateId\)/);
+  assert.match(source, /publicApi\.submitMamaResourceTaskProof\(assignmentTaskIdentity\(selectedTask\), \{/);
+});
+
+test("task cards open an in-page detail with claim behavior", () => {
+  assert.match(source, /function MamaResourceTaskDetail/);
+  assert.match(source, /项目信息/);
+  assert.match(source, /项目价格/);
+  assert.match(source, /结算标准/);
+  assert.match(source, /项目要求/);
+  assert.match(source, /exampleImageUrls/);
+  assert.match(source, /返回任务列表/);
+  assert.match(source, /const \[selectedTask, setSelectedTask\] = useState<MamaResourceTask \| null>\(null\);/);
+  assert.match(source, /publicApi\.claimMamaResourceTask\(initiatingTemplateId\)/);
+  assert.match(source, /setSelectedTask\(claimedTask\)/);
+  assert.match(source, /setPageMode\("detail"\)/);
+});
+
+test("assigned task detail exposes selectable content without embedding or navigating", () => {
+  assert.match(source, /你的专属任务内容/);
+  assert.match(source, /资料链接/);
+  assert.match(source, /长按可复制：/);
+  assert.match(source, /select-all/);
+  assert.match(source, /task\.contentUrl\?\.trim\(\)/);
+  assert.doesNotMatch(source, /<iframe/);
+  assert.doesNotMatch(source, /window\.open\(task\.contentUrl|location\.href\s*=\s*task\.contentUrl/);
+});
+
+test("assigned task detail uploads and submits proof while preserving returned task state", () => {
+  assert.match(source, /完成链接/);
+  assert.match(source, /name="proofLink"/);
+  assert.match(source, /type="file"[\s\S]*accept="image\/\*"/);
+  assert.match(source, /publicApi\.uploadMamaResourceScreenshot\(file\)/);
+  assert.match(source, /publicApi\.submitMamaResourceTaskProof\(assignmentTaskIdentity\(selectedTask\), \{\s*proofLink,\s*proofScreenshotUrl,?\s*\}\)/);
+  assert.match(source, /提交回填/);
+  assert.match(source, /setSelectedTask\(updatedTask\)/);
+  assert.match(source, /setTasks\(\(current\) => current\.map/);
+});
+
+test("proof async results only update the task that initiated the action", () => {
+  const isSameTaskIdentity = evaluateHelper("isSameTaskIdentity");
+  assert.equal(isSameTaskIdentity({ _id: "task-a" }, "task-a"), true);
+  assert.equal(isSameTaskIdentity({ _id: "task-b" }, "task-a"), false);
+  assert.equal(isSameTaskIdentity(null, "task-a"), false);
+  assert.match(source, /const initiatingTaskId = taskIdentity\(selectedTask\);/);
+  assert.match(source, /if \(!isSameTaskIdentity\(selectedTaskRef\.current, initiatingTaskId\)\) return;/);
+  assert.match(source, /setTasks\(\(current\) => current\.map[\s\S]*if \(!isSameTaskIdentity\(selectedTaskRef\.current, initiatingTaskId\)\) return;/);
+});
+
+test("late claim results update lists but only update matching selected detail", () => {
+  const shouldApplyTaskDetailResult = evaluateHelper("shouldApplyTaskDetailResult");
+  assert.equal(shouldApplyTaskDetailResult({ _id: "template-a" }, "template-a"), true);
+  assert.equal(shouldApplyTaskDetailResult({ _id: "template-b" }, "template-a"), false);
+  assert.equal(shouldApplyTaskDetailResult(null, "template-a"), false);
+  assert.match(source, /const initiatingTemplateId = templateTaskIdentity\(selectedTask\);/);
+  assert.match(source, /const replacement = replaceClaimedTask[\s\S]*setAvailableTasks\(replacement\.availableTasks\);[\s\S]*if \(!shouldApplyTaskDetailResult\(selectedTaskRef\.current, initiatingTemplateId\)\) return;/);
+});
+
+test("profile task loads reject stale generations and changed auth identities", () => {
+  const isCurrentProfileTaskRequest = evaluateHelper("isCurrentProfileTaskRequest");
+  const current = { generation: 2, authIdentity: "token-b" };
+  assert.equal(isCurrentProfileTaskRequest(current, { generation: 2, authIdentity: "token-b" }), true);
+  assert.equal(isCurrentProfileTaskRequest(current, { generation: 1, authIdentity: "token-b" }), false);
+  assert.equal(isCurrentProfileTaskRequest(current, { generation: 2, authIdentity: "token-a" }), false);
+  assert.match(source, /if \(!isCurrentProfileTaskRequest\(profileTaskRequestRef\.current, request\)\) return;/);
+  assert.match(source, /setLoadedAuthIdentity\(authIdentity\);\s*setLoadError[\s\S]*setPageMode\("error"\);/);
+});
+
+test("authenticated mutations reject late results after an account transition", () => {
+  const isCurrentAuthMutation = evaluateHelper("isCurrentAuthMutation");
+  const accountA = { generation: 1, authIdentity: "token-a" };
+  const accountB = { generation: 2, authIdentity: "token-b" };
+  assert.equal(isCurrentAuthMutation(accountA, accountA), true);
+  assert.equal(isCurrentAuthMutation(accountB, accountA), false);
+  assert.equal(isCurrentAuthMutation({ generation: 2, authIdentity: "token-a" }, accountA), false);
+  assert.match(source, /if \(authMutationRef\.current\.authIdentity !== authIdentity\) \{\s*authMutationRef\.current = \{ generation: authMutationRef\.current\.generation \+ 1, authIdentity \};\s*\}/);
+  assert.equal(source.match(/const mutation = authMutationRef\.current;/g)?.length, 5);
+  assert.ok((source.match(/if \(!isCurrentAuthMutation\(authMutationRef\.current, mutation\)\) return;/g)?.length || 0) >= 10);
+  assert.match(source, /setTaskClaiming\(false\);[\s\S]*setProofUploading\(false\);[\s\S]*setProofSubmitting\(false\);[\s\S]*setUploadingScreenshot\(false\);[\s\S]*setSubmitting\(false\);/);
+});
+
+test("content-link modal owns focus and supports Escape dismissal", () => {
+  assert.match(source, /const contentLinkOpenerRef = useRef<HTMLButtonElement \| null>\(null\);/);
+  assert.match(source, /const contentLinkCloseRef = useRef<HTMLButtonElement \| null>\(null\);/);
+  assert.match(source, /contentLinkCloseRef\.current\?\.focus\(\)/);
+  assert.match(source, /event\.key === "Escape"/);
+  assert.match(source, /event\.key === "Tab"/);
+  assert.match(source, /contentLinkOpenerRef\.current\?\.focus\(\)/);
+  assert.match(source, /ref=\{contentLinkOpenerRef\}/);
+  assert.match(source, /ref=\{contentLinkCloseRef\}/);
+});
+
+test("mama resource tasks expose assignment content URLs", () => {
+  assert.match(apiSource, /export interface MamaResourceTask \{[\s\S]*contentUrl\?: string;/);
+});
+
+test("promotion count prefers the active assignment count", () => {
+  const promotionCountText = evaluateHelper("promotionCountText");
+  assert.equal(promotionCountText({ activePromotionCount: 0, promotionCount: 9 }), "0");
+  assert.equal(promotionCountText({ activePromotionCount: 3, promotionCount: 9 }), "3");
+  assert.equal(promotionCountText({ promotionCount: 9 }), "9");
+  assert.match(apiSource, /activePromotionCount\?: number;/);
+});
+
+test("zero traffic subsidy is omitted on cards and shown as a dash in detail", () => {
+  const hasPositiveTrafficFee = evaluateHelper("hasPositiveTrafficFee");
+  const trafficFeeDetailText = evaluateHelper("trafficFeeDetailText");
+  assert.equal(hasPositiveTrafficFee({ trafficFeeCents: 0 }), false);
+  assert.equal(hasPositiveTrafficFee({ trafficFeeCents: 250 }), true);
+  assert.equal(trafficFeeDetailText({ trafficFeeCents: 0 }), "-");
+  assert.equal(trafficFeeDetailText({ trafficFeeCents: 250 }), "¥2.50");
+  assert.match(source, /hasPositiveTrafficFee\(task\) \? <div[^>]*>投流补贴/);
+});
+
+test("claim replacement removes the available duplicate and retains one task identity", () => {
+  const replaceClaimedTask = evaluateHelper("replaceClaimedTask");
+  const result = replaceClaimedTask(
+    [{ _id: "assignment-old", taskId: "task-1", title: "old" }],
+    [{ _id: "task-1", title: "available" }, { _id: "task-2", title: "other" }],
+    { _id: "assignment-new", taskId: "task-1", title: "claimed" },
+  );
+  assert.deepEqual(result.tasks.map((task) => task.title), ["claimed"]);
+  assert.deepEqual(result.availableTasks.map((task) => task._id), ["task-2"]);
 });

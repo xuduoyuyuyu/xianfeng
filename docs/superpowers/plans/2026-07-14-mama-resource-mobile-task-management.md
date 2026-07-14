@@ -141,4 +141,3 @@ Expected: both commands exit 0.
 - [ ] **Step 7: Verify mobile rendering**
 
 Start the existing local frontend, open `/mama-resources/apply` at a mobile viewport, and capture the approved account home, task detail, and content-link dialog. Compare hierarchy and visible fields with the supplied mini-program reference before reporting visual completion.
-

@@ -722,6 +722,7 @@ export interface MamaResourceTask {
   dataCycle?: string;
   settlementCycle?: string;
   promotionCount?: number | null;
+  activePromotionCount?: number;
   claimLimit?: number | null;
   claimedCount?: number;
   remainingClaimCount?: number | null;
@@ -732,6 +733,7 @@ export interface MamaResourceTask {
   requirement?: string;
   externalUrl?: string;
   exampleImageUrls?: string[];
+  contentUrl?: string;
   status: MamaResourceTaskStatus | MamaResourceTaskAssignmentStatus;
   proofLink?: string;
   proofScreenshotUrl?: string;
@@ -758,6 +760,12 @@ export interface MamaResourceTaskAssignment {
   contentUpdatedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface MyMamaResourceTasksResponse {
+  profile: MamaResourceProfile | null;
+  tasks: MamaResourceTask[];
+  availableTasks?: MamaResourceTask[];
 }
 
 export interface MamaResourceContentImportRow {
@@ -1276,7 +1284,7 @@ export const publicApi = {
   submitMamaResourceApplication: (data: MamaResourceApplicationInput) =>
     api.post<{ profile: MamaResourceProfile }>('/mama-resources/applications', data),
   getMyMamaResourceTasks: () =>
-    api.get<{ profile: MamaResourceProfile | null; tasks: MamaResourceTask[]; availableTasks?: MamaResourceTask[] }>('/mama-resources/me/tasks'),
+    api.get<MyMamaResourceTasksResponse>('/mama-resources/me/tasks'),
   getMyMamaResourceTask: (id: string) =>
     api.get<{ profile: MamaResourceProfile; task: MamaResourceTask }>(`/mama-resources/me/tasks/${id}`),
   claimMamaResourceTask: (id: string) =>
