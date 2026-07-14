@@ -25,7 +25,7 @@ test("profile dialog matches the reference card hierarchy", () => {
   const wxss = fs.readFileSync(path.join(dir, "index.wxss"), "utf8");
 
   assert.match(wxml, /xf-profile-onboarding-mask/);
-  assert.match(wxml, /\/assets\/tabbar\/xiaowanzi\.png/);
+  assert.match(wxml, /\/assets\/wel-avatar\/wizard\.png/);
   assert.match(wxss, /position:\s*fixed/);
   assert.match(wxss, /background:\s*rgba\(/);
   assert.match(wxss, /border-radius:/);

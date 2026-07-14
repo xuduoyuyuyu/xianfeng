@@ -1,7 +1,7 @@
 <view wx:if="{{visible}}" class="xf-profile-onboarding-mask" catchtouchmove="noop" catchtap="noop">
   <view class="xf-profile-onboarding-card" catchtap="noop">
     <button class="xf-profile-onboarding-close" bindtap="close" aria-label="关闭">×</button>
-    <image class="xf-profile-onboarding-avatar" src="/assets/tabbar/xiaowanzi.png" mode="aspectFit" />
+    <image class="xf-profile-onboarding-avatar" src="/assets/wel-avatar/wizard.png" mode="aspectFit" />
     <text class="xf-profile-onboarding-title">完善基础信息</text>
     <text class="xf-profile-onboarding-subtitle">填写后，为你优先展示更匹配的内容</text>
 
