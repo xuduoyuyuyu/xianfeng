@@ -572,10 +572,23 @@ router.put("/:id", async (req: Request, res: Response) => {
   try {
     const update: any = {};
     const body = req.body || {};
+    const alipayAccount = asText(body.alipayAccount);
+    const alipayVerifiedName = asText(body.alipayVerifiedName);
+
+    if (!alipayAccount) {
+      res.status(400).json({ message: "请填写支付宝账号" });
+      return;
+    }
+    if (!alipayVerifiedName) {
+      res.status(400).json({ message: "请填写支付宝验证姓名" });
+      return;
+    }
 
     for (const key of ["displayName", "contactPhone", "contactWechat", "city", "childStage", "childGender", "accountPositioning"]) {
       if (body[key] !== undefined) update[key] = asText(body[key]);
     }
+    update.alipayAccount = alipayAccount;
+    update.alipayVerifiedName = alipayVerifiedName;
     if (body.categories !== undefined) update.categories = asTextArray(body.categories);
     if (STATUSES.includes(asText(body.status) as MamaResourceStatus)) update.status = asText(body.status);
     if (body.socialAccount && typeof body.socialAccount === "object") {
