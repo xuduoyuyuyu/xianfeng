@@ -303,6 +303,54 @@ describe("welfare campaign routes", () => {
     assert.match(expiredData.message, /已过期/);
   });
 
+  it("increments activation-code campaign stock before claim creation and rolls back failures", async () => {
+    const now = new Date("2026-07-02T08:00:00.000Z");
+    const user = await User.create({
+      username: "activation-code-rollback-user",
+      password: "hash",
+      mobile: "13800138006",
+      role: "user",
+    });
+    const campaign = await WelfareCampaign.create({
+      title: "激活码回滚福利",
+      totalStock: 1,
+      startsAt: new Date("2026-07-01T00:00:00.000Z"),
+      endsAt: new Date("2026-07-08T00:00:00.000Z"),
+      status: "published",
+    });
+    const activationCode = await WelfareActivationCode.create({
+      campaignId: campaign._id,
+      code: "ROLLBACK-CODE",
+      importIndex: 0,
+    });
+    const originalCreate = WelfareClaim.create.bind(WelfareClaim);
+    let claimedCountDuringCreate = -1;
+    WelfareClaim.create = (async () => {
+      claimedCountDuringCreate = Number((await WelfareCampaign.findById(campaign._id).lean())?.claimedCount || 0);
+      throw new Error("simulated claim write failure");
+    }) as any;
+
+    try {
+      const response = await fetch(`${server.publicUrl}/campaigns/${campaign._id}/claims`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${userToken(String(user._id))}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ now: now.toISOString() }),
+      });
+      assert.equal(response.status, 400);
+      assert.equal(claimedCountDuringCreate, 1);
+      assert.equal((await WelfareCampaign.findById(campaign._id).lean())?.claimedCount, 0);
+      const releasedCode = await WelfareActivationCode.findById(activationCode._id).lean();
+      assert.equal(releasedCode?.claimId, null);
+      assert.equal(releasedCode?.claimedByUserId, null);
+      assert.equal(releasedCode?.claimedAt, null);
+    } finally {
+      WelfareClaim.create = originalCreate as any;
+    }
+  });
+
   it("imports activation codes, assigns them in order, and exports claim reconciliation data", async () => {
     const now = new Date("2026-07-02T08:00:00.000Z");
     const firstUser = await User.create({

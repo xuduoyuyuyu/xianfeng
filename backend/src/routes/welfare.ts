@@ -90,6 +90,19 @@ router.post("/campaigns/:id/claims", authenticate, async (req: AuthenticatedRequ
         res.status(409).json({ message: "这个福利已经被抢完" });
         return;
       }
+      const updated = await WelfareCampaign.findOneAndUpdate(
+        { _id: campaign._id, claimedCount: { $lt: campaign.totalStock } },
+        { $inc: { claimedCount: 1 } },
+        { returnDocument: "after" }
+      );
+      if (!updated) {
+        await WelfareActivationCode.updateOne(
+          { _id: activationCode._id, claimId },
+          { $set: { claimId: null, claimedByUserId: null, claimedAt: null } }
+        );
+        res.status(409).json({ message: "这个福利已经被抢完" });
+        return;
+      }
       try {
         const claim = await WelfareClaim.create({
           _id: claimId,
@@ -99,20 +112,18 @@ router.post("/campaigns/:id/claims", authenticate, async (req: AuthenticatedRequ
           activationCode: activationCode.code,
           claimedAt: now,
         });
-        const updated = await WelfareCampaign.findOneAndUpdate(
-          { _id: campaign._id },
-          { $inc: { claimedCount: 1 } },
-          { returnDocument: "after" }
-        );
         res.status(201).json({
           claim: serializeWelfareClaim(claim),
-          campaign: serializeWelfareCampaign(updated || campaign, now),
+          campaign: serializeWelfareCampaign(updated, now),
         });
       } catch (error: any) {
-        await WelfareActivationCode.updateOne(
-          { _id: activationCode._id, claimId },
-          { $set: { claimId: null, claimedByUserId: null, claimedAt: null } }
-        );
+        await Promise.all([
+          WelfareCampaign.updateOne({ _id: campaign._id, claimedCount: { $gt: 0 } }, { $inc: { claimedCount: -1 } }),
+          WelfareActivationCode.updateOne(
+            { _id: activationCode._id, claimId },
+            { $set: { claimId: null, claimedByUserId: null, claimedAt: null } }
+          ),
+        ]);
         if (error?.code === 11000) {
           const claim = await WelfareClaim.findOne({ campaignId, userId, status: "claimed" }).lean();
           const current = await WelfareCampaign.findOne(idQuery(campaignId)).lean();

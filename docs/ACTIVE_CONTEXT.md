@@ -23,7 +23,8 @@ submission.
 
 Welfare campaigns with activation codes cap total stock at the imported-code
 count and floor it at the claimed count. The admin UI reports the actual saved
-stock whenever the backend adjusts an operator-entered value.
+stock whenever the backend adjusts an operator-entered value. Historical rows
+with more claims than codes reject updates until operators correct the data.
 
 ## Live / Waiting Workstreams
 

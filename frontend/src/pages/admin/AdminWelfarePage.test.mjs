@@ -75,3 +75,11 @@ test("shows the backend-adjusted activation-code stock after save", () => {
   assert.match(source, /savedCampaign\.totalStock !== requestedStock/);
   assert.match(source, /库存已按激活码数量调整为/);
 });
+
+test("keeps the welfare editor open and shows backend conflict messages on save failure", () => {
+  const saveCampaignSource = source.match(/const saveCampaign = async[\s\S]*?\n  };\n\n  const importActivationCodes/)?.[0] || "";
+  const catchSource = saveCampaignSource.match(/catch \(error: any\) \{[\s\S]*?\n    \} finally/)?.[0] || "";
+  assert.match(saveCampaignSource, /setFormModalOpen\(false\)/);
+  assert.match(catchSource, /error\?\.response\?\.data\?\.message/);
+  assert.doesNotMatch(catchSource, /setFormModalOpen\(false\)|setEditing\(null\)|setForm\(emptyForm\)/);
+});
