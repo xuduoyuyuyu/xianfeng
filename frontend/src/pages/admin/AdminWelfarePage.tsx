@@ -185,16 +185,19 @@ const AdminWelfarePage: React.FC = () => {
     setSaving(true);
     setMessage("");
     try {
-      if (editing) {
-        await adminApi.updateWelfareCampaign(editing._id, toPayload(form));
-      } else {
-        await adminApi.createWelfareCampaign(toPayload(form));
-      }
+      const requestedStock = Math.max(0, Math.floor(Number(form.totalStock) || 0));
+      const response = editing
+        ? await adminApi.updateWelfareCampaign(editing._id, toPayload(form))
+        : await adminApi.createWelfareCampaign(toPayload(form));
+      const savedCampaign = response.data.campaign;
+      const stockAdjusted = savedCampaign.totalStock !== requestedStock;
       setFormModalOpen(false);
       setEditing(null);
       setForm(emptyForm);
       await loadItems();
-      setMessage("百宝箱福利已保存。");
+      setMessage(stockAdjusted
+        ? `库存已按激活码数量调整为 ${savedCampaign.totalStock}。`
+        : "百宝箱福利已保存。");
     } catch (error: any) {
       setMessage(error?.response?.data?.message || error?.message || "保存失败");
     } finally {

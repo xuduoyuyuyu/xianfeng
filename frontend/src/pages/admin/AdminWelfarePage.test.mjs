@@ -68,3 +68,10 @@ test("admin welfare api supports CRUD list and claim history", () => {
   assert.match(apiSource, /\/admin\/welfare\/\$\{id\}\/claims/);
   assert.match(apiSource, /\/admin\/welfare\/\$\{id\}\/claims\/export/);
 });
+
+test("shows the backend-adjusted activation-code stock after save", () => {
+  assert.match(source, /const requestedStock = Math\.max\(0, Math\.floor\(Number\(form\.totalStock\) \|\| 0\)\)/);
+  assert.match(source, /const savedCampaign = response\.data\.campaign/);
+  assert.match(source, /savedCampaign\.totalStock !== requestedStock/);
+  assert.match(source, /库存已按激活码数量调整为/);
+});
