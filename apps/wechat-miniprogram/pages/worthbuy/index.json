@@ -3,6 +3,7 @@
   "enablePullDownRefresh": true,
   "backgroundColor": "#f8f6ff",
   "usingComponents": {
-    "custom-tab-bar": "../../custom-tab-bar/index"
+    "custom-tab-bar": "../../custom-tab-bar/index",
+    "phone-login-gate": "../../components/phone-login-gate/index"
   }
 }

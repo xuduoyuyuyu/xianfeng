@@ -1,7 +1,6 @@
 const { request } = require("../../utils/request");
-const { subscribeAuthExpired, resolveAuthExpired } = require("../../utils/authExpiry");
+const { subscribeAuthExpired } = require("../../utils/authExpiry");
 const { API_ORIGIN } = require("../../utils/config");
-const { setSession } = require("../../utils/session");
 const { getNativeTopbarMetrics } = require("../../utils/nativeChrome");
 const { createPageShare, enableShareMenu } = require("../../utils/share");
 const { ensureBackStackForBackButtonPage, goProgramsHome: navigateProgramsHome, smartBackHome } = require("../../utils/nativePageNav");
@@ -119,8 +118,6 @@ Page({
     loading: true,
     message: "",
     loginRequired: false,
-    bindingPhone: false,
-    loginMessage: "",
     claimingId: "",
     claimDialogVisible: false,
     claimDialogTitle: "",
@@ -168,44 +165,12 @@ Page({
   },
 
   showLoginGate() {
-    this.setData({ loginRequired: true, bindingPhone: false, loginMessage: "", loading: false, message: "" });
+    this.setData({ loginRequired: true, loading: false, message: "" });
   },
 
-  loginWithPhone(event) {
-    if (this.data.bindingPhone) return;
-    const phoneCode = String(event && event.detail && event.detail.code || "");
-    if (!phoneCode) {
-      this.setData({ loginMessage: "需要授权手机号后登录" });
-      return;
-    }
-    this.setData({ bindingPhone: true, loginMessage: "" });
-    wx.login({
-      success: ({ code }) => {
-        if (!code) {
-          this.setData({ bindingPhone: false, loginMessage: "微信登录失败，请重试" });
-          return;
-        }
-        request({
-          method: "POST",
-          url: "/api/wechat-mini/login",
-          data: { code, phoneCode }
-        })
-          .then((payload) => {
-            setSession(payload);
-            const app = typeof getApp === "function" ? getApp() : null;
-            if (app && typeof app.setLoginSession === "function") app.setLoginSession(payload);
-            resolveAuthExpired();
-            this.setData({ loginRequired: false, bindingPhone: false, loginMessage: "", message: "" });
-            this.loadCampaigns();
-          })
-          .catch((error) => {
-            this.setData({ bindingPhone: false, loginMessage: friendlyError(error, "登录失败，请重试") });
-          });
-      },
-      fail: () => {
-        this.setData({ bindingPhone: false, loginMessage: "无法调用微信登录" });
-      }
-    });
+  handleLoginSuccess() {
+    this.setData({ loginRequired: false, loading: true, message: "" });
+    this.loadCampaigns();
   },
 
   loadCampaigns() {

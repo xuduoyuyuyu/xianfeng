@@ -20,7 +20,6 @@
     <view wx:if="{{actionError}}" class="wb-error">
       <text>{{actionError}}</text>
       <button wx:if="{{actionErrorType === 'pro' || actionErrorType === 'points'}}" bindtap="openPro">查看 Pro</button>
-      <button wx:if="{{actionErrorType === 'auth'}}" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone">微信手机号登录</button>
     </view>
   </view>
 
@@ -36,7 +35,7 @@
         <text class="wb-card-icon">{{item.displayEmoji}}</text>
         <view class="wb-card-copy">
           <text class="wb-card-title">{{item.title}}</text>
-          <text class="wb-card-tag">{{item.categoryLabel}}</text>
+          <text class="wb-card-tag {{item.isIqTax ? 'is-iq-tax' : ''}}">{{item.categoryLabel}}</text>
         </view>
         <button class="wb-delete" data-index="{{index}}" catchtap="deleteHistoryItem">删除</button>
       </view>
@@ -51,11 +50,12 @@
         <text class="wb-card-icon">{{item.displayEmoji}}</text>
         <view class="wb-card-copy">
           <text class="wb-card-title">{{item.title}}</text>
-          <text class="wb-card-tag">{{item.categoryLabel}}</text>
+          <text class="wb-card-tag {{item.isIqTax ? 'is-iq-tax' : ''}}">{{item.categoryLabel}}</text>
         </view>
       </view>
     </view>
     <view wx:if="{{loadingMore}}" class="wb-empty">正在加载更多…</view>
   </view>
 </view>
+<phone-login-gate visible="{{loginRequired}}" title="登录后继续分析" description="登录成功后会保留当前输入，请手动再次发起分析。" bind:success="handleLoginSuccess" />
 <custom-tab-bar selected="{{selected}}" hidden="{{hideTabbar}}" />

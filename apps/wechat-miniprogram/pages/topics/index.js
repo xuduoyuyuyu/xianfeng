@@ -1125,11 +1125,11 @@ Page({
     if (isAuthExpiredError(error)) {
       this.setData({
         askSubmitting: false,
-        askMessage: "请先登录后继续提交问题。",
-        askMessageType: "error",
+        askMessage: "",
+        askMessageType: "",
         askSubmitProgressLabel: "",
         askSubmitProgressPercent: 0,
-        profilePanelMessage: "请点击登录并授权手机号"
+        profilePanelMessage: ""
       });
       if (typeof this.openSettings === "function") {
         this.openSettings();

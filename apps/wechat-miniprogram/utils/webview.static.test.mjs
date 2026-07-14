@@ -250,12 +250,10 @@ test("openWeb keeps Xiaowanzi entry mode for the Xiaowanzi standalone route", ()
   assert.equal(global.__lastRemoveStorageSync, "");
 });
 
-test("webview page authorizes phone login in the current page without a login route", () => {
+test("webview page opens the shared phone login gate in the current page", () => {
   assert.match(webviewPageWxml, /<web-view wx:elif="\{\{src\}\}" src="\{\{src\}\}" \/>/);
-  assert.match(webviewPageWxml, /<button wx:if="\{\{webviewLoginRequired\}\}" class="xf-webview-login-gate \{\{bindingPhone \? 'is-binding' : ''\}\}" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone"/);
-  assert.match(webviewPageJs, /const \{ getToken, getUser, setSession \} = require\("\.\.\/\.\.\/utils\/session"\);/);
+  assert.match(webviewPageWxml, /<phone-login-gate visible="\{\{webviewLoginRequired\}\}"[^>]*bind:success="handleWebviewLoginSuccess" \/>/);
   assert.match(webviewPageJs, /const webviewLoginRequired = options\.login === "1" && !getToken\(\);/);
-  assert.match(webviewPageJs, /loginWithPhone\(event\)[\s\S]*\/api\/wechat-mini\/login[\s\S]*setSession\(payload\)[\s\S]*buildWebUrl\(currentSrc, \{ preserveXiaowanziLayer:/);
+  assert.match(webviewPageJs, /handleWebviewLoginSuccess\(\)[\s\S]*buildWebUrl\(currentSrc, \{ preserveXiaowanziLayer:[\s\S]*webviewLoginRequired: false/);
   assert.doesNotMatch(webviewPageJs, /\/pages\/login\/index/);
-  assert.match(webviewPageWxss, /\.xf-webview-login-gate \{[\s\S]*position: fixed;[\s\S]*inset: 0;[\s\S]*z-index: 100300;[\s\S]*background: rgba\(255, 255, 255, 0\.01\);/);
 });

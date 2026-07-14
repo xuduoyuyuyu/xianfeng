@@ -47,6 +47,11 @@ test("mama resource form persists and submits required Alipay profile fields", (
   assert.match(jsSource, /if \(!payload\.alipayVerifiedName\)[\s\S]*请填写支付宝验证姓名/);
 });
 
+test("social account inputs invite pasted commands and short links without domain restrictions", () => {
+  assert.match(wxmlSource, /name="xiaohongshuProfileUrl"[^>]*placeholder="可粘贴整段口令或主页短链接"/);
+  assert.match(wxmlSource, /data-field="profileUrl"[^>]*placeholder="可粘贴整段口令或主页链接"/);
+});
+
 test("mama resource profile management is always available and separates personal and media data", () => {
   assert.match(jsSource, /MEDIA_PLATFORM_OPTIONS/);
   const platformOptions = jsSource.match(/const MEDIA_PLATFORM_OPTIONS = \[[\s\S]*?\n\];/)?.[0] || "";
@@ -217,6 +222,8 @@ test("assigned users can preview a read-only transfer credential", () => {
   assert.match(jsSource, /previewTransferScreenshot\(\)[\s\S]*wx\.previewImage\(\{ current, urls: \[current\] \}\)/);
   assert.match(wxmlSource, /wx:if="\{\{currentMamaTask\.transferScreenshotUrl\}\}"[\s\S]*转账凭证/);
   assert.match(wxmlSource, /src="\{\{currentMamaTask\.transferScreenshotUrl\}\}"[^>]*catchtap="previewTransferScreenshot"/);
+  assert.match(wxmlSource, /class="xf-mama-proof-card"[\s\S]*完成链接[\s\S]*class="xf-mama-transfer-card"[\s\S]*转账凭证/);
+  assert.doesNotMatch(wxmlSource, /class="xf-mama-transfer-card"[\s\S]*转账凭证[\s\S]*class="xf-mama-proof-card"/);
 });
 
 test("logged-out mama resource users must authorize phone before seeing apply form", () => {
@@ -227,14 +234,14 @@ test("logged-out mama resource users must authorize phone before seeing apply fo
   assert.match(jsSource, /isUnauthorizedError\(error\)/);
   assert.match(jsSource, /mamaResourceView: "login"[\s\S]*mamaTasks: \[\]/);
   assert.match(wxmlSource, /mamaResourceView === 'login'/);
-  assert.match(wxmlSource, /open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone"/);
-  assert.match(wxmlSource, /提交资料后即可进入任务列表/);
+  assert.match(wxmlSource, /<phone-login-gate[^>]*visible="\{\{mamaResourceView === 'login'\}\}"[^>]*bind:success="handleLoginSuccess"/);
+  assert.match(wxmlSource, /授权手机号后恢复资料和任务列表/);
 });
 
 test("mama resource task share image includes a direct mini-program qrcode", () => {
   assert.match(jsSource, /openMamaTaskSharePoster\(\)/);
   assert.match(jsSource, /const pendingMamaTaskId = asText\(options\.taskId \|\| parseSceneParam\(options\.scene, "m"\)\)\.trim\(\)/);
-  assert.match(jsSource, /if \(!pendingMamaTaskId && ensureBackStackForBackButtonPage\(options\)\) return;/);
+  assert.match(jsSource, /if \(!pendingMamaTaskId && !launchedFromShare && ensureBackStackForBackButtonPage\(options\)\) return;/);
   assert.match(jsSource, /mamaTaskShareQrUrl\(taskId\)/);
   assert.match(jsSource, /currentMiniProgramEnvVersion\(\)/);
   assert.match(jsSource, /envVersion=\$\{encodeURIComponent\(envVersion\)\}/);
@@ -324,6 +331,9 @@ test("task announcement only appears when configured and opens a modal", () => {
 test("mama resource share card is unified under the mama haozhuan page name", () => {
   assert.match(jsSource, /const MAMA_RESOURCE_SHARE_COVER_IMAGE = "\/assets\/share\/mama-hao-zhuan-cover\.png"/);
   assert.match(jsSource, /title: "妈妈好赚"/);
+  assert.match(jsSource, /path: "\/pages\/mama-resource-apply\/index\?shared=1"/);
+  assert.match(jsSource, /const launchedFromShare = asText\(options\.shared\) === "1";/);
+  assert.match(jsSource, /if \(!pendingMamaTaskId && !launchedFromShare && ensureBackStackForBackButtonPage\(options\)\) return;/);
   assert.match(jsSource, /imageUrl: MAMA_RESOURCE_SHARE_COVER_IMAGE/);
   assert.doesNotMatch(jsSource, /妈妈好赚资料提交/);
 });

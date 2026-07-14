@@ -612,7 +612,8 @@ Page({
 
   onLoad(options = {}) {
     const pendingMamaTaskId = asText(options.taskId || parseSceneParam(options.scene, "m")).trim();
-    if (!pendingMamaTaskId && ensureBackStackForBackButtonPage(options)) return;
+    const launchedFromShare = asText(options.shared) === "1";
+    if (!pendingMamaTaskId && !launchedFromShare && ensureBackStackForBackButtonPage(options)) return;
     const storedDraft = loadApplyDraft();
     const userMobile = readStoredUserMobile();
     const formDraft = normalizeApplyDraft({
@@ -690,6 +691,11 @@ Page({
       messageType: ""
     });
     return this.loadMamaTasks();
+  },
+
+  handleLoginSuccess(event) {
+    const payload = event && event.detail && event.detail.session;
+    return this.onNativeSettingsLoginSuccess(payload);
   },
 
   loadMamaTasks() {
@@ -1526,7 +1532,7 @@ Page({
   onShareAppMessage() {
     return createPageShare({
       title: "妈妈好赚",
-      path: "/pages/mama-resource-apply/index",
+      path: "/pages/mama-resource-apply/index?shared=1",
       imageUrl: MAMA_RESOURCE_SHARE_COVER_IMAGE
     }).onShareAppMessage();
   },
@@ -1534,7 +1540,7 @@ Page({
   onShareTimeline() {
     return createPageShare({
       title: "妈妈好赚",
-      path: "/pages/mama-resource-apply/index",
+      path: "/pages/mama-resource-apply/index?shared=1",
       imageUrl: MAMA_RESOURCE_SHARE_COVER_IMAGE
     }).onShareTimeline();
   },

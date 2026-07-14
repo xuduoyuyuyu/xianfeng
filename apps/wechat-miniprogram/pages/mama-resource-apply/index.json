@@ -1,4 +1,7 @@
 {
   "navigationStyle": "custom",
-  "disableScroll": false
+  "disableScroll": false,
+  "usingComponents": {
+    "phone-login-gate": "../../components/phone-login-gate/index"
+  }
 }

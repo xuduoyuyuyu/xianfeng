@@ -100,20 +100,22 @@ function normalizeXiaohongshuProfileUrl(value: unknown): { profileUrl: string; n
   const raw = asText(value);
   if (!raw) return { profileUrl: "", normalizedProfileUrl: "" };
 
+  const embeddedUrl = raw.match(/https?:\/\/[^\s<>"']+/i)?.[0]?.replace(/[，。；！？、）)\]}>]+$/, "") || "";
+  const identity = embeddedUrl || raw;
+
   try {
-    const url = new URL(raw.startsWith("http") ? raw : `https://${raw}`);
+    const url = new URL(identity.startsWith("http") ? identity : `https://${identity}`);
     const host = url.hostname.replace(/^www\./, "").toLowerCase();
     const pathname = url.pathname.replace(/\/+$/, "");
-    if (!host.includes("xiaohongshu.com") || !pathname) {
-      return { profileUrl: raw, normalizedProfileUrl: "" };
+    if (host.includes("xiaohongshu.com") && pathname) {
+      return {
+        profileUrl: identity === raw ? `https://www.xiaohongshu.com${pathname}` : raw,
+        normalizedProfileUrl: `xiaohongshu:${pathname.replace(/^\/+/, "").toLowerCase()}`,
+      };
     }
-    return {
-      profileUrl: `https://www.xiaohongshu.com${pathname}`,
-      normalizedProfileUrl: `xiaohongshu:${pathname.replace(/^\/+/, "").toLowerCase()}`,
-    };
-  } catch (_error) {
-    return { profileUrl: raw, normalizedProfileUrl: "" };
-  }
+  } catch (_error) {}
+
+  return { profileUrl: raw, normalizedProfileUrl: `xiaohongshu:${identity.toLowerCase()}` };
 }
 
 function normalizeGenericProfileUrl(platform: string, value: unknown): { profileUrl: string; normalizedProfileUrl: string } {
@@ -472,7 +474,7 @@ router.post("/applications", optionalAuthenticate, async (req: AuthenticatedRequ
       return;
     }
     if (!primaryXiaohongshuAccount) {
-      res.status(400).json({ message: "请填写有效的小红书主页链接" });
+      res.status(400).json({ message: "请填写小红书主页链接或分享口令" });
       return;
     }
     const normalizedProfileUrls = mediaAccounts.map((account) => account.normalizedProfileUrl).filter(Boolean);

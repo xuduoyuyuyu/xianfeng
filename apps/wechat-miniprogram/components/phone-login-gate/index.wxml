@@ -1,0 +1,11 @@
+<view wx:if="{{visible}}" class="xf-phone-login-mask" catchtouchmove="noop">
+  <view class="xf-phone-login-card">
+    <image class="xf-phone-login-image" src="/assets/wel-avatar/wizard.png" mode="aspectFit" />
+    <text class="xf-phone-login-title">{{title}}</text>
+    <text class="xf-phone-login-description">{{description}}</text>
+    <text wx:if="{{loginMessage}}" class="xf-phone-login-message">{{loginMessage}}</text>
+    <button class="xf-phone-login-button {{bindingPhone ? 'is-binding' : ''}}" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone" disabled="{{bindingPhone}}">
+      {{bindingPhone ? '正在登录...' : '手机号快捷登录'}}
+    </button>
+  </view>
+</view>

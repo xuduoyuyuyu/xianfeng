@@ -4,5 +4,8 @@
   "navigationBarBackgroundColor": "#f2f1ff",
   "navigationBarTextStyle": "black",
   "backgroundColor": "#f2f1ff",
-  "backgroundTextStyle": "dark"
+  "backgroundTextStyle": "dark",
+  "usingComponents": {
+    "phone-login-gate": "../../components/phone-login-gate/index"
+  }
 }

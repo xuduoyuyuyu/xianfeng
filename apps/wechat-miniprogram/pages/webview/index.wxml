@@ -786,8 +786,7 @@
     <button
       wx:if="{{!nativeExpertAuthed}}"
       class="xf-expert-detail-login"
-      open-type="getPhoneNumber"
-      bindgetphonenumber="loginWithPhone"
+      bindtap="showLoginGate"
     >登录后向嘉宾提问</button>
     <view wx:else class="xf-expert-detail-input-row">
       <view class="xf-expert-detail-input-shell {{nativeExpertQuestion ? 'has-typed-input' : ''}} {{nativeExpertInputFocused ? 'is-input-focused' : ''}} {{!nativeExpertQuestion && !nativeExpertInputFocused ? 'is-placeholder' : ''}} {{nativeExpertSending ? 'is-sending' : ''}}">
@@ -917,9 +916,7 @@
 
 <web-view wx:elif="{{src}}" src="{{src}}" />
 
-<button wx:if="{{webviewLoginRequired}}" class="xf-webview-login-gate {{bindingPhone ? 'is-binding' : ''}}" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone" catchtouchmove="noop" aria-label="{{bindingPhone ? '正在登录' : '授权手机号登录'}}">
-  <text class="xf-webview-login-sr">{{bindingPhone ? '正在登录...' : '授权手机号登录'}}</text>
-</button>
+<phone-login-gate visible="{{webviewLoginRequired}}" title="登录后继续" description="授权手机号后恢复当前页面。" bind:success="handleWebviewLoginSuccess" />
 
 <cover-view wx:if="{{settingsPanelOpen}}" class="xf-native-settings-mask" style="height: {{settingsPanelHeight}}px;" catchtap="closeSettings">
   <cover-view class="xf-native-settings-panel" style="height: {{settingsPanelHeight}}px; padding-top: {{profilePanelTop}}px;" catchtap="noop">

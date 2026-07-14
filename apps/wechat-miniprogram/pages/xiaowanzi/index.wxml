@@ -15,9 +15,7 @@
     <text wx:if="{{childContextStatus}}" class="xf-xiaowanzi-child-boundary" style="top: {{childBoundaryTop}}px;">{{childContextStatus}}</text>
   </view>
 
-  <button wx:if="{{xiaowanziLoginRequired}}" class="xf-xiaowanzi-login-gate {{bindingPhone ? 'is-binding' : ''}}" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone" catchtouchmove="noop" aria-label="{{bindingPhone ? '正在登录' : '授权手机号登录'}}">
-    <text class="xf-xiaowanzi-login-sr">{{bindingPhone ? '正在登录...' : '授权手机号登录'}}</text>
-  </button>
+  <phone-login-gate visible="{{xiaowanziLoginRequired}}" title="登录后使用小玩子" description="授权手机号后恢复你的对话和孩子档案。" bind:success="handleXiaowanziLoginSuccess" />
 
   <scroll-view class="xf-xiaowanzi-chat-list {{homeMode ? 'is-home' : 'is-chat'}} {{attachmentMenuOpen ? 'has-attachment-menu' : ''}} {{shareSelectionMode ? 'has-share-selection' : ''}}" scroll-y="{{true}}" enhanced="{{true}}" show-scrollbar="{{false}}" scroll-into-view="{{scrollIntoView}}" bindscroll="handleKnowledgePillScroll" style="top: {{chatTop}}px;">
     <view wx:if="{{homeMode}}" class="xf-xiaowanzi-home">

@@ -912,7 +912,7 @@ const MamaResourceApplyPage: React.FC = () => {
                   </label>
                   <label className={fieldClass}>
                     小红书主页链接
-                    <input className={inputClass} value={form.xiaohongshuProfileUrl} onChange={(event) => updateField("xiaohongshuProfileUrl", event.target.value)} placeholder="https://www.xiaohongshu.com/user/profile/..." />
+                    <input className={inputClass} value={form.xiaohongshuProfileUrl} onChange={(event) => updateField("xiaohongshuProfileUrl", event.target.value)} placeholder="可粘贴整段口令或主页短链接" />
                   </label>
                   <label className={fieldClass}>
                     小红书页面截图
@@ -962,7 +962,7 @@ const MamaResourceApplyPage: React.FC = () => {
                         </label>
                         <label className="mt-[8px] block text-[12px] font-extrabold text-[#4b4453]">
                           主页链接
-                          <input className="mt-[5px] h-[37px] w-full rounded-[10px] border border-[#ddd7e8] px-[10px] text-[13px] font-medium outline-none focus:border-[#6c27d6]" value={account.profileUrl} onChange={(event) => updateMediaAccount(index, "profileUrl", event.target.value)} placeholder="账号主页链接" />
+                          <input className="mt-[5px] h-[37px] w-full rounded-[10px] border border-[#ddd7e8] px-[10px] text-[13px] font-medium outline-none focus:border-[#6c27d6]" value={account.profileUrl} onChange={(event) => updateMediaAccount(index, "profileUrl", event.target.value)} placeholder="可粘贴整段口令或主页链接" />
                         </label>
                         <label className="mt-[8px] block text-[12px] font-extrabold text-[#4b4453]">
                           粉丝数

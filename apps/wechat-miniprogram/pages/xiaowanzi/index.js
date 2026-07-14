@@ -1,5 +1,5 @@
 const { request, buildUrl } = require("../../utils/request");
-const { getToken, getUser, setSession, clearSession } = require("../../utils/session");
+const { getToken, getUser, clearSession } = require("../../utils/session");
 const { createPageShare, enableShareMenu } = require("../../utils/share");
 const { setSelectedTab } = require("../../utils/tabbar");
 const { CHILD_PROFILES_KEY, WEB_CHILD_PROFILES_KEY, mergeChildProfileRecords, parseStoredValue } = require("../../utils/profileState");
@@ -3759,52 +3759,9 @@ Page({
 
   ...nativeSettingsMethods,
 
-  loginWithPhone(event) {
-    if (this.data.bindingPhone) return;
-    const phoneCode = String(event && event.detail && event.detail.code || "");
-    if (!phoneCode) {
-      this.setData({ profilePanelMessage: "需要授权手机号后登录" });
-      this.showToast("需要授权手机号后登录");
-      return;
-    }
-    this.setData({ bindingPhone: true, profilePanelMessage: "" });
-    wx.login({
-      success: ({ code }) => {
-        if (!code) {
-          this.setData({ bindingPhone: false, profilePanelMessage: "微信登录失败，请重试" });
-          this.showToast("微信登录失败，请重试");
-          return;
-        }
-        request({
-          method: "POST",
-          url: "/api/wechat-mini/login",
-          data: { code, phoneCode }
-        })
-          .then((payload) => {
-            setSession(payload);
-            const app = typeof getApp === "function" ? getApp() : null;
-            if (app) {
-              if (typeof app.setLoginSession === "function") {
-                app.setLoginSession(payload);
-              } else {
-                app.globalData = app.globalData || {};
-                app.globalData.token = getToken();
-                app.globalData.user = getUser();
-              }
-            }
-            this.setData({ xiaowanziLoginRequired: false, bindingPhone: false, profilePanelMessage: "登录成功" });
-            this.initializeXiaowanzi(this._initialOptions || {});
-          })
-          .catch((error) => {
-            this.setData({ bindingPhone: false, profilePanelMessage: error.message || "登录失败" });
-            this.showToast(error.message || "登录失败");
-          });
-      },
-      fail: () => {
-        this.setData({ bindingPhone: false, profilePanelMessage: "无法调用微信登录" });
-        this.showToast("无法调用微信登录");
-      }
-    });
+  handleXiaowanziLoginSuccess() {
+    this.setData({ xiaowanziLoginRequired: false, profilePanelMessage: "" });
+    this.initializeXiaowanzi(this._initialOptions || {});
   },
 
   selectArchiveChild(event) {

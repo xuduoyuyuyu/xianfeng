@@ -3,7 +3,7 @@ const { getNativeTopbarMetrics, getNativeWebviewParams } = require("../../utils/
 const { SETTINGS_SECTIONS, createNativeSettingsMethods } = require("../../utils/nativeSettings");
 const { request } = require("../../utils/request");
 const { preloadNativeReadingBooks } = require("../../utils/readingPreload");
-const { getToken, getUser, setSession } = require("../../utils/session");
+const { getToken } = require("../../utils/session");
 const { createPageShare, createWebviewShare, enableShareMenu } = require("../../utils/share");
 const { TOPIC_DETAIL_WEBVIEW_VERSION, WELFARE_WEBVIEW_VERSION, buildNativeProUrl, inferWebPageTitle, webUrl: buildWebUrl } = require("../../utils/webview");
 const { readNativeTopicDetailCache, saveNativeTopicDetailCache } = require("../../utils/nativeTopicDetailCache");
@@ -574,21 +574,36 @@ function formatProgramTranscriptSpeaker(value) {
   return `嘉宾·${speaker}`;
 }
 
-function normalizeProgramTranscriptTime(value) {
+function formatProgramTranscriptTimePoint(value) {
   const source = String(value || "").trim();
   if (!source) return "";
-  const start = source.split("-")[0].trim().replace(/\.\d+$/, "");
-  const parts = start.split(":");
-  if (parts.length !== 2 && parts.length !== 3) return "";
-  const numbers = parts.map((part) => Number(part));
-  if (numbers.some((part) => !Number.isInteger(part) || part < 0)) return "";
-  const totalSeconds = parts.length === 3
+  const time = source.replace(/\.\d+$/, "");
+  const timeParts = time.split(":");
+  if (timeParts.length !== 2 && timeParts.length !== 3) return "";
+  const numbers = timeParts.map((item) => Number(item));
+  if (numbers.some((item) => !Number.isInteger(item) || item < 0)) return "";
+  const totalSeconds = timeParts.length === 3
     ? numbers[0] * 3600 + numbers[1] * 60 + numbers[2]
     : numbers[0] * 60 + numbers[1];
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  return [hours, minutes, seconds].map((part) => String(part).padStart(2, "0")).join(":");
+  if (hours > 0) {
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function normalizeProgramTranscriptTime(value, nextValue) {
+  const source = String(value || "").trim();
+  if (!source) return "";
+  const parts = source.split("-").map((part) => part.trim()).filter(Boolean);
+  const formatted = parts.map((part) => formatProgramTranscriptTimePoint(part));
+  if (formatted.length === 1 && nextValue) {
+    const nextStart = formatProgramTranscriptTimePoint(String(nextValue || "").split("-")[0]);
+    if (nextStart) return `${formatted[0]}-${nextStart}`;
+  }
+  return formatted.every(Boolean) ? formatted.join("-") : "";
 }
 
 function normalizeProgramDictionaryEntries(value) {
@@ -654,11 +669,12 @@ function normalizeTranscript(value, dictionaryEntries) {
   const seenEntryIds = new Set();
   return Array.isArray(value)
     ? value
-      .map((item) => {
+      .map((item, index, items) => {
         const speaker = firstText([item && item.speaker], "");
         const text = firstText([item && item.text], "");
+        const nextItem = items[index + 1];
         return {
-          time: normalizeProgramTranscriptTime(item && item.time),
+          time: normalizeProgramTranscriptTime(item && item.time, nextItem && nextItem.time),
           speaker,
           speakerLabel: formatProgramTranscriptSpeaker(speaker),
           text,
@@ -2287,65 +2303,23 @@ Page({
 
   ...createNativeSettingsMethods(),
 
-  loginWithPhone(event) {
-    if (this.data.bindingPhone) return;
-    const phoneCode = String(event && event.detail && event.detail.code || "");
-    if (!phoneCode) {
-      this.setData({ profilePanelMessage: "需要授权手机号后登录" });
-      wx.showToast({ title: "需要授权手机号后登录", icon: "none" });
-      return;
-    }
-    this.setData({ bindingPhone: true, profilePanelMessage: "" });
-    wx.login({
-      success: ({ code }) => {
-        if (!code) {
-          this.setData({ bindingPhone: false, profilePanelMessage: "微信登录失败，请重试" });
-          wx.showToast({ title: "微信登录失败，请重试", icon: "none" });
-          return;
-        }
-        request({
-          method: "POST",
-          url: "/api/wechat-mini/login",
-          data: { code, phoneCode }
-        })
-          .then((payload) => {
-            setSession(payload);
-            const app = typeof getApp === "function" ? getApp() : null;
-            if (app) {
-              if (typeof app.setLoginSession === "function") {
-                app.setLoginSession(payload);
-              } else {
-                app.globalData = app.globalData || {};
-                app.globalData.token = getToken();
-                app.globalData.user = getUser();
-              }
-            }
-            const currentSrc = String(this.data.src || "").trim();
-            const nextSrc = currentSrc
-              ? buildWebUrl(currentSrc, { preserveXiaowanziLayer: isXiaowanziLayerWebview(currentSrc) ? "1" : "" })
-              : "";
-            this.setData({
-              src: nextSrc || currentSrc,
-              webviewLoginRequired: false,
-              bindingPhone: false,
-              profilePanelMessage: "登录成功",
-              nativeExpertAuthed: true
-            });
-            const expert = this.data.nativeExpert || {};
-            if (this.data.nativeExpertMode && expert.id) {
-              this.loadNativeExpertAgentSession(expert);
-            }
-          })
-          .catch((error) => {
-            this.setData({ bindingPhone: false, profilePanelMessage: error.message || "登录失败" });
-            wx.showToast({ title: error.message || "登录失败", icon: "none" });
-          });
-      },
-      fail: () => {
-        this.setData({ bindingPhone: false, profilePanelMessage: "无法调用微信登录" });
-        wx.showToast({ title: "无法调用微信登录", icon: "none" });
-      }
+  showLoginGate() {
+    this.setData({ webviewLoginRequired: true, profilePanelMessage: "" });
+  },
+
+  handleWebviewLoginSuccess() {
+    const currentSrc = String(this.data.src || "").trim();
+    const nextSrc = currentSrc
+      ? buildWebUrl(currentSrc, { preserveXiaowanziLayer: isXiaowanziLayerWebview(currentSrc) ? "1" : "" })
+      : "";
+    this.setData({
+      src: nextSrc || currentSrc,
+      webviewLoginRequired: false,
+      profilePanelMessage: "",
+      nativeExpertAuthed: true
     });
+    const expert = this.data.nativeExpert || {};
+    if (this.data.nativeExpertMode && expert.id) this.loadNativeExpertAgentSession(expert);
   },
 
   syncTopbarMetrics() {
@@ -3497,7 +3471,7 @@ Page({
     }
     if (!getToken()) {
       this.setData({ nativeExpertAuthed: false });
-      wx.showToast({ title: "请先登录后提问", icon: "none" });
+      this.showLoginGate();
       return Promise.resolve();
     }
     const expert = this.data.nativeExpert || {};

@@ -14,22 +14,7 @@
   </view>
 
   <view class="xf-mama-content">
-    <block wx:if="{{mamaResourceView === 'login'}}">
-      <view class="xf-mama-login-card">
-        <view class="xf-mama-head">
-          <image class="xf-mama-icon" src="/assets/menu/mama-hao-zhuan-icon.png" mode="aspectFit" />
-          <view>
-            <text class="xf-mama-title">妈妈好赚</text>
-            <text class="xf-mama-subtitle">授权手机号后保存资料并查看任务</text>
-          </view>
-        </view>
-        <text class="xf-mama-intro-text">提交资料后即可进入任务列表；后续修改会直接保存，运营按备注跟进。</text>
-        <button class="xf-mama-submit" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone" loading="{{bindingPhone}}" disabled="{{bindingPhone}}">
-          {{bindingPhone ? "登录中..." : "手机号授权登录"}}
-        </button>
-        <view wx:if="{{profilePanelMessage}}" class="xf-mama-message error">{{profilePanelMessage}}</view>
-      </view>
-    </block>
+    <block wx:if="{{mamaResourceView === 'login'}}"></block>
 
     <block wx:elif="{{mamaResourceView === 'apply'}}">
       <view class="xf-mama-intro-card">
@@ -129,7 +114,7 @@
             <view class="xf-mama-editor-back" catchtap="saveCurrentProfileSectionAndBack" role="button">保存并返回</view>
           </view>
           <label class="xf-mama-field">账号昵称<input name="xiaohongshuNickname" value="{{formDraft.xiaohongshuNickname}}" data-field="xiaohongshuNickname" bindinput="updateDraftField" placeholder="必填" placeholder-class="xf-mama-placeholder" /></label>
-          <label class="xf-mama-field">小红书主页链接<input class="{{formDraft.originalXiaohongshuProfileUrl ? 'is-locked' : ''}}" name="xiaohongshuProfileUrl" value="{{formDraft.xiaohongshuProfileUrl}}" data-field="xiaohongshuProfileUrl" bindinput="updateDraftField" disabled="{{formDraft.originalXiaohongshuProfileUrl}}" placeholder="https://www.xiaohongshu.com/user/profile/..." placeholder-class="xf-mama-placeholder" /></label>
+          <label class="xf-mama-field">小红书主页链接<input class="{{formDraft.originalXiaohongshuProfileUrl ? 'is-locked' : ''}}" name="xiaohongshuProfileUrl" value="{{formDraft.xiaohongshuProfileUrl}}" data-field="xiaohongshuProfileUrl" bindinput="updateDraftField" disabled="{{formDraft.originalXiaohongshuProfileUrl}}" placeholder="可粘贴整段口令或主页短链接" placeholder-class="xf-mama-placeholder" /></label>
           <text wx:if="{{formDraft.originalXiaohongshuProfileUrl}}" class="xf-mama-upload-hint">主页链接已锁定，保存时只更新昵称等资料。</text>
           <view class="xf-mama-field">
             <text>小红书页面截图</text>
@@ -162,7 +147,7 @@
                 <view class="xf-mama-picker">{{item.platformLabel}}</view>
               </picker>
             </label>
-            <label class="xf-mama-field">主页链接<input value="{{item.profileUrl}}" data-index="{{index}}" data-field="profileUrl" bindinput="updateMediaAccountField" placeholder="粘贴该平台账号主页" placeholder-class="xf-mama-placeholder" /></label>
+            <label class="xf-mama-field">主页链接<input value="{{item.profileUrl}}" data-index="{{index}}" data-field="profileUrl" bindinput="updateMediaAccountField" placeholder="可粘贴整段口令或主页链接" placeholder-class="xf-mama-placeholder" /></label>
             <label class="xf-mama-field">账号昵称<input value="{{item.nickname}}" data-index="{{index}}" data-field="nickname" bindinput="updateMediaAccountField" placeholder="必填" placeholder-class="xf-mama-placeholder" /></label>
             <label class="xf-mama-field">粉丝数<input type="number" value="{{item.followerCount}}" data-index="{{index}}" data-field="followerCount" bindinput="updateMediaAccountField" placeholder="例如：3600" placeholder-class="xf-mama-placeholder" /></label>
           </view>
@@ -333,11 +318,6 @@
             <button type="button" class="xf-mama-content-button" catchtap="openMamaTaskContent">打开专属内容</button>
           </view>
 
-          <view wx:if="{{currentMamaTask.transferScreenshotUrl}}" class="xf-mama-transfer-card">
-            <text class="xf-mama-section-title">转账凭证</text>
-            <image class="xf-mama-transfer-image" src="{{currentMamaTask.transferScreenshotUrl}}" mode="widthFix" catchtap="previewTransferScreenshot" />
-          </view>
-
           <view wx:if="{{currentMamaTask.isClaimable}}" class="xf-mama-task-actions">
             <button class="xf-mama-submit" disabled="{{taskClaiming}}" catchtap="claimMamaTask">{{taskClaiming ? "领取中..." : "立即领取"}}</button>
           </view>
@@ -352,6 +332,11 @@
             </button>
             <text class="xf-mama-upload-hint">{{taskProofScreenshotUploading ? "截图上传中..." : (taskProofScreenshotUrl ? "已上传，可提交回填" : "上传发布完成后的页面截图")}}</text>
             <button class="xf-mama-submit" disabled="{{taskSubmitting}}" catchtap="submitTaskProof">{{taskSubmitting ? "提交中..." : "提交回填"}}</button>
+          </view>
+
+          <view wx:if="{{currentMamaTask.transferScreenshotUrl}}" class="xf-mama-transfer-card">
+            <text class="xf-mama-section-title">转账凭证</text>
+            <image class="xf-mama-transfer-image" src="{{currentMamaTask.transferScreenshotUrl}}" mode="widthFix" catchtap="previewTransferScreenshot" />
           </view>
         </view>
       </view>
@@ -456,3 +441,4 @@
     </scroll-view>
   </view>
 </view>
+<phone-login-gate visible="{{mamaResourceView === 'login'}}" title="登录后查看任务" description="授权手机号后恢复资料和任务列表。" bind:success="handleLoginSuccess" />

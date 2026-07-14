@@ -431,12 +431,15 @@ Page({
   },
 
   loadData() {
+    const loadGeneration = Number(this._searchLoadGeneration || 0) + 1;
+    this._searchLoadGeneration = loadGeneration;
     this.setData({ loading: true, error: "" });
     if (this.data.searchSource === "reading") {
       const booksRequest = this.data.readingSource === "external"
         ? request({ url: `/api/books/external?current=1&size=${SEARCH_PAGE_SIZE}` }).then(normalizeExternalBooks)
         : request({ url: "/api/books" }).then(normalizeBooks);
       return booksRequest.then((allResults) => {
+        if (this._searchLoadGeneration !== loadGeneration) return;
         this.setData({
           allResults,
           loading: false,
@@ -444,6 +447,7 @@ Page({
         });
         if (this.data.submittedQuery) this.applySearch(this.data.submittedQuery);
       }).catch((error) => {
+        if (this._searchLoadGeneration !== loadGeneration) return;
         this.setData({
           loading: false,
           error: (error && error.message) || "搜索内容加载失败，请稍后重试"
@@ -453,13 +457,24 @@ Page({
     const booksRequest = this.data.readingSource === "external"
       ? request({ url: `/api/books/external?current=1&size=${SEARCH_PAGE_SIZE}` }).then(normalizeExternalBooks).catch(() => [])
       : request({ url: "/api/books" }).then(normalizeBooks).catch(() => []);
-    return Promise.all([
+    const resultGroups = [[], [], [], [], []];
+    const publishGroup = (index, results) => {
+      if (this._searchLoadGeneration !== loadGeneration) return results;
+      resultGroups[index] = Array.isArray(results) ? results : [];
+      const allResults = [].concat(resultGroups[0], resultGroups[1], resultGroups[2], resultGroups[3], resultGroups[4]);
+      this.setData({ allResults, error: "" });
+      if (this.data.submittedQuery) this.applySearch(this.data.submittedQuery);
+      return results;
+    };
+    const requests = [
       request({ url: `/api/programs?page=1&pageSize=${SEARCH_PAGE_SIZE}` }).then(normalizePrograms).catch(() => []),
       booksRequest,
       request({ url: "/api/learning-materials" }).then(normalizeMaterials).catch(() => []),
       request({ url: `/api/topic-hub?page=1&limit=${SEARCH_PAGE_SIZE}` }).then(normalizeTopics).catch(() => []),
       request({ url: `/api/guests?page=1&pageSize=${SEARCH_PAGE_SIZE}` }).then(normalizeGuests).catch(() => [])
-    ]).then((groups) => {
+    ].map((promise, index) => promise.then((results) => publishGroup(index, results)));
+    return Promise.all(requests).then((groups) => {
+      if (this._searchLoadGeneration !== loadGeneration) return;
       const allResults = [].concat(groups[0], groups[1], groups[2], groups[3], groups[4]);
       this.setData({
         allResults,
@@ -468,6 +483,7 @@ Page({
       });
       if (this.data.submittedQuery) this.applySearch(this.data.submittedQuery);
     }).catch((error) => {
+      if (this._searchLoadGeneration !== loadGeneration) return;
       this.setData({
         loading: false,
         error: (error && error.message) || "搜索内容加载失败，请稍后重试"

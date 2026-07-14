@@ -8,6 +8,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const pageSource = readFileSync(resolve(__dirname, "AdminBooksPage.tsx"), "utf8");
 const apiSource = readFileSync(resolve(__dirname, "../../services/api.ts"), "utf8");
 
+test("admin book page does not expose bulk clear books", () => {
+  assert.doesNotMatch(pageSource, /清空图书/);
+  assert.doesNotMatch(pageSource, /确定清空全部/);
+  assert.doesNotMatch(pageSource, /for \(const row of rows\)[\s\S]*adminApi\.deleteBook\(row\._id\)/);
+});
+
 test("admin book api carries editable metadata details", () => {
   assert.match(apiSource, /metadataDetail\?: AdminBookMetadata \| null;/, "Book rows should expose full metadata detail for admin editing");
 });

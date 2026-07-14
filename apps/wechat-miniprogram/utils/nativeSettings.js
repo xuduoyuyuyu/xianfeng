@@ -337,6 +337,16 @@ function setPageMessage(page, key, message) {
   page.setData({ [key]: message });
 }
 
+function openLoginEntry(page) {
+  if (!page || typeof page.setData !== "function") return;
+  page.setData({
+    settingsPanelOpen: true,
+    settingsPanelView: "menu",
+    profilePanelMessage: "",
+    memoryPanelMessage: ""
+  });
+}
+
 function clearLoginState(page, messageKey, message) {
   clearSession();
   const app = typeof getApp === "function" ? getApp() : null;
@@ -360,7 +370,7 @@ function clearLoginState(page, messageKey, message) {
 function deleteAccountFromSettings(page, options = {}) {
   const messageKey = options.messageKey || "profilePanelMessage";
   if (!getToken()) {
-    setPageMessage(page, messageKey, "请先登录后再注销账户");
+    openLoginEntry(page);
     return;
   }
   if (page && page.data && page.data.deletingAccount) return;
@@ -972,13 +982,17 @@ function createNativeSettingsMethods() {
     },
 
     openMemoryManager() {
+      if (!getToken()) {
+        openLoginEntry(this);
+        return;
+      }
       this.setData({
         settingsPanelOpen: true,
         settingsPanelView: "memoryManager",
         memorySearchQuery: "",
         memoryItems: [],
         filteredMemoryItems: [],
-        memoryPanelMessage: getToken() ? "正在读取记忆..." : "请先登录后查看孩子记忆"
+        memoryPanelMessage: "正在读取记忆..."
       });
       this.loadMemoryItems();
     },
@@ -1010,7 +1024,7 @@ function createNativeSettingsMethods() {
 
     deleteMemoryItem(event) {
       if (!getToken()) {
-        this.setData({ memoryPanelMessage: "请先登录后管理孩子记忆" });
+        openLoginEntry(this);
         return;
       }
       const id = String(event.currentTarget.dataset.id || "");

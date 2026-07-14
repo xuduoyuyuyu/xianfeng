@@ -141,6 +141,26 @@ describe("mama resource pool routes", () => {
     assert.equal("password" in data.profile, false);
   });
 
+  it("accepts a pasted Xiaohongshu command with a short link", async () => {
+    const command = "我在小红书收获了9105次赞与收藏，来看看我的主页>> https://xhslink.com/m/33T8SSC3sBq";
+    const response = await fetch(`${server.publicUrl}/applications`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        displayName: "短链接妈妈",
+        contactWechat: "short-link-mom",
+        alipayAccount: "short-link@example.com",
+        alipayVerifiedName: "短链接妈妈",
+        xiaohongshuProfileUrl: command,
+      }),
+    });
+
+    assert.equal(response.status, 201);
+    const data = await response.json();
+    assert.equal(data.profile.socialAccount.profileUrl, command);
+    assert.equal(data.profile.socialAccount.normalizedProfileUrl, "xiaohongshu:https://xhslink.com/m/33t8ssc3sbq");
+  });
+
   it("requires and trims Alipay payout details on applications", async () => {
     const basePayload = {
       displayName: "收款妈妈",
@@ -283,8 +303,8 @@ describe("mama resource pool routes", () => {
     assert.equal(await MamaResourceProfile.countDocuments(), 1);
   });
 
-  it("updates the submitted Xiaohongshu profile when contact history has no valid account link", async () => {
-    await MamaResourceProfile.create({
+  it("keeps non-domain Xiaohongshu account text attached to its existing contact", async () => {
+    const contactProfile = await MamaResourceProfile.create({
       displayName: "历史空资料",
       contactPhone: "13800000000",
       contactWechat: "old-wechat",
@@ -296,7 +316,7 @@ describe("mama resource pool routes", () => {
         normalizedProfileUrl: "legacy-no-valid-xhs-url",
       },
     });
-    const linkedProfile = await MamaResourceProfile.create({
+    await MamaResourceProfile.create({
       displayName: "已提交账号",
       contactPhone: "13900000000",
       contactWechat: "linked-wechat",
@@ -327,10 +347,11 @@ describe("mama resource pool routes", () => {
 
     assert.equal(response.status, 200);
     const data = await response.json();
-    assert.equal(data.profile._id, String(linkedProfile._id));
+    assert.equal(data.profile._id, String(contactProfile._id));
     assert.equal(data.profile.contactPhone, "13800000000");
     assert.equal(data.profile.contactWechat, "new-wechat");
-    assert.equal(data.profile.socialAccount.profileUrl, "https://www.xiaohongshu.com/user/profile/already-submitted");
+    assert.equal(data.profile.socialAccount.profileUrl, "legacy-no-valid-xhs-url");
+    assert.equal(data.profile.socialAccount.normalizedProfileUrl, "xiaohongshu:legacy-no-valid-xhs-url");
     assert.equal(data.profile.socialAccount.nickname, "新昵称");
     assert.equal(await MamaResourceProfile.countDocuments(), 2);
   });

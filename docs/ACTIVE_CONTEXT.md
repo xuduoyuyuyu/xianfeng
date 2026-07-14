@@ -14,6 +14,11 @@ The native Pro page calls `/api/billing/virtual-orders` with a fresh
 `wx.login` code and invokes `wx.requestVirtualPayment`; ordinary web WeChat
 Pay remains separate.
 
+Mini-program protected surfaces use a shared in-page phone-login gate for
+missing sessions and HTTP 401 responses. Login success refreshes read state on
+the current page; claim, submit, order, payment, save, and proof writes are not
+automatically replayed. Public browsing remains available without login.
+
 Mama Haozhuan task assignments now also carry one private posting-content link
 per user. Operators can fill links individually or import an Excel file after
 preflight; assigned users copy the selectable link from the mini-program or
@@ -51,6 +56,9 @@ with more claims than codes reject updates until operators correct the data.
 
 ## Recent Decisions
 
+- 2026-07-14 - Route mini-program unauthenticated and expired-session states
+  directly to the shared phone-login gate instead of rendering ordinary error
+  copy. Keep login on the current page and only restore read state afterward.
 - 2026-07-14 - Store Mama Haozhuan posting content as a private URL on each
   task assignment. Support manual editing and preview-before-commit Excel
   import, expose the URL only to its assigned user, and do not send SMS in this

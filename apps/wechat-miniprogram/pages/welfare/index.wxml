@@ -93,13 +93,5 @@
     </view>
   </view>
 
-  <button wx:if="{{loginRequired}}" class="xf-welfare-login-gate {{bindingPhone ? 'is-binding' : ''}}" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone" catchtouchmove="noop" aria-label="{{bindingPhone ? '正在登录' : '授权手机号登录'}}">
-    <view class="xf-welfare-login-card">
-      <image src="/assets/wel-avatar/wizard.png" mode="aspectFit" />
-      <text class="xf-welfare-login-title">登录后领取福利</text>
-      <text class="xf-welfare-login-copy">点击授权手机号，登录后继续查看和领取。</text>
-      <text wx:if="{{loginMessage}}" class="xf-welfare-login-message">{{loginMessage}}</text>
-      <text class="xf-welfare-login-action">{{bindingPhone ? '正在登录...' : '手机号快捷登录'}}</text>
-    </view>
-  </button>
+  <phone-login-gate visible="{{loginRequired}}" title="登录后领取福利" description="点击授权手机号，登录后继续查看和领取。" bind:success="handleLoginSuccess" />
 </view>

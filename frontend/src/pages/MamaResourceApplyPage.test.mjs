@@ -107,6 +107,8 @@ test("mama resource application form submits a light supply profile", () => {
   assert.match(staticSource, /孩子阶段[\s\S]*name="childStage"[\s\S]*孩子性别[\s\S]*class="[^"]*gender-options[^"]*"[\s\S]*data-value="男孩"[\s\S]*data-value="女孩"/);
   assert.doesNotMatch(staticSource, /<select name="childGender"/);
   assert.match(source, /小红书主页链接[\s\S]*xiaohongshuProfileUrl[\s\S]*小红书页面截图[\s\S]*type="file"[\s\S]*accept="image\/\*"/);
+  assert.match(source, /xiaohongshuProfileUrl[\s\S]*placeholder="可粘贴整段口令或主页短链接"/);
+  assert.match(source, /account\.profileUrl[\s\S]*placeholder="可粘贴整段口令或主页链接"/);
   assert.match(source, /uploadMamaResourceScreenshot/);
   assert.match(source, /followerCount/);
   assert.match(source, /粉丝数/);
@@ -114,6 +116,7 @@ test("mama resource application form submits a light supply profile", () => {
   assert.match(source, /realNameVerifiedOptions = \[[\s\S]*已实名[\s\S]*未实名[\s\S]*\]/);
   assert.match(source, /是否实名认证[\s\S]*realNameVerifiedOptions\.map/);
   assert.match(staticSource, /小红书主页链接[\s\S]*name="xiaohongshuProfileUrl"[\s\S]*小红书页面截图[\s\S]*type="file"[\s\S]*accept="image\/\*"/);
+  assert.match(staticSource, /name="xiaohongshuProfileUrl"[^>]*placeholder="可粘贴整段口令或主页短链接"/);
   assert.match(staticSource, /fetch\("\/api\/mama-resources\/uploads"/);
   assert.match(staticSource, /粉丝数[\s\S]*name="followerCount"/);
   assert.match(staticSource, /是否实名认证[\s\S]*data-value="yes"[\s\S]*已实名[\s\S]*data-value="no"[\s\S]*未实名/);

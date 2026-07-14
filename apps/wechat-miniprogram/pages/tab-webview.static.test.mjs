@@ -712,10 +712,10 @@ test("welfare opens as a native mini program page and hides backend 404 noise", 
 
 test("welfare opens phone login on auth expiry and reloads after login", async () => {
   const page = readPage("welfare");
-  assert.match(page.wxml, /wx:if="\{\{loginRequired\}\}"[^>]*open-type="getPhoneNumber"[^>]*bindgetphonenumber="loginWithPhone"/);
+  assert.match(page.wxml, /<phone-login-gate[^>]*visible="\{\{loginRequired\}\}"[^>]*bind:success="handleLoginSuccess"/);
   assert.match(page.js, /subscribeAuthExpired/);
   assert.match(page.js, /onUnload\(\)[\s\S]*_unsubscribeAuthExpired/);
-  assert.match(page.js, /loginWithPhone\(event\)[\s\S]*\/api\/wechat-mini\/login[\s\S]*setSession\(payload\)[\s\S]*resolveAuthExpired\(\)[\s\S]*loadCampaigns\(\)/);
+  assert.match(page.js, /handleLoginSuccess\(\)[\s\S]*loginRequired: false[\s\S]*loadCampaigns\(\)/);
 
   const definition = loadPageDefinition("welfare");
   const originalWx = global.wx;
@@ -778,10 +778,10 @@ test("welfare opens phone login on auth expiry and reloads after login", async (
     assert.equal(state.loginRequired, true);
     assert.equal(state.message, "");
 
-    definition.loginWithPhone.call(context, { detail: { code: "phone-code" } });
+    definition.handleLoginSuccess.call(context);
     await new Promise((resolve) => setTimeout(resolve, 0));
-    assert.equal(stored.xf_token, "fresh-token");
-    assert.deepEqual(appSession, { token: "fresh-token", user: { id: "user-1" } });
+    assert.equal(stored.xf_token, undefined);
+    assert.equal(appSession, null);
     assert.equal(state.loginRequired, false);
     assert.equal(state.message, "");
     assert.equal(campaignRequests, 2);
@@ -1332,7 +1332,7 @@ test("back-button pages normalize a root launch into a swipe-back page stack", (
     const mamaPage = readPage("mama-resource-apply");
     assert.match(mamaPage.js, /ensureBackStackForBackButtonPage/);
     assert.match(mamaPage.js, /const pendingMamaTaskId = asText\(options\.taskId \|\| parseSceneParam\(options\.scene, "m"\)\)\.trim\(\)/);
-    assert.match(mamaPage.js, /if \(!pendingMamaTaskId && ensureBackStackForBackButtonPage\(options\)\) return;/);
+    assert.match(mamaPage.js, /if \(!pendingMamaTaskId && !launchedFromShare && ensureBackStackForBackButtonPage\(options\)\) return;/);
   } finally {
     global.getCurrentPages = originalGetCurrentPages;
     global.wx.switchTab = originalSwitchTab;
@@ -1537,6 +1537,41 @@ test("native search page keeps all-site results while following the current read
   }
 });
 
+test("native search renders fast result groups before slower requests finish", async () => {
+  const definition = loadPageDefinition("search");
+  const originalRequest = global.wx.request;
+  const pending = [];
+  const context = {
+    ...definition,
+    data: { ...definition.data, searchInput: "Magic", submittedQuery: "Magic" },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+
+  try {
+    global.wx.request = (options) => {
+      if (String(options.url).includes("/api/programs")) {
+        options.success({ statusCode: 200, data: { data: [{ _id: "program-fast", title: "Magic workshop" }] } });
+        return;
+      }
+      pending.push(options);
+    };
+
+    const loadPromise = definition.loadData.call(context);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.deepEqual(context.data.visibleResults.map((item) => item.title), ["Magic workshop"]);
+    assert.equal(context.data.loading, true);
+
+    pending.forEach((options) => options.success({ statusCode: 200, data: [] }));
+    await loadPromise;
+    assert.equal(context.data.loading, false);
+  } finally {
+    global.wx.request = originalRequest;
+  }
+});
+
 test("native search opens a book purchase short link and keeps its uploaded cover", async () => {
   const definition = loadPageDefinition("search");
   const originalRequest = global.wx.request;
@@ -1713,7 +1748,7 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.equal(json.navigationBarBackgroundColor, "#f2f1ff");
     assert.equal(json.backgroundColor, "#f2f1ff");
     assert.equal(json.backgroundTextStyle, "dark");
-    assert.deepEqual(json.usingComponents || {}, {});
+    assert.deepEqual(json.usingComponents || {}, { "phone-login-gate": "../../components/phone-login-gate/index" });
     assert.equal(wxml.includes("<web-view"), false);
     assert.match(wxml, /class="xf-xiaowanzi-chat-list \{\{homeMode \? 'is-home' : 'is-chat'\}\} \{\{attachmentMenuOpen \? 'has-attachment-menu' : ''\}\} \{\{shareSelectionMode \? 'has-share-selection' : ''\}\}"[\s\S]*scroll-y="\{\{true\}\}"[\s\S]*enhanced="\{\{true\}\}"[\s\S]*show-scrollbar="\{\{false\}\}"[\s\S]*bindscroll="handleKnowledgePillScroll"/);
     assert.match(wxml, /scroll-into-view="\{\{scrollIntoView\}\}"/);
@@ -1769,8 +1804,7 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.match(wxml, /bindinput="updateInput"/);
     assert.match(wxml, /catchtap="handleSend"/);
     assert.match(wxml, /class="xf-xiaowanzi-native-shell"/);
-    assert.match(wxml, /<button wx:if="\{\{xiaowanziLoginRequired\}\}" class="xf-xiaowanzi-login-gate \{\{bindingPhone \? 'is-binding' : ''\}\}" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone"[\s\S]*aria-label="\{\{bindingPhone \? '正在登录' : '授权手机号登录'\}\}"/);
-    assert.match(wxml, /class="xf-xiaowanzi-login-sr"[\s\S]*授权手机号登录/);
+    assert.match(wxml, /<phone-login-gate[^>]*visible="\{\{xiaowanziLoginRequired\}\}"[^>]*bind:success="handleXiaowanziLoginSuccess"/);
     assert.doesNotMatch(wxml, /xf-xiaowanzi-login-panel|进入家长先疯|使用微信身份创建或恢复家长先疯账号/);
     assert.doesNotMatch(js, /\/pages\/login\/index/);
     assert.equal(appJson.pages.includes("pages/login/index"), false);
@@ -1965,8 +1999,7 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.match(wxss, /\.xf-xiaowanzi-knowledge-pill \{[\s\S]*gap: 3\.5px;[\s\S]*width: 86px;[\s\S]*padding: 0 5px 0 1\.5px;/);
     assert.match(wxss, /\.xf-xiaowanzi-knowledge-pill \{[\s\S]*border: 1px solid rgba\(124, 77, 255, 0\.22\);[\s\S]*background: rgba\(91, 72, 255, 0\.06\);[\s\S]*box-shadow: none;/);
     assert.match(wxss, /\.xf-xiaowanzi-knowledge-logo \{[\s\S]*filter: drop-shadow/);
-    assert.match(wxss, /\.xf-xiaowanzi-login-gate \{[\s\S]*position: fixed;[\s\S]*inset: 0;[\s\S]*z-index: 100300;[\s\S]*background: rgba\(255, 255, 255, 0\.01\);[\s\S]*color: transparent;/);
-    assert.match(wxss, /\.xf-xiaowanzi-login-sr \{[\s\S]*width: 1px;[\s\S]*height: 1px;[\s\S]*opacity: 0;/);
+    assert.doesNotMatch(wxml, /open-type="getPhoneNumber"/);
     assert.doesNotMatch(wxss, /xf-xiaowanzi-login-panel|xf-xiaowanzi-login-button/);
     assert.doesNotMatch(wxss, /xf-xiaowanzi-top-more/);
     assert.match(wxss, /\.xf-xiaowanzi-chat-list \{[\s\S]*bottom: 84px;[\s\S]*padding: 0 28rpx 12px;[\s\S]*background: transparent;/);
@@ -2570,17 +2603,16 @@ test("Xiaowanzi in-page phone authorization resumes the native chat after login"
       }
     });
 
-    definition.loginWithPhone.call(context, { detail: { code: "phone-code-1" } });
+    definition.handleXiaowanziLoginSuccess.call(context);
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    assert.equal(requestCalls.length, 1);
-    assert.deepEqual(requestCalls[0].data, { code: "wx-code-1", phoneCode: "phone-code-1" });
-    assert.equal(storage.get("xf_token"), "token-1");
-    assert.deepEqual(storage.get("xf_user"), { mobile: "13500003069" });
-    assert.deepEqual(appSession, { token: "token-1", user: { mobile: "13500003069" } });
+    assert.equal(requestCalls.length, 0);
+    assert.equal(storage.get("xf_token"), undefined);
+    assert.equal(storage.get("xf_user"), undefined);
+    assert.equal(appSession, null);
     assert.equal(context.data.xiaowanziLoginRequired, false);
     assert.equal(context.data.bindingPhone, false);
-    assert.equal(context.data.profilePanelMessage, "登录成功");
+    assert.equal(context.data.profilePanelMessage, "");
     assert.deepEqual(context.initializedWith, { panel: "archive" });
   } finally {
     global.wx.login = originalLogin;
@@ -5999,7 +6031,7 @@ test("native first-level content tabs fetch API data and open detail wrapper rou
   assert.match(topics.wxss, /\.xf-topics-page \.xf-native-description \{[\s\S]*color: #6b7280;[\s\S]*font-size: 24rpx;[\s\S]*font-weight: 400;/);
 
   const xiaowanzi = readPage("xiaowanzi");
-  assert.deepEqual(xiaowanzi.json.usingComponents || {}, {});
+  assert.deepEqual(xiaowanzi.json.usingComponents || {}, { "phone-login-gate": "../../components/phone-login-gate/index" });
   assert.equal(xiaowanzi.wxml.includes("<native-page-nav"), false);
   assert.equal(xiaowanzi.wxml.includes('variant="xiaowanzi"'), false);
   assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-native-shell"/);
@@ -11164,7 +11196,7 @@ test("pro page renders native subscription content instead of a web-view wrapper
     assert.match(wxml, /当前可用点数/);
     assert.match(wxml, /wx:for="\{\{planCards\}\}"/);
     assert.match(wxml, /bindtap="selectPlan"/);
-    assert.match(wxml, /class="xf-pro-pay-dock"[\s\S]*wx:if="\{\{!isLoggedIn\}\}" class="xf-pro-pay-button" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone"[\s\S]*wx:else class="xf-pro-pay-button" bindtap="createOrder" disabled="\{\{ordering \|\| loading\}\}"[\s\S]*立即订阅/);
+    assert.match(wxml, /class="xf-pro-pay-dock"[\s\S]*wx:if="\{\{!isLoggedIn\}\}" class="xf-pro-pay-button" bindtap="showLoginGate"[\s\S]*wx:else class="xf-pro-pay-button" bindtap="createOrder" disabled="\{\{ordering \|\| loading\}\}"[\s\S]*立即订阅/);
     assert.match(wxml, /wx:for="\{\{usagePolicy\}\}"/);
     assert.match(wxml, /订阅状态/);
     assert.match(wxml, /xf-pro-primary-card[\s\S]*xf-pro-policy-card[\s\S]*xf-pro-status-card/);
@@ -11575,7 +11607,7 @@ test("pro page unauthenticated checkout uses WeChat phone login instead of an er
       showToast() {}
     };
 
-    assert.match(wxml, /<button wx:if="\{\{!isLoggedIn\}\}" class="xf-pro-pay-button" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone"/);
+    assert.match(wxml, /<button wx:if="\{\{!isLoggedIn\}\}" class="xf-pro-pay-button" bindtap="showLoginGate"/);
     assert.match(wxml, /<button wx:else class="xf-pro-pay-button" bindtap="createOrder" disabled="\{\{ordering \|\| loading\}\}"/);
 
     await definition.createOrder.call(context);
@@ -11608,7 +11640,7 @@ test("pro page unauthenticated checkout uses the WeChat phone login button inste
   ]);
 
   try {
-    assert.match(wxml, /class="xf-pro-pay-dock"[\s\S]*wx:if="\{\{!isLoggedIn\}\}"[\s\S]*open-type="getPhoneNumber"[\s\S]*bindgetphonenumber="loginWithPhone"/);
+    assert.match(wxml, /class="xf-pro-pay-dock"[\s\S]*wx:if="\{\{!isLoggedIn\}\}"[\s\S]*bindtap="showLoginGate"/);
     assert.match(wxml, /class="xf-pro-pay-dock"[\s\S]*wx:else[\s\S]*bindtap="createOrder"/);
 
     global.wx = {
@@ -12136,11 +12168,11 @@ test("native pages keep view topbars while Xiaowanzi owns a native shell", () =>
 
   for (const name of pageNames) {
     const { json, wxml } = readPage(name);
-    assert.deepEqual(json.usingComponents || {}, {}, `${name} should not register native-page-nav`);
+    assert.equal(Boolean((json.usingComponents || {})["native-page-nav"]), false, `${name} should not register native-page-nav`);
     assert.equal(wxml.includes("<native-page-nav"), false, `${name} should not render native-page-nav`);
   }
   const xiaowanzi = readPage("xiaowanzi");
-  assert.deepEqual(xiaowanzi.json.usingComponents || {}, {});
+  assert.deepEqual(xiaowanzi.json.usingComponents || {}, { "phone-login-gate": "../../components/phone-login-gate/index" });
   assert.equal(xiaowanzi.wxml.includes("<native-page-nav"), false);
   assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-native-shell"/);
   assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-menu-entry"/);
@@ -12155,7 +12187,8 @@ test("native pages keep view topbars while Xiaowanzi owns a native shell", () =>
 
   const webview = readPage("webview");
   assert.deepEqual(webview.json.usingComponents || {}, {
-    "custom-tab-bar": "../../custom-tab-bar/index"
+    "custom-tab-bar": "../../custom-tab-bar/index",
+    "phone-login-gate": "../../components/phone-login-gate/index"
   });
   assert.equal(webview.json.navigationStyle, "custom");
   assert.equal(webview.wxml.includes("<native-page-nav"), false);
@@ -12279,7 +12312,8 @@ test("webview detail page shares the current web route without leaking token", (
   assert.match(js, /enableShareMenu\(\)/);
   assert.equal(json.navigationStyle, "custom");
   assert.deepEqual(json.usingComponents || {}, {
-    "custom-tab-bar": "../../custom-tab-bar/index"
+    "custom-tab-bar": "../../custom-tab-bar/index",
+    "phone-login-gate": "../../components/phone-login-gate/index"
   });
   assert.equal(typeof definition.onShareAppMessage, "function");
   assert.equal(typeof definition.onShareTimeline, "function");
@@ -12818,7 +12852,7 @@ test("shared native settings profile panel edits archives and opens memory manag
 
     context.openMemoryManager();
     assert.equal(context.data.settingsPanelOpen, true);
-    assert.equal(context.data.settingsPanelView, "memoryManager");
+    assert.equal(context.data.settingsPanelView, "menu");
   } finally {
     global.wx = originalWx;
   }
@@ -15325,13 +15359,13 @@ test("webview native program detail page keeps program, book, and topic details 
             ],
             transcript: [
               { time: "0:00:05", speaker: "阿力", text: "国际教育也叫国际化教育，教育需要长期投入。", featured: true },
-              { time: "00:00:22-00:00:26", speaker: "张琳", text: "后面再说国际化教育和教育。" },
-              { time: "00:20-00:35", speaker: "张琳", text: "第三段。" },
-              { time: "00:00:20.66", speaker: "张琳", text: "第四段。" },
-              { time: "00:22", speaker: "张琳", text: "第五段。" },
-              { time: "", speaker: "张琳", text: "第六段。" },
-              { time: "00:01:10", speaker: "张琳", text: "第七段。" },
-              { time: "00:01:20", speaker: "张琳", text: "第八段。" },
+              { time: "00:19", speaker: "张琳", text: "后面再说国际化教育和教育。" },
+              { time: "00:31", speaker: "张琳", text: "第三段。" },
+              { time: "00:46", speaker: "张琳", text: "第四段。" },
+              { time: "00:01:21", speaker: "张琳", text: "第五段。" },
+              { time: "00:01:45", speaker: "张琳", text: "第六段。" },
+              { time: "00:02:00", speaker: "张琳", text: "第七段。" },
+              { time: "00:02:20", speaker: "张琳", text: "第八段。" },
               { time: "00:01:30", speaker: "张琳", text: "第九段。" },
               { time: "00:01:40", speaker: "张琳", text: "第十段。" }
             ],
@@ -15403,7 +15437,8 @@ test("webview native program detail page keeps program, book, and topic details 
     };
 
     assert.deepEqual(json.usingComponents || {}, {
-      "custom-tab-bar": "../../custom-tab-bar/index"
+      "custom-tab-bar": "../../custom-tab-bar/index",
+      "phone-login-gate": "../../components/phone-login-gate/index"
     });
     assert.equal(json.navigationStyle, "custom");
     assert.equal(wxml.includes("<native-page-nav"), false);
@@ -15790,7 +15825,7 @@ test("webview native program detail page keeps program, book, and topic details 
     assert.equal(context.data.nativeProgram.transcript.length, 10);
     assert.deepEqual(
       context.data.nativeProgram.transcript.slice(0, 6).map((item) => item.time),
-      ["00:00:05", "00:00:22", "00:00:20", "00:00:20", "00:00:22", ""]
+      ["00:05-00:19", "00:19-00:31", "00:31-00:46", "00:46-01:21", "01:21-01:45", "01:45-02:00"]
     );
     assert.equal(context.data.nativeProgram.transcript[0].speaker, "阿力");
     assert.equal(context.data.nativeProgram.transcript[0].speakerLabel, "主播·阿力");
@@ -16377,7 +16412,8 @@ test("webview detail wrapper keeps the native bottom menu below website content"
   assert.doesNotMatch(js, /nativeListPage/);
   assert.doesNotMatch(js, /NATIVE_LIST_PAGES/);
   assert.deepEqual(json.usingComponents || {}, {
-    "custom-tab-bar": "../../custom-tab-bar/index"
+    "custom-tab-bar": "../../custom-tab-bar/index",
+    "phone-login-gate": "../../components/phone-login-gate/index"
   });
   assert.equal(wxml.includes("<native-page-nav"), false);
   assert.match(wxml, /<web-view wx:elif="\{\{src\}\}"[\s\S]*src="\{\{src\}\}" \/>[\s\S]*<custom-tab-bar selected="\{\{selected\}\}" hidden="\{\{hideTabbar\}\}" \/>/);

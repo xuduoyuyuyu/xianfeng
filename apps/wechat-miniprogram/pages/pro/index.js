@@ -300,7 +300,8 @@ Page({
     memberBadgeLabel: "",
     statusLabel: "未开通订阅",
     statusRows: buildStatusRows(null),
-    message: ""
+    message: "",
+    loginRequired: false
   },
 
   onLoad(options = {}) {
@@ -359,6 +360,16 @@ Page({
   },
 
   ...createNativeSettingsMethods(),
+
+  showLoginGate() {
+    this.setData({ loginRequired: true, message: "" });
+  },
+
+  handleLoginSuccess() {
+    this.setData({ loginRequired: false });
+    this.syncAccountEntry();
+    this.loadBilling();
+  },
 
   loadBilling() {
     this.setData({ loading: true, message: "" });

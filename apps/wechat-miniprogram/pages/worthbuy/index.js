@@ -10,7 +10,7 @@ const PAGE_SIZE = 20;
 const LOGO_HEIGHT_RPX = 56;
 
 Page({
-  data: { topbarHeight: 88, chromeHeight: 88, logoTop: 10, logoHeight: 28, welfareRight: 101, selected: 4, hideTabbar: false, input: "", publicItems: [], myItems: [], loading: true, loadingMore: false, submitting: false, submitStage: "", error: "", actionError: "", actionErrorType: "", current: 1, pages: 1, showHistory: false, isLoggedIn: false },
+  data: { topbarHeight: 88, chromeHeight: 88, logoTop: 10, logoHeight: 28, welfareRight: 101, selected: 4, hideTabbar: false, input: "", publicItems: [], myItems: [], loading: true, loadingMore: false, submitting: false, submitStage: "", error: "", actionError: "", actionErrorType: "", current: 1, pages: 1, showHistory: false, isLoggedIn: false, loginRequired: false },
   onLoad() {
     enableShareMenu();
     this.syncTopbarMetrics();
@@ -55,13 +55,13 @@ Page({
     }).catch(() => {});
   },
   toggleHistory() {
-    if (!getToken()) return this.setData({ actionErrorType: "auth", actionError: "登录后查看我的分析记录" });
+    if (!getToken()) return this.showLoginGate();
     this.setData({ showHistory: !this.data.showHistory });
     if (!this.data.myItems.length) this.loadMyHistory();
   },
   submitAnalysis() {
     if (this._submitPromise) return this._submitPromise;
-    if (!getToken()) return this.setData({ actionErrorType: "auth", actionError: "请先使用微信手机号登录" });
+    if (!getToken()) return this.showLoginGate();
     const parsed = parseWorthBuyInput(this.data.input);
     if (!parsed.raw || (!parsed.title && !parsed.url)) return this.setData({ actionErrorType: "validation", actionError: "请输入完整商品名称、链接或分享文案" });
     const user = getUser() || {};
@@ -74,7 +74,11 @@ Page({
         wx.navigateTo({ url: worthBuyDetailPath(parsed.raw) });
         return this.loadMyHistory();
       })
-      .catch((error) => this.setData({ actionErrorType: classifyWorthBuyError(error), actionError: error.message || "分析失败，请稍后重试" }))
+      .catch((error) => {
+        const type = classifyWorthBuyError(error);
+        if (type === "auth") return this.showLoginGate();
+        this.setData({ actionErrorType: type, actionError: error.message || "分析失败，请稍后重试" });
+      })
       .finally(() => { this._submitPromise = null; this.setData({ submitting: false, submitStage: "" }); });
     return this._submitPromise;
   },
@@ -84,6 +88,11 @@ Page({
     wx.showModal({ title: "删除分析", content: `确认删除“${item.title}”吗？`, success: (modal) => { if (!modal.confirm) return; const user = getUser() || {}; const ownerId = String(user._id || user.id || ""); request({ method: "DELETE", url: `/api/worthbuy/my/${encodeURIComponent(item.brand || item.query)}?userId=${encodeURIComponent(ownerId)}` }).then(() => { const items = this.data.myItems.filter((entry) => entry.id !== item.id); this.setData({ myItems: items }); writeWorthBuyCache("history", ownerId, items); }); } });
   },
   openPro() { wx.navigateTo({ url: "/pages/pro/index" }); },
+  showLoginGate() { this.setData({ loginRequired: true, actionError: "", actionErrorType: "" }); },
+  handleLoginSuccess() {
+    this.setData({ loginRequired: false, isLoggedIn: true, actionError: "", actionErrorType: "" });
+    this.loadMyHistory();
+  },
   goProgramsHome() { navigateProgramsHome(); },
   goBack() { if (getCurrentPages().length > 1) wx.navigateBack(); else wx.switchTab({ url: "/pages/programs/index" }); },
   ...createNativeSettingsMethods(),

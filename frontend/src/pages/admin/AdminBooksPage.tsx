@@ -499,27 +499,6 @@ const AdminBooksPage: React.FC = () => {
         <div />
         <div className="flex items-center gap-3">
           <button
-            onClick={async () => {
-              if (!confirm(`确定清空全部 ${books.length} 本图书吗？此操作不可恢复。`)) return;
-              try {
-                const all = await adminApi.getBooks();
-                const rows = Array.isArray(all.data) ? all.data : [];
-                for (const row of rows) {
-                  await adminApi.deleteBook(row._id);
-                }
-                await fetchBooks();
-                alert(`已清空 ${rows.length} 本图书`);
-              } catch (error) {
-                console.error('清空图书失败:', error);
-                alert('清空失败，请重试');
-              }
-            }}
-            className="admin-pill-btn"
-          >
-            <span className="material-symbols-outlined text-base">delete_sweep</span>
-            清空图书
-          </button>
-          <button
             onClick={() => setShowImportModal(true)}
             className="admin-pill-btn admin-pill-btn-secondary"
           >
