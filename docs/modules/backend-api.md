@@ -155,11 +155,18 @@
   targeting fields, claim limit, and example images without changing assignments.
   `/tasks/:taskId/candidates` filters approved accounts by search/category,
   risk tag, and follower count before `/tasks/:taskId/assignments` assigns
-  selected profiles. Public `/api/mama-resources/me/tasks` matches the
+  selected profiles. Each assignment may hold one private `contentUrl` for the
+  assigned user's posting material. Operators can edit it directly or use the
+  Excel template, preview, and commit endpoints under
+  `/tasks/:taskId/content-import`; preview validates approved profile IDs,
+  duplicates, and HTTP(S) links before any write. Public
+  `/api/mama-resources/me/tasks` matches the
   authenticated user to profiles by normalized contact-phone digits and
   prefers an approved profile over newer pending submissions for the same
   mobile, then exposes that user's assignments plus listed tasks that are still
-  claimable by the approved profile contact phone. Public
+  claimable by the approved profile contact phone. A private content link is
+  serialized only with its owning assignment, never with other profiles'
+  assignments or the public task record. Public
   `/api/mama-resources/tasks/:taskId/claims` creates the assignment for
   first-come claiming and enforces `MamaResourceTask.claimLimit` against
   assigned/submitted/collected assignments; rejected assignments free the slot.

@@ -1,6 +1,6 @@
 # Active Context - Xianfeng
 
-Last rewritten: 2026-07-13
+Last rewritten: 2026-07-14
 
 > This file is a SNAPSHOT, not a journal. Rewrite it at every workstream close,
 > keep it around 60 lines, and use git history for older context.
@@ -14,12 +14,16 @@ The native Pro page calls `/api/billing/virtual-orders` with a fresh
 `wx.login` code and invokes `wx.requestVirtualPayment`; ordinary web WeChat
 Pay remains separate.
 
+Mama Haozhuan task assignments now also carry one private posting-content link
+per user. Operators can fill links individually or import an Excel file after
+preflight; assigned users open the link from the mini-program task detail.
+
 ## Live / Waiting Workstreams
 
 | Workstream | State | Waiting on |
 | --- | --- | --- |
 | WeChat mini-program virtual payment | active | WeChat后台 product/callback config, public HTTPS sandbox callback/backend, and DevTools/device sandbox validation |
-| Mama Haozhuan task dispatch | active | Admin/product review of task-first assignment UX |
+| Mama Haozhuan task dispatch | active | Admin and mini-program runtime review of per-user content links; SMS intentionally excluded |
 | Governance bootstrap | active | Review of newly added docs and whether to keep the local `evolab/` clone inside this checkout |
 | Xiaowanzi treasure box welfare | active | Rendered public/admin review after the local app is running |
 | Existing frontend visual changes | unknown | Owner of pre-existing modifications in `frontend/public/screens/admin.css`, `frontend/public/screens/public.css`, and `frontend/src/pages/LandingPage.tsx` |
@@ -39,6 +43,10 @@ Pay remains separate.
 
 ## Recent Decisions
 
+- 2026-07-14 - Store Mama Haozhuan posting content as a private URL on each
+  task assignment. Support manual editing and preview-before-commit Excel
+  import, expose the URL only to its assigned user, and do not send SMS in this
+  version.
 - 2026-07-11 - Mini-program virtual products use WeChat Mini Program Virtual
   Payment only. Client success and push notifications are triggers, not
   delivery proof; entitlement is granted only after trusted official query

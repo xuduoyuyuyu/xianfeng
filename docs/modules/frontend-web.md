@@ -56,6 +56,9 @@
   claim-limit field for the mini-program first-come task flow and multiple
   example images uploaded through the admin image upload endpoint. Submitted
   proof is reviewed from the task assignment list as collected or rejected.
+  The same assignment list shows private-content configuration progress and
+  supports direct link editing plus Excel template download, preflight review,
+  and explicit import confirmation. This workflow does not send SMS.
 - `/welfare` is the public Xiaowanzi treasure box page (`小玩子百宝箱`). It
   uses the gift icon asset and Xiaowanzi avatar treatment, lists claimable
   welfare separately from expired or sold-out historical welfare, and shows

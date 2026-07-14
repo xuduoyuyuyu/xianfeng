@@ -142,6 +142,10 @@
   horizontal row per project, opens a project detail page with
   price/settlement/requirements, lets the user claim available tasks first,
   then submit proof link plus completion screenshot for admin collection review.
+  Assigned tasks with a private content link show a `内容已下发` marker and an
+  `打开专属内容` action. The action opens the existing mini-program web-view
+  route; if navigation fails, the link is copied to the clipboard. No SMS
+  notification is part of this version.
   The detail page can generate a compact task share image with a mini-program
   code from `/api/wechat-mini/mama-resource-task-qrcode`; scanning the code
   reopens `pages/mama-resource-apply/index` with the task id in `scene`.
