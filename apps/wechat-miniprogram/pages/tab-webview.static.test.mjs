@@ -710,12 +710,13 @@ test("welfare opens as a native mini program page and hides backend 404 noise", 
   }
 });
 
-test("welfare opens phone login on auth expiry and reloads after login", async () => {
+test("welfare exposes phone authorization on the claim button and reloads after login", async () => {
   const page = readPage("welfare");
-  assert.match(page.wxml, /<phone-login-gate[^>]*visible="\{\{loginRequired\}\}"[^>]*bind:success="handleLoginSuccess"/);
+  assert.match(page.wxml, /open-type="\{\{hasSession \? '' : 'getPhoneNumber'\}\}"[\s\S]*bindgetphonenumber="loginAndClaimWelfare"/);
+  assert.match(page.wxml, /<phone-login-gate[^>]*id="welfarePhoneLoginGate"[^>]*visible="\{\{false\}\}"[^>]*bind:success="handleLoginSuccess"/);
   assert.match(page.js, /subscribeAuthExpired/);
   assert.match(page.js, /onUnload\(\)[\s\S]*_unsubscribeAuthExpired/);
-  assert.match(page.js, /handleLoginSuccess\(\)[\s\S]*loginRequired: false[\s\S]*loadCampaigns\(\)/);
+  assert.match(page.js, /handleLoginSuccess\(\)[\s\S]*hasSession: true[\s\S]*claimWelfare/);
 
   const definition = loadPageDefinition("welfare");
   const originalWx = global.wx;
@@ -775,14 +776,14 @@ test("welfare opens phone login on auth expiry and reloads after login", async (
 
     definition.onLoad.call(context, {});
     await new Promise((resolve) => setTimeout(resolve, 0));
-    assert.equal(state.loginRequired, true);
+    assert.equal(state.hasSession, false);
     assert.equal(state.message, "");
 
     definition.handleLoginSuccess.call(context);
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.equal(stored.xf_token, undefined);
     assert.equal(appSession, null);
-    assert.equal(state.loginRequired, false);
+    assert.equal(state.hasSession, true);
     assert.equal(state.message, "");
     assert.equal(campaignRequests, 2);
 

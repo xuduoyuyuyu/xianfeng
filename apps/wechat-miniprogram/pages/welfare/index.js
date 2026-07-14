@@ -1,4 +1,5 @@
 const { request } = require("../../utils/request");
+const { getToken } = require("../../utils/session");
 const { subscribeAuthExpired } = require("../../utils/authExpiry");
 const { API_ORIGIN } = require("../../utils/config");
 const { getNativeTopbarMetrics } = require("../../utils/nativeChrome");
@@ -117,7 +118,7 @@ Page({
     historyCampaigns: [],
     loading: true,
     message: "",
-    loginRequired: false,
+    hasSession: Boolean(getToken()),
     claimingId: "",
     claimDialogVisible: false,
     claimDialogTitle: "",
@@ -143,6 +144,7 @@ Page({
   onShow() {
     enableShareMenu();
     this.syncTopbarMetrics();
+    this.setData({ hasSession: Boolean(getToken()) });
   },
 
   syncTopbarMetrics() {
@@ -165,12 +167,36 @@ Page({
   },
 
   showLoginGate() {
-    this.setData({ loginRequired: true, loading: false, message: "" });
+    this.setData({ hasSession: false, loading: false, message: "" });
   },
 
   handleLoginSuccess() {
-    this.setData({ loginRequired: false, loading: true, message: "" });
+    const id = String(this._pendingClaimId || "");
+    this._pendingClaimId = "";
+    this.setData({ hasSession: true, message: "" });
+    if (id) {
+      this.claimWelfare({ currentTarget: { dataset: { id } } });
+      return;
+    }
     this.loadCampaigns();
+  },
+
+  onClaimButtonTap(event) {
+    if (!this.data.hasSession) return;
+    this.claimWelfare(event);
+  },
+
+  loginAndClaimWelfare(event) {
+    const id = String(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.id || "");
+    if (!id) return;
+    if (!String(event && event.detail && event.detail.code || "")) {
+      wx.showToast({ title: "需要授权手机号后领取", icon: "none" });
+      return;
+    }
+    const loginGate = this.selectComponent("#welfarePhoneLoginGate");
+    if (!loginGate || typeof loginGate.loginWithPhone !== "function") return;
+    this._pendingClaimId = id;
+    loginGate.loginWithPhone(event);
   },
 
   loadCampaigns() {
