@@ -361,6 +361,16 @@
     </view>
   </view>
 
+  <view wx:if="{{taskContentLinkOpen}}" class="xf-mama-dialog-mask" catchtap="closeMamaTaskContent" catchtouchmove="noop">
+    <view class="xf-mama-content-link-dialog" catchtap="noop">
+      <button type="button" class="xf-mama-dialog-close xf-mama-content-link-close" catchtap="closeMamaTaskContent">×</button>
+      <text class="xf-mama-content-link-title">资料链接</text>
+      <text class="xf-mama-content-link-name">{{currentMamaTask.title}}</text>
+      <text class="xf-mama-content-link-label">长按可复制：</text>
+      <text class="xf-mama-content-link-value" user-select="true">{{currentMamaTask.contentUrl}}</text>
+    </view>
+  </view>
+
   <view wx:if="{{taskSharePreviewOpen}}" class="xf-mama-dialog-mask" catchtap="closeMamaTaskSharePreview" catchtouchmove="noop">
     <view class="xf-mama-share-dialog" catchtap="noop">
       <button type="button" class="xf-mama-dialog-close" catchtap="closeMamaTaskSharePreview">×</button>

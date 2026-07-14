@@ -175,16 +175,25 @@ test("approved mama resource account can view assigned tasks and submit proof", 
   assert.match(wxssSource, /\.xf-mama-proof-card \.xf-mama-section-title \{[\s\S]*padding-left: 0;[\s\S]*padding-right: 0;/);
 });
 
-test("assigned users can open their personal content link with clipboard fallback", () => {
+test("assigned users open a selectable personal content link modal", () => {
   assert.match(jsSource, /const contentUrl = asText\(source\.contentUrl\)\.trim\(\)/);
   assert.match(jsSource, /hasContentUrl: Boolean\(contentUrl\)/);
-  assert.match(jsSource, /openMamaTaskContent\(\)/);
-  assert.match(jsSource, /\/pages\/webview\/index\?url=\$\{encodeURIComponent\(contentUrl\)\}/);
-  assert.match(jsSource, /wx\.setClipboardData\(\{ data: contentUrl/);
+  assert.match(jsSource, /taskContentLinkOpen: false/);
+  assert.match(jsSource, /openMamaTaskContent\(\) \{[\s\S]*this\.setData\(\{ taskContentLinkOpen: true \}\);[\s\S]*closeMamaTaskContent\(\) \{[\s\S]*this\.setData\(\{ taskContentLinkOpen: false \}\);/);
+  const openHandler = jsSource.match(/openMamaTaskContent\(\) \{([\s\S]*?)\n  \},\n\n  closeMamaTaskContent/);
+  assert.ok(openHandler);
+  assert.doesNotMatch(openHandler[1], /wx\.navigateTo|wx\.setClipboardData/);
   assert.match(wxmlSource, /wx:if="\{\{item\.hasContentUrl\}\}"[^>]*>内容已下发</);
   assert.match(wxmlSource, /wx:if="\{\{currentMamaTask\.hasContentUrl\}\}"/);
   assert.match(wxmlSource, /catchtap="openMamaTaskContent"/);
   assert.match(wxmlSource, /打开专属内容/);
+  assert.match(wxmlSource, /wx:if="\{\{taskContentLinkOpen\}\}"[^>]*class="xf-mama-dialog-mask"/);
+  assert.match(wxmlSource, />资料链接</);
+  assert.match(wxmlSource, />长按可复制：</);
+  assert.match(wxmlSource, /user-select="true"[^>]*>\{\{currentMamaTask\.contentUrl\}\}<\/text>/);
+  assert.match(wxmlSource, /catchtap="closeMamaTaskContent"/);
+  assert.match(wxssSource, /\.xf-mama-content-link-dialog \{/);
+  assert.match(wxssSource, /\.xf-mama-content-link-value \{[\s\S]*user-select: text;/);
   assert.doesNotMatch(wxmlSource, /短信|已发送短信/);
 });
 

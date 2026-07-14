@@ -1277,6 +1277,69 @@ page {
   white-space: pre-wrap;
 }
 
+.xf-mama-content-link-dialog {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 620rpx;
+  padding: 42rpx 32rpx 34rpx;
+  border-radius: 30rpx;
+  background: #ffffff;
+  box-shadow: 0 24rpx 72rpx rgba(36, 27, 73, 0.22);
+}
+
+.xf-mama-content-link-close {
+  background: #f4efff;
+  color: #5e17eb;
+}
+
+.xf-mama-content-link-title,
+.xf-mama-content-link-name,
+.xf-mama-content-link-label,
+.xf-mama-content-link-value {
+  display: block;
+}
+
+.xf-mama-content-link-title {
+  padding-right: 72rpx;
+  color: #211839;
+  font-size: 34rpx;
+  font-weight: 950;
+  line-height: 1.4;
+}
+
+.xf-mama-content-link-name {
+  margin-top: 22rpx;
+  color: #7761ad;
+  font-size: 26rpx;
+  font-weight: 850;
+  line-height: 1.5;
+}
+
+.xf-mama-content-link-label {
+  margin-top: 28rpx;
+  color: #8878ad;
+  font-size: 25rpx;
+  font-weight: 800;
+}
+
+.xf-mama-content-link-value {
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 12rpx;
+  padding: 24rpx 20rpx;
+  border: 2rpx solid #ddd1ff;
+  border-radius: 20rpx;
+  background: #f8f5ff;
+  color: #5e17eb;
+  font-size: 25rpx;
+  font-weight: 850;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  user-select: text;
+}
+
 .xf-mama-share-dialog {
   position: relative;
   width: 620rpx;

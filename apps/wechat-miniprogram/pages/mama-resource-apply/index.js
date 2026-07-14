@@ -588,6 +588,7 @@ Page({
     taskSubmitting: false,
     taskClaiming: false,
     taskAnnouncementOpen: false,
+    taskContentLinkOpen: false,
     taskShareImageUrl: "",
     taskSharePreviewOpen: false,
     taskShareGenerating: false,
@@ -809,12 +810,11 @@ Page({
   openMamaTaskContent() {
     const contentUrl = asText(this.data.currentMamaTask && this.data.currentMamaTask.contentUrl).trim();
     if (!contentUrl) return;
-    wx.navigateTo({
-      url: `/pages/webview/index?url=${encodeURIComponent(contentUrl)}`,
-      fail: () => {
-        wx.setClipboardData({ data: contentUrl });
-      }
-    });
+    this.setData({ taskContentLinkOpen: true });
+  },
+
+  closeMamaTaskContent() {
+    this.setData({ taskContentLinkOpen: false });
   },
 
   openMamaTaskSharePoster() {
