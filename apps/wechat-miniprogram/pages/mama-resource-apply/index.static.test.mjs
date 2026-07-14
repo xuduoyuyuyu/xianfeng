@@ -212,6 +212,13 @@ test("assigned users open a selectable personal content link modal", () => {
   assert.doesNotMatch(wxmlSource, /短信|已发送短信/);
 });
 
+test("assigned users can preview a read-only transfer credential", () => {
+  assert.match(jsSource, /transferScreenshotUrl: normalizeMamaResourceImageUrl\(source\.transferScreenshotUrl\)/);
+  assert.match(jsSource, /previewTransferScreenshot\(\)[\s\S]*wx\.previewImage\(\{ current, urls: \[current\] \}\)/);
+  assert.match(wxmlSource, /wx:if="\{\{currentMamaTask\.transferScreenshotUrl\}\}"[\s\S]*转账凭证/);
+  assert.match(wxmlSource, /src="\{\{currentMamaTask\.transferScreenshotUrl\}\}"[^>]*catchtap="previewTransferScreenshot"/);
+});
+
 test("logged-out mama resource users must authorize phone before seeing apply form", () => {
   assert.match(jsSource, /const \{ getToken, getUser \} = require\("\.\.\/\.\.\/utils\/session"\)/);
   assert.match(jsSource, /function isUnauthorizedError\(error\)/);

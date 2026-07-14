@@ -390,6 +390,8 @@ function buildTaskView(task) {
     announcement: asText(source.announcement).trim(),
     proofLink: asText(source.proofLink).trim(),
     proofScreenshotUrl: asText(source.proofScreenshotUrl).trim(),
+    transferScreenshotUrl: normalizeMamaResourceImageUrl(source.transferScreenshotUrl),
+    transferScreenshotUpdatedAt: source.transferScreenshotUpdatedAt || null,
     contentUrl,
     hasContentUrl: Boolean(contentUrl),
     exampleImageUrls: Array.isArray(source.exampleImageUrls) ? source.exampleImageUrls.map(normalizeMamaResourceImageUrl).filter(Boolean) : []
@@ -1057,6 +1059,12 @@ Page({
       urls,
       current: urls[index] || urls[0]
     });
+  },
+
+  previewTransferScreenshot() {
+    const current = asText(this.data.currentMamaTask && this.data.currentMamaTask.transferScreenshotUrl).trim();
+    if (!current || !wx.previewImage) return;
+    wx.previewImage({ current, urls: [current] });
   },
 
   showApplyForm() {

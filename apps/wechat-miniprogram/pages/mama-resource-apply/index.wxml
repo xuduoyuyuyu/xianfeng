@@ -333,6 +333,11 @@
             <button type="button" class="xf-mama-content-button" catchtap="openMamaTaskContent">打开专属内容</button>
           </view>
 
+          <view wx:if="{{currentMamaTask.transferScreenshotUrl}}" class="xf-mama-transfer-card">
+            <text class="xf-mama-section-title">转账凭证</text>
+            <image class="xf-mama-transfer-image" src="{{currentMamaTask.transferScreenshotUrl}}" mode="widthFix" catchtap="previewTransferScreenshot" />
+          </view>
+
           <view wx:if="{{currentMamaTask.isClaimable}}" class="xf-mama-task-actions">
             <button class="xf-mama-submit" disabled="{{taskClaiming}}" catchtap="claimMamaTask">{{taskClaiming ? "领取中..." : "立即领取"}}</button>
           </view>

@@ -1131,6 +1131,20 @@ page {
   background: #ffffff;
 }
 
+.xf-mama-transfer-card {
+  margin-top: 20rpx;
+  padding: 22rpx;
+  border-radius: 24rpx;
+  background: #faf8fd;
+}
+
+.xf-mama-transfer-image {
+  display: block;
+  width: 100%;
+  margin-top: 16rpx;
+  border-radius: 18rpx;
+}
+
 .xf-mama-content-card {
   display: flex;
   align-items: center;
