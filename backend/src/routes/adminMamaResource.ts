@@ -287,6 +287,30 @@ router.patch("/tasks/assignments/:assignmentId/content", async (req: Request, re
   }
 });
 
+router.patch("/tasks/assignments/:assignmentId/transfer-screenshot", async (req: Request, res: Response) => {
+  try {
+    const transferScreenshotUrl = asText(req.body?.transferScreenshotUrl);
+    if (!transferScreenshotUrl) {
+      res.status(400).json({ message: "请上传转账截图" });
+      return;
+    }
+    const assignment = await MamaResourceTaskAssignment.findOneAndUpdate(
+      idQuery(asText(req.params.assignmentId)),
+      { transferScreenshotUrl, transferScreenshotUpdatedAt: new Date() },
+      { returnDocument: "after", runValidators: true }
+    )
+      .populate("taskId")
+      .populate("profileId");
+    if (!assignment) {
+      res.status(404).json({ message: "任务账号不存在" });
+      return;
+    }
+    res.json({ assignment: serializeAssignment(assignment) });
+  } catch (error: any) {
+    res.status(400).json({ message: error?.message || "保存转账截图失败" });
+  }
+});
+
 router.post(
   "/tasks/:taskId/content-import/preview",
   contentImportUpload.single("file"),

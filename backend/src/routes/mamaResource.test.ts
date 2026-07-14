@@ -747,6 +747,25 @@ describe("mama resource pool routes", () => {
     const reviewed = await reviewResponse.json();
     assert.equal(reviewed.task.status, "collected");
     assert.equal(reviewed.task.reviewNote, "已收录");
+
+    const transferResponse = await fetch(`${server.adminUrl}/tasks/assignments/${assigned.assignments[0]._id}/transfer-screenshot`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transferScreenshotUrl: "/uploads/images/transfer.png" }),
+    });
+    assert.equal(transferResponse.status, 200);
+    const transferred = await transferResponse.json();
+    assert.equal(transferred.assignment.status, "collected");
+    assert.equal(transferred.assignment.transferScreenshotUrl, "/uploads/images/transfer.png");
+    assert.ok(transferred.assignment.transferScreenshotUpdatedAt);
+
+    const detailResponse = await fetch(`${server.publicUrl}/me/tasks/${assigned.assignments[0]._id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(detailResponse.status, 200);
+    const detail = await detailResponse.json();
+    assert.equal(detail.task.transferScreenshotUrl, "/uploads/images/transfer.png");
+    assert.ok(detail.task.transferScreenshotUpdatedAt);
   });
 
   it("reports the active promotion count from live task assignments", async () => {
