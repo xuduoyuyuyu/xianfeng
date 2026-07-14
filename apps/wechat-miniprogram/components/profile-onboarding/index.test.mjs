@@ -41,6 +41,8 @@ test("profile dialog reuses manual location fields and linked education picker",
   assert.match(wxml, /wx:if="\{\{regionOptions\.length\}\}"[\s\S]*bindchange="chooseRegion"/);
   assert.match(wxml, /<input[^>]*wx:else[^>]*value="\{\{region\}\}"[^>]*bindinput="updateRegionInput"/);
   assert.match(wxml, /range="\{\{educationRange\}\}"[\s\S]*bindcolumnchange="changeEducationColumn"[\s\S]*bindchange="chooseEducation"/);
+  assert.match(wxml, /请选择年级/);
+  assert.doesNotMatch(wxml, /请选择学段和年级/);
   assert.match(js, /updateCity\(event\)/);
   assert.match(js, /updateRegionInput\(event\)/);
   assert.match(js, /changeEducationColumn\(event\)/);

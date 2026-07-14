@@ -21,7 +21,7 @@
     <view class="xf-profile-onboarding-field xf-profile-onboarding-grade-field">
       <text class="xf-profile-onboarding-label">学段 / 年级</text>
       <picker mode="multiSelector" range="{{educationRange}}" value="{{educationValue}}" bindcolumnchange="changeEducationColumn" bindchange="chooseEducation">
-        <view class="xf-profile-onboarding-picker">{{stage && gradeName ? stage + ' · ' + gradeName : '请选择学段和年级'}}<text>⌄</text></view>
+        <view class="xf-profile-onboarding-picker">{{stage && gradeName ? stage + ' · ' + gradeName : '请选择年级'}}<text>⌄</text></view>
       </picker>
     </view>
     <text wx:if="{{message}}" class="xf-profile-onboarding-message">{{message}}</text>
