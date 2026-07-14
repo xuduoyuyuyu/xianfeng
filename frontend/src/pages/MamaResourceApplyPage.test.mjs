@@ -58,7 +58,7 @@ test("mama resource application form submits a light supply profile", () => {
   assert.match(source, /useSelector\(\(state: RootState\) => state\.user\)/);
   assert.match(source, /const loggedInMobile = String\(user\?\.mobile \|\| ""\)\.trim\(\);/);
   assert.match(source, /useEffect\(\(\) => \{[\s\S]*loggedInMobile[\s\S]*contactPhone: current\.contactPhone \|\| loggedInMobile[\s\S]*\}, \[loggedInMobile\]\);/);
-  assert.match(source, /!\s*token \|\| !user \? \([\s\S]*<InlineLoginForm[\s\S]*onSuccess=\{\(\) => setMessage\("登录成功，请继续填写资料。"\)\}[\s\S]*\/>[\s\S]*\) : \(/);
+  assert.match(source, /!\s*token \|\| !user \|\| requiresLogin \? \([\s\S]*<InlineLoginForm[\s\S]*onSuccess=\{handleLoginSuccess\}[\s\S]*\/>/);
   assert.doesNotMatch(source, /if \(!token \|\| !user\)[\s\S]*xf-show-login-modal/, "standalone apply page should render an inline login form instead of only dispatching a login prompt");
   assert.match(source, /displayName/);
   assert.match(source, /contactPhone/);
@@ -134,4 +134,37 @@ test("mama resource public api posts applications", () => {
   assert.match(apiSource, /api\.post<\{ url: string; filename: string \}>\('\/mama-resources\/uploads'/);
   assert.match(apiSource, /submitMamaResourceApplication: \(data: MamaResourceApplicationInput\)/);
   assert.match(apiSource, /api\.post<\{ profile: MamaResourceProfile \}>\('\/mama-resources\/applications', data\)/);
+});
+
+test("authenticated mama resource page hydrates profile and routes returned states", () => {
+  assert.match(apiSource, /export interface MyMamaResourceTasksResponse/);
+  assert.match(apiSource, /getMyMamaResourceTasks: \(\) =>\s*api\.get<MyMamaResourceTasksResponse>\('\/mama-resources\/me\/tasks'\)/);
+  assert.match(source, /export type PageMode = "loading" \| "apply" \| "reviewing" \| "tasks" \| "detail" \| "error";/);
+  assert.match(source, /publicApi\.getMyMamaResourceTasks\(\)/);
+  assert.match(source, /nextProfile === null \? "apply" : nextProfile\.status === "approved" \? "tasks" : "reviewing"/);
+  assert.match(source, /setTasks\(response\.data\.tasks \|\| \[\]\)/);
+  assert.match(source, /setAvailableTasks\(response\.data\.availableTasks \|\| \[\]\)/);
+  assert.match(source, /pageMode === "loading"[\s\S]*资料加载中/);
+  assert.match(source, /pageMode === "error"[\s\S]*加载失败[\s\S]*onClick=\{loadProfileAndTasks\}[\s\S]*重新加载/);
+  assert.match(source, /onSuccess=\{handleLoginSuccess\}/);
+  assert.match(source, /const handleLoginSuccess = \(\) => \{[\s\S]*loadProfileAndTasks\(\)/);
+});
+
+test("profile form hydration maps every editable profile field", () => {
+  assert.match(source, /export function formStateFromProfile\(/);
+  assert.match(source, /displayName: profile\.displayName \|\| ""/);
+  assert.match(source, /contactPhone: profile\.contactPhone \|\| loggedInMobile/);
+  assert.match(source, /xiaohongshuNickname: profile\.socialAccount\?\.nickname \|\| ""/);
+  assert.match(source, /xiaohongshuProfileUrl: profile\.socialAccount\?\.profileUrl \|\| ""/);
+  assert.match(source, /const extraAccounts = \(profile\.mediaAccounts \|\| \[\]\)\.filter[\s\S]*mediaAccounts: extraAccounts\.map/);
+  assert.match(source, /blockedCategories: \(profile\.rateCard\?\.blockedCategories \|\| \[\]\)\.join\("、"\)/);
+  assert.match(source, /consentAccepted: Boolean\(profile\.consentAccepted\)/);
+});
+
+test("reviewing profiles show status, review note, and profile management", () => {
+  assert.match(source, /pageMode === "reviewing"[\s\S]*账号状态/);
+  assert.match(source, /profileStatusLabel\(profile\.status\)/);
+  assert.match(source, /profile\.reviewNote\?\.note/);
+  assert.match(source, /资料管理/);
+  assert.match(source, /setPageMode\("apply"\)/);
 });

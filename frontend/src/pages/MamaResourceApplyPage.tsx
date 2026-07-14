@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import GlobalPublicNav from "../components/GlobalPublicNav";
 import InlineLoginForm from "../components/InlineLoginForm";
 import { publicApi } from "../services/api";
+import type { MamaResourceProfile, MamaResourceTask } from "../services/api";
 import type { RootState } from "../store";
 
 const categoryOptions = ["亲子阅读", "学习用品", "母婴", "儿童健康", "家庭消费", "教育规划"];
@@ -19,6 +20,7 @@ const realNameVerifiedOptions = [
 
 type MediaPlatform = "xiaohongshu" | "douyin";
 type ProfileManagerMode = "overview" | "personal" | "media" | "preference";
+export type PageMode = "loading" | "apply" | "reviewing" | "tasks" | "detail" | "error";
 
 type MediaAccountForm = {
   platform: MediaPlatform | "";
@@ -75,6 +77,45 @@ const initialForm: FormState = {
   blockedCategories: "",
   consentAccepted: false,
 };
+
+export function formStateFromProfile(profile: MamaResourceProfile, loggedInMobile: string): FormState {
+  const primaryProfileUrl = profile.socialAccount?.profileUrl || "";
+  const extraAccounts = (profile.mediaAccounts || []).filter((account) =>
+    (account.platform === "xiaohongshu" || account.platform === "douyin") &&
+    account.profileUrl !== primaryProfileUrl
+  );
+  return {
+    displayName: profile.displayName || "",
+    contactPhone: profile.contactPhone || loggedInMobile,
+    contactWechat: profile.contactWechat || "",
+    city: profile.city || "",
+    childStage: profile.childStage || "",
+    childGender: profile.childGender || "",
+    xiaohongshuNickname: profile.socialAccount?.nickname || "",
+    xiaohongshuProfileUrl: profile.socialAccount?.profileUrl || "",
+    xiaohongshuScreenshotUrl: profile.socialAccount?.screenshotUrl || "",
+    followerCount: profile.socialAccount?.followerCount == null ? "" : String(profile.socialAccount.followerCount),
+    realNameVerified: profile.socialAccount?.realNameVerified == null ? "" : profile.socialAccount.realNameVerified ? "yes" : "no",
+    mediaAccounts: extraAccounts.map((account) => ({
+      platform: account.platform === "xiaohongshu" || account.platform === "douyin" ? account.platform : "",
+      nickname: account.nickname || "",
+      profileUrl: account.profileUrl || "",
+      followerCount: account.followerCount == null ? "" : String(account.followerCount),
+      realNameVerified: account.realNameVerified == null ? "" : account.realNameVerified ? "yes" : "no",
+    })),
+    accountPositioning: profile.accountPositioning || "",
+    categories: profile.categories || [],
+    blockedCategories: (profile.rateCard?.blockedCategories || []).join("、"),
+    consentAccepted: Boolean(profile.consentAccepted),
+  };
+}
+
+function profileStatusLabel(status: MamaResourceProfile["status"]): string {
+  if (status === "needs_info") return "待补充资料";
+  if (status === "rejected") return "暂未通过";
+  if (status === "approved") return "账号已通过";
+  return "审核中";
+}
 
 function toggleValue(values: string[], value: string): string[] {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
@@ -135,7 +176,46 @@ const MamaResourceApplyPage: React.FC = () => {
   const [uploadingScreenshot, setUploadingScreenshot] = useState(false);
   const [message, setMessage] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [pageMode, setPageMode] = useState<PageMode>("loading");
+  const [profile, setProfile] = useState<MamaResourceProfile | null>(null);
+  const [tasks, setTasks] = useState<MamaResourceTask[]>([]);
+  const [availableTasks, setAvailableTasks] = useState<MamaResourceTask[]>([]);
+  const [loadError, setLoadError] = useState("");
+  const [requiresLogin, setRequiresLogin] = useState(false);
   const loggedInMobile = String(user?.mobile || "").trim();
+
+  const loadProfileAndTasks = useCallback(async () => {
+    setPageMode("loading");
+    setLoadError("");
+    try {
+      const response = await publicApi.getMyMamaResourceTasks();
+      const nextProfile = response.data.profile;
+      setProfile(nextProfile);
+      setTasks(response.data.tasks || []);
+      setAvailableTasks(response.data.availableTasks || []);
+      if (nextProfile) setForm(formStateFromProfile(nextProfile, loggedInMobile));
+      else setForm({ ...initialForm, contactPhone: loggedInMobile });
+      setRequiresLogin(false);
+      setPageMode(nextProfile === null ? "apply" : nextProfile.status === "approved" ? "tasks" : "reviewing");
+    } catch (error: any) {
+      if (error?.response?.status === 401) {
+        setRequiresLogin(true);
+        return;
+      }
+      setLoadError(error?.response?.data?.message || error?.message || "资料加载失败，请稍后重试");
+      setPageMode("error");
+    }
+  }, [loggedInMobile]);
+
+  const handleLoginSuccess = () => {
+    setRequiresLogin(false);
+    void loadProfileAndTasks();
+  };
+
+  useEffect(() => {
+    if (!token || !user) return;
+    void loadProfileAndTasks();
+  }, [token, user, loadProfileAndTasks]);
 
   useEffect(() => {
     if (!loggedInMobile) return;
@@ -236,8 +316,8 @@ const MamaResourceApplyPage: React.FC = () => {
       });
       setSubmitted(true);
       setProfileManagerMode("overview");
-      setForm({ ...initialForm, contactPhone: loggedInMobile });
       setMessage("资料已提交，我们会先完成账号审核，再联系你确认适合的发稿机会。");
+      await loadProfileAndTasks();
     } catch (error: any) {
       const nextMessage =
         error?.response?.data?.message ||
@@ -277,15 +357,36 @@ const MamaResourceApplyPage: React.FC = () => {
             </div>
           </div>
 
-          {!token || !user ? (
+          {!token || !user || requiresLogin ? (
             <div className="rounded-[17px] border border-[#5e17eb]/15 bg-white px-[14px] py-[15px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
               <h1 className="text-[19px] font-black leading-[1.18] text-[#151222]">登录后开始填写</h1>
               <p className="mb-[14px] mt-[5px] text-[12px] font-bold leading-[1.6] text-[#6b6474]">
                 这个页面可以直接发给用户。先用手机号验证码登录，登录后资料会归属到当前账号，后续可继续查看任务和更新资料。
               </p>
-              <InlineLoginForm compact onSuccess={() => setMessage("登录成功，请继续填写资料。")} />
+              <InlineLoginForm compact onSuccess={handleLoginSuccess} />
             </div>
-          ) : (
+          ) : pageMode === "loading" ? (
+            <div className="rounded-[17px] border border-[#5e17eb]/15 bg-white px-[14px] py-[24px] text-center text-[13px] font-bold text-[#6b6474]">资料加载中...</div>
+          ) : pageMode === "error" ? (
+            <div className="rounded-[17px] border border-[#5e17eb]/15 bg-white px-[14px] py-[18px] text-center">
+              <h2 className="text-[17px] font-black text-[#151222]">加载失败</h2>
+              <p className="mt-[6px] text-[12px] font-bold text-[#6b6474]">{loadError}</p>
+              <button type="button" onClick={loadProfileAndTasks} className="mt-[14px] rounded-full bg-[#6c27d6] px-[18px] py-[9px] text-[13px] font-black text-white">重新加载</button>
+            </div>
+          ) : pageMode === "reviewing" && profile ? (
+            <div className="rounded-[17px] border border-[#5e17eb]/15 bg-white px-[14px] py-[18px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
+              <div className="text-[12px] font-extrabold text-[#6b6474]">账号状态</div>
+              <h2 className="mt-[5px] text-[19px] font-black text-[#151222]">{profileStatusLabel(profile.status)}</h2>
+              {profile.reviewNote?.note ? <p className="mt-[9px] rounded-[11px] bg-[#f8f6ff] p-[10px] text-[12px] font-bold leading-[1.6] text-[#6b6474]">{profile.reviewNote.note}</p> : null}
+              <button type="button" onClick={() => setPageMode("apply")} className="mt-[14px] rounded-full border border-[#6c27d6] px-[15px] py-[8px] text-[12px] font-black text-[#6c27d6]">资料管理</button>
+            </div>
+          ) : pageMode === "tasks" && profile ? (
+            <div className="rounded-[17px] border border-[#5e17eb]/15 bg-white px-[14px] py-[18px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
+              <h2 className="text-[19px] font-black text-[#151222]">账号已通过</h2>
+              <p className="mt-[6px] text-[12px] font-bold text-[#6b6474]">已分配 {tasks.length} 个任务，可领取 {availableTasks.length} 个任务</p>
+              <button type="button" onClick={() => setPageMode("apply")} className="mt-[14px] rounded-full border border-[#6c27d6] px-[15px] py-[8px] text-[12px] font-black text-[#6c27d6]">资料管理</button>
+            </div>
+          ) : pageMode === "apply" ? (
             <form id="mama-resource-apply-form" onSubmit={handleSubmit} className="rounded-[17px] border border-[#5e17eb]/15 bg-white px-[14px] py-[15px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
               <div className="mb-[11px] flex items-center justify-between gap-[9px]">
                 <div>
@@ -504,7 +605,7 @@ const MamaResourceApplyPage: React.FC = () => {
                 </div>
               ) : null}
             </form>
-          )}
+          ) : null}
         </section>
       </main>
     </div>

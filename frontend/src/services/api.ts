@@ -760,6 +760,12 @@ export interface MamaResourceTaskAssignment {
   updatedAt: string;
 }
 
+export interface MyMamaResourceTasksResponse {
+  profile: MamaResourceProfile | null;
+  tasks: MamaResourceTask[];
+  availableTasks?: MamaResourceTask[];
+}
+
 export interface MamaResourceContentImportRow {
   rowNumber: number;
   profileId: string;
@@ -1276,7 +1282,7 @@ export const publicApi = {
   submitMamaResourceApplication: (data: MamaResourceApplicationInput) =>
     api.post<{ profile: MamaResourceProfile }>('/mama-resources/applications', data),
   getMyMamaResourceTasks: () =>
-    api.get<{ profile: MamaResourceProfile | null; tasks: MamaResourceTask[]; availableTasks?: MamaResourceTask[] }>('/mama-resources/me/tasks'),
+    api.get<MyMamaResourceTasksResponse>('/mama-resources/me/tasks'),
   getMyMamaResourceTask: (id: string) =>
     api.get<{ profile: MamaResourceProfile; task: MamaResourceTask }>(`/mama-resources/me/tasks/${id}`),
   claimMamaResourceTask: (id: string) =>
