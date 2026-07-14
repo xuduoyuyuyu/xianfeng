@@ -179,4 +179,3 @@ git diff --stat main...HEAD
 ```
 
 Expected: no whitespace errors; changes remain limited to the previously approved tabbar icon work, this welfare label work, and their design/plan documents.
-
