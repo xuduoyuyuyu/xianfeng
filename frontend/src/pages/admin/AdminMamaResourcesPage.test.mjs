@@ -184,3 +184,16 @@ test("admin task assignments support manual and previewed personal content link 
   assert.match(apiSource, /previewMamaResourceContentImport/);
   assert.match(apiSource, /commitMamaResourceContentImport/);
 });
+
+test("admin task assignments upload and replace transfer screenshots", () => {
+  assert.match(apiSource, /transferScreenshotUrl\?: string;/);
+  assert.match(apiSource, /transferScreenshotUpdatedAt\?: string \| null;/);
+  assert.match(apiSource, /updateMamaResourceAssignmentTransferScreenshot/);
+  assert.match(apiSource, /assignments\/\$\{id\}\/transfer-screenshot/);
+  assert.match(source, /transferScreenshotUploadingId/);
+  assert.match(source, /handleTransferScreenshotUpload/);
+  assert.match(source, /adminApi\.uploadAdminImage\(file\)/);
+  assert.match(source, /上传转账截图/);
+  assert.match(source, /替换截图/);
+  assert.match(source, /任务转账凭证/);
+});

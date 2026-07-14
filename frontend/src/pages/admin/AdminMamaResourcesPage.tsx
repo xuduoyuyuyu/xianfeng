@@ -229,6 +229,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
   const [loading, setLoading] = useState(false);
   const [taskLoading, setTaskLoading] = useState(false);
   const [taskImageUploading, setTaskImageUploading] = useState(false);
+  const [transferScreenshotUploadingId, setTransferScreenshotUploadingId] = useState("");
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [page, setPage] = useState(1);
@@ -586,6 +587,24 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
       setToast(requestErrorMessage(saveError, "专属内容链接保存失败"));
     } finally {
       setTaskLoading(false);
+    }
+  };
+
+  const handleTransferScreenshotUpload = async (assignmentId: string, file?: File) => {
+    if (!file || transferScreenshotUploadingId) return;
+    setTransferScreenshotUploadingId(assignmentId);
+    setToast("");
+    try {
+      const uploadResponse = await adminApi.uploadAdminImage(file);
+      const transferScreenshotUrl = uploadResponse.data.url;
+      if (!transferScreenshotUrl) throw new Error("转账截图上传失败");
+      const response = await adminApi.updateMamaResourceAssignmentTransferScreenshot(assignmentId, transferScreenshotUrl);
+      setAssignments((current) => current.map((item) => item._id === assignmentId ? response.data.assignment : item));
+      setToast("转账截图已保存");
+    } catch (uploadError: any) {
+      setToast(requestErrorMessage(uploadError, "转账截图上传失败"));
+    } finally {
+      setTransferScreenshotUploadingId("");
     }
   };
 
@@ -1011,6 +1030,23 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                               {assignment.proofScreenshotUrl ? <a className="rounded-full bg-[#f6f0ff] px-2.5 py-1 text-[#6c27d6]" href={assignment.proofScreenshotUrl} target="_blank" rel="noreferrer">完成截图</a> : null}
                             </div>
                           ) : <div className="mt-2 text-xs font-semibold text-stone-400">用户尚未提交证明</div>}
+                          <div className="mt-3 rounded-xl bg-stone-50 p-3">
+                            <div className="text-xs font-black text-stone-600">转账截图</div>
+                            {assignment.transferScreenshotUrl ? (
+                              <a href={assignment.transferScreenshotUrl} target="_blank" rel="noreferrer" className="mt-2 block">
+                                <img src={assignment.transferScreenshotUrl} alt="任务转账凭证" className="max-h-40 w-full rounded-lg object-contain" />
+                              </a>
+                            ) : null}
+                            {assignment.transferScreenshotUpdatedAt ? <div className="mt-2 text-xs font-semibold text-stone-400">更新于 {toDateText(assignment.transferScreenshotUpdatedAt)}</div> : null}
+                            <label className="mt-2 inline-flex cursor-pointer rounded-lg border border-[#6c27d6] bg-white px-3 py-2 text-xs font-black text-[#5e17eb]">
+                              {transferScreenshotUploadingId === assignment._id ? "上传中..." : assignment.transferScreenshotUrl ? "替换截图" : "上传转账截图"}
+                              <input type="file" accept="image/*" disabled={Boolean(transferScreenshotUploadingId)} onChange={(event) => {
+                                const file = event.target.files?.[0];
+                                event.target.value = "";
+                                void handleTransferScreenshotUpload(assignment._id, file);
+                              }} className="hidden" />
+                            </label>
+                          </div>
                           {assignment.status === "submitted" ? (
                             <div className="mt-3 grid grid-cols-2 gap-2">
                               <button type="button" onClick={() => reviewAssignment(assignment, "collected", "已核对链接和截图，标记收录")} disabled={taskLoading} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white disabled:bg-stone-300">标记已收录</button>
