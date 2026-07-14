@@ -89,7 +89,7 @@ test("mama resource application form submits a light supply profile", () => {
   assert.match(source, /displayName/);
   assert.match(source, /contactPhone/);
   assert.match(source, /contactWechat/);
-  assert.match(source, /form\.contactWechat\.trim\(\) &&\s*form\.xiaohongshuProfileUrl\.trim\(\)/);
+  assert.match(source, /form\.contactWechat\.trim\(\) &&\s*form\.alipayAccount\.trim\(\) &&\s*form\.alipayVerifiedName\.trim\(\) &&\s*form\.xiaohongshuProfileUrl\.trim\(\)/);
   assert.doesNotMatch(source, /form\.contactPhone\.trim\(\) &&\s*form\.xiaohongshuProfileUrl\.trim\(\)/);
   assert.match(source, /微信号[\s\S]*name="contactWechat"[\s\S]*优先通过微信添加[\s\S]*手机号[\s\S]*name="contactPhone"[\s\S]*备用联系电话/);
   assert.match(staticSource, /微信号[\s\S]*name="contactWechat"[\s\S]*优先通过微信添加[\s\S]*required[\s\S]*手机号[\s\S]*name="contactPhone"[\s\S]*备用联系电话/);
@@ -146,6 +146,13 @@ test("mama resource application form submits a light supply profile", () => {
   assert.doesNotMatch(source, /我同意家长先疯为发稿资源匹配/);
   assert.doesNotMatch(staticSource, /我同意家长先疯为发稿资源匹配/);
   assert.match(source, /consentAccepted/);
+  assert.match(source, /alipayAccount: profile\.alipayAccount \|\| ""/);
+  assert.match(source, /alipayVerifiedName: profile\.alipayVerifiedName \|\| ""/);
+  assert.match(source, /支付宝账号[\s\S]*value=\{form\.alipayAccount\}/);
+  assert.match(source, /支付宝验证姓名[\s\S]*value=\{form\.alipayVerifiedName\}/);
+  assert.match(source, /form\.alipayAccount\.trim\(\)[\s\S]*form\.alipayVerifiedName\.trim\(\)/);
+  assert.match(source, /alipayAccount: form\.alipayAccount\.trim\(\)/);
+  assert.match(source, /alipayVerifiedName: form\.alipayVerifiedName\.trim\(\)/);
   assert.match(source, /publicApi\.submitMamaResourceApplication/);
 });
 
@@ -153,6 +160,8 @@ test("mama resource public api posts applications", () => {
   assert.match(apiSource, /export interface MamaResourceApplicationInput/);
   assert.match(apiSource, /contactWechat: string;/);
   assert.match(apiSource, /contactPhone\?: string;/);
+  assert.match(apiSource, /alipayAccount: string;/);
+  assert.match(apiSource, /alipayVerifiedName: string;/);
   assert.match(apiSource, /xiaohongshuScreenshotUrl\?: string;/);
   assert.match(apiSource, /followerCount\?: number \| string;/);
   assert.match(apiSource, /realNameVerified\?: boolean \| null;/);

@@ -623,6 +623,8 @@ export interface MamaResourceProfile {
   displayName: string;
   contactPhone?: string;
   contactWechat: string;
+  alipayAccount?: string;
+  alipayVerifiedName?: string;
   city?: string;
   childStage?: string;
   childGender?: string;
@@ -664,6 +666,8 @@ export interface MamaResourceApplicationInput {
   displayName: string;
   contactPhone?: string;
   contactWechat: string;
+  alipayAccount: string;
+  alipayVerifiedName: string;
   city?: string;
   childStage?: string;
   childGender?: string;
