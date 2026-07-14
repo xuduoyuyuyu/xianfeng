@@ -193,16 +193,30 @@ router.put("/:id", async (req: Request, res: Response) => {
     ]);
     const effectiveClaimCount = Math.max(Number(campaign.claimedCount || 0), claimCount);
     const requestedStock = Math.max(0, Number(payload.totalStock || 0));
-    payload.totalStock = Math.max(
+    if (activationCodeCount > 0 && effectiveClaimCount > activationCodeCount) {
+      res.status(409).json({ message: "已领取数量超过激活码库存，请先校正激活码数据" });
+      return;
+    }
+    const targetStock = Math.max(
       effectiveClaimCount,
       activationCodeCount > 0 ? Math.min(requestedStock, activationCodeCount) : requestedStock
     );
-    campaign.claimedCount = effectiveClaimCount;
-    campaign.set(payload);
-    await campaign.save();
+    payload.totalStock = targetStock;
+    const updatedCampaign = await WelfareCampaign.findOneAndUpdate(
+      { ...idQuery(asText(req.params.id)), claimedCount: { $lte: targetStock } },
+      { $set: payload, $max: { claimedCount: effectiveClaimCount } },
+      { returnDocument: "after", runValidators: true }
+    );
+    if (!updatedCampaign) {
+      const exists = await WelfareCampaign.exists(idQuery(asText(req.params.id)));
+      res.status(exists ? 409 : 404).json({
+        message: exists ? "领取数量已变化，请刷新后重试" : "福利活动不存在",
+      });
+      return;
+    }
     const now = resolveNow(req.body?.now);
-    const stats = await activationCodeStats([campaign._id]);
-    res.json({ campaign: withActivationCodeStats(campaign, now, stats) });
+    const stats = await activationCodeStats([updatedCampaign._id]);
+    res.json({ campaign: withActivationCodeStats(updatedCampaign, now, stats) });
   } catch (error: any) {
     res.status(400).json({ message: error?.message || "更新福利活动失败" });
   }

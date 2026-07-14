@@ -170,6 +170,64 @@ describe("welfare campaign routes", () => {
     });
     assert.equal(floorResponse.status, 200);
     assert.equal((await floorResponse.json()).campaign.totalStock, 2);
+
+    await WelfareCampaign.updateOne({ _id: created._id }, { $set: { claimedCount: 0 } });
+    await WelfareClaim.insertMany([
+      { campaignId: created._id, userId: new mongoose.Types.ObjectId(), status: "claimed" },
+      { campaignId: created._id, userId: new mongoose.Types.ObjectId(), status: "claimed" },
+    ]);
+    const documentFloorResponse = await fetch(`${server.adminUrl}/${created._id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: created.title, totalStock: 1, status: "draft" }),
+    });
+    assert.equal(documentFloorResponse.status, 200);
+    assert.equal((await documentFloorResponse.json()).campaign.totalStock, 2);
+
+    await WelfareClaim.insertMany([
+      { campaignId: created._id, userId: new mongoose.Types.ObjectId(), status: "claimed" },
+      { campaignId: created._id, userId: new mongoose.Types.ObjectId(), status: "claimed" },
+    ]);
+    const inconsistentResponse = await fetch(`${server.adminUrl}/${created._id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "不应保存", totalStock: 1, status: "published" }),
+    });
+    assert.equal(inconsistentResponse.status, 409);
+    const unchanged = await WelfareCampaign.findById(created._id).lean();
+    assert.equal(unchanged?.title, created.title);
+    assert.equal(unchanged?.totalStock, 2);
+    assert.equal(unchanged?.claimedCount, 2);
+  });
+
+  it("rejects a stock update when claimed count changes concurrently", async () => {
+    const created = await WelfareCampaign.create({ title: "并发库存", totalStock: 3, claimedCount: 0, status: "draft" });
+    await WelfareActivationCode.insertMany([
+      { campaignId: created._id, code: "RACE-A", importIndex: 0 },
+      { campaignId: created._id, code: "RACE-B", importIndex: 1 },
+      { campaignId: created._id, code: "RACE-C", importIndex: 2 },
+    ]);
+    const originalCountDocuments = WelfareClaim.countDocuments.bind(WelfareClaim);
+    WelfareClaim.countDocuments = (async (...args: any[]) => {
+      const count = await originalCountDocuments(...args);
+      await WelfareCampaign.updateOne({ _id: created._id }, { $set: { claimedCount: 3 } });
+      return count;
+    }) as any;
+
+    try {
+      const response = await fetch(`${server.adminUrl}/${created._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "不应覆盖并发领取", totalStock: 2, status: "published" }),
+      });
+      assert.equal(response.status, 409);
+      const unchanged = await WelfareCampaign.findById(created._id).lean();
+      assert.equal(unchanged?.title, created.title);
+      assert.equal(unchanged?.totalStock, 3);
+      assert.equal(unchanged?.claimedCount, 3);
+    } finally {
+      WelfareClaim.countDocuments = originalCountDocuments as any;
+    }
   });
 
   it("requires login to claim welfare and prevents duplicate or unavailable claims", async () => {
