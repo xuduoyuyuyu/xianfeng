@@ -646,11 +646,13 @@ test("welfare opens as a native mini program page and hides backend 404 noise", 
   assert.match(page.wxml, /copyActivationCode/);
   assert.match(page.wxml, /复制链接/);
   assert.match(page.wxml, /class="xf-welfare-dialog-link"[^>]*bindtap="openClaimLink"/);
-  assert.match(page.wxml, /<button catchtap="copyClaimLink">复制链接<\/button>/);
+  assert.match(page.wxml, /<button catchtap="copyClaimLink">\{\{claimDialogIsMiniProgramLink \? '点击获取' : '复制链接'\}\}<\/button>/);
   assert.doesNotMatch(page.wxml, /xf-welfare-item-status/);
   assert.doesNotMatch(page.wxml, /Request failed with status code 404/);
   assert.match(page.js, /request\(\{ url: "\/api\/welfare\/campaigns" \}\)/);
   assert.match(page.js, /claimDialogInstructions/);
+  assert.match(page.js, /claimDialogIsMiniProgramLink:\s*[^,]*\.includes\("小程序"\)/);
+  assert.match(page.js, /closeClaimDialog\(\)[\s\S]*claimDialogIsMiniProgramLink:\s*false/);
   assert.match(page.js, /copyActivationCode\(\)/);
   assert.match(page.js, /copyClaimLink\(\)/);
   assert.match(page.js, /wx\.navigateToMiniProgram\(\{[\s\S]*shortLink: link/);

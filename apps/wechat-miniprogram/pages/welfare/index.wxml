@@ -87,7 +87,7 @@
       </view>
       <view wx:if="{{claimDialogExternalUrl}}" class="xf-welfare-dialog-link" bindtap="openClaimLink" role="button" aria-label="打开小程序链接">
         <text>{{claimDialogExternalUrl}}</text>
-        <button catchtap="copyClaimLink">复制链接</button>
+        <button catchtap="copyClaimLink">{{claimDialogIsMiniProgramLink ? '点击获取' : '复制链接'}}</button>
       </view>
       <button class="xf-welfare-dialog-close" bindtap="closeClaimDialog">知道了</button>
     </view>

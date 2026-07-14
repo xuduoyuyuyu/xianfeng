@@ -121,6 +121,7 @@ Page({
     claimDialogTitle: "",
     claimDialogInstructions: "",
     claimDialogExternalUrl: "",
+    claimDialogIsMiniProgramLink: false,
     claimDialogActivationCode: ""
   },
 
@@ -179,11 +180,13 @@ Page({
     if (!id) return;
     const selected = this.data.activeCampaigns.find((campaign) => campaign._id === id);
     if (selected && selected.claimedByMe) {
+      const externalUrl = selected.externalUrl || "";
       this.setData({
         claimDialogVisible: true,
         claimDialogTitle: selected.title || "已领取",
         claimDialogInstructions: selected.claimInstructions || "领取成功，运营会根据福利说明联系你。",
-        claimDialogExternalUrl: selected.externalUrl || "",
+        claimDialogExternalUrl: externalUrl,
+        claimDialogIsMiniProgramLink: String(externalUrl).includes("小程序"),
         claimDialogActivationCode: selected.activationCode || ""
       });
       return;
@@ -193,12 +196,14 @@ Page({
       .then((response) => {
         const campaign = response && response.campaign || {};
         const claim = response && response.claim || {};
+        const externalUrl = campaign.externalUrl || (selected && selected.externalUrl) || "";
         this.setData({
           activeCampaigns: markCampaignClaimed(this.data.activeCampaigns, id, { ...campaign, activationCode: claim.activationCode }),
           claimDialogVisible: true,
           claimDialogTitle: campaign.title || (selected && selected.title) || "领取成功",
           claimDialogInstructions: campaign.claimInstructions || (selected && selected.claimInstructions) || "领取成功，运营会根据福利说明联系你。",
-          claimDialogExternalUrl: campaign.externalUrl || (selected && selected.externalUrl) || "",
+          claimDialogExternalUrl: externalUrl,
+          claimDialogIsMiniProgramLink: String(externalUrl).includes("小程序"),
           claimDialogActivationCode: String(claim.activationCode || campaign.activationCode || "")
         });
       })
@@ -218,6 +223,7 @@ Page({
       claimDialogTitle: "",
       claimDialogInstructions: "",
       claimDialogExternalUrl: "",
+      claimDialogIsMiniProgramLink: false,
       claimDialogActivationCode: ""
     });
   },
