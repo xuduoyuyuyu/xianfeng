@@ -227,6 +227,27 @@ test("task cards open an in-page detail with claim behavior", () => {
   assert.match(source, /setPageMode\("detail"\)/);
 });
 
+test("assigned task detail exposes selectable content without embedding or navigating", () => {
+  assert.match(source, /你的专属任务内容/);
+  assert.match(source, /资料链接/);
+  assert.match(source, /长按可复制：/);
+  assert.match(source, /select-all/);
+  assert.match(source, /task\.contentUrl\?\.trim\(\)/);
+  assert.doesNotMatch(source, /<iframe/);
+  assert.doesNotMatch(source, /window\.open\(task\.contentUrl|location\.href\s*=\s*task\.contentUrl/);
+});
+
+test("assigned task detail uploads and submits proof while preserving returned task state", () => {
+  assert.match(source, /完成链接/);
+  assert.match(source, /name="proofLink"/);
+  assert.match(source, /type="file"[\s\S]*accept="image\/\*"/);
+  assert.match(source, /publicApi\.uploadMamaResourceScreenshot\(file\)/);
+  assert.match(source, /publicApi\.submitMamaResourceTaskProof\(taskIdentity\(selectedTask\), \{\s*proofLink,\s*proofScreenshotUrl,?\s*\}\)/);
+  assert.match(source, /提交回填/);
+  assert.match(source, /setSelectedTask\(updatedTask\)/);
+  assert.match(source, /setTasks\(\(current\) => current\.map/);
+});
+
 test("mama resource tasks expose assignment content URLs", () => {
   assert.match(apiSource, /export interface MamaResourceTask \{[\s\S]*contentUrl\?: string;/);
 });

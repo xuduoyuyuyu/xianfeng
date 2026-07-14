@@ -16,8 +16,10 @@ Pay remains separate.
 
 Mama Haozhuan task assignments now also carry one private posting-content link
 per user. Operators can fill links individually or import an Excel file after
-preflight; assigned users copy the selectable link from a mini-program dialog
-and open it externally.
+preflight; assigned users copy the selectable link from the mini-program or
+mobile Web task-management dialog and open it externally. The mobile Web flow
+now mirrors account-state routing, assigned/claimable tasks, detail, and proof
+submission.
 
 ## Live / Waiting Workstreams
 

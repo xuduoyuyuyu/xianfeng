@@ -207,7 +207,8 @@ function MamaResourceTaskCard({ task, onOpen }: { task: MamaResourceTask; onOpen
   );
 }
 
-function MamaResourceTaskDetail({ task, claiming, claimError, onBack, onClaim }: { task: MamaResourceTask; claiming: boolean; claimError: string; onBack: () => void; onClaim: () => void }) {
+function MamaResourceTaskDetail({ task, claiming, claimError, proofLink, proofScreenshotUrl, proofUploading, proofSubmitting, proofError, proofMessage, linkDialogOpen, onBack, onClaim, onOpenLink, onCloseLink, onProofLinkChange, onProofScreenshotChange, onSubmitProof }: { task: MamaResourceTask; claiming: boolean; claimError: string; proofLink: string; proofScreenshotUrl: string; proofUploading: boolean; proofSubmitting: boolean; proofError: string; proofMessage: string; linkDialogOpen: boolean; onBack: () => void; onClaim: () => void; onOpenLink: () => void; onCloseLink: () => void; onProofLinkChange: (value: string) => void; onProofScreenshotChange: (event: React.ChangeEvent<HTMLInputElement>) => void; onSubmitProof: () => void }) {
+  const contentUrl = task.contentUrl?.trim() || "";
   return (
     <div className="grid gap-[12px]">
       <button type="button" onClick={onBack} className="w-fit rounded-full bg-white px-[13px] py-[8px] text-[12px] font-black text-[#6c27d6]">‹ 返回任务列表</button>
@@ -228,9 +229,30 @@ function MamaResourceTaskDetail({ task, claiming, claimError, onBack, onClaim }:
         <div className="mt-[14px] border-t border-[#eee9f4] pt-[12px]"><div className="text-[13px] font-black">结算标准</div><p className="mt-[5px] text-[12px] font-semibold leading-[1.65] text-[#6b6474]">{task.settlementStandard || "按项目要求发布并保留，后台审核通过后结算。"}</p></div>
         <div className="mt-[12px] border-t border-[#eee9f4] pt-[12px]"><div className="text-[13px] font-black">项目要求</div><p className="mt-[5px] text-[12px] font-semibold leading-[1.65] text-[#6b6474]">{task.requirement || "提交小红书笔记链接和完成截图，否则无法结算。"}</p></div>
         {task.exampleImageUrls?.length ? <div className="mt-[10px] grid grid-cols-2 gap-[8px]">{task.exampleImageUrls.map((url) => <img key={url} src={url} alt="任务示例" className="w-full rounded-[10px] object-cover" />)}</div> : null}
+        {contentUrl ? <button type="button" onClick={onOpenLink} className="mt-[15px] w-full rounded-[13px] border border-[#d9c8ff] bg-[#f7f2ff] p-[13px] text-left text-[14px] font-black text-[#6c27d6]">你的专属任务内容 <span className="float-right">查看 ›</span></button> : null}
         {task.claimable ? <button type="button" disabled={claiming} onClick={onClaim} className="mt-[15px] w-full rounded-[13px] bg-[#6c27d6] p-[13px] text-[14px] font-black text-white disabled:bg-[#c8c2d3]">{claiming ? "领取中..." : "立即领取"}</button> : null}
         {claimError ? <p className="mt-[10px] text-[12px] font-bold text-[#be123c]">{claimError}</p> : null}
       </div>
+      {!task.claimable ? <div className="rounded-[18px] bg-white p-[15px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
+        <h3 className="text-[16px] font-black text-[#151222]">任务回填</h3>
+        <label className="mt-[12px] block text-[12.5px] font-extrabold text-[#4b4453]">完成链接
+          <input name="proofLink" value={proofLink} onChange={(event) => onProofLinkChange(event.target.value)} placeholder="请粘贴已发布内容链接" className="mt-[6px] h-[39px] w-full rounded-[11px] border border-[#ddd7e8] px-[11px] text-[13px] outline-none focus:border-[#6c27d6]" />
+        </label>
+        <label className="mt-[12px] block text-[12.5px] font-extrabold text-[#4b4453]">完成截图
+          <input type="file" accept="image/*" disabled={proofUploading || proofSubmitting} onChange={onProofScreenshotChange} className="mt-[6px] block w-full text-[12px] font-bold text-[#6b6474] file:mr-[10px] file:rounded-full file:border-0 file:bg-[#f3eaff] file:px-[12px] file:py-[8px] file:font-black file:text-[#6c27d6]" />
+        </label>
+        {proofScreenshotUrl ? <img src={proofScreenshotUrl} alt="完成截图" className="mt-[10px] max-h-[220px] w-full rounded-[11px] object-contain" /> : null}
+        <button type="button" disabled={proofUploading || proofSubmitting} onClick={onSubmitProof} className="mt-[14px] w-full rounded-[13px] bg-[#6c27d6] p-[13px] text-[14px] font-black text-white disabled:bg-[#c8c2d3]">{proofSubmitting ? "提交中..." : proofUploading ? "截图上传中..." : "提交回填"}</button>
+        {proofError ? <p className="mt-[10px] text-[12px] font-bold text-[#be123c]">{proofError}</p> : null}
+        {proofMessage ? <p className="mt-[10px] text-[12px] font-bold text-[#15803d]">{proofMessage}</p> : null}
+      </div> : null}
+      {linkDialogOpen && contentUrl ? <div role="presentation" onClick={onCloseLink} className="fixed inset-0 z-[80] flex items-end justify-center bg-black/45 p-[14px] sm:items-center">
+        <div role="dialog" aria-modal="true" aria-labelledby="mama-content-link-title" onClick={(event) => event.stopPropagation()} className="w-full max-w-[520px] rounded-[20px] bg-white p-[17px] shadow-2xl">
+          <div className="flex items-start justify-between gap-[12px]"><div><h3 id="mama-content-link-title" className="text-[18px] font-black text-[#151222]">资料链接</h3><p className="mt-[4px] text-[12px] font-bold text-[#6b6474]">{task.title}</p></div><button type="button" aria-label="关闭资料链接" onClick={onCloseLink} className="h-[32px] w-[32px] rounded-full bg-[#f3eaff] text-[18px] font-black text-[#6c27d6]">×</button></div>
+          <p className="mt-[16px] text-[12px] font-extrabold text-[#6b6474]">长按可复制：</p>
+          <div className="mt-[7px] select-all break-all rounded-[12px] bg-[#f7f3ff] p-[12px] text-[13px] font-bold leading-[1.65] text-[#3f246f]">{contentUrl}</div>
+        </div>
+      </div> : null}
     </div>
   );
 }
@@ -301,6 +323,13 @@ const MamaResourceApplyPage: React.FC = () => {
   const [selectedTask, setSelectedTask] = useState<MamaResourceTask | null>(null);
   const [taskClaiming, setTaskClaiming] = useState(false);
   const [taskClaimError, setTaskClaimError] = useState("");
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [proofLink, setProofLink] = useState("");
+  const [proofScreenshotUrl, setProofScreenshotUrl] = useState("");
+  const [proofUploading, setProofUploading] = useState(false);
+  const [proofSubmitting, setProofSubmitting] = useState(false);
+  const [proofError, setProofError] = useState("");
+  const [proofMessage, setProofMessage] = useState("");
   const [loadError, setLoadError] = useState("");
   const [requiresLogin, setRequiresLogin] = useState(false);
   const loggedInMobile = String(user?.mobile || "").trim();
@@ -392,6 +421,11 @@ const MamaResourceApplyPage: React.FC = () => {
   const openTask = (task: MamaResourceTask) => {
     setSelectedTask(task);
     setTaskClaimError("");
+    setLinkDialogOpen(false);
+    setProofLink(task.proofLink || "");
+    setProofScreenshotUrl(task.proofScreenshotUrl || "");
+    setProofError("");
+    setProofMessage("");
     setPageMode("detail");
   };
 
@@ -406,11 +440,54 @@ const MamaResourceApplyPage: React.FC = () => {
       setTasks(replacement.tasks);
       setAvailableTasks(replacement.availableTasks);
       setSelectedTask(claimedTask);
+      setProofLink(claimedTask.proofLink || "");
+      setProofScreenshotUrl(claimedTask.proofScreenshotUrl || "");
       setPageMode("detail");
     } catch (error: any) {
       setTaskClaimError(error?.response?.data?.message || error?.message || "领取失败，请稍后重试");
     } finally {
       setTaskClaiming(false);
+    }
+  };
+
+  const handleProofScreenshotChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || proofUploading || proofSubmitting) return;
+    setProofUploading(true);
+    setProofError("");
+    setProofMessage("");
+    try {
+      const response = await publicApi.uploadMamaResourceScreenshot(file);
+      setProofScreenshotUrl(response.data.url || "");
+      setProofMessage("完成截图已上传。");
+    } catch (error: any) {
+      setProofError(error?.response?.data?.message || error?.message || "截图上传失败，请稍后重试");
+    } finally {
+      setProofUploading(false);
+      event.target.value = "";
+    }
+  };
+
+  const submitSelectedTaskProof = async () => {
+    if (!selectedTask || selectedTask.claimable || proofUploading || proofSubmitting) return;
+    setProofSubmitting(true);
+    setProofError("");
+    setProofMessage("");
+    try {
+      const response = await publicApi.submitMamaResourceTaskProof(taskIdentity(selectedTask), {
+        proofLink,
+        proofScreenshotUrl,
+      });
+      const updatedTask = response.data.task;
+      setSelectedTask(updatedTask);
+      setTasks((current) => current.map((task) => taskIdentity(task) === taskIdentity(updatedTask) ? updatedTask : task));
+      setProofLink(updatedTask.proofLink || proofLink);
+      setProofScreenshotUrl(updatedTask.proofScreenshotUrl || proofScreenshotUrl);
+      setProofMessage("回填已提交。");
+    } catch (error: any) {
+      setProofError(error?.response?.data?.message || error?.message || "回填提交失败，请稍后重试");
+    } finally {
+      setProofSubmitting(false);
     }
   };
 
@@ -539,8 +616,20 @@ const MamaResourceApplyPage: React.FC = () => {
               task={selectedTask}
               claiming={taskClaiming}
               claimError={taskClaimError}
+              proofLink={proofLink}
+              proofScreenshotUrl={proofScreenshotUrl}
+              proofUploading={proofUploading}
+              proofSubmitting={proofSubmitting}
+              proofError={proofError}
+              proofMessage={proofMessage}
+              linkDialogOpen={linkDialogOpen}
               onBack={() => setPageMode("tasks")}
               onClaim={claimSelectedTask}
+              onOpenLink={() => setLinkDialogOpen(true)}
+              onCloseLink={() => setLinkDialogOpen(false)}
+              onProofLinkChange={setProofLink}
+              onProofScreenshotChange={handleProofScreenshotChange}
+              onSubmitProof={submitSelectedTaskProof}
             />
           ) : pageMode === "apply" ? (
             <form id="mama-resource-apply-form" onSubmit={handleSubmit} className="rounded-[17px] border border-[#5e17eb]/15 bg-white px-[14px] py-[15px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
