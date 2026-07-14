@@ -18,3 +18,14 @@ test("welfare login success refreshes reads without replaying a claim", () => {
   assert.doesNotMatch(handler, /claimWelfare|\/claims/);
   assert.doesNotMatch(js, /loginWithPhone\(/);
 });
+
+test("welfare claim link button opens mini-program links and copies ordinary links", () => {
+  assert.match(
+    wxml,
+    /<button catchtap="\{\{claimDialogIsMiniProgramLink \? 'openClaimLink' : 'copyClaimLink'\}\}">\{\{claimDialogIsMiniProgramLink \? '点击获取' : '复制链接'\}\}<\/button>/
+  );
+  assert.doesNotMatch(
+    wxml,
+    /<button catchtap="copyClaimLink">\{\{claimDialogIsMiniProgramLink \? '点击获取' : '复制链接'\}\}<\/button>/
+  );
+});
