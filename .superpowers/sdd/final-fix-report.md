@@ -42,3 +42,26 @@ A later focused RED check caught that a current non-401 load error would remain 
 - No authenticated browser/mobile runtime or screenshot verification was run. The remaining gap is end-to-end visual/runtime confirmation with real login, overlapping network timing, claim, upload, and proof submission against a running backend.
 - No backend code changed, so no backend test suite was run.
 - Git emits pre-existing `non-monotonic index` warnings for AppleDouble `._pack-*.idx` files, but the focused test/build commands completed successfully.
+
+## Final re-review privacy race
+
+### RED
+
+Added an executable auth-mutation guard test modeling account A `{ generation: 1, authIdentity: "token-a" }` followed by account B `{ generation: 2, authIdentity: "token-b" }` and coverage assertions for all five authenticated mutation paths.
+
+`node --test src/pages/MamaResourceApplyPage.test.mjs`: 23 tests, 22 passed, 1 failed because `isCurrentAuthMutation` and per-path mutation captures were absent.
+
+### GREEN
+
+- Added a dedicated auth mutation generation, invalidated on every auth transition.
+- Claim, proof screenshot upload, proof submission, profile screenshot upload, and profile/application submit now guard success, error, and finally mutations against their initiating auth generation and identity.
+- Auth transitions reset task/proof/profile operation flags, errors, messages, proof fields, selected task, and private task lists. Late account-A callbacks cannot write account-B state, including when both accounts act on the same template ID.
+- `node --test src/pages/MamaResourceApplyPage.test.mjs`: 23 passed, 0 failed.
+- `./node_modules/.bin/tsc --noEmit`: exit 0.
+- `npm run build`: exit 0; existing Vite large-chunk warning only. Generated screen CSS restored after the build.
+
+### Remaining verification gap
+
+The focused harness executes the guard behavior and verifies every mutation path uses it, but does not mount React with deferred promises. A signed-in browser test that switches accounts while each request is in flight remains the end-to-end runtime gap.
+
+Final self-review tightened invalidation from effect-time to render-time: when Redux presents a new auth identity, `authMutationRef` advances synchronously during render, closing the render-to-effect microtask window before any old promise callback can write. The final fresh verification remained 23/23 tests, `tsc --noEmit` exit 0, and `npm run build` exit 0.

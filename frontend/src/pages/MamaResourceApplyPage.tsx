@@ -27,6 +27,8 @@ type ProfileTaskRequest = {
   authIdentity: string;
 };
 
+type AuthMutationRequest = ProfileTaskRequest;
+
 type MediaAccountForm = {
   platform: MediaPlatform | "";
   nickname: string;
@@ -183,6 +185,10 @@ function shouldApplyTaskDetailResult(task: MamaResourceTask | null, initiatingTe
 }
 
 function isCurrentProfileTaskRequest(current: ProfileTaskRequest, request: ProfileTaskRequest): boolean {
+  return current.generation === request.generation && current.authIdentity === request.authIdentity;
+}
+
+function isCurrentAuthMutation(current: AuthMutationRequest, request: AuthMutationRequest): boolean {
   return current.generation === request.generation && current.authIdentity === request.authIdentity;
 }
 
@@ -385,6 +391,10 @@ const MamaResourceApplyPage: React.FC = () => {
   const loggedInMobile = String(user?.mobile || "").trim();
   const authIdentity = String(token || "");
   const profileTaskRequestRef = useRef<ProfileTaskRequest>({ generation: 0, authIdentity });
+  const authMutationRef = useRef<AuthMutationRequest>({ generation: 0, authIdentity });
+  if (authMutationRef.current.authIdentity !== authIdentity) {
+    authMutationRef.current = { generation: authMutationRef.current.generation + 1, authIdentity };
+  }
   const [loadedAuthIdentity, setLoadedAuthIdentity] = useState("");
 
   const loadProfileAndTasks = useCallback(async () => {
@@ -428,6 +438,18 @@ const MamaResourceApplyPage: React.FC = () => {
     selectedTaskRef.current = null;
     setSelectedTask(null);
     setLinkDialogOpen(false);
+    setTaskClaiming(false);
+    setProofUploading(false);
+    setProofSubmitting(false);
+    setUploadingScreenshot(false);
+    setSubmitting(false);
+    setTaskClaimError("");
+    setProofError("");
+    setProofMessage("");
+    setProofLink("");
+    setProofScreenshotUrl("");
+    setMessage("");
+    setSubmitted(false);
     if (!token || !user) return;
     void loadProfileAndTasks();
   }, [authIdentity, token, user, loadProfileAndTasks]);
@@ -501,10 +523,12 @@ const MamaResourceApplyPage: React.FC = () => {
   const claimSelectedTask = async () => {
     if (!selectedTask || taskClaiming) return;
     const initiatingTemplateId = templateTaskIdentity(selectedTask);
+    const mutation = authMutationRef.current;
     setTaskClaiming(true);
     setTaskClaimError("");
     try {
       const response = await publicApi.claimMamaResourceTask(initiatingTemplateId);
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
       const claimedTask = response.data.task;
       const replacement = replaceClaimedTask(tasks, availableTasks, claimedTask);
       setTasks(replacement.tasks);
@@ -516,10 +540,12 @@ const MamaResourceApplyPage: React.FC = () => {
       setProofScreenshotUrl(claimedTask.proofScreenshotUrl || "");
       setPageMode("detail");
     } catch (error: any) {
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
       if (shouldApplyTaskDetailResult(selectedTaskRef.current, initiatingTemplateId)) {
         setTaskClaimError(error?.response?.data?.message || error?.message || "领取失败，请稍后重试");
       }
     } finally {
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
       setTaskClaiming(false);
     }
   };
@@ -528,18 +554,22 @@ const MamaResourceApplyPage: React.FC = () => {
     const file = event.target.files?.[0];
     if (!file || !selectedTask || proofUploading || proofSubmitting) return;
     const initiatingTaskId = taskIdentity(selectedTask);
+    const mutation = authMutationRef.current;
     setProofUploading(true);
     setProofError("");
     setProofMessage("");
     try {
       const response = await publicApi.uploadMamaResourceScreenshot(file);
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
       if (!isSameTaskIdentity(selectedTaskRef.current, initiatingTaskId)) return;
       setProofScreenshotUrl(response.data.url || "");
       setProofMessage("完成截图已上传。");
     } catch (error: any) {
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
       if (!isSameTaskIdentity(selectedTaskRef.current, initiatingTaskId)) return;
       setProofError(error?.response?.data?.message || error?.message || "截图上传失败，请稍后重试");
     } finally {
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
       setProofUploading(false);
       event.target.value = "";
     }
@@ -548,6 +578,7 @@ const MamaResourceApplyPage: React.FC = () => {
   const submitSelectedTaskProof = async () => {
     if (!selectedTask || selectedTask.claimable || proofUploading || proofSubmitting) return;
     const initiatingTaskId = taskIdentity(selectedTask);
+    const mutation = authMutationRef.current;
     setProofSubmitting(true);
     setProofError("");
     setProofMessage("");
@@ -556,6 +587,7 @@ const MamaResourceApplyPage: React.FC = () => {
         proofLink,
         proofScreenshotUrl,
       });
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
       const updatedTask = response.data.task;
       setTasks((current) => current.map((task) => taskIdentity(task) === taskIdentity(updatedTask) ? updatedTask : task));
       if (!isSameTaskIdentity(selectedTaskRef.current, initiatingTaskId)) return;
@@ -565,9 +597,11 @@ const MamaResourceApplyPage: React.FC = () => {
       setProofScreenshotUrl(updatedTask.proofScreenshotUrl || proofScreenshotUrl);
       setProofMessage("回填已提交。");
     } catch (error: any) {
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
       if (!isSameTaskIdentity(selectedTaskRef.current, initiatingTaskId)) return;
       setProofError(error?.response?.data?.message || error?.message || "回填提交失败，请稍后重试");
     } finally {
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
       setProofSubmitting(false);
     }
   };
@@ -575,17 +609,21 @@ const MamaResourceApplyPage: React.FC = () => {
   const handleScreenshotChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    const mutation = authMutationRef.current;
     setUploadingScreenshot(true);
     setMessage("");
     try {
       const response = await publicApi.uploadMamaResourceScreenshot(file);
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
       updateField("xiaohongshuScreenshotUrl", response.data.url || "");
       setMessage("小红书页面截图已上传。");
       setSubmitted(true);
     } catch (error: any) {
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
       setMessage(error?.response?.data?.message || error?.message || "截图上传失败，请稍后重试");
       setSubmitted(false);
     } finally {
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
       setUploadingScreenshot(false);
       event.target.value = "";
     }
@@ -598,6 +636,7 @@ const MamaResourceApplyPage: React.FC = () => {
       setMessage("请先补齐个人资料、社交媒体账号，并勾选资料使用授权。");
       return;
     }
+    const mutation = authMutationRef.current;
     setSubmitting(true);
     setMessage("");
     try {
@@ -619,11 +658,13 @@ const MamaResourceApplyPage: React.FC = () => {
         blockedCategories: form.blockedCategories,
         consentAccepted: form.consentAccepted,
       });
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
       setSubmitted(true);
       setProfileManagerMode("overview");
       setMessage("资料已提交，我们会先完成账号审核，再联系你确认适合的发稿机会。");
       await loadProfileAndTasks();
     } catch (error: any) {
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
       const nextMessage =
         error?.response?.data?.message ||
         error?.message ||
@@ -631,6 +672,7 @@ const MamaResourceApplyPage: React.FC = () => {
       setSubmitted(false);
       setMessage(nextMessage);
     } finally {
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
       setSubmitting(false);
     }
   };

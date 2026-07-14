@@ -24,6 +24,7 @@ function sourceFunction(name) {
         .replaceAll(": MamaResourceTask | null", "")
         .replaceAll(": MamaResourceTask", "")
         .replaceAll(": ProfileTaskRequest", "")
+        .replaceAll(": AuthMutationRequest", "")
         .replaceAll(": boolean", "")
         .replaceAll(": string", "");
     }
@@ -289,6 +290,19 @@ test("profile task loads reject stale generations and changed auth identities", 
   assert.equal(isCurrentProfileTaskRequest(current, { generation: 2, authIdentity: "token-a" }), false);
   assert.match(source, /if \(!isCurrentProfileTaskRequest\(profileTaskRequestRef\.current, request\)\) return;/);
   assert.match(source, /setLoadedAuthIdentity\(authIdentity\);\s*setLoadError[\s\S]*setPageMode\("error"\);/);
+});
+
+test("authenticated mutations reject late results after an account transition", () => {
+  const isCurrentAuthMutation = evaluateHelper("isCurrentAuthMutation");
+  const accountA = { generation: 1, authIdentity: "token-a" };
+  const accountB = { generation: 2, authIdentity: "token-b" };
+  assert.equal(isCurrentAuthMutation(accountA, accountA), true);
+  assert.equal(isCurrentAuthMutation(accountB, accountA), false);
+  assert.equal(isCurrentAuthMutation({ generation: 2, authIdentity: "token-a" }, accountA), false);
+  assert.match(source, /if \(authMutationRef\.current\.authIdentity !== authIdentity\) \{\s*authMutationRef\.current = \{ generation: authMutationRef\.current\.generation \+ 1, authIdentity \};\s*\}/);
+  assert.equal(source.match(/const mutation = authMutationRef\.current;/g)?.length, 5);
+  assert.ok((source.match(/if \(!isCurrentAuthMutation\(authMutationRef\.current, mutation\)\) return;/g)?.length || 0) >= 10);
+  assert.match(source, /setTaskClaiming\(false\);[\s\S]*setProofUploading\(false\);[\s\S]*setProofSubmitting\(false\);[\s\S]*setUploadingScreenshot\(false\);[\s\S]*setSubmitting\(false\);/);
 });
 
 test("content-link modal owns focus and supports Escape dismissal", () => {
