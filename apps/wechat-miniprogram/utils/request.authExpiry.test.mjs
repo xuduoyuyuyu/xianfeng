@@ -57,3 +57,18 @@ test("native request clears the session and notifies listeners on 401", async ()
     global.wx = originalWx;
   }
 });
+
+test("a listener subscribing after auth expiry receives the pending login request", () => {
+  const { notifyAuthExpired, resolveAuthExpired, subscribeAuthExpired } = require("./authExpiry.js");
+  resolveAuthExpired();
+  notifyAuthExpired();
+  let calls = 0;
+
+  const unsubscribe = subscribeAuthExpired(() => {
+    calls += 1;
+  });
+
+  assert.equal(calls, 1);
+  unsubscribe();
+  resolveAuthExpired();
+});

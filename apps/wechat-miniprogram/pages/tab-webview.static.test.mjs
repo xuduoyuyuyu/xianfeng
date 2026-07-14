@@ -710,6 +710,91 @@ test("welfare opens as a native mini program page and hides backend 404 noise", 
   }
 });
 
+test("welfare opens phone login on auth expiry and reloads after login", async () => {
+  const page = readPage("welfare");
+  assert.match(page.wxml, /wx:if="\{\{loginRequired\}\}"[^>]*open-type="getPhoneNumber"[^>]*bindgetphonenumber="loginWithPhone"/);
+  assert.match(page.js, /subscribeAuthExpired/);
+  assert.match(page.js, /onUnload\(\)[\s\S]*_unsubscribeAuthExpired/);
+  assert.match(page.js, /loginWithPhone\(event\)[\s\S]*\/api\/wechat-mini\/login[\s\S]*setSession\(payload\)[\s\S]*resolveAuthExpired\(\)[\s\S]*loadCampaigns\(\)/);
+
+  const definition = loadPageDefinition("welfare");
+  const originalWx = global.wx;
+  const originalGetApp = global.getApp;
+  const state = { ...definition.data };
+  const stored = {};
+  let campaignRequests = 0;
+  let appSession = null;
+
+  const context = {
+    ...definition,
+    data: state,
+    setData(patch) {
+      Object.assign(state, patch);
+    }
+  };
+
+  try {
+    global.getApp = () => ({
+      setLoginSession(payload) {
+        appSession = payload;
+      }
+    });
+    global.wx = {
+      showShareMenu() {},
+      getStorageSync(key) {
+        return stored[key] || (key === "xf_token" ? "expired-token" : "");
+      },
+      setStorageSync(key, value) {
+        stored[key] = value;
+      },
+      removeStorageSync(key) {
+        delete stored[key];
+      },
+      getWindowInfo() {
+        return { statusBarHeight: 20, windowWidth: 375 };
+      },
+      getMenuButtonBoundingClientRect() {
+        return { top: 28, height: 32, left: 280 };
+      },
+      login(options) {
+        options.success({ code: "wx-login-code" });
+      },
+      request(options) {
+        if (options.url.endsWith("/api/wechat-mini/login")) {
+          options.success({ statusCode: 200, data: { token: "fresh-token", user: { id: "user-1" } } });
+          return;
+        }
+        campaignRequests += 1;
+        if (campaignRequests === 1) {
+          options.success({ statusCode: 401, data: { message: "未登录或登录已过期" } });
+          return;
+        }
+        options.success({ statusCode: 200, data: { active: [], history: [] } });
+      }
+    };
+
+    definition.onLoad.call(context, {});
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(state.loginRequired, true);
+    assert.equal(state.message, "");
+
+    definition.loginWithPhone.call(context, { detail: { code: "phone-code" } });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(stored.xf_token, "fresh-token");
+    assert.deepEqual(appSession, { token: "fresh-token", user: { id: "user-1" } });
+    assert.equal(state.loginRequired, false);
+    assert.equal(state.message, "");
+    assert.equal(campaignRequests, 2);
+
+    definition.onUnload.call(context);
+  } finally {
+    const { resolveAuthExpired } = require("../utils/authExpiry.js");
+    resolveAuthExpired();
+    global.wx = originalWx;
+    global.getApp = originalGetApp;
+  }
+});
+
 test("welfare claim short links open the target mini program", () => {
   const definition = loadPageDefinition("welfare");
   const originalWx = global.wx;

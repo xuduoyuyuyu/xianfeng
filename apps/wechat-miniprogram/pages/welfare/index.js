@@ -1,5 +1,7 @@
 const { request } = require("../../utils/request");
+const { subscribeAuthExpired, resolveAuthExpired } = require("../../utils/authExpiry");
 const { API_ORIGIN } = require("../../utils/config");
+const { setSession } = require("../../utils/session");
 const { getNativeTopbarMetrics } = require("../../utils/nativeChrome");
 const { createPageShare, enableShareMenu } = require("../../utils/share");
 const { ensureBackStackForBackButtonPage, goProgramsHome: navigateProgramsHome, smartBackHome } = require("../../utils/nativePageNav");
@@ -116,6 +118,9 @@ Page({
     historyCampaigns: [],
     loading: true,
     message: "",
+    loginRequired: false,
+    bindingPhone: false,
+    loginMessage: "",
     claimingId: "",
     claimDialogVisible: false,
     claimDialogTitle: "",
@@ -129,7 +134,13 @@ Page({
     if (ensureBackStackForBackButtonPage(options)) return;
     enableShareMenu();
     this.syncTopbarMetrics();
+    this._unsubscribeAuthExpired = subscribeAuthExpired(() => this.showLoginGate());
     this.loadCampaigns();
+  },
+
+  onUnload() {
+    if (typeof this._unsubscribeAuthExpired === "function") this._unsubscribeAuthExpired();
+    this._unsubscribeAuthExpired = null;
   },
 
   onShow() {
@@ -156,6 +167,47 @@ Page({
     } catch (_error) {}
   },
 
+  showLoginGate() {
+    this.setData({ loginRequired: true, bindingPhone: false, loginMessage: "", loading: false, message: "" });
+  },
+
+  loginWithPhone(event) {
+    if (this.data.bindingPhone) return;
+    const phoneCode = String(event && event.detail && event.detail.code || "");
+    if (!phoneCode) {
+      this.setData({ loginMessage: "需要授权手机号后登录" });
+      return;
+    }
+    this.setData({ bindingPhone: true, loginMessage: "" });
+    wx.login({
+      success: ({ code }) => {
+        if (!code) {
+          this.setData({ bindingPhone: false, loginMessage: "微信登录失败，请重试" });
+          return;
+        }
+        request({
+          method: "POST",
+          url: "/api/wechat-mini/login",
+          data: { code, phoneCode }
+        })
+          .then((payload) => {
+            setSession(payload);
+            const app = typeof getApp === "function" ? getApp() : null;
+            if (app && typeof app.setLoginSession === "function") app.setLoginSession(payload);
+            resolveAuthExpired();
+            this.setData({ loginRequired: false, bindingPhone: false, loginMessage: "", message: "" });
+            this.loadCampaigns();
+          })
+          .catch((error) => {
+            this.setData({ bindingPhone: false, loginMessage: friendlyError(error, "登录失败，请重试") });
+          });
+      },
+      fail: () => {
+        this.setData({ bindingPhone: false, loginMessage: "无法调用微信登录" });
+      }
+    });
+  },
+
   loadCampaigns() {
     this.setData({ loading: true, message: "" });
     request({ url: "/api/welfare/campaigns" })
@@ -167,6 +219,10 @@ Page({
         });
       })
       .catch((error) => {
+        if (Number(error && error.statusCode || 0) === 401) {
+          this.showLoginGate();
+          return;
+        }
         if (isNotFoundError(error)) {
           this.setData({ activeCampaigns: [], historyCampaigns: [], loading: false, message: "" });
           return;
@@ -208,6 +264,10 @@ Page({
         });
       })
       .catch((error) => {
+        if (Number(error && error.statusCode || 0) === 401) {
+          this.showLoginGate();
+          return;
+        }
         this.setData({
           message: isNotFoundError(error) ? "这个福利暂时不可领取，稍后再看看" : friendlyError(error, "领取失败，请稍后重试")
         });

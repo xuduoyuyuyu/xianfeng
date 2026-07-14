@@ -4,6 +4,7 @@ let pending = false;
 function subscribeAuthExpired(listener) {
   if (typeof listener !== "function") return () => {};
   listeners.add(listener);
+  if (pending) listener();
   return () => listeners.delete(listener);
 }
 
