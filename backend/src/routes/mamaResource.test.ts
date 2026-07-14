@@ -789,6 +789,86 @@ describe("mama resource pool routes", () => {
     assert.equal(data.tasks[0].trafficFeeCents, 1200);
   });
 
+  it("returns only the signed-in profile's personal task content link", async () => {
+    const [firstUser, secondUser] = await User.create([
+      { username: "u13800138101", password: "hash", mobile: "13800138101", role: "user" },
+      { username: "u13800138102", password: "hash", mobile: "13800138102", role: "user" },
+    ]);
+    const firstToken = jwt.sign({ id: String(firstUser._id), role: "user" }, process.env.JWT_SECRET || "your-secret-key");
+    const [firstProfile, secondProfile] = await MamaResourceProfile.create([
+      {
+        displayName: "链接用户一",
+        contactPhone: "13800138101",
+        contactWechat: "content-owner-one",
+        status: "approved",
+        consentAccepted: true,
+        categories: ["箱包"],
+        socialAccount: {
+          platform: "xiaohongshu",
+          profileUrl: "https://www.xiaohongshu.com/user/profile/content-owner-one",
+          normalizedProfileUrl: "xiaohongshu:user/profile/content-owner-one",
+        },
+      },
+      {
+        displayName: "链接用户二",
+        contactPhone: "13800138102",
+        contactWechat: "content-owner-two",
+        status: "approved",
+        consentAccepted: true,
+        categories: ["箱包"],
+        socialAccount: {
+          platform: "xiaohongshu",
+          profileUrl: "https://www.xiaohongshu.com/user/profile/content-owner-two",
+          normalizedProfileUrl: "xiaohongshu:user/profile/content-owner-two",
+        },
+      },
+    ]);
+    const task = await MamaResourceTask.create({
+      title: "迪桑娜饭盒包",
+      category: "箱包",
+      unitPriceCents: 3000,
+      status: "listed",
+    });
+    const [firstAssignment, secondAssignment] = await MamaResourceTaskAssignment.create([
+      {
+        taskId: task._id,
+        profileId: firstProfile._id,
+        status: "assigned",
+        contentUrl: "https://my.feishu.cn/wiki/owner-one",
+        contentUpdatedAt: new Date("2026-07-14T00:00:00.000Z"),
+      },
+      {
+        taskId: task._id,
+        profileId: secondProfile._id,
+        status: "assigned",
+        contentUrl: "https://my.feishu.cn/wiki/owner-two",
+        contentUpdatedAt: new Date("2026-07-14T01:00:00.000Z"),
+      },
+    ]);
+
+    const listResponse = await fetch(`${server.publicUrl}/me/tasks`, {
+      headers: { Authorization: `Bearer ${firstToken}` },
+    });
+    assert.equal(listResponse.status, 200);
+    const listData = await listResponse.json();
+    assert.equal(listData.tasks.length, 1);
+    assert.equal(listData.tasks[0]._id, String(firstAssignment._id));
+    assert.equal(listData.tasks[0].contentUrl, "https://my.feishu.cn/wiki/owner-one");
+    assert.equal(listData.tasks.some((item: any) => item.contentUrl?.includes("owner-two")), false);
+
+    const detailResponse = await fetch(`${server.publicUrl}/me/tasks/${firstAssignment._id}`, {
+      headers: { Authorization: `Bearer ${firstToken}` },
+    });
+    assert.equal(detailResponse.status, 200);
+    const detailData = await detailResponse.json();
+    assert.equal(detailData.task.contentUrl, "https://my.feishu.cn/wiki/owner-one");
+
+    const forbiddenResponse = await fetch(`${server.publicUrl}/me/tasks/${secondAssignment._id}`, {
+      headers: { Authorization: `Bearer ${firstToken}` },
+    });
+    assert.equal(forbiddenResponse.status, 404);
+  });
+
   it("lets approved users claim listed tasks until the claim limit is reached", async () => {
     const [firstUser, secondUser] = await User.create([
       { username: "u13800138101", password: "hash", mobile: "13800138101", role: "user" },
