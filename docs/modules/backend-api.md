@@ -28,6 +28,14 @@
 
 ### Durable Contracts
 
+- Public Programs, local Reading, Materials, and Topics list endpoints accept
+  the optional complete `profileCity`, `profileRegion`, and `profileGrade`
+  query set. Ordinary list requests stably prioritize region, city, exact
+  grade, then stage before pagination; missing/partial profiles and explicit
+  search requests retain their prior order. User compatibility profile writes
+  store onboarding grade in `childGrade` without overwriting legacy `grade`,
+  while the Xiaowanzi sync endpoint remains the child-archive source of truth.
+
 - Mobile invite gating is enforced in the backend before new-user creation.
   Admin `SystemSetting` config now controls the active code, activation limit,
   used count, and expiry time. `LOGIN_INVITE_CODE` and

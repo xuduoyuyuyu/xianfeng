@@ -5621,6 +5621,8 @@ test("native first-level content tabs fetch API data and open detail wrapper rou
       ? /preloadNativeReadingBooks\(\)/
       : apiPath === "/api/topic-hub"
       ? /request\(\{ url: buildTopicListUrl\(nextPage, TOPIC_PAGE_SIZE\) \}\)/
+      : apiPath === "/api/learning-materials"
+      ? /request\(\{ url: appendProfileQuery\("\/api\/learning-materials"\) \}\)/
       : new RegExp(`request\\(\\{ url: "${apiPath.replace(/\//g, "\\/")}" \\}\\)`));
     if (name !== "topics") {
       assert.match(js, /openWeb\(/);
@@ -5837,7 +5839,7 @@ test("native first-level content tabs fetch API data and open detail wrapper rou
   assert.match(materials.wxss, /\.xf-materials-page \.xf-native-card \{[\s\S]*display: block;/);
   assert.match(materials.wxss, /\.xf-materials-page \.xf-native-card \{[\s\S]*padding: 22rpx;/);
   assert.match(materials.js, /selected:\s*3/);
-  assert.match(materials.js, /request\(\{ url: "\/api\/learning-materials" \}\)/);
+  assert.match(materials.js, /request\(\{ url: appendProfileQuery\("\/api\/learning-materials"\) \}\)/);
   assert.match(materials.js, /const fileUrl = firstText\(\[item\.fileUrl/);
   assert.match(materials.js, /function pushFieldTag\(tags, tone, value\)/);
   assert.match(materials.js, /function pushFieldTags\(tags, tone, value, normalizer\)/);
@@ -5974,7 +5976,7 @@ test("native first-level content tabs fetch API data and open detail wrapper rou
   assert.match(topics.js, /const TOPIC_CACHE_VERSION = 3;/);
   assert.match(topics.js, /const TOPIC_CACHE_TTL_MS = 6 \* 60 \* 60 \* 1000;/);
   assert.match(topics.js, /const INVALID_TOPIC_CACHE_KEY = "xf_native_topic_invalidated_v1";/);
-  assert.match(topics.js, /function buildTopicListUrl\(page, limit\)/);
+  assert.match(topics.js, /function buildTopicListUrl\(page, limit, includeProfile = true\)/);
   assert.match(topics.js, /if \(context\.grade\) params\.push\(`grade=\$\{encodeURIComponent\(context\.grade\)\}`\);/);
   assert.match(topics.js, /function sortTopicsForGrade\(topics\)/);
   assert.match(topics.js, /function getCachedTopicsForCurrentContext\(cached\)/);
@@ -10039,7 +10041,7 @@ test("native first-level tabs match web paging and append on scroll", () => {
   assert.match(programs.js, /currentProgramPage: 1/);
   assert.match(programs.js, /totalProgramPages: 1/);
   assert.match(programs.js, /hasMorePrograms: false/);
-  assert.match(programs.js, /request\(\{ url: `\/api\/programs\?page=\$\{nextPage\}&pageSize=\$\{PROGRAM_PAGE_SIZE\}` \}\)/);
+  assert.match(programs.js, /request\(\{ url: appendProfileQuery\(`\/api\/programs\?page=\$\{nextPage\}&pageSize=\$\{PROGRAM_PAGE_SIZE\}`\) \}\)/);
   assert.match(programs.js, /request\(\{ url: `\/api\/programs\?page=\$\{page\}&pageSize=\$\{PROGRAM_FILTER_PAGE_SIZE\}` \}\)/);
   assert.match(programs.js, /mergeProgramsById\(previousPrograms, pagePrograms\)/);
   assert.match(programs.js, /onReachBottom\(\)\s*\{[\s\S]*this\.loadMorePrograms\(\);[\s\S]*\}/);
@@ -10638,7 +10640,7 @@ test("programs tab renders a native first-level list and opens details through t
     assert.doesNotMatch(js, /item\.title,[\s\S]*item\.description,[\s\S]*item\.coverImage,[\s\S]*summary\.headline/);
     assert.equal(js.includes("?."), false);
     assert.equal(js.includes(".finally("), false);
-    assert.match(js, /request\(\{ url: `\/api\/programs\?page=\$\{nextPage\}&pageSize=\$\{PROGRAM_PAGE_SIZE\}` \}\)/);
+    assert.match(js, /request\(\{ url: appendProfileQuery\(`\/api\/programs\?page=\$\{nextPage\}&pageSize=\$\{PROGRAM_PAGE_SIZE\}`\) \}\)/);
     assert.match(js, /openNativeSearch/);
     assert.match(js, /openSearch\(\)/);
     assert.match(js, /allPrograms: \[\]/);

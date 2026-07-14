@@ -266,3 +266,4 @@
     </scroll-view>
   </view>
 </view>
+<profile-onboarding bind:saved="onProfileOnboardingSaved" />

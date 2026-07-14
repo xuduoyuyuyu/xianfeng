@@ -7,6 +7,7 @@ import GuestAgentChunkModel from "../models/GuestAgentChunk";
 import { retrieveGuestAgentChunks } from "../services/guestAgentService";
 import { generateTopicLayers, validateTopicKeyword } from "../services/topicAiGenerator";
 import type { TopicGuestShareSnippet } from "../services/topicAiGenerator";
+import { parseContentProfile, rankPersonalizedItems } from "../services/contentPersonalization";
 
 // 中文搜索关键词切词：按停用词和标点拆分，提取有意义的短词
 function extractSearchTerms(text: string): string[] {
@@ -152,6 +153,7 @@ publicRouter.get("/", async (req: Request, res: Response) => {
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 21));
+    const profile = search ? null : parseContentProfile(req.query as Record<string, unknown>);
 
     // 排序：默认按创建时间降序，支持 viewCount
     const sortField = sort === "viewCount" ? "viewCount" : "createdAt";
@@ -192,15 +194,24 @@ publicRouter.get("/", async (req: Request, res: Response) => {
       });
     }
 
-    const [topics, total] = await Promise.all([
-      Topic.find(filter)
+    const topicQuery = Topic.find(filter)
         .select(TOPIC_LIST_SELECT)
-        .sort(sortObj)
-        .skip((pageNum - 1) * limitNum)
-        .limit(limitNum)
-        .lean(),
+        .sort(sortObj);
+    if (!profile) topicQuery.skip((pageNum - 1) * limitNum).limit(limitNum);
+    const [foundTopics, total] = await Promise.all([
+      topicQuery.lean(),
       Topic.countDocuments(filter),
     ]);
+    const topics = profile
+      ? rankPersonalizedItems(foundTopics, profile, (item: any) => [
+          item.title,
+          item.subtitle,
+          item.description,
+          item.shortSummary,
+          item.tags,
+          item.suitableGrades,
+        ]).slice((pageNum - 1) * limitNum, pageNum * limitNum)
+      : foundTopics;
 
     // 计算 nodeCount 的工具函数
     const calcNodeCount = (t: any) => {

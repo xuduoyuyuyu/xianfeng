@@ -8,8 +8,10 @@ const { openWeb } = require("../../utils/webview");
 const { SETTINGS_SECTIONS, createNativeSettingsMethods, setSettingsTabbarHidden } = require("../../utils/nativeSettings");
 const { getInitialSearchPrompt, startSearchPromptRotation, stopSearchPromptRotation } = require("../../utils/searchPrompts");
 const { createFilterDrawerMethods } = require("../../utils/filterDrawer");
+const { buildPersonalizationQuery } = require("../../utils/profileOnboarding");
 
 const MATERIAL_CACHE_KEY = "xf_native_materials_cache_v2";
+const MATERIAL_CACHE_PROFILE_KEY = `${MATERIAL_CACHE_KEY}:profile`;
 const MATERIAL_PAGE_SIZE = 24;
 const LOGO_HEIGHT_RPX = 56;
 const SEARCH_PANEL_HEIGHT_RPX = 114;
@@ -48,6 +50,11 @@ const MATERIAL_CHINESE_GRADE_NUMBERS = {
   十一: 11,
   十二: 12
 };
+
+function appendProfileQuery(url) {
+  const profileQuery = buildPersonalizationQuery();
+  return profileQuery ? `${url}${url.includes("?") ? "&" : "?"}${profileQuery}` : url;
+}
 
 function firstText(values, fallback) {
   for (const value of values) {
@@ -448,6 +455,7 @@ Page({
   loadCachedMaterials() {
     try {
       const cached = wx.getStorageSync(MATERIAL_CACHE_KEY);
+      if (String(wx.getStorageSync(MATERIAL_CACHE_PROFILE_KEY) || "") !== buildPersonalizationQuery()) return;
       if (!Array.isArray(cached) || !cached.length) return;
       const allMaterials = cached.map(normalizeCachedMaterial).filter((item) => item.id);
       const activeMaterialTags = normalizeFilterTags(this.data.activeMaterialTags || this.data.activeMaterialTag);
@@ -478,7 +486,7 @@ Page({
       error: ""
     });
 
-    return request({ url: "/api/learning-materials" })
+    return request({ url: appendProfileQuery("/api/learning-materials") })
       .then((response) => {
         const allMaterials = normalizeMaterials(response);
         const activeMaterialTags = normalizeFilterTags(this.data.activeMaterialTags || this.data.activeMaterialTag);
@@ -501,7 +509,10 @@ Page({
               ? `没有匹配的 ${activeMaterialTagLabel} 资料`
               : "暂时没有可展示的资料"
         });
-        if (allMaterials.length) wx.setStorageSync(MATERIAL_CACHE_KEY, allMaterials);
+        if (allMaterials.length) {
+          wx.setStorageSync(MATERIAL_CACHE_KEY, allMaterials);
+          wx.setStorageSync(MATERIAL_CACHE_PROFILE_KEY, buildPersonalizationQuery());
+        }
       })
       .catch((error) => {
         const fallbackData = this.data || {};
@@ -691,6 +702,12 @@ Page({
 
   retryLoad() {
     this.loadMaterials();
+  },
+
+  onProfileOnboardingSaved() {
+    wx.removeStorageSync(MATERIAL_CACHE_KEY);
+    wx.removeStorageSync(MATERIAL_CACHE_PROFILE_KEY);
+    return this.loadMaterials({ showRefreshing: true });
   },
 
   onShareAppMessage() {

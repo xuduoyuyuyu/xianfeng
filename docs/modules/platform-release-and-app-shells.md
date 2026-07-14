@@ -54,6 +54,13 @@
   The native Topics list prioritizes fast first paint: it loads 10 topics per
   page and delays detail prefetch to one visible topic after the list is already
   rendered, while filter data can still use the larger background source.
+  On first entry, an incomplete local child profile opens a native onboarding
+  modal for city, region, stage, and grade. Saving creates or updates the active
+  child (default display name `孩子`), writes the same local archive stores, and
+  syncs user/archive fields after phone login. Closing suppresses the modal only
+  for the current foreground session. The four list requests include the
+  complete profile and keep list caches isolated by profile; search, detail,
+  and the external book library remain unpersonalized.
   The Baibaoxiang welfare shortcut opens native `pages/welfare/index` so the
   page uses mini-program chrome and hides backend 404s as an empty welfare
   state. Claim success is handled in the native page with the configured claim

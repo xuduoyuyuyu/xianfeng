@@ -15,6 +15,7 @@ import {
   compareBookQualityScores,
   type BookQualityScore,
 } from "../services/bookQualityScore";
+import { ContentProfile, parseContentProfile, scorePersonalizedText } from "../services/contentPersonalization";
 
 type BookCoverProxyCacheEntry = {
   contentType: string;
@@ -635,7 +636,7 @@ function formatAdminBookMetadata(metadata: any) {
   };
 }
 
-async function findPagedPublicBooksPrioritizingDescriptions(current: number, size: number, slicePage = true) {
+async function findPagedPublicBooksPrioritizingDescriptions(current: number, size: number, slicePage = true, profile: ContentProfile | null = null) {
   const publishedFilter = { status: "published" };
   const offset = (current - 1) * size;
   const allBooks = await Book.find(publishedFilter).sort({ publishedAt: -1, _id: -1 });
@@ -649,9 +650,19 @@ async function findPagedPublicBooksPrioritizingDescriptions(current: number, siz
         book,
         index,
         qualityScore: calculateBookQualityScore(plain, metadata),
+        profileScore: profile ? scorePersonalizedText([
+          plain?.title,
+          plain?.categoryLabel,
+          plain?.topic,
+          plain?.description,
+          plain?.grade,
+          plain?.sourceName,
+        ], profile) : 0,
       };
     })
     .sort((left, right) => {
+      const profileDiff = right.profileScore - left.profileScore;
+      if (profileDiff !== 0) return profileDiff;
       const qualityDiff = compareBookQualityScores(left.qualityScore, right.qualityScore);
       return qualityDiff !== 0 ? qualityDiff : left.index - right.index;
     });
@@ -880,7 +891,8 @@ export class BookController {
       const current = Math.max(1, Number(req.query.current) || 1);
       const size = Math.min(100, Math.max(1, Number(req.query.size) || 24));
       const paged = Boolean(req.query.current || req.query.size);
-      const page = await findPagedPublicBooksPrioritizingDescriptions(current, size, paged);
+      const profile = parseContentProfile(req.query as Record<string, unknown>);
+      const page = await findPagedPublicBooksPrioritizingDescriptions(current, size, paged, profile);
       const books = page.books;
       const metadataRows = await listApprovedBookMetadataByBookIds(books.map((book: any) => String(book?._id || "")));
       const metadataByBookId = new Map(metadataRows.map((item: any) => [String(item?.bookId || ""), item]));

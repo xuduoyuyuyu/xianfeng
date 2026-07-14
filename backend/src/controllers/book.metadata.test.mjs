@@ -27,13 +27,13 @@ test("public book metadata reads the formal metadata table", () => {
   assert.match(controllerSource, /normalized\.includes\("jiyue-logo\.png"\)/, "Jiyue fallback logo should be treated as no real cover");
   assert.match(controllerSource, /calculateBookQualityScore\(plain, metadata\)/, "paged public books should calculate the 100-point quality score before slicing");
   assert.match(controllerSource, /compareBookQualityScores\(left\.qualityScore, right\.qualityScore\)/, "quality tiers and scores should own public ordering");
-  assert.match(controllerSource, /async function findPagedPublicBooksPrioritizingDescriptions\(current: number, size: number, slicePage = true\)/, "public books should keep backend-owned priority ordering");
+  assert.match(controllerSource, /async function findPagedPublicBooksPrioritizingDescriptions\(current: number, size: number, slicePage = true, profile: ContentProfile \| null = null\)/, "public books should keep backend-owned priority ordering with optional profile priority");
   assert.match(controllerSource, /const allBooks = await Book\.find\(publishedFilter\)[\s\S]*\.sort\(\{ publishedAt: -1, _id: -1 \}\);/, "public pagination should collect the published set before global health sorting");
   assert.match(controllerSource, /const metadataRows = await listApprovedBookMetadataByBookIds\(allBooks\.map/, "public pagination should include metadata when scoring every published book");
   assert.match(controllerSource, /qualityScore: calculateBookQualityScore\(plain, metadata\)/, "public pagination should score each published book before slicing a page");
   assert.match(controllerSource, /\.slice\(offset, offset \+ size\)/, "public pagination should slice only after global health sorting");
   assert.doesNotMatch(controllerSource, /const describedTake = Math\.min/, "public pagination should not page described and undescribed buckets separately");
-  assert.match(controllerSource, /const page = await findPagedPublicBooksPrioritizingDescriptions\(current, size, paged\);/, "both paged and legacy array responses should use quality ordering");
+  assert.match(controllerSource, /const page = await findPagedPublicBooksPrioritizingDescriptions\(current, size, paged, profile\);/, "both paged and legacy array responses should use profile then quality ordering");
   assert.match(controllerSource, /records: enrichedBooks,[\s\S]*total,[\s\S]*current,[\s\S]*pages:/, "paged public book list should return records and totals for native first-page cache");
   assert.match(controllerSource, /res\.status\(200\)\.json\(enrichedBooks\);/, "unpaged public book list should keep the legacy array response for existing clients");
   assert.match(controllerSource, /qualityScore: formatPublicBookQualityScore\(qualityScore\)/, "public list records should expose only the compact score summary");

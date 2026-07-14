@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
 import LearningMaterial from "../models/LearningMaterial";
+import { parseContentProfile, rankPersonalizedItems } from "../services/contentPersonalization";
 
 function asText(value: any): string {
   if (value === undefined || value === null) return "";
@@ -51,12 +52,14 @@ function statusUpdatePayload(status: "draft" | "published") {
 }
 
 export class LearningMaterialController {
-  async getAllPublic(_req: Request, res: Response): Promise<void> {
+  async getAllPublic(req: Request, res: Response): Promise<void> {
     try {
       const materials = await LearningMaterial.find({ status: "published" }).sort({
         publishedAt: -1,
       });
-      res.status(200).json(materials);
+      const profile = parseContentProfile(req.query as Record<string, unknown>);
+      const ranked = rankPersonalizedItems(materials, profile, (item: any) => [item.title, item.description, item.category]);
+      res.status(200).json(ranked);
     } catch (error) {
       res.status(500).json({ message: "获取学习资料列表失败", error });
     }

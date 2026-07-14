@@ -1,11 +1,19 @@
 # Active Context - Xianfeng
 
-Last rewritten: 2026-07-14
+Last rewritten: 2026-07-15
 
 > This file is a SNAPSHOT, not a journal. Rewrite it at every workstream close,
 > keep it around 60 lines, and use git history for older context.
 
 ## Current Focus
+
+The WeChat mini-program is adding minimal child-profile onboarding. An
+incomplete local archive opens a native modal for city, region, stage, and
+grade; closing lasts only for the current foreground session. Saving updates
+the active archive (creating `孩子` when needed), then syncs user and archive
+fields after phone login. Programs, local Reading, Materials, and Topics use
+the complete profile to prioritize matching list content before pagination;
+search, detail, and the external book library keep their existing order.
 
 WeChat mini-program virtual payment is being integrated for Plus and Pro
 virtual products. Backend owns virtual product pricing, checkout signatures,
@@ -36,6 +44,7 @@ with more claims than codes reject updates until operators correct the data.
 
 | Workstream | State | Waiting on |
 | --- | --- | --- |
+| Mini-program profile onboarding and list personalization | active | WeChat DevTools/device visual and logged-in sync verification |
 | WeChat mini-program virtual payment | active | WeChat后台 product/callback config, public HTTPS sandbox callback/backend, and DevTools/device sandbox validation |
 | Mama Haozhuan task dispatch | active | Admin and mini-program runtime review of per-user content links, plus mobile Web authenticated runtime and visual review; SMS intentionally excluded |
 | Governance bootstrap | active | Review of newly added docs and whether to keep the local `evolab/` clone inside this checkout |
@@ -56,6 +65,10 @@ with more claims than codes reject updates until operators correct the data.
 - `docs/ACTIVE_CONTEXT.md` is rewritten, not appended.
 
 ## Recent Decisions
+
+- 2026-07-15 - Collect only city, region, stage, and grade in a native modal.
+  Use local-first archive storage, create the default child as `孩子`, retry
+  sync after phone login, and personalize only the four ordinary native lists.
 
 - 2026-07-14 - Keep mini-program public pages visible when logged out and use
   the first protected-action tap as the `getPhoneNumber` gesture. Do not show a

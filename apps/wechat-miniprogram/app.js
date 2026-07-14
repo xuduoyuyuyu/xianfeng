@@ -1,6 +1,7 @@
 const { getToken, getUser, setSession, clearSession } = require("./utils/session");
 const { request } = require("./utils/request");
 const { preloadReadingLandingData } = require("./utils/readingPreload");
+const { resetProfileOnboardingSession, syncProfileOnboardingRemote } = require("./utils/profileOnboarding");
 
 App({
   globalData: {
@@ -14,10 +15,15 @@ App({
     preloadReadingLandingData();
   },
 
+  onShow() {
+    resetProfileOnboardingSession();
+  },
+
   setLoginSession(payload) {
     setSession(payload);
     this.globalData.token = getToken();
     this.globalData.user = getUser();
+    syncProfileOnboardingRemote();
   },
 
   clearLoginSession() {
@@ -32,6 +38,7 @@ App({
       .then((user) => {
         setSession({ token: getToken(), user });
         this.globalData.user = user;
+        syncProfileOnboardingRemote();
         return user;
       })
       .catch((error) => {

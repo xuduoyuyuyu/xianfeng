@@ -208,4 +208,26 @@ describe("user geo backfill", () => {
     assert.equal(saved?.city, "宁波");
     assert.equal(saved?.region, "浙江省");
   });
+
+  it("stores onboarding childGrade without overwriting legacy grade", async () => {
+    const user = await User.create({
+      username: "profile-onboarding-user",
+      password: "unused",
+      grade: "家长旧年级字段",
+      role: "user",
+    });
+    const req = {
+      user: { id: String(user._id), role: "user" },
+      body: { city: "上海", region: "徐汇区", childGrade: "小学三年级" },
+    } as any;
+    const res = createMockResponse();
+
+    await controller.patchMeCompat(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.childGrade, "小学三年级");
+    const saved = await User.findById(user._id).lean();
+    assert.equal(saved?.childGrade, "小学三年级");
+    assert.equal(saved?.grade, "家长旧年级字段");
+  });
 });

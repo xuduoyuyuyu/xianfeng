@@ -8,6 +8,7 @@ const { CHILD_PROFILES_KEY, WEB_CHILD_PROFILES_KEY, mergeChildProfileRecords } =
 const { SETTINGS_SECTIONS, createNativeSettingsMethods, setSettingsTabbarHidden } = require("../../utils/nativeSettings");
 const { createFilterDrawerMethods } = require("../../utils/filterDrawer");
 const { readNativeTopicDetailCache, saveNativeTopicDetailCache } = require("../../utils/nativeTopicDetailCache");
+const { buildPersonalizationQuery } = require("../../utils/profileOnboarding");
 
 const TOPIC_CACHE_KEY = "xf_native_topics_cache";
 const TOPIC_CACHE_VERSION = 3;
@@ -206,7 +207,7 @@ function getTopicRequestContext() {
   };
 }
 
-function buildTopicListUrl(page, limit) {
+function buildTopicListUrl(page, limit, includeProfile = true) {
   const context = getTopicRequestContext();
   const params = [
     `page=${encodeURIComponent(String(page))}`,
@@ -214,6 +215,10 @@ function buildTopicListUrl(page, limit) {
   ];
   if (context.userId) params.push(`userId=${encodeURIComponent(context.userId)}`);
   if (context.grade) params.push(`grade=${encodeURIComponent(context.grade)}`);
+  if (includeProfile) {
+    const profileQuery = buildPersonalizationQuery();
+    if (profileQuery) params.push(profileQuery);
+  }
   return `/api/topic-hub?${params.join("&")}`;
 }
 
@@ -273,6 +278,7 @@ function getCachedTopicsForCurrentContext(cached) {
   if (!cachedAt || Date.now() - cachedAt > TOPIC_CACHE_TTL_MS) return [];
   if (String(cached.userId || "") !== context.userId) return [];
   if (String(cached.grade || "") !== context.grade) return [];
+  if (String(cached.profile || "") !== buildPersonalizationQuery()) return [];
   return Array.isArray(cached.topics) ? cached.topics : [];
 }
 
@@ -283,6 +289,7 @@ function saveTopicCache(topics) {
     cachedAt: Date.now(),
     userId: context.userId,
     grade: context.grade,
+    profile: buildPersonalizationQuery(),
     topics: Array.isArray(topics) ? topics : []
   });
 }
@@ -1347,6 +1354,11 @@ Page({
 
   retryLoad() {
     this.loadTopics();
+  },
+
+  onProfileOnboardingSaved() {
+    wx.removeStorageSync(TOPIC_CACHE_KEY);
+    return this.loadTopics({ showRefreshing: true });
   },
 
   onShareAppMessage(event) {

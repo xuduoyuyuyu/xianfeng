@@ -3,6 +3,7 @@ const { request } = require("./request");
 const { getToken, getUser, setSession, clearSession } = require("./session");
 const { CHILD_PROFILES_KEY, WEB_CHILD_PROFILES_KEY, hasDuplicateChildDisplayName, maskMobile, mergeChildProfileRecords, parseStoredValue } = require("./profileState");
 const { rememberCurrentExternalPage } = require("./xiaowanziReturn");
+const { STAGES, GRADES_BY_STAGE, gradesFor, formatGrade, parseGrade, districtsFor } = require("./profileOnboarding");
 
 const TAB_PAGES = [
   "/pages/programs/index",
@@ -68,22 +69,6 @@ const ACCOUNT_AVATAR = "/assets/tabbar/xiaowanzi.png";
 const RELATIONS = ["儿子", "女儿"];
 const PROFILE_GENDERS = ["男", "女"];
 const TAGS = ["睡眠", "情绪", "专注力", "社交", "学习习惯", "亲子沟通"];
-const STAGES = ["学前", "小学", "初中", "高中"];
-const PARSE_STAGES = ["高中", "初中", "小学", "学前"];
-const GRADES_BY_STAGE = {
-  "学前": ["未入园", "托班", "小班", "中班", "大班"],
-  "小学": ["一年级", "二年级", "三年级", "四年级", "五年级", "六年级"],
-  "初中": ["六年级（预初）", "七年级", "八年级", "九年级"],
-  "高中": ["高一年级", "高二年级", "高三年级"]
-};
-const WUSI_CITIES = ["上海", "上海市", "威海", "威海市", "淄博", "淄博市", "莱芜", "莱芜市", "烟台", "烟台市", "哈尔滨", "哈尔滨市", "大庆", "大庆市", "青岛", "青岛市"];
-const DISTRICTS_BY_CITY = {
-  "上海": ["黄浦区", "徐汇区", "长宁区", "静安区", "普陀区", "虹口区", "杨浦区", "闵行区", "宝山区", "嘉定区", "浦东新区", "金山区", "松江区", "青浦区", "奉贤区", "崇明区"],
-  "北京": ["东城区", "西城区", "朝阳区", "丰台区", "石景山区", "海淀区", "顺义区", "通州区", "大兴区", "房山区", "门头沟区", "昌平区", "平谷区", "密云区", "怀柔区", "延庆区"],
-  "广州": ["越秀区", "海珠区", "荔湾区", "天河区", "白云区", "黄埔区", "南沙区", "番禺区", "花都区", "增城区", "从化区"],
-  "深圳": ["福田区", "罗湖区", "南山区", "盐田区", "宝安区", "龙岗区", "龙华区", "坪山区", "光明区"],
-  "杭州": ["上城区", "拱墅区", "西湖区", "滨江区", "余杭区", "萧山区", "临平区", "钱塘区", "富阳区", "临安区"]
-};
 const FONT_OPTIONS = [
   { value: "small", label: "小" },
   { value: "standard", label: "标准" },
@@ -157,41 +142,6 @@ function saveArchiveChildren(children) {
   const savedChildren = mergeChildProfileRecords(children, [], { avatarFallback: CHILD_AVATAR });
   wx.setStorageSync(CHILD_PROFILES_KEY, savedChildren);
   wx.setStorageSync(WEB_CHILD_PROFILES_KEY, JSON.stringify(savedChildren));
-}
-
-function parseGrade(raw) {
-  const text = String(raw || "");
-  if (!text) return { stage: "", gradeName: "" };
-  for (const stage of PARSE_STAGES) {
-    const grade = GRADES_BY_STAGE[stage].find((item) => text.includes(item) || text === item);
-    if (grade) return { stage, gradeName: grade };
-  }
-  if (text.includes("小")) return { stage: "小学", gradeName: "一年级" };
-  if (text.includes("初") || text.includes("预初")) return { stage: "初中", gradeName: "六年级（预初）" };
-  if (text.includes("高")) return { stage: "高中", gradeName: "高一年级" };
-  return { stage: "", gradeName: "" };
-}
-
-function gradesFor(stage, city) {
-  const fiveFour = WUSI_CITIES.some((item) => String(city || "").includes(item));
-  if (stage === "小学" && fiveFour) return ["一年级", "二年级", "三年级", "四年级", "五年级"];
-  if (stage === "初中" && fiveFour) return ["六年级（预初）", "七年级", "八年级", "九年级"];
-  return GRADES_BY_STAGE[stage] || GRADES_BY_STAGE["学前"];
-}
-
-function formatGrade(stage, gradeName) {
-  if (!stage || !gradeName) return "";
-  if (stage === "学前") return `学前${gradeName}`;
-  if (stage === "小学") return `小学${gradeName}`;
-  if (stage === "初中") return `初中${String(gradeName || "").replace("（预初）", "")}`;
-  return gradeName || "";
-}
-
-function districtsFor(city) {
-  const keyword = String(city || "");
-  if (!keyword) return [];
-  const entry = Object.entries(DISTRICTS_BY_CITY).find(([name]) => keyword.includes(name) || name.includes(keyword));
-  return entry ? entry[1] : [];
 }
 
 function profileComplete(child) {

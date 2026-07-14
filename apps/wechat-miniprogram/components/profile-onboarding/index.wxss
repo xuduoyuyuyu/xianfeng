@@ -1,0 +1,130 @@
+.xf-profile-onboarding-mask {
+  position: fixed;
+  z-index: 9999;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40rpx;
+  background: rgba(20, 18, 29, 0.7);
+}
+
+.xf-profile-onboarding-card {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 620rpx;
+  padding: 48rpx 38rpx 38rpx;
+  border-radius: 36rpx;
+  background: #ffffff;
+  box-shadow: 0 28rpx 90rpx rgba(24, 13, 54, 0.28);
+}
+
+.xf-profile-onboarding-close {
+  position: absolute;
+  top: 18rpx;
+  right: 18rpx;
+  width: 56rpx;
+  height: 56rpx;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #f4f1fa;
+  color: #736b80;
+  font-size: 38rpx;
+  line-height: 52rpx;
+}
+
+.xf-profile-onboarding-close::after,
+.xf-profile-onboarding-submit::after {
+  border: 0;
+}
+
+.xf-profile-onboarding-avatar {
+  display: block;
+  width: 116rpx;
+  height: 116rpx;
+  margin: 0 auto 16rpx;
+}
+
+.xf-profile-onboarding-title,
+.xf-profile-onboarding-subtitle {
+  display: block;
+  text-align: center;
+}
+
+.xf-profile-onboarding-title {
+  color: #241b33;
+  font-size: 38rpx;
+  font-weight: 700;
+}
+
+.xf-profile-onboarding-subtitle {
+  margin: 12rpx 0 34rpx;
+  color: #82798d;
+  font-size: 25rpx;
+}
+
+.xf-profile-onboarding-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18rpx;
+}
+
+.xf-profile-onboarding-field {
+  margin-bottom: 22rpx;
+}
+
+.xf-profile-onboarding-label {
+  display: block;
+  margin-bottom: 10rpx;
+  color: #3c3347;
+  font-size: 25rpx;
+  font-weight: 600;
+}
+
+.xf-profile-onboarding-picker {
+  display: flex;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 84rpx;
+  padding: 0 24rpx;
+  border: 2rpx solid #e5dfec;
+  border-radius: 18rpx;
+  background: #faf9fc;
+  color: #30263d;
+  font-size: 27rpx;
+}
+
+.xf-profile-onboarding-picker.is-disabled {
+  color: #b4aeba;
+  background: #f4f2f6;
+}
+
+.xf-profile-onboarding-message {
+  display: block;
+  margin: -4rpx 0 16rpx;
+  color: #c23b51;
+  font-size: 24rpx;
+  text-align: center;
+}
+
+.xf-profile-onboarding-submit {
+  height: 88rpx;
+  margin-top: 6rpx;
+  border: 0;
+  border-radius: 999rpx;
+  background: #6320c5;
+  color: #ffffff;
+  font-size: 28rpx;
+  font-weight: 700;
+  line-height: 88rpx;
+}
+
+.xf-profile-onboarding-submit[disabled] {
+  opacity: 0.68;
+}

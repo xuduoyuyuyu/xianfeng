@@ -8,8 +8,10 @@ const { openWeb } = require("../../utils/webview");
 const { SETTINGS_SECTIONS, applyFontSizeSetting, createNativeSettingsMethods, readFontSizeSetting, setSettingsTabbarHidden } = require("../../utils/nativeSettings");
 const { getInitialSearchPrompt, startSearchPromptRotation, stopSearchPromptRotation } = require("../../utils/searchPrompts");
 const { createFilterDrawerMethods } = require("../../utils/filterDrawer");
+const { buildPersonalizationQuery } = require("../../utils/profileOnboarding");
 
 const PROGRAM_CACHE_KEY = "xf_native_programs_cache_v2";
+const PROGRAM_CACHE_PROFILE_KEY = `${PROGRAM_CACHE_KEY}:profile`;
 const PROGRAM_VIEW_MODE_KEY = "xf_native_programs_view_mode";
 const PROGRAM_PAGE_SIZE = 20;
 const PROGRAM_FILTER_PAGE_SIZE = 100;
@@ -25,6 +27,11 @@ const PROGRAM_STATUS_OPTIONS = [
   { label: "公开发布", value: "published" },
   { label: "群友特供", value: "group-only" }
 ];
+
+function appendProfileQuery(url) {
+  const profileQuery = buildPersonalizationQuery();
+  return profileQuery ? `${url}${url.includes("?") ? "&" : "?"}${profileQuery}` : url;
+}
 
 function normalizeImage(value) {
   const source = String(value || "").trim();
@@ -399,6 +406,7 @@ Page({
   loadCachedPrograms() {
     try {
       const cached = wx.getStorageSync(PROGRAM_CACHE_KEY);
+      if (String(wx.getStorageSync(PROGRAM_CACHE_PROFILE_KEY) || "") !== buildPersonalizationQuery()) return;
       if (!Array.isArray(cached) || !cached.length) return;
       const activeProgramTags = normalizeFilterTags(getSelectedProgramTags(this.data));
       const activeProgramShow = String(this.data.activeProgramShow || "").trim();
@@ -444,7 +452,7 @@ Page({
       error: ""
     });
 
-    return request({ url: `/api/programs?page=${nextPage}&pageSize=${PROGRAM_PAGE_SIZE}` })
+    return request({ url: appendProfileQuery(`/api/programs?page=${nextPage}&pageSize=${PROGRAM_PAGE_SIZE}`) })
       .then((response) => {
         const pagePrograms = normalizePrograms(response);
         const allPrograms = append ? mergeProgramsById(previousPrograms, pagePrograms) : pagePrograms;
@@ -485,7 +493,10 @@ Page({
               ? `没有匹配的 ${activeProgramTagLabel} 节目`
               : "暂时没有可展示的节目"
         });
-        if (!append && allPrograms.length) wx.setStorageSync(PROGRAM_CACHE_KEY, allPrograms);
+        if (!append && allPrograms.length) {
+          wx.setStorageSync(PROGRAM_CACHE_KEY, allPrograms);
+          wx.setStorageSync(PROGRAM_CACHE_PROFILE_KEY, buildPersonalizationQuery());
+        }
       })
       .catch((error) => {
         const fallbackData = this.data || {};
@@ -829,6 +840,12 @@ Page({
 
   retryLoad() {
     this.loadPrograms();
+  },
+
+  onProfileOnboardingSaved() {
+    wx.removeStorageSync(PROGRAM_CACHE_KEY);
+    wx.removeStorageSync(PROGRAM_CACHE_PROFILE_KEY);
+    return this.loadPrograms({ showRefreshing: true });
   },
 
   onShareAppMessage() {

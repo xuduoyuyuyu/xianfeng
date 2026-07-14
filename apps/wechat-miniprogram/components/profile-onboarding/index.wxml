@@ -1,0 +1,37 @@
+<view wx:if="{{visible}}" class="xf-profile-onboarding-mask" catchtouchmove="noop" catchtap="noop">
+  <view class="xf-profile-onboarding-card" catchtap="noop">
+    <button class="xf-profile-onboarding-close" bindtap="close" aria-label="关闭">×</button>
+    <image class="xf-profile-onboarding-avatar" src="/assets/tabbar/xiaowanzi.png" mode="aspectFit" />
+    <text class="xf-profile-onboarding-title">完善基础信息</text>
+    <text class="xf-profile-onboarding-subtitle">填写后，为你优先展示更匹配的内容</text>
+
+    <view class="xf-profile-onboarding-field">
+      <text class="xf-profile-onboarding-label">城市</text>
+      <picker mode="selector" range="{{cities}}" value="{{cityIndex}}" bindchange="chooseCity">
+        <view class="xf-profile-onboarding-picker">{{city || '请选择城市'}}<text>⌄</text></view>
+      </picker>
+    </view>
+    <view class="xf-profile-onboarding-field">
+      <text class="xf-profile-onboarding-label">区域</text>
+      <picker mode="selector" range="{{regions}}" value="{{regionIndex}}" bindchange="chooseRegion" disabled="{{!city}}">
+        <view class="xf-profile-onboarding-picker {{!city ? 'is-disabled' : ''}}">{{region || '请选择区域'}}<text>⌄</text></view>
+      </picker>
+    </view>
+    <view class="xf-profile-onboarding-grid">
+      <view class="xf-profile-onboarding-field">
+        <text class="xf-profile-onboarding-label">学段</text>
+        <picker mode="selector" range="{{stages}}" value="{{stageIndex}}" bindchange="chooseStage">
+          <view class="xf-profile-onboarding-picker">{{stage || '请选择'}}<text>⌄</text></view>
+        </picker>
+      </view>
+      <view class="xf-profile-onboarding-field">
+        <text class="xf-profile-onboarding-label">年级</text>
+        <picker mode="selector" range="{{grades}}" value="{{gradeIndex}}" bindchange="chooseGrade" disabled="{{!stage}}">
+          <view class="xf-profile-onboarding-picker {{!stage ? 'is-disabled' : ''}}">{{gradeName || '请选择'}}<text>⌄</text></view>
+        </picker>
+      </view>
+    </view>
+    <text wx:if="{{message}}" class="xf-profile-onboarding-message">{{message}}</text>
+    <button class="xf-profile-onboarding-submit" loading="{{saving}}" disabled="{{saving}}" bindtap="save">{{saving ? '保存中' : '保存并开启个性化推荐'}}</button>
+  </view>
+</view>

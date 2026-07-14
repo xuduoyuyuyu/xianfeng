@@ -16,6 +16,7 @@ import { isTransientAiGenerationFailure } from "../utils/aiFailure";
 import { AuthenticatedRequest } from "../middlewares/auth";
 import { createAgentTask } from "../services/agentTaskDispatcher";
 import { createInboxMessage } from "../services/adminInbox";
+import { parseContentProfile, rankPersonalizedItems } from "../services/contentPersonalization";
 
 const execFileAsync = promisify(execFile);
 const PUBLIC_PROGRAM_STATUSES = ["published", "group-only"] as const;
@@ -1494,6 +1495,7 @@ export class ProgramController {
       const page = Number.isFinite(pageRaw) && pageRaw > 0 ? Math.floor(pageRaw) : 1;
       const pageSize = Number.isFinite(pageSizeRaw) && pageSizeRaw > 0 ? Math.min(100, Math.floor(pageSizeRaw)) : 20;
       const q = asText(req.query.q).toLowerCase();
+      const profile = q ? null : parseContentProfile(req.query as Record<string, unknown>);
       const baseFilter: any = { status: { $in: PUBLIC_PROGRAM_STATUSES } };
       if (q) {
         const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -1508,7 +1510,7 @@ export class ProgramController {
       // 列表页只取必要字段，排除大字段提升性能（transcript/deepDive 可几十KB）
       const total = await Program.countDocuments(baseFilter);
       const skip = (page - 1) * pageSize;
-      const programs = await Program.find(baseFilter)
+      const programQuery = Program.find(baseFilter)
         .select({
           programCode: 1, title: 1, description: 1, coverImage: 1,
           publishedAt: 1, createdAt: 1, updatedAt: 1,
@@ -1516,10 +1518,18 @@ export class ProgramController {
           summary: 1, episodes: 1, status: 1,
           dictionaryEntryIds: 1, guestBindings: 1,
         })
-        .sort({ publishedAt: -1, createdAt: -1, _id: -1 })
-        .skip(skip)
-        .limit(pageSize)
-        .lean();
+        .sort({ publishedAt: -1, createdAt: -1, _id: -1 });
+      if (!profile) programQuery.skip(skip).limit(pageSize);
+      const foundPrograms = await programQuery.lean();
+      const programs = profile
+        ? rankPersonalizedItems(foundPrograms, profile, (item: any) => [
+            item.title,
+            item.description,
+            item.summary?.headline,
+            item.summary?.body,
+            item.summary?.tags,
+          ]).slice(skip, skip + pageSize)
+        : foundPrograms;
       const attached = await attachDictionaryEntriesToPrograms(programs, false);
       const attachedGuests = await attachGuestBindingsToPrograms(attached);
       // 补充轻量布尔字段（transcript/deepDive 原始数据不返回，节省数百KB）

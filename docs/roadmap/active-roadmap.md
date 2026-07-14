@@ -61,3 +61,22 @@ Acceptance Criteria:
 - If active, move implementation tracking into this roadmap and keep the plan as
   the detailed execution artifact.
 - If obsolete, index it under `docs/roadmap/obsolete/README.md` with a reason.
+
+## XF-004: Mini-program Profile Onboarding And List Personalization
+
+Status: active
+
+Capability: Collect a minimal child profile and prioritize relevant native content
+
+Components:
+- `apps/wechat-miniprogram/components/profile-onboarding/`
+- `apps/wechat-miniprogram/utils/profileOnboarding.js`
+- `backend/src/services/contentPersonalization.ts`
+- Public Programs, Books, Learning Materials, and Topic list handlers
+
+Acceptance Criteria:
+- Incomplete profiles see the modal again on each later app entry after closing.
+- Saving creates or updates the active `孩子` archive with city, region, and grade.
+- Phone login retries local-first profile and archive synchronization.
+- Only the four ordinary native list requests are personalized before pagination.
+- Equal-score and no-profile list order remains stable.

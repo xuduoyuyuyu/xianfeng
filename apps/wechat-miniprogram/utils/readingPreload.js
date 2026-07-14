@@ -1,5 +1,6 @@
 const { DEFAULT_WEB_ORIGIN } = require("./config");
 const { request } = require("./request");
+const { buildPersonalizationQuery } = require("./profileOnboarding");
 
 const BOOK_CACHE_KEY = "xf_native_books_cache_v6";
 const NATIVE_BOOKS_FIRST_PAGE_CACHE_KEY = "xf_native_books_first_page_v3";
@@ -9,6 +10,11 @@ const READING_PAGE_SIZE = 24;
 let nativeBooksPreloadPromise = null;
 let nativeBooksFirstPagePreloadPromise = null;
 let externalLibraryPreloadPromise = null;
+
+function appendProfileQuery(url) {
+  const profileQuery = buildPersonalizationQuery();
+  return profileQuery ? `${url}${url.includes("?") ? "&" : "?"}${profileQuery}` : url;
+}
 
 function cacheValue(key, value) {
   try {
@@ -72,7 +78,7 @@ function mergeCachedNativeDescriptions(records) {
 
 function preloadNativeReadingBooks() {
   if (nativeBooksPreloadPromise) return nativeBooksPreloadPromise;
-  nativeBooksPreloadPromise = request({ url: "/api/books" })
+  nativeBooksPreloadPromise = request({ url: appendProfileQuery("/api/books") })
     .then((response) => {
       const mergedResponse = mergeCachedNativeDescriptions(response);
       if (Array.isArray(mergedResponse) && mergedResponse.length) cacheValue(BOOK_CACHE_KEY, mergedResponse);
@@ -109,9 +115,10 @@ function normalizeNativePageResponse(response, current = 1) {
 
 function preloadNativeReadingFirstPage() {
   if (nativeBooksFirstPagePreloadPromise) return nativeBooksFirstPagePreloadPromise;
-  nativeBooksFirstPagePreloadPromise = request({ url: `/api/books?current=1&size=${READING_PAGE_SIZE}` })
+  nativeBooksFirstPagePreloadPromise = request({ url: appendProfileQuery(`/api/books?current=1&size=${READING_PAGE_SIZE}`) })
     .then((response) => {
       const cache = normalizeNativePageResponse(response, 1);
+      cache.profile = buildPersonalizationQuery();
       if (cache.records.length) cacheValue(NATIVE_BOOKS_FIRST_PAGE_CACHE_KEY, cache);
       return cache;
     })
@@ -125,7 +132,7 @@ function preloadNativeReadingFirstPage() {
 function loadNativeReadingPage(current) {
   const safeCurrent = Math.max(1, Number(current) || 1);
   if (safeCurrent === 1) return preloadNativeReadingFirstPage();
-  return request({ url: `/api/books?current=${safeCurrent}&size=${READING_PAGE_SIZE}` })
+  return request({ url: appendProfileQuery(`/api/books?current=${safeCurrent}&size=${READING_PAGE_SIZE}`) })
     .then((response) => normalizeNativePageResponse(response, safeCurrent));
 }
 
@@ -153,10 +160,18 @@ function preloadReadingLandingData() {
   ]);
 }
 
+function clearReadingProfileCaches() {
+  nativeBooksPreloadPromise = null;
+  nativeBooksFirstPagePreloadPromise = null;
+  wx.removeStorageSync(BOOK_CACHE_KEY);
+  wx.removeStorageSync(NATIVE_BOOKS_FIRST_PAGE_CACHE_KEY);
+}
+
 module.exports = {
   preloadNativeReadingBooks,
   preloadNativeReadingFirstPage,
   loadNativeReadingPage,
   preloadExternalReadingLibrary,
-  preloadReadingLandingData
+  preloadReadingLandingData,
+  clearReadingProfileCaches
 };

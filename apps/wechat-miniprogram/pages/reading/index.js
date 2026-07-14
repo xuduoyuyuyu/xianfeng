@@ -8,7 +8,8 @@ const { openWeb } = require("../../utils/webview");
 const { SETTINGS_SECTIONS, createNativeSettingsMethods, setSettingsTabbarHidden } = require("../../utils/nativeSettings");
 const { getInitialSearchPrompt, startSearchPromptRotation, stopSearchPromptRotation } = require("../../utils/searchPrompts");
 const { createFilterDrawerMethods } = require("../../utils/filterDrawer");
-const { preloadNativeReadingBooks, preloadNativeReadingFirstPage, loadNativeReadingPage, preloadExternalReadingLibrary } = require("../../utils/readingPreload");
+const { preloadNativeReadingBooks, preloadNativeReadingFirstPage, loadNativeReadingPage, preloadExternalReadingLibrary, clearReadingProfileCaches } = require("../../utils/readingPreload");
+const { buildPersonalizationQuery } = require("../../utils/profileOnboarding");
 
 const BOOK_CACHE_KEY = "xf_native_books_cache_v6";
 const NATIVE_BOOKS_FIRST_PAGE_CACHE_KEY = "xf_native_books_first_page_v3";
@@ -84,7 +85,8 @@ function cacheNativeBooksFirstPageResponse(books, total) {
       total: Math.max(Number(total) || 0, books.length),
       current: 1,
       pages: Math.max(1, Math.ceil(Math.max(Number(total) || 0, books.length) / BOOK_PAGE_SIZE)),
-      size: BOOK_PAGE_SIZE
+      size: BOOK_PAGE_SIZE,
+      profile: buildPersonalizationQuery()
     });
   } catch (_error) {}
 }
@@ -1138,7 +1140,7 @@ Page({
   hasNativeBooksCache() {
     try {
       const firstPageCache = wx.getStorageSync(NATIVE_BOOKS_FIRST_PAGE_CACHE_KEY);
-      if (firstPageCache && typeof firstPageCache === "object" && Array.isArray(firstPageCache.records) && firstPageCache.records.length > 0) {
+      if (firstPageCache && typeof firstPageCache === "object" && String(firstPageCache.profile || "") === buildPersonalizationQuery() && Array.isArray(firstPageCache.records) && firstPageCache.records.length > 0) {
         return true;
       }
       const cached = wx.getStorageSync(BOOK_CACHE_KEY);
@@ -1153,6 +1155,7 @@ Page({
       if (!wx.getStorageSync) return null;
       const cached = wx.getStorageSync(NATIVE_BOOKS_FIRST_PAGE_CACHE_KEY);
       if (!cached || typeof cached !== "object" || Array.isArray(cached)) return null;
+      if (String(cached.profile || "") !== buildPersonalizationQuery()) return null;
       const records = Array.isArray(cached.records) ? cached.records : [];
       const books = mergeCachedNativeBookDescriptions(normalizeCachedBooksPayload(records));
       if (!books.length) return null;
@@ -2039,6 +2042,12 @@ Page({
 
   retryLoad() {
     this.loadBooks();
+  },
+
+  onProfileOnboardingSaved() {
+    buildPersonalizationQuery();
+    clearReadingProfileCaches();
+    return this.loadBooks({ showRefreshing: true });
   },
 
   onShareAppMessage() {

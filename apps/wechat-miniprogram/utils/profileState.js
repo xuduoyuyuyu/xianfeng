@@ -55,7 +55,7 @@ function normalizeChildRecord(item, index, options = {}) {
     displayName,
     gender: source.gender === "男" || relation === "儿子" ? "男" : "女",
     birthDate: String(source.birthDate || "").trim(),
-    city: String(source.city || "上海").trim(),
+    city: String(source.city || "").trim(),
     region: String(source.region || "").trim(),
     grade: String(source.grade || "").trim(),
     concernTags: normalizeTags(source.concernTags),

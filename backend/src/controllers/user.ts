@@ -240,6 +240,7 @@ function buildWelProfile(user: any) {
     mobile: user.mobile || "",
     name: safeName,
     grade: user.grade || user.childGrade || "",
+    childGrade: user.childGrade || "",
     city: user.city || "",
     region: user.region || "",
     level: Number(user.level || 1),
@@ -683,6 +684,7 @@ export class UserController {
       if (typeof body.name === "string") user.name = body.name.trim();
       if (typeof body.city === "string") user.city = body.city.trim();
       if (typeof body.region === "string") user.region = body.region.trim();
+      if (typeof body.childGrade === "string") user.childGrade = body.childGrade.trim().slice(0, 80);
       if (typeof body.grade === "string") user.grade = body.grade.trim();
       if (typeof body.avatar_initial === "string") user.avatar_initial = body.avatar_initial.trim().slice(0, 2) || "探";
       if (typeof body.avatar_image === "string") user.avatar_image = body.avatar_image.trim();

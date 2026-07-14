@@ -28,6 +28,9 @@
     "backgroundColor": "#ffffff",
     "backgroundTextStyle": "dark"
   },
+  "usingComponents": {
+    "profile-onboarding": "/components/profile-onboarding/index"
+  },
   "tabBar": {
     "custom": true,
     "color": "#667085",
