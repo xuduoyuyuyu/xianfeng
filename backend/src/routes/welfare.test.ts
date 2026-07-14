@@ -138,6 +138,40 @@ describe("welfare campaign routes", () => {
     assert.equal(listData.history.find((item: any) => item.title === "已抢完绘本").availability, "sold_out");
   });
 
+  it("keeps activation-code campaign stock within claimed and code counts", async () => {
+    const created = await WelfareCampaign.create({ title: "激活码福利", totalStock: 3, claimedCount: 0, status: "draft" });
+    await WelfareActivationCode.insertMany([
+      { campaignId: created._id, code: "CODE-A", importIndex: 0 },
+      { campaignId: created._id, code: "CODE-B", importIndex: 1 },
+      { campaignId: created._id, code: "CODE-C", importIndex: 2 },
+    ]);
+
+    const cappedResponse = await fetch(`${server.adminUrl}/${created._id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: created.title, totalStock: 10, status: "draft" }),
+    });
+    assert.equal(cappedResponse.status, 200);
+    assert.equal((await cappedResponse.json()).campaign.totalStock, 3);
+
+    const lowerResponse = await fetch(`${server.adminUrl}/${created._id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: created.title, totalStock: 2, status: "draft" }),
+    });
+    assert.equal(lowerResponse.status, 200);
+    assert.equal((await lowerResponse.json()).campaign.totalStock, 2);
+
+    await WelfareCampaign.updateOne({ _id: created._id }, { $set: { claimedCount: 2 } });
+    const floorResponse = await fetch(`${server.adminUrl}/${created._id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: created.title, totalStock: 1, status: "draft" }),
+    });
+    assert.equal(floorResponse.status, 200);
+    assert.equal((await floorResponse.json()).campaign.totalStock, 2);
+  });
+
   it("requires login to claim welfare and prevents duplicate or unavailable claims", async () => {
     const now = new Date("2026-07-02T08:00:00.000Z");
     const user = await User.create({

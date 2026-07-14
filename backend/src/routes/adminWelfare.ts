@@ -182,14 +182,24 @@ router.put("/:id", async (req: Request, res: Response) => {
       res.status(400).json({ message: "请填写福利标题" });
       return;
     }
-    const campaign = await WelfareCampaign.findOneAndUpdate(idQuery(asText(req.params.id)), payload, {
-      returnDocument: "after",
-      runValidators: true,
-    });
+    const campaign = await WelfareCampaign.findOne(idQuery(asText(req.params.id)));
     if (!campaign) {
       res.status(404).json({ message: "福利活动不存在" });
       return;
     }
+    const [activationCodeCount, claimCount] = await Promise.all([
+      WelfareActivationCode.countDocuments({ campaignId: campaign._id }),
+      WelfareClaim.countDocuments({ campaignId: campaign._id, status: "claimed" }),
+    ]);
+    const effectiveClaimCount = Math.max(Number(campaign.claimedCount || 0), claimCount);
+    const requestedStock = Math.max(0, Number(payload.totalStock || 0));
+    payload.totalStock = Math.max(
+      effectiveClaimCount,
+      activationCodeCount > 0 ? Math.min(requestedStock, activationCodeCount) : requestedStock
+    );
+    campaign.claimedCount = effectiveClaimCount;
+    campaign.set(payload);
+    await campaign.save();
     const now = resolveNow(req.body?.now);
     const stats = await activationCodeStats([campaign._id]);
     res.json({ campaign: withActivationCodeStats(campaign, now, stats) });
