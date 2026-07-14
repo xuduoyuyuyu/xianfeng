@@ -68,8 +68,7 @@ test("admin mama resource api supports list, review, and manual update", () => {
 
 test("admin mama resources page supports task shelving and account selection inside the task", () => {
   assert.match(source, /任务上架\/选号/);
-  assert.match(source, /任务上架和账号选号/);
-  assert.match(source, /账号选号/);
+  assert.match(source, /内容下发/);
   assert.match(source, /按标签筛选/);
   assert.match(source, /定向选择账号/);
   assert.match(source, /上架新任务/);
@@ -143,6 +142,30 @@ test("admin mama resources page supports task shelving and account selection ins
   assert.match(apiSource, /\/admin\/mama-resources\/tasks\/assignments\/\$\{id\}\/review/);
   assert.match(backendSource, /router\.patch\("\/tasks\/:taskId"/);
   assert.match(backendSource, /buildTaskWritePayload\(req\.body, title\)/);
+});
+
+test("admin task content dispatch opens a current-task-only wide modal", () => {
+  assert.match(source, />内容下发<\/button>/);
+  assert.match(source, /aria-label="当前任务内容下发"/);
+  assert.match(source, /max-w-\[min\(96vw,1440px\)\]/);
+  assert.match(source, /当前任务的账号筛选、分配和专属内容链接/);
+  assert.match(source, /按标签筛选/);
+  assert.match(source, /定向选择账号/);
+  assert.match(source, /已分配账号/);
+
+  const modalStart = source.indexOf('aria-label="当前任务内容下发"');
+  const modalEnd = source.indexOf("{contentImportOpen && contentImportPreview", modalStart);
+  const modalSource = source.slice(modalStart, modalEnd);
+
+  assert.doesNotMatch(modalSource, /上架新任务/);
+  assert.doesNotMatch(modalSource, /已上架任务/);
+  assert.doesNotMatch(modalSource, /openTaskCreate/);
+  assert.doesNotMatch(modalSource, /openTaskEdit/);
+
+  const taskListStart = source.indexOf(">任务列表<");
+  const taskListEnd = source.indexOf("{isReviewMode ? <section", taskListStart);
+  const taskListSource = source.slice(taskListStart, taskListEnd);
+  assert.match(taskListSource, /onClick=\{\(\) => openTaskEdit\(task\)\}/);
 });
 
 test("admin mama resources detail editing is handled in a modal instead of a right rail", () => {

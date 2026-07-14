@@ -361,11 +361,6 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
     setTaskManagerOpen(false);
   };
 
-  const selectTask = async (task: MamaResourceTask) => {
-    setSelectedTask(task);
-    await loadTaskWorkspace(task._id);
-  };
-
   const saveManualData = async () => {
     if (!editing || saving) return;
     if (!manualAlipayAccount.trim()) {
@@ -718,12 +713,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
             <div className="rounded-xl bg-stone-50 px-4 py-5 text-center text-sm font-semibold text-stone-500">暂无已上架任务</div>
           ) : (
             tasks.slice(0, 4).map((task) => (
-              <button
-                key={task._id}
-                type="button"
-                onClick={() => openTaskManager(task)}
-                className="grid w-full grid-cols-[minmax(0,1fr)_120px_120px_auto] items-center gap-3 rounded-xl border border-stone-200 px-4 py-3 text-left hover:border-[#6c27d6] hover:bg-[#fbf8ff]"
-              >
+              <div key={task._id} className="grid w-full grid-cols-[minmax(0,1fr)_120px_120px_auto_auto] items-center gap-3 rounded-xl border border-stone-200 px-4 py-3 text-left hover:border-[#6c27d6] hover:bg-[#fbf8ff]">
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-black text-stone-900">{task.title}</span>
                   <span className="mt-1 block text-xs font-semibold text-stone-500">
@@ -732,8 +722,9 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                 </span>
                 <span className="text-sm font-black text-red-500">{toMoneyText(task.unitPriceCents)}</span>
                 <span className="text-xs font-bold text-stone-500">{taskStatusLabel[String(task.status)] || task.status}</span>
-                <span className="rounded-lg bg-[#f6f0ff] px-3 py-1.5 text-xs font-black text-[#5e17eb]">账号选号</span>
-              </button>
+                <button type="button" onClick={() => openTaskManager(task)} className="rounded-lg bg-[#f6f0ff] px-3 py-1.5 text-xs font-black text-[#5e17eb]">内容下发</button>
+                <button type="button" onClick={() => openTaskEdit(task)} disabled={taskLoading} className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-black text-stone-600 disabled:opacity-50">编辑</button>
+              </div>
             ))
           )}
         </div>
@@ -917,34 +908,16 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
 
       {!isReviewMode && taskManagerOpen ? (
         <div className="fixed inset-0 z-[90] overflow-y-auto bg-black/35 p-4 backdrop-blur-sm" onClick={closeTaskManager}>
-          <aside role="dialog" aria-modal="true" aria-label="任务上架和账号选号" className="mx-auto my-8 max-w-6xl overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+          <aside role="dialog" aria-modal="true" aria-label="当前任务内容下发" className="mx-auto my-6 max-w-[min(96vw,1440px)] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
             <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-stone-100 bg-white px-5 py-4">
               <div>
-                <div className="text-xs font-black text-stone-400">任务上架和账号选号</div>
-                <h2 className="mt-1 text-xl font-black text-stone-900">{selectedTask?.title || "选择任务"}</h2>
-                <div className="mt-1 text-sm font-semibold text-stone-500">在任务上定向选择账号，或按品类、风险标签、粉丝数筛选账号。</div>
+                <div className="text-xs font-black text-stone-400">内容下发</div>
+                <h2 className="mt-1 text-xl font-black text-stone-900">{selectedTask?.title || "当前任务"}</h2>
+                <div className="mt-1 text-sm font-semibold text-stone-500">管理当前任务的账号筛选、分配和专属内容链接。</div>
               </div>
               <button type="button" onClick={closeTaskManager} disabled={taskLoading} className="rounded-full border border-stone-200 px-4 py-2 text-sm font-bold text-stone-600 hover:bg-stone-50 disabled:opacity-50">关闭</button>
             </div>
-            <div className="grid gap-4 p-5 lg:grid-cols-[320px_minmax(0,1fr)]">
-              <div className="space-y-3">
-                <button type="button" onClick={openTaskCreate} disabled={taskLoading} className="w-full rounded-xl bg-[#6c27d6] px-4 py-3 text-sm font-black text-white shadow-[0_10px_24px_rgba(108,39,214,0.18)] disabled:bg-stone-300 disabled:shadow-none">上架新任务</button>
-                <div className="rounded-2xl border border-stone-200 bg-stone-50 p-3">
-                  <div className="mb-2 text-xs font-black text-stone-500">已上架任务</div>
-                  <div className="space-y-2">
-                    {tasks.map((task) => (
-                      <div key={task._id} className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-xl border px-3 py-3 ${selectedTask?._id === task._id ? "border-[#6c27d6] bg-[#f7f2ff]" : "border-stone-200 bg-white"}`}>
-                        <button type="button" onClick={() => selectTask(task)} className="min-w-0 text-left">
-                          <div className="truncate text-sm font-black text-stone-900">{task.title}</div>
-                          <div className="mt-1 text-xs font-semibold text-stone-500">{task.category || "未分类"} · {toMoneyText(task.unitPriceCents)} · {taskStatusLabel[String(task.status)] || task.status}</div>
-                        </button>
-                        <button type="button" onClick={() => openTaskEdit(task)} disabled={taskLoading} className="rounded-lg border border-[#6c27d6] bg-white px-2.5 py-1.5 text-xs font-black text-[#5e17eb] disabled:opacity-50">编辑</button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-4">
+            <div className="space-y-4 p-5">
                 <div className="rounded-2xl border border-stone-200 bg-white p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
@@ -960,7 +933,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                     <input value={taskMinFollowers} onChange={(event) => setTaskMinFollowers(event.target.value)} className="rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="最低粉丝数" />
                   </div>
                 </div>
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(420px,0.85fr)]">
                   <div className="rounded-2xl border border-stone-200 bg-white p-4">
                     <div className="mb-3 flex items-center justify-between gap-3">
                       <div>
@@ -1058,7 +1031,6 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                     </div>
                   </div>
                 </div>
-              </div>
             </div>
           </aside>
         </div>
