@@ -13291,6 +13291,8 @@ test("mama haozhuan category chips toggle without checkbox controls", async () =
           displayName: "安安妈妈",
           contactPhone: "13800000000",
           contactWechat: "anan-mom",
+          alipayAccount: "anan@example.com",
+          alipayVerifiedName: "安安妈妈",
           city: "上海",
           xiaohongshuProfileUrl: "https://www.xiaohongshu.com/user/profile/demo",
           xiaohongshuNickname: "安安妈",
@@ -13307,6 +13309,8 @@ test("mama haozhuan category chips toggle without checkbox controls", async () =
 
     assert.deepEqual(requests[0].data.categories, ["学习用品"]);
     assert.equal(requests[0].data.followerCount, "12800");
+    assert.equal(requests[0].data.alipayAccount, "anan@example.com");
+    assert.equal(requests[0].data.alipayVerifiedName, "安安妈妈");
     assert.equal(requests[0].data.realNameVerified, true);
     assert.equal(requests[0].data.xiaohongshuScreenshotUrl, "/uploads/images/profile.png");
     assert.equal("rateRange" in requests[0].data, false);
