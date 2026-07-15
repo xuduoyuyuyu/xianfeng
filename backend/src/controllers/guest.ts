@@ -287,6 +287,39 @@ export async function loadGuestBookLists(guestId: string): Promise<string[]> {
   }
 }
 
+type GuestAuthoredBook = {
+  id: string;
+  title: string;
+  coverImage: string;
+  publishedDate: string;
+  publisher: string;
+  hasDetail: boolean;
+};
+
+export async function loadGuestAuthoredBooks(guestName: string): Promise<GuestAuthoredBook[]> {
+  if (!guestName) return [];
+  try {
+    const rows = await Book.find(
+      { author: guestName, status: "published" },
+      { title: 1, coverImage: 1, publishedDate: 1, publisher: 1 }
+    ).lean();
+    return rows
+      .map((book: any) => ({
+        id: String(book?._id || ""),
+        title: asText(book?.title),
+        coverImage: fixAvatarUrl(asText(book?.coverImage)),
+        publishedDate: asText(book?.publishedDate),
+        publisher: asText(book?.publisher),
+        hasDetail: Boolean(book?._id),
+      }))
+      .filter((book) => book.id && book.title)
+      .sort((a, b) => b.publishedDate.localeCompare(a.publishedDate));
+  } catch (error) {
+    console.error("[guest-detail] failed to load authored books", error);
+    return [];
+  }
+}
+
 async function buildGuestAgentStatsMap(guestIds: string[]): Promise<Map<string, { chunkCount: number; sourceCounts: Record<string, number> }>> {
   const map = new Map<string, { chunkCount: number; sourceCounts: Record<string, number> }>();
   const objectIds = guestIds
@@ -492,10 +525,12 @@ export class GuestController {
 
       const countMap = await buildGuestProgramCountMap([id]);
       const bookLists = await loadGuestBookLists(id);
+      const authoredBooks = await loadGuestAuthoredBooks(asText((guest as any)?.name));
       res.status(200).json({
         ...serializeGuestListItem(guest, countMap.get(id) || 0),
         relatedPrograms: relatedPrograms.map(serializeProgramCard),
         bookLists,
+        authoredBooks,
       });
     } catch (error) {
       res.status(500).json({ message: "获取嘉宾详情失败", error });

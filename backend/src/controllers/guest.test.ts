@@ -77,4 +77,16 @@ describe("public guest list visibility", () => {
     assert.match(detailSource, /bookLists,/);
     assert.doesNotMatch(detailSource, /bookLists:[\s\S]*\.slice\(0,\s*5\)/);
   });
+
+  it("returns complete published books authored by the exact guest name", () => {
+    const detailStart = source.indexOf("async getByIdPublic");
+    const detailEnd = source.indexOf("// POST /api/guests/:id/submit-wish");
+    const detailSource = source.slice(detailStart, detailEnd);
+
+    assert.match(source, /loadGuestAuthoredBooks\(guestName: string\)/);
+    assert.match(source, /Book\.find\(\s*\{ author: guestName, status: "published" \}/);
+    assert.match(detailSource, /const authoredBooks = await loadGuestAuthoredBooks\(/);
+    assert.match(detailSource, /authoredBooks,/);
+    assert.doesNotMatch(detailSource, /authoredBooks\.slice\(/);
+  });
 });
