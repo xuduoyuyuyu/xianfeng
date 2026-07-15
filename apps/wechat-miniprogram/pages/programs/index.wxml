@@ -221,4 +221,4 @@
     </scroll-view>
   </view>
 </view>
-<profile-onboarding bind:saved="onProfileOnboardingSaved" />
+<profile-onboarding id="profileOnboarding" bind:saved="onProfileOnboardingSaved" />

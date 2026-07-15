@@ -59,6 +59,8 @@ test("native settings logs in logged-out users with the current phone authorizat
   assert.match(nativeSettingsSource, /syncAccountEntry\(\)/);
   assert.match(nativeSettingsSource, /typeof this\.onNativeSettingsLoginSuccess === "function"/);
   assert.match(nativeSettingsSource, /this\.onNativeSettingsLoginSuccess\(payload\)/);
+  assert.match(nativeSettingsSource, /selectComponent\("#profileOnboarding"\)/);
+  assert.match(nativeSettingsSource, /onboarding\.reconcileAfterLogin\(\)/);
   assert.match(nativeSettingsSource, /SETTINGS_MEMBERSHIP_BADGE_KEY/);
   assert.match(nativeSettingsSource, /request\(\{ url: "\/api\/billing\/me" \}\)/);
   assert.match(nativeSettingsSource, /accountSubtitleFor\(token, settingsMemberBadgeLabel\)/);

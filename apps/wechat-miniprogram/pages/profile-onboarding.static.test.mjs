@@ -17,7 +17,7 @@ function page(name) {
 test("the four main lists mount and refresh from profile onboarding", () => {
   for (const name of ["programs", "reading", "materials", "topics"]) {
     const source = page(name);
-    assert.match(source.wxml, /<profile-onboarding bind:saved="onProfileOnboardingSaved"\s*\/>/, name);
+    assert.match(source.wxml, /<profile-onboarding id="profileOnboarding" bind:saved="onProfileOnboardingSaved"\s*\/>/, name);
     assert.match(source.js, /buildPersonalizationQuery/, name);
     assert.match(source.js, /onProfileOnboardingSaved\(\)/, name);
   }

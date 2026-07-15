@@ -711,6 +711,12 @@ function createNativeSettingsMethods() {
               if (typeof this.onNativeSettingsLoginSuccess === "function") {
                 this.onNativeSettingsLoginSuccess(payload);
               }
+              const onboarding = typeof this.selectComponent === "function"
+                ? this.selectComponent("#profileOnboarding")
+                : null;
+              if (onboarding && typeof onboarding.reconcileAfterLogin === "function") {
+                void onboarding.reconcileAfterLogin();
+              }
               this.setData({ profilePanelMessage: "登录成功" });
             })
             .catch((error) => {
