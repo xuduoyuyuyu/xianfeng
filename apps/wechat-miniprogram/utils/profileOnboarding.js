@@ -7,6 +7,7 @@ const { getToken } = require("./session");
 
 const LAST_CHILD_ID_KEY = "xiaowanzi_last_child_id_v1";
 const SYNC_PENDING_KEY = "xf_profile_onboarding_sync_pending_v1";
+const PENDING_PROFILE_KEY = "xf_profile_onboarding_pending_v1";
 const CHILD_AVATAR = "/assets/wel-avatar/no-hat.png";
 const STAGES = ["学前", "小学", "初中", "高中"];
 const GRADES_BY_STAGE = {
@@ -83,14 +84,58 @@ function isBasicProfileComplete(child) {
   return Boolean(child && trim(child.city) && trim(child.region) && trim(child.grade));
 }
 
+function normalizeBasicProfile(value) {
+  return {
+    city: trim(value && value.city),
+    region: trim(value && value.region),
+    grade: trim(value && value.grade),
+  };
+}
+
+function readPendingProfileOnboarding() {
+  const pending = normalizeBasicProfile(wx.getStorageSync(PENDING_PROFILE_KEY));
+  return isBasicProfileComplete(pending) ? pending : null;
+}
+
+function sameBasicProfile(left, right) {
+  const a = normalizeBasicProfile(left);
+  const b = normalizeBasicProfile(right);
+  return a.city === b.city && a.region === b.region && a.grade === b.grade;
+}
+
+function nextDefaultChildName(children) {
+  const used = new Set((Array.isArray(children) ? children : []).map((child) => trim(child && child.displayName)));
+  if (!used.has("孩子")) return "孩子";
+  let index = 2;
+  while (used.has(`孩子${index}`)) index += 1;
+  return `孩子${index}`;
+}
+
+function childFromPending(pending, children) {
+  return {
+    id: newChildId(),
+    relation: "儿子",
+    displayName: nextDefaultChildName(children),
+    gender: "男",
+    birthDate: "",
+    ...normalizeBasicProfile(pending),
+    concernTags: [],
+    avatar: CHILD_AVATAR,
+    createdAt: new Date().toISOString(),
+    draft: false,
+  };
+}
+
 function getProfileOnboardingState() {
   const child = activeChild(loadChildren());
+  const pending = readPendingProfileOnboarding();
+  const source = pending || child;
   return {
     visible: !dismissedForSession && !isBasicProfileComplete(child),
     childId: child ? child.id : "",
-    city: trim(child && child.city),
-    region: trim(child && child.region),
-    grade: trim(child && child.grade),
+    city: trim(source && source.city),
+    region: trim(source && source.region),
+    grade: trim(source && source.grade),
   };
 }
 
@@ -124,36 +169,45 @@ async function saveProfileOnboardingDraft(draft) {
   const grade = formatGrade(trim(draft && draft.stage), trim(draft && draft.gradeName));
   if (!city || !region || !grade) throw new Error("请完整选择城市、区域和年级");
 
-  const current = loadChildren();
-  const selected = activeChild(current);
-  const child = {
-    ...(selected || {}),
-    id: selected ? selected.id : newChildId(),
-    relation: selected ? selected.relation : "儿子",
-    displayName: trim(selected && selected.displayName) || "孩子",
-    gender: selected ? selected.gender : "男",
-    birthDate: trim(selected && selected.birthDate),
-    city,
-    region,
-    grade,
-    concernTags: Array.isArray(selected && selected.concernTags) ? selected.concernTags : [],
-    avatar: trim(selected && selected.avatar) || CHILD_AVATAR,
-    createdAt: trim(selected && selected.createdAt) || new Date().toISOString(),
-    draft: false,
-  };
-  const children = selected
-    ? current.map((item) => item.id === selected.id ? child : item)
-    : [child];
-  saveChildren(children);
-  wx.setStorageSync(LAST_CHILD_ID_KEY, child.id);
+  wx.setStorageSync(PENDING_PROFILE_KEY, { city, region, grade });
   dismissedForSession = true;
-  wx.setStorageSync(SYNC_PENDING_KEY, true);
-  void syncProfileOnboardingRemote(children, child);
-  return { city, region, grade, childId: child.id };
+  return { city, region, grade, childId: "", pending: true };
+}
+
+function reconcilePendingProfileOnboarding(children) {
+  const list = Array.isArray(children) ? children : [];
+  const pending = readPendingProfileOnboarding();
+  if (!pending) return { status: "none", children: list, childId: "", pending: null };
+  const matched = list.find((child) => sameBasicProfile(child, pending));
+  if (matched) return { status: "matched", children: list, childId: matched.id, pending };
+  if (list.length) return { status: "confirm", children: list, childId: "", pending };
+  const child = childFromPending(pending, list);
+  return { status: "created", children: [child], childId: child.id, pending };
+}
+
+function applyPendingProfileOnboardingDecision(action, children) {
+  const list = Array.isArray(children) ? children : [];
+  if (action === "discard") {
+    wx.removeStorageSync(PENDING_PROFILE_KEY);
+    return { status: "discarded", children: list, childId: activeChild(list)?.id || "", pending: null };
+  }
+  const result = reconcilePendingProfileOnboarding(list);
+  if (result.status === "confirm" && action === "create") {
+    const child = childFromPending(result.pending, list);
+    result.status = "created";
+    result.children = list.concat(child);
+    result.childId = child.id;
+  }
+  if (result.status === "matched" || result.status === "created") {
+    saveChildren(result.children);
+    wx.setStorageSync(LAST_CHILD_ID_KEY, result.childId);
+    wx.removeStorageSync(PENDING_PROFILE_KEY);
+  }
+  return result;
 }
 
 function buildPersonalizationQuery() {
-  const child = activeChild(loadChildren());
+  const child = readPendingProfileOnboarding() || activeChild(loadChildren());
   if (!isBasicProfileComplete(child)) return "";
   return [
     ["profileCity", child.city],
@@ -174,8 +228,10 @@ module.exports = {
   CITIES: Object.keys(DISTRICTS_BY_CITY),
   DISTRICTS_BY_CITY,
   GRADES_BY_STAGE,
+  PENDING_PROFILE_KEY,
   STAGES,
   SYNC_PENDING_KEY,
+  applyPendingProfileOnboardingDecision,
   buildPersonalizationQuery,
   dismissProfileOnboardingForSession,
   districtsFor,
@@ -183,6 +239,8 @@ module.exports = {
   getProfileOnboardingState,
   gradesFor,
   parseGrade,
+  readPendingProfileOnboarding,
+  reconcilePendingProfileOnboarding,
   resetProfileOnboardingSession,
   saveProfileOnboardingDraft,
   syncProfileOnboardingRemote,

@@ -40,16 +40,76 @@ test("selects the last-used child and reports incomplete profile fields", () => 
   });
 });
 
-test("creates one base child named 孩子 and updates it on repeat save", async () => {
-  const { profile, storage } = loadProfile();
+test("anonymous onboarding stays pending and does not overwrite formal children", async () => {
+  const existing = [{ id: "old", displayName: "大宝", city: "上海", region: "徐汇区", grade: "小学三年级" }];
+  const { profile, storage } = loadProfile({ xf_child_profiles: existing });
 
-  await profile.saveProfileOnboardingDraft({ city: "上海", region: "徐汇区", stage: "小学", gradeName: "三年级" });
-  await profile.saveProfileOnboardingDraft({ city: "上海", region: "长宁区", stage: "小学", gradeName: "四年级" });
+  await profile.saveProfileOnboardingDraft({ city: "上海", region: "长宁区", stage: "小学", gradeName: "一年级" });
 
+  assert.deepEqual(storage.xf_child_profiles, existing);
+  assert.deepEqual(profile.readPendingProfileOnboarding(), {
+    city: "上海",
+    region: "长宁区",
+    grade: "小学一年级",
+  });
+});
+
+test("reconciliation matches an existing child without changing the list", () => {
+  const children = [
+    { id: "one", displayName: "大宝", city: "上海", region: "徐汇区", grade: "小学三年级" },
+    { id: "two", displayName: "二宝", city: "上海", region: "长宁区", grade: "小学一年级" },
+  ];
+  const { profile } = loadProfile({
+    xf_profile_onboarding_pending_v1: { city: " 上海 ", region: "长宁区", grade: "小学一年级" },
+  });
+
+  const result = profile.reconcilePendingProfileOnboarding(children);
+  assert.equal(result.status, "matched");
+  assert.equal(result.childId, "two");
+  assert.deepEqual(result.children, children);
+});
+
+test("confirming a different pending profile appends a uniquely named child", () => {
+  const children = [
+    { id: "one", displayName: "孩子", city: "上海", region: "徐汇区", grade: "小学三年级" },
+    { id: "two", displayName: "孩子2", city: "上海", region: "静安区", grade: "小学五年级" },
+  ];
+  const { profile, storage } = loadProfile({
+    xf_profile_onboarding_pending_v1: { city: "上海", region: "长宁区", grade: "小学一年级" },
+  });
+
+  const result = profile.applyPendingProfileOnboardingDecision("create", children);
+  assert.equal(result.children.length, 3);
+  assert.equal(result.children[2].displayName, "孩子3");
+  assert.deepEqual(result.children.slice(0, 2), children);
+  assert.equal(storage.xf_profile_onboarding_pending_v1, undefined);
+});
+
+test("discarding pending onboarding preserves every formal child", () => {
+  const children = [{ id: "one", displayName: "大宝" }];
+  const { profile, storage } = loadProfile({
+    xf_profile_onboarding_pending_v1: { city: "上海", region: "长宁区", grade: "小学一年级" },
+  });
+
+  const result = profile.applyPendingProfileOnboardingDecision("discard", children);
+  assert.deepEqual(result.children, children);
+  assert.equal(storage.xf_profile_onboarding_pending_v1, undefined);
+});
+
+test("an account without children creates one child and repeated apply stays idempotent", () => {
+  const { profile, storage } = loadProfile({
+    xf_profile_onboarding_pending_v1: { city: "上海", region: "长宁区", grade: "小学一年级" },
+  });
+
+  const first = profile.applyPendingProfileOnboardingDecision("create", []);
+  const second = profile.applyPendingProfileOnboardingDecision("create", first.children);
+
+  assert.equal(first.status, "created");
+  assert.equal(first.children.length, 1);
+  assert.equal(first.children[0].displayName, "孩子");
+  assert.equal(second.status, "none");
+  assert.equal(second.children.length, 1);
   assert.equal(storage.xf_child_profiles.length, 1);
-  assert.equal(storage.xf_child_profiles[0].displayName, "孩子");
-  assert.equal(storage.xf_child_profiles[0].region, "长宁区");
-  assert.equal(storage.xf_child_profiles[0].grade, "小学四年级");
 });
 
 test("dismissal lasts only until the next foreground reset", () => {
@@ -78,7 +138,7 @@ test("uses the existing five-four school grade options", () => {
   assert.equal(profile.formatGrade("初中", "六年级（预初）"), "初中六年级");
 });
 
-test("local profile save resolves before remote synchronization", async () => {
+test("logged-in profile save remains pending before remote reconciliation", async () => {
   const { profile, storage } = loadProfile({ xf_token: "signed-in" });
   const pendingRequests = [];
   global.wx.request = (options) => pendingRequests.push(options);
@@ -90,7 +150,11 @@ test("local profile save resolves before remote synchronization", async () => {
 
   assert.notEqual(result, "blocked");
   assert.equal(profile.buildPersonalizationQuery().includes("profileCity="), true);
-  assert.equal(storage.xf_profile_onboarding_sync_pending_v1, true);
-  assert.equal(pendingRequests.length, 2);
-  pendingRequests.forEach((request) => request.success({ statusCode: 200, data: { ok: true } }));
+  assert.deepEqual(storage.xf_profile_onboarding_pending_v1, {
+    city: "上海",
+    region: "徐汇区",
+    grade: "小学三年级",
+  });
+  assert.equal(storage.xf_child_profiles, undefined);
+  assert.equal(pendingRequests.length, 0);
 });
