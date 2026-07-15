@@ -311,6 +311,10 @@ export function shouldContinueVolcengineStandardPolling(statusCode: string): boo
   return normalized === "20000001" || normalized === "20000002";
 }
 
+export function isVolcengineStandardQueryComplete(statusCode: string): boolean {
+  return asText(statusCode) === "20000000";
+}
+
 async function fetchVolcengine(url: string, init: RequestInit): Promise<Response> {
   const timeoutMs = getVolcengineFetchTimeoutMs();
   const controller = new AbortController();
@@ -1345,6 +1349,10 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
       if (!queryResp.ok || (queryCode && queryCode !== "20000000")) {
         const msg = asText(queryResp.headers.get("X-Api-Message")) || asText(queryJson?.message) || asText(queryJson?.msg) || `HTTP ${queryResp.status}`;
         throw new Error(`[resource_id=${resourceId}] 标准版查询失败: ${msg}`);
+      }
+      if (isVolcengineStandardQueryComplete(queryCode)) {
+        standardCompleted = true;
+        break;
       }
       const status = Number(queryJson?.result?.status_code ?? queryJson?.result?.status);
       if (status === 1 || status === 2 || status === 2000) {

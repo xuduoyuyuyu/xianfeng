@@ -1,6 +1,7 @@
 import assert from "assert";
 import {
   getVolcengineFlashMaxLocalBytes,
+  isVolcengineStandardQueryComplete,
   normalizeVolcenginePublicSourceUrl,
   shouldContinueVolcengineStandardPolling,
   shouldAttemptVolcengineFlashEndpoint,
@@ -31,5 +32,7 @@ assert.equal(getVolcengineFlashMaxLocalBytes(), 25 * 1024 * 1024);
 assert.equal(shouldContinueVolcengineStandardPolling("20000001"), true);
 assert.equal(shouldContinueVolcengineStandardPolling("20000002"), true);
 assert.equal(shouldContinueVolcengineStandardPolling("20000000"), false);
+assert.equal(isVolcengineStandardQueryComplete("20000000"), true);
+assert.equal(isVolcengineStandardQueryComplete("20000001"), false);
 
 console.log("programAi volcengine helper tests passed");
