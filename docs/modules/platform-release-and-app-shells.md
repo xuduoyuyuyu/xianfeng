@@ -55,11 +55,15 @@
   page and delays detail prefetch to one visible topic after the list is already
   rendered, while filter data can still use the larger background source.
   On first entry, an incomplete local child profile opens a native onboarding
-  modal for city, region, stage, and grade. Saving creates or updates the active
-  child (default display name `孩子`) and writes the same local archive stores.
-  The local save emits the page refresh event immediately; user/archive sync
-  continues in the background after phone login and cannot block the first
-  personalized list request. Closing suppresses the modal only
+  modal for city, region, stage, and grade. Before login, saving writes an
+  isolated pending personalization context rather than a formal child archive;
+  list requests may use that pending context immediately. After phone login,
+  the shell reads remote child profiles before any archive write. A complete
+  field match reuses the existing child, an account without children creates
+  its first `孩子`, and different pending data requires the user to create a
+  uniquely named new child or discard the pending input. Closing that conflict
+  choice preserves pending input for the next entry. No reconciliation path
+  overwrites an existing child. Closing the initial form suppresses it only
   for the current foreground session. The four list requests include the
   complete profile and keep list caches isolated by profile; search, detail,
   and the external book library remain unpersonalized.

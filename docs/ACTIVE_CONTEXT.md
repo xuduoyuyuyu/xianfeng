@@ -9,9 +9,12 @@ Last rewritten: 2026-07-15
 
 The WeChat mini-program is adding minimal child-profile onboarding. An
 incomplete local archive opens a native modal for city, region, stage, and
-grade; closing lasts only for the current foreground session. Saving updates
-the active archive (creating `孩子` when needed), then refreshes the visible
-list while user/archive sync continues in the background after phone login.
+grade; closing lasts only for the current foreground session. Before login,
+saving creates pending personalization context rather than a formal archive.
+After phone login the shell reads the account archives first: an exact match
+is reused, an empty account gets its first child, and different data requires
+an explicit create-or-discard choice without overwriting an existing child.
+Each resolved choice refreshes the visible list.
 Programs, local Reading, Materials, and Topics use field-aware weights for
 region, city, exact and adjacent grade, and stage before pagination.
 Structured fields and tags outweigh body text; zero-score content keeps its
@@ -70,8 +73,9 @@ with more claims than codes reject updates until operators correct the data.
 ## Recent Decisions
 
 - 2026-07-15 - Collect only city, region, stage, and grade in a native modal.
-  Use local-first archive storage, create the default child as `孩子`, retry
-  sync after phone login, and personalize only the four ordinary native lists.
+  Keep anonymous input as pending personalization context; after login read
+  remote archives before matching, creating, or discarding it, and never
+  overwrite an existing child. Personalize only the four ordinary native lists.
   Rank their real structured fields, tags, titles, and body text with explicit
   weights; keep zero-score content stable and refresh before remote sync ends.
 
