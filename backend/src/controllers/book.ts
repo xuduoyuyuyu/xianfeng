@@ -15,7 +15,7 @@ import {
   compareBookQualityScores,
   type BookQualityScore,
 } from "../services/bookQualityScore";
-import { ContentProfile, parseContentProfile, scorePersonalizedText } from "../services/contentPersonalization";
+import { ContentProfile, parseContentProfile, scorePersonalizedContent } from "../services/contentPersonalization";
 
 type BookCoverProxyCacheEntry = {
   contentType: string;
@@ -650,14 +650,13 @@ async function findPagedPublicBooksPrioritizingDescriptions(current: number, siz
         book,
         index,
         qualityScore: calculateBookQualityScore(plain, metadata),
-        profileScore: profile ? scorePersonalizedText([
-          plain?.title,
-          plain?.categoryLabel,
-          plain?.topic,
-          plain?.description,
-          plain?.grade,
-          plain?.sourceName,
-        ], profile) : 0,
+        profileScore: profile ? scorePersonalizedContent({
+          structured: [plain?.grade],
+          tags: [plain?.categoryLabel, plain?.topic, plain?.sourceName],
+          title: [plain?.title],
+          body: [plain?.description],
+          publishedAt: plain?.publishedAt || plain?.createdAt,
+        }, profile) : 0,
       };
     })
     .sort((left, right) => {

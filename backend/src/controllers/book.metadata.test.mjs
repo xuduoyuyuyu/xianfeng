@@ -31,6 +31,7 @@ test("public book metadata reads the formal metadata table", () => {
   assert.match(controllerSource, /const allBooks = await Book\.find\(publishedFilter\)[\s\S]*\.sort\(\{ publishedAt: -1, _id: -1 \}\);/, "public pagination should collect the published set before global health sorting");
   assert.match(controllerSource, /const metadataRows = await listApprovedBookMetadataByBookIds\(allBooks\.map/, "public pagination should include metadata when scoring every published book");
   assert.match(controllerSource, /qualityScore: calculateBookQualityScore\(plain, metadata\)/, "public pagination should score each published book before slicing a page");
+  assert.match(controllerSource, /scorePersonalizedContent/, "public books should score field-aware profile relevance before quality");
   assert.match(controllerSource, /\.slice\(offset, offset \+ size\)/, "public pagination should slice only after global health sorting");
   assert.doesNotMatch(controllerSource, /const describedTake = Math\.min/, "public pagination should not page described and undescribed buckets separately");
   assert.match(controllerSource, /const page = await findPagedPublicBooksPrioritizingDescriptions\(current, size, paged, profile\);/, "both paged and legacy array responses should use profile then quality ordering");

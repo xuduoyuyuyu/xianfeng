@@ -16,7 +16,7 @@ import { isTransientAiGenerationFailure } from "../utils/aiFailure";
 import { AuthenticatedRequest } from "../middlewares/auth";
 import { createAgentTask } from "../services/agentTaskDispatcher";
 import { createInboxMessage } from "../services/adminInbox";
-import { parseContentProfile, rankPersonalizedItems } from "../services/contentPersonalization";
+import { parseContentProfile, rankPersonalizedContent } from "../services/contentPersonalization";
 
 const execFileAsync = promisify(execFile);
 const PUBLIC_PROGRAM_STATUSES = ["published", "group-only"] as const;
@@ -1522,13 +1522,13 @@ export class ProgramController {
       if (!profile) programQuery.skip(skip).limit(pageSize);
       const foundPrograms = await programQuery.lean();
       const programs = profile
-        ? rankPersonalizedItems(foundPrograms, profile, (item: any) => [
-            item.title,
-            item.description,
-            item.summary?.headline,
-            item.summary?.body,
-            item.summary?.tags,
-          ]).slice(skip, skip + pageSize)
+        ? rankPersonalizedContent(foundPrograms, profile, (item: any) => ({
+            structured: [],
+            tags: [item.summary?.tags, item.programShow],
+            title: [item.title],
+            body: [item.description, item.summary?.headline, item.summary?.body],
+            publishedAt: item.publishedAt || item.createdAt,
+          })).slice(skip, skip + pageSize)
         : foundPrograms;
       const attached = await attachDictionaryEntriesToPrograms(programs, false);
       const attachedGuests = await attachGuestBindingsToPrograms(attached);

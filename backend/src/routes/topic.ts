@@ -7,7 +7,7 @@ import GuestAgentChunkModel from "../models/GuestAgentChunk";
 import { retrieveGuestAgentChunks } from "../services/guestAgentService";
 import { generateTopicLayers, validateTopicKeyword } from "../services/topicAiGenerator";
 import type { TopicGuestShareSnippet } from "../services/topicAiGenerator";
-import { parseContentProfile, rankPersonalizedItems } from "../services/contentPersonalization";
+import { parseContentProfile, rankPersonalizedContent } from "../services/contentPersonalization";
 
 // 中文搜索关键词切词：按停用词和标点拆分，提取有意义的短词
 function extractSearchTerms(text: string): string[] {
@@ -203,14 +203,13 @@ publicRouter.get("/", async (req: Request, res: Response) => {
       Topic.countDocuments(filter),
     ]);
     const topics = profile
-      ? rankPersonalizedItems(foundTopics, profile, (item: any) => [
-          item.title,
-          item.subtitle,
-          item.description,
-          item.shortSummary,
-          item.tags,
-          item.suitableGrades,
-        ]).slice((pageNum - 1) * limitNum, pageNum * limitNum)
+      ? rankPersonalizedContent(foundTopics, profile, (item: any) => ({
+          structured: [item.suitableGrades],
+          tags: [item.tags],
+          title: [item.title, item.subtitle],
+          body: [item.description, item.shortSummary],
+          publishedAt: item.createdAt,
+        })).slice((pageNum - 1) * limitNum, pageNum * limitNum)
       : foundTopics;
 
     // 计算 nodeCount 的工具函数

@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
 import LearningMaterial from "../models/LearningMaterial";
-import { parseContentProfile, rankPersonalizedItems } from "../services/contentPersonalization";
+import { parseContentProfile, rankPersonalizedContent } from "../services/contentPersonalization";
 
 function asText(value: any): string {
   if (value === undefined || value === null) return "";
@@ -58,7 +58,13 @@ export class LearningMaterialController {
         publishedAt: -1,
       });
       const profile = parseContentProfile(req.query as Record<string, unknown>);
-      const ranked = rankPersonalizedItems(materials, profile, (item: any) => [item.title, item.description, item.category]);
+      const ranked = rankPersonalizedContent(materials, profile, (item: any) => ({
+        structured: [],
+        tags: [item.category],
+        title: [item.title],
+        body: [item.description],
+        publishedAt: item.publishedAt || item.createdAt,
+      }));
       res.status(200).json(ranked);
     } catch (error) {
       res.status(500).json({ message: "获取学习资料列表失败", error });
