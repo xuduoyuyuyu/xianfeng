@@ -7,6 +7,7 @@ import Pagination from "../components/Pagination";
 import { Book, publicApi } from "../services/api";
 import { useIsMobilePager } from "../hooks/useIsMobilePager";
 import { buildBookCoverImageSrc, getPreferredBookCover } from "../utils/bookCover";
+import { hasBookSourceName } from "../utils/bookSourceNames";
 import { useXiaowanziEmbeddedLayer } from "../utils/xiaowanziLayer";
 
 const PAGE_SIZE = 24;
@@ -267,7 +268,7 @@ const BooksPage: React.FC = () => {
   const filtered = useMemo(() => {
     const q = keyword.toLowerCase();
     return guestBoundBase.filter((item) => {
-      const bySourceName = !boundSourceName || normalizeText(item.sourceName) === boundSourceName;
+      const bySourceName = !boundSourceName || hasBookSourceName(item.sourceName, boundSourceName);
       const byGrade = selectedGrades.length === 0 || selectedGrades.includes(normalizeText(item.grade));
       const byTopic = selectedTopics.length === 0 || selectedTopics.includes(String(item.topic || "").trim());
       const haystack = `${item.title || ""} ${item.author || ""} ${item.publisher || ""} ${item.topic || ""} ${item.categoryLabel || ""} ${item.recommendedGuest || ""}`.toLowerCase();

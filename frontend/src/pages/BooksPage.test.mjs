@@ -68,12 +68,14 @@ test("book cards only link to reading detail pages when metadata exists", () => 
   assert.match(source, /<div className="block">\s*\{cardContent\}\s*<\/div>/s, "books without metadata should render as non-clickable cards");
 });
 
-test("books page supports filtering to one named source list from detail links", () => {
+test("books page matches one named list inside combined source values", () => {
   assert.match(source, /const initialSourceName = normalizeText\(searchParams\.get\("sourceName"\)\);/, "books page should read a sourceName param from detail links");
   assert.match(source, /const \[boundSourceName, setBoundSourceName\] = useState\(initialSourceName\);/, "books page should keep sourceName in page state");
   assert.match(source, /if \(boundSourceName\) next\.set\("sourceName", boundSourceName\);/, "books page should preserve sourceName in the URL");
-  assert.match(source, /const bySourceName = !boundSourceName \|\| normalizeText\(item\.sourceName\) === boundSourceName;/, "books page should filter the current guest-bound list down to the exact source name");
+  assert.match(source, /import \{ hasBookSourceName \} from "\.\.\/utils\/bookSourceNames";/);
+  assert.match(source, /const bySourceName = !boundSourceName \|\| hasBookSourceName\(item\.sourceName, boundSourceName\);/);
   assert.match(source, /return bySourceName && byGrade && byTopic && byKeyword;/, "sourceName filtering should compose with the existing filters");
+  assert.doesNotMatch(source, /normalizeText\(item\.sourceName\) === boundSourceName/);
 });
 
 test("books page keeps styled layout in mini program web-view without relying on Tailwind utilities", () => {
