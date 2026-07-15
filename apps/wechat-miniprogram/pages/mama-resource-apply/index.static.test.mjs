@@ -9,6 +9,14 @@ const jsSource = readFileSync(resolve(__dirname, "index.js"), "utf8");
 const wxmlSource = readFileSync(resolve(__dirname, "index.wxml"), "utf8");
 const wxssSource = readFileSync(resolve(__dirname, "index.wxss"), "utf8");
 
+test("mini mama resource form marks every required field", () => {
+  ["姓名/昵称", "微信号", "支付宝账号", "支付宝验证姓名", "账号昵称", "小红书主页链接"].forEach((label) => {
+    assert.match(wxmlSource, new RegExp(`${label}<text class="xf-mama-required">\\*</text>`));
+  });
+  assert.match(wxmlSource, /<text class="xf-mama-required">\*<\/text>资料会用于任务匹配和运营联系/);
+  assert.match(wxssSource, /\.xf-mama-required\s*\{[\s\S]*color:\s*#e11d48;/);
+});
+
 test("mama resource form keeps an unsent draft across page exits", () => {
   assert.match(jsSource, /MAMA_RESOURCE_APPLY_DRAFT_KEY/);
   assert.match(jsSource, /loadApplyDraft\(\)/);
@@ -116,8 +124,8 @@ test("mama resource profile management is always available and separates persona
   assert.match(wxmlSource, /<image[^>]*class="xf-mama-platform-logo-image"[^>]*src="\{\{item\.platformLogoUrl\}\}"/);
   assert.match(wxmlSource, /\{\{item\.platformLogoText\}\}/);
   assert.match(wxmlSource, /data-field="profileUrl"[^>]*bindinput="updateMediaAccountField"/);
-  assert.match(wxmlSource, /账号昵称<input name="xiaohongshuNickname"[^>]*value="\{\{formDraft\.xiaohongshuNickname\}\}"[^>]*data-field="xiaohongshuNickname"[^>]*bindinput="updateDraftField"/);
-  assert.match(wxmlSource, /账号昵称<input value="\{\{item\.nickname\}\}"[^>]*placeholder="必填"/);
+  assert.match(wxmlSource, /账号昵称<text class="xf-mama-required">\*<\/text><input name="xiaohongshuNickname"[^>]*value="\{\{formDraft\.xiaohongshuNickname\}\}"[^>]*data-field="xiaohongshuNickname"[^>]*bindinput="updateDraftField"/);
+  assert.match(wxmlSource, /账号昵称<text class="xf-mama-required">\*<\/text><input value="\{\{item\.nickname\}\}"[^>]*placeholder="必填"/);
   assert.match(wxmlSource, /<text>\{\{item\.nickname \|\| item\.platformLabel \+ "账号"\}\}<\/text>/);
   assert.doesNotMatch(wxmlSource, /item\.platformLabel\}\}账号 \{\{index \+ 2\}\}/);
   assert.match(wxmlSource, /catchtap="addMediaAccount"[^>]*>添加新账号<\/button>/);
