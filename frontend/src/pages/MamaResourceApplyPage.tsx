@@ -493,6 +493,7 @@ const MamaResourceApplyPage: React.FC = () => {
       !submitting
     );
   }, [form, submitting, uploadingScreenshot]);
+  const requiredMark = <span className="ml-0.5 text-[#e11d48]" aria-hidden="true">*</span>;
 
   const updateField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -854,11 +855,11 @@ const MamaResourceApplyPage: React.FC = () => {
                     <button type="button" className={editorBackClass} onClick={saveCurrentProfileSectionAndBack}>保存并返回</button>
                   </div>
                   <label className={fieldClass}>
-                    姓名/昵称
+                    姓名/昵称 {requiredMark}
                     <input className={inputClass} value={form.displayName} onChange={(event) => updateField("displayName", event.target.value)} placeholder="例如：安安妈妈" />
                   </label>
                   <label className={fieldClass}>
-                    微信号
+                    微信号 {requiredMark}
                     <input name="contactWechat" className={inputClass} value={form.contactWechat} onChange={(event) => updateField("contactWechat", event.target.value)} placeholder="优先通过微信添加" />
                   </label>
                   <label className={fieldClass}>
@@ -866,11 +867,11 @@ const MamaResourceApplyPage: React.FC = () => {
                     <input name="contactPhone" className={inputClass} value={form.contactPhone} onChange={(event) => updateField("contactPhone", event.target.value)} placeholder="备用联系电话" />
                   </label>
                   <label className={fieldClass}>
-                    支付宝账号
+                    支付宝账号 {requiredMark}
                     <input name="alipayAccount" className={inputClass} value={form.alipayAccount} onChange={(event) => updateField("alipayAccount", event.target.value)} placeholder="手机号或邮箱账号" />
                   </label>
                   <label className={fieldClass}>
-                    支付宝验证姓名
+                    支付宝验证姓名 {requiredMark}
                     <input name="alipayVerifiedName" className={inputClass} value={form.alipayVerifiedName} onChange={(event) => updateField("alipayVerifiedName", event.target.value)} placeholder="支付宝实名认证姓名" />
                   </label>
                   <label className={fieldClass}>
@@ -907,11 +908,11 @@ const MamaResourceApplyPage: React.FC = () => {
                     <button type="button" className={editorBackClass} onClick={saveCurrentProfileSectionAndBack}>保存并返回</button>
                   </div>
                   <label className={fieldClass}>
-                    小红书账号昵称
+                    小红书账号昵称 {requiredMark}
                     <input name="xiaohongshuNickname" className={inputClass} value={form.xiaohongshuNickname} onChange={(event) => updateField("xiaohongshuNickname", event.target.value)} placeholder="账号主页展示的昵称" />
                   </label>
                   <label className={fieldClass}>
-                    小红书主页链接
+                    小红书主页链接 {requiredMark}
                     <input className={inputClass} value={form.xiaohongshuProfileUrl} onChange={(event) => updateField("xiaohongshuProfileUrl", event.target.value)} placeholder="可粘贴整段口令或主页短链接" />
                   </label>
                   <label className={fieldClass}>
@@ -957,7 +958,7 @@ const MamaResourceApplyPage: React.FC = () => {
                           ))}
                         </div>
                         <label className="mt-[8px] block text-[12px] font-extrabold text-[#4b4453]">
-                          账号昵称
+                          账号昵称 {requiredMark}
                           <input className="mt-[5px] h-[37px] w-full rounded-[10px] border border-[#ddd7e8] px-[10px] text-[13px] font-medium outline-none focus:border-[#6c27d6]" value={account.nickname} onChange={(event) => updateMediaAccount(index, "nickname", event.target.value)} placeholder="必填" />
                         </label>
                         <label className="mt-[8px] block text-[12px] font-extrabold text-[#4b4453]">
@@ -1003,7 +1004,7 @@ const MamaResourceApplyPage: React.FC = () => {
                     <label className="flex items-start gap-[5px] text-[12px] font-extrabold leading-[1.5] text-[#4b4453]">
                       <input type="checkbox" checked={form.consentAccepted} onChange={(event) => updateField("consentAccepted", event.target.checked)} className="peer sr-only" />
                       <span className="mt-[1px] flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full border border-[#6c27d6] bg-white text-[11px] font-black leading-none text-[#6c27d6] opacity-40 peer-checked:opacity-100">✓</span>
-                      我同意家和万事团队为发稿资源匹配和运营联系使用以上资料
+                      {requiredMark} 我同意家和万事团队为发稿资源匹配和运营联系使用以上资料
                     </label>
                   </div>
                   <button type="button" className="mt-[13px] w-full rounded-[13px] bg-[#6c27d6] p-[13px] text-[14.5px] font-black leading-none text-white" onClick={saveCurrentProfileSectionAndBack}>保存接单偏好</button>

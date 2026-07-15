@@ -83,11 +83,11 @@
             <view class="xf-mama-editor-back" catchtap="saveCurrentProfileSectionAndBack" role="button">保存并返回</view>
           </view>
           <view class="xf-mama-grid">
-            <label class="xf-mama-field">姓名/昵称<input name="displayName" value="{{formDraft.displayName}}" data-field="displayName" bindinput="updateDraftField" placeholder="例如：安安妈妈" placeholder-class="xf-mama-placeholder" /></label>
-            <label class="xf-mama-field">微信号<input name="contactWechat" value="{{formDraft.contactWechat}}" data-field="contactWechat" bindinput="updateDraftField" placeholder="优先通过微信添加" placeholder-class="xf-mama-placeholder" /></label>
+            <label class="xf-mama-field">姓名/昵称<text class="xf-mama-required">*</text><input name="displayName" value="{{formDraft.displayName}}" data-field="displayName" bindinput="updateDraftField" placeholder="例如：安安妈妈" placeholder-class="xf-mama-placeholder" /></label>
+            <label class="xf-mama-field">微信号<text class="xf-mama-required">*</text><input name="contactWechat" value="{{formDraft.contactWechat}}" data-field="contactWechat" bindinput="updateDraftField" placeholder="优先通过微信添加" placeholder-class="xf-mama-placeholder" /></label>
             <label class="xf-mama-field">手机号<input name="contactPhone" value="{{formDraft.contactPhone}}" data-field="contactPhone" bindinput="updateDraftField" placeholder="备用联系电话" placeholder-class="xf-mama-placeholder" /></label>
-            <label class="xf-mama-field">支付宝账号<input name="alipayAccount" value="{{formDraft.alipayAccount}}" data-field="alipayAccount" bindinput="updateDraftField" placeholder="用于任务结算转账" placeholder-class="xf-mama-placeholder" /></label>
-            <label class="xf-mama-field">支付宝验证姓名<input name="alipayVerifiedName" value="{{formDraft.alipayVerifiedName}}" data-field="alipayVerifiedName" bindinput="updateDraftField" placeholder="支付宝实名认证姓名" placeholder-class="xf-mama-placeholder" /></label>
+            <label class="xf-mama-field">支付宝账号<text class="xf-mama-required">*</text><input name="alipayAccount" value="{{formDraft.alipayAccount}}" data-field="alipayAccount" bindinput="updateDraftField" placeholder="用于任务结算转账" placeholder-class="xf-mama-placeholder" /></label>
+            <label class="xf-mama-field">支付宝验证姓名<text class="xf-mama-required">*</text><input name="alipayVerifiedName" value="{{formDraft.alipayVerifiedName}}" data-field="alipayVerifiedName" bindinput="updateDraftField" placeholder="支付宝实名认证姓名" placeholder-class="xf-mama-placeholder" /></label>
             <label class="xf-mama-field">城市<input name="city" value="{{formDraft.city}}" data-field="city" bindinput="updateDraftField" placeholder="上海 / 杭州" placeholder-class="xf-mama-placeholder" /></label>
           </view>
           <label class="xf-mama-field">
@@ -111,8 +111,8 @@
             <text class="xf-mama-section-heading">社交媒体账号</text>
             <view class="xf-mama-editor-back" catchtap="saveCurrentProfileSectionAndBack" role="button">保存并返回</view>
           </view>
-          <label class="xf-mama-field">账号昵称<input name="xiaohongshuNickname" value="{{formDraft.xiaohongshuNickname}}" data-field="xiaohongshuNickname" bindinput="updateDraftField" placeholder="必填" placeholder-class="xf-mama-placeholder" /></label>
-          <label class="xf-mama-field">小红书主页链接<input class="{{formDraft.originalXiaohongshuProfileUrl ? 'is-locked' : ''}}" name="xiaohongshuProfileUrl" value="{{formDraft.xiaohongshuProfileUrl}}" data-field="xiaohongshuProfileUrl" bindinput="updateDraftField" disabled="{{formDraft.originalXiaohongshuProfileUrl}}" placeholder="可粘贴整段口令或主页短链接" placeholder-class="xf-mama-placeholder" /></label>
+          <label class="xf-mama-field">账号昵称<text class="xf-mama-required">*</text><input name="xiaohongshuNickname" value="{{formDraft.xiaohongshuNickname}}" data-field="xiaohongshuNickname" bindinput="updateDraftField" placeholder="必填" placeholder-class="xf-mama-placeholder" /></label>
+          <label class="xf-mama-field">小红书主页链接<text class="xf-mama-required">*</text><input class="{{formDraft.originalXiaohongshuProfileUrl ? 'is-locked' : ''}}" name="xiaohongshuProfileUrl" value="{{formDraft.xiaohongshuProfileUrl}}" data-field="xiaohongshuProfileUrl" bindinput="updateDraftField" disabled="{{formDraft.originalXiaohongshuProfileUrl}}" placeholder="可粘贴整段口令或主页短链接" placeholder-class="xf-mama-placeholder" /></label>
           <text wx:if="{{formDraft.originalXiaohongshuProfileUrl}}" class="xf-mama-upload-hint">主页链接已锁定，保存时只更新昵称等资料。</text>
           <view class="xf-mama-field">
             <text>小红书页面截图</text>
@@ -146,7 +146,7 @@
               </picker>
             </label>
             <label class="xf-mama-field">主页链接<input value="{{item.profileUrl}}" data-index="{{index}}" data-field="profileUrl" bindinput="updateMediaAccountField" placeholder="可粘贴整段口令或主页链接" placeholder-class="xf-mama-placeholder" /></label>
-            <label class="xf-mama-field">账号昵称<input value="{{item.nickname}}" data-index="{{index}}" data-field="nickname" bindinput="updateMediaAccountField" placeholder="必填" placeholder-class="xf-mama-placeholder" /></label>
+            <label class="xf-mama-field">账号昵称<text class="xf-mama-required">*</text><input value="{{item.nickname}}" data-index="{{index}}" data-field="nickname" bindinput="updateMediaAccountField" placeholder="必填" placeholder-class="xf-mama-placeholder" /></label>
             <label class="xf-mama-field">粉丝数<input type="number" value="{{item.followerCount}}" data-index="{{index}}" data-field="followerCount" bindinput="updateMediaAccountField" placeholder="例如：3600" placeholder-class="xf-mama-placeholder" /></label>
           </view>
           <view class="xf-mama-add-account-row">
@@ -170,7 +170,7 @@
           </view>
           <view class="xf-mama-panel">
             <label class="xf-mama-field is-nested">暂不接的品类<input name="blockedCategories" value="{{formDraft.blockedCategories}}" data-field="blockedCategories" bindinput="updateDraftField" placeholder="例如：医美、金融、成人用品" placeholder-class="xf-mama-placeholder" /></label>
-            <text class="xf-mama-check">资料会用于任务匹配和运营联系，可联系运营停用或更新。</text>
+            <text class="xf-mama-check"><text class="xf-mama-required">*</text>资料会用于任务匹配和运营联系，可联系运营停用或更新。</text>
           </view>
           <view wx:if="{{message}}" class="xf-mama-message {{messageType}}">{{message}}</view>
           <button form-type="submit" class="xf-mama-submit">保存接单偏好</button>

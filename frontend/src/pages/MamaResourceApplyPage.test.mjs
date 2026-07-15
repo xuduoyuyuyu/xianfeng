@@ -10,6 +10,14 @@ const appSource = readFileSync(resolve(__dirname, "../App.tsx"), "utf8");
 const apiSource = readFileSync(resolve(__dirname, "../services/api.ts"), "utf8");
 const staticSource = readFileSync(resolve(__dirname, "../../public/screens/public-mama-resource-apply.html"), "utf8");
 
+test("web mama resource form marks every required field", () => {
+  assert.match(source, /const requiredMark = <span className="ml-0\.5 text-\[#e11d48\]"[^>]*>\*<\/span>;/);
+  ["姓名\/昵称", "微信号", "支付宝账号", "支付宝验证姓名", "小红书账号昵称", "小红书主页链接", "账号昵称"].forEach((label) => {
+    assert.match(source, new RegExp(`${label}\\s*\\{requiredMark\\}`));
+  });
+  assert.match(source, /\{requiredMark\}\s*我同意家和万事团队/);
+});
+
 function sourceFunction(name) {
   const start = source.indexOf(`function ${name}(`);
   assert.notEqual(start, -1, `missing function ${name}`);
