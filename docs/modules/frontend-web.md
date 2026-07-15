@@ -27,6 +27,10 @@
 ### Active
 
 - XF-001 - Keep public/admin web behavior stable while governance is introduced.
+- Guest detail booklists parse legacy semicolon-delimited `sourceName` values
+  into exact normalized names. Cards are deduplicated in first-seen order and
+  `/books` filters by membership in the parsed source list rather than by whole
+  legacy-string equality.
 - Child profile drawer creates local unnamed draft profiles immediately in the
   tabs UI, but only one unnamed draft may exist at a time; Xiaowanzi only
   treats saved non-draft profiles as selectable or syncable.

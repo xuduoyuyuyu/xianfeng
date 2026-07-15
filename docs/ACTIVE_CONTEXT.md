@@ -7,6 +7,13 @@ Last rewritten: 2026-07-15
 
 ## Current Focus
 
+Guest detail pages split legacy semicolon-delimited book source strings into
+real list names, remove exact normalized duplicates in first-seen order, and
+link each card to that specific list. The public books page applies the same
+parser when filtering, so a selected list matches books whose combined source
+field contains it. This remains a frontend interpretation of existing data;
+production records and backend API contracts are unchanged.
+
 The WeChat mini-program is adding minimal child-profile onboarding. An
 incomplete local archive opens a native modal for city, region, stage, and
 grade; closing lasts only for the current foreground session. Before login,
@@ -71,6 +78,11 @@ with more claims than codes reject updates until operators correct the data.
 - `docs/ACTIVE_CONTEXT.md` is rewritten, not appended.
 
 ## Recent Decisions
+
+- 2026-07-15 - Treat semicolon-delimited `sourceName` values as multiple real
+  guest booklists. Normalize whitespace and wrapping book-title marks, preserve
+  first-seen order, avoid fuzzy merging, and filter `/books` by parsed-list
+  membership without rewriting production data.
 
 - 2026-07-15 - Collect only city, region, stage, and grade in a native modal.
   Keep anonymous input as pending personalization context; after login read
