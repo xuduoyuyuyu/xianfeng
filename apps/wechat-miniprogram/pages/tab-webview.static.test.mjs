@@ -14778,6 +14778,22 @@ test("native expert detail shows five booklists and can expand the remainder", (
   assert.match(wxss, /\.xf-expert-detail-booklist-link \{/);
 });
 
+test("native expert detail renders authored works and copies social profiles", () => {
+  const { js, wxml, wxss } = readPage("webview");
+
+  assert.match(js, /const authoredBooks = \(Array\.isArray\(item\.authoredBooks\)/);
+  assert.match(js, /openNativeExpertAuthoredBook\(event\)/);
+  assert.match(js, /copyNativeExpertSocial\(event\)/);
+  assert.match(js, /wx\.setClipboardData\(\{/);
+  assert.match(js, /url \? "链接已复制" : "账号名称已复制"/);
+  assert.match(wxml, /wx:if="\{\{nativeExpert\.authoredBooks\.length\}\}" class="xf-expert-detail-card is-authored-books"/);
+  assert.match(wxml, /scroll-x="true"[\s\S]*catchtap="openNativeExpertAuthoredBook"/);
+  assert.match(wxml, /wx:if="\{\{nativeExpert\.socialProfiles\.length\}\}" class="xf-expert-detail-card is-social-media"/);
+  assert.match(wxml, /catchtap="copyNativeExpertSocial"/);
+  assert.match(wxss, /\.xf-expert-detail-authored-scroll \{/);
+  assert.match(wxss, /\.xf-expert-detail-social-item \{/);
+});
+
 test("webview native program detail page keeps program, book, and topic details in the mobile web style", async () => {
   const { js, json, wxml, wxss } = readPage("webview");
   const definition = loadPageDefinition("webview");

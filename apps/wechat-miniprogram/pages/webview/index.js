@@ -1525,6 +1525,22 @@ function normalizeExpertLinks(value) {
     : [];
 }
 
+function normalizeExpertSocialProfiles(value) {
+  return Array.isArray(value)
+    ? value.map((item) => {
+      const label = firstText([item && item.label, item && item.name, item && item.url], "");
+      const platform = firstText([item && item.platform, item && item.source, item && item.type], "社交媒体");
+      return {
+        title: label,
+        label,
+        platform,
+        source: platform,
+        url: firstText([item && item.url, item && item.href, item && item.link], "")
+      };
+    }).filter((item) => item.title || item.url)
+    : [];
+}
+
 function normalizeExpertPrograms(value) {
   return Array.isArray(value)
     ? value.map((item) => {
@@ -1546,13 +1562,23 @@ function normalizeExpertDetail(guest) {
   const name = firstText([item.name, item.title], "先疯智库");
   const publications = normalizeExpertLinks(item.publications);
   const profileReferences = normalizeExpertLinks(item.profileReferences);
-  const socialProfiles = normalizeExpertLinks(item.socialProfiles);
+  const socialProfiles = normalizeExpertSocialProfiles(item.socialProfiles);
   const listenerBenefits = normalizeExpertLinks(item.listenerBenefits);
   const relatedPrograms = normalizeExpertPrograms(item.relatedPrograms);
   const contentTags = normalizeTopicTagList(item.contentTags || item.tags).slice(0, 6);
   const referenceCount = Number(item.referenceCount || 0) || publications.length + profileReferences.length;
   const programCount = Number(item.programCount || 0) || relatedPrograms.length;
   const publicItems = [...publications, ...profileReferences].slice(0, 6);
+  const authoredBooks = (Array.isArray(item.authoredBooks) ? item.authoredBooks : [])
+    .map((book) => ({
+      id: firstText([book && book.id, book && book._id], ""),
+      title: firstText([book && book.title], ""),
+      coverImage: normalizeBookImage(book && book.coverImage),
+      publishedDate: firstText([book && book.publishedDate], ""),
+      publisher: firstText([book && book.publisher], ""),
+      hasDetail: !!(book && book.hasDetail)
+    }))
+    .filter((book) => book.id && book.title);
   const seenBookLists = new Set();
   const bookLists = (Array.isArray(item.bookLists) ? item.bookLists : [])
     .map((value) => firstText([value], ""))
@@ -1586,6 +1612,7 @@ function normalizeExpertDetail(guest) {
     socialProfiles,
     listenerBenefits,
     publicItems,
+    authoredBooks,
     bookLists,
     visibleBookLists: bookLists.slice(0, 5),
     bookListsExpanded: false,
@@ -3448,6 +3475,32 @@ Page({
       sourceGuestId: expert.id,
       guest: expert.name,
       sourceName: name
+    });
+  },
+
+  openNativeExpertAuthoredBook(event) {
+    const dataset = event && event.currentTarget ? event.currentTarget.dataset || {} : {};
+    const id = firstText([dataset.id], "");
+    if (!id || dataset.detail !== true) return;
+    wx.navigateTo({
+      url: `/pages/webview/index?bookId=${encodeURIComponent(id)}&title=${encodeURIComponent("图书详情")}`
+    });
+  },
+
+  copyNativeExpertSocial(event) {
+    const dataset = event && event.currentTarget ? event.currentTarget.dataset || {} : {};
+    const url = firstText([dataset.copyUrl], "");
+    const label = firstText([dataset.copyLabel], "");
+    const value = url || label;
+    if (!value) return;
+    wx.setClipboardData({
+      data: value,
+      success() {
+        wx.showToast({ title: url ? "链接已复制" : "账号名称已复制", icon: "success" });
+      },
+      fail() {
+        wx.showToast({ title: "复制失败", icon: "none" });
+      }
     });
   },
 

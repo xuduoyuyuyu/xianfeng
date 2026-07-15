@@ -694,6 +694,51 @@
       </scroll-view>
     </view>
 
+    <view wx:if="{{nativeExpert.authoredBooks.length}}" class="xf-expert-detail-card is-authored-books">
+      <text class="xf-expert-detail-eyebrow">AUTHORED WORKS</text>
+      <text class="xf-expert-detail-section-title">嘉宾著作</text>
+      <text class="xf-expert-detail-section-copy">这位嘉宾自己的著作作品。</text>
+      <scroll-view class="xf-expert-detail-authored-scroll" scroll-x="true" enhanced show-scrollbar="false">
+        <view class="xf-expert-detail-authored-row">
+          <view
+            wx:for="{{nativeExpert.authoredBooks}}"
+            wx:key="id"
+            class="xf-expert-detail-authored-card"
+            data-id="{{item.id}}"
+            data-detail="{{item.hasDetail}}"
+            catchtap="openNativeExpertAuthoredBook"
+          >
+            <image wx:if="{{item.coverImage}}" class="xf-expert-detail-authored-cover" src="{{item.coverImage}}" mode="aspectFill" />
+            <view wx:else class="xf-expert-detail-authored-cover is-empty"></view>
+            <text class="xf-expert-detail-authored-title">{{item.title}}</text>
+            <text wx:if="{{item.publishedDate || item.publisher}}" class="xf-expert-detail-authored-meta">{{item.publishedDate}}{{item.publishedDate && item.publisher ? " · " : ""}}{{item.publisher}}</text>
+            <text wx:if="{{item.hasDetail}}" class="xf-expert-detail-authored-action">查看详情</text>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+
+    <view wx:if="{{nativeExpert.socialProfiles.length}}" class="xf-expert-detail-card is-social-media">
+      <text class="xf-expert-detail-section-title">社交媒体</text>
+      <text class="xf-expert-detail-section-copy">用于快速进入嘉宾的公开账号、栏目或持续输出阵地。</text>
+      <view class="xf-expert-detail-social-list">
+        <view
+          wx:for="{{nativeExpert.socialProfiles}}"
+          wx:key="title"
+          class="xf-expert-detail-social-item"
+          data-copy-url="{{item.url}}"
+          data-copy-label="{{item.title}}"
+          catchtap="copyNativeExpertSocial"
+        >
+          <view class="xf-expert-detail-social-copy-row">
+            <text class="xf-expert-detail-social-platform">{{item.platform}}</text>
+            <text class="xf-expert-detail-social-copy">复制</text>
+          </view>
+          <text class="xf-expert-detail-social-label">{{item.title || item.url}}</text>
+        </view>
+      </view>
+    </view>
+
     <view wx:if="{{!nativeExpert.agentEnabled && nativeExpert.publicItems.length}}" class="xf-expert-detail-card is-static-publications">
       <text class="xf-expert-detail-eyebrow">PUBLIC CONTENT</text>
       <text class="xf-expert-detail-section-title">公开内容与资料</text>

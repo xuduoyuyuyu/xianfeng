@@ -3316,6 +3316,109 @@ page {
   text-align: left;
 }
 
+.xf-expert-detail-card.is-authored-books,
+.xf-expert-detail-card.is-social-media {
+  text-align: left;
+}
+
+.xf-expert-detail-authored-scroll {
+  width: 100%;
+  margin-top: 24rpx;
+  white-space: nowrap;
+}
+
+.xf-expert-detail-authored-row {
+  display: inline-flex;
+  gap: 18rpx;
+  padding-right: 8rpx;
+}
+
+.xf-expert-detail-authored-card {
+  display: inline-flex;
+  width: 224rpx;
+  min-height: 420rpx;
+  padding: 16rpx;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: center;
+  vertical-align: top;
+  white-space: normal;
+  border: 2rpx solid #eadffc;
+  border-radius: 30rpx;
+  background: #fcfaff;
+}
+
+.xf-expert-detail-authored-cover {
+  width: 190rpx;
+  height: 270rpx;
+  border-radius: 22rpx;
+  background: #f1ebfb;
+}
+
+.xf-expert-detail-authored-cover.is-empty {
+  display: block;
+}
+
+.xf-expert-detail-authored-title {
+  margin-top: 14rpx;
+  color: #241a3a;
+  font-size: 24rpx;
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.xf-expert-detail-authored-meta {
+  margin-top: 6rpx;
+  color: #8b7db6;
+  font-size: 19rpx;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.xf-expert-detail-authored-action {
+  margin-top: auto;
+  padding-top: 10rpx;
+  color: #6d28d9;
+  font-size: 20rpx;
+  font-weight: 800;
+}
+
+.xf-expert-detail-social-list {
+  display: flex;
+  margin-top: 24rpx;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.xf-expert-detail-social-item {
+  padding: 24rpx 28rpx;
+  border: 2rpx solid #eadffc;
+  border-radius: 28rpx;
+  background: #fcfaff;
+}
+
+.xf-expert-detail-social-copy-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.xf-expert-detail-social-platform,
+.xf-expert-detail-social-copy {
+  color: #6d28d9;
+  font-size: 20rpx;
+  font-weight: 800;
+}
+
+.xf-expert-detail-social-label {
+  display: block;
+  margin-top: 10rpx;
+  color: #241a3a;
+  font-size: 26rpx;
+  font-weight: 800;
+}
+
 .xf-expert-detail-eyebrow {
   display: inline-flex;
   align-items: center;
