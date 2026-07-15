@@ -33,6 +33,10 @@
   `transcript`, `contentPack`, and `deepDive`. Public program lists project one
   lightweight item from those fields to derive accurate content-availability
   flags without returning the complete generated payload.
+- Remote program parsing follows source redirects before streaming audio to a
+  temporary file, removes that file after each attempt, and treats Volcengine
+  standard-query status `20000000` as completion even when the response omits
+  the legacy numeric `result.status` field.
 - Public guest detail responses include the guest's complete normalized
   `bookLists` collection, derived from published books linked by
   `sourceGuestId`. Semicolon-delimited source names are split, wrapping title
