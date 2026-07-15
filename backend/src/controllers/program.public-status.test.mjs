@@ -55,4 +55,9 @@ test("public program list derives content flags from lightweight projected field
     /transcript: \{ \$slice: 1 \},[\s\S]*"deepDive\.curatedReading": \{ \$slice: 1 \}/,
     "public program list should project one transcript and deep-dive item before deriving flags"
   );
+  assert.match(
+    source,
+    /map\(\(\{ transcript, deepDive, \.\.\.program \}: any\) => \(\{[\s\S]*\.\.\.program,[\s\S]*hasTranscript:/,
+    "public program list should omit projected content after deriving flags"
+  );
 });

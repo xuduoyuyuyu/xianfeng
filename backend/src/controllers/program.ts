@@ -1535,10 +1535,10 @@ export class ProgramController {
       const attached = await attachDictionaryEntriesToPrograms(programs, false);
       const attachedGuests = await attachGuestBindingsToPrograms(attached);
       // 补充轻量布尔字段（transcript/deepDive 原始数据不返回，节省数百KB）
-      const listWithFlags = attachedGuests.map((p: any) => ({
-        ...p,
-        hasTranscript: Array.isArray(p.transcript) ? p.transcript.length : 0,
-        hasDeepDive: !!(p.deepDive?.curatedReading?.length),
+      const listWithFlags = attachedGuests.map(({ transcript, deepDive, ...program }: any) => ({
+        ...program,
+        hasTranscript: Array.isArray(transcript) ? transcript.length : 0,
+        hasDeepDive: !!(deepDive?.curatedReading?.length),
       }));
       res.status(200).json({
         programs: listWithFlags,
