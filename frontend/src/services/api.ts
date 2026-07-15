@@ -170,6 +170,9 @@ export interface PublicGuest {
   listenerBenefits?: ListenerBenefit[];
   agentEnabled?: boolean;
   programCount?: number;
+  socialCount?: number;
+  authoredBookCount?: number;
+  bookListCount?: number;
   contentTags?: string[];
   referenceCount?: number;
   agentStats?: {
@@ -596,6 +599,7 @@ export type MamaResourceCaptureStatus = 'pending' | 'captured' | 'failed' | 'man
 export type MamaResourceMediaPlatform = 'xiaohongshu' | 'douyin' | 'shipinhao' | 'gongzhonghao' | 'other';
 export type MamaResourceTaskStatus = 'listed' | 'paused' | 'archived';
 export type MamaResourceTaskAssignmentStatus = 'assigned' | 'submitted' | 'collected' | 'rejected';
+export type MamaResourceProofStatus = 'returned' | 'missing' | 'overdue';
 
 export interface MamaResourceContentCase {
   url: string;
@@ -623,6 +627,7 @@ export interface MamaResourceMediaAccount {
 
 export interface MamaResourceProfile {
   _id: string;
+  userId?: string;
   displayName: string;
   contactPhone?: string;
   contactWechat: string;
@@ -632,6 +637,8 @@ export interface MamaResourceProfile {
   childStage?: string;
   childGender?: string;
   categories: string[];
+  operatorTags?: string[];
+  orderBlocked?: boolean;
   status: MamaResourceStatus;
   accountPositioning?: string;
   consentAccepted: boolean;
@@ -741,6 +748,11 @@ export interface MamaResourceTask {
   externalUrl?: string;
   exampleImageUrls?: string[];
   contentUrl?: string;
+  contentLinkPoolEnabled?: boolean;
+  pausedForContent?: boolean;
+  contentLinkCount?: number;
+  contentLinkAssignedCount?: number;
+  contentLinkRemainingCount?: number;
   status: MamaResourceTaskStatus | MamaResourceTaskAssignmentStatus;
   proofLink?: string;
   proofScreenshotUrl?: string;
@@ -759,7 +771,18 @@ export interface MamaResourceTaskAssignment {
   profileId: string;
   task?: MamaResourceTask;
   profile?: MamaResourceProfile;
+  user?: {
+    _id: string;
+    username?: string;
+    mobile?: string;
+    name?: string;
+    city?: string;
+    region?: string;
+    grade?: string;
+    childGrade?: string;
+  } | null;
   status: MamaResourceTaskAssignmentStatus;
+  proofStatus?: MamaResourceProofStatus;
   proofLink?: string;
   proofScreenshotUrl?: string;
   transferScreenshotUrl?: string;
@@ -794,11 +817,6 @@ export interface MamaResourceContentImportPreview {
   summary: { total: number; valid: number; invalid: number };
 }
 
-export interface MamaResourceTaskCandidate extends MamaResourceProfile {
-  assignmentId?: string;
-  assignmentStatus?: MamaResourceTaskAssignmentStatus | '';
-}
-
 export interface MamaResourceTaskInput {
   title: string;
   category?: string;
@@ -819,7 +837,6 @@ export interface MamaResourceTaskInput {
   requirement?: string;
   externalUrl?: string;
   exampleImageUrls?: string[];
-  autoAssign?: boolean;
 }
 
 export type WelfareAvailability = "draft" | "hidden" | "archived" | "upcoming" | "active" | "expired" | "sold_out";
@@ -1493,18 +1510,24 @@ export const adminApi = {
     api.put<{ profile: MamaResourceProfile }>(`/admin/mama-resources/${id}`, data),
   reviewMamaResource: (id: string, data: MamaResourceReviewInput) =>
     api.patch<{ profile: MamaResourceProfile }>(`/admin/mama-resources/${id}/review`, data),
+  updateMamaResourceOperations: (id: string, data: { operatorTags?: string[] | string; orderBlocked?: boolean }) =>
+    api.patch<{ profile: MamaResourceProfile }>(`/admin/mama-resources/${id}/operations`, data),
   getMamaResourceTasks: () =>
     api.get<{ tasks: MamaResourceTask[] }>('/admin/mama-resources/tasks'),
   createMamaResourceTask: (data: MamaResourceTaskInput) =>
     api.post<{ task: MamaResourceTask; assignments?: MamaResourceTaskAssignment[] }>('/admin/mama-resources/tasks', data),
   updateMamaResourceTask: (id: string, data: MamaResourceTaskInput) =>
     api.patch<{ task: MamaResourceTask }>(`/admin/mama-resources/tasks/${id}`, data),
-  getMamaResourceTaskCandidates: (id: string, params?: MamaResourceQuery & { riskTag?: string }) =>
-    api.get<{ items: MamaResourceTaskCandidate[] }>(`/admin/mama-resources/tasks/${id}/candidates`, { params }),
-  getMamaResourceTaskAssignments: (id: string) =>
-    api.get<{ assignments: MamaResourceTaskAssignment[] }>(`/admin/mama-resources/tasks/${id}/assignments`),
-  assignMamaResourceTaskProfiles: (id: string, profileIds: string[]) =>
-    api.post<{ assignments: MamaResourceTaskAssignment[] }>(`/admin/mama-resources/tasks/${id}/assignments`, { profileIds }),
+  getMamaResourceTaskAssignments: (id: string, params?: {
+    proofStatus?: 'all' | 'returned' | 'missing' | 'overdue';
+    category?: string;
+    minFollowers?: number | string;
+    search?: string;
+    riskTag?: string;
+    operatorTag?: string;
+    orderBlocked?: boolean;
+  }) =>
+    api.get<{ assignments: MamaResourceTaskAssignment[] }>(`/admin/mama-resources/tasks/${id}/assignments`, { params }),
   reviewMamaResourceTaskAssignment: (id: string, data: { status: MamaResourceTaskAssignmentStatus; reviewNote?: string }) =>
     api.patch<{ task: MamaResourceTaskAssignment; assignment: MamaResourceTaskAssignment }>(`/admin/mama-resources/tasks/assignments/${id}/review`, data),
   updateMamaResourceAssignmentContent: (id: string, contentUrl: string) =>
@@ -1520,6 +1543,13 @@ export const adminApi = {
   },
   commitMamaResourceContentImport: (id: string, rows: MamaResourceContentImportRow[]) =>
     api.post<{ summary: { created: number; updated: number; unchanged: number } }>(`/admin/mama-resources/tasks/${id}/content-import/commit`, { rows }),
+  importMamaResourceContentLinks: (id: string, data: { linksText?: string; links?: string[] }) =>
+    api.post<{
+      importedCount: number;
+      skippedCount: number;
+      assignedCount: number;
+      task: MamaResourceTask;
+    }>(`/admin/mama-resources/tasks/${id}/content-links`, data),
   getAdminWelfareCampaigns: () =>
     api.get<{ items: WelfareCampaign[] }>('/admin/welfare'),
   createWelfareCampaign: (data: WelfareCampaignInput) =>

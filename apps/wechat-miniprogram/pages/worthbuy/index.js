@@ -2,7 +2,7 @@ const { request } = require("../../utils/request");
 const { getToken, getUser } = require("../../utils/session");
 const { getNativeTopbarMetrics } = require("../../utils/nativeChrome");
 const { createPageShare, enableShareMenu } = require("../../utils/share");
-const { createNativeSettingsMethods } = require("../../utils/nativeSettings");
+const { SETTINGS_SECTIONS, createNativeSettingsMethods } = require("../../utils/nativeSettings");
 const { goProgramsHome: navigateProgramsHome } = require("../../utils/nativePageNav");
 const { normalizeWorthBuyItem, classifyWorthBuyError, worthBuyDetailPath, writeWorthBuyCache, readWorthBuyCache, parseWorthBuyInput } = require("../../utils/worthbuyNative");
 
@@ -10,7 +10,7 @@ const PAGE_SIZE = 20;
 const LOGO_HEIGHT_RPX = 56;
 
 Page({
-  data: { topbarHeight: 88, chromeHeight: 88, logoTop: 10, logoHeight: 28, welfareRight: 101, selected: 4, hideTabbar: false, input: "", publicItems: [], myItems: [], loading: true, loadingMore: false, submitting: false, submitStage: "", error: "", actionError: "", actionErrorType: "", current: 1, pages: 1, showHistory: false, isLoggedIn: false, loginRequired: false },
+  data: { topbarHeight: 88, chromeHeight: 88, logoTop: 10, logoHeight: 28, welfareRight: 101, profilePanelTop: 30, profileHeaderHeight: 32, selected: 4, hideTabbar: false, settingsSections: SETTINGS_SECTIONS, settingsPanelOpen: false, settingsPanelView: "menu", settingsProfilePanelSupported: true, input: "", publicItems: [], myItems: [], loading: true, loadingMore: false, submitting: false, submitStage: "", error: "", actionError: "", actionErrorType: "", current: 1, pages: 1, showHistory: false, isLoggedIn: false, loginRequired: false },
   onLoad() {
     enableShareMenu();
     this.syncTopbarMetrics();
@@ -31,7 +31,7 @@ Page({
     const logoHeight = Math.round((LOGO_HEIGHT_RPX * windowWidth) / 750);
     const capsuleHeight = Math.max(28, Math.round(metrics.capsuleHeight || 32));
     const searchButtonTop = Math.max(8, Math.round(metrics.searchButtonTop || 8));
-    this.setData({ topbarHeight, chromeHeight: topbarHeight, logoHeight, logoTop: Math.max(0, Math.round(searchButtonTop + capsuleHeight / 2 - logoHeight / 2)), welfareRight: Math.max(72, Math.round(metrics.capsuleRight || 96) + 5) });
+    this.setData({ topbarHeight, chromeHeight: topbarHeight, logoHeight, logoTop: Math.max(0, Math.round(searchButtonTop + capsuleHeight / 2 - logoHeight / 2)), welfareRight: Math.max(72, Math.round(metrics.capsuleRight || 96) + 5), profilePanelTop: searchButtonTop, profileHeaderHeight: capsuleHeight });
   },
   loadPublic(current) {
     this.setData(current === 1 ? { loading: !this.data.publicItems.length, error: "" } : { loadingMore: true });

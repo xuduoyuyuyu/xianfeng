@@ -600,6 +600,7 @@
       <view class="xf-native-menu-button xf-native-back-button" style="top: {{logoTop}}px; height: {{logoHeight}}px;" catchtap="goBack" role="button" aria-label="返回">
         <view class="xf-native-back-icon" aria-hidden="true"></view>
       </view>
+      <text wx:if="{{!nativeExpertCompactHeaderVisible}}" class="xf-book-detail-nav-title xf-expert-detail-nav-title" style="top: {{logoTop}}px; height: {{logoHeight}}px;">先疯智库</text>
       <view class="xf-expert-detail-compact {{nativeExpertCompactHeaderVisible ? 'is-visible' : ''}}" style="top: {{logoTop}}px; height: {{logoHeight}}px;">
         <image class="xf-expert-detail-compact-avatar" src="{{nativeExpert.avatar}}" mode="aspectFill" />
         <text class="xf-expert-detail-compact-name">{{nativeExpert.name}}</text>
@@ -666,15 +667,16 @@
         </view>
       </block>
 
-      <view wx:if="{{!nativeExpert.agentEnabled && (nativeExpert.programCount > 0 || nativeExpert.socialCount > 0 || nativeExpert.referenceCount > 0)}}" class="xf-expert-detail-stat-pills">
+      <view wx:if="{{!nativeExpert.agentEnabled && (nativeExpert.programCount > 0 || nativeExpert.socialCount > 0 || nativeExpert.authoredBookCount > 0 || nativeExpert.bookListCount > 0 || nativeExpert.referenceCount > 0)}}" class="xf-expert-detail-stat-pills">
         <text wx:if="{{nativeExpert.programCount > 0}}" class="xf-expert-detail-stat-pill">节目 {{nativeExpert.programCount}}</text>
+        <text wx:if="{{nativeExpert.authoredBookCount > 0}}" class="xf-expert-detail-stat-pill">著作 {{nativeExpert.authoredBookCount}}</text>
+        <text wx:if="{{nativeExpert.bookListCount > 0}}" class="xf-expert-detail-stat-pill">推荐书单 {{nativeExpert.bookListCount}}</text>
         <text wx:if="{{nativeExpert.socialCount > 0}}" class="xf-expert-detail-stat-pill">社交媒体 {{nativeExpert.socialCount}}</text>
         <text wx:if="{{nativeExpert.referenceCount > 0}}" class="xf-expert-detail-stat-pill">公开内容 {{nativeExpert.referenceCount}}</text>
       </view>
     </view>
 
     <view wx:if="{{!nativeExpert.agentEnabled && nativeExpert.hasRelatedPrograms}}" class="xf-expert-detail-card is-static-programs">
-      <text class="xf-expert-detail-eyebrow">RELATED CONTENT</text>
       <text class="xf-expert-detail-section-title">参与节目</text>
       <text class="xf-expert-detail-section-copy">只保留标题，快速浏览这位嘉宾参与过的节目内容。</text>
       <scroll-view class="xf-expert-detail-static-program-list {{nativeExpert.relatedPrograms.length > 3 ? 'is-scrollable' : ''}}" scroll-y="{{nativeExpert.relatedPrograms.length > 3}}" enhanced show-scrollbar="false">
@@ -695,7 +697,6 @@
     </view>
 
     <view wx:if="{{nativeExpert.authoredBooks.length}}" class="xf-expert-detail-card is-authored-books">
-      <text class="xf-expert-detail-eyebrow">AUTHORED WORKS</text>
       <text class="xf-expert-detail-section-title">嘉宾著作</text>
       <text class="xf-expert-detail-section-copy">这位嘉宾自己的著作作品。</text>
       <scroll-view class="xf-expert-detail-authored-scroll" scroll-x="true" enhanced show-scrollbar="false">
@@ -705,21 +706,19 @@
             wx:key="id"
             class="xf-expert-detail-authored-card"
             data-id="{{item.id}}"
-            data-detail="{{item.hasDetail}}"
             catchtap="openNativeExpertAuthoredBook"
           >
             <image wx:if="{{item.coverImage}}" class="xf-expert-detail-authored-cover" src="{{item.coverImage}}" mode="aspectFill" />
             <view wx:else class="xf-expert-detail-authored-cover is-empty"></view>
             <text class="xf-expert-detail-authored-title">{{item.title}}</text>
             <text wx:if="{{item.publishedDate || item.publisher}}" class="xf-expert-detail-authored-meta">{{item.publishedDate}}{{item.publishedDate && item.publisher ? " · " : ""}}{{item.publisher}}</text>
-            <text wx:if="{{item.hasDetail}}" class="xf-expert-detail-authored-action">查看详情</text>
+            <text class="xf-expert-detail-authored-action">查看详情</text>
           </view>
         </view>
       </scroll-view>
     </view>
 
     <view wx:if="{{nativeExpert.extensionMaterials.length}}" class="xf-expert-detail-card is-extension-materials">
-      <text class="xf-expert-detail-eyebrow">EXTENSION MATERIALS</text>
       <text class="xf-expert-detail-section-title">拓展资料</text>
       <text class="xf-expert-detail-section-copy">与这位嘉宾相关、可继续阅读或使用的资料。</text>
       <view class="xf-expert-detail-extension-list">
@@ -761,7 +760,6 @@
     </view>
 
     <view wx:if="{{!nativeExpert.agentEnabled && nativeExpert.publicItems.length}}" class="xf-expert-detail-card is-static-publications">
-      <text class="xf-expert-detail-eyebrow">PUBLIC CONTENT</text>
       <text class="xf-expert-detail-section-title">公开内容与资料</text>
       <view class="xf-expert-detail-static-public-list">
         <view wx:for="{{nativeExpert.publicItems}}" wx:for-item="reference" wx:key="title" class="xf-expert-detail-profile-link is-reference">
@@ -772,7 +770,6 @@
     </view>
 
     <view wx:if="{{nativeExpert.bookLists.length}}" class="xf-expert-detail-card is-booklists">
-      <text class="xf-expert-detail-eyebrow">RECOMMENDED BOOKS</text>
       <text class="xf-expert-detail-section-title">推荐书目</text>
       <text class="xf-expert-detail-section-copy">这位嘉宾推荐或参与的书单。</text>
       <view class="xf-expert-detail-booklist-list">
@@ -807,7 +804,7 @@
         <button wx:if="{{nativeExpertAgentNeedsPro}}" catchtap="openNativePro">查看 Pro</button>
       </view>
 
-      <view wx:if="{{!nativeExpertMessages.length && !nativeExpertAgentLoading}}" class="xf-expert-detail-agent-intro">
+      <view wx:if="{{!nativeExpertMessages.length && !nativeExpertAgentLoading}}" class="xf-expert-detail-agent-intro {{!nativeExpertAuthed ? 'is-guest' : ''}}">
         <text>我是{{nativeExpert.name}}的 AI 分身。你可以问我节目观点、具体做法，或让资料库帮你追溯出处。</text>
         <button
           wx:for="{{nativeExpertAgent.suggestedQuestions}}"
@@ -1009,7 +1006,21 @@
 
 <cover-view wx:if="{{settingsPanelOpen}}" class="xf-native-settings-mask" style="height: {{settingsPanelHeight}}px;" catchtap="closeSettings">
   <cover-view class="xf-native-settings-panel" style="height: {{settingsPanelHeight}}px; padding-top: {{profilePanelTop}}px;" catchtap="noop">
-    <cover-view class="xf-native-settings-account" catchtap="openSettingsItem" data-page="{{accountPage}}" data-title="{{accountTitle}}">
+    <button wx:if="{{!isLoggedIn}}" class="xf-native-settings-account" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone" disabled="{{bindingPhone}}">
+      <cover-view class="xf-native-settings-avatar-wrap">
+        <cover-image class="xf-native-settings-avatar" src="{{accountAvatar}}" />
+      </cover-view>
+      <cover-view class="xf-native-settings-copy">
+        <cover-view class="xf-native-settings-title-row">
+          <cover-view class="xf-native-settings-title">{{accountTitle}}</cover-view>
+        </cover-view>
+        <cover-view class="xf-native-settings-subtitle-row">
+          <cover-view class="xf-native-settings-subtitle">{{accountSubtitle}}</cover-view>
+        </cover-view>
+      </cover-view>
+      <cover-view class="xf-native-settings-chevron">›</cover-view>
+    </button>
+    <cover-view wx:else class="xf-native-settings-account" catchtap="openSettingsItem" data-page="{{accountPage}}" data-title="{{accountTitle}}">
       <cover-view class="xf-native-settings-avatar-wrap">
         <cover-image class="xf-native-settings-avatar" src="{{accountAvatar}}" />
       </cover-view>
@@ -1041,6 +1052,7 @@
         data-section-index="{{sectionIndex}}"
         data-item-index="{{itemIndex}}"
       >
+        <button wx:if="{{!isLoggedIn}}" class="xf-settings-item-login" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone" data-section-index="{{sectionIndex}}" data-item-index="{{itemIndex}}" catchtap="noop" disabled="{{bindingPhone}}"></button>
         <cover-image wx:if="{{item.iconType === 'image'}}" class="xf-native-settings-logo-icon" src="{{item.image}}" />
         <cover-view wx:elif="{{item.iconType === 'emoji'}}" class="xf-native-settings-emoji-icon">{{item.emoji}}</cover-view>
         <cover-view wx:else class="xf-native-settings-symbol material-symbols-rounded">{{item.icon}}</cover-view>

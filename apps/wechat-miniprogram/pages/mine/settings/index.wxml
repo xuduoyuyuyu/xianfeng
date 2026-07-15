@@ -42,3 +42,4 @@
     </view>
   </view>
 </view>
+<phone-login-gate id="settingsPhoneLoginGate" visible="{{false}}" bind:success="handleLoginSuccess" bind:failure="handleLoginFailure" />

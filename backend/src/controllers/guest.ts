@@ -214,7 +214,12 @@ function normalizeListenerBenefits(input: unknown) {
     .map((item, index) => ({ ...item, order: index + 1 }));
 }
 
-function serializeGuestListItem(guest: any, programCount = 0, agentStats?: { chunkCount?: number; sourceCounts?: Record<string, number> }, contentTags: string[] = []) {
+type GuestBookStats = {
+  authoredBookCount?: number;
+  bookListCount?: number;
+};
+
+function serializeGuestListItem(guest: any, programCount = 0, agentStats?: { chunkCount?: number; sourceCounts?: Record<string, number> }, contentTags: string[] = [], bookStats: GuestBookStats = {}) {
   const profileReferences = Array.isArray(guest?.profileReferences) ? guest.profileReferences : [];
   const socialProfiles = normalizeSocialProfiles(Array.isArray(guest?.socialProfiles) ? guest.socialProfiles : []).filter((item) => item.status === "active");
   const publications = (
@@ -243,6 +248,9 @@ function serializeGuestListItem(guest: any, programCount = 0, agentStats?: { chu
     agentEnabled: guest?.agentEnabled === true,
     programCount,
     contentTags,
+    socialCount: socialProfiles.length,
+    authoredBookCount: Number(bookStats.authoredBookCount || 0),
+    bookListCount: Number(bookStats.bookListCount || 0),
     referenceCount: publications.length || profileReferences.filter((item: any) => asText(item?.url)).length,
     agentStats: {
       chunkCount: Number(agentStats?.chunkCount || 0),
@@ -321,6 +329,51 @@ export async function loadGuestAuthoredBooks(guestName: string): Promise<GuestAu
     console.error("[guest-detail] failed to load authored books", error);
     return [];
   }
+}
+
+async function buildGuestBookStatsMap(guests: any[]): Promise<Map<string, GuestBookStats>> {
+  const statsMap = new Map<string, GuestBookStats>();
+  const guestIds = (Array.isArray(guests) ? guests : [])
+    .map((guest: any) => String(guest?._id || ""))
+    .filter((id) => mongoose.Types.ObjectId.isValid(id));
+  const guestNames = Array.from(new Set((Array.isArray(guests) ? guests : []).map((guest: any) => asText(guest?.name)).filter(Boolean)));
+  if (!guestIds.length && !guestNames.length) return statsMap;
+
+  const guestIdSet = new Set(guestIds);
+  const guestNameSet = new Set(guestNames);
+  const bookListSources = new Map<string, string[]>();
+  const authoredCounts = new Map<string, number>();
+  const rows = await Book.find(
+    {
+      status: "published",
+      $or: [
+        ...(guestIds.length ? [{ sourceGuestId: { $in: guestIds.map((id) => new mongoose.Types.ObjectId(id)) } }] : []),
+        ...(guestNames.length ? [{ author: { $in: guestNames } }] : []),
+      ],
+    },
+    { sourceGuestId: 1, sourceName: 1, author: 1 }
+  ).lean();
+
+  rows.forEach((book: any) => {
+    const sourceGuestId = readGuestId(book?.sourceGuestId);
+    if (guestIdSet.has(sourceGuestId)) {
+      const sources = bookListSources.get(sourceGuestId) || [];
+      sources.push(asText(book?.sourceName));
+      bookListSources.set(sourceGuestId, sources);
+    }
+    const author = asText(book?.author);
+    if (guestNameSet.has(author)) authoredCounts.set(author, (authoredCounts.get(author) || 0) + 1);
+  });
+
+  for (const guest of Array.isArray(guests) ? guests : []) {
+    const id = String(guest?._id || "");
+    if (!id) continue;
+    statsMap.set(id, {
+      authoredBookCount: authoredCounts.get(asText(guest?.name)) || 0,
+      bookListCount: uniqueBookSourceNames(bookListSources.get(id) || []).length,
+    });
+  }
+  return statsMap;
 }
 
 async function buildGuestAgentStatsMap(guestIds: string[]): Promise<Map<string, { chunkCount: number; sourceCounts: Record<string, number> }>> {
@@ -468,8 +521,9 @@ export class GuestController {
       const pageGuestObjectIds = guestIds
         .filter((id) => mongoose.Types.ObjectId.isValid(id))
         .map((id) => new mongoose.Types.ObjectId(id));
-      const [countMap, agentStatsMap, pageTagPrograms, filterTagPrograms] = await Promise.all([
+      const [countMap, bookStatsMap, agentStatsMap, pageTagPrograms, filterTagPrograms] = await Promise.all([
         buildGuestProgramCountMap(guestIds),
+        buildGuestBookStatsMap(guests),
         buildGuestAgentStatsMap(guestIds),
         pageGuestObjectIds.length
           ? Program.find({ status: { $in: PUBLIC_GUEST_PROGRAM_STATUSES }, "guestBindings.guestId": { $in: pageGuestObjectIds } }, { guestBindings: 1, summary: 1 }).lean()
@@ -487,7 +541,7 @@ export class GuestController {
       );
       res.status(200).json({
         guests: guests.map((item: any) =>
-          serializeGuestListItem(item, countMap.get(String(item._id)) || 0, agentStatsMap.get(String(item._id)), pageTagMap.get(String(item._id)) || [])
+          serializeGuestListItem(item, countMap.get(String(item._id)) || 0, agentStatsMap.get(String(item._id)), pageTagMap.get(String(item._id)) || [], bookStatsMap.get(String(item._id)))
         ),
         filterTags,
         total,
@@ -533,7 +587,10 @@ export class GuestController {
         .sort({ publishedAt: -1, updatedAt: -1, _id: -1 })
         .lean();
       res.status(200).json({
-        ...serializeGuestListItem(guest, countMap.get(id) || 0),
+        ...serializeGuestListItem(guest, countMap.get(id) || 0, undefined, [], {
+          authoredBookCount: authoredBooks.length,
+          bookListCount: bookLists.length,
+        }),
         relatedPrograms: relatedPrograms.map(serializeProgramCard),
         bookLists,
         authoredBooks,

@@ -5,12 +5,24 @@ import * as XLSX from "xlsx";
 import MamaResourceProfile, { MamaResourceStatus } from "../models/MamaResourceProfile";
 import MamaResourceTask, { MamaResourceTaskStatus } from "../models/MamaResourceTask";
 import MamaResourceTaskAssignment, { MamaResourceTaskAssignmentStatus } from "../models/MamaResourceTaskAssignment";
+import MamaResourceTaskContentLink from "../models/MamaResourceTaskContentLink";
+import User from "../models/User";
+import {
+  assignNextMamaResourceContentLink,
+  distributeMamaResourceContentLinks,
+  getMamaResourceContentLinkStats,
+  MamaResourceContentLinkStats,
+  normalizeMamaResourceContentUrl as normalizeContentUrl,
+  parseMamaResourceContentLinks,
+  syncMamaResourceTaskContentState,
+} from "../services/mamaResourceContentLinks";
 
 const router = Router();
 const STATUSES: MamaResourceStatus[] = ["pending", "approved", "needs_info", "rejected"];
 const TASK_STATUSES: MamaResourceTaskStatus[] = ["listed", "paused", "archived"];
 const ASSIGNMENT_STATUSES: MamaResourceTaskAssignmentStatus[] = ["assigned", "submitted", "collected", "rejected"];
 const MEDIA_PLATFORMS = new Set(["xiaohongshu", "douyin", "shipinhao", "gongzhonghao", "other"]);
+const PROOF_RETURN_WINDOW_MS = 24 * 60 * 60 * 1000;
 const contentImportUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
@@ -40,6 +52,10 @@ function asOptionalDate(value: unknown): Date | null {
   if (!text) return null;
   const date = new Date(text);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function normalizePhoneDigits(value: unknown): string {
+  return asText(value).replace(/\D/g, "");
 }
 
 function manualMediaAccounts(value: unknown) {
@@ -73,16 +89,6 @@ function escapeRegex(value: string): string {
 function idQuery(id: string) {
   if (mongoose.Types.ObjectId.isValid(id)) return { _id: id };
   return { _id: null };
-}
-
-function normalizeContentUrl(value: unknown): string {
-  const text = asText(value);
-  if (!text) return "";
-  const url = new URL(text);
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error("链接仅支持 HTTP(S)");
-  }
-  return url.toString();
 }
 
 type ContentImportSourceRow = {
@@ -121,6 +127,7 @@ async function analyzeContentImportRows(taskId: mongoose.Types.ObjectId, sourceR
       errors.push(error?.message || "专属内容链接格式错误");
     }
     const assignment = assignmentsByProfileId.get(row.profileId);
+    if (profile?.status === "approved" && !assignment) errors.push("账号尚未领取该任务");
     const action = !assignment
       ? "create_assignment"
       : assignment.contentUrl === contentUrl
@@ -144,6 +151,8 @@ function buildListFilter(query: Request["query"]) {
   const category = asText(query.category);
   const search = asText(query.search);
   const minFollowers = asOptionalNumber(query.minFollowers);
+  const operatorTag = asText(query.operatorTag);
+  const orderBlocked = asText(query.orderBlocked);
 
   if (STATUSES.includes(status as MamaResourceStatus)) {
     filter.status = status;
@@ -154,6 +163,12 @@ function buildListFilter(query: Request["query"]) {
   if (minFollowers !== null) {
     filter["socialAccount.followerCount"] = { $gte: minFollowers };
   }
+  if (operatorTag) {
+    filter.operatorTags = operatorTag;
+  }
+  if (orderBlocked === "true" || orderBlocked === "false") {
+    filter.orderBlocked = orderBlocked === "true";
+  }
   if (search) {
     const pattern = new RegExp(escapeRegex(search), "i");
     filter.$or = [
@@ -163,27 +178,10 @@ function buildListFilter(query: Request["query"]) {
       { city: pattern },
       { accountPositioning: pattern },
       { categories: pattern },
+      { operatorTags: pattern },
       { "socialAccount.nickname": pattern },
       { "socialAccount.profileUrl": pattern },
     ];
-  }
-  return filter;
-}
-
-function buildTaskMatchFilter(task: any) {
-  const filter: any = { status: "approved" };
-  const categories = asTextArray(task.matchCategories || task.category);
-  const riskTags = asTextArray(task.matchRiskTags);
-  const minFollowerCount = asOptionalNumber(task.minFollowerCount);
-
-  if (categories.length > 0) {
-    filter.categories = { $in: categories };
-  }
-  if (riskTags.length > 0) {
-    filter["reviewNote.riskTags"] = { $in: riskTags };
-  }
-  if (minFollowerCount !== null) {
-    filter["socialAccount.followerCount"] = { $gte: minFollowerCount };
   }
   return filter;
 }
@@ -219,15 +217,30 @@ function serializeProfile(profile: any) {
   return {
     ...source,
     _id: String(source._id),
+    userId: source.userId ? String(source.userId) : undefined,
   };
 }
 
-function serializeTask(task: any) {
+function serializeTask(task: any, stats?: Map<string, MamaResourceContentLinkStats>) {
   const source = typeof task.toObject === "function" ? task.toObject() : task;
+  const contentStats = stats?.get(String(source._id)) || { total: 0, assigned: 0, remaining: 0 };
   return {
     ...source,
     _id: String(source._id),
+    contentLinkCount: contentStats.total,
+    contentLinkAssignedCount: contentStats.assigned,
+    contentLinkRemainingCount: contentStats.remaining,
   };
+}
+
+function assignmentProofStatus(assignment: any): "returned" | "missing" | "overdue" {
+  const source = typeof assignment?.toObject === "function" ? assignment.toObject() : assignment;
+  if (asText(source?.proofScreenshotUrl)) return "returned";
+  const assignedAt = new Date(source?.createdAt || "");
+  if (!Number.isNaN(assignedAt.getTime()) && Date.now() - assignedAt.getTime() >= PROOF_RETURN_WINDOW_MS) {
+    return "overdue";
+  }
+  return "missing";
 }
 
 function serializeAssignment(assignment: any) {
@@ -237,9 +250,55 @@ function serializeAssignment(assignment: any) {
     _id: String(source._id),
     taskId: String(source.taskId?._id || source.taskId),
     profileId: String(source.profileId?._id || source.profileId),
+    proofStatus: assignmentProofStatus(source),
     task: source.taskId && typeof source.taskId === "object" ? serializeTask(source.taskId) : undefined,
     profile: source.profileId && typeof source.profileId === "object" ? serializeProfile(source.profileId) : undefined,
   };
+}
+
+async function serializeAssignmentsWithUsers(assignments: any[]) {
+  const userIds = Array.from(new Set(assignments
+    .map((assignment) => {
+      const source = typeof assignment.toObject === "function" ? assignment.toObject() : assignment;
+      return asText(source.profileId?.userId);
+    })
+    .filter((id) => mongoose.Types.ObjectId.isValid(id))));
+  const phones = Array.from(new Set(assignments
+    .map((assignment) => {
+      const source = typeof assignment.toObject === "function" ? assignment.toObject() : assignment;
+      return normalizePhoneDigits(source.profileId?.contactPhone);
+    })
+    .filter(Boolean)));
+  const userClauses: any[] = [];
+  if (userIds.length) userClauses.push({ _id: { $in: userIds } });
+  if (phones.length) userClauses.push({ mobile: { $in: phones } });
+  const users = userClauses.length
+    ? await User.find({ $or: userClauses })
+      .select("username mobile name city region grade childGrade")
+      .lean()
+    : [];
+  const userById = new Map(users.map((user) => [String(user._id), user]));
+  const userByPhone = new Map(users.map((user) => [normalizePhoneDigits(user.mobile), user]));
+  return assignments.map((assignment) => {
+    const serialized = serializeAssignment(assignment);
+    const user = userById.get(asText(serialized.profile?.userId))
+      || userByPhone.get(normalizePhoneDigits(serialized.profile?.contactPhone));
+    return {
+      ...serialized,
+      user: user
+        ? {
+          _id: String(user._id),
+          username: asText(user.username),
+          mobile: asText(user.mobile),
+          name: asText(user.name),
+          city: asText(user.city),
+          region: asText(user.region),
+          grade: asText(user.grade),
+          childGrade: asText(user.childGrade),
+        }
+        : null,
+    };
+  });
 }
 
 router.get("/", async (req: Request, res: Response) => {
@@ -270,7 +329,8 @@ router.get("/", async (req: Request, res: Response) => {
 router.get("/tasks", async (_req: Request, res: Response) => {
   try {
     const tasks = await MamaResourceTask.find({}).sort({ updatedAt: -1 }).lean();
-    res.json({ tasks: tasks.map(serializeTask) });
+    const stats = await getMamaResourceContentLinkStats(tasks.map((task) => task._id));
+    res.json({ tasks: tasks.map((task) => serializeTask(task, stats)) });
   } catch (error: any) {
     res.status(500).json({ message: error?.message || "获取任务失败" });
   }
@@ -286,6 +346,56 @@ router.get("/tasks/content-import/template", (_req: Request, res: Response) => {
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", 'attachment; filename="mama-resource-content-import.xlsx"');
   res.send(buffer);
+});
+
+router.post("/tasks/:taskId/content-links", async (req: Request, res: Response) => {
+  try {
+    const task = await MamaResourceTask.findOne(idQuery(asText(req.params.taskId)));
+    if (!task) {
+      res.status(404).json({ message: "任务不存在" });
+      return;
+    }
+    const parsed = parseMamaResourceContentLinks(req.body);
+    if (!parsed.links.length) {
+      res.status(400).json({ message: "请粘贴至少 1 个专属内容链接" });
+      return;
+    }
+    const existingLinks = new Set(
+      (await MamaResourceTaskContentLink.find({ taskId: task._id, url: { $in: parsed.links } }).select("url").lean())
+        .map((item: any) => asText(item.url))
+    );
+    const latest = await MamaResourceTaskContentLink.findOne({ taskId: task._id })
+      .sort({ importIndex: -1 })
+      .select("importIndex")
+      .lean();
+    let importIndex = Math.max(-1, Number(latest?.importIndex ?? -1));
+    const documents = parsed.links
+      .filter((url) => !existingLinks.has(url))
+      .map((url) => {
+        importIndex += 1;
+        return { taskId: task._id, url, importIndex };
+      });
+    if (documents.length) {
+      await MamaResourceTaskContentLink.insertMany(documents, { ordered: true });
+    }
+    if (!task.contentLinkPoolEnabled) {
+      task.contentLinkPoolEnabled = true;
+      await task.save();
+    }
+    const assignedCount = await distributeMamaResourceContentLinks(task._id);
+    const [updatedTask, stats] = await Promise.all([
+      MamaResourceTask.findById(task._id),
+      getMamaResourceContentLinkStats([task._id]),
+    ]);
+    res.json({
+      importedCount: documents.length,
+      skippedCount: parsed.duplicateCount + parsed.links.length - documents.length,
+      assignedCount,
+      task: serializeTask(updatedTask || task, stats),
+    });
+  } catch (error: any) {
+    res.status(400).json({ message: error?.message || "导入专属内容链接失败" });
+  }
 });
 
 router.patch("/tasks/assignments/:assignmentId/content", async (req: Request, res: Response) => {
@@ -306,7 +416,7 @@ router.patch("/tasks/assignments/:assignmentId/content", async (req: Request, re
       res.status(404).json({ message: "任务账号不存在" });
       return;
     }
-    res.json({ assignment: serializeAssignment(assignment) });
+    res.json({ assignment: (await serializeAssignmentsWithUsers([assignment]))[0] });
   } catch (error: any) {
     res.status(400).json({ message: error?.message || "保存专属内容链接失败" });
   }
@@ -330,7 +440,7 @@ router.patch("/tasks/assignments/:assignmentId/transfer-screenshot", async (req:
       res.status(404).json({ message: "任务账号不存在" });
       return;
     }
-    res.json({ assignment: serializeAssignment(assignment) });
+    res.json({ assignment: (await serializeAssignmentsWithUsers([assignment]))[0] });
   } catch (error: any) {
     res.status(400).json({ message: error?.message || "保存转账截图失败" });
   }
@@ -394,7 +504,7 @@ router.post("/tasks/:taskId/content-import/commit", async (req: Request, res: Re
       res.status(400).json({ message: "导入数据已失效，请重新预检", rows: invalidRows });
       return;
     }
-    let created = 0;
+    const created = 0;
     let updated = 0;
     let unchanged = 0;
     for (const row of rows) {
@@ -403,22 +513,11 @@ router.post("/tasks/:taskId/content-import/commit", async (req: Request, res: Re
         continue;
       }
       const now = new Date();
-      if (row.action === "create_assignment") {
-        await MamaResourceTaskAssignment.create({
-          taskId: task._id,
-          profileId: row.profileId,
-          status: "assigned",
-          contentUrl: row.contentUrl,
-          contentUpdatedAt: now,
-        });
-        created += 1;
-      } else {
-        await MamaResourceTaskAssignment.updateOne(
-          { taskId: task._id, profileId: row.profileId },
-          { contentUrl: row.contentUrl, contentUpdatedAt: now }
-        );
-        updated += 1;
-      }
+      await MamaResourceTaskAssignment.updateOne(
+        { taskId: task._id, profileId: row.profileId },
+        { contentUrl: row.contentUrl, contentUpdatedAt: now }
+      );
+      updated += 1;
     }
     res.json({ summary: { created, updated, unchanged } });
   } catch (error: any) {
@@ -436,30 +535,7 @@ router.post("/tasks", async (req: Request, res: Response) => {
 
     const task = await MamaResourceTask.create(buildTaskWritePayload(req.body, title));
 
-    let assignments: any[] = [];
-    if (req.body?.autoAssign === true) {
-      const matchedProfiles = await MamaResourceProfile.find(buildTaskMatchFilter(task)).select("_id").lean();
-      if (matchedProfiles.length > 0) {
-        await MamaResourceTaskAssignment.bulkWrite(
-          matchedProfiles.map((profile) => ({
-            updateOne: {
-              filter: { taskId: task._id, profileId: profile._id },
-              update: { $setOnInsert: { taskId: task._id, profileId: profile._id, status: "assigned" } },
-              upsert: true,
-            },
-          }))
-        );
-        assignments = await MamaResourceTaskAssignment.find({
-          taskId: task._id,
-          profileId: { $in: matchedProfiles.map((profile) => profile._id) },
-        })
-          .populate("taskId")
-          .populate("profileId")
-          .sort({ updatedAt: -1 });
-      }
-    }
-
-    res.status(201).json({ task: serializeTask(task), assignments: assignments.map(serializeAssignment) });
+    res.status(201).json({ task: serializeTask(task), assignments: [] });
   } catch (error: any) {
     res.status(400).json({ message: error?.message || "上架任务失败" });
   }
@@ -483,7 +559,12 @@ router.patch("/tasks/:taskId", async (req: Request, res: Response) => {
       return;
     }
 
-    res.json({ task: serializeTask(task) });
+    await syncMamaResourceTaskContentState(task._id);
+    const [syncedTask, stats] = await Promise.all([
+      MamaResourceTask.findById(task._id),
+      getMamaResourceContentLinkStats([task._id]),
+    ]);
+    res.json({ task: serializeTask(syncedTask || task, stats) });
   } catch (error: any) {
     res.status(400).json({ message: error?.message || "更新任务失败" });
   }
@@ -499,11 +580,13 @@ router.get("/tasks/:taskId/candidates", async (req: Request, res: Response) => {
     const filter = buildListFilter({ ...req.query, status: "approved" });
     const riskTag = asText(req.query.riskTag);
     if (riskTag) filter["reviewNote.riskTags"] = riskTag;
-    const profiles = await MamaResourceProfile.find(filter).sort({ updatedAt: -1 }).limit(100).lean();
-    const assignments = await MamaResourceTaskAssignment.find({
-      taskId: task._id,
-      profileId: { $in: profiles.map((profile) => profile._id) },
-    }).lean();
+    const claimedAssignments = await MamaResourceTaskAssignment.find({ taskId: task._id }).lean();
+    const profiles = await MamaResourceProfile.find({
+      ...filter,
+      _id: { $in: claimedAssignments.map((assignment) => assignment.profileId) },
+    }).sort({ updatedAt: -1 }).limit(100).lean();
+    const profileIds = new Set(profiles.map((profile) => String(profile._id)));
+    const assignments = claimedAssignments.filter((assignment) => profileIds.has(String(assignment.profileId)));
     const assignmentByProfile = new Map(assignments.map((assignment) => [String(assignment.profileId), assignment]));
     res.json({
       items: profiles.map((profile) => {
@@ -522,7 +605,7 @@ router.get("/tasks/:taskId/candidates", async (req: Request, res: Response) => {
 
 router.post("/tasks/:taskId/assignments", async (req: Request, res: Response) => {
   try {
-    const task = await MamaResourceTask.findOne(idQuery(asText(req.params.taskId))).lean();
+    const task = await MamaResourceTask.findOne(idQuery(asText(req.params.taskId)));
     if (!task) {
       res.status(404).json({ message: "任务不存在" });
       return;
@@ -532,28 +615,41 @@ router.post("/tasks/:taskId/assignments", async (req: Request, res: Response) =>
       res.status(400).json({ message: "请选择要分配的账号" });
       return;
     }
-    const approvedProfiles = await MamaResourceProfile.find({ _id: { $in: profileIds }, status: "approved" }).select("_id").lean();
-    if (approvedProfiles.length === 0) {
-      res.status(400).json({ message: "没有可派单账号" });
-      return;
-    }
-    await MamaResourceTaskAssignment.bulkWrite(
-      approvedProfiles.map((profile) => ({
-        updateOne: {
-          filter: { taskId: task._id, profileId: profile._id },
-          update: { $setOnInsert: { taskId: task._id, profileId: profile._id, status: "assigned" } },
-          upsert: true,
-        },
-      }))
-    );
     const assignments = await MamaResourceTaskAssignment.find({
       taskId: task._id,
-      profileId: { $in: approvedProfiles.map((profile) => profile._id) },
+      profileId: { $in: profileIds },
+    });
+    if (assignments.length !== profileIds.length) {
+      res.status(409).json({ message: "只能下发给已经领取该任务的账号" });
+      return;
+    }
+    let waitingForContent = 0;
+    if (task.contentLinkPoolEnabled) {
+      for (const assignment of assignments) {
+        if (!assignment.contentUrl) {
+          const assigned = await assignNextMamaResourceContentLink(task._id, assignment._id);
+          if (!assigned) {
+            waitingForContent += 1;
+          }
+        }
+      }
+    }
+    const populatedAssignments = await MamaResourceTaskAssignment.find({
+      taskId: task._id,
+      profileId: { $in: profileIds },
     })
       .populate("taskId")
       .populate("profileId")
       .sort({ updatedAt: -1 });
-    res.status(201).json({ assignments: assignments.map(serializeAssignment) });
+    const [updatedTask, stats] = await Promise.all([
+      MamaResourceTask.findById(task._id),
+      getMamaResourceContentLinkStats([task._id]),
+    ]);
+    res.status(201).json({
+      assignments: await serializeAssignmentsWithUsers(populatedAssignments),
+      summary: { assigned: populatedAssignments.length, waitingForContent },
+      task: serializeTask(updatedTask || task, stats),
+    });
   } catch (error: any) {
     res.status(400).json({ message: error?.message || "分配账号失败" });
   }
@@ -566,11 +662,49 @@ router.get("/tasks/:taskId/assignments", async (req: Request, res: Response) => 
       res.status(404).json({ message: "任务不存在" });
       return;
     }
-    const assignments = await MamaResourceTaskAssignment.find({ taskId: task._id })
+    const proofStatus = asText(req.query.proofStatus);
+    const filter: any = { taskId: task._id };
+    const hasProfileFilter = ["category", "minFollowers", "search", "riskTag", "operatorTag", "orderBlocked"]
+      .some((key) => asText(req.query[key]));
+    if (hasProfileFilter) {
+      const profileFilter = buildListFilter({ ...req.query, status: "all" });
+      const riskTag = asText(req.query.riskTag);
+      if (riskTag) profileFilter["reviewNote.riskTags"] = riskTag;
+      const search = asText(req.query.search);
+      if (search) {
+        const pattern = new RegExp(escapeRegex(search), "i");
+        const userSearchClauses: any[] = [
+          { username: pattern },
+          { name: pattern },
+          { mobile: pattern },
+        ];
+        if (mongoose.Types.ObjectId.isValid(search)) userSearchClauses.push({ _id: search });
+        const users = await User.find({ $or: userSearchClauses }).select("mobile").lean();
+        const phoneClauses = users
+          .map((user) => normalizePhoneDigits(user.mobile))
+          .filter(Boolean)
+          .map((phone) => ({ contactPhone: new RegExp(phone.split("").join("\\D*")) }));
+        const userIdClauses = mongoose.Types.ObjectId.isValid(search) ? [{ userId: search }] : [];
+        if (phoneClauses.length || userIdClauses.length) {
+          profileFilter.$or = [...(profileFilter.$or || []), ...phoneClauses, ...userIdClauses];
+        }
+      }
+      const profiles = await MamaResourceProfile.find(profileFilter).select("_id").lean();
+      filter.profileId = { $in: profiles.map((profile) => profile._id) };
+    }
+    if (proofStatus === "returned") {
+      filter.proofScreenshotUrl = { $exists: true, $nin: ["", null] };
+    } else if (proofStatus === "missing" || proofStatus === "overdue") {
+      filter.proofScreenshotUrl = { $in: ["", null] };
+      if (proofStatus === "overdue") {
+        filter.createdAt = { $lte: new Date(Date.now() - PROOF_RETURN_WINDOW_MS) };
+      }
+    }
+    const assignments = await MamaResourceTaskAssignment.find(filter)
       .populate("taskId")
       .populate("profileId")
       .sort({ updatedAt: -1 });
-    res.json({ assignments: assignments.map(serializeAssignment) });
+    res.json({ assignments: await serializeAssignmentsWithUsers(assignments) });
   } catch (error: any) {
     res.status(500).json({ message: error?.message || "获取任务账号失败" });
   }
@@ -598,7 +732,8 @@ router.patch("/tasks/assignments/:assignmentId/review", async (req: Request, res
       res.status(404).json({ message: "任务账号不存在" });
       return;
     }
-    res.json({ task: serializeAssignment(assignment), assignment: serializeAssignment(assignment) });
+    const serialized = (await serializeAssignmentsWithUsers([assignment]))[0];
+    res.json({ task: serialized, assignment: serialized });
   } catch (error: any) {
     res.status(400).json({ message: error?.message || "审核任务失败" });
   }
@@ -671,6 +806,36 @@ router.put("/:id", async (req: Request, res: Response) => {
     res.json({ profile: serializeProfile(profile) });
   } catch (error: any) {
     res.status(400).json({ message: error?.message || "更新资源失败" });
+  }
+});
+
+router.patch("/:id/operations", async (req: Request, res: Response) => {
+  try {
+    const update: any = {};
+    if (req.body?.operatorTags !== undefined) {
+      update.operatorTags = Array.from(new Set(asTextArray(req.body.operatorTags)))
+        .slice(0, 20)
+        .map((tag) => tag.slice(0, 30));
+    }
+    if (typeof req.body?.orderBlocked === "boolean") {
+      update.orderBlocked = req.body.orderBlocked;
+    }
+    if (Object.keys(update).length === 0) {
+      res.status(400).json({ message: "没有可更新的运营设置" });
+      return;
+    }
+    const profile = await MamaResourceProfile.findOneAndUpdate(
+      idQuery(asText(req.params.id)),
+      update,
+      { returnDocument: "after", runValidators: true }
+    );
+    if (!profile) {
+      res.status(404).json({ message: "资源不存在" });
+      return;
+    }
+    res.json({ profile: serializeProfile(profile) });
+  } catch (error: any) {
+    res.status(400).json({ message: error?.message || "更新运营设置失败" });
   }
 });
 

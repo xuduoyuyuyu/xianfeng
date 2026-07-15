@@ -202,7 +202,12 @@ function normalizeApplyDraft(value) {
 
 function loadApplyDraft() {
   try {
-    const value = wx.getStorageSync(MAMA_RESOURCE_APPLY_DRAFT_KEY);
+    wx.removeStorageSync(MAMA_RESOURCE_APPLY_DRAFT_KEY);
+  } catch (_error) {}
+  const storageKey = getApplyDraftStorageKey();
+  if (!storageKey) return cloneEmptyApplyDraft();
+  try {
+    const value = wx.getStorageSync(storageKey);
     return normalizeApplyDraft(value);
   } catch (_error) {
     return cloneEmptyApplyDraft();
@@ -210,15 +215,34 @@ function loadApplyDraft() {
 }
 
 function saveApplyDraft(draft) {
+  const storageKey = getApplyDraftStorageKey();
+  if (!storageKey) return;
   try {
-    wx.setStorageSync(MAMA_RESOURCE_APPLY_DRAFT_KEY, normalizeApplyDraft(draft));
+    wx.setStorageSync(storageKey, normalizeApplyDraft(draft));
   } catch (_error) {}
 }
 
 function clearApplyDraft() {
+  const storageKey = getApplyDraftStorageKey();
+  if (!storageKey) return;
   try {
-    wx.removeStorageSync(MAMA_RESOURCE_APPLY_DRAFT_KEY);
+    wx.removeStorageSync(storageKey);
   } catch (_error) {}
+}
+
+function getApplyDraftStorageKey() {
+  if (!getToken()) return "";
+  const storedUser = getUser();
+  let user = storedUser && typeof storedUser === "object" ? storedUser : {};
+  if (typeof storedUser === "string") {
+    try {
+      user = JSON.parse(storedUser);
+    } catch (_error) {
+      user = {};
+    }
+  }
+  const ownerId = asText(user._id || user.id || user.mobile || user.openid).trim();
+  return ownerId ? `${MAMA_RESOURCE_APPLY_DRAFT_KEY}:${encodeURIComponent(ownerId)}` : "";
 }
 
 function childStageIndexFor(childStage) {
@@ -239,6 +263,28 @@ function buildApplyDraftState(draftValue) {
     mediaAccounts: formDraft.mediaAccounts,
     mediaPlatformOptions: MEDIA_PLATFORM_OPTIONS,
     profileOverview: buildProfileOverview(formDraft)
+  };
+}
+
+function buildLoggedOutMamaResourceState() {
+  return {
+    ...buildApplyDraftState(cloneEmptyApplyDraft()),
+    mamaResourceView: "apply",
+    profileManagerMode: "overview",
+    isLoggedIn: false,
+    mamaResourceProfile: null,
+    mamaTasks: [],
+    currentMamaTask: null,
+    mamaTasksLoading: false,
+    taskProofLink: "",
+    taskProofScreenshotUrl: "",
+    taskContentLinkOpen: false,
+    taskShareImageUrl: "",
+    taskSharePreviewOpen: false,
+    message: "",
+    messageType: "",
+    taskMessage: "",
+    taskMessageType: ""
   };
 }
 
@@ -677,11 +723,24 @@ Page({
     return updatePageApplyDraft(this, patch);
   },
 
+  applyStationUserProfile(user) {
+    const stationName = asText(user && user.name).trim();
+    if (!stationName || stationName === "微信用户") return;
+    if (asText(this.data.formDraft && this.data.formDraft.displayName).trim()) return;
+    updatePageApplyDraft(this, { displayName: stationName });
+  },
+
+  onNativeSettingsProfileSaved(user) {
+    this.applyStationUserProfile(user);
+  },
+
   onNativeSettingsLoginSuccess(payload) {
-    const mobile = asText(payload && payload.user && payload.user.mobile).trim();
+    const user = payload && payload.user;
+    const mobile = asText(user && user.mobile).trim();
     if (mobile && !asText(this.data.formDraft && this.data.formDraft.contactPhone).trim()) {
       updatePageApplyDraft(this, { contactPhone: mobile });
     }
+    this.applyStationUserProfile(user);
     this.syncAccountEntry();
     this.setData({
       mamaTasksLoading: false,
@@ -722,16 +781,7 @@ Page({
   loadMamaTasks() {
     if (this.data.mamaTasksLoading) return Promise.resolve();
     if (!getToken()) {
-      this.setData({
-        mamaResourceView: "apply",
-        isLoggedIn: false,
-        mamaResourceProfile: null,
-        mamaTasks: [],
-        currentMamaTask: null,
-        mamaTasksLoading: false,
-        message: "",
-        messageType: ""
-      });
+      this.setData(buildLoggedOutMamaResourceState());
       return Promise.resolve();
     }
     if (!this.data.isLoggedIn) this.setData({ isLoggedIn: true });
@@ -774,16 +824,7 @@ Page({
       })
       .catch((error) => {
         if (isUnauthorizedError(error)) {
-          this.setData({
-            mamaResourceView: "apply",
-            isLoggedIn: false,
-            mamaResourceProfile: null,
-            mamaTasks: [],
-            currentMamaTask: null,
-            mamaTasksLoading: false,
-            message: "",
-            messageType: ""
-          });
+          this.setData(buildLoggedOutMamaResourceState());
           return;
         }
         this.setData({
@@ -1570,6 +1611,11 @@ Page({
       path: "/pages/mama-resource-apply/index?shared=1",
       imageUrl: MAMA_RESOURCE_SHARE_COVER_IMAGE
     }).onShareTimeline();
+  },
+
+  onNativeSettingsLogout() {
+    clearApplyDraft();
+    this.setData(buildLoggedOutMamaResourceState());
   },
 
   ...createNativeSettingsMethods()

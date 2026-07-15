@@ -421,6 +421,7 @@
             data-section-index="{{sectionIndex}}"
             data-item-index="{{itemIndex}}"
           >
+            <button wx:if="{{!isLoggedIn}}" class="xf-settings-item-login" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone" data-section-index="{{sectionIndex}}" data-item-index="{{itemIndex}}" catchtap="noop" disabled="{{bindingPhone}}"></button>
             <image wx:if="{{item.iconType === 'image'}}" class="xf-native-settings-logo-icon" src="{{item.image}}" mode="aspectFit" />
             <text wx:elif="{{item.iconType === 'emoji'}}" class="xf-native-settings-emoji-icon">{{item.emoji}}</text>
             <text wx:else class="xf-native-settings-symbol material-symbols-rounded">{{item.icon}}</text>

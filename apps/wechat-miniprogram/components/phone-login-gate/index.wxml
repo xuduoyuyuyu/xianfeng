@@ -1,5 +1,5 @@
-<view wx:if="{{visible}}" class="xf-phone-login-mask" catchtouchmove="noop">
-  <view class="xf-phone-login-card">
+<view wx:if="{{visible || completingProfile}}" class="xf-phone-login-mask" catchtouchmove="noop">
+  <view wx:if="{{!completingProfile}}" class="xf-phone-login-card">
     <image class="xf-phone-login-image" src="/assets/wel-avatar/wizard.png" mode="aspectFit" />
     <text class="xf-phone-login-title">{{title}}</text>
     <text class="xf-phone-login-description">{{description}}</text>
@@ -7,5 +7,19 @@
     <button class="xf-phone-login-button {{bindingPhone ? 'is-binding' : ''}}" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone" disabled="{{bindingPhone}}">
       {{bindingPhone ? '正在登录...' : '手机号快捷登录'}}
     </button>
+  </view>
+  <view wx:else class="xf-phone-login-card xf-wechat-profile-card">
+    <text class="xf-phone-login-title">完善头像和昵称</text>
+    <text class="xf-phone-login-description">用于站内个人资料，并同步到需要展示用户身份的页面。</text>
+    <button class="xf-wechat-profile-avatar-button" open-type="chooseAvatar" bindchooseavatar="chooseWechatAvatar">
+      <image class="xf-wechat-profile-avatar" src="{{profileAvatar || '/assets/tabbar/xiaowanzi.png'}}" mode="aspectFill" />
+      <text>选择微信头像</text>
+    </button>
+    <input class="xf-wechat-profile-nickname" type="nickname" value="{{profileName}}" placeholder="选择或输入微信昵称" bindinput="updateWechatNickname" />
+    <text wx:if="{{profileMessage}}" class="xf-phone-login-message">{{profileMessage}}</text>
+    <button class="xf-phone-login-button {{savingProfile ? 'is-binding' : ''}}" bindtap="saveWechatProfile" disabled="{{savingProfile}}">
+      {{savingProfile ? '保存中...' : '保存并继续'}}
+    </button>
+    <button class="xf-wechat-profile-skip" bindtap="skipWechatProfile" disabled="{{savingProfile}}">稍后完善</button>
   </view>
 </view>

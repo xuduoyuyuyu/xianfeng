@@ -2793,21 +2793,6 @@ page {
   background: #f5f1ff;
 }
 
-.xf-expert-detail-eyebrow {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8rpx 22rpx;
-  border: 1rpx solid #cfc2ef;
-  border-radius: 999rpx;
-  background: #f3eefc;
-  color: #5b3fa1;
-  font-size: 20rpx;
-  font-weight: 900;
-  letter-spacing: 0.16em;
-  line-height: 1.2;
-}
-
 .xf-expert-detail-name {
   display: block;
   margin-top: 24rpx;
@@ -3062,6 +3047,12 @@ page {
   box-shadow: 0 8rpx 26rpx rgba(70, 73, 132, 0.08);
 }
 
+.xf-expert-detail-nav-title {
+  color: #11143b;
+  font-size: 30rpx;
+  font-weight: 900;
+}
+
 .xf-expert-detail-scroll {
   height: 100%;
   padding: 26rpx 22rpx 24rpx;
@@ -3162,9 +3153,10 @@ page {
 
 .xf-expert-detail-name-row {
   display: flex;
-  align-items: baseline;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  gap: 16rpx;
+  gap: 8rpx;
   margin-top: 34rpx;
 }
 
@@ -3461,25 +3453,10 @@ page {
   font-weight: 800;
 }
 
-.xf-expert-detail-eyebrow {
-  display: inline-flex;
-  align-items: center;
-  min-height: 38rpx;
-  padding: 0 22rpx;
-  border: 1rpx solid #cfc2ef;
-  border-radius: 999rpx;
-  background: #f3eefc;
-  color: #5b3fa1;
-  font-size: 18rpx;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  line-height: 38rpx;
-}
-
 .xf-expert-detail-card.is-static-programs .xf-expert-detail-section-title,
 .xf-expert-detail-card.is-static-publications .xf-expert-detail-section-title,
+.xf-expert-detail-card.is-authored-books .xf-expert-detail-section-title,
 .xf-expert-detail-card.is-booklists .xf-expert-detail-section-title {
-  margin-top: 24rpx;
   color: #241a3a;
 }
 
@@ -3492,6 +3469,7 @@ page {
   grid-template-columns: 48rpx minmax(0, 1fr) 28rpx;
   align-items: center;
   gap: 10rpx;
+  box-sizing: border-box;
   min-height: 94rpx;
   margin-top: 14rpx;
   padding: 18rpx 20rpx;
@@ -3575,13 +3553,11 @@ page {
 
 .xf-expert-detail-static-program-title {
   min-width: 0;
-  overflow: hidden;
   color: #241a3a;
   font-size: 25rpx;
   font-weight: 800;
   line-height: 1.45;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .xf-expert-detail-static-public-list .xf-expert-detail-profile-link.is-reference {
@@ -3702,6 +3678,12 @@ page {
 
 .xf-expert-detail-agent-intro button::after {
   border: 0;
+}
+
+.xf-expert-detail-agent-intro.is-guest button {
+  border: 1rpx solid #e6def3;
+  background: #f4f2fb;
+  color: #241a3a;
 }
 
 .xf-expert-detail-message-list {

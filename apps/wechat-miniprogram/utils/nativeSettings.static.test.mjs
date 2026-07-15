@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import test from "node:test";
 
 const require = createRequire(import.meta.url);
+const wechatProfilePath = require.resolve("./wechatProfile.js");
 const nativeSettingsSource = fs.readFileSync(new URL("./nativeSettings.js", import.meta.url), "utf8");
 const nativeChromeSource = fs.readFileSync(new URL("./nativeChrome.js", import.meta.url), "utf8");
 const appWxssSource = fs.readFileSync(new URL("../app.wxss", import.meta.url), "utf8");
@@ -68,6 +69,142 @@ test("native settings logs in logged-out users with the current phone authorizat
   assert.match(mineTemplateSource, /<button wx:else class="xf-profile-secondary xf-settings-login" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone">登录<\/button>/);
 });
 
+test("native settings completes wechat nickname and avatar before continuing an incomplete login", () => {
+  assert.match(nativeSettingsSource, /needsWechatProfileCompletion/);
+  assert.match(nativeSettingsSource, /saveWechatProfile: persistWechatProfile/);
+  assert.match(nativeSettingsSource, /persistWechatProfile\(\{[\s\S]*name,[\s\S]*avatarPath/);
+  assert.match(nativeSettingsSource, /typeof this\.onNativeSettingsProfileSaved === "function"/);
+  assert.match(sharedTemplateSource, /open-type="chooseAvatar" bindchooseavatar="chooseProfileAvatar"/);
+  assert.match(sharedTemplateSource, /type="nickname"/);
+  assert.match(sharedTemplateSource, /wx:if="\{\{profileDraft\.avatar\}\}" class="xf-account-avatar-image"/);
+  assert.match(sharedTemplateSource, /wx:else class="xf-account-avatar-empty">未设置<\/view>/);
+  assert.match(sharedTemplateSource, /wx:if="\{\{profileDraft\.avatar\}\}" bindtap="removeProfileAvatar">移除头像<\/button>/);
+});
+
+test("native settings continues to the tapped menu item after phone login", async () => {
+  const originalWx = global.wx;
+  const originalGetApp = global.getApp;
+  const storage = new Map();
+  let openedDataset = null;
+  global.wx = {
+    getStorageSync(key) {
+      return storage.has(key) ? storage.get(key) : "";
+    },
+    setStorageSync(key, value) {
+      storage.set(key, value);
+    },
+    removeStorageSync(key) {
+      storage.delete(key);
+    },
+    login({ success }) {
+      success({ code: "wx-login-code" });
+    },
+    request(options) {
+      if (options.url.includes("/api/wechat-mini/login")) {
+        options.success({ statusCode: 200, data: { token: "token-1", user: { name: "阿力", mobile: "13500003069", avatar_image: "https://cdn.test/avatar.png" } } });
+        return;
+      }
+      options.success({ statusCode: 200, data: { membership: {} } });
+    }
+  };
+  global.getApp = () => ({ globalData: {} });
+
+  const nativeSettingsFile = require.resolve("./nativeSettings.js");
+  delete require.cache[nativeSettingsFile];
+  const { createNativeSettingsMethods } = require(nativeSettingsFile);
+  const methods = createNativeSettingsMethods();
+  const context = {
+    data: { bindingPhone: false },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    },
+    loadSettingsPanel: methods.loadSettingsPanel,
+    syncAccountEntry: methods.syncAccountEntry,
+    openSettingsItem(event) {
+      openedDataset = event.currentTarget.dataset;
+    },
+    selectComponent() {
+      return null;
+    }
+  };
+
+  try {
+    methods.loginWithPhone.call(context, {
+      detail: { code: "phone-code" },
+      currentTarget: { dataset: { sectionIndex: 2, itemIndex: 1 } }
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(storage.get("xf_token"), "token-1");
+    assert.deepEqual(openedDataset, { sectionIndex: 2, itemIndex: 1 });
+    assert.equal(context.pendingSettingsLoginDataset, null);
+  } finally {
+    global.wx = originalWx;
+    global.getApp = originalGetApp;
+  }
+});
+
+test("native settings pauses a tapped destination while the login profile is incomplete", async () => {
+  const originalWx = global.wx;
+  const originalGetApp = global.getApp;
+  const storage = new Map();
+  let openedDataset = null;
+  global.wx = {
+    getStorageSync(key) { return storage.has(key) ? storage.get(key) : ""; },
+    setStorageSync(key, value) { storage.set(key, value); },
+    removeStorageSync(key) { storage.delete(key); },
+    login({ success }) { success({ code: "wx-login-code" }); },
+    request(options) {
+      if (options.url.includes("/api/wechat-mini/login")) {
+        options.success({ statusCode: 200, data: { token: "token-1", user: { name: "微信用户", mobile: "13500003069", avatar_image: "" } } });
+        return;
+      }
+      options.success({ statusCode: 200, data: { membership: {} } });
+    }
+  };
+  global.getApp = () => ({ globalData: {} });
+  require.cache[wechatProfilePath] = { exports: {
+    isPlaceholderName: (name) => name === "微信用户",
+    needsWechatProfileCompletion: () => true,
+    normalizeWechatProfileUser: (user) => ({ ...user, avatar: user.avatar_image || "" }),
+    saveWechatProfile: async () => ({})
+  } };
+
+  const nativeSettingsFile = require.resolve("./nativeSettings.js");
+  delete require.cache[nativeSettingsFile];
+  const { createNativeSettingsMethods } = require(nativeSettingsFile);
+  const methods = createNativeSettingsMethods();
+  const context = {
+    data: { bindingPhone: false },
+    setData(payload) { this.data = { ...this.data, ...payload }; },
+    loadSettingsPanel: methods.loadSettingsPanel,
+    syncAccountEntry: methods.syncAccountEntry,
+    loadProfilePanel: methods.loadProfilePanel,
+    loadProfilePanelView: methods.loadProfilePanelView,
+    openSettingsItem(event) { openedDataset = event.currentTarget.dataset; },
+    selectComponent() { return null; }
+  };
+
+  try {
+    methods.loginWithPhone.call(context, {
+      detail: { code: "phone-code" },
+      currentTarget: { dataset: { sectionIndex: 3, itemIndex: 3 } }
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(context.data.settingsPanelOpen, true);
+    assert.equal(context.data.settingsPanelView, "profile");
+    assert.equal(context.data.profileDraft.name, "");
+    assert.equal(openedDataset, null);
+    assert.deepEqual(context.pendingSettingsLoginDataset, { sectionIndex: 3, itemIndex: 3 });
+  } finally {
+    delete require.cache[nativeSettingsFile];
+    delete require.cache[wechatProfilePath];
+    global.wx = originalWx;
+    global.getApp = originalGetApp;
+  }
+});
+
 test("native settings logout clears the account entry shown in the open drawer", () => {
   const originalWx = global.wx;
   const originalGetApp = global.getApp;
@@ -76,6 +213,7 @@ test("native settings logout clears the account entry shown in the open drawer",
     ["xf_user", { name: "阿力", mobile: "13500003069", avatar: "/avatar.png" }]
   ]);
   let clearCalled = false;
+  let logoutHookCalled = false;
   global.wx = {
     getStorageSync(key) {
       return storage.has(key) ? storage.get(key) : "";
@@ -113,12 +251,17 @@ test("native settings logout clears the account entry shown in the open drawer",
     setData(payload) {
       this.data = { ...this.data, ...payload };
     },
+    onNativeSettingsLogout() {
+      logoutHookCalled = true;
+      assert.equal(storage.has("xf_token"), true);
+    },
     syncAccountEntry: methods.syncAccountEntry
   };
 
   try {
     methods.logout.call(context);
 
+    assert.equal(logoutHookCalled, true);
     assert.equal(clearCalled, true);
     assert.equal(storage.has("xf_token"), false);
     assert.equal(storage.has("xf_user"), false);

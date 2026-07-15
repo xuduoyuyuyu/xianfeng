@@ -59,41 +59,17 @@ Page({
   },
 
   loginWithPhone(event) {
-    if (this.data.bindingPhone) return;
-    const phoneCode = String(event && event.detail && event.detail.code || "");
-    if (!phoneCode) {
-      this.setData({ message: "需要授权手机号后登录" });
-      return;
-    }
-    this.setData({ bindingPhone: true, message: "" });
-    wx.login({
-      success: ({ code }) => {
-        if (!code) {
-          this.setData({ bindingPhone: false, message: "微信登录失败，请重试" });
-          return;
-        }
-        request({
-          method: "POST",
-          url: "/api/wechat-mini/login",
-          data: { code, phoneCode }
-        })
-          .then((payload) => {
-            const app = typeof getApp === "function" ? getApp() : null;
-            if (app && typeof app.setLoginSession === "function") app.setLoginSession(payload);
-            this.refresh();
-            this.setData({ message: "登录成功" });
-          })
-          .catch((error) => {
-            this.setData({ message: error.message || "登录失败" });
-          })
-          .finally(() => {
-            this.setData({ bindingPhone: false });
-          });
-      },
-      fail: () => {
-        this.setData({ bindingPhone: false, message: "无法调用微信登录" });
-      }
-    });
+    const gate = this.selectComponent("#settingsPhoneLoginGate");
+    if (gate && typeof gate.loginWithPhone === "function") gate.loginWithPhone(event);
+  },
+
+  handleLoginSuccess() {
+    this.refresh();
+    this.setData({ message: "登录成功" });
+  },
+
+  handleLoginFailure(event) {
+    this.setData({ message: String(event && event.detail && event.detail.message || "登录失败") });
   },
 
   goLogin() {

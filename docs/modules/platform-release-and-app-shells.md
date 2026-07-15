@@ -130,10 +130,20 @@
   `/api/wechat-mini/xiaowanzi-share-qrcode` so the generated mini-program code
   lands on `pages/share/index` and loads that conversation directly.
 - Native mini-program login uses WeChat phone-number authorization in place.
-  Native settings, first-level menu account cards, and Mine login entry expose
-  `open-type="getPhoneNumber"` directly instead of routing through the
-  intermediate `pages/login` screen. The shell sends the `getPhoneNumber` code
-  with `wx.login` to the backend, then stores the returned JWT/user profile.
+  Native settings, first-level menu account cards, every sidebar menu item,
+  and the Mine login entry expose `open-type="getPhoneNumber"` directly when
+  signed out instead of routing through the intermediate `pages/login` screen.
+  The shell sends the `getPhoneNumber` code with `wx.login` to the backend,
+  stores the returned JWT/user profile, and then continues once to the menu
+  destination originally tapped.
+  If the returned account still has a generated station nickname or no
+  permanent avatar, the shared login gate and native settings profile panel use
+  WeChat `chooseAvatar` plus `nickname` input before resuming the pending
+  action. The avatar is uploaded through the existing authenticated user-avatar
+  endpoint and the nickname/avatar URL are persisted through `/api/users/me`;
+  existing custom profiles remain unchanged. Mama Haozhuan may copy the station
+  nickname only into an empty personal display-name field and never into a
+  social-platform account nickname.
 - Native settings own local app preferences and maintenance actions. Font size
   is stored as a mini-program preference, applied to native pages and settings
   surfaces, and passed to `web-view` routes as `xf_font` so the web frontend can
@@ -151,11 +161,17 @@
   section and enter the existing native book detail. Active social profiles
   render only when present; tapping copies the external URL, or the account
   name when no URL exists, instead of opening third-party pages.
+- Native guest profile statistics and guest-list cards show non-zero program,
+  social-media, authored-work, and recommended-booklist counts from the public
+  guest API.
 - `pages/mama-resource-apply/index` is a native mini-program form for the
   Mama Haozhuan supply intake. It mirrors the public web form and uses
   `wx.chooseMedia`/`wx.uploadFile` for Xiaohongshu profile screenshots.
-  Unsubmitted form values are kept as a local mini-program draft and cleared
-  only after a successful submission.
+  Unsubmitted form values are kept only for an authenticated account, under an
+  account-scoped local draft key, and cleared after a successful submission or
+  explicit logout/account deletion. Logged-out and unauthorized states render
+  an empty form and reset private task data; the legacy unscoped cache is never
+  restored because its owner cannot be verified.
 - After the bound mobile matches an approved Mama resource profile, the same
   native page switches from intake form to a task center. The task center reads
   task assignments and still-claimable listed tasks from the backend, shows one

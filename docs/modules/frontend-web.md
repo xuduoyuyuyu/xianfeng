@@ -57,14 +57,22 @@
   credentials.
   `/admin/mama-resources` is the operator review and manual data-completion
   screen. The admin task workflow is task-first: operators list a task, open the
-  task workspace, then either directly choose approved accounts or filter them
-  by tags/follower count before assigning. Task creation also supports a
+  task workspace, then filter only the accounts that already claimed that task.
+  Claimant rows expose the matched site user ID, mobile, station profile,
+  platform account, and claim time so operators can distinguish similar users.
+  The selected claimant detail supports free-form operator tags and an
+  account-level block/resume control for future claims. Task creation also supports a
   claim-limit field for the mini-program first-come task flow and multiple
   example images uploaded through the admin image upload endpoint. Submitted
   proof is reviewed from the task assignment list as collected or rejected.
   The same assignment list shows private-content configuration progress and
   supports direct link editing plus Excel template download, preflight review,
-  and explicit import confirmation. This workflow does not send SMS.
+  and explicit import confirmation. Operators may also paste a task-level link
+  pool, see imported/assigned/remaining counts, and see “等待内容分配” when the
+  pool is exhausted. Claimant cards and details mark “已返图”, “未返图”,
+  or “24小时未返图”; the existing user-filter section exposes those states as
+  quick choices instead of adding a separate filter panel. This workflow does
+  not send SMS.
 - `/welfare` is the public Xiaowanzi treasure box page (`小玩子百宝箱`). It
   uses the gift icon asset and Xiaowanzi avatar treatment, lists claimable
   welfare separately from expired or sold-out historical welfare, and shows

@@ -68,13 +68,12 @@ test("guest detail fills real avatars and centers the Xiaowanzi fallback avatar"
   assert.doesNotMatch(source, /h-\[62%\] w-\[62%\]/, "fallback avatar should no longer be too small");
 });
 
-test("non-agent guest header matches agent avatar and title placement", () => {
+test("non-agent guest header stacks and centers the title on mobile", () => {
   assert.match(source, /className="flex flex-col items-center gap-8 text-center md:flex-row-reverse md:justify-between md:text-left"/, "normal desktop guest header should place the avatar on the far right");
   assert.match(source, /className="mt-6 min-w-0 md:mt-0 md:flex-1"/, "normal desktop profile copy should fill the left side beside the right avatar");
-  assert.match(source, /className="mt-5 flex items-center justify-center gap-3 md:justify-start"/, "normal desktop name row should align left beside the avatar");
+  assert.match(source, /className="mt-5 flex flex-col items-center justify-center gap-1 md:flex-row md:justify-start md:gap-3"/, "mobile guest title should sit on a centered second line while desktop keeps its existing row layout");
   assert.match(source, /absolute -bottom-3 right-\[-19px\][\s\S]*<GuestWishButton guestId=\{guest\._id \|\| ""\}/, "wish button should sit at the avatar lower-right corner");
-  assert.match(source, /<h1 className="text-4xl font-black tracking-tight text-\[#241a3a\]">[\s\S]*<p className="text-sm font-black text-\[#5e17eb\]">\{guest\.title \|\| "节目嘉宾"\}<\/p>/, "guest title should sit next to the guest name");
-  assert.doesNotMatch(source, /<p className="mt-3 text-sm font-black uppercase tracking-\[0\.22em\] text-\[#5e17eb\]">\{guest\.title \|\| "节目嘉宾"\}<\/p>/, "guest title should not render as a separate line under the name");
+  assert.match(source, /<h1 className="text-4xl font-black tracking-tight text-\[#241a3a\]">[\s\S]*<p className="text-sm font-black text-\[#5e17eb\]">\{guest\.title \|\| "节目嘉宾"\}<\/p>/, "guest title should remain directly after the guest name in the stacked heading group");
 });
 
 test("guest agent mode collapses social media into the profile tabs area", () => {

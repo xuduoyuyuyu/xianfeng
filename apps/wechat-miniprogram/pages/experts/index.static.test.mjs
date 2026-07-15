@@ -71,6 +71,9 @@ test("native experts page mirrors mobile list structure and routes to native det
   assert.match(wxml, /wx:if="\{\{item\.agentEnabled\}\}" class="xf-experts-ai-badge">AI<\/text>/);
   assert.match(wxml, /wx:if="\{\{item\.showQuestionCard && item\.activeQuestion\}\}"[\s\S]*去问问/);
   assert.match(wxss, /\.xf-experts-page \{[\s\S]*background-color: #f7f5ff;/);
+  assert.match(wxss, /page \{[\s\S]*width: 100%;[\s\S]*overflow-x: hidden;/);
+  assert.match(wxss, /\.xf-experts-page \{[\s\S]*width: 100%;[\s\S]*max-width: 100vw;[\s\S]*overflow-x: hidden;/);
+  assert.match(wxss, /\.xf-experts-list \{[\s\S]*width: 100%;[\s\S]*min-width: 0;/);
   assert.match(wxss, /\.xf-experts-card \{[\s\S]*border-radius: 24rpx;/);
   assert.match(wxss, /\.xf-experts-avatar-wrap \{[\s\S]*background: #ffffff;/);
   assert.doesNotMatch(wxss, /\.xf-experts-avatar-wrap \{[\s\S]*background: #95ed20;/);

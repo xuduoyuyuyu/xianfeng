@@ -11778,7 +11778,7 @@ test("mine shared half-panel profile entries switch in place", () => {
     assert.match(settings.wxml, /wx:else class="xf-profile-secondary xf-settings-login" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone"/);
     assert.match(settings.wxml, /<view class="xf-settings-bottom">\s*<button wx:if="\{\{isLoggedIn\}\}" class="xf-profile-danger xf-settings-danger" bindtap="deleteAccount"/);
     assert.match(settings.wxss, /\.xf-settings-bottom \{[\s\S]*margin-top: auto;[\s\S]*padding-top: 120rpx;[\s\S]*padding-bottom: 86rpx;/);
-    assert.match(settings.js, /loginWithPhone\(event\)[\s\S]*\/api\/wechat-mini\/login/);
+    assert.match(settings.js, /loginWithPhone\(event\)[\s\S]*selectComponent\("#settingsPhoneLoginGate"\)[\s\S]*gate\.loginWithPhone\(event\)/);
     assert.match(settings.js, /deleteAccountFromSettings\(this, \{ messageKey: "message" \}\)/);
   } finally {
     global.wx = originalWx;
@@ -12366,23 +12366,18 @@ test("topics cards share native landing paths without leaking web params", () =>
 
   assert.equal(share.title, "写作&成长=一#章");
   assert.equal("imageUrl" in share, false);
-  assert.match(share.path, /^\/pages\/share\/index\?/);
+  assert.match(share.path, /^\/pages\/webview\/index\?/);
   assert.equal(share.path.includes("xf_token"), false);
   assert.equal(share.path.includes("secret"), false);
   assert.equal(share.path.includes("userId"), false);
-  const landing = new URL(share.path, "https://mini.local");
-  const target = landing.searchParams.get("target");
-  assert.ok(target);
-  const nested = new URL(target, "https://mini.local");
+  const nested = new URL(share.path, "https://mini.local");
   assert.equal(nested.pathname, "/pages/webview/index");
   assert.equal(nested.searchParams.get("url"), "/topics/writing-growth?ref=a%26b&section=one%3D1#part=2");
   assert.equal(nested.searchParams.get("title"), "写作&成长=一#章");
   assert.equal(nested.searchParams.get("topicId"), "topic-1");
   assert.equal(timelineShare.title, "写作&成长=一#章");
   assert.equal(timelineShare.query.includes("xf_token"), false);
-  const timelineTarget = new URLSearchParams(timelineShare.query).get("target");
-  assert.ok(timelineTarget);
-  assert.equal(new URL(timelineTarget, "https://mini.local").searchParams.get("topicId"), "topic-1");
+  assert.equal(new URLSearchParams(timelineShare.query).get("topicId"), "topic-1");
 });
 
 test("programs hamburger settings drawer renders native menu content", () => {
@@ -12598,10 +12593,10 @@ test("shared native settings drawer renders profile subviews in place on first-l
 
   assert.match(template, /template name="xfSettingsProfilePanel"/);
   assert.match(template, /<view class="xf-profile-title">个人资料<\/view>/);
-  assert.match(template, /bindtap="chooseProfileAvatar"[\s\S]*上传头像/);
+  assert.match(template, /open-type="chooseAvatar" bindchooseavatar="chooseProfileAvatar"[\s\S]*选择微信头像/);
   assert.match(template, /bindtap="removeProfileAvatar"[\s\S]*移除头像/);
   assert.match(template, /支持 JPG \/ PNG \/ WEBP，建议 1:1 方图/);
-  assert.match(template, /<input value="\{\{profileDraft\.name\}\}"[\s\S]*bindinput="updateProfileName"/);
+  assert.match(template, /<input type="nickname" value="\{\{profileDraft\.name\}\}"[\s\S]*bindinput="updateProfileName"/);
   assert.match(template, /<text class="xf-profile-label">性别<\/text>/);
   assert.match(template, /bindtap="chooseProfileGender"/);
   assert.match(template, /bindtap="saveProfilePanel">保存资料/);
@@ -12664,7 +12659,7 @@ test("shared native settings drawer renders profile subviews in place on first-l
     assert.match(template, new RegExp(label));
   }
 
-  for (const pageName of ["programs", "reading", "materials", "topics", "search", "pro", "mama-resource-apply"]) {
+  for (const pageName of ["programs", "reading", "materials", "topics", "search", "pro", "mama-resource-apply", "worthbuy"]) {
     const page = readPage(pageName);
     assert.match(page.js, /settingsProfilePanelSupported: true/, pageName);
     assert.match(page.js, /settingsPanelView: "menu"/, pageName);
@@ -12696,7 +12691,7 @@ test("shared native settings drawer renders profile subviews in place on first-l
 }
 );
 
-test("shared native settings personal profile panel edits local account profile", () => {
+test("shared native settings personal profile panel persists the account profile", async () => {
   const nativeSettings = require("../utils/nativeSettings.js");
   const storage = new Map([
     ["xf_token", "mini-token"],
@@ -12710,6 +12705,7 @@ test("shared native settings personal profile panel edits local account profile"
     ...nativeSettings.createNativeSettingsMethods()
   };
   const originalWx = global.wx;
+  const originalGetApp = global.getApp;
 
   try {
     global.wx = {
@@ -12719,32 +12715,42 @@ test("shared native settings personal profile panel edits local account profile"
       setStorageSync(key, value) {
         storage.set(key, value);
       },
-      chooseMedia(options) {
-        options.success({ tempFiles: [{ tempFilePath: "/tmp/new-avatar.png" }] });
+      uploadFile(options) {
+        options.success({ statusCode: 201, data: JSON.stringify({ url: "/uploads/new-avatar.png" }) });
+      },
+      request(options) {
+        if (options.url.includes("/api/users/me")) {
+          options.success({ statusCode: 200, data: { name: options.data.name, gender: options.data.gender, avatar_image: options.data.avatar_image, mobile: "13512343069" } });
+          return;
+        }
+        options.success({ statusCode: 200, data: { membership: {} } });
       }
     };
+    global.getApp = () => ({ globalData: {}, setLoginSession() {} });
 
     context.loadProfilePanel();
     assert.equal(context.data.profileDraft.name, "阿力");
     assert.equal(context.data.profileDraft.gender, "男");
     assert.equal(context.data.profileAvatar, "/uploads/avatar.png");
-    context.updateProfileName({ detail: { value: "微信用户" } });
+    context.updateProfileName({ detail: { value: "新昵称" } });
     context.chooseProfileGender({ currentTarget: { dataset: { value: "女" } } });
-    context.chooseProfileAvatar();
+    context.chooseProfileAvatar({ detail: { avatarUrl: "/tmp/new-avatar.png" } });
     assert.equal(context.data.profileDraft.avatar, "/tmp/new-avatar.png");
     context.saveProfilePanel();
-    assert.equal(storage.get("xf_user").name, "微信用户");
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(storage.get("xf_user").name, "新昵称");
     assert.equal(storage.get("xf_user").gender, "女");
-    assert.equal(storage.get("xf_user").avatar, "/tmp/new-avatar.png");
-    assert.equal(context.data.accountAvatar, "/tmp/new-avatar.png");
+    assert.equal(storage.get("xf_user").avatar, "/uploads/new-avatar.png");
+    assert.equal(context.data.accountAvatar, "/uploads/new-avatar.png");
     context.returnSettingsMenu();
     assert.equal(context.data.settingsPanelView, "menu");
-    assert.equal(context.data.accountAvatar, "/tmp/new-avatar.png");
+    assert.equal(context.data.accountAvatar, "/uploads/new-avatar.png");
     assert.match(context.data.profilePanelMessage, /资料已保存/);
     context.removeProfileAvatar();
     assert.equal(context.data.profileAvatar, "/assets/tabbar/xiaowanzi.png");
   } finally {
     global.wx = originalWx;
+    global.getApp = originalGetApp;
   }
 });
 
@@ -13269,6 +13275,74 @@ test("mama haozhuan opens a native mini program form instead of program detail w
     assert.match(page.wxss, /\.xf-mama-chip\.is-active \{[\s\S]*border-color: #6c27d6;[\s\S]*background: #6c27d6;[\s\S]*color: #ffffff;/);
     assert.doesNotMatch(page.wxss, /\.xf-mama-card \{[\s\S]*margin: 26rpx;/);
     assert.match(page.js, /request\(\{[\s\S]*url: "\/api\/mama-resources\/applications"/);
+  } finally {
+    global.wx = originalWx;
+    global.getCurrentPages = originalGetCurrentPages;
+  }
+});
+
+test("mama haozhuan does not expose an unscoped private draft while logged out", async () => {
+  const definition = loadPageDefinition("mama-resource-apply");
+  const originalWx = global.wx;
+  const originalGetCurrentPages = global.getCurrentPages;
+  const storage = new Map([
+    ["xf_mama_resource_apply_draft_v1", { displayName: "上一位用户", contactWechat: "previous-user" }]
+  ]);
+
+  try {
+    global.wx = {
+      loadFontFace() {},
+      getStorageSync(key) {
+        return storage.get(key) || "";
+      },
+      setStorageSync(key, value) {
+        storage.set(key, value);
+      },
+      removeStorageSync(key) {
+        storage.delete(key);
+      },
+      getWindowInfo() {
+        return { statusBarHeight: 20, windowWidth: 375 };
+      },
+      getMenuButtonBoundingClientRect() {
+        return { top: 24, height: 32, left: 281 };
+      },
+      showShareMenu() {}
+    };
+    global.getCurrentPages = () => [
+      { route: "pages/programs/index" },
+      { route: "pages/mama-resource-apply/index" }
+    ];
+    const context = {
+      ...definition,
+      data: { ...definition.data },
+      setData(payload) {
+        this.data = { ...this.data, ...payload };
+      }
+    };
+
+    definition.onLoad.call(context, {});
+
+    assert.equal(context.data.isLoggedIn, false);
+    assert.equal(context.data.formDraft.displayName, "");
+    assert.equal(context.data.formDraft.contactWechat, "");
+    assert.equal(context.data.profileOverview.personalSummary.includes("上一位用户"), false);
+    assert.equal(storage.has("xf_mama_resource_apply_draft_v1"), false);
+
+    storage.set("xf_token", "token-user-a");
+    storage.set("xf_user", { _id: "user-a", mobile: "13800000000" });
+    definition.updateApplyDraft.call(context, { displayName: "当前用户" });
+
+    assert.equal(storage.has("xf_mama_resource_apply_draft_v1"), false);
+    assert.equal(storage.get("xf_mama_resource_apply_draft_v1:user-a").displayName, "当前用户");
+
+    storage.set("xf_user", { _id: "user-b", mobile: "13900000000" });
+    definition.onLoad.call(context, {});
+    assert.equal(context.data.formDraft.displayName, "");
+
+    storage.set("xf_user", { _id: "user-a", mobile: "13800000000" });
+    definition.onLoad.call(context, {});
+    assert.equal(context.data.formDraft.displayName, "当前用户");
   } finally {
     global.wx = originalWx;
     global.getCurrentPages = originalGetCurrentPages;
@@ -14406,17 +14480,13 @@ test("native topic detail keeps system sharing while removing the custom share b
     const share = definition.onShareAppMessage.call(context);
     const timelineShare = definition.onShareTimeline.call(context);
     assert.equal(share.title, "不分享话题");
-    assert.match(share.path, /^\/pages\/share\/index\?/);
-    const landing = new URL(share.path, "https://mini.local");
-    const target = landing.searchParams.get("target");
-    assert.ok(target);
-    const nested = new URL(target, "https://mini.local");
-    assert.equal(nested.pathname, "/pages/webview/index");
-    assert.equal(nested.searchParams.get("url"), "/topics/no-share-topic");
-    assert.equal(nested.searchParams.get("title"), "不分享话题");
-    assert.equal(nested.searchParams.get("topicId"), "no-share-topic");
+    const direct = new URL(share.path, "https://mini.local");
+    assert.equal(direct.pathname, "/pages/webview/index");
+    assert.equal(direct.searchParams.get("url"), "/topics/no-share-topic");
+    assert.equal(direct.searchParams.get("title"), "不分享话题");
+    assert.equal(direct.searchParams.get("topicId"), "no-share-topic");
     assert.equal(timelineShare.title, "不分享话题");
-    assert.match(timelineShare.query, /^target=/);
+    assert.equal(new URLSearchParams(timelineShare.query).get("topicId"), "no-share-topic");
   } finally {
     global.wx = originalWx;
   }
@@ -14730,12 +14800,14 @@ test("native non-agent expert detail uses standalone profile and complete partic
   const normalizeProgramsSource = js.slice(normalizeProgramsStart, normalizeProgramsEnd);
 
   assert.match(wxml, /class="xf-expert-detail-card is-profile \{\{nativeExpert\.agentEnabled \? 'is-agent' : 'is-static'\}\}"/);
-  assert.match(wxml, /wx:if="\{\{!nativeExpert\.agentEnabled && \(nativeExpert\.programCount > 0 \|\| nativeExpert\.socialCount > 0 \|\| nativeExpert\.referenceCount > 0\)\}\}" class="xf-expert-detail-stat-pills"/);
+  assert.match(wxml, /class="xf-expert-detail-name-row">[\s\S]*class="xf-expert-detail-name">\{\{nativeExpert\.name\}\}<\/text>[\s\S]*class="xf-expert-detail-title">\{\{nativeExpert\.title\}\}<\/text>/);
+  assert.match(wxml, /wx:if="\{\{!nativeExpert\.agentEnabled && \(nativeExpert\.programCount > 0 \|\| nativeExpert\.socialCount > 0 \|\| nativeExpert\.authoredBookCount > 0 \|\| nativeExpert\.bookListCount > 0 \|\| nativeExpert\.referenceCount > 0\)\}\}" class="xf-expert-detail-stat-pills"/);
   assert.match(wxml, /wx:if="\{\{nativeExpert\.programCount > 0\}\}" class="xf-expert-detail-stat-pill">节目 \{\{nativeExpert\.programCount\}\}<\/text>/);
   assert.match(wxml, /wx:if="\{\{nativeExpert\.socialCount > 0\}\}" class="xf-expert-detail-stat-pill">社交媒体 \{\{nativeExpert\.socialCount\}\}<\/text>/);
   assert.match(wxml, /wx:if="\{\{nativeExpert\.referenceCount > 0\}\}" class="xf-expert-detail-stat-pill">公开内容 \{\{nativeExpert\.referenceCount\}\}<\/text>/);
   assert.match(wxml, /wx:if="\{\{!nativeExpert\.agentEnabled && nativeExpert\.hasRelatedPrograms\}\}" class="xf-expert-detail-card is-static-programs"/);
-  assert.match(wxml, /class="xf-expert-detail-eyebrow">RELATED CONTENT<\/text>/);
+  assert.doesNotMatch(wxml, /xf-expert-detail-eyebrow/);
+  assert.doesNotMatch(wxml, /RELATED CONTENT|AUTHORED WORKS|EXTENSION MATERIALS|PUBLIC CONTENT|RECOMMENDED BOOKS/);
   assert.match(wxml, /class="xf-expert-detail-section-title">参与节目<\/text>/);
   assert.match(wxml, /wx:for="\{\{nativeExpert\.relatedPrograms\}\}"[\s\S]*class="xf-expert-detail-static-program-link"/);
   assert.match(wxml, /wx:if="\{\{nativeExpert\.agentEnabled\}\}" class="xf-expert-detail-agent-card"/);
@@ -14743,9 +14815,22 @@ test("native non-agent expert detail uses standalone profile and complete partic
   assert.doesNotMatch(normalizeProgramsSource, /\.slice\(/, "native expert normalization should retain every related program returned by the API");
   assert.match(js, /socialCount: socialProfiles\.length/);
   assert.match(wxss, /\.xf-expert-detail-card\.is-profile\.is-static \{[\s\S]*padding:/);
+  assert.match(wxss, /\.xf-expert-detail-name-row \{[^}]*flex-direction: column;[^}]*align-items: center;/);
   assert.match(wxss, /\.xf-expert-detail-stat-pills \{[\s\S]*display: flex;[\s\S]*flex-wrap: wrap;/);
   assert.match(wxss, /\.xf-expert-detail-card\.is-static-programs,[\s\S]*\.xf-expert-detail-card\.is-static-publications,[\s\S]*\.xf-expert-detail-card\.is-booklists \{[\s\S]*text-align: left;/);
   assert.match(wxss, /\.xf-expert-detail-static-program-link \{[\s\S]*display: grid;/);
+});
+
+test("unauthenticated expert quick prompts use light content-card styling", () => {
+  const { js, wxml, wxss } = readPage("webview");
+
+  assert.match(wxml, /class="xf-expert-detail-agent-intro \{\{!nativeExpertAuthed \? 'is-guest' : ''\}\}"/);
+  assert.match(js, /suggestedQuestions[\s\S]*\.slice\(0, 3\)/);
+  assert.match(
+    wxss,
+    /\.xf-expert-detail-agent-intro\.is-guest button \{[^}]*border: 1rpx solid #e6def3;[^}]*background: #f4f2fb;[^}]*color: #241a3a;/
+  );
+  assert.match(wxss, /\.xf-expert-detail-login \{[^}]*background: #5e17eb;[^}]*color: #ffffff;/);
 });
 
 test("native expert participated-program lists show three rows and scroll the remainder", () => {
@@ -14761,6 +14846,8 @@ test("native expert participated-program lists show three rows and scroll the re
   );
   assert.match(wxss, /\.xf-expert-detail-profile-list\.is-programs\.is-scrollable \{[\s\S]*height: 162rpx;/);
   assert.match(wxss, /\.xf-expert-detail-static-program-list\.is-scrollable \{[\s\S]*height: 310rpx;/);
+  assert.match(wxss, /\.xf-expert-detail-static-program-title \{[\s\S]*white-space: normal;/);
+  assert.doesNotMatch(wxss, /\.xf-expert-detail-static-program-title \{[^}]*text-overflow: ellipsis;/);
 });
 
 test("native expert detail shows five booklists and can expand the remainder", () => {
@@ -14773,9 +14860,11 @@ test("native expert detail shows five booklists and can expand the remainder", (
   assert.match(js, /visibleBookLists: bookLists\.slice\(0, 5\)/);
   assert.match(js, /toggleNativeExpertBookLists\(\)/);
   assert.match(js, /openNativeExpertBookList\(event\)/);
-  assert.match(js, /openWeb\("\/books", "及阅", \{/);
+  assert.match(js, /wx\.setStorageSync\(READING_PENDING_FILTER_KEY, \{[\s\S]*source: "native",[\s\S]*tag: name/);
+  assert.match(js, /wx\.switchTab\(\{ url: "\/pages\/reading\/index" \}\);/);
+  assert.doesNotMatch(js, /openNativeExpertBookList\(event\)[\s\S]{0,500}openWeb\("\/books"/);
   assert.match(wxss, /\.xf-expert-detail-card\.is-booklists \{/);
-  assert.match(wxss, /\.xf-expert-detail-booklist-link \{/);
+  assert.match(wxss, /\.xf-expert-detail-booklist-link \{[\s\S]*box-sizing: border-box;[\s\S]*min-height: 94rpx;/);
 });
 
 test("native expert detail renders authored works and copies social profiles", () => {
@@ -14788,10 +14877,28 @@ test("native expert detail renders authored works and copies social profiles", (
   assert.match(js, /url \? "链接已复制" : "账号名称已复制"/);
   assert.match(wxml, /wx:if="\{\{nativeExpert\.authoredBooks\.length\}\}" class="xf-expert-detail-card is-authored-books"/);
   assert.match(wxml, /scroll-x="true"[\s\S]*catchtap="openNativeExpertAuthoredBook"/);
+  assert.doesNotMatch(wxml, /data-detail="\{\{item\.hasDetail\}\}"/);
+  assert.match(wxml, /class="xf-expert-detail-authored-action">查看详情<\/text>/);
   assert.match(wxml, /wx:if="\{\{nativeExpert\.socialProfiles\.length\}\}" class="xf-expert-detail-card is-social-media"/);
   assert.match(wxml, /catchtap="copyNativeExpertSocial"/);
   assert.match(wxss, /\.xf-expert-detail-authored-scroll \{/);
   assert.match(wxss, /\.xf-expert-detail-social-item \{/);
+});
+
+test("native expert count pills include authored works and recommended booklists on detail and list", () => {
+  const detail = readPage("webview");
+  const list = readPage("experts");
+
+  assert.match(detail.js, /authoredBookCount: authoredBooks\.length/);
+  assert.match(detail.js, /bookListCount: bookLists\.length/);
+  assert.match(detail.wxml, /nativeExpert\.authoredBookCount > 0[^>]*>著作 \{\{nativeExpert\.authoredBookCount\}\}<\/text>/);
+  assert.match(detail.wxml, /nativeExpert\.bookListCount > 0[^>]*>推荐书单 \{\{nativeExpert\.bookListCount\}\}<\/text>/);
+  assert.match(list.js, /socialCount: Number\(item\.socialCount \|\| 0\)/);
+  assert.match(list.js, /authoredBookCount: Number\(item\.authoredBookCount \|\| 0\)/);
+  assert.match(list.js, /bookListCount: Number\(item\.bookListCount \|\| 0\)/);
+  assert.match(list.wxml, />社交媒体 \{\{item\.socialCount\}\}<\/text>/);
+  assert.match(list.wxml, />著作 \{\{item\.authoredBookCount\}\}<\/text>/);
+  assert.match(list.wxml, />推荐书单 \{\{item\.bookListCount\}\}<\/text>/);
 });
 
 test("native expert detail renders bound extension materials and copies their links", () => {
@@ -14819,10 +14926,8 @@ test("native expert sharing reopens the same expert instead of the website home"
   };
 
   const share = definition.onShareAppMessage.call(context);
-  const landing = new URL(share.path, "https://mini.local");
-  const target = new URL(landing.searchParams.get("target"), "https://mini.local");
+  const target = new URL(share.path, "https://mini.local");
 
-  assert.equal(landing.pathname, "/pages/share/index");
   assert.equal(target.pathname, "/pages/webview/index");
   assert.equal(target.searchParams.get("url"), "/experts/expert-wei");
   assert.equal(target.searchParams.get("title"), "魏智渊");
@@ -15535,6 +15640,9 @@ test("webview native program detail page keeps program, book, and topic details 
     assert.doesNotMatch(wxml, /ASK &amp; LEARN/);
     assert.match(js, /eyebrowAmp: "&"/);
     assert.match(wxml, /class="xf-native-topbar xf-expert-detail-topbar"/);
+    assert.match(wxml, /<text wx:if="\{\{!nativeExpertCompactHeaderVisible\}\}" class="xf-book-detail-nav-title xf-expert-detail-nav-title"[^>]*>先疯智库<\/text>/);
+    assert.match(js, /onNativeExpertScroll\(event\)[\s\S]*scrollTop > 180[\s\S]*nativeExpertCompactHeaderVisible: visible/);
+    assert.match(wxss, /\.xf-expert-detail-nav-title \{[^}]*font-weight: 900;/);
     assert.match(wxss, /\.xf-expert-detail-compact \{[\s\S]*left: 102rpx;[\s\S]*right: 150rpx;/);
     assert.match(wxml, /class="xf-expert-detail-card is-profile \{\{nativeExpert\.agentEnabled \? 'is-agent' : 'is-static'\}\}"/);
     assert.match(wxml, /class="xf-expert-detail-profile-tabs"/);

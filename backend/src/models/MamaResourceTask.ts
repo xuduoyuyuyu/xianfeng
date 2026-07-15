@@ -24,6 +24,8 @@ export interface MamaResourceTask extends mongoose.Document {
   externalUrl?: string;
   exampleImageUrls: string[];
   status: MamaResourceTaskStatus;
+  contentLinkPoolEnabled: boolean;
+  pausedForContent: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -56,6 +58,8 @@ const mamaResourceTaskSchema = new mongoose.Schema(
       default: "listed",
       index: true,
     },
+    contentLinkPoolEnabled: { type: Boolean, default: false },
+    pausedForContent: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

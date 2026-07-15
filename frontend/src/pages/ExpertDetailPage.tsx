@@ -445,7 +445,7 @@ const ExpertDetailPage: React.FC = () => {
                   <div className="hidden rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.24em] text-[#5b3fa1] md:inline-flex">
                     Guest Profile
                   </div>
-                  <div className="mt-5 flex items-center justify-center gap-3 md:justify-start">
+                  <div className="mt-5 flex flex-col items-center justify-center gap-1 md:flex-row md:justify-start md:gap-3">
                     <h1 className="text-4xl font-black tracking-tight text-[#241a3a]">{guest.name || "未命名嘉宾"}</h1>
                     <p className="text-sm font-black text-[#5e17eb]">{guest.title || "节目嘉宾"}</p>
                   </div>

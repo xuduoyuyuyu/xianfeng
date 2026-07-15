@@ -1,10 +1,26 @@
 const { request } = require("../../utils/request");
 const { setSession } = require("../../utils/session");
 const { resolveAuthExpired } = require("../../utils/authExpiry");
+const {
+  isPlaceholderName,
+  needsWechatProfileCompletion,
+  normalizeWechatProfileUser,
+  saveWechatProfile: persistWechatProfile
+} = require("../../utils/wechatProfile");
 
 function failLogin(component, message, reason) {
   component.setData({ bindingPhone: false, loginMessage: message });
   component.triggerEvent("failure", { message, reason });
+}
+
+function finishLogin(component, payload) {
+  component._pendingLoginSession = null;
+  component.setData({
+    completingProfile: false,
+    savingProfile: false,
+    profileMessage: ""
+  });
+  component.triggerEvent("success", { session: payload });
 }
 
 Component({
@@ -16,7 +32,12 @@ Component({
 
   data: {
     bindingPhone: false,
-    loginMessage: ""
+    loginMessage: "",
+    completingProfile: false,
+    savingProfile: false,
+    profileName: "",
+    profileAvatar: "",
+    profileMessage: ""
   },
 
   methods: {
@@ -41,7 +62,18 @@ Component({
               if (app && typeof app.setLoginSession === "function") app.setLoginSession(payload);
               resolveAuthExpired();
               this.setData({ bindingPhone: false, loginMessage: "" });
-              this.triggerEvent("success", { session: payload });
+              if (needsWechatProfileCompletion(payload && payload.user)) {
+                const user = normalizeWechatProfileUser(payload && payload.user);
+                this._pendingLoginSession = payload;
+                this.setData({
+                  completingProfile: true,
+                  profileName: isPlaceholderName(user.name) ? "" : user.name,
+                  profileAvatar: user.avatar,
+                  profileMessage: ""
+                });
+                return;
+              }
+              finishLogin(this, payload);
             })
             .catch((error) => {
               failLogin(this, String(error && error.message || "登录失败，请重试"), "request-failed");
@@ -49,6 +81,35 @@ Component({
         },
         fail: () => failLogin(this, "无法调用微信登录", "wx-login-failed")
       });
+    },
+
+    chooseWechatAvatar(event) {
+      const avatarUrl = String(event && event.detail && event.detail.avatarUrl || "").trim();
+      if (avatarUrl) this.setData({ profileAvatar: avatarUrl, profileMessage: "" });
+    },
+
+    updateWechatNickname(event) {
+      this.setData({ profileName: String(event && event.detail && event.detail.value || ""), profileMessage: "" });
+    },
+
+    saveWechatProfile() {
+      if (this.data.savingProfile) return;
+      this.setData({ savingProfile: true, profileMessage: "" });
+      persistWechatProfile({
+        name: this.data.profileName,
+        avatarPath: this.data.profileAvatar
+      })
+        .then((user) => {
+          const pending = this._pendingLoginSession || {};
+          finishLogin(this, { ...pending, user });
+        })
+        .catch((error) => {
+          this.setData({ savingProfile: false, profileMessage: String(error && error.message || "资料保存失败") });
+        });
+    },
+
+    skipWechatProfile() {
+      finishLogin(this, this._pendingLoginSession || {});
     }
   }
 });

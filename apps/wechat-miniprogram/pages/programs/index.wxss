@@ -568,6 +568,7 @@ page {
 }
 
 .xf-program-settings-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 15rpx;

@@ -17,11 +17,17 @@ test("mini mama resource form marks every required field", () => {
   assert.match(wxssSource, /\.xf-mama-required\s*\{[\s\S]*color:\s*#e11d48;/);
 });
 
-test("mama resource form keeps an unsent draft across page exits", () => {
+test("mama resource form keeps a logged-in account-scoped draft across page exits", () => {
   assert.match(jsSource, /MAMA_RESOURCE_APPLY_DRAFT_KEY/);
+  assert.match(jsSource, /getApplyDraftStorageKey\(\)/);
+  assert.match(jsSource, /if \(!getToken\(\)\) return "";/);
+  assert.match(jsSource, /`\$\{MAMA_RESOURCE_APPLY_DRAFT_KEY\}:\$\{encodeURIComponent\(ownerId\)\}`/);
+  assert.match(jsSource, /wx\.removeStorageSync\(MAMA_RESOURCE_APPLY_DRAFT_KEY\)/);
   assert.match(jsSource, /loadApplyDraft\(\)/);
   assert.match(jsSource, /saveApplyDraft\(/);
   assert.match(jsSource, /clearApplyDraft\(\)/);
+  assert.match(jsSource, /buildLoggedOutMamaResourceState\(\)/);
+  assert.match(jsSource, /onNativeSettingsLogout\(\)[\s\S]*clearApplyDraft\(\)[\s\S]*buildLoggedOutMamaResourceState\(\)/);
   assert.match(jsSource, /onLoad\(options = \{\}\)[\s\S]*loadApplyDraft\(\)/);
   assert.match(jsSource, /updateDraftField\(event\)/);
   assert.match(jsSource, /chooseXiaohongshuScreenshot\(\)[\s\S]*updatePageApplyDraft\(this, \{ xiaohongshuScreenshotUrl: String\(url \|\| ""\) \}\)/);
@@ -161,6 +167,10 @@ test("approved mama resource account can view assigned tasks and submit proof", 
   assert.match(jsSource, /url: "\/api\/mama-resources\/me\/tasks"/);
   assert.match(jsSource, /onNativeSettingsLoginSuccess\(payload\)/);
   assert.match(jsSource, /updatePageApplyDraft\(this, \{ contactPhone: mobile \}\)/);
+  assert.match(jsSource, /applyStationUserProfile\(user\)/);
+  assert.match(jsSource, /displayName: stationName/);
+  assert.match(jsSource, /onNativeSettingsProfileSaved\(user\)/);
+  assert.doesNotMatch(jsSource, /xiaohongshuNickname: stationName/);
   assert.match(jsSource, /onNativeSettingsLoginSuccess\(payload\)[\s\S]*return this\.loadMamaTasks\(\)/);
   assert.match(jsSource, /availableTasks/);
   assert.match(jsSource, /openMamaTask\(event\)/);

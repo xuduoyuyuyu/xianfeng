@@ -39,6 +39,10 @@
   response exposes only native-detail card fields, does not mix guest
   publications or references into authored works, and requires no data
   migration.
+- Public guest list and detail responses expose `socialCount`,
+  `authoredBookCount`, and deduplicated `bookListCount`. List counts are built
+  in one published-book query per page; authored books keep the exact-name
+  match and booklists keep the normalized source-name contract above.
 - Guest program relationships use the same visible-status boundary as public
   program detail: both `published` and `group-only` programs contribute to
   related-program cards, program counts, and content tags; drafts remain
@@ -175,19 +179,34 @@
   manual metrics, screenshots, and operator notes.
 - Mama Haozhuan tasks are listed independently from accounts.
   `MamaResourceTask` stores the listed project/campaign, while
-  `MamaResourceTaskAssignment` stores which approved profile was selected for
-  that task plus proof/review status. Admin
+  `MamaResourceTaskAssignment` stores a user's claim for that task plus
+  proof/review status. Admin
   `/api/admin/mama-resources/tasks` creates and lists tasks, including optional
   multiple example image URLs for task illustration, then
   `/tasks/:taskId` updates an already listed task's project copy, pricing,
   targeting fields, claim limit, and example images without changing assignments.
-  `/tasks/:taskId/candidates` filters approved accounts by search/category,
-  risk tag, and follower count before `/tasks/:taskId/assignments` assigns
-  selected profiles. Each assignment may hold one private `contentUrl` for the
-  assigned user's posting material. Operators can edit it directly or use the
+  content dispatch reads existing assignments only; task auto-match, admin
+  selection, and content-link import cannot create an assignment for an
+  unclaimed profile. The assignment list can filter by profile, risk/operator
+  tags, follower count, proof state, and order-block state. It also resolves the
+  claimant's site user ID, mobile, station name, city, region, and child grade
+  for operator distinction. Authenticated application and first-claim lookup
+  persist the optional `userId` on the profile; normalized-phone lookup remains
+  the compatibility fallback for legacy rows. Each assignment may hold one
+  private `contentUrl` for the claimant's posting material. Operators can edit it directly or use the
   Excel template, preview, and commit endpoints under
-  `/tasks/:taskId/content-import`; preview validates approved profile IDs,
-  duplicates, and HTTP(S) links before any write. Public
+  `/tasks/:taskId/content-import`; preview validates existing task claims,
+  approved profile IDs, duplicates, and HTTP(S) links before any write. Admin
+  `POST /tasks/:taskId/content-links` imports an ordered link pool. Links are
+  reserved atomically by import index and copied onto the oldest unconfigured
+  assignments first. Once the last pooled link is assigned, the task changes to
+  `paused` with `pausedForContent`; adding unassigned links clears that flag and
+  restores `listed`. Existing manually configured assignment links are not
+  overwritten. Admin assignment list responses derive `proofStatus` from
+  `proofScreenshotUrl` and assignment `createdAt`: returned screenshots are
+  `returned`, missing screenshots are `missing`, and missing screenshots after
+  24 hours are `overdue`. The same endpoint accepts a `proofStatus` filter;
+  `missing` includes both recent and overdue records. Public
   `/api/mama-resources/me/tasks` matches the
   authenticated user to profiles by normalized contact-phone digits and
   prefers an approved profile over newer pending submissions for the same
@@ -198,6 +217,9 @@
   `/api/mama-resources/tasks/:taskId/claims` creates the assignment for
   first-come claiming and enforces `MamaResourceTask.claimLimit` against
   assigned/submitted/collected assignments; rejected assignments free the slot.
+  `MamaResourceProfile.operatorTags` stores deduplicated operator labels and
+  `orderBlocked` prevents new claims while preserving access to existing
+  assignments, proof submission, and settlement records.
   The same `/me/tasks` endpoint returns pending/needs-info/rejected profile
   status with an empty task list so clients can show a review-status page
   instead of the intake form. Public task submission stores proof link plus

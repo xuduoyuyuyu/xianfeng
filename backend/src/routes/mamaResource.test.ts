@@ -12,6 +12,7 @@ import adminMamaResourceRoutes from "./adminMamaResource";
 import MamaResourceProfile from "../models/MamaResourceProfile";
 import MamaResourceTask from "../models/MamaResourceTask";
 import MamaResourceTaskAssignment from "../models/MamaResourceTaskAssignment";
+import MamaResourceTaskContentLink from "../models/MamaResourceTaskContentLink";
 import User from "../models/User";
 
 type TestServer = {
@@ -66,6 +67,7 @@ describe("mama resource pool routes", () => {
     await MamaResourceProfile.deleteMany({});
     await MamaResourceTask.deleteMany({});
     await MamaResourceTaskAssignment.deleteMany({});
+    await MamaResourceTaskContentLink.deleteMany({});
     await User.deleteMany({});
   });
 
@@ -778,20 +780,29 @@ describe("mama resource pool routes", () => {
     );
     assert.equal(candidatesResponse.status, 200);
     const candidates = await candidatesResponse.json();
-    assert.equal(candidates.items.length, 1);
-    assert.equal(candidates.items[0]._id, String(profile._id));
-    assert.equal(candidates.items[0].assignmentStatus, "");
+    assert.equal(candidates.items.length, 0);
 
     const assignResponse = await fetch(`${server.adminUrl}/tasks/${created.task._id}/assignments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ profileIds: [String(profile._id)] }),
     });
-    assert.equal(assignResponse.status, 201);
-    const assigned = await assignResponse.json();
+    assert.equal(assignResponse.status, 409);
+
+    const claimResponse = await fetch(`${server.publicUrl}/tasks/${created.task._id}/claims`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(claimResponse.status, 201);
+
+    const assignmentsResponse = await fetch(`${server.adminUrl}/tasks/${created.task._id}/assignments`);
+    assert.equal(assignmentsResponse.status, 200);
+    const assigned = await assignmentsResponse.json();
     assert.equal(assigned.assignments.length, 1);
     assert.equal(assigned.assignments[0].status, "assigned");
     assert.equal(assigned.assignments[0].task.title, "任推邦（红薯）评论");
+    assert.equal(assigned.assignments[0].user._id, String(user._id));
+    assert.equal(assigned.assignments[0].user.mobile, "13800138000");
 
     const listResponse = await fetch(`${server.publicUrl}/me/tasks`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1114,10 +1125,14 @@ describe("mama resource pool routes", () => {
     });
     assert.equal(previewResponse.status, 200);
     const previewData = await previewResponse.json();
-    assert.equal(previewData.summary.valid, 2);
-    assert.equal(previewData.summary.invalid, 2);
+    assert.equal(previewData.summary.valid, 1);
+    assert.equal(previewData.summary.invalid, 3);
     assert.equal(previewData.rows.find((row: any) => row.profileId === String(existingProfile._id)).action, "update_link");
     assert.equal(previewData.rows.find((row: any) => row.profileId === String(newProfile._id)).action, "create_assignment");
+    assert.deepEqual(
+      previewData.rows.find((row: any) => row.profileId === String(newProfile._id)).errors,
+      ["账号尚未领取该任务"]
+    );
     assert.deepEqual(
       previewData.rows.find((row: any) => row.profileId === String(pendingProfile._id)).errors,
       ["账号尚未通过审核"]
@@ -1134,12 +1149,9 @@ describe("mama resource pool routes", () => {
     });
     assert.equal(commitResponse.status, 200);
     const commitData = await commitResponse.json();
-    assert.deepEqual(commitData.summary, { created: 1, updated: 1, unchanged: 0 });
-    assert.equal(await MamaResourceTaskAssignment.countDocuments({ taskId: task._id }), 2);
-    assert.equal(
-      (await MamaResourceTaskAssignment.findOne({ taskId: task._id, profileId: newProfile._id }))?.contentUrl,
-      "https://my.feishu.cn/wiki/import-new"
-    );
+    assert.deepEqual(commitData.summary, { created: 0, updated: 1, unchanged: 0 });
+    assert.equal(await MamaResourceTaskAssignment.countDocuments({ taskId: task._id }), 1);
+    assert.equal(await MamaResourceTaskAssignment.findOne({ taskId: task._id, profileId: newProfile._id }), null);
 
     const duplicateBook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(duplicateBook, XLSX.utils.json_to_sheet([
@@ -1156,6 +1168,215 @@ describe("mama resource pool routes", () => {
     const duplicateData = await duplicateResponse.json();
     assert.equal(duplicateData.summary.valid, 0);
     assert.equal(duplicateData.rows.every((row: any) => row.errors.includes("账号ID重复")), true);
+  });
+
+  it("assigns imported content links in order, pauses when exhausted, and resumes after replenishment", async () => {
+    const user = await User.create({ username: "u13800138103", password: "hash", mobile: "13800138103", role: "user" });
+    const token = jwt.sign({ id: String(user._id), role: "user" }, process.env.JWT_SECRET || "your-secret-key");
+    const [manualProfile, firstProfile, secondProfile, claimProfile] = await MamaResourceProfile.create([
+      {
+        displayName: "手动链接账号",
+        contactPhone: "13800138100",
+        contactWechat: "manual-link-account",
+        status: "approved",
+        consentAccepted: true,
+        socialAccount: { platform: "xiaohongshu", profileUrl: "https://www.xiaohongshu.com/user/profile/manual-link", normalizedProfileUrl: "xiaohongshu:user/profile/manual-link" },
+      },
+      {
+        displayName: "顺序账号一",
+        contactPhone: "13800138101",
+        contactWechat: "ordered-link-one",
+        status: "approved",
+        consentAccepted: true,
+        socialAccount: { platform: "xiaohongshu", profileUrl: "https://www.xiaohongshu.com/user/profile/ordered-one", normalizedProfileUrl: "xiaohongshu:user/profile/ordered-one" },
+      },
+      {
+        displayName: "顺序账号二",
+        contactPhone: "13800138102",
+        contactWechat: "ordered-link-two",
+        status: "approved",
+        consentAccepted: true,
+        socialAccount: { platform: "xiaohongshu", profileUrl: "https://www.xiaohongshu.com/user/profile/ordered-two", normalizedProfileUrl: "xiaohongshu:user/profile/ordered-two" },
+      },
+      {
+        displayName: "补链领取账号",
+        contactPhone: "13800138103",
+        contactWechat: "replenished-link-account",
+        status: "approved",
+        consentAccepted: true,
+        socialAccount: { platform: "xiaohongshu", profileUrl: "https://www.xiaohongshu.com/user/profile/replenished", normalizedProfileUrl: "xiaohongshu:user/profile/replenished" },
+      },
+    ]);
+    const task = await MamaResourceTask.create({
+      title: "顺序内容下发任务",
+      category: "亲子阅读",
+      unitPriceCents: 3000,
+      status: "listed",
+    });
+    await MamaResourceTaskAssignment.create({
+      taskId: task._id,
+      profileId: manualProfile._id,
+      status: "assigned",
+      contentUrl: "https://my.feishu.cn/wiki/manual-existing",
+      contentUpdatedAt: new Date(),
+    });
+    const firstAssignment = await MamaResourceTaskAssignment.create({ taskId: task._id, profileId: firstProfile._id, status: "assigned" });
+    const secondAssignment = await MamaResourceTaskAssignment.create({ taskId: task._id, profileId: secondProfile._id, status: "assigned" });
+
+    const importResponse = await fetch(`${server.adminUrl}/tasks/${task._id}/content-links`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        linksText: [
+          "https://my.feishu.cn/wiki/pool-one",
+          "https://my.feishu.cn/wiki/pool-two",
+          "https://my.feishu.cn/wiki/pool-one",
+        ].join("\n"),
+      }),
+    });
+    assert.equal(importResponse.status, 200);
+    const importData = await importResponse.json();
+    assert.equal(importData.importedCount, 2);
+    assert.equal(importData.skippedCount, 1);
+    assert.equal(importData.assignedCount, 2);
+    assert.equal(importData.task.contentLinkCount, 2);
+    assert.equal(importData.task.contentLinkAssignedCount, 2);
+    assert.equal(importData.task.contentLinkRemainingCount, 0);
+    assert.equal(importData.task.status, "paused");
+    assert.equal(importData.task.pausedForContent, true);
+
+    assert.equal((await MamaResourceTaskAssignment.findById(firstAssignment._id).lean())?.contentUrl, "https://my.feishu.cn/wiki/pool-one");
+    assert.equal((await MamaResourceTaskAssignment.findById(secondAssignment._id).lean())?.contentUrl, "https://my.feishu.cn/wiki/pool-two");
+    assert.equal(
+      (await MamaResourceTaskAssignment.findOne({ taskId: task._id, profileId: manualProfile._id }).lean())?.contentUrl,
+      "https://my.feishu.cn/wiki/manual-existing"
+    );
+
+    const editPausedTaskResponse = await fetch(`${server.adminUrl}/tasks/${task._id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "顺序内容下发任务（已编辑）",
+        category: "亲子阅读",
+        unitPriceCents: 3000,
+        status: "listed",
+      }),
+    });
+    assert.equal(editPausedTaskResponse.status, 200);
+    const editPausedTaskData = await editPausedTaskResponse.json();
+    assert.equal(editPausedTaskData.task.status, "paused");
+    assert.equal(editPausedTaskData.task.pausedForContent, true);
+    assert.equal(editPausedTaskData.task.contentLinkRemainingCount, 0);
+
+    const pausedTasksResponse = await fetch(`${server.publicUrl}/me/tasks`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(pausedTasksResponse.status, 200);
+    assert.equal((await pausedTasksResponse.json()).availableTasks.length, 0);
+
+    const replenishResponse = await fetch(`${server.adminUrl}/tasks/${task._id}/content-links`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ linksText: "https://my.feishu.cn/wiki/pool-three" }),
+    });
+    assert.equal(replenishResponse.status, 200);
+    const replenishData = await replenishResponse.json();
+    assert.equal(replenishData.task.status, "listed");
+    assert.equal(replenishData.task.pausedForContent, false);
+    assert.equal(replenishData.task.contentLinkRemainingCount, 1);
+
+    const claimResponse = await fetch(`${server.publicUrl}/tasks/${task._id}/claims`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(claimResponse.status, 201);
+    const claimData = await claimResponse.json();
+    assert.equal(claimData.task.profileId, String(claimProfile._id));
+    assert.equal(claimData.task.contentUrl, "https://my.feishu.cn/wiki/pool-three");
+    assert.equal((await MamaResourceTask.findById(task._id).lean())?.status, "paused");
+    assert.equal((await MamaResourceTask.findById(task._id).lean())?.pausedForContent, true);
+  });
+
+  it("marks and filters returned, missing, and overdue task proof screenshots", async () => {
+    const task = await MamaResourceTask.create({
+      title: "返图状态测试任务",
+      category: "亲子阅读",
+      unitPriceCents: 3000,
+      status: "listed",
+    });
+    const [returnedProfile, missingProfile, overdueProfile] = await MamaResourceProfile.create([
+      {
+        displayName: "已返图账号",
+        contactWechat: "returned-proof-account",
+        status: "approved",
+        consentAccepted: true,
+        socialAccount: { platform: "xiaohongshu", profileUrl: "https://www.xiaohongshu.com/user/profile/returned-proof", normalizedProfileUrl: "xiaohongshu:user/profile/returned-proof" },
+      },
+      {
+        displayName: "未返图账号",
+        contactWechat: "missing-proof-account",
+        status: "approved",
+        consentAccepted: true,
+        socialAccount: { platform: "xiaohongshu", profileUrl: "https://www.xiaohongshu.com/user/profile/missing-proof", normalizedProfileUrl: "xiaohongshu:user/profile/missing-proof" },
+      },
+      {
+        displayName: "逾期未返图账号",
+        contactWechat: "overdue-proof-account",
+        status: "approved",
+        consentAccepted: true,
+        socialAccount: { platform: "xiaohongshu", profileUrl: "https://www.xiaohongshu.com/user/profile/overdue-proof", normalizedProfileUrl: "xiaohongshu:user/profile/overdue-proof" },
+      },
+    ]);
+    const now = Date.now();
+    await MamaResourceTaskAssignment.create([
+      {
+        taskId: task._id,
+        profileId: returnedProfile._id,
+        status: "submitted",
+        proofScreenshotUrl: "/uploads/mama-resources/returned-proof.png",
+        submittedAt: new Date(now - 60 * 60 * 1000),
+        createdAt: new Date(now - 30 * 60 * 60 * 1000),
+      },
+      {
+        taskId: task._id,
+        profileId: missingProfile._id,
+        status: "assigned",
+        createdAt: new Date(now - 2 * 60 * 60 * 1000),
+      },
+      {
+        taskId: task._id,
+        profileId: overdueProfile._id,
+        status: "assigned",
+        createdAt: new Date(now - 25 * 60 * 60 * 1000),
+      },
+    ]);
+
+    const allResponse = await fetch(`${server.adminUrl}/tasks/${task._id}/assignments`);
+    assert.equal(allResponse.status, 200);
+    const allData = await allResponse.json();
+    assert.deepEqual(
+      Object.fromEntries(allData.assignments.map((assignment: any) => [assignment.profile.displayName, assignment.proofStatus])),
+      {
+        "已返图账号": "returned",
+        "未返图账号": "missing",
+        "逾期未返图账号": "overdue",
+      }
+    );
+
+    const returnedResponse = await fetch(`${server.adminUrl}/tasks/${task._id}/assignments?proofStatus=returned`);
+    assert.equal(returnedResponse.status, 200);
+    const returnedData = await returnedResponse.json();
+    assert.deepEqual(returnedData.assignments.map((assignment: any) => assignment.profile.displayName), ["已返图账号"]);
+
+    const missingResponse = await fetch(`${server.adminUrl}/tasks/${task._id}/assignments?proofStatus=missing`);
+    assert.equal(missingResponse.status, 200);
+    const missingData = await missingResponse.json();
+    assert.deepEqual(new Set(missingData.assignments.map((assignment: any) => assignment.profile.displayName)), new Set(["未返图账号", "逾期未返图账号"]));
+
+    const overdueResponse = await fetch(`${server.adminUrl}/tasks/${task._id}/assignments?proofStatus=overdue`);
+    assert.equal(overdueResponse.status, 200);
+    const overdueData = await overdueResponse.json();
+    assert.deepEqual(overdueData.assignments.map((assignment: any) => assignment.profile.displayName), ["逾期未返图账号"]);
   });
 
   it("lets approved users claim listed tasks until the claim limit is reached", async () => {
@@ -1303,7 +1524,84 @@ describe("mama resource pool routes", () => {
     assert.equal(data.profile.displayName, "已通过妈妈");
   });
 
-  it("auto-assigns approved profiles that match task creation criteria", async () => {
+  it("returns claimant identity fields and enforces operator tags and blocked ordering", async () => {
+    const user = await User.create({
+      username: "u13800138200",
+      password: "hash",
+      mobile: "13800138200",
+      name: "圆圆妈妈",
+      city: "上海",
+      region: "长宁区",
+      childGrade: "小学一年级",
+      role: "user",
+    });
+    const token = jwt.sign({ id: String(user._id), role: "user" }, process.env.JWT_SECRET || "your-secret-key");
+    const profile = await MamaResourceProfile.create({
+      displayName: "圆圆妈妈的小红书",
+      contactPhone: "138 0013 8200",
+      contactWechat: "yuanyuan-mom",
+      status: "approved",
+      consentAccepted: true,
+      categories: ["亲子阅读"],
+      socialAccount: {
+        platform: "xiaohongshu",
+        profileUrl: "https://www.xiaohongshu.com/user/profile/claimant-identity",
+        normalizedProfileUrl: "xiaohongshu:user/profile/claimant-identity",
+        nickname: "小圆子",
+        followerCount: 3200,
+      },
+    });
+    const [claimedTask, otherTask] = await MamaResourceTask.create([
+      { title: "已领取任务", category: "亲子阅读", unitPriceCents: 3000, status: "listed" },
+      { title: "待领取任务", category: "亲子阅读", unitPriceCents: 3000, status: "listed" },
+    ]);
+
+    const claimResponse = await fetch(`${server.publicUrl}/tasks/${claimedTask._id}/claims`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(claimResponse.status, 201);
+    assert.equal(String((await MamaResourceProfile.findById(profile._id).lean())?.userId), String(user._id));
+
+    const operationsResponse = await fetch(`${server.adminUrl}/${profile._id}/operations`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ operatorTags: ["配合度高", "母婴", "配合度高"], orderBlocked: true }),
+    });
+    assert.equal(operationsResponse.status, 200);
+    const operations = await operationsResponse.json();
+    assert.deepEqual(operations.profile.operatorTags, ["配合度高", "母婴"]);
+    assert.equal(operations.profile.orderBlocked, true);
+
+    const assignmentsResponse = await fetch(
+      `${server.adminUrl}/tasks/${claimedTask._id}/assignments?search=${user._id}&operatorTag=${encodeURIComponent("配合度高")}&orderBlocked=true`
+    );
+    assert.equal(assignmentsResponse.status, 200);
+    const assignments = await assignmentsResponse.json();
+    assert.equal(assignments.assignments.length, 1);
+    assert.equal(assignments.assignments[0].profileId, String(profile._id));
+    assert.equal(assignments.assignments[0].user._id, String(user._id));
+    assert.equal(assignments.assignments[0].user.name, "圆圆妈妈");
+    assert.equal(assignments.assignments[0].user.region, "长宁区");
+    assert.equal(assignments.assignments[0].user.childGrade, "小学一年级");
+
+    const myTasksResponse = await fetch(`${server.publicUrl}/me/tasks`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(myTasksResponse.status, 200);
+    const myTasks = await myTasksResponse.json();
+    assert.equal(myTasks.tasks.length, 1);
+    assert.equal(myTasks.availableTasks.length, 0);
+
+    const blockedClaimResponse = await fetch(`${server.publicUrl}/tasks/${otherTask._id}/claims`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(blockedClaimResponse.status, 403);
+    assert.equal((await blockedClaimResponse.json()).message, "账号已被暂停接单，请联系运营");
+  });
+
+  it("does not auto-assign approved profiles before they claim a task", async () => {
     const [readingProfile, toyProfile] = await MamaResourceProfile.create([
       {
         displayName: "阅读妈妈",
@@ -1359,8 +1657,10 @@ describe("mama resource pool routes", () => {
     assert.deepEqual(data.task.matchCategories, ["亲子阅读"]);
     assert.deepEqual(data.task.matchRiskTags, ["内容稳定"]);
     assert.equal(data.task.minFollowerCount, 5000);
-    assert.equal(data.assignments.length, 1);
-    assert.equal(data.assignments[0].profileId, String(readingProfile._id));
+    assert.equal(data.assignments.length, 0);
+
+    const matchedButUnclaimed = await MamaResourceTaskAssignment.findOne({ profileId: readingProfile._id }).lean();
+    assert.equal(matchedButUnclaimed, null);
 
     const unassigned = await MamaResourceTaskAssignment.findOne({ profileId: toyProfile._id }).lean();
     assert.equal(unassigned, null);

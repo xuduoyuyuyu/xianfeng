@@ -380,8 +380,7 @@ function createNativeTopicShare(data) {
   const target = `/pages/webview/index?url=${encodeURIComponent(topicPath)}&title=${encodeURIComponent(title)}&topicId=${encodeURIComponent(topicId)}`;
   return createPageShare({
     title,
-    path: "/pages/share/index",
-    query: { target }
+    path: target
   });
 }
 
@@ -392,8 +391,7 @@ function createNativeExpertShare(data) {
   const target = `/pages/webview/index?url=${encodeURIComponent(`/experts/${encodeURIComponent(expertId)}`)}&title=${encodeURIComponent(title)}`;
   return createPageShare({
     title,
-    path: "/pages/share/index",
-    query: { target }
+    path: target
   });
 }
 
@@ -1627,7 +1625,9 @@ function normalizeExpertDetail(guest) {
     extensionMaterials,
     publicItems,
     authoredBooks,
+    authoredBookCount: authoredBooks.length,
     bookLists,
+    bookListCount: bookLists.length,
     visibleBookLists: bookLists.slice(0, 5),
     bookListsExpanded: false,
     hiddenBookListCount: Math.max(0, bookLists.length - 5),
@@ -3482,20 +3482,21 @@ Page({
   },
 
   openNativeExpertBookList(event) {
-    const expert = this.data.nativeExpert || {};
     const name = firstText([event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.name], "");
-    if (!expert.id || !name) return;
-    openWeb("/books", "及阅", {
-      sourceGuestId: expert.id,
-      guest: expert.name,
-      sourceName: name
-    });
+    if (!name) return;
+    try {
+      wx.setStorageSync(READING_PENDING_FILTER_KEY, {
+        source: "native",
+        tag: name
+      });
+    } catch (_error) {}
+    wx.switchTab({ url: "/pages/reading/index" });
   },
 
   openNativeExpertAuthoredBook(event) {
     const dataset = event && event.currentTarget ? event.currentTarget.dataset || {} : {};
     const id = firstText([dataset.id], "");
-    if (!id || dataset.detail !== true) return;
+    if (!id) return;
     wx.navigateTo({
       url: `/pages/webview/index?bookId=${encodeURIComponent(id)}&title=${encodeURIComponent("图书详情")}`
     });

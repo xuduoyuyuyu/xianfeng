@@ -2,11 +2,13 @@ import { Router, Request, Response } from "express";
 import fs from "fs";
 import path from "path";
 import multer from "multer";
+import mongoose from "mongoose";
 import MamaResourceProfile from "../models/MamaResourceProfile";
 import MamaResourceTask from "../models/MamaResourceTask";
 import MamaResourceTaskAssignment from "../models/MamaResourceTaskAssignment";
 import User from "../models/User";
 import { authenticate, optionalAuthenticate, AuthenticatedRequest } from "../middlewares/auth";
+import { assignNextMamaResourceContentLink } from "../services/mamaResourceContentLinks";
 
 const router = Router();
 const uploadDir = path.join(process.cwd(), "uploads", "mama-resources");
@@ -269,13 +271,21 @@ function publicTaskPayload(assignment: any, activePromotionCounts?: Map<string, 
 }
 
 async function findProfileForUser(userId: string) {
+  const linkedApprovedProfile = await MamaResourceProfile.findOne({ userId, status: "approved" }).sort({ updatedAt: -1 });
+  if (linkedApprovedProfile) return linkedApprovedProfile;
   const user = await User.findById(userId).select("mobile").lean();
   const mobile = asText(user?.mobile);
-  if (!mobile) return null;
+  if (!mobile) return MamaResourceProfile.findOne({ userId }).sort({ updatedAt: -1 });
   const phoneFilter = contactPhoneQuery(mobile);
   const approvedProfile = await MamaResourceProfile.findOne({ $and: [phoneFilter, { status: "approved" }] }).sort({ updatedAt: -1 });
-  if (approvedProfile) return approvedProfile;
-  return MamaResourceProfile.findOne(phoneFilter).sort({ updatedAt: -1 });
+  const profile = approvedProfile
+    || await MamaResourceProfile.findOne({ userId }).sort({ updatedAt: -1 })
+    || await MamaResourceProfile.findOne(phoneFilter).sort({ updatedAt: -1 });
+  if (profile && !profile.userId) {
+    profile.userId = new mongoose.Types.ObjectId(userId);
+    await profile.save();
+  }
+  return profile;
 }
 
 async function findApprovedProfileForUser(userId: string) {
@@ -299,12 +309,14 @@ router.get("/me/tasks", authenticate, async (req: AuthenticatedRequest, res: Res
       .sort({ updatedAt: -1 })
       .lean();
     const assignedTaskIds = tasks.map(assignmentTaskId).filter(Boolean);
-    const availableTasks = await MamaResourceTask.find({
-      status: "listed",
-      ...(assignedTaskIds.length ? { _id: { $nin: assignedTaskIds } } : {}),
-    })
-      .sort({ updatedAt: -1 })
-      .lean();
+    const availableTasks = profile.orderBlocked
+      ? []
+      : await MamaResourceTask.find({
+        status: "listed",
+        ...(assignedTaskIds.length ? { _id: { $nin: assignedTaskIds } } : {}),
+      })
+        .sort({ updatedAt: -1 })
+        .lean();
     const activePromotionCounts = await getActivePromotionCounts(tasks);
     const allTaskIds = assignedTaskIds.concat(availableTasks.map((task: any) => task._id));
     const availableActivePromotionCounts = await getAssignmentCountsForTaskIds(allTaskIds, activePromotionStatuses);
@@ -326,6 +338,10 @@ router.post("/tasks/:taskId/claims", authenticate, async (req: AuthenticatedRequ
     const profile = await findApprovedProfileForUser(asText(req.user?.id));
     if (!profile) {
       res.status(404).json({ message: "还没有可派单的妈妈好赚账号" });
+      return;
+    }
+    if (profile.orderBlocked) {
+      res.status(403).json({ message: "账号已被暂停接单，请联系运营" });
       return;
     }
     const taskId = asText(req.params.taskId);
@@ -352,11 +368,20 @@ router.post("/tasks/:taskId/claims", authenticate, async (req: AuthenticatedRequ
       return;
     }
 
-    const assignment = await MamaResourceTaskAssignment.create({
+    let assignment = await MamaResourceTaskAssignment.create({
       taskId: task._id,
       profileId: profile._id,
       status: "assigned",
     });
+    if (task.contentLinkPoolEnabled) {
+      const assignmentWithContent = await assignNextMamaResourceContentLink(task._id, assignment._id);
+      if (!assignmentWithContent) {
+        await MamaResourceTaskAssignment.deleteOne({ _id: assignment._id, contentUrl: { $in: ["", null] } });
+        res.status(409).json({ message: "专属内容链接已分配完，任务等待内容分配" });
+        return;
+      }
+      assignment = assignmentWithContent;
+    }
     const populatedAssignment = await MamaResourceTaskAssignment.findById(assignment._id).populate("taskId");
     const activePromotionCounts = await getActivePromotionCounts(populatedAssignment ? [populatedAssignment] : []);
     const claimCounts = await getClaimCountsForTaskIds([task._id]);
@@ -515,6 +540,7 @@ router.post("/applications", optionalAuthenticate, async (req: AuthenticatedRequ
     });
     if (!primaryAccountReplaced) resolvedMediaAccounts.unshift(resolvedPrimaryXiaohongshuAccount);
     const profilePayload = {
+      ...(req.user?.id ? { userId: req.user.id } : {}),
       displayName,
       contactPhone,
       contactWechat,

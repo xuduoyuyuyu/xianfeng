@@ -64,6 +64,9 @@
         </view>
         <view class="xf-experts-meta-row">
           <text class="xf-experts-count">节目 {{item.programCount}}</text>
+          <text wx:if="{{item.socialCount}}" class="xf-experts-count">社交媒体 {{item.socialCount}}</text>
+          <text wx:if="{{item.authoredBookCount}}" class="xf-experts-count">著作 {{item.authoredBookCount}}</text>
+          <text wx:if="{{item.bookListCount}}" class="xf-experts-count">推荐书单 {{item.bookListCount}}</text>
           <text wx:if="{{item.referenceCount}}" class="xf-experts-count">公开资料 {{item.referenceCount}}</text>
         </view>
         <text class="xf-experts-bio">{{item.bio}}</text>

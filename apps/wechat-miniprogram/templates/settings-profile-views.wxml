@@ -6,11 +6,12 @@
       <view class="xf-profile-header-spacer"></view>
     </view>
     <view class="xf-profile-card xf-account-avatar-card">
-      <image class="xf-account-avatar-image" src="{{profileAvatar}}" mode="aspectFill" />
+      <image wx:if="{{profileDraft.avatar}}" class="xf-account-avatar-image" src="{{profileAvatar}}" mode="aspectFill" />
+      <view wx:else class="xf-account-avatar-empty">未设置</view>
       <view class="xf-account-avatar-body">
         <view class="xf-account-avatar-actions">
-          <button bindtap="chooseProfileAvatar">上传头像</button>
-          <button bindtap="removeProfileAvatar">移除头像</button>
+          <button open-type="chooseAvatar" bindchooseavatar="chooseProfileAvatar">选择微信头像</button>
+          <button wx:if="{{profileDraft.avatar}}" bindtap="removeProfileAvatar">移除头像</button>
         </view>
         <text class="xf-account-avatar-copy">支持 JPG / PNG / WEBP，建议 1:1 方图</text>
       </view>
@@ -18,7 +19,7 @@
     <view class="xf-profile-card">
       <view class="xf-profile-field">
         <text class="xf-profile-label">昵称</text>
-        <input value="{{profileDraft.name}}" placeholder="请输入昵称" bindinput="updateProfileName" />
+        <input type="nickname" value="{{profileDraft.name}}" placeholder="选择或输入微信昵称" bindinput="updateProfileName" />
       </view>
       <view class="xf-profile-field">
         <text class="xf-profile-label">性别</text>

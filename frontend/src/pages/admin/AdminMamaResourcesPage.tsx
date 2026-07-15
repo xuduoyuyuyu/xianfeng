@@ -4,11 +4,11 @@ import {
   adminApi,
   MamaResourceMediaAccount,
   MamaResourceProfile,
+  MamaResourceProofStatus,
   MamaResourceStatus,
   MamaResourceTask,
   MamaResourceTaskAssignment,
   MamaResourceTaskAssignmentStatus,
-  MamaResourceTaskCandidate,
   MamaResourceContentImportPreview,
 } from "../../services/api";
 
@@ -84,6 +84,14 @@ const rentuibangXiaohongshuTask = {
 };
 
 type PageMode = "tasks" | "review";
+type TaskProofStatusFilter = "all" | MamaResourceProofStatus;
+
+const proofStatusFilterOptions: Array<{ value: TaskProofStatusFilter; label: string }> = [
+  { value: "all", label: "全部返图状态" },
+  { value: "returned", label: "已返图" },
+  { value: "missing", label: "未返图" },
+  { value: "overdue", label: "24小时未返图" },
+];
 
 type TaskDraft = {
   title: string;
@@ -105,7 +113,6 @@ type TaskDraft = {
   requirement: string;
   externalUrl: string;
   exampleImageUrls: string[];
-  autoAssign: boolean;
 };
 
 type TaskCreateMessage = { type: "error" | "success"; text: string };
@@ -131,7 +138,6 @@ function initialTaskDraft(): TaskDraft {
     requirement: rentuibangXiaohongshuTask.requirement,
     externalUrl: rentuibangXiaohongshuTask.externalUrl,
     exampleImageUrls: [],
-    autoAssign: true,
   };
 }
 
@@ -177,7 +183,6 @@ function taskDraftFromTask(task: MamaResourceTask): TaskDraft {
     requirement: task.requirement || "",
     externalUrl: task.externalUrl || "",
     exampleImageUrls: task.exampleImageUrls || [],
-    autoAssign: false,
   };
 }
 
@@ -222,16 +227,26 @@ function assignmentBadge(status?: string) {
   );
 }
 
+function proofStatusBadge(status?: MamaResourceProofStatus) {
+  if (status === "returned") {
+    return <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-black text-emerald-700">已返图</span>;
+  }
+  if (status === "overdue") {
+    return <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-black text-rose-700">24小时未返图</span>;
+  }
+  return <span className="rounded-full border border-stone-200 bg-stone-100 px-2 py-1 text-xs font-black text-stone-600">未返图</span>;
+}
+
 const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) => {
   const [items, setItems] = useState<MamaResourceProfile[]>([]);
   const [tasks, setTasks] = useState<MamaResourceTask[]>([]);
-  const [candidates, setCandidates] = useState<MamaResourceTaskCandidate[]>([]);
   const [assignments, setAssignments] = useState<MamaResourceTaskAssignment[]>([]);
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState("");
   const [contentUrlDrafts, setContentUrlDrafts] = useState<Record<string, string>>({});
+  const [contentLinkText, setContentLinkText] = useState("");
   const [contentImportPreview, setContentImportPreview] = useState<MamaResourceContentImportPreview | null>(null);
   const [contentImportOpen, setContentImportOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<MamaResourceTask | null>(null);
-  const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
   const [taskManagerOpen, setTaskManagerOpen] = useState(false);
   const [taskCreateOpen, setTaskCreateOpen] = useState(false);
   const [taskEditingId, setTaskEditingId] = useState<string | null>(null);
@@ -253,6 +268,10 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
   const [taskRiskTagFilter, setTaskRiskTagFilter] = useState("");
   const [taskMinFollowers, setTaskMinFollowers] = useState("");
   const [taskSearchText, setTaskSearchText] = useState("");
+  const [taskOperatorTagFilter, setTaskOperatorTagFilter] = useState("");
+  const [taskOrderBlockedFilter, setTaskOrderBlockedFilter] = useState<"all" | "allowed" | "blocked">("all");
+  const [taskProofStatusFilter, setTaskProofStatusFilter] = useState<TaskProofStatusFilter>("all");
+  const [operatorTagsDraft, setOperatorTagsDraft] = useState("");
   const [editing, setEditing] = useState<MamaResourceProfile | null>(null);
   const [saving, setSaving] = useState(false);
   const [reviewStatus, setReviewStatus] = useState<MamaResourceStatus>("pending");
@@ -269,9 +288,9 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
   const categoryOptions = useMemo(() => {
     const categories = new Set<string>();
     items.forEach((item) => item.categories?.forEach((category) => categories.add(category)));
-    candidates.forEach((item) => item.categories?.forEach((category) => categories.add(category)));
+    assignments.forEach((assignment) => assignment.profile?.categories?.forEach((category) => categories.add(category)));
     return Array.from(categories);
-  }, [items, candidates]);
+  }, [items, assignments]);
 
   const loadItems = async (nextPage = page) => {
     setLoading(true);
@@ -302,23 +321,22 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
     return nextTasks;
   };
 
-  const loadTaskWorkspace = async (taskId: string) => {
+  const loadTaskWorkspace = async (taskId: string, proofStatus: TaskProofStatusFilter = taskProofStatusFilter) => {
     setTaskLoading(true);
     try {
-      const [candidateResponse, assignmentResponse] = await Promise.all([
-        adminApi.getMamaResourceTaskCandidates(taskId, {
-          status: "approved",
-          category: taskCategoryFilter || undefined,
-          minFollowers: taskMinFollowers || undefined,
-          search: taskSearchText || undefined,
-          riskTag: taskRiskTagFilter || undefined,
-        }),
-        adminApi.getMamaResourceTaskAssignments(taskId),
-      ]);
-      setCandidates(candidateResponse.data.items || []);
-      setAssignments(assignmentResponse.data.assignments || []);
-      setContentUrlDrafts(Object.fromEntries((assignmentResponse.data.assignments || []).map((assignment) => [assignment._id, assignment.contentUrl || ""])));
-      setSelectedCandidateIds([]);
+      const assignmentResponse = await adminApi.getMamaResourceTaskAssignments(taskId, {
+        proofStatus,
+        category: taskCategoryFilter || undefined,
+        minFollowers: taskMinFollowers || undefined,
+        search: taskSearchText || undefined,
+        riskTag: taskRiskTagFilter || undefined,
+        operatorTag: taskOperatorTagFilter || undefined,
+        orderBlocked: taskOrderBlockedFilter === "all" ? undefined : taskOrderBlockedFilter === "blocked",
+      });
+      const nextAssignments = assignmentResponse.data.assignments || [];
+      setAssignments(nextAssignments);
+      setSelectedAssignmentId((current) => nextAssignments.some((assignment) => assignment._id === current) ? current : "");
+      setContentUrlDrafts(Object.fromEntries(nextAssignments.map((assignment) => [assignment._id, assignment.contentUrl || ""])));
     } catch (loadError: any) {
       setToast(loadError?.response?.data?.message || loadError?.message || "任务账号加载失败");
     } finally {
@@ -362,12 +380,15 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
 
   const openTaskManager = async (task?: MamaResourceTask) => {
     setTaskManagerOpen(true);
+    setSelectedAssignmentId("");
+    setContentLinkText("");
+    setTaskProofStatusFilter("all");
     setTaskLoading(true);
     try {
       const nextTasks = await loadTasks();
       const nextSelected = task || selectedTask || nextTasks[0] || null;
       setSelectedTask(nextSelected);
-      if (nextSelected) await loadTaskWorkspace(nextSelected._id);
+      if (nextSelected) await loadTaskWorkspace(nextSelected._id, "all");
     } catch (loadError: any) {
       setToast(loadError?.response?.data?.message || loadError?.message || "任务加载失败");
     } finally {
@@ -378,6 +399,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
   const closeTaskManager = () => {
     if (taskLoading) return;
     setTaskManagerOpen(false);
+    setSelectedAssignmentId("");
   };
 
   const saveManualData = async () => {
@@ -537,7 +559,6 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
         requirement: taskDraft.requirement.trim(),
         externalUrl: taskDraft.externalUrl.trim(),
         exampleImageUrls: taskDraft.exampleImageUrls,
-        autoAssign: taskDraft.autoAssign,
       };
       if (taskEditingId) {
         const response = await adminApi.updateMamaResourceTask(taskEditingId, payload);
@@ -553,28 +574,12 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
       setSelectedTask(response.data.task);
       setTaskCreateOpen(false);
       setTaskManagerOpen(true);
-      const assignedCount = response.data.assignments?.length || 0;
-      setToast(assignedCount > 0 ? `任务已上架，已自动匹配 ${assignedCount} 个账号` : "任务已上架，可继续精准选号");
+      setToast("任务已上架，用户领取后会进入内容下发名单");
       await loadTaskWorkspace(response.data.task._id);
     } catch (createError: any) {
       const message = requestErrorMessage(createError, taskEditingId ? "任务更新失败" : "任务上架失败");
       setTaskCreateMessage({ type: "error", text: message });
       setToast(message);
-    } finally {
-      setTaskLoading(false);
-    }
-  };
-
-  const assignSelectedTaskCandidates = async () => {
-    if (!selectedTask || selectedCandidateIds.length === 0 || taskLoading) return;
-    setTaskLoading(true);
-    setToast("");
-    try {
-      await adminApi.assignMamaResourceTaskProfiles(selectedTask._id, selectedCandidateIds);
-      setToast(`已分配 ${selectedCandidateIds.length} 个账号`);
-      await loadTaskWorkspace(selectedTask._id);
-    } catch (assignError: any) {
-      setToast(assignError?.response?.data?.message || assignError?.message || "账号分配失败");
     } finally {
       setTaskLoading(false);
     }
@@ -595,7 +600,59 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
     }
   };
 
+  const filterTaskAssignmentsByProofStatus = async (proofStatus: TaskProofStatusFilter) => {
+    setTaskProofStatusFilter(proofStatus);
+    if (!selectedTask || taskLoading) return;
+    setTaskLoading(true);
+    try {
+      const response = await adminApi.getMamaResourceTaskAssignments(selectedTask._id, {
+        proofStatus,
+        category: taskCategoryFilter || undefined,
+        minFollowers: taskMinFollowers || undefined,
+        search: taskSearchText || undefined,
+        riskTag: taskRiskTagFilter || undefined,
+        operatorTag: taskOperatorTagFilter || undefined,
+        orderBlocked: taskOrderBlockedFilter === "all" ? undefined : taskOrderBlockedFilter === "blocked",
+      });
+      const nextAssignments = response.data.assignments || [];
+      setAssignments(nextAssignments);
+      setSelectedAssignmentId((current) => nextAssignments.some((assignment) => assignment._id === current) ? current : "");
+      setContentUrlDrafts(Object.fromEntries(nextAssignments.map((assignment) => [assignment._id, assignment.contentUrl || ""])));
+    } catch (filterError: any) {
+      setToast(requestErrorMessage(filterError, "返图状态筛选失败"));
+    } finally {
+      setTaskLoading(false);
+    }
+  };
+
   const configuredContentCount = assignments.filter((assignment) => Boolean(assignment.contentUrl)).length;
+  const selectedAssignment = assignments.find((assignment) => assignment._id === selectedAssignmentId) || null;
+
+  const selectAssignment = (assignment: MamaResourceTaskAssignment) => {
+    setSelectedAssignmentId(assignment._id);
+    setOperatorTagsDraft((assignment.profile?.operatorTags || []).join("、"));
+  };
+
+  const saveProfileOperations = async (assignment: MamaResourceTaskAssignment, orderBlocked = assignment.profile?.orderBlocked === true) => {
+    if (!assignment.profile || taskLoading) return;
+    const wasBlocked = assignment.profile.orderBlocked === true;
+    setTaskLoading(true);
+    try {
+      const response = await adminApi.updateMamaResourceOperations(assignment.profile._id, {
+        operatorTags: splitTags(operatorTagsDraft),
+        orderBlocked,
+      });
+      setAssignments((current) => current.map((item) => item.profileId === response.data.profile._id
+        ? { ...item, profile: response.data.profile }
+        : item));
+      setOperatorTagsDraft((response.data.profile.operatorTags || []).join("、"));
+      setToast(orderBlocked ? "账号已禁止接单" : wasBlocked ? "账号已恢复接单" : "账号运营设置已保存");
+    } catch (operationError: any) {
+      setToast(requestErrorMessage(operationError, "运营设置保存失败"));
+    } finally {
+      setTaskLoading(false);
+    }
+  };
 
   const saveAssignmentContentUrl = async (assignment: MamaResourceTaskAssignment) => {
     if (taskLoading) return;
@@ -676,10 +733,25 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
     }
   };
 
-  const toggleCandidate = (candidateId: string) => {
-    setSelectedCandidateIds((current) => (
-      current.includes(candidateId) ? current.filter((id) => id !== candidateId) : [...current, candidateId]
-    ));
+  const importContentLinks = async () => {
+    if (!selectedTask || !contentLinkText.trim() || taskLoading) return;
+    setTaskLoading(true);
+    setToast("");
+    try {
+      const response = await adminApi.importMamaResourceContentLinks(selectedTask._id, { linksText: contentLinkText });
+      const { importedCount, skippedCount, assignedCount, task } = response.data;
+      setContentLinkText("");
+      setSelectedTask(task);
+      setTasks((current) => current.map((item) => item._id === task._id ? task : item));
+      const skippedText = skippedCount > 0 ? `，跳过 ${skippedCount} 条重复链接` : "";
+      const assignedText = assignedCount > 0 ? `，已顺序分配 ${assignedCount} 个账号` : "";
+      setToast(`已导入 ${importedCount} 条链接${assignedText}${skippedText}`);
+      await loadTaskWorkspace(selectedTask._id);
+    } catch (importError: any) {
+      setToast(requestErrorMessage(importError, "批量链接导入失败"));
+    } finally {
+      setTaskLoading(false);
+    }
   };
 
   return (
@@ -747,7 +819,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                   </span>
                 </span>
                 <span className="text-sm font-black text-red-500">{toMoneyText(task.unitPriceCents)}</span>
-                <span className="text-xs font-bold text-stone-500">{taskStatusLabel[String(task.status)] || task.status}</span>
+                <span className="text-xs font-bold text-stone-500">{task.pausedForContent ? "等待内容分配" : taskStatusLabel[String(task.status)] || task.status}</span>
                 <button type="button" onClick={() => openTaskManager(task)} className="rounded-lg bg-[#f6f0ff] px-3 py-1.5 text-xs font-black text-[#5e17eb]">内容下发</button>
                 <button type="button" onClick={() => openTaskEdit(task)} disabled={taskLoading} className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-black text-stone-600 disabled:opacity-50">编辑</button>
               </div>
@@ -925,19 +997,13 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                 <label className="text-sm font-bold text-stone-700">发布要求<textarea value={taskDraft.requirement} onChange={(event) => setTaskDraft((current) => ({ ...current, requirement: event.target.value }))} className="mt-1 min-h-[110px] w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" /></label>
                 <label className="text-sm font-bold text-stone-700">结算标准<textarea value={taskDraft.settlementStandard} onChange={(event) => setTaskDraft((current) => ({ ...current, settlementStandard: event.target.value }))} className="mt-1 min-h-[110px] w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" /></label>
               </div>
-              {!taskEditingId ? (
-                <label className="flex items-center gap-2 rounded-xl bg-[#f7f2ff] px-3 py-3 text-sm font-bold text-[#4b1db5]">
-                  <input type="checkbox" checked={taskDraft.autoAssign} onChange={(event) => setTaskDraft((current) => ({ ...current, autoAssign: event.target.checked }))} />
-                  创建后自动按任务条件匹配账号
-                </label>
-              ) : null}
               {taskCreateMessage ? (
                 <div className={`rounded-xl px-3 py-2 text-sm font-bold ${taskCreateMessage.type === "error" ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>
                   {taskCreateMessage.text}
                 </div>
               ) : null}
               <button type="button" onClick={submitTaskCreate} disabled={taskLoading || taskImageUploading} className="w-full rounded-xl bg-[#6c27d6] px-4 py-3 text-sm font-black text-white shadow-[0_10px_24px_rgba(108,39,214,0.18)] disabled:bg-stone-300 disabled:shadow-none">
-                {taskLoading ? (taskEditingId ? "保存中..." : "上架中...") : (taskEditingId ? "保存修改" : "提交上架并匹配账号")}
+                {taskLoading ? (taskEditingId ? "保存中..." : "上架中...") : (taskEditingId ? "保存修改" : "提交上架")}
               </button>
             </div>
           </aside>
@@ -951,7 +1017,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
               <div>
                 <div className="text-xs font-black text-stone-400">内容下发</div>
                 <h2 className="mt-1 text-xl font-black text-stone-900">{selectedTask?.title || "当前任务"}</h2>
-                <div className="mt-1 text-sm font-semibold text-stone-500">管理当前任务的账号筛选、分配和专属内容链接。</div>
+                <div className="mt-1 text-sm font-semibold text-stone-500">只展示已经领取当前任务的账号，并管理专属内容与运营状态。</div>
               </div>
               <button type="button" onClick={closeTaskManager} disabled={taskLoading} className="rounded-full border border-stone-200 px-4 py-2 text-sm font-bold text-stone-600 hover:bg-stone-50 disabled:opacity-50">关闭</button>
             </div>
@@ -959,49 +1025,66 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                 <div className="rounded-2xl border border-stone-200 bg-white p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <div className="text-sm font-black text-stone-900">按标签筛选</div>
-                      <div className="mt-1 text-xs font-semibold text-stone-500">只从已审核通过的账号中选号。</div>
+                      <div className="text-sm font-black text-stone-900">用户筛选</div>
+                      <div className="mt-1 text-xs font-semibold text-stone-500">从已领取当前任务的账号中筛选，并快速查看返图与接单状态。</div>
                     </div>
                     <button type="button" onClick={() => selectedTask && loadTaskWorkspace(selectedTask._id)} disabled={!selectedTask || taskLoading} className="rounded-xl border border-[#6c27d6] bg-[#f7f2ff] px-3 py-2 text-xs font-black text-[#5e17eb] disabled:opacity-50">筛选账号</button>
                   </div>
-                  <div className="mt-3 grid gap-3 md:grid-cols-4">
-                    <input value={taskSearchText} onChange={(event) => setTaskSearchText(event.target.value)} className="rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="搜索昵称/微信/链接" />
+                  <div className="mt-3 grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+                    <input value={taskSearchText} onChange={(event) => setTaskSearchText(event.target.value)} className="rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="昵称/手机/微信/ID" />
                     <input value={taskCategoryFilter} onChange={(event) => setTaskCategoryFilter(event.target.value)} list="mama-resource-categories" className="rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="品类标签" />
                     <input value={taskRiskTagFilter} onChange={(event) => setTaskRiskTagFilter(event.target.value)} className="rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="风险标签" />
                     <input value={taskMinFollowers} onChange={(event) => setTaskMinFollowers(event.target.value)} className="rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="最低粉丝数" />
+                    <input value={taskOperatorTagFilter} onChange={(event) => setTaskOperatorTagFilter(event.target.value)} className="rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="运营标签" />
+                    <select value={taskOrderBlockedFilter} onChange={(event) => setTaskOrderBlockedFilter(event.target.value as "all" | "allowed" | "blocked")} className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm">
+                      <option value="all">全部接单状态</option>
+                      <option value="allowed">可接单</option>
+                      <option value="blocked">已禁接</option>
+                    </select>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2" aria-label="返图状态快捷筛选">
+                    <span className="mr-1 text-xs font-black text-stone-500">返图状态</span>
+                    {proofStatusFilterOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => void filterTaskAssignmentsByProofStatus(option.value)}
+                        disabled={taskLoading}
+                        className={`rounded-full border px-3 py-1.5 text-xs font-black transition disabled:opacity-50 ${taskProofStatusFilter === option.value ? "border-[#6c27d6] bg-[#6c27d6] text-white" : "border-[#d8ccff] bg-[#f7f2ff] text-[#5e17eb] hover:border-[#6c27d6]"}`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(420px,0.85fr)]">
-                  <div className="rounded-2xl border border-stone-200 bg-white p-4">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-black text-stone-900">定向选择账号</div>
-                        <div className="mt-1 text-xs font-semibold text-stone-500">已选 {selectedCandidateIds.length} 个账号</div>
+                <div className="rounded-2xl border border-[#e6ddff] bg-[#fbf9ff] p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="text-sm font-black text-stone-900">批量链接池</div>
+                        {selectedTask?.pausedForContent ? <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-black text-amber-700">等待内容分配</span> : null}
                       </div>
-                      <button type="button" onClick={assignSelectedTaskCandidates} disabled={!selectedTask || selectedCandidateIds.length === 0 || taskLoading} className="rounded-xl bg-[#6c27d6] px-3 py-2 text-xs font-black text-white disabled:bg-stone-300">分配给选中账号</button>
+                      <div className="mt-1 text-xs font-semibold text-stone-500">
+                        已导入 {selectedTask?.contentLinkCount || 0} 条 · 已分配 {selectedTask?.contentLinkAssignedCount || 0} 条 · 剩余 {selectedTask?.contentLinkRemainingCount || 0} 条
+                      </div>
                     </div>
-                    <div className="max-h-[460px] space-y-2 overflow-y-auto pr-1">
-                      {taskLoading && candidates.length === 0 ? (
-                        <div className="rounded-xl bg-stone-50 px-3 py-6 text-center text-sm font-semibold text-stone-500">账号加载中...</div>
-                      ) : candidates.length === 0 ? (
-                        <div className="rounded-xl bg-stone-50 px-3 py-6 text-center text-sm font-semibold text-stone-500">暂无匹配账号</div>
-                      ) : candidates.map((candidate) => (
-                        <label key={candidate._id} className="grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-stone-200 px-3 py-3 hover:border-[#6c27d6]">
-                          <input type="checkbox" checked={selectedCandidateIds.includes(candidate._id)} disabled={Boolean(candidate.assignmentId)} onChange={() => toggleCandidate(candidate._id)} />
-                          <span className="min-w-0">
-                            <span className="block truncate text-sm font-black text-stone-900">{candidate.displayName}</span>
-                            <span className="mt-1 block truncate text-xs font-semibold text-stone-500">{(candidate.categories || []).join("、") || "未填品类"} · 粉丝 {toCount(candidate.socialAccount?.followerCount)}</span>
-                          </span>
-                          {candidate.assignmentStatus ? assignmentBadge(candidate.assignmentStatus) : <span className="rounded-full bg-stone-100 px-2 py-1 text-xs font-black text-stone-500">未分配</span>}
-                        </label>
-                      ))}
-                    </div>
+                    <button type="button" onClick={importContentLinks} disabled={!selectedTask || !contentLinkText.trim() || taskLoading} className="rounded-xl bg-[#6c27d6] px-3 py-2 text-xs font-black text-white disabled:bg-stone-300">
+                      {taskLoading ? "处理中..." : "导入并顺序分配"}
+                    </button>
                   </div>
-                  <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+                  <textarea
+                    value={contentLinkText}
+                    onChange={(event) => setContentLinkText(event.target.value)}
+                    placeholder="每行一个专属内容链接，也支持逗号分隔；重复链接会自动跳过"
+                    className="mt-3 min-h-[92px] w-full rounded-xl border border-[#d8ccff] bg-white px-3 py-2 text-sm outline-none focus:border-[#6c27d6]"
+                  />
+                  <div className="mt-2 text-xs font-semibold text-stone-500">链接按账号分配时间顺序绑定；链接耗尽后任务自动暂停，补充链接后恢复。</div>
+                </div>
+                <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                       <div>
-                        <div className="text-sm font-black text-stone-900">已分配账号</div>
-                        <div className="mt-1 text-xs font-semibold text-stone-500">已配置 {configuredContentCount}/{assignments.length}</div>
+                        <div className="text-sm font-black text-stone-900">领取任务账号</div>
+                        <div className="mt-1 text-xs font-semibold text-stone-500">已领取 {assignments.length} 人 · 已配置内容 {configuredContentCount}/{assignments.length}</div>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <button type="button" onClick={downloadContentImportTemplate} className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs font-black text-stone-700">下载导入模板</button>
@@ -1011,64 +1094,115 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                         </label>
                       </div>
                     </div>
-                    <div className="max-h-[460px] space-y-2 overflow-y-auto pr-1">
-                      {assignments.length === 0 ? (
-                        <div className="rounded-xl bg-white px-3 py-6 text-center text-sm font-semibold text-stone-500">暂无已分配账号</div>
-                      ) : assignments.map((assignment) => (
-                        <div key={assignment._id} className="rounded-xl border border-stone-200 bg-white p-3">
+                    <div className="grid min-h-[360px] gap-4 xl:grid-cols-[minmax(220px,3fr)_minmax(0,7fr)]">
+                      <div className="max-h-[520px] space-y-2 overflow-y-auto pr-1" aria-label="领取任务账号列表">
+                        {assignments.length === 0 ? (
+                          <div className="rounded-xl bg-white px-3 py-6 text-center text-sm font-semibold text-stone-500">暂无用户领取当前任务</div>
+                        ) : assignments.map((assignment) => (
+                          <button
+                            key={assignment._id}
+                            type="button"
+                            onClick={() => selectAssignment(assignment)}
+                            className={`w-full rounded-xl border p-3 text-left transition ${selectedAssignmentId === assignment._id ? "border-[#6c27d6] bg-[#f7f2ff] shadow-[0_8px_20px_rgba(108,39,214,0.08)]" : "border-stone-200 bg-white hover:border-[#b98df1]"}`}
+                          >
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
                               <div className="truncate text-sm font-black text-stone-900">{assignment.profile?.displayName || "未命名账号"}</div>
-                              <div className="mt-1 text-xs font-semibold text-stone-500">粉丝 {toCount(assignment.profile?.socialAccount?.followerCount)} · {toDateText(assignment.updatedAt)}</div>
+                              <div className="mt-1 truncate text-xs font-semibold text-stone-500">ID {assignment.user?._id || "未匹配"}</div>
+                              <div className="mt-1 text-xs font-semibold text-stone-500">手机 {assignment.user?.mobile || assignment.profile?.contactPhone || "未填"} · 领取 {toDateText(assignment.createdAt)}</div>
+                              {(assignment.profile?.operatorTags || []).length > 0 ? (
+                                <div className="mt-2 flex flex-wrap gap-1">{assignment.profile?.operatorTags?.map((tag) => <span key={tag} className="rounded-full bg-[#f2ecff] px-2 py-0.5 text-[11px] font-black text-[#5e17eb]">{tag}</span>)}</div>
+                              ) : null}
                             </div>
-                            {assignmentBadge(assignment.status)}
+                            <div className="flex flex-col items-end gap-1">
+                              {proofStatusBadge(assignment.proofStatus)}
+                              {assignment.profile?.orderBlocked ? <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-black text-rose-700">已禁接</span> : null}
+                              {assignmentBadge(assignment.status)}
+                            </div>
+                          </div>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="max-h-[520px] overflow-y-auto rounded-xl border border-stone-200 bg-white p-4" aria-label="领取任务账号详情">
+                        {!selectedAssignment ? (
+                          <div className="flex min-h-[320px] items-center justify-center text-center">
+                            <div>
+                              <div className="text-sm font-black text-stone-700">请选择账号</div>
+                              <div className="mt-2 text-xs font-semibold text-stone-400">点击左侧领取账号后，在这里查看身份信息、打标签并配置专属链接。</div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <div className="flex items-start justify-between gap-3 border-b border-stone-100 pb-3">
+                              <div className="min-w-0">
+                                <div className="truncate text-base font-black text-stone-900">{selectedAssignment.profile?.displayName || "未命名账号"}</div>
+                                <div className="mt-1 text-xs font-semibold text-stone-500">ID {selectedAssignment.user?._id || "未匹配站内用户"} · 手机 {selectedAssignment.user?.mobile || selectedAssignment.profile?.contactPhone || "未填"}</div>
+                                <div className="mt-1 text-xs font-semibold text-stone-500">站内昵称 {selectedAssignment.user?.name || selectedAssignment.user?.username || "未填"} · 平台昵称 {selectedAssignment.profile?.socialAccount?.nickname || "未填"}</div>
+                                <div className="mt-1 text-xs font-semibold text-stone-500">微信 {selectedAssignment.profile?.contactWechat || "未填"} · 品类 {(selectedAssignment.profile?.categories || []).join("、") || "未填"}</div>
+                                <div className="mt-1 text-xs font-semibold text-stone-500">{[selectedAssignment.user?.city, selectedAssignment.user?.region, selectedAssignment.user?.childGrade || selectedAssignment.user?.grade || selectedAssignment.profile?.childStage].filter(Boolean).join(" · ") || "城市、区域、孩子年级未填"} · 粉丝 {toCount(selectedAssignment.profile?.socialAccount?.followerCount)}</div>
+                              </div>
+                              <div className="flex flex-col items-end gap-1">
+                                {proofStatusBadge(selectedAssignment.proofStatus)}
+                                {selectedAssignment.profile?.orderBlocked ? <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-black text-rose-700">已禁接</span> : null}
+                                {assignmentBadge(selectedAssignment.status)}
+                              </div>
+                            </div>
+                          <div className="mt-3 rounded-xl border border-[#e6ddff] bg-[#fbf9ff] p-3">
+                            <div className="text-xs font-black text-stone-700">运营标签与接单权限</div>
+                            <input value={operatorTagsDraft} onChange={(event) => setOperatorTagsDraft(event.target.value)} placeholder="如：配合度高、母婴、需跟进" className="mt-2 w-full rounded-lg border border-[#d8ccff] bg-white px-2.5 py-2 text-xs outline-none focus:border-[#6c27d6]" />
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <button type="button" onClick={() => saveProfileOperations(selectedAssignment)} disabled={taskLoading} className="rounded-lg border border-[#6c27d6] bg-white px-3 py-2 text-xs font-black text-[#5e17eb] disabled:opacity-50">保存标签</button>
+                              <button type="button" onClick={() => saveProfileOperations(selectedAssignment, !selectedAssignment.profile?.orderBlocked)} disabled={taskLoading} className={`rounded-lg px-3 py-2 text-xs font-black text-white disabled:bg-stone-300 ${selectedAssignment.profile?.orderBlocked ? "bg-emerald-600" : "bg-rose-600"}`}>
+                                {selectedAssignment.profile?.orderBlocked ? "恢复账号接单" : "禁止账号接单"}
+                              </button>
+                            </div>
                           </div>
                           <div className="mt-3">
                             <div className="mb-1 text-xs font-black text-stone-600">专属内容链接</div>
                             <div className="flex gap-2">
                               <input
-                                value={contentUrlDrafts[assignment._id] ?? assignment.contentUrl ?? ""}
-                                onChange={(event) => setContentUrlDrafts((current) => ({ ...current, [assignment._id]: event.target.value }))}
+                                value={contentUrlDrafts[selectedAssignment._id] ?? selectedAssignment.contentUrl ?? ""}
+                                onChange={(event) => setContentUrlDrafts((current) => ({ ...current, [selectedAssignment._id]: event.target.value }))}
                                 placeholder="https://my.feishu.cn/wiki/..."
                                 className="min-w-0 flex-1 rounded-lg border border-stone-200 px-2.5 py-2 text-xs outline-none focus:border-[#6c27d6]"
                               />
-                              <button type="button" onClick={() => saveAssignmentContentUrl(assignment)} disabled={taskLoading} className="rounded-lg border border-[#6c27d6] bg-[#f7f2ff] px-3 py-2 text-xs font-black text-[#5e17eb] disabled:opacity-50">保存</button>
+                              <button type="button" onClick={() => saveAssignmentContentUrl(selectedAssignment)} disabled={taskLoading} className="rounded-lg border border-[#6c27d6] bg-[#f7f2ff] px-3 py-2 text-xs font-black text-[#5e17eb] disabled:opacity-50">保存</button>
                             </div>
                           </div>
-                          {assignment.proofLink || assignment.proofScreenshotUrl ? (
+                          {selectedAssignment.proofLink || selectedAssignment.proofScreenshotUrl ? (
                             <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
-                              {assignment.proofLink ? <a className="rounded-full bg-[#f6f0ff] px-2.5 py-1 text-[#6c27d6]" href={assignment.proofLink} target="_blank" rel="noreferrer">完成链接</a> : null}
-                              {assignment.proofScreenshotUrl ? <a className="rounded-full bg-[#f6f0ff] px-2.5 py-1 text-[#6c27d6]" href={assignment.proofScreenshotUrl} target="_blank" rel="noreferrer">完成截图</a> : null}
+                              {selectedAssignment.proofLink ? <a className="rounded-full bg-[#f6f0ff] px-2.5 py-1 text-[#6c27d6]" href={selectedAssignment.proofLink} target="_blank" rel="noreferrer">完成链接</a> : null}
+                              {selectedAssignment.proofScreenshotUrl ? <a className="rounded-full bg-[#f6f0ff] px-2.5 py-1 text-[#6c27d6]" href={selectedAssignment.proofScreenshotUrl} target="_blank" rel="noreferrer">完成截图</a> : null}
                             </div>
                           ) : <div className="mt-2 text-xs font-semibold text-stone-400">用户尚未提交证明</div>}
                           <div className="mt-3 rounded-xl bg-stone-50 p-3">
                             <div className="text-xs font-black text-stone-600">转账截图</div>
-                            {assignment.transferScreenshotUrl ? (
-                              <a href={assignment.transferScreenshotUrl} target="_blank" rel="noreferrer" className="mt-2 block">
-                                <img src={assignment.transferScreenshotUrl} alt="任务转账凭证" className="max-h-40 w-full rounded-lg object-contain" />
+                            {selectedAssignment.transferScreenshotUrl ? (
+                              <a href={selectedAssignment.transferScreenshotUrl} target="_blank" rel="noreferrer" className="mt-2 block">
+                                <img src={selectedAssignment.transferScreenshotUrl} alt="任务转账凭证" className="max-h-40 w-full rounded-lg object-contain" />
                               </a>
                             ) : null}
-                            {assignment.transferScreenshotUpdatedAt ? <div className="mt-2 text-xs font-semibold text-stone-400">更新于 {toDateText(assignment.transferScreenshotUpdatedAt)}</div> : null}
+                            {selectedAssignment.transferScreenshotUpdatedAt ? <div className="mt-2 text-xs font-semibold text-stone-400">更新于 {toDateText(selectedAssignment.transferScreenshotUpdatedAt)}</div> : null}
                             <label className="mt-2 inline-flex cursor-pointer rounded-lg border border-[#6c27d6] bg-white px-3 py-2 text-xs font-black text-[#5e17eb]">
-                              {transferScreenshotUploadingId === assignment._id ? "上传中..." : assignment.transferScreenshotUrl ? "替换截图" : "上传转账截图"}
+                              {transferScreenshotUploadingId === selectedAssignment._id ? "上传中..." : selectedAssignment.transferScreenshotUrl ? "替换截图" : "上传转账截图"}
                               <input type="file" accept="image/*" disabled={Boolean(transferScreenshotUploadingId)} onChange={(event) => {
                                 const file = event.target.files?.[0];
                                 event.target.value = "";
-                                void handleTransferScreenshotUpload(assignment._id, file);
+                                void handleTransferScreenshotUpload(selectedAssignment._id, file);
                               }} className="hidden" />
                             </label>
                           </div>
-                          {assignment.status === "submitted" ? (
+                          {selectedAssignment.status === "submitted" ? (
                             <div className="mt-3 grid grid-cols-2 gap-2">
-                              <button type="button" onClick={() => reviewAssignment(assignment, "collected", "已核对链接和截图，标记收录")} disabled={taskLoading} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white disabled:bg-stone-300">标记已收录</button>
-                              <button type="button" onClick={() => reviewAssignment(assignment, "rejected", "证明材料不完整，请重新提交")} disabled={taskLoading} className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-xs font-black text-stone-700 disabled:opacity-50">驳回</button>
+                              <button type="button" onClick={() => reviewAssignment(selectedAssignment, "collected", "已核对链接和截图，标记收录")} disabled={taskLoading} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white disabled:bg-stone-300">标记已收录</button>
+                              <button type="button" onClick={() => reviewAssignment(selectedAssignment, "rejected", "证明材料不完整，请重新提交")} disabled={taskLoading} className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-xs font-black text-stone-700 disabled:opacity-50">驳回</button>
                             </div>
                           ) : null}
+                          </div>
+                        )}
                         </div>
-                      ))}
                     </div>
                   </div>
-                </div>
             </div>
           </aside>
         </div>

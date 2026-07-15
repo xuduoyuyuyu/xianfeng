@@ -8,6 +8,7 @@ const componentPath = require.resolve("./index.js");
 const requestPath = require.resolve("../../utils/request.js");
 const sessionPath = require.resolve("../../utils/session.js");
 const authExpiryPath = require.resolve("../../utils/authExpiry.js");
+const wechatProfilePath = require.resolve("../../utils/wechatProfile.js");
 
 test("shared phone login gate saves the session and emits success", async () => {
   const originalComponent = global.Component;
@@ -20,10 +21,16 @@ test("shared phone login gate saves the session and emits success", async () => 
 
   require.cache[requestPath] = { exports: { request: async (options) => {
     calls.push(options);
-    return { token: "token-1", user: { _id: "user-1" } };
+    return { token: "token-1", user: { _id: "user-1", name: "小雨", avatar_image: "https://cdn.test/avatar.png" } };
   } } };
   require.cache[sessionPath] = { exports: { setSession: (payload) => saved.push(payload) } };
   require.cache[authExpiryPath] = { exports: { resolveAuthExpired: () => { resolved += 1; } } };
+  require.cache[wechatProfilePath] = { exports: {
+    isPlaceholderName: () => false,
+    needsWechatProfileCompletion: () => false,
+    normalizeWechatProfileUser: (user) => user,
+    saveWechatProfile: async () => ({})
+  } };
   global.Component = (value) => { definition = value; };
   global.wx = { login: ({ success }) => success({ code: "wx-code" }) };
   global.getApp = () => ({ setLoginSession() {} });
@@ -50,6 +57,7 @@ test("shared phone login gate saves the session and emits success", async () => 
     delete require.cache[requestPath];
     delete require.cache[sessionPath];
     delete require.cache[authExpiryPath];
+    delete require.cache[wechatProfilePath];
     global.Component = originalComponent;
     global.wx = originalWx;
     global.getApp = originalGetApp;
@@ -60,7 +68,62 @@ test("shared phone login gate owns the only phone authorization button", () => {
   const wxml = readFileSync(new URL("index.wxml", import.meta.url), "utf8");
   assert.equal((wxml.match(/open-type="getPhoneNumber"/g) || []).length, 1);
   assert.match(wxml, /bindgetphonenumber="loginWithPhone"/);
-  assert.match(wxml, /wx:if="\{\{visible\}\}"/);
+  assert.match(wxml, /wx:if="\{\{visible \|\| completingProfile\}\}"/);
+  assert.match(wxml, /open-type="chooseAvatar"/);
+  assert.match(wxml, /type="nickname"/);
+});
+
+test("shared phone login waits for missing wechat profile details before resuming the protected action", async () => {
+  const originalComponent = global.Component;
+  const originalWx = global.wx;
+  const originalGetApp = global.getApp;
+  let definition;
+  require.cache[requestPath] = { exports: { request: async () => ({ token: "token-1", user: { id: "user-1", name: "微信用户", avatar_image: "" } }) } };
+  require.cache[sessionPath] = { exports: { setSession() {} } };
+  require.cache[authExpiryPath] = { exports: { resolveAuthExpired() {} } };
+  require.cache[wechatProfilePath] = { exports: {
+    isPlaceholderName: (name) => !name || name === "微信用户",
+    needsWechatProfileCompletion: () => true,
+    normalizeWechatProfileUser: (user) => ({ ...user, avatar: user.avatar_image || "" }),
+    saveWechatProfile: async ({ name, avatarPath }) => ({ id: "user-1", name, avatar: avatarPath, avatar_image: avatarPath })
+  } };
+  global.Component = (value) => { definition = value; };
+  global.wx = { login: ({ success }) => success({ code: "wx-code" }) };
+  global.getApp = () => ({ setLoginSession() {} });
+
+  try {
+    delete require.cache[componentPath];
+    require(componentPath);
+    const events = [];
+    const context = {
+      data: { bindingPhone: false, completingProfile: false, profileName: "", profileAvatar: "" },
+      setData(patch) { Object.assign(this.data, patch); },
+      triggerEvent(name, detail) { events.push({ name, detail }); }
+    };
+
+    definition.methods.loginWithPhone.call(context, { detail: { code: "phone-code" } });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(context.data.completingProfile, true);
+    assert.deepEqual(events, []);
+
+    definition.methods.chooseWechatAvatar.call(context, { detail: { avatarUrl: "https://cdn.test/new-avatar.png" } });
+    definition.methods.updateWechatNickname.call(context, { detail: { value: "新昵称" } });
+    definition.methods.saveWechatProfile.call(context);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(context.data.completingProfile, false);
+    assert.equal(events[0].name, "success");
+    assert.equal(events[0].detail.session.user.name, "新昵称");
+  } finally {
+    delete require.cache[componentPath];
+    delete require.cache[requestPath];
+    delete require.cache[sessionPath];
+    delete require.cache[authExpiryPath];
+    delete require.cache[wechatProfilePath];
+    global.Component = originalComponent;
+    global.wx = originalWx;
+    global.getApp = originalGetApp;
+  }
 });
 
 test("shared phone login gate emits failure when phone authorization is rejected", () => {
@@ -80,6 +143,7 @@ test("shared phone login gate emits failure when phone authorization is rejected
     assert.deepEqual(events, [{ name: "failure", detail: { message: "需要授权手机号后登录", reason: "phone-denied" } }]);
   } finally {
     delete require.cache[componentPath];
+    delete require.cache[wechatProfilePath];
     global.Component = originalComponent;
   }
 });

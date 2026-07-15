@@ -30,6 +30,7 @@ export interface MamaResourceContentCase {
 }
 
 export interface MamaResourceProfile extends mongoose.Document {
+  userId?: mongoose.Types.ObjectId | null;
   displayName: string;
   contactPhone?: string;
   contactWechat: string;
@@ -39,6 +40,8 @@ export interface MamaResourceProfile extends mongoose.Document {
   childStage?: string;
   childGender?: string;
   categories: string[];
+  operatorTags: string[];
+  orderBlocked: boolean;
   status: MamaResourceStatus;
   accountPositioning?: string;
   consentAccepted: boolean;
@@ -106,6 +109,7 @@ const mediaAccountSchema = new mongoose.Schema(
 
 const mamaResourceProfileSchema = new mongoose.Schema(
   {
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, index: true },
     displayName: { type: String, required: true, trim: true },
     contactPhone: { type: String, default: "", trim: true },
     contactWechat: { type: String, default: "", trim: true },
@@ -115,6 +119,8 @@ const mamaResourceProfileSchema = new mongoose.Schema(
     childStage: { type: String, default: "", trim: true },
     childGender: { type: String, default: "", trim: true },
     categories: { type: [String], default: [] },
+    operatorTags: { type: [String], default: [] },
+    orderBlocked: { type: Boolean, default: false, index: true },
     status: {
       type: String,
       enum: ["pending", "approved", "needs_info", "rejected"],

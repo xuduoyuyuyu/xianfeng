@@ -39,14 +39,37 @@ Mini-program protected actions use their first tap as the native
 `getPhoneNumber` gesture. The shared phone-login component runs headlessly;
 public pages remain visible and no page-entry or HTTP 401 path displays an
 intermediate login card. Safe initiating actions may resume once after login,
-while Pro authorization never creates an order or starts payment automatically.
+and every native sidebar menu item uses the same first-tap phone authorization
+before continuing to its original destination. Pro authorization never creates
+an order or starts payment automatically. After login, accounts whose station
+nickname is still a generated placeholder or whose avatar is missing receive a
+native WeChat avatar/nickname completion step before the pending protected
+action resumes. The confirmed nickname and uploaded permanent avatar are saved
+to the shared user profile; existing custom profiles are not overwritten.
 
-Mama Haozhuan task assignments now also carry one private posting-content link
-per user. Operators can fill links individually or import an Excel file after
-preflight; assigned users copy the selectable link from the mini-program or
-mobile Web task-management dialog and open it externally. The mobile Web flow
-now mirrors account-state routing, assigned/claimable tasks, detail, and proof
-submission.
+Mama Haozhuan content dispatch now uses existing task claims as its only account
+source: task creation, manual selection, and Excel import no longer create
+assignments for unclaimed accounts. Operators can fill private links
+individually, import an Excel file after preflight, or paste an ordered
+task-level link pool. Pooled links bind to claims in order; exhaustion pauses
+the task as waiting for content, and replenishment resumes it. Assigned users
+copy the selectable link from the mini-program or mobile Web task-management
+dialog and open it externally. The mobile Web flow mirrors account-state
+routing, assigned/claimable tasks, detail, and proof submission. The admin 3:7
+claimant master-detail view includes the bound site user ID, mobile, station
+profile fields, platform account fields, operator tags, and an account-level
+block that prevents new claims without disrupting existing task completion.
+Assignment responses derive proof-return
+state from the completion screenshot and assignment creation time: submitted
+screenshots are marked returned, missing screenshots are marked not returned,
+and missing screenshots after 24 hours are marked overdue. Admin can filter all
+three states from quick choices in the existing user-filter area without
+storing a second status field.
+
+Mini-program Mama Haozhuan form drafts are persisted only for the current
+logged-in account and use an account-scoped storage key. Logged-out, logout,
+account-deletion, and unauthorized states reset private form and task data; the
+legacy unscoped draft cache is discarded because it has no trustworthy owner.
 
 Published learning materials may optionally bind to one active guest. Bound
 materials appear on both Web and native mini-program guest detail pages under
@@ -83,11 +106,32 @@ with more claims than codes reject updates until operators correct the data.
 
 ## Recent Decisions
 
+- 2026-07-16 - Treat a Mama Haozhuan task claim as the sole authority for
+  content dispatch. Do not create assignments from task auto-match, admin
+  account selection, or content-link import. Resolve site identity by the
+  claimant profile phone for admin distinction; keep free-form operator tags
+  on the Mama profile and enforce its account-level order block only on new
+  claims. Authenticated application and first-claim lookup persist the optional
+  user ID on the profile, with normalized phone matching retained for legacy
+  records.
+
+- 2026-07-15 - Treat phone authorization and WeChat avatar/nickname completion
+  as two consecutive consent steps. Persist the result in the shared user
+  profile, update the current mini-program session immediately, and let Mama
+  Haozhuan fill only an empty station display name without touching any
+  Xiaohongshu or Douyin account nickname.
+
 - 2026-07-15 - Native guest detail shows real authored books returned by the
   guest API's exact published-book author match, without mixing public
-  references into the section. Social profiles remain real guest fields and
-  copy their URL or account name in the mini program rather than opening an
-  external page; empty authored and social sections are omitted.
+  references into the section. Authored works open the native book detail and
+  recommended booklists switch to the native Reading tab with the exact source
+  filter. Social profiles remain real guest fields and copy their URL or
+  account name rather than opening an external page; empty sections are omitted.
+
+- 2026-07-15 - Native guest and topic detail shares point directly to their
+  `pages/webview/index` target instead of flashing the generic share landing
+  page first. The share page remains registered for Xiaowanzi conversation
+  content, scene-based QR entry, and compatibility with existing shared links.
 
 - 2026-07-15 - Treat semicolon-delimited `sourceName` values as multiple real
   guest booklists. Normalize whitespace and wrapping book-title marks, preserve
@@ -110,8 +154,14 @@ with more claims than codes reject updates until operators correct the data.
   payment behind its explicit post-login confirmation.
 - 2026-07-14 - Store Mama Haozhuan posting content as a private URL on each
   task assignment. Support manual editing and preview-before-commit Excel
-  import, expose the URL only to its assigned user, and do not send SMS in this
-  version.
+  import, plus an ordered task-level link pool with automatic pause on
+  exhaustion and resume on replenishment. Expose the URL only to its assigned
+  user, and do not send SMS in this version. Derive returned, not-returned, and
+  24-hour-overdue proof markers from each assignment's completion screenshot and
+  creation time so operators can filter them without a duplicated stored state.
+- 2026-07-15 - Scope Mama Haozhuan mini-program drafts to the authenticated
+  account. Never restore private form or task data while logged out, and discard
+  the legacy unscoped cache instead of guessing its owner.
 - 2026-07-11 - Mini-program virtual products use WeChat Mini Program Virtual
   Payment only. Client success and push notifications are triggers, not
   delivery proof; entitlement is granted only after trusted official query

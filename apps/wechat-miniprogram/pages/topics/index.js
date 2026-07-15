@@ -476,10 +476,7 @@ function buildTopicSharePath(topic) {
   const target = `/pages/webview/index?url=${encodeURIComponent(sanitizeTopicPath(item.path))}&title=${encodeURIComponent(item.title || "请教详情")}&topicId=${encodeURIComponent(item.id || item.slug || "")}`;
   return createPageShare({
     title: item.title || "家长先疯请教",
-    path: "/pages/share/index",
-    query: {
-      target
-    }
+    path: target
   });
 }
 

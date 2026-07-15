@@ -4,6 +4,12 @@ const { getToken, getUser, setSession, clearSession } = require("./session");
 const { CHILD_PROFILES_KEY, WEB_CHILD_PROFILES_KEY, hasDuplicateChildDisplayName, maskMobile, mergeChildProfileRecords, parseStoredValue } = require("./profileState");
 const { rememberCurrentExternalPage } = require("./xiaowanziReturn");
 const { STAGES, GRADES_BY_STAGE, gradesFor, formatGrade, parseGrade, districtsFor } = require("./profileOnboarding");
+const {
+  isPlaceholderName,
+  needsWechatProfileCompletion,
+  normalizeWechatProfileUser,
+  saveWechatProfile: persistWechatProfile
+} = require("./wechatProfile");
 
 const TAB_PAGES = [
   "/pages/programs/index",
@@ -166,15 +172,12 @@ function stageGradePicker(stage, gradeName, city) {
 }
 
 function normalizeProfileUser(value) {
-  const user = parseStoredValue(value, {}) || {};
-  const name = String(user.name || user.username || user.nickName || "").trim();
+  const user = normalizeWechatProfileUser(parseStoredValue(value, {}) || {});
   const gender = PROFILE_GENDERS.indexOf(user.gender) >= 0 ? user.gender : "男";
-  const avatar = String(user.avatar || user.avatarUrl || "").trim();
   return {
     ...user,
-    name,
     gender,
-    avatar
+    avatar: user.avatar
   };
 }
 
@@ -298,6 +301,9 @@ function openLoginEntry(page) {
 }
 
 function clearLoginState(page, messageKey, message) {
+  if (page && typeof page.onNativeSettingsLogout === "function") {
+    page.onNativeSettingsLogout();
+  }
   clearSession();
   const app = typeof getApp === "function" ? getApp() : null;
   if (app && typeof app.clearLoginSession === "function") {
@@ -424,6 +430,15 @@ function openSettingsProfileView(page, view) {
   }
 }
 
+function openWechatProfileCompletion(page, user) {
+  if (!needsWechatProfileCompletion(user)) return false;
+  const profile = normalizeProfileUser(user);
+  page._profileCompletionRequired = true;
+  openSettingsProfileView(page, "profile");
+  page.setData(buildProfileView({ ...profile, name: isPlaceholderName(profile.name) ? "" : profile.name }, "请选择微信头像并确认昵称"));
+  return true;
+}
+
 function normalizeMembershipBadgeLabel(membership) {
   if (!membership || !membership.isProActive) return "";
   const tier = String(membership.membershipTier || membership.proPlan || "").toLowerCase();
@@ -496,6 +511,10 @@ function createNativeSettingsMethods() {
     },
 
     returnSettingsMenu() {
+      if (this._profileCompletionRequired) {
+        this._profileCompletionRequired = false;
+        this.pendingSettingsLoginDataset = null;
+      }
       this.backSettingsMenu();
     },
 
@@ -532,33 +551,9 @@ function createNativeSettingsMethods() {
       this.setData(buildProfileView({ ...(this.data.profileDraft || {}), gender: value }, ""));
     },
 
-    chooseProfileAvatar() {
-      const applyAvatar = (path) => {
-        if (!path) return;
-        this.setData(buildProfileView({ ...(this.data.profileDraft || {}), avatar: path }, ""));
-      };
-      if (wx.chooseMedia) {
-        wx.chooseMedia({
-          count: 1,
-          mediaType: ["image"],
-          sourceType: ["album", "camera"],
-          success: (result) => {
-            const file = result && result.tempFiles && result.tempFiles[0];
-            applyAvatar(file && (file.tempFilePath || file.path));
-          }
-        });
-        return;
-      }
-      if (wx.chooseImage) {
-        wx.chooseImage({
-          count: 1,
-          sizeType: ["compressed"],
-          sourceType: ["album", "camera"],
-          success: (result) => {
-            applyAvatar(result && result.tempFilePaths && result.tempFilePaths[0]);
-          }
-        });
-      }
+    chooseProfileAvatar(event) {
+      const path = String(event && event.detail && event.detail.avatarUrl || "").trim();
+      if (path) this.setData(buildProfileView({ ...(this.data.profileDraft || {}), avatar: path }, ""));
     },
 
     removeProfileAvatar() {
@@ -566,28 +561,46 @@ function createNativeSettingsMethods() {
     },
 
     saveProfilePanel() {
+      if (this._savingProfile) return;
       const draft = this.data.profileDraft || {};
       const name = String(draft.name || "").trim();
       if (!name) {
         this.setData(buildProfileView(draft, "请先填写昵称"));
         return;
       }
-      const current = normalizeProfileUser(getUser());
-      const user = {
-        ...current,
+      this._savingProfile = true;
+      this.setData(buildProfileView(draft, "保存中..."));
+      persistWechatProfile({
         name,
-        gender: PROFILE_GENDERS.indexOf(draft.gender) >= 0 ? draft.gender : "男",
-        avatar: String(draft.avatar || "").trim()
-      };
-      setSession({ user });
-      this.setData({
-        ...buildProfileView(user, "资料已保存"),
-        accountTitle: user.name || "微信用户",
-        accountSubtitle: "查看和管理个人资料",
-        accountAvatar: user.avatar || ACCOUNT_AVATAR,
-        accountPage: "/pages/mine/index",
-        accountPanelView: "profile"
-      });
+        avatarPath: String(draft.avatar || "").trim(),
+        allowEmptyAvatar: !this._profileCompletionRequired,
+        gender: PROFILE_GENDERS.indexOf(draft.gender) >= 0 ? draft.gender : "男"
+      })
+        .then((user) => {
+          this._savingProfile = false;
+          this._profileCompletionRequired = false;
+          this.setData({
+            ...buildProfileView(user, "资料已保存"),
+            accountTitle: user.name || "微信用户",
+            accountSubtitle: "查看和管理个人资料",
+            accountAvatar: user.avatar || ACCOUNT_AVATAR,
+            accountPage: "/pages/mine/index",
+            accountPanelView: "profile"
+          });
+          this.syncAccountEntry();
+          if (typeof this.onNativeSettingsProfileSaved === "function") {
+            this.onNativeSettingsProfileSaved(user);
+          }
+          const pendingSettingsLoginDataset = this.pendingSettingsLoginDataset;
+          this.pendingSettingsLoginDataset = null;
+          if (pendingSettingsLoginDataset && typeof this.openSettingsItem === "function") {
+            this.openSettingsItem({ currentTarget: { dataset: pendingSettingsLoginDataset } });
+          }
+        })
+        .catch((error) => {
+          this._savingProfile = false;
+          this.setData(buildProfileView(draft, String(error && error.message || "资料保存失败")));
+        });
     },
 
     loadArchivePanel() {
@@ -681,8 +694,12 @@ function createNativeSettingsMethods() {
 
     loginWithPhone(event) {
       if (this.data && this.data.bindingPhone) return;
+      const loginDataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
+      const hasPendingSettingsItem = loginDataset.sectionIndex !== undefined && loginDataset.itemIndex !== undefined;
+      this.pendingSettingsLoginDataset = hasPendingSettingsItem ? { ...loginDataset } : null;
       const phoneCode = String(event && event.detail && event.detail.code || "");
       if (!phoneCode) {
+        this.pendingSettingsLoginDataset = null;
         this.setData({ profilePanelMessage: "需要授权手机号后登录" });
         return;
       }
@@ -690,6 +707,7 @@ function createNativeSettingsMethods() {
       wx.login({
         success: ({ code }) => {
           if (!code) {
+            this.pendingSettingsLoginDataset = null;
             this.setData({ bindingPhone: false, profilePanelMessage: "微信登录失败，请重试" });
             return;
           }
@@ -718,8 +736,15 @@ function createNativeSettingsMethods() {
                 void onboarding.reconcileAfterLogin();
               }
               this.setData({ profilePanelMessage: "登录成功" });
+              if (openWechatProfileCompletion(this, payload && payload.user)) return;
+              const pendingSettingsLoginDataset = this.pendingSettingsLoginDataset;
+              this.pendingSettingsLoginDataset = null;
+              if (pendingSettingsLoginDataset && typeof this.openSettingsItem === "function") {
+                this.openSettingsItem({ currentTarget: { dataset: pendingSettingsLoginDataset } });
+              }
             })
             .catch((error) => {
+              this.pendingSettingsLoginDataset = null;
               this.setData({ profilePanelMessage: error.message || "登录失败" });
             })
             .finally(() => {
@@ -727,6 +752,7 @@ function createNativeSettingsMethods() {
             });
         },
         fail: () => {
+          this.pendingSettingsLoginDataset = null;
           this.setData({ bindingPhone: false, profilePanelMessage: "无法调用微信登录" });
         }
       });
@@ -781,7 +807,9 @@ function createNativeSettingsMethods() {
           if (typeof this.onNativeSettingsLoginSuccess === "function") {
             this.onNativeSettingsLoginSuccess(payload);
           }
-          this.setData({ profilePanelMessage: "手机号已绑定" });
+          if (!openWechatProfileCompletion(this, payload && payload.user)) {
+            this.setData({ profilePanelMessage: "手机号已绑定" });
+          }
         })
         .catch((error) => {
           this.setData({ profilePanelMessage: error.message || "绑定手机号失败" });
@@ -792,6 +820,9 @@ function createNativeSettingsMethods() {
     },
 
     logout() {
+      if (typeof this.onNativeSettingsLogout === "function") {
+        this.onNativeSettingsLogout();
+      }
       clearSession();
       const app = typeof getApp === "function" ? getApp() : null;
       if (app && typeof app.clearLoginSession === "function") {

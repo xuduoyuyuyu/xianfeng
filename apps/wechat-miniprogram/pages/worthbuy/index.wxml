@@ -1,3 +1,5 @@
+<import src="../../templates/settings-profile-views.wxml" />
+
 <view class="wb-page" style="padding-top: {{chromeHeight}}px;">
   <view class="xf-native-topbar" style="height: {{topbarHeight}}px;">
     <view class="xf-native-nav-row" style="height: {{topbarHeight}}px;">
@@ -56,6 +58,76 @@
     </view>
     <view wx:if="{{loadingMore}}" class="wb-empty">正在加载更多…</view>
   </view>
+
+  <view wx:if="{{settingsPanelOpen}}" class="xf-native-settings-mask" style="height: {{settingsPanelHeight}}px;" catchtap="closeSettings" catchtouchmove="noop">
+    <scroll-view class="xf-native-settings-panel" style="height: {{settingsPanelHeight}}px; padding-top: {{profilePanelTop}}px;" scroll-y="true" enhanced show-scrollbar="false" catchtap="noop">
+      <view class="xf-native-settings-panel-inner">
+      <block wx:if="{{settingsPanelView === 'menu'}}">
+        <button wx:if="{{!isLoggedIn}}" class="xf-native-settings-account" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone">
+          <view class="xf-native-settings-avatar-wrap">
+            <image class="xf-native-settings-avatar" src="{{accountAvatar}}" mode="aspectFill" />
+          </view>
+          <view class="xf-native-settings-copy">
+            <view class="xf-native-settings-title-row">
+              <text class="xf-native-settings-title">{{accountTitle}}</text>
+            </view>
+            <view class="xf-native-settings-subtitle-row">
+              <text class="xf-native-settings-subtitle">{{accountSubtitle}}</text>
+            </view>
+          </view>
+          <text class="xf-native-settings-chevron">›</text>
+        </button>
+        <view wx:else class="xf-native-settings-account" catchtap="openSettingsItem" data-page="{{accountPage}}" data-title="{{accountTitle}}" data-panel-view="{{accountPanelView}}">
+          <view class="xf-native-settings-avatar-wrap">
+            <image class="xf-native-settings-avatar" src="{{accountAvatar}}" mode="aspectFill" />
+          </view>
+          <view class="xf-native-settings-copy">
+            <view class="xf-native-settings-title-row">
+              <text class="xf-native-settings-title">{{accountTitle}}</text>
+            </view>
+            <view class="xf-native-settings-subtitle-row">
+              <text class="xf-native-settings-subtitle">{{accountSubtitle}}</text>
+            </view>
+          </view>
+          <text class="xf-native-settings-chevron">›</text>
+        </view>
+
+        <view
+          wx:for="{{settingsSections}}"
+          wx:for-item="section"
+          wx:for-index="sectionIndex"
+          wx:key="key"
+          class="xf-native-settings-card"
+        >
+          <view
+            wx:for="{{section.items}}"
+            wx:for-item="item"
+            wx:for-index="itemIndex"
+            wx:key="key"
+            class="xf-native-settings-row"
+            catchtap="openSettingsItem"
+            data-section-index="{{sectionIndex}}"
+            data-item-index="{{itemIndex}}"
+          >
+            <button wx:if="{{!isLoggedIn}}" class="xf-settings-item-login" open-type="getPhoneNumber" bindgetphonenumber="loginWithPhone" data-section-index="{{sectionIndex}}" data-item-index="{{itemIndex}}" catchtap="noop" disabled="{{bindingPhone}}"></button>
+            <image wx:if="{{item.iconType === 'image'}}" class="xf-native-settings-logo-icon" src="{{item.image}}" mode="aspectFit" />
+            <text wx:elif="{{item.iconType === 'emoji'}}" class="xf-native-settings-emoji-icon">{{item.emoji}}</text>
+            <text wx:else class="xf-native-settings-symbol material-symbols-rounded">{{item.icon}}</text>
+            <text class="xf-native-settings-label">{{item.title}}</text>
+            <text wx:if="{{item.key === 'pro' && settingsMemberBadgeLabel}}" class="xf-native-settings-member-badge">{{settingsMemberBadgeLabel}}</text>
+            <text class="xf-native-settings-chevron">›</text>
+          </view>
+        </view>
+      </block>
+      <template wx:elif="{{settingsPanelView === 'profile'}}" is="xfSettingsProfilePanel" data="{{profileHeaderHeight: profileHeaderHeight, profileDraft: profileDraft, profileAvatar: profileAvatar, profileGenderOptions: profileGenderOptions, profilePanelMessage: profilePanelMessage}}"></template>
+      <template wx:elif="{{settingsPanelView === 'archive'}}" is="xfSettingsArchivePanel" data="{{profileHeaderHeight: profileHeaderHeight, archiveHasChildren: archiveHasChildren, archiveChildren: archiveChildren, archiveInsightGrade: archiveInsightGrade, archiveDraft: archiveDraft, archiveProfileStatus: archiveProfileStatus, archiveRelationOptions: archiveRelationOptions, archiveRegionOptions: archiveRegionOptions, archiveRegionIndex: archiveRegionIndex, archiveStageOptions: archiveStageOptions, archiveStageIndex: archiveStageIndex, archiveStage: archiveStage, archiveGradeOptions: archiveGradeOptions, archiveStageGradeColumns: archiveStageGradeColumns, archiveStageGradeValue: archiveStageGradeValue, archiveGradeDisplayText: archiveGradeDisplayText, archiveGradeSelectOptions: archiveGradeSelectOptions, archiveGradeName: archiveGradeName, archiveGradeDropdownOpen: archiveGradeDropdownOpen, archiveTagOptions: archiveTagOptions, profilePanelMessage: profilePanelMessage}}"></template>
+      <template wx:elif="{{settingsPanelView === 'memory'}}" is="xfSettingsMemoryPanel" data="{{profileHeaderHeight: profileHeaderHeight, memoryEnabled: memoryEnabled}}"></template>
+      <template wx:elif="{{settingsPanelView === 'memoryManager'}}" is="xfSettingsMemoryManagerPanel" data="{{profileHeaderHeight: profileHeaderHeight, memorySearchQuery: memorySearchQuery, filteredMemoryItems: filteredMemoryItems, memoryPanelMessage: memoryPanelMessage}}"></template>
+      <template wx:elif="{{settingsPanelView === 'settings'}}" is="xfSettingsAppPanel" data="{{profileHeaderHeight: profileHeaderHeight, isLoggedIn: isLoggedIn, hasMobile: hasMobile, bindingPhone: bindingPhone, maskedMobile: maskedMobile, fontSizeClass: fontSizeClass, fontOptions: fontOptions, profilePanelMessage: profilePanelMessage}}"></template>
+      </view>
+    </scroll-view>
+  </view>
 </view>
+<profile-onboarding id="profileOnboarding" bind:saved="onProfileOnboardingSaved" />
 <phone-login-gate id="worthbuyPhoneLoginGate" visible="{{false}}" bind:success="handleLoginSuccess" bind:failure="handleLoginFailure" />
 <custom-tab-bar selected="{{selected}}" hidden="{{hideTabbar}}" />

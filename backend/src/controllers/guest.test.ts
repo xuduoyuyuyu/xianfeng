@@ -96,6 +96,21 @@ describe("public guest list visibility", () => {
     assert.doesNotMatch(detailSource, /authoredBooks\.slice\(/);
   });
 
+  it("returns authored-book and unique booklist counts on guest list and detail", () => {
+    const listStart = source.indexOf("async getAllPublic");
+    const listEnd = source.indexOf("async getByIdPublic");
+    const listSource = source.slice(listStart, listEnd);
+    const detailStart = source.indexOf("async getByIdPublic");
+    const detailEnd = source.indexOf("// POST /api/guests/:id/submit-wish");
+    const detailSource = source.slice(detailStart, detailEnd);
+
+    assert.match(source, /async function buildGuestBookStatsMap/);
+    assert.match(listSource, /buildGuestBookStatsMap\(guests\)/);
+    assert.match(listSource, /bookStatsMap\.get\(String\(item\._id\)\)/);
+    assert.match(detailSource, /authoredBookCount: authoredBooks\.length/);
+    assert.match(detailSource, /bookListCount: bookLists\.length/);
+  });
+
   it("returns published learning materials bound to the guest", () => {
     const detailStart = source.indexOf("async getByIdPublic");
     const detailEnd = source.indexOf("// POST /api/guests/:id/submit-wish");
