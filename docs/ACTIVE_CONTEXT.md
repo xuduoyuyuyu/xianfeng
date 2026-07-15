@@ -10,10 +10,13 @@ Last rewritten: 2026-07-15
 The WeChat mini-program is adding minimal child-profile onboarding. An
 incomplete local archive opens a native modal for city, region, stage, and
 grade; closing lasts only for the current foreground session. Saving updates
-the active archive (creating `孩子` when needed), then syncs user and archive
-fields after phone login. Programs, local Reading, Materials, and Topics use
-the complete profile to prioritize matching list content before pagination;
-search, detail, and the external book library keep their existing order.
+the active archive (creating `孩子` when needed), then refreshes the visible
+list while user/archive sync continues in the background after phone login.
+Programs, local Reading, Materials, and Topics use field-aware weights for
+region, city, exact and adjacent grade, and stage before pagination.
+Structured fields and tags outweigh body text; zero-score content keeps its
+business order. Search, detail, and the external book library keep their
+existing order.
 
 WeChat mini-program virtual payment is being integrated for Plus and Pro
 virtual products. Backend owns virtual product pricing, checkout signatures,
@@ -69,6 +72,8 @@ with more claims than codes reject updates until operators correct the data.
 - 2026-07-15 - Collect only city, region, stage, and grade in a native modal.
   Use local-first archive storage, create the default child as `孩子`, retry
   sync after phone login, and personalize only the four ordinary native lists.
+  Rank their real structured fields, tags, titles, and body text with explicit
+  weights; keep zero-score content stable and refresh before remote sync ends.
 
 - 2026-07-14 - Keep mini-program public pages visible when logged out and use
   the first protected-action tap as the `getPhoneNumber` gesture. Do not show a

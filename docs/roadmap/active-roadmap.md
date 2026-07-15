@@ -79,4 +79,7 @@ Acceptance Criteria:
 - Saving creates or updates the active `孩子` archive with city, region, and grade.
 - Phone login retries local-first profile and archive synchronization.
 - Only the four ordinary native list requests are personalized before pagination.
-- Equal-score and no-profile list order remains stable.
+- Structured fields, tags, titles, and body text use explicit profile weights.
+- Adjacent grades stay inside the selected school stage.
+- Zero-score, equal-quality Reading, and no-profile list order remains stable.
+- Local save refreshes the visible list without waiting for remote profile sync.

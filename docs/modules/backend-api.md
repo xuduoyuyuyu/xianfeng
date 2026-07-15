@@ -30,9 +30,13 @@
 
 - Public Programs, local Reading, Materials, and Topics list endpoints accept
   the optional complete `profileCity`, `profileRegion`, and `profileGrade`
-  query set. Ordinary list requests stably prioritize region, city, exact
-  grade, then stage before pagination; missing/partial profiles and explicit
-  search requests retain their prior order. User compatibility profile writes
+  query set. Ordinary list requests use field-layer weights for region, city,
+  exact grade, adjacent same-stage grade, and stage before pagination.
+  Structured grade fields and tags outweigh incidental body text; positive
+  equal-score items may use real publish time as a tie-breaker, while zero-score
+  items retain business order and Reading retains quality order for equal
+  profile scores. Missing/partial profiles and explicit search requests retain
+  their prior order. User compatibility profile writes
   store onboarding grade in `childGrade` without overwriting legacy `grade`,
   while the Xiaowanzi sync endpoint remains the child-archive source of truth.
 

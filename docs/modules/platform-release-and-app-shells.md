@@ -56,8 +56,10 @@
   rendered, while filter data can still use the larger background source.
   On first entry, an incomplete local child profile opens a native onboarding
   modal for city, region, stage, and grade. Saving creates or updates the active
-  child (default display name `孩子`), writes the same local archive stores, and
-  syncs user/archive fields after phone login. Closing suppresses the modal only
+  child (default display name `孩子`) and writes the same local archive stores.
+  The local save emits the page refresh event immediately; user/archive sync
+  continues in the background after phone login and cannot block the first
+  personalized list request. Closing suppresses the modal only
   for the current foreground session. The four list requests include the
   complete profile and keep list caches isolated by profile; search, detail,
   and the external book library remain unpersonalized.
