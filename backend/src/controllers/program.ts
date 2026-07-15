@@ -1517,8 +1517,8 @@ export class ProgramController {
           programShow: 1,
           summary: 1, episodes: 1, status: 1,
           dictionaryEntryIds: 1, guestBindings: 1,
-          "transcript.0": 1,
-          "deepDive.curatedReading.0": 1,
+          transcript: { $slice: 1 },
+          "deepDive.curatedReading": { $slice: 1 },
         })
         .sort({ publishedAt: -1, createdAt: -1, _id: -1 });
       if (!profile) programQuery.skip(skip).limit(pageSize);
