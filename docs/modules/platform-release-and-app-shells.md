@@ -146,7 +146,10 @@
   guests without an enabled agent remain readable profile pages. Recommended
   booklists use the guest-detail API collection, show five entries initially,
   expand or collapse locally, and open `/books` with the exact guest and source
-  name filters.
+  name filters. Real authored books render as a horizontally scrollable card
+  section and enter the existing native book detail. Active social profiles
+  render only when present; tapping copies the external URL, or the account
+  name when no URL exists, instead of opening third-party pages.
 - `pages/mama-resource-apply/index` is a native mini-program form for the
   Mama Haozhuan supply intake. It mirrors the public web form and uses
   `wx.chooseMedia`/`wx.uploadFile` for Xiaohongshu profile screenshots.

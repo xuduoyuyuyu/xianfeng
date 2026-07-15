@@ -34,6 +34,11 @@
   marks and whitespace are normalized, and exact duplicates keep first-seen
   order. Presentation limits belong to clients; the API does not truncate the
   collection and this contract requires no stored-data migration.
+- Public guest detail responses also include complete `authoredBooks` derived
+  from published books whose `author` exactly matches the guest name. The
+  response exposes only native-detail card fields, does not mix guest
+  publications or references into authored works, and requires no data
+  migration.
 
 - Public Programs, local Reading, Materials, and Topics list endpoints accept
   the optional complete `profileCity`, `profileRegion`, and `profileGrade`

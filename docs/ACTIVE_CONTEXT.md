@@ -79,6 +79,12 @@ with more claims than codes reject updates until operators correct the data.
 
 ## Recent Decisions
 
+- 2026-07-15 - Native guest detail shows real authored books returned by the
+  guest API's exact published-book author match, without mixing public
+  references into the section. Social profiles remain real guest fields and
+  copy their URL or account name in the mini program rather than opening an
+  external page; empty authored and social sections are omitted.
+
 - 2026-07-15 - Treat semicolon-delimited `sourceName` values as multiple real
   guest booklists. Normalize whitespace and wrapping book-title marks, preserve
   first-seen order, avoid fuzzy merging, and filter `/books` by parsed-list
