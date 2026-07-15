@@ -1215,6 +1215,7 @@ async function tryAutoGenerate(
     return { payload, aiStatus: "failed", aiMessage: "仅支持后台上传或远程音频进行 AI 生成" };
   }
 
+  let temporaryAudioPath = "";
   try {
     const provider = resolveProgramAiProvider();
     // 远程音频：先下载到临时文件，避免 fs.readFile 空路径报错
@@ -1226,23 +1227,18 @@ async function tryAutoGenerate(
       const tmpFile = path.join(tmpDir, `remote-${Date.now()}.mp3`);
       await fs.promises.mkdir(tmpDir, { recursive: true });
       try {
-        const https = await import("https");
-        const http = await import("http");
-        const urlModule = await import("url");
+        const { Readable } = await import("stream");
+        const response = await fetch(uploadedAudioUrl, { redirect: "follow" });
+        if (!response.ok || !response.body) {
+          throw new Error(`HTTP ${response.status} downloading audio`);
+        }
         await new Promise<void>((resolve, reject) => {
-          const parsedUrl = new urlModule.URL(uploadedAudioUrl);
-          const client = parsedUrl.protocol === "https:" ? https.default : http.default;
-          client.get(uploadedAudioUrl, (res: any) => {
-            if (res.statusCode >= 400) {
-              reject(new Error(`HTTP ${res.statusCode} downloading audio`));
-              return;
-            }
-            const fileStream = fs.createWriteStream(tmpFile);
-            res.pipe(fileStream);
-            fileStream.on("finish", () => resolve());
-            fileStream.on("error", reject);
-          }).on("error", reject);
+          const fileStream = fs.createWriteStream(tmpFile);
+          Readable.fromWeb(response.body as any).pipe(fileStream);
+          fileStream.on("finish", resolve);
+          fileStream.on("error", reject);
         });
+        temporaryAudioPath = tmpFile;
         // 下载成功，检查文件大小：大文件（>60MB）走 Standard 模式用远程 URL
         const dlStat = fs.statSync(tmpFile);
         const FLASH_SAFE_MB = 60;
@@ -1318,6 +1314,10 @@ async function tryAutoGenerate(
         ? `${message}；已保留音频资源，未写入自动生成内容`
         : message,
     };
+  } finally {
+    if (temporaryAudioPath) {
+      await fs.promises.unlink(temporaryAudioPath).catch(() => {});
+    }
   }
 }
 

@@ -61,3 +61,16 @@ test("public program list derives content flags from lightweight projected field
     "public program list should omit projected content after deriving flags"
   );
 });
+
+test("remote program audio follows redirects and removes its temporary file", () => {
+  assert.match(
+    source,
+    /fetch\(uploadedAudioUrl, \{ redirect: "follow" \}\)/,
+    "Xiaoyuzhou redirect responses must resolve to the final audio body"
+  );
+  assert.match(
+    source,
+    /finally \{[\s\S]*fs\.promises\.unlink\(temporaryAudioPath\)/,
+    "downloaded audio must be removed after each parse attempt"
+  );
+});
