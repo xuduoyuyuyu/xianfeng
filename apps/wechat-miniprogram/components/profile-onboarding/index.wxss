@@ -132,3 +132,19 @@
 .xf-profile-onboarding-submit[disabled] {
   opacity: 0.68;
 }
+
+.xf-profile-onboarding-secondary {
+  height: 82rpx;
+  margin-top: 18rpx;
+  border: 0;
+  border-radius: 999rpx;
+  background: #f1edff;
+  color: #5b35ba;
+  font-size: 28rpx;
+  font-weight: 700;
+  line-height: 82rpx;
+}
+
+.xf-profile-onboarding-secondary::after {
+  border: 0;
+}

@@ -1,5 +1,5 @@
-<view wx:if="{{visible}}" class="xf-profile-onboarding-mask" catchtouchmove="noop" catchtap="noop">
-  <view class="xf-profile-onboarding-card" catchtap="noop">
+<view wx:if="{{visible || conflictVisible}}" class="xf-profile-onboarding-mask" catchtouchmove="noop" catchtap="noop">
+  <view wx:if="{{visible}}" class="xf-profile-onboarding-card" catchtap="noop">
     <button class="xf-profile-onboarding-close" bindtap="close" aria-label="关闭">×</button>
     <image class="xf-profile-onboarding-avatar" src="/assets/wel-avatar/wizard.png" mode="aspectFit" />
     <text class="xf-profile-onboarding-title">完善基础信息</text>
@@ -26,5 +26,13 @@
     </view>
     <text wx:if="{{message}}" class="xf-profile-onboarding-message">{{message}}</text>
     <button class="xf-profile-onboarding-submit" loading="{{saving}}" disabled="{{saving}}" bindtap="save">{{saving ? '保存中' : '保存并开启个性化推荐'}}</button>
+  </view>
+  <view wx:elif="{{conflictVisible}}" class="xf-profile-onboarding-card" catchtap="noop">
+    <button class="xf-profile-onboarding-close" bindtap="closeConflict" aria-label="关闭">×</button>
+    <image class="xf-profile-onboarding-avatar" src="/assets/wel-avatar/wizard.png" mode="aspectFit" />
+    <text class="xf-profile-onboarding-title">发现已有孩子档案</text>
+    <text class="xf-profile-onboarding-subtitle">刚才填写的信息与已有档案不同，是否为另一个孩子建立新档案？</text>
+    <button class="xf-profile-onboarding-submit" loading="{{reconciling}}" disabled="{{reconciling}}" bindtap="createPendingChild">建立新档案</button>
+    <button class="xf-profile-onboarding-secondary" disabled="{{reconciling}}" bindtap="discardPendingProfile">丢弃本次填写</button>
   </view>
 </view>

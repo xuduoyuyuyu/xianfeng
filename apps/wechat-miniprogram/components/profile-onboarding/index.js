@@ -1,16 +1,28 @@
 const {
   STAGES,
+  applyPendingProfileOnboardingDecision,
+  cacheProfileOnboardingChildren,
   dismissProfileOnboardingForSession,
   districtsFor,
   getProfileOnboardingState,
   gradesFor,
   parseGrade,
+  readPendingProfileOnboarding,
+  reconcilePendingProfileOnboarding,
   saveProfileOnboardingDraft,
+  syncProfileOnboardingRemote,
 } = require("../../utils/profileOnboarding");
+const { mergeChildProfileRecords } = require("../../utils/profileState");
+const { request } = require("../../utils/request");
+const { getToken } = require("../../utils/session");
+
+const CHILD_AVATAR = "/assets/wel-avatar/no-hat.png";
 
 Component({
   data: {
     visible: false,
+    conflictVisible: false,
+    reconciling: false,
     saving: false,
     message: "",
     city: "",
@@ -25,6 +37,7 @@ Component({
   pageLifetimes: {
     show() {
       this.refresh();
+      void this.reconcileAfterLogin();
     },
   },
 
@@ -56,6 +69,61 @@ Component({
     close() {
       dismissProfileOnboardingForSession();
       this.setData({ visible: false, message: "" });
+    },
+
+    closeConflict() {
+      this.setData({ conflictVisible: false, message: "" });
+    },
+
+    async persistReconciledProfile(result) {
+      if (!result || result.status !== "created") return;
+      const child = result.children.find((item) => item.id === result.childId);
+      await syncProfileOnboardingRemote(result.children, child);
+    },
+
+    async reconcileAfterLogin() {
+      if (!getToken() || !readPendingProfileOnboarding() || this.data.reconciling) return null;
+      this.setData({ reconciling: true, message: "" });
+      try {
+        const remote = await request({ url: "/api/users/me/xiaowanzi-sync" });
+        const children = mergeChildProfileRecords(remote && remote.childProfiles, [], { avatarFallback: CHILD_AVATAR });
+        cacheProfileOnboardingChildren(children);
+        const preview = reconcilePendingProfileOnboarding(children);
+        if (preview.status === "confirm") {
+          this.remoteChildren = children;
+          this.setData({ conflictVisible: true, visible: false });
+          return preview;
+        }
+        const result = applyPendingProfileOnboardingDecision("create", children);
+        await this.persistReconciledProfile(result);
+        this.setData({ conflictVisible: false, visible: false });
+        this.triggerEvent("saved", { reason: "reconciled", childId: result.childId });
+        return result;
+      } catch (_error) {
+        this.setData({ message: "登录资料读取失败，稍后将再次确认" });
+        return null;
+      } finally {
+        this.setData({ reconciling: false });
+      }
+    },
+
+    async createPendingChild() {
+      if (this.data.reconciling) return;
+      this.setData({ reconciling: true, message: "" });
+      try {
+        const result = applyPendingProfileOnboardingDecision("create", this.remoteChildren || []);
+        await this.persistReconciledProfile(result);
+        this.setData({ conflictVisible: false, visible: false });
+        this.triggerEvent("saved", { reason: "created", childId: result.childId });
+      } finally {
+        this.setData({ reconciling: false });
+      }
+    },
+
+    discardPendingProfile() {
+      const result = applyPendingProfileOnboardingDecision("discard", this.remoteChildren || []);
+      this.setData({ conflictVisible: false, visible: false, message: "" });
+      this.triggerEvent("saved", { reason: "discarded", childId: result.childId });
     },
 
     updateCity(event) {
@@ -122,6 +190,11 @@ Component({
       this.setData({ saving: true, message: "" });
       try {
         const result = await saveProfileOnboardingDraft(this.data);
+        if (getToken()) {
+          this.setData({ saving: false });
+          await this.reconcileAfterLogin();
+          return;
+        }
         this.setData({ saving: false, visible: false });
         this.triggerEvent("saved", result);
       } catch (error) {

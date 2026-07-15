@@ -144,6 +144,14 @@ function saveChildren(children) {
   wx.setStorageSync(WEB_CHILD_PROFILES_KEY, JSON.stringify(children));
 }
 
+function cacheProfileOnboardingChildren(children) {
+  const list = Array.isArray(children) ? children : [];
+  saveChildren(list);
+  const selected = activeChild(list);
+  if (selected) wx.setStorageSync(LAST_CHILD_ID_KEY, selected.id);
+  return list;
+}
+
 async function syncProfileOnboardingRemote(children, child) {
   if (!getToken()) return false;
   const resolvedChildren = Array.isArray(children) ? children : loadChildren();
@@ -233,6 +241,7 @@ module.exports = {
   SYNC_PENDING_KEY,
   applyPendingProfileOnboardingDecision,
   buildPersonalizationQuery,
+  cacheProfileOnboardingChildren,
   dismissProfileOnboardingForSession,
   districtsFor,
   formatGrade,
