@@ -14744,7 +14744,7 @@ test("native non-agent expert detail uses standalone profile and complete partic
   assert.match(js, /socialCount: socialProfiles\.length/);
   assert.match(wxss, /\.xf-expert-detail-card\.is-profile\.is-static \{[\s\S]*padding:/);
   assert.match(wxss, /\.xf-expert-detail-stat-pills \{[\s\S]*display: flex;[\s\S]*flex-wrap: wrap;/);
-  assert.match(wxss, /\.xf-expert-detail-card\.is-static-programs,[\s\S]*\.xf-expert-detail-card\.is-static-publications \{[\s\S]*text-align: left;/);
+  assert.match(wxss, /\.xf-expert-detail-card\.is-static-programs,[\s\S]*\.xf-expert-detail-card\.is-static-publications,[\s\S]*\.xf-expert-detail-card\.is-booklists \{[\s\S]*text-align: left;/);
   assert.match(wxss, /\.xf-expert-detail-static-program-link \{[\s\S]*display: grid;/);
 });
 
@@ -14761,6 +14761,21 @@ test("native expert participated-program lists show three rows and scroll the re
   );
   assert.match(wxss, /\.xf-expert-detail-profile-list\.is-programs\.is-scrollable \{[\s\S]*height: 162rpx;/);
   assert.match(wxss, /\.xf-expert-detail-static-program-list\.is-scrollable \{[\s\S]*height: 310rpx;/);
+});
+
+test("native expert detail shows five booklists and can expand the remainder", () => {
+  const { js, wxml, wxss } = readPage("webview");
+
+  assert.match(wxml, /wx:if="\{\{nativeExpert\.bookLists\.length\}\}" class="xf-expert-detail-card is-booklists"/);
+  assert.match(wxml, /wx:for="\{\{nativeExpert\.visibleBookLists\}\}"[\s\S]*catchtap="openNativeExpertBookList"/);
+  assert.match(wxml, /"展开其余 " \+ nativeExpert\.hiddenBookListCount \+ " 条"/);
+  assert.match(wxml, /catchtap="toggleNativeExpertBookLists"/);
+  assert.match(js, /visibleBookLists: bookLists\.slice\(0, 5\)/);
+  assert.match(js, /toggleNativeExpertBookLists\(\)/);
+  assert.match(js, /openNativeExpertBookList\(event\)/);
+  assert.match(js, /openWeb\("\/books", "及阅", \{/);
+  assert.match(wxss, /\.xf-expert-detail-card\.is-booklists \{/);
+  assert.match(wxss, /\.xf-expert-detail-booklist-link \{/);
 });
 
 test("webview native program detail page keeps program, book, and topic details in the mobile web style", async () => {
@@ -15169,6 +15184,7 @@ test("webview native program detail page keeps program, book, and topic details 
               listenerBenefits: [
                 { title: "写作清单", description: "适合小学家庭的表达训练清单", url: "https://example.com/benefit" }
               ],
+              bookLists: ["书单1", "书单2", "书单3", "书单4", "书单5", "书单6", "书单7"],
               relatedPrograms: [
                 {
                   _id: "program-2",
@@ -16273,6 +16289,9 @@ test("webview native program detail page keeps program, book, and topic details 
     assert.equal(expertContext.data.nativeExpert.profileReferences[0].title, "公开档案");
     assert.equal(expertContext.data.nativeExpert.socialProfiles[0].label, "夏老师教育观察");
     assert.equal(expertContext.data.nativeExpert.listenerBenefits[0].description, "适合小学家庭的表达训练清单");
+    assert.deepEqual(expertContext.data.nativeExpert.visibleBookLists.map((item) => item.name), ["书单1", "书单2", "书单3", "书单4", "书单5"]);
+    assert.equal(expertContext.data.nativeExpert.hiddenBookListCount, 2);
+    assert.equal(expertContext.data.nativeExpert.bookListsExpanded, false);
     assert.equal(expertContext.data.nativeExpert.wishSent, true);
     assert.equal(expertContext.data.nativeExpert.wishCount, 1);
     assert.equal(expertContext.data.nativeExpert.wishAnimating, false);

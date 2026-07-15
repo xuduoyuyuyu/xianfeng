@@ -5,6 +5,8 @@ import Program from "../models/Program";
 import { AuthenticatedRequest } from "../middlewares/auth";
 import { askGuestAgent, getGuestAgentHistory, getGuestAgentProfile } from "../services/guestAgentService";
 import GuestAgentChunkModel from "../models/GuestAgentChunk";
+import Book from "../models/Book";
+import { uniqueBookSourceNames } from "../utils/bookSourceNames";
 
 function asText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -270,6 +272,21 @@ async function buildGuestProgramCountMap(guestIds?: string[]): Promise<Map<strin
   return map;
 }
 
+export async function loadGuestBookLists(guestId: string): Promise<string[]> {
+  try {
+    const bookRows = await Book.find(
+      { sourceGuestId: new mongoose.Types.ObjectId(guestId), status: "published" },
+      { sourceName: 1 }
+    )
+      .sort({ createdAt: 1, _id: 1 })
+      .lean();
+    return uniqueBookSourceNames(bookRows.map((book: any) => book?.sourceName));
+  } catch (error) {
+    console.error("[guest-detail] failed to load booklists", error);
+    return [];
+  }
+}
+
 async function buildGuestAgentStatsMap(guestIds: string[]): Promise<Map<string, { chunkCount: number; sourceCounts: Record<string, number> }>> {
   const map = new Map<string, { chunkCount: number; sourceCounts: Record<string, number> }>();
   const objectIds = guestIds
@@ -474,9 +491,11 @@ export class GuestController {
         .lean();
 
       const countMap = await buildGuestProgramCountMap([id]);
+      const bookLists = await loadGuestBookLists(id);
       res.status(200).json({
         ...serializeGuestListItem(guest, countMap.get(id) || 0),
         relatedPrograms: relatedPrograms.map(serializeProgramCard),
+        bookLists,
       });
     } catch (error) {
       res.status(500).json({ message: "获取嘉宾详情失败", error });

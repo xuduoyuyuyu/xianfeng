@@ -30,7 +30,9 @@
 - Guest detail booklists parse legacy semicolon-delimited `sourceName` values
   into exact normalized names. Cards are deduplicated in first-seen order and
   `/books` filters by membership in the parsed source list rather than by whole
-  legacy-string equality.
+  legacy-string equality. The guest detail API is the list source: mobile guest
+  pages show five entries initially with local expand/collapse, while desktop
+  pages keep the complete list visible.
 - Child profile drawer creates local unnamed draft profiles immediately in the
   tabs UI, but only one unnamed draft may exist at a time; Xiaowanzi only
   treats saved non-draft profiles as selectable or syncable.

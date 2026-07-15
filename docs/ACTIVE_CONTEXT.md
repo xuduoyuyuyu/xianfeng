@@ -82,7 +82,10 @@ with more claims than codes reject updates until operators correct the data.
 - 2026-07-15 - Treat semicolon-delimited `sourceName` values as multiple real
   guest booklists. Normalize whitespace and wrapping book-title marks, preserve
   first-seen order, avoid fuzzy merging, and filter `/books` by parsed-list
-  membership without rewriting production data.
+  membership without rewriting production data. Public guest detail now owns
+  the complete normalized list contract; mobile web and native mini-program
+  show five entries initially with expand/collapse, while desktop web remains
+  fully expanded.
 
 - 2026-07-15 - Collect only city, region, stage, and grade in a native modal.
   Keep anonymous input as pending personalization context; after login read

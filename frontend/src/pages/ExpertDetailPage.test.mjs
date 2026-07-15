@@ -118,13 +118,34 @@ test("guest detail page uses native mini program chrome spacing when embedded", 
 test("guest detail splits and deduplicates real booklists", () => {
   assert.match(source, /import \{ uniqueBookSourceNames \} from "\.\.\/utils\/bookSourceNames";/);
   assert.match(source, /const authoredSourceNames = new Set\(\s*uniqueBookSourceNames\(authoredBooks\.map/);
-  assert.match(source, /return uniqueBookSourceNames\(boundBooks\.map/);
+  assert.match(source, /return uniqueBookSourceNames\(guest\?\.bookLists \|\| \[\]\)/);
   assert.match(source, /\.filter\(\(sourceName\) => !authoredSourceNames\.has\(sourceName\)\)/);
   assert.match(source, /\{bookGroups\.length > 0 \? \(/);
 });
 
 test("each guest booklist card links to its exact source filter", () => {
-  assert.match(source, /bookGroups\.map\(\(sourceName, index\) =>/);
+  assert.match(source, /mobileBookGroups\.map\(\(sourceName, index\) =>/);
   assert.match(source, /sourceName=\$\{encodeURIComponent\(sourceName\)\}/);
   assert.match(source, /\{sourceName\}/);
+});
+
+test("mobile guest booklists show five by default and can expand or collapse", () => {
+  assert.match(source, /const MOBILE_BOOKLIST_LIMIT = 5/);
+  assert.match(source, /const \[bookListsExpanded, setBookListsExpanded\] = useState\(false\)/);
+  assert.match(source, /setBookListsExpanded\(false\)/);
+  assert.match(source, /bookGroups\.slice\(0, MOBILE_BOOKLIST_LIMIT\)/);
+  assert.match(source, /展开其余 \{bookGroups\.length - MOBILE_BOOKLIST_LIMIT\} 条/);
+  assert.match(source, /\{bookListsExpanded \? "收起"/);
+  assert.match(source, /md:hidden/);
+});
+
+test("desktop guest booklists remain fully visible", () => {
+  assert.match(source, /hidden space-y-3 md:block/);
+  assert.match(source, /bookGroups\.map\(\(sourceName, index\) =>/);
+});
+
+test("guest detail consumes booklists from the detail API", () => {
+  assert.match(source, /bookLists: Array\.isArray\(detail\?\.bookLists\)/);
+  assert.match(source, /uniqueBookSourceNames\(guest\?\.bookLists \|\| \[\]\)/);
+  assert.doesNotMatch(source, /const \[boundBooks, setBoundBooks\]/);
 });

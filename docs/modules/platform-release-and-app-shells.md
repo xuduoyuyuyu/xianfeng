@@ -143,7 +143,10 @@
   the profile and related programs render immediately, while the guest-agent
   profile and signed-in conversation history load alongside them. Agent-enabled
   guests support native questions, citation expansion, and cited program links;
-  guests without an enabled agent remain readable profile pages.
+  guests without an enabled agent remain readable profile pages. Recommended
+  booklists use the guest-detail API collection, show five entries initially,
+  expand or collapse locally, and open `/books` with the exact guest and source
+  name filters.
 - `pages/mama-resource-apply/index` is a native mini-program form for the
   Mama Haozhuan supply intake. It mirrors the public web form and uses
   `wx.chooseMedia`/`wx.uploadFile` for Xiaohongshu profile screenshots.

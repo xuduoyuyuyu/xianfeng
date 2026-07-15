@@ -180,6 +180,7 @@ export interface PublicGuest {
 
 export interface PublicGuestDetail extends PublicGuest {
   listenerBenefits?: ListenerBenefit[];
+  bookLists?: string[];
   relatedPrograms: Array<{
     _id: string;
     programCode?: string;

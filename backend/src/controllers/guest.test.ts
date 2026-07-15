@@ -67,4 +67,14 @@ describe("public guest list visibility", () => {
       "guest detail should not truncate participated programs before the client can render them"
     );
   });
+
+  it("returns the complete normalized booklist contract on guest detail", () => {
+    const detailStart = source.indexOf("async getByIdPublic");
+    const detailEnd = source.indexOf("// POST /api/guests/:id/submit-wish");
+    const detailSource = source.slice(detailStart, detailEnd);
+
+    assert.match(detailSource, /const bookLists = await loadGuestBookLists\(id\)/);
+    assert.match(detailSource, /bookLists,/);
+    assert.doesNotMatch(detailSource, /bookLists:[\s\S]*\.slice\(0,\s*5\)/);
+  });
 });

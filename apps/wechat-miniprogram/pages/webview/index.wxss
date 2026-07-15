@@ -3310,7 +3310,8 @@ page {
 }
 
 .xf-expert-detail-card.is-static-programs,
-.xf-expert-detail-card.is-static-publications {
+.xf-expert-detail-card.is-static-publications,
+.xf-expert-detail-card.is-booklists {
   padding: 38rpx 32rpx;
   text-align: left;
 }
@@ -3331,9 +3332,58 @@ page {
 }
 
 .xf-expert-detail-card.is-static-programs .xf-expert-detail-section-title,
-.xf-expert-detail-card.is-static-publications .xf-expert-detail-section-title {
+.xf-expert-detail-card.is-static-publications .xf-expert-detail-section-title,
+.xf-expert-detail-card.is-booklists .xf-expert-detail-section-title {
   margin-top: 24rpx;
   color: #241a3a;
+}
+
+.xf-expert-detail-booklist-list {
+  margin-top: 26rpx;
+}
+
+.xf-expert-detail-booklist-link {
+  display: grid;
+  grid-template-columns: 48rpx minmax(0, 1fr) 28rpx;
+  align-items: center;
+  gap: 10rpx;
+  min-height: 94rpx;
+  margin-top: 14rpx;
+  padding: 18rpx 20rpx;
+  border: 1rpx solid #e1d6f5;
+  border-radius: 24rpx;
+  background: #fcfaff;
+}
+
+.xf-expert-detail-booklist-order,
+.xf-expert-detail-booklist-arrow {
+  color: #5e17eb;
+  font-size: 20rpx;
+  font-weight: 800;
+}
+
+.xf-expert-detail-booklist-title {
+  color: #241a3a;
+  font-size: 25rpx;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.xf-expert-detail-booklist-toggle {
+  width: 100%;
+  min-height: 82rpx;
+  margin-top: 20rpx;
+  border: 1rpx solid #d9c8ff;
+  border-radius: 24rpx;
+  background: #f3eefc;
+  color: #5e17eb;
+  font-size: 24rpx;
+  font-weight: 800;
+  line-height: 82rpx;
+}
+
+.xf-expert-detail-booklist-toggle::after {
+  border: 0;
 }
 
 .xf-expert-detail-section-copy {

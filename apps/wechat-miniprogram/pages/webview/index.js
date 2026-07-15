@@ -5,7 +5,7 @@ const { request } = require("../../utils/request");
 const { preloadNativeReadingBooks } = require("../../utils/readingPreload");
 const { getToken } = require("../../utils/session");
 const { createPageShare, createWebviewShare, enableShareMenu } = require("../../utils/share");
-const { TOPIC_DETAIL_WEBVIEW_VERSION, WELFARE_WEBVIEW_VERSION, buildNativeProUrl, inferWebPageTitle, webUrl: buildWebUrl } = require("../../utils/webview");
+const { TOPIC_DETAIL_WEBVIEW_VERSION, WELFARE_WEBVIEW_VERSION, buildNativeProUrl, inferWebPageTitle, openWeb, webUrl: buildWebUrl } = require("../../utils/webview");
 const { readNativeTopicDetailCache, saveNativeTopicDetailCache } = require("../../utils/nativeTopicDetailCache");
 
 const LOGO_HEIGHT_RPX = 56;
@@ -1553,6 +1553,15 @@ function normalizeExpertDetail(guest) {
   const referenceCount = Number(item.referenceCount || 0) || publications.length + profileReferences.length;
   const programCount = Number(item.programCount || 0) || relatedPrograms.length;
   const publicItems = [...publications, ...profileReferences].slice(0, 6);
+  const seenBookLists = new Set();
+  const bookLists = (Array.isArray(item.bookLists) ? item.bookLists : [])
+    .map((value) => firstText([value], ""))
+    .filter((name) => {
+      if (!name || seenBookLists.has(name)) return false;
+      seenBookLists.add(name);
+      return true;
+    })
+    .map((name, index) => ({ name, order: index + 1 }));
 
   return {
     id: firstText([item._id, item.id, name], name),
@@ -1577,6 +1586,10 @@ function normalizeExpertDetail(guest) {
     socialProfiles,
     listenerBenefits,
     publicItems,
+    bookLists,
+    visibleBookLists: bookLists.slice(0, 5),
+    bookListsExpanded: false,
+    hiddenBookListCount: Math.max(0, bookLists.length - 5),
     hasRelatedPrograms: relatedPrograms.length > 0,
     hasPublications: publications.length > 0,
     hasReferences: profileReferences.length > 0,
@@ -3411,6 +3424,30 @@ Page({
         ...expert,
         avatar: `${DEFAULT_WEB_ORIGIN}/assets/wel-avatar/no-hat.png`
       }
+    });
+  },
+
+  toggleNativeExpertBookLists() {
+    const expert = this.data.nativeExpert || {};
+    const bookLists = Array.isArray(expert.bookLists) ? expert.bookLists : [];
+    const expanded = !expert.bookListsExpanded;
+    this.setData({
+      nativeExpert: {
+        ...expert,
+        bookListsExpanded: expanded,
+        visibleBookLists: expanded ? bookLists : bookLists.slice(0, 5)
+      }
+    });
+  },
+
+  openNativeExpertBookList(event) {
+    const expert = this.data.nativeExpert || {};
+    const name = firstText([event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.name], "");
+    if (!expert.id || !name) return;
+    openWeb("/books", "及阅", {
+      sourceGuestId: expert.id,
+      guest: expert.name,
+      sourceName: name
     });
   },
 

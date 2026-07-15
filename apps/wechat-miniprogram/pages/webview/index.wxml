@@ -705,6 +705,28 @@
       </view>
     </view>
 
+    <view wx:if="{{nativeExpert.bookLists.length}}" class="xf-expert-detail-card is-booklists">
+      <text class="xf-expert-detail-eyebrow">RECOMMENDED BOOKS</text>
+      <text class="xf-expert-detail-section-title">推荐书目</text>
+      <text class="xf-expert-detail-section-copy">这位嘉宾推荐或参与的书单。</text>
+      <view class="xf-expert-detail-booklist-list">
+        <view
+          wx:for="{{nativeExpert.visibleBookLists}}"
+          wx:key="name"
+          class="xf-expert-detail-booklist-link"
+          data-name="{{item.name}}"
+          catchtap="openNativeExpertBookList"
+        >
+          <text class="xf-expert-detail-booklist-order">#{{item.order}}</text>
+          <text class="xf-expert-detail-booklist-title">{{item.name}}</text>
+          <text class="xf-expert-detail-booklist-arrow">↗</text>
+        </view>
+      </view>
+      <button wx:if="{{nativeExpert.hiddenBookListCount}}" class="xf-expert-detail-booklist-toggle" catchtap="toggleNativeExpertBookLists">
+        {{nativeExpert.bookListsExpanded ? "收起" : "展开其余 " + nativeExpert.hiddenBookListCount + " 条"}}
+      </button>
+    </view>
+
     <view wx:if="{{nativeExpert.agentEnabled}}" class="xf-expert-detail-agent-card">
       <view class="xf-expert-detail-agent-head">
         <view>

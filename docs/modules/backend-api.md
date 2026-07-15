@@ -28,6 +28,13 @@
 
 ### Durable Contracts
 
+- Public guest detail responses include the guest's complete normalized
+  `bookLists` collection, derived from published books linked by
+  `sourceGuestId`. Semicolon-delimited source names are split, wrapping title
+  marks and whitespace are normalized, and exact duplicates keep first-seen
+  order. Presentation limits belong to clients; the API does not truncate the
+  collection and this contract requires no stored-data migration.
+
 - Public Programs, local Reading, Materials, and Topics list endpoints accept
   the optional complete `profileCity`, `profileRegion`, and `profileGrade`
   query set. Ordinary list requests use field-layer weights for region, city,

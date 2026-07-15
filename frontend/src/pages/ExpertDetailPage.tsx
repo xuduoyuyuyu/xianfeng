@@ -22,6 +22,8 @@ const PUBLICATION_LABELS: Record<GuestPublication["type"], string> = {
   other: "拓展",
 };
 
+const MOBILE_BOOKLIST_LIMIT = 5;
+
 function fmtDate(value?: string | null) {
   if (!value) return "未发布";
   const date = new Date(value);
@@ -41,15 +43,6 @@ function groupPublications(items: GuestPublication[]) {
     buckets[item.type || "other"].push(item);
   });
   return buckets;
-}
-
-function extractBookSourceGuestId(input: unknown): string {
-  if (!input) return "";
-  if (typeof input === "string") return input.trim();
-  if (typeof input === "object" && input !== null) {
-    return String((input as { _id?: string })._id || "").trim();
-  }
-  return "";
 }
 
 function hasMeaningfulGuestContent(guest: Partial<PublicGuestDetail> | null | undefined) {
@@ -101,6 +94,7 @@ function mergeGuestSummary(detail: Partial<PublicGuestDetail> | null | undefined
     agentEnabled: detail?.agentEnabled === true || summary?.agentEnabled === true,
     programCount: Number(detail?.programCount || summary?.programCount || 0),
     referenceCount: Number(detail?.referenceCount || summary?.referenceCount || 0),
+    bookLists: Array.isArray(detail?.bookLists) ? detail.bookLists : [],
     relatedPrograms: Array.isArray(detail?.relatedPrograms) ? detail!.relatedPrograms : [],
   };
 }
@@ -116,18 +110,22 @@ const ExpertDetailPage: React.FC = () => {
     return match ? decodeURIComponent(match[1]) : "";
   }, [pathname, routeId]);
   const [guest, setGuest] = useState<PublicGuestDetail | null>(null);
-  const [boundBooks, setBoundBooks] = useState<any[]>([]);
   const [authoredBooks, setAuthoredBooks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [mobileInfoTab, setMobileInfoTab] = useState<"programs" | "publications">("programs");
   const [avatarFallbackActive, setAvatarFallbackActive] = useState(false);
+  const [bookListsExpanded, setBookListsExpanded] = useState(false);
   const isGuestAgentLayer = useXiaowanziEmbeddedLayer();
   const showGuestAgent = guest?.agentEnabled === true && isGuestAgentLayer;
 
   useEffect(() => {
     setAvatarFallbackActive(false);
   }, [guest?.avatar]);
+
+  useEffect(() => {
+    setBookListsExpanded(false);
+  }, [id]);
 
   useEffect(() => {
     let alive = true;
@@ -145,8 +143,6 @@ const ExpertDetailPage: React.FC = () => {
           if (merged?._id) {
             const booksResponse = await publicApi.getBooks();
             const books = Array.isArray(booksResponse.data) ? booksResponse.data : [];
-            const bound = books.filter((book) => extractBookSourceGuestId(book.sourceGuestId) === merged._id);
-            setBoundBooks(bound);
             // 著作：author 匹配嘉宾名字
             const guestName = (merged.name || "").trim();
             const authored = guestName ? books.filter((book) => {
@@ -155,7 +151,6 @@ const ExpertDetailPage: React.FC = () => {
             }) : [];
             setAuthoredBooks(authored);
           } else {
-            setBoundBooks([]);
             setAuthoredBooks([]);
           }
           return;
@@ -171,8 +166,6 @@ const ExpertDetailPage: React.FC = () => {
           if (mergedGuest?._id) {
             const booksResponse = await publicApi.getBooks();
             const books = Array.isArray(booksResponse.data) ? booksResponse.data : [];
-            const bound = books.filter((book) => extractBookSourceGuestId(book.sourceGuestId) === mergedGuest._id);
-            setBoundBooks(bound);
             // 著作：author 匹配嘉宾名字
             const guestName = (mergedGuest.name || "").trim();
             const authored = guestName ? books.filter((book) => {
@@ -181,7 +174,6 @@ const ExpertDetailPage: React.FC = () => {
             }) : [];
             setAuthoredBooks(authored);
           } else {
-            setBoundBooks([]);
             setAuthoredBooks([]);
           }
           return;
@@ -190,7 +182,6 @@ const ExpertDetailPage: React.FC = () => {
         setError("嘉宾详情暂未同步完成");
       } catch (err: any) {
         if (!alive) return;
-        setBoundBooks([]);
         setAuthoredBooks([]);
         setError(err?.response?.data?.message || err?.message || "加载嘉宾详情失败");
       } finally {
@@ -341,9 +332,12 @@ const ExpertDetailPage: React.FC = () => {
     const authoredSourceNames = new Set(
       uniqueBookSourceNames(authoredBooks.map((book) => book.sourceName))
     );
-    return uniqueBookSourceNames(boundBooks.map((book) => book.sourceName))
+    return uniqueBookSourceNames(guest?.bookLists || [])
       .filter((sourceName) => !authoredSourceNames.has(sourceName));
-  }, [boundBooks, authoredBooks]);
+  }, [guest?.bookLists, authoredBooks]);
+  const mobileBookGroups = bookListsExpanded
+    ? bookGroups
+    : bookGroups.slice(0, MOBILE_BOOKLIST_LIMIT);
 
   // 嘉宾著作按出版时间倒序
   const sortedAuthoredBooks = useMemo(() => {
@@ -704,7 +698,31 @@ const ExpertDetailPage: React.FC = () => {
                   </div>
                   <h2 className="mt-4 text-2xl font-black tracking-tight text-[#241a3a]">推荐书目</h2>
                   <p className="mt-2 text-sm text-[#7b70a4]">这位嘉宾推荐或参与的书单。</p>
-                  <div className="mt-6 space-y-3">
+                  <div className="mt-6 space-y-3 md:hidden">
+                    {mobileBookGroups.map((sourceName, index) => (
+                      <Link
+                        key={sourceName}
+                        to={`/books?sourceGuestId=${encodeURIComponent(guest._id || "")}&guest=${encodeURIComponent(guest.name || "")}&sourceName=${encodeURIComponent(sourceName)}`}
+                        className="flex items-center justify-between rounded-[1.1rem] border border-[#e8e0f2] bg-[#fcfaff] px-4 py-3 transition hover:border-[#b79bff] hover:bg-white"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#5b3fa1]">#{index + 1}</div>
+                          <div className="mt-1 text-base font-black text-[#241a3a]">{sourceName}</div>
+                        </div>
+                        <span className="material-symbols-outlined shrink-0 text-[#5e17eb]">arrow_outward</span>
+                      </Link>
+                    ))}
+                    {bookGroups.length > MOBILE_BOOKLIST_LIMIT ? (
+                      <button
+                        type="button"
+                        onClick={() => setBookListsExpanded((expanded) => !expanded)}
+                        className="w-full rounded-[1.1rem] border border-[#d9c8ff] bg-[#f3eefc] px-4 py-3 text-sm font-black text-[#5e17eb]"
+                      >
+                        {bookListsExpanded ? "收起" : <>展开其余 {bookGroups.length - MOBILE_BOOKLIST_LIMIT} 条</>}
+                      </button>
+                    ) : null}
+                  </div>
+                  <div className="mt-6 hidden space-y-3 md:block">
                     {bookGroups.map((sourceName, index) => (
                       <Link
                         key={sourceName}
