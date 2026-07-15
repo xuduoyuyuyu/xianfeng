@@ -48,3 +48,11 @@ test("program show classification is stored and returned with program lists", ()
     "admin program list should return programShow for the backend list"
   );
 });
+
+test("public program list derives content flags from lightweight projected fields", () => {
+  assert.match(
+    source,
+    /"transcript\.0": 1,[\s\S]*"deepDive\.curatedReading\.0": 1/,
+    "public program list should project one transcript and deep-dive item before deriving flags"
+  );
+});

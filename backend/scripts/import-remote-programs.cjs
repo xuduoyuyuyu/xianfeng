@@ -109,7 +109,7 @@ const programSchema = new mongoose.Schema(
       },
     },
     agentOutputs: { type: mongoose.Schema.Types.Mixed, default: {} },
-    status: { type: String, enum: ["draft", "published"], default: "draft" },
+    status: { type: String, enum: ["draft", "published", "group-only"], default: "draft" },
     publishedAt: { type: Date, default: null },
     parseStatus: { type: String, enum: ["idle", "parsing", "success", "failed"], default: "idle" },
     parseStage: { type: String, default: "" },
@@ -258,7 +258,7 @@ function sanitizeProgram(program, guestIdByName) {
       profileUrl: asText(doc.guest.profileUrl),
     };
   }
-  doc.status = doc.status === "draft" ? "draft" : "published";
+  doc.status = ["draft", "published", "group-only"].includes(doc.status) ? doc.status : "published";
   return doc;
 }
 
@@ -266,7 +266,9 @@ async function importPrograms(programs, guestIdByName) {
   let imported = 0;
   for (const program of programs) {
     const doc = sanitizeProgram(program, guestIdByName);
-    await Program.replaceOne({ _id: doc._id }, doc, { upsert: true });
+    const programId = doc._id;
+    delete doc._id;
+    await Program.updateOne({ _id: programId }, { $set: doc }, { upsert: true });
     imported += 1;
   }
   return imported;

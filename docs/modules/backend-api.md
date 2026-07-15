@@ -28,6 +28,11 @@
 
 ### Durable Contracts
 
+- Program imports update only fields present in the supplied export and preserve
+  stored generated content omitted by lightweight public-list payloads, including
+  `transcript`, `contentPack`, and `deepDive`. Public program lists project one
+  lightweight item from those fields to derive accurate content-availability
+  flags without returning the complete generated payload.
 - Public guest detail responses include the guest's complete normalized
   `bookLists` collection, derived from published books linked by
   `sourceGuestId`. Semicolon-delimited source names are split, wrapping title
