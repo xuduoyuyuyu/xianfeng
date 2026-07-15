@@ -52,3 +52,13 @@ test("admin materials api accepts an optional search parameter", () => {
   assert.match(apiSource, /getMaterials: \(params\?: \{ status\?: string; search\?: string \}\)/);
   assert.match(apiSource, /\/admin\/learning-materials', \{ params \}/);
 });
+
+test("admin materials can bind one active guest", () => {
+  assert.match(learningMaterialInterface, /guestId\?: string \| null;/);
+  assert.match(pageSource, /const \[guests, setGuests\]/);
+  assert.match(pageSource, /adminApi\.getGuests\(\{ status: 'active' \}\)/);
+  assert.match(pageSource, /guestId: material\.guestId \|\| ''/);
+  assert.match(pageSource, /guestId: formData\.guestId \|\| null/);
+  assert.match(pageSource, /绑定嘉宾（可选）/);
+  assert.match(pageSource, /guests\.map\(\(guest\) =>/);
+});

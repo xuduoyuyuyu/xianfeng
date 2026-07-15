@@ -47,6 +47,7 @@
 .xf-custom-tabbar__item.is-xiaowanzi {
   top: 2px;
   height: 46px;
+  overflow: visible;
 }
 
 .xf-custom-tabbar__item.is-xiaowanzi.is-pressed .xf-custom-tabbar__orb {

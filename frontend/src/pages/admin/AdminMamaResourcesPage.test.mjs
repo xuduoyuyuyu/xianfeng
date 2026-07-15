@@ -189,6 +189,19 @@ test("admin mama resource profiles mask Alipay accounts in lists and edit full s
   assert.match(source, /支付宝验证姓名[\s\S]*value=\{manualAlipayVerifiedName\}/);
 });
 
+test("admin mama resource review edits and saves every submitted media account", () => {
+  assert.match(source, /manualMediaAccounts/);
+  assert.match(source, /profile\.mediaAccounts\?\.length[\s\S]*profile\.socialAccount/);
+  assert.match(source, /manualMediaAccounts\.map\(\(account, index\) =>/);
+  assert.match(source, /账号 \{index \+ 1\}/);
+  assert.match(source, /account\.platform/);
+  assert.match(source, /account\.profileUrl/);
+  assert.match(source, /updateManualMediaAccount\(index, "nickname"/);
+  assert.match(source, /updateManualMediaAccount\(index, "followerCount"/);
+  assert.match(source, /const mediaAccounts = manualMediaAccounts\.map/);
+  assert.match(source, /mediaAccounts,[\s\S]*socialAccount: primaryXiaohongshuAccount/);
+});
+
 test("admin task assignments support manual and previewed personal content link imports", () => {
   assert.match(source, /已配置 \{configuredContentCount\}\/\{assignments\.length\}/);
   assert.match(source, /专属内容链接/);

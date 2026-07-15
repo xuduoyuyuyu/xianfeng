@@ -17,6 +17,17 @@ test("program detail keeps Xiaowanzi layer navigation and back button", () => {
   assert.match(source, /to=\{withXiaowanziLayerParam\("\/programs\/list",\s*superModePage\)\}/, "program library link should preserve xw_layer");
 });
 
+test("program audio player reports loading and playback failures", () => {
+  assert.match(source, /const \[isAudioLoading, setIsAudioLoading\] = useState\(false\)/, "player should expose loading feedback immediately after a click");
+  assert.match(source, /const \[audioError, setAudioError\] = useState<string \| null>\(null\)/, "player should expose media failures instead of swallowing them");
+  assert.match(source, /audio\.addEventListener\("waiting", onWaiting\)/, "player should report buffering");
+  assert.match(source, /audio\.addEventListener\("playing", onPlaying\)/, "player should clear buffering once playback starts");
+  assert.match(source, /audio\.addEventListener\("error", onError\)/, "player should report blocked or invalid audio resources");
+  assert.match(source, /\{isAudioLoading \? "音频加载中…" : isPlaying \? "暂停收听" : "立即收听"\}/, "primary play button should show loading state");
+  assert.match(source, /\{audioError \? <p[^>]*>\{audioError\}<\/p> : null\}/, "page should render the playback error message");
+  assert.doesNotMatch(source, /catch \(_error\) \{\s*window\.open\(currentEpisode\.url/, "playback failures should not silently open the raw third-party media URL");
+});
+
 test("program detail uses the shared guest avatar fallback instead of remote fallback images", () => {
   assert.match(source, /resolveGuestAvatar/, "program detail should resolve guest avatars through the shared helper");
   assert.match(source, /GUEST_FALLBACK_AVATAR_DETAIL_IMG_CLASS/, "fallback avatar should use the detail-page object-contain class");

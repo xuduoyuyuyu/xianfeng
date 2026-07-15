@@ -41,8 +41,21 @@ test("super-mode profile tabs render compact list rows", () => {
   assert.match(source, /className="mt-2 space-y-0\.5"/, "tab lists should reduce vertical spacing between references");
   assert.match(source, /rounded-xl px-2 py-1 text-left/, "tab list rows should reduce vertical padding");
   assert.match(source, /w-6 shrink-0 text-left text-\[14px\] font-black/, "tab row numbers should be two text sizes larger");
-  assert.match(source, /truncate text-\[14px\] font-black leading-\[18px\]/, "tab list titles should be two text sizes larger");
+  assert.match(source, /break-words text-\[14px\] font-black leading-\[18px\]/, "tab list titles should be two text sizes larger and show the complete title");
   assert.match(source, /text-\[16px\].*arrow_outward/, "tab row arrows should scale with the larger references");
+});
+
+test("guest related-program cards show complete titles", () => {
+  assert.match(
+    source,
+    /<div className="mt-1 break-words text-base font-black leading-snug text-\[#241a3a\]">\{program\.title \|\| "未命名节目"\}<\/div>/,
+    "desktop related-program cards should wrap instead of truncating long titles"
+  );
+  assert.doesNotMatch(
+    source,
+    /truncate[^\n]*>\{program\.title \|\| "未命名节目"\}<\/div>/,
+    "guest program titles should never be shortened with an ellipsis"
+  );
 });
 
 test("guest detail fills real avatars and centers the Xiaowanzi fallback avatar", () => {
@@ -148,4 +161,12 @@ test("guest detail consumes booklists from the detail API", () => {
   assert.match(source, /bookLists: Array\.isArray\(detail\?\.bookLists\)/);
   assert.match(source, /uniqueBookSourceNames\(guest\?\.bookLists \|\| \[\]\)/);
   assert.doesNotMatch(source, /const \[boundBooks, setBoundBooks\]/);
+});
+
+test("guest detail renders bound learning materials as extension materials", () => {
+  assert.match(source, /const extensionMaterials = useMemo/);
+  assert.match(source, /guest\?\.extensionMaterials/);
+  assert.match(source, />拓展资料<\/h2>/);
+  assert.match(source, /extensionMaterials\.map\(\(item/);
+  assert.match(source, /href=\{item\.fileUrl\}/);
 });

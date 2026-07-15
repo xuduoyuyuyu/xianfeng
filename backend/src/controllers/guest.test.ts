@@ -37,11 +37,16 @@ describe("guest public content tags", () => {
 });
 
 describe("public guest list visibility", () => {
-  it("filters guests without published programs before counting and pagination", () => {
+  it("treats published and group-only programs as visible guest content", () => {
+    assert.match(
+      source,
+      /const PUBLIC_GUEST_PROGRAM_STATUSES = \["published", "group-only"\] as const;/,
+      "guest surfaces should share the same public statuses as program detail"
+    );
     assert.match(
       source,
       /const publicProgramCountMap = await buildGuestProgramCountMap\(\);/,
-      "public guest list should first compute guests that have published programs"
+      "public guest list should first compute guests that have visible programs"
     );
     assert.match(
       source,
@@ -50,16 +55,17 @@ describe("public guest list visibility", () => {
     );
     assert.match(
       source,
-      /\$match: \{[\s\S]*status: "published"/,
-      "guest program counts should only include published programs"
+      /\$match: \{[\s\S]*status: \{ \$in: PUBLIC_GUEST_PROGRAM_STATUSES \}/,
+      "guest program counts should include published and group-only programs"
     );
   });
 
-  it("returns every published program on the guest detail page", () => {
+  it("returns every visible program on the guest detail page", () => {
     const detailStart = source.indexOf("async getByIdPublic");
     const detailEnd = source.indexOf("// POST /api/guests/:id/submit-wish");
     const detailSource = source.slice(detailStart, detailEnd);
 
+    assert.match(detailSource, /status: \{ \$in: PUBLIC_GUEST_PROGRAM_STATUSES \}/);
     assert.match(detailSource, /relatedPrograms: relatedPrograms\.map\(serializeProgramCard\)/);
     assert.doesNotMatch(
       detailSource,
@@ -88,5 +94,15 @@ describe("public guest list visibility", () => {
     assert.match(detailSource, /const authoredBooks = await loadGuestAuthoredBooks\(/);
     assert.match(detailSource, /authoredBooks,/);
     assert.doesNotMatch(detailSource, /authoredBooks\.slice\(/);
+  });
+
+  it("returns published learning materials bound to the guest", () => {
+    const detailStart = source.indexOf("async getByIdPublic");
+    const detailEnd = source.indexOf("// POST /api/guests/:id/submit-wish");
+    const detailSource = source.slice(detailStart, detailEnd);
+
+    assert.match(source, /import LearningMaterial from "\.\.\/models\/LearningMaterial"/);
+    assert.match(detailSource, /LearningMaterial\.find\(\{ guestId: new mongoose\.Types\.ObjectId\(id\), status: "published" \}/);
+    assert.match(detailSource, /extensionMaterials,/);
   });
 });

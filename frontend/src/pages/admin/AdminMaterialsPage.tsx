@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { adminApi, LearningMaterial } from '../../services/api';
+import { adminApi, Guest, LearningMaterial } from '../../services/api';
 const PAGE_SIZE = 20;
 
 type CsvMaterialRow = {
@@ -62,6 +62,7 @@ function parseMaterialsCsv(text: string): CsvMaterialRow[] {
 
 const AdminMaterialsPage: React.FC = () => {
   const [materials, setMaterials] = useState<LearningMaterial[]>([]);
+  const [guests, setGuests] = useState<Guest[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'published' | 'draft'>('all');
   const [showModal, setShowModal] = useState(false);
@@ -79,12 +80,19 @@ const AdminMaterialsPage: React.FC = () => {
     description: '',
     fileUrl: '',
     category: '',
+    guestId: '',
     status: 'draft' as 'draft' | 'published',
   });
 
   useEffect(() => {
     fetchMaterials();
   }, [filter]);
+
+  useEffect(() => {
+    adminApi.getGuests({ status: 'active' })
+      .then((response) => setGuests(Array.isArray(response.data) ? response.data : []))
+      .catch((error) => console.error('获取嘉宾列表失败:', error));
+  }, []);
 
   const fetchMaterials = async () => {
     try {
@@ -129,7 +137,7 @@ const AdminMaterialsPage: React.FC = () => {
 
   const handleCreate = () => {
     setEditingMaterial(null);
-    setFormData({ title: '', description: '', fileUrl: '', category: '', status: 'draft' });
+    setFormData({ title: '', description: '', fileUrl: '', category: '', guestId: '', status: 'draft' });
     setShowModal(true);
   };
 
@@ -140,6 +148,7 @@ const AdminMaterialsPage: React.FC = () => {
       description: material.description,
       fileUrl: material.fileUrl,
       category: material.category,
+      guestId: material.guestId || '',
       status: material.status,
     });
     setShowModal(true);
@@ -155,6 +164,7 @@ const AdminMaterialsPage: React.FC = () => {
         description: formData.description.trim(),
         fileUrl: formData.fileUrl.trim(),
         category: formData.category.trim(),
+        guestId: formData.guestId || null,
         status: formData.status,
       };
       if (editingMaterial) {
@@ -551,6 +561,19 @@ const AdminMaterialsPage: React.FC = () => {
                     placeholder="https://..."
                     required
                   />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#5E8B8E] mb-3">
+                    绑定嘉宾（可选）
+                  </label>
+                  <select
+                    value={formData.guestId}
+                    onChange={(e) => setFormData({ ...formData, guestId: e.target.value })}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl py-3 px-4 text-sm focus:ring-4 focus:ring-[#5e17eb]/5 focus:border-[#5e17eb] outline-none"
+                  >
+                    <option value="">不绑定嘉宾</option>
+                    {guests.map((guest) => <option key={guest._id} value={guest._id}>{guest.name}{guest.title ? ` · ${guest.title}` : ''}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#5E8B8E] mb-3">

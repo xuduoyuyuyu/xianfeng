@@ -6,6 +6,7 @@ import { dirname, resolve } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(resolve(__dirname, "learningMaterial.ts"), "utf8");
+const modelSource = readFileSync(resolve(__dirname, "../models/LearningMaterial.ts"), "utf8");
 
 test("learning material create and update return actionable validation errors", () => {
   assert.match(source, /function formatLearningMaterialError\(error: any, fallback: string\)/);
@@ -43,4 +44,9 @@ test("admin learning material list supports keyword search", () => {
   assert.match(source, /\{ title: pattern \}/);
   assert.match(source, /\{ description: pattern \}/);
   assert.match(source, /\{ category: pattern \}/);
+});
+
+test("learning materials store an optional guest binding", () => {
+  assert.match(modelSource, /guestId\?: mongoose\.Types\.ObjectId/);
+  assert.match(modelSource, /guestId: \{ type: mongoose\.Schema\.Types\.ObjectId, ref: "Guest", default: null, index: true \}/);
 });

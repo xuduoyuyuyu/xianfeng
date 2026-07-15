@@ -385,6 +385,18 @@ function createNativeTopicShare(data) {
   });
 }
 
+function createNativeExpertShare(data) {
+  const expert = data && data.nativeExpert || {};
+  const expertId = firstText([expert.id], "");
+  const title = firstText([expert.name, data && data.title], "智库详情");
+  const target = `/pages/webview/index?url=${encodeURIComponent(`/experts/${encodeURIComponent(expertId)}`)}&title=${encodeURIComponent(title)}`;
+  return createPageShare({
+    title,
+    path: "/pages/share/index",
+    query: { target }
+  });
+}
+
 function formatDate(value) {
   const source = String(value || "").trim();
   if (!source) return "未发布";
@@ -1520,7 +1532,7 @@ function normalizeExpertLinks(value) {
       label: firstText([item && item.label, item && item.platform, item && item.source, item && item.type], ""),
       source: firstText([item && item.source, item && item.platform, item && item.type], ""),
       description: firstText([item && item.description, item && item.note, item && item.summary], ""),
-      url: firstText([item && item.url, item && item.href, item && item.link], "")
+      url: firstText([item && item.url, item && item.fileUrl, item && item.href, item && item.link], "")
     })).filter((item) => item.title || item.description || item.url).slice(0, 4)
     : [];
 }
@@ -1564,6 +1576,7 @@ function normalizeExpertDetail(guest) {
   const profileReferences = normalizeExpertLinks(item.profileReferences);
   const socialProfiles = normalizeExpertSocialProfiles(item.socialProfiles);
   const listenerBenefits = normalizeExpertLinks(item.listenerBenefits);
+  const extensionMaterials = normalizeExpertLinks(item.extensionMaterials);
   const relatedPrograms = normalizeExpertPrograms(item.relatedPrograms);
   const contentTags = normalizeTopicTagList(item.contentTags || item.tags).slice(0, 6);
   const referenceCount = Number(item.referenceCount || 0) || publications.length + profileReferences.length;
@@ -1611,6 +1624,7 @@ function normalizeExpertDetail(guest) {
     profileReferences,
     socialProfiles,
     listenerBenefits,
+    extensionMaterials,
     publicItems,
     authoredBooks,
     bookLists,
@@ -3504,6 +3518,21 @@ Page({
     });
   },
 
+  copyNativeExpertMaterial(event) {
+    const dataset = event && event.currentTarget ? event.currentTarget.dataset || {} : {};
+    const url = firstText([dataset.copyUrl], "");
+    if (!url) return;
+    wx.setClipboardData({
+      data: url,
+      success() {
+        wx.showToast({ title: "资料链接已复制", icon: "success" });
+      },
+      fail() {
+        wx.showToast({ title: "复制失败", icon: "none" });
+      }
+    });
+  },
+
   setNativeExpertProfileTab(event) {
     const tab = String(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.tab || "");
     if (tab !== "programs" && tab !== "publications") return;
@@ -3768,6 +3797,9 @@ Page({
 
   onShareAppMessage() {
     if (this.data.nativeTopicMode) return createNativeTopicShare(this.data).onShareAppMessage();
+    if (this.data.nativeExpertMode && this.data.nativeExpert && this.data.nativeExpert.id) {
+      return createNativeExpertShare(this.data).onShareAppMessage();
+    }
     return createWebviewShare({
       title: this.data.title,
       src: this.data.src
@@ -3776,6 +3808,9 @@ Page({
 
   onShareTimeline() {
     if (this.data.nativeTopicMode) return createNativeTopicShare(this.data).onShareTimeline();
+    if (this.data.nativeExpertMode && this.data.nativeExpert && this.data.nativeExpert.id) {
+      return createNativeExpertShare(this.data).onShareTimeline();
+    }
     return createWebviewShare({
       title: this.data.title,
       src: this.data.src

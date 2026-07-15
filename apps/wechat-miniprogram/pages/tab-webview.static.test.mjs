@@ -303,7 +303,7 @@ test("custom tab bar matches the website mobile tab sizing and opens Xiaowanzi s
   assert.match(wxss, /\.xf-custom-tabbar__item::after \{[\s\S]*border: 0;/);
   assert.doesNotMatch(wxss, /\.xf-custom-tabbar__item\.is-selected\s*\{[\s\S]*background:/);
   assert.match(wxss, /\.xf-custom-tabbar__item\.is-xiaowanzi\.is-pressed \{[\s\S]*opacity: 1;/);
-  assert.match(wxss, /\.xf-custom-tabbar__item\.is-xiaowanzi \{[\s\S]*top: 2px;[\s\S]*height: 46px;/);
+  assert.match(wxss, /\.xf-custom-tabbar__item\.is-xiaowanzi \{[\s\S]*top: 2px;[\s\S]*height: 46px;[\s\S]*overflow: visible;/);
   assert.match(wxss, /\.xf-custom-tabbar__normal-core,[\s\S]*\.xf-custom-tabbar__xiaowanzi-core \{[\s\S]*justify-content: flex-start;[\s\S]*padding-top: 4px;/);
   assert.match(wxss, /\.xf-custom-tabbar__xiaowanzi-core \{[\s\S]*transform: translateY\(-5px\);/);
   assert.match(wxss, /\.xf-custom-tabbar__item\.is-xiaowanzi\.is-pressed \.xf-custom-tabbar__orb \{[\s\S]*transform: scale\(1\.16\);/);
@@ -14794,6 +14794,40 @@ test("native expert detail renders authored works and copies social profiles", (
   assert.match(wxss, /\.xf-expert-detail-social-item \{/);
 });
 
+test("native expert detail renders bound extension materials and copies their links", () => {
+  const { js, wxml, wxss } = readPage("webview");
+
+  assert.match(js, /const extensionMaterials = normalizeExpertLinks\(item\.extensionMaterials\)/);
+  assert.match(js, /extensionMaterials,/);
+  assert.match(js, /copyNativeExpertMaterial\(event\)/);
+  assert.match(wxml, /class="xf-expert-detail-card is-extension-materials"/);
+  assert.match(wxml, /class="xf-expert-detail-section-title">拓展资料<\/text>/);
+  assert.match(wxml, /wx:for="\{\{nativeExpert\.extensionMaterials\}\}"[\s\S]*catchtap="copyNativeExpertMaterial"/);
+  assert.match(wxss, /\.xf-expert-detail-extension-item \{/);
+});
+
+test("native expert sharing reopens the same expert instead of the website home", () => {
+  const definition = loadPageDefinition("webview");
+  const context = {
+    data: {
+      title: "魏智渊",
+      src: "",
+      nativeTopicMode: false,
+      nativeExpertMode: true,
+      nativeExpert: { id: "expert-wei", name: "魏智渊" }
+    }
+  };
+
+  const share = definition.onShareAppMessage.call(context);
+  const landing = new URL(share.path, "https://mini.local");
+  const target = new URL(landing.searchParams.get("target"), "https://mini.local");
+
+  assert.equal(landing.pathname, "/pages/share/index");
+  assert.equal(target.pathname, "/pages/webview/index");
+  assert.equal(target.searchParams.get("url"), "/experts/expert-wei");
+  assert.equal(target.searchParams.get("title"), "魏智渊");
+});
+
 test("webview native program detail page keeps program, book, and topic details in the mobile web style", async () => {
   const { js, json, wxml, wxss } = readPage("webview");
   const definition = loadPageDefinition("webview");
@@ -15509,6 +15543,11 @@ test("webview native program detail page keeps program, book, and topic details 
     assert.match(wxml, /class="xf-expert-detail-citations"/);
     assert.match(wxml, /class="xf-expert-detail-recommendations"/);
     assert.match(wxml, /class="xf-expert-detail-composer/);
+    assert.match(
+      wxss,
+      /\.xf-expert-detail-login \{[\s\S]*box-shadow: 0 18rpx 28rpx rgba\(36, 26, 58, 0\.28\), 0 4rpx 10rpx rgba\(36, 26, 58, 0\.16\);/,
+      "guest login guide should use a neutral bottom shadow to stay distinct from purple content behind it"
+    );
     assert.match(wxml, /bindinput="onNativeExpertQuestionInput"/);
     assert.match(wxml, /bindtap="submitNativeExpertQuestion"/);
     assert.match(wxml, /bindtap="goExpertsList"/);

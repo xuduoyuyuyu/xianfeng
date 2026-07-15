@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   adminApi,
+  MamaResourceMediaAccount,
   MamaResourceProfile,
   MamaResourceStatus,
   MamaResourceTask,
@@ -34,6 +35,16 @@ const statusClass: Record<MamaResourceStatus, string> = {
   needs_info: "bg-sky-50 text-sky-700 border-sky-200",
   rejected: "bg-stone-100 text-stone-600 border-stone-200",
 };
+
+const mediaPlatformLabel: Record<string, string> = {
+  xiaohongshu: "小红书",
+  douyin: "抖音",
+  shipinhao: "视频号",
+  gongzhonghao: "公众号",
+  other: "其他",
+};
+
+type ManualMediaAccount = Omit<MamaResourceMediaAccount, "followerCount"> & { followerCount: string };
 
 const assignmentStatusLabel: Record<MamaResourceTaskAssignmentStatus, string> = {
   assigned: "进行中",
@@ -248,8 +259,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
   const [reviewNote, setReviewNote] = useState("");
   const [suitableCategoriesText, setSuitableCategoriesText] = useState("");
   const [riskTagsText, setRiskTagsText] = useState("");
-  const [manualFollowerCount, setManualFollowerCount] = useState("");
-  const [manualNickname, setManualNickname] = useState("");
+  const [manualMediaAccounts, setManualMediaAccounts] = useState<ManualMediaAccount[]>([]);
   const [manualAlipayAccount, setManualAlipayAccount] = useState("");
   const [manualAlipayVerifiedName, setManualAlipayVerifiedName] = useState("");
 
@@ -330,8 +340,11 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
     setReviewNote(profile.reviewNote?.note || "");
     setSuitableCategoriesText((profile.reviewNote?.suitableCategories || []).join("、"));
     setRiskTagsText((profile.reviewNote?.riskTags || []).join("、"));
-    setManualFollowerCount(profile.socialAccount?.followerCount ? String(profile.socialAccount.followerCount) : "");
-    setManualNickname(profile.socialAccount?.nickname || "");
+    const mediaAccounts = profile.mediaAccounts?.length ? profile.mediaAccounts : [profile.socialAccount];
+    setManualMediaAccounts(mediaAccounts.map((account) => ({
+      ...account,
+      followerCount: account.followerCount === undefined || account.followerCount === null ? "" : String(account.followerCount),
+    })));
     setManualAlipayAccount(profile.alipayAccount || "");
     setManualAlipayVerifiedName(profile.alipayVerifiedName || "");
   };
@@ -339,6 +352,12 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
   const closeEdit = () => {
     if (saving) return;
     setEditing(null);
+  };
+
+  const updateManualMediaAccount = (index: number, key: "nickname" | "followerCount", value: string) => {
+    setManualMediaAccounts((current) => current.map((account, accountIndex) => (
+      accountIndex === index ? { ...account, [key]: value } : account
+    )));
   };
 
   const openTaskManager = async (task?: MamaResourceTask) => {
@@ -374,15 +393,22 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
     setSaving(true);
     setToast("");
     try {
+      const mediaAccounts = manualMediaAccounts.map((account) => ({
+        ...account,
+        nickname: account.nickname?.trim() || "",
+        followerCount: account.followerCount ? Number(account.followerCount) : null,
+        dataSource: "manual" as const,
+      }));
+      const primaryXiaohongshuAccount = mediaAccounts.find((account) => account.platform === "xiaohongshu");
       const updateResponse = await adminApi.updateMamaResource(editing._id, {
         alipayAccount: manualAlipayAccount.trim(),
         alipayVerifiedName: manualAlipayVerifiedName.trim(),
-        socialAccount: {
+        mediaAccounts,
+        socialAccount: primaryXiaohongshuAccount ? {
           ...editing.socialAccount,
-          nickname: manualNickname.trim(),
-          followerCount: manualFollowerCount ? Number(manualFollowerCount) : null,
-          dataSource: "manual",
-        },
+          ...primaryXiaohongshuAccount,
+          platform: "xiaohongshu",
+        } : editing.socialAccount,
       });
       const reviewResponse = await adminApi.reviewMamaResource(editing._id, {
         status: reviewStatus,
@@ -811,9 +837,21 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
               <div className="rounded-2xl border border-stone-200 bg-white p-4">
                 <div className="text-sm font-black text-stone-900">账号审核和补录</div>
                 <p className="mt-2 text-sm leading-6 text-stone-600">{editing.accountPositioning || "未填写账号定位"}</p>
+                <div className="mt-4 space-y-3">
+                  {manualMediaAccounts.map((account, index) => (
+                    <div key={`${account.normalizedProfileUrl || account.profileUrl}-${index}`} className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-sm font-black text-stone-900">账号 {index + 1} · {mediaPlatformLabel[account.platform] || account.platform}</span>
+                        <a href={account.profileUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-[#6c27d6]">查看主页</a>
+                      </div>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        <label className="text-sm font-bold text-stone-700">账号昵称<input value={account.nickname || ""} onChange={(event) => updateManualMediaAccount(index, "nickname", event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm" /></label>
+                        <label className="text-sm font-bold text-stone-700">粉丝数<input value={account.followerCount} onChange={(event) => updateManualMediaAccount(index, "followerCount", event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm" placeholder="人工补录" /></label>
+                      </div>
+                    </div>
+                  ))}
+                </div>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <label className="text-sm font-bold text-stone-700">账号昵称<input value={manualNickname} onChange={(event) => setManualNickname(event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" /></label>
-                  <label className="text-sm font-bold text-stone-700">粉丝数<input value={manualFollowerCount} onChange={(event) => setManualFollowerCount(event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="人工补录" /></label>
                   <label className="text-sm font-bold text-stone-700">支付宝账号<input value={manualAlipayAccount} onChange={(event) => setManualAlipayAccount(event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="用于任务结算转账" /></label>
                   <label className="text-sm font-bold text-stone-700">支付宝验证姓名<input value={manualAlipayVerifiedName} onChange={(event) => setManualAlipayVerifiedName(event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="支付宝实名认证姓名" /></label>
                 </div>

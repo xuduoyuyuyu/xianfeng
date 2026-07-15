@@ -181,6 +181,7 @@ export interface PublicGuest {
 export interface PublicGuestDetail extends PublicGuest {
   listenerBenefits?: ListenerBenefit[];
   bookLists?: string[];
+  extensionMaterials?: LearningMaterial[];
   relatedPrograms: Array<{
     _id: string;
     programCode?: string;
@@ -583,6 +584,7 @@ export interface LearningMaterial {
   description: string;
   fileUrl: string;
   category: string;
+  guestId?: string | null;
   status: 'draft' | 'published';
   publishedAt?: string;
   createdAt: string;

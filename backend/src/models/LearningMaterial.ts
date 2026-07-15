@@ -7,6 +7,7 @@ interface LearningMaterial extends mongoose.Document {
   description: string;
   fileUrl: string;
   category: string;
+  guestId?: mongoose.Types.ObjectId | null;
   status: ContentStatus;
   publishedAt?: Date;
   createdAt: Date;
@@ -19,6 +20,7 @@ const learningMaterialSchema = new mongoose.Schema(
     description: { type: String, required: true },
     fileUrl: { type: String, required: true },
     category: { type: String, required: true },
+    guestId: { type: mongoose.Schema.Types.ObjectId, ref: "Guest", default: null, index: true },
     status: {
       type: String,
       enum: ["draft", "published"],

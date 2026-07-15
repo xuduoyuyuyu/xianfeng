@@ -2,16 +2,16 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 保持小玩子图标为 `48px`，并将其可见底边与其他 `22px` 底栏图标对齐。
+**Goal:** 保持小玩子图标为 `48px`，并将其可见底边与其他底栏按钮的文字底边对齐。
 
-**Architecture:** 沿用现有自定义底栏结构，只在小玩子专属承载层增加 `translateY(-26px)`。静态测试锁定尺寸和位移契约，不修改其他四个导航项或点击区域。
+**Architecture:** 沿用现有自定义底栏结构，只在小玩子专属承载层增加 `translateY(-5px)`，并允许该按钮内容溢出显示。静态测试锁定尺寸和位移契约，不修改其他四个导航项或点击区域。
 
 **Tech Stack:** 微信小程序 WXML/WXSS、Node.js `node:test` 静态回归测试。
 
 ## Global Constraints
 
 - 小玩子图标和承载层保持 `48px × 48px`。
-- 仅小玩子承载层上移 `26px`。
+- 仅小玩子承载层上移 `5px`，并解除该按钮对 Logo 的裁切。
 - 底栏高度、五等分布局、按钮点击区域、按压动画、跳转和其他图标保持不变。
 - 不替换图片素材。
 
@@ -25,14 +25,14 @@
 
 **Interfaces:**
 - Consumes: `.xf-custom-tabbar__xiaowanzi-core` 现有专属承载层。
-- Produces: `.xf-custom-tabbar__xiaowanzi-core { transform: translateY(-26px); }` 样式契约。
+- Produces: `.xf-custom-tabbar__xiaowanzi-core { transform: translateY(-5px); }` 样式契约。
 
 - [ ] **Step 1: 写失败的静态回归断言**
 
 在底栏样式断言中加入：
 
 ```js
-assert.match(wxss, /\.xf-custom-tabbar__xiaowanzi-core \{[\s\S]*transform: translateY\(-26px\);/);
+assert.match(wxss, /\.xf-custom-tabbar__xiaowanzi-core \{[\s\S]*transform: translateY\(-5px\);/);
 ```
 
 - [ ] **Step 2: 运行测试并确认按预期失败**
@@ -43,7 +43,7 @@ Run:
 node --test apps/wechat-miniprogram/pages/tab-webview.static.test.mjs
 ```
 
-Expected: FAIL，新增断言找不到 `.xf-custom-tabbar__xiaowanzi-core` 的 `translateY(-26px)`。
+Expected: FAIL，新增断言找不到 `.xf-custom-tabbar__xiaowanzi-core` 的 `translateY(-5px)`。
 
 - [ ] **Step 3: 添加最小样式实现**
 
@@ -51,7 +51,7 @@ Expected: FAIL，新增断言找不到 `.xf-custom-tabbar__xiaowanzi-core` 的 `
 
 ```css
 .xf-custom-tabbar__xiaowanzi-core {
-  transform: translateY(-26px);
+  transform: translateY(-5px);
 }
 ```
 

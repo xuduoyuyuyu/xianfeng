@@ -39,6 +39,10 @@
   response exposes only native-detail card fields, does not mix guest
   publications or references into authored works, and requires no data
   migration.
+- Guest program relationships use the same visible-status boundary as public
+  program detail: both `published` and `group-only` programs contribute to
+  related-program cards, program counts, and content tags; drafts remain
+  excluded.
 
 - Public Programs, local Reading, Materials, and Topics list endpoints accept
   the optional complete `profileCity`, `profileRegion`, and `profileGrade`

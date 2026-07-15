@@ -95,6 +95,7 @@ function mergeGuestSummary(detail: Partial<PublicGuestDetail> | null | undefined
     programCount: Number(detail?.programCount || summary?.programCount || 0),
     referenceCount: Number(detail?.referenceCount || summary?.referenceCount || 0),
     bookLists: Array.isArray(detail?.bookLists) ? detail.bookLists : [],
+    extensionMaterials: Array.isArray(detail?.extensionMaterials) ? detail.extensionMaterials : [],
     relatedPrograms: Array.isArray(detail?.relatedPrograms) ? detail!.relatedPrograms : [],
   };
 }
@@ -218,6 +219,10 @@ const ExpertDetailPage: React.FC = () => {
     },
     [guest]
   );
+  const extensionMaterials = useMemo(
+    () => (Array.isArray(guest?.extensionMaterials) ? guest.extensionMaterials.filter((item) => String(item?.fileUrl || "").trim()) : []),
+    [guest]
+  );
   const relatedPrograms = useMemo(
     () => (Array.isArray(guest?.relatedPrograms) ? guest.relatedPrograms.filter((item) => String(item?._id || "").trim()) : []),
     [guest]
@@ -294,7 +299,7 @@ const ExpertDetailPage: React.FC = () => {
                     # {index + 1}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[14px] font-black leading-[18px] text-[#241a3a]">{program.title || "未命名节目"}</div>
+                    <div className="break-words text-[14px] font-black leading-[18px] text-[#241a3a]">{program.title || "未命名节目"}</div>
                   </div>
                   <span className="material-symbols-outlined shrink-0 !text-[16px] !leading-none text-[#7a4df3]" style={{ fontSize: "16px", lineHeight: "16px" }}>arrow_outward</span>
                 </Link>
@@ -540,6 +545,28 @@ const ExpertDetailPage: React.FC = () => {
               </div>
             ) : null}
 
+            {extensionMaterials.length > 0 ? (
+              <div className="rounded-[2rem] border border-[#e2dcf0] bg-white p-8 shadow-[0_24px_80px_rgba(80,62,125,0.08)]">
+                <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.24em] text-[#5b3fa1]">
+                  Extension Materials
+                </div>
+                <h2 className="mt-4 text-2xl font-black tracking-tight text-[#241a3a]">拓展资料</h2>
+                <p className="mt-2 text-sm text-[#7b70a4]">与这位嘉宾相关、可继续阅读或使用的资料。</p>
+                <div className="mt-6 space-y-3">
+                  {extensionMaterials.map((item) => (
+                    <a key={item._id} href={item.fileUrl} target="_blank" rel="noreferrer" className="flex items-start justify-between gap-4 rounded-[1.25rem] border border-[#e8e0f2] bg-[#fcfaff] px-5 py-4 transition hover:border-[#b79bff] hover:bg-white">
+                      <div className="min-w-0">
+                        <div className="text-base font-black text-[#241a3a]">{item.title}</div>
+                        {item.category ? <div className="mt-1 text-xs font-bold text-[#5e17eb]">{item.category}</div> : null}
+                        {item.description ? <div className="mt-2 text-sm leading-6 text-[#7c70af]">{item.description}</div> : null}
+                      </div>
+                      <span className="material-symbols-outlined shrink-0 text-[#5e17eb]">open_in_new</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             {/* 听友福利板块 - 紧接嘉宾著作板块 */}
             {hasListenerBenefitsSection ? (
               <div className="rounded-[2rem] border border-[#e2dcf0] bg-white p-8 shadow-[0_24px_80px_rgba(80,62,125,0.08)]">
@@ -756,9 +783,9 @@ const ExpertDetailPage: React.FC = () => {
                           to={`/programs/${encodeURIComponent(routeId)}${isGuestAgentLayer ? "?xw_layer=1" : ""}`}
                           className="flex items-center justify-between rounded-[1.1rem] border border-[#e8e0f2] bg-[#fcfaff] px-4 py-3 transition hover:border-[#b79bff] hover:bg-white"
                         >
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#5b3fa1]">#{index + 1}</div>
-                            <div className="mt-1 truncate text-base font-black text-[#241a3a]">{program.title || "未命名节目"}</div>
+                            <div className="mt-1 break-words text-base font-black leading-snug text-[#241a3a]">{program.title || "未命名节目"}</div>
                           </div>
                           <span className="material-symbols-outlined shrink-0 text-[#5e17eb]">arrow_outward</span>
                         </Link>

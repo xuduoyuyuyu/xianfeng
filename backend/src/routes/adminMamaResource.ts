@@ -10,6 +10,7 @@ const router = Router();
 const STATUSES: MamaResourceStatus[] = ["pending", "approved", "needs_info", "rejected"];
 const TASK_STATUSES: MamaResourceTaskStatus[] = ["listed", "paused", "archived"];
 const ASSIGNMENT_STATUSES: MamaResourceTaskAssignmentStatus[] = ["assigned", "submitted", "collected", "rejected"];
+const MEDIA_PLATFORMS = new Set(["xiaohongshu", "douyin", "shipinhao", "gongzhonghao", "other"]);
 const contentImportUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
@@ -39,6 +40,30 @@ function asOptionalDate(value: unknown): Date | null {
   if (!text) return null;
   const date = new Date(text);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function manualMediaAccounts(value: unknown) {
+  if (!Array.isArray(value)) return null;
+  return value.map((item) => {
+    const source = item && typeof item === "object" ? item as Record<string, unknown> : {};
+    const platform = asText(source.platform);
+    const profileUrl = asText(source.profileUrl);
+    const normalizedProfileUrl = asText(source.normalizedProfileUrl);
+    if (!MEDIA_PLATFORMS.has(platform) || !profileUrl || !normalizedProfileUrl) {
+      throw new Error("社交媒体账号的平台或主页链接不完整");
+    }
+    return {
+      platform,
+      profileUrl,
+      normalizedProfileUrl,
+      nickname: asText(source.nickname),
+      followerCount: asOptionalNumber(source.followerCount),
+      screenshotUrl: asText(source.screenshotUrl),
+      realNameVerified: source.realNameVerified === true ? true : source.realNameVerified === false ? false : null,
+      dataSource: "manual",
+      lastCapturedAt: asOptionalDate(source.lastCapturedAt),
+    };
+  });
 }
 
 function escapeRegex(value: string): string {
@@ -615,6 +640,16 @@ router.put("/:id", async (req: Request, res: Response) => {
     update.alipayVerifiedName = alipayVerifiedName;
     if (body.categories !== undefined) update.categories = asTextArray(body.categories);
     if (STATUSES.includes(asText(body.status) as MamaResourceStatus)) update.status = asText(body.status);
+    const mediaAccounts = manualMediaAccounts(body.mediaAccounts);
+    if (mediaAccounts) {
+      update.mediaAccounts = mediaAccounts;
+      const primaryXiaohongshuAccount = mediaAccounts.find((account) => account.platform === "xiaohongshu");
+      if (primaryXiaohongshuAccount) {
+        update["socialAccount.nickname"] = primaryXiaohongshuAccount.nickname;
+        update["socialAccount.followerCount"] = primaryXiaohongshuAccount.followerCount;
+        update["socialAccount.dataSource"] = "manual";
+      }
+    }
     if (body.socialAccount && typeof body.socialAccount === "object") {
       if (body.socialAccount.nickname !== undefined) update["socialAccount.nickname"] = asText(body.socialAccount.nickname);
       const followerCount = asOptionalNumber(body.socialAccount.followerCount);

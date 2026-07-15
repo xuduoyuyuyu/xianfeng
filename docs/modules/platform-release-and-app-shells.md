@@ -6,6 +6,7 @@
 - GitHub Actions deployment entrypoints.
 - Capacitor app shell and WeChat mini-program shell projects.
 - Release safety rules for uploads, secrets, environment files, and clean export.
+- Public Web response headers must remain compatible with third-party podcast audio; global `Cross-Origin-Embedder-Policy: require-corp` is not allowed while public media origins omit compatible CORP and CORS headers.
 
 ## NOT FOR
 

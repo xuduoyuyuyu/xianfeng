@@ -6,7 +6,10 @@ import { AuthenticatedRequest } from "../middlewares/auth";
 import { askGuestAgent, getGuestAgentHistory, getGuestAgentProfile } from "../services/guestAgentService";
 import GuestAgentChunkModel from "../models/GuestAgentChunk";
 import Book from "../models/Book";
+import LearningMaterial from "../models/LearningMaterial";
 import { uniqueBookSourceNames } from "../utils/bookSourceNames";
+
+const PUBLIC_GUEST_PROGRAM_STATUSES = ["published", "group-only"] as const;
 
 function asText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -258,7 +261,7 @@ async function buildGuestProgramCountMap(guestIds?: string[]): Promise<Map<strin
   const rows = await Program.aggregate([
     {
       $match: {
-        status: "published",
+        status: { $in: PUBLIC_GUEST_PROGRAM_STATUSES },
         ...(objectIds.length ? { "guestBindings.guestId": { $in: objectIds } } : { "guestBindings.0": { $exists: true } }),
       },
     },
@@ -433,7 +436,7 @@ export class GuestController {
 
       const filter: Record<string, any> = { ...baseFilter };
       if (tag) {
-        const matchedPrograms = await Program.find({ status: "published", "summary.tags": tag }, { guestBindings: 1 }).lean();
+        const matchedPrograms = await Program.find({ status: { $in: PUBLIC_GUEST_PROGRAM_STATUSES }, "summary.tags": tag }, { guestBindings: 1 }).lean();
         const matchedGuestIds = Array.from(
           new Set(
             matchedPrograms.flatMap((program: any) =>
@@ -469,10 +472,10 @@ export class GuestController {
         buildGuestProgramCountMap(guestIds),
         buildGuestAgentStatsMap(guestIds),
         pageGuestObjectIds.length
-          ? Program.find({ status: "published", "guestBindings.guestId": { $in: pageGuestObjectIds } }, { guestBindings: 1, summary: 1 }).lean()
+          ? Program.find({ status: { $in: PUBLIC_GUEST_PROGRAM_STATUSES }, "guestBindings.guestId": { $in: pageGuestObjectIds } }, { guestBindings: 1, summary: 1 }).lean()
           : Promise.resolve([]),
         allFilterGuestObjectIds.length
-          ? Program.find({ status: "published", "guestBindings.guestId": { $in: allFilterGuestObjectIds } }, { guestBindings: 1, summary: 1 }).lean()
+          ? Program.find({ status: { $in: PUBLIC_GUEST_PROGRAM_STATUSES }, "guestBindings.guestId": { $in: allFilterGuestObjectIds } }, { guestBindings: 1, summary: 1 }).lean()
           : Promise.resolve([]),
       ]);
       const pageTagMap = buildGuestContentTagMap(pageTagPrograms);
@@ -517,7 +520,7 @@ export class GuestController {
       }
 
       const relatedPrograms = await Program.find(
-        { "guestBindings.guestId": new mongoose.Types.ObjectId(id), status: "published" },
+        { "guestBindings.guestId": new mongoose.Types.ObjectId(id), status: { $in: PUBLIC_GUEST_PROGRAM_STATUSES } },
         { _id: 1, programCode: 1, title: 1, coverImage: 1, publishedAt: 1, summary: 1, description: 1 }
       )
         .sort({ publishedAt: -1, updatedAt: -1, _id: -1 })
@@ -526,11 +529,15 @@ export class GuestController {
       const countMap = await buildGuestProgramCountMap([id]);
       const bookLists = await loadGuestBookLists(id);
       const authoredBooks = await loadGuestAuthoredBooks(asText((guest as any)?.name));
+      const extensionMaterials = await LearningMaterial.find({ guestId: new mongoose.Types.ObjectId(id), status: "published" })
+        .sort({ publishedAt: -1, updatedAt: -1, _id: -1 })
+        .lean();
       res.status(200).json({
         ...serializeGuestListItem(guest, countMap.get(id) || 0),
         relatedPrograms: relatedPrograms.map(serializeProgramCard),
         bookLists,
         authoredBooks,
+        extensionMaterials,
       });
     } catch (error) {
       res.status(500).json({ message: "获取嘉宾详情失败", error });

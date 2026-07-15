@@ -630,6 +630,70 @@ describe("mama resource pool routes", () => {
     assert.ok(toyProfile._id);
   });
 
+  it("lets operators save manual data for every media account", async () => {
+    const profile = await MamaResourceProfile.create({
+      displayName: "多平台妈妈",
+      contactWechat: "multi-platform",
+      alipayAccount: "multi@example.com",
+      alipayVerifiedName: "多平台妈妈",
+      consentAccepted: true,
+      socialAccount: {
+        platform: "xiaohongshu",
+        profileUrl: "https://www.xiaohongshu.com/user/profile/main",
+        normalizedProfileUrl: "xiaohongshu:user/profile/main",
+        nickname: "原小红书昵称",
+      },
+      mediaAccounts: [
+        {
+          platform: "xiaohongshu",
+          profileUrl: "https://www.xiaohongshu.com/user/profile/main",
+          normalizedProfileUrl: "xiaohongshu:user/profile/main",
+          nickname: "原小红书昵称",
+        },
+        {
+          platform: "douyin",
+          profileUrl: "https://www.douyin.com/user/second",
+          normalizedProfileUrl: "douyin:https://www.douyin.com/user/second",
+          nickname: "原抖音昵称",
+        },
+      ],
+    });
+
+    const response = await fetch(`${server.adminUrl}/${profile._id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        alipayAccount: "multi@example.com",
+        alipayVerifiedName: "多平台妈妈",
+        mediaAccounts: [
+          {
+            platform: "xiaohongshu",
+            profileUrl: "https://www.xiaohongshu.com/user/profile/main",
+            normalizedProfileUrl: "xiaohongshu:user/profile/main",
+            nickname: "新小红书昵称",
+            followerCount: 12000,
+          },
+          {
+            platform: "douyin",
+            profileUrl: "https://www.douyin.com/user/second",
+            normalizedProfileUrl: "douyin:https://www.douyin.com/user/second",
+            nickname: "新抖音昵称",
+            followerCount: 8000,
+          },
+        ],
+      }),
+    });
+
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.profile.mediaAccounts.length, 2);
+    assert.equal(data.profile.mediaAccounts[1].platform, "douyin");
+    assert.equal(data.profile.mediaAccounts[1].nickname, "新抖音昵称");
+    assert.equal(data.profile.mediaAccounts[1].followerCount, 8000);
+    assert.equal(data.profile.socialAccount.nickname, "新小红书昵称");
+    assert.equal(data.profile.socialAccount.followerCount, 12000);
+  });
+
   it("lets operators shelf a task, select matching accounts, and collect submitted proof", async () => {
     const user = await User.create({
       username: "u13800138000",

@@ -718,6 +718,27 @@
       </scroll-view>
     </view>
 
+    <view wx:if="{{nativeExpert.extensionMaterials.length}}" class="xf-expert-detail-card is-extension-materials">
+      <text class="xf-expert-detail-eyebrow">EXTENSION MATERIALS</text>
+      <text class="xf-expert-detail-section-title">拓展资料</text>
+      <text class="xf-expert-detail-section-copy">与这位嘉宾相关、可继续阅读或使用的资料。</text>
+      <view class="xf-expert-detail-extension-list">
+        <view
+          wx:for="{{nativeExpert.extensionMaterials}}"
+          wx:key="title"
+          class="xf-expert-detail-extension-item"
+          data-copy-url="{{item.url}}"
+          catchtap="copyNativeExpertMaterial"
+        >
+          <view>
+            <text class="xf-expert-detail-extension-title">{{item.title}}</text>
+            <text wx:if="{{item.description}}" class="xf-expert-detail-extension-copy">{{item.description}}</text>
+          </view>
+          <text class="xf-expert-detail-extension-action">复制链接</text>
+        </view>
+      </view>
+    </view>
+
     <view wx:if="{{nativeExpert.socialProfiles.length}}" class="xf-expert-detail-card is-social-media">
       <text class="xf-expert-detail-section-title">社交媒体</text>
       <text class="xf-expert-detail-section-copy">用于快速进入嘉宾的公开账号、栏目或持续输出阵地。</text>

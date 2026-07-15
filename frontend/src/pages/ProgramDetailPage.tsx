@@ -146,6 +146,8 @@ const ProgramDetailPage: React.FC = () => {
   const [isFavorite, setIsFavorite] = useState(false);
   const [contentViewMode, setContentViewMode] = useState<"quickview" | "transcript" | "mindmap">("quickview");
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isAudioLoading, setIsAudioLoading] = useState(false);
+  const [audioError, setAudioError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1.5);
@@ -296,7 +298,21 @@ const ProgramDetailPage: React.FC = () => {
       }
     };
     const onPlay = () => setIsPlaying(true);
-    const onPause = () => setIsPlaying(false);
+    const onPlaying = () => {
+      setIsPlaying(true);
+      setIsAudioLoading(false);
+      setAudioError(null);
+    };
+    const onWaiting = () => setIsAudioLoading(true);
+    const onPause = () => {
+      setIsPlaying(false);
+      setIsAudioLoading(false);
+    };
+    const onError = () => {
+      setIsPlaying(false);
+      setIsAudioLoading(false);
+      setAudioError("音频加载失败，请稍后重试");
+    };
     const onEnded = () => {
       setIsPlaying(false);
       // 播放完毕，清除位置记录
@@ -308,17 +324,23 @@ const ProgramDetailPage: React.FC = () => {
     audio.addEventListener("timeupdate", onTimeUpdate);
     audio.addEventListener("loadedmetadata", onLoadedMetadata);
     audio.addEventListener("play", onPlay);
+    audio.addEventListener("playing", onPlaying);
+    audio.addEventListener("waiting", onWaiting);
     audio.addEventListener("pause", onPause);
+    audio.addEventListener("error", onError);
     audio.addEventListener("ended", onEnded);
 
     return () => {
       audio.removeEventListener("timeupdate", onTimeUpdate);
       audio.removeEventListener("loadedmetadata", onLoadedMetadata);
       audio.removeEventListener("play", onPlay);
+      audio.removeEventListener("playing", onPlaying);
+      audio.removeEventListener("waiting", onWaiting);
       audio.removeEventListener("pause", onPause);
+      audio.removeEventListener("error", onError);
       audio.removeEventListener("ended", onEnded);
     };
-  }, []);
+  }, [currentEpisode?.url]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -328,6 +350,8 @@ const ProgramDetailPage: React.FC = () => {
     setCurrentTime(0);
     setDuration(0);
     setIsPlaying(false);
+    setIsAudioLoading(false);
+    setAudioError(null);
     audio.playbackRate = playbackRate;
     audio.src = currentEpisode?.url || "";
     audio.load();
@@ -351,10 +375,13 @@ const ProgramDetailPage: React.FC = () => {
     if (!audio || !currentEpisode?.url) return;
 
     if (audio.paused) {
+      setIsAudioLoading(true);
+      setAudioError(null);
       try {
         await audio.play();
       } catch (_error) {
-        window.open(currentEpisode.url, "_blank", "noopener,noreferrer");
+        setIsAudioLoading(false);
+        setAudioError("音频播放失败，请稍后重试");
       }
     } else {
       audio.pause();
@@ -658,12 +685,13 @@ const ProgramDetailPage: React.FC = () => {
                   <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
                     {isPlaying ? "pause" : "play_arrow"}
                   </span>
-                  {isPlaying ? "暂停收听" : "立即收听"}
+                  {isAudioLoading ? "音频加载中…" : isPlaying ? "暂停收听" : "立即收听"}
                 </button>
                 <button className="rounded-full border border-white/20 bg-white/10 px-8 py-4 text-sm font-black text-white backdrop-blur-md transition-all hover:bg-white/20" onClick={handleFavorite}>
                   {isFavorite ? "已收藏节目" : "收藏节目"}
                 </button>
               </div>
+              {audioError ? <p className="mt-3 text-sm font-bold text-[#ffd7d7]">{audioError}</p> : null}
             </div>
           </div>
         </div>

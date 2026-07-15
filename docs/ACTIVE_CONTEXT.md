@@ -48,6 +48,10 @@ mobile Web task-management dialog and open it externally. The mobile Web flow
 now mirrors account-state routing, assigned/claimable tasks, detail, and proof
 submission.
 
+Published learning materials may optionally bind to one active guest. Bound
+materials appear on both Web and native mini-program guest detail pages under
+“拓展资料”; Web opens the material URL and the mini program copies it.
+
 Welfare campaigns with activation codes cap total stock at the imported-code
 count and floor it at the claimed count. The admin UI reports the actual saved
 stock whenever the backend adjusts an operator-entered value. Historical rows
