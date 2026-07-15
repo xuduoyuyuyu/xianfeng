@@ -114,3 +114,17 @@ test("guest detail page uses native mini program chrome spacing when embedded", 
     "guest detail main wrapper should expose the mini-program spacing hook"
   );
 });
+
+test("guest detail splits and deduplicates real booklists", () => {
+  assert.match(source, /import \{ uniqueBookSourceNames \} from "\.\.\/utils\/bookSourceNames";/);
+  assert.match(source, /const authoredSourceNames = new Set\(\s*uniqueBookSourceNames\(authoredBooks\.map/);
+  assert.match(source, /return uniqueBookSourceNames\(boundBooks\.map/);
+  assert.match(source, /\.filter\(\(sourceName\) => !authoredSourceNames\.has\(sourceName\)\)/);
+  assert.match(source, /\{bookGroups\.length > 0 \? \(/);
+});
+
+test("each guest booklist card links to its exact source filter", () => {
+  assert.match(source, /bookGroups\.map\(\(sourceName, index\) =>/);
+  assert.match(source, /sourceName=\$\{encodeURIComponent\(sourceName\)\}/);
+  assert.match(source, /\{sourceName\}/);
+});

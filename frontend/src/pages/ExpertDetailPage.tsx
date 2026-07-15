@@ -4,6 +4,7 @@ import GlobalPublicNav from "../components/GlobalPublicNav";
 import GuestWishButton from "../components/GuestWishButton";
 import GuestAgentChatPanel from "../components/GuestAgentChatPanel";
 import { toXiaowanziPublicContentUrl, useXiaowanziEmbeddedLayer } from "../utils/xiaowanziLayer";
+import { uniqueBookSourceNames } from "../utils/bookSourceNames";
 import {
   GUEST_FALLBACK_AVATAR_DETAIL_IMG_CLASS,
   GUEST_FALLBACK_AVATAR_FRAME_CLASS,
@@ -115,7 +116,6 @@ const ExpertDetailPage: React.FC = () => {
     return match ? decodeURIComponent(match[1]) : "";
   }, [pathname, routeId]);
   const [guest, setGuest] = useState<PublicGuestDetail | null>(null);
-  const [hasBoundBooks, setHasBoundBooks] = useState(false);
   const [boundBooks, setBoundBooks] = useState<any[]>([]);
   const [authoredBooks, setAuthoredBooks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -146,7 +146,6 @@ const ExpertDetailPage: React.FC = () => {
             const booksResponse = await publicApi.getBooks();
             const books = Array.isArray(booksResponse.data) ? booksResponse.data : [];
             const bound = books.filter((book) => extractBookSourceGuestId(book.sourceGuestId) === merged._id);
-            setHasBoundBooks(bound.length > 0);
             setBoundBooks(bound);
             // 著作：author 匹配嘉宾名字
             const guestName = (merged.name || "").trim();
@@ -156,7 +155,6 @@ const ExpertDetailPage: React.FC = () => {
             }) : [];
             setAuthoredBooks(authored);
           } else {
-            setHasBoundBooks(false);
             setBoundBooks([]);
             setAuthoredBooks([]);
           }
@@ -174,7 +172,6 @@ const ExpertDetailPage: React.FC = () => {
             const booksResponse = await publicApi.getBooks();
             const books = Array.isArray(booksResponse.data) ? booksResponse.data : [];
             const bound = books.filter((book) => extractBookSourceGuestId(book.sourceGuestId) === mergedGuest._id);
-            setHasBoundBooks(bound.length > 0);
             setBoundBooks(bound);
             // 著作：author 匹配嘉宾名字
             const guestName = (mergedGuest.name || "").trim();
@@ -184,7 +181,6 @@ const ExpertDetailPage: React.FC = () => {
             }) : [];
             setAuthoredBooks(authored);
           } else {
-            setHasBoundBooks(false);
             setBoundBooks([]);
             setAuthoredBooks([]);
           }
@@ -194,7 +190,6 @@ const ExpertDetailPage: React.FC = () => {
         setError("嘉宾详情暂未同步完成");
       } catch (err: any) {
         if (!alive) return;
-        setHasBoundBooks(false);
         setBoundBooks([]);
         setAuthoredBooks([]);
         setError(err?.response?.data?.message || err?.message || "加载嘉宾详情失败");
@@ -342,20 +337,12 @@ const ExpertDetailPage: React.FC = () => {
     </div>
   ) : null;
 
-  // 按 sourceName 聚合去重书单
   const bookGroups = useMemo(() => {
-    // 嘉宾著作中出现的 sourceName，避免在推荐书目中重复
     const authoredSourceNames = new Set(
-      authoredBooks.map((b) => String(b.sourceName || "").trim()).filter(Boolean)
+      uniqueBookSourceNames(authoredBooks.map((book) => book.sourceName))
     );
-    const seen = new Map<string, any>();
-    for (const b of boundBooks) {
-      const sn = String(b.sourceName || "").trim();
-      if (sn && !seen.has(sn) && !authoredSourceNames.has(sn)) {
-        seen.set(sn, b);
-      }
-    }
-    return Array.from(seen.values());
+    return uniqueBookSourceNames(boundBooks.map((book) => book.sourceName))
+      .filter((sourceName) => !authoredSourceNames.has(sourceName));
   }, [boundBooks, authoredBooks]);
 
   // 嘉宾著作按出版时间倒序
@@ -710,7 +697,7 @@ const ExpertDetailPage: React.FC = () => {
               ) : null}
 
               {/* 关联书单卡片 */}
-              {hasBoundBooks ? (
+              {bookGroups.length > 0 ? (
                 <div className="rounded-[2rem] border border-[#e2dcf0] bg-white p-8 shadow-[0_24px_80px_rgba(80,62,125,0.08)]">
                   <div className="inline-flex rounded-full border border-[#cfc2ef] bg-[#f3eefc] px-4 py-1 text-[11px] font-black uppercase tracking-[0.24em] text-[#5b3fa1]">
                     Recommended Books
@@ -718,15 +705,15 @@ const ExpertDetailPage: React.FC = () => {
                   <h2 className="mt-4 text-2xl font-black tracking-tight text-[#241a3a]">推荐书目</h2>
                   <p className="mt-2 text-sm text-[#7b70a4]">这位嘉宾推荐或参与的书单。</p>
                   <div className="mt-6 space-y-3">
-                    {bookGroups.map((book, index) => (
+                    {bookGroups.map((sourceName, index) => (
                       <Link
-                        key={book._id || book.sourceName}
-                        to={`/books?sourceGuestId=${encodeURIComponent(guest._id || "")}&guest=${encodeURIComponent(guest.name || "")}`}
+                        key={sourceName}
+                        to={`/books?sourceGuestId=${encodeURIComponent(guest._id || "")}&guest=${encodeURIComponent(guest.name || "")}&sourceName=${encodeURIComponent(sourceName)}`}
                         className="flex items-center justify-between rounded-[1.1rem] border border-[#e8e0f2] bg-[#fcfaff] px-4 py-3 transition hover:border-[#b79bff] hover:bg-white"
                       >
                         <div className="min-w-0">
                           <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#5b3fa1]">#{index + 1}</div>
-                          <div className="mt-1 text-base font-black text-[#241a3a]">{book.sourceName || "未命名书单"}</div>
+                          <div className="mt-1 text-base font-black text-[#241a3a]">{sourceName}</div>
                         </div>
                         <span className="material-symbols-outlined shrink-0 text-[#5e17eb]">arrow_outward</span>
                       </Link>
