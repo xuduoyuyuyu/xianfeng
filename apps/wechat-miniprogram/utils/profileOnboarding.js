@@ -147,7 +147,8 @@ async function saveProfileOnboardingDraft(draft) {
   saveChildren(children);
   wx.setStorageSync(LAST_CHILD_ID_KEY, child.id);
   dismissedForSession = true;
-  await syncProfileOnboardingRemote(children, child);
+  wx.setStorageSync(SYNC_PENDING_KEY, true);
+  void syncProfileOnboardingRemote(children, child);
   return { city, region, grade, childId: child.id };
 }
 

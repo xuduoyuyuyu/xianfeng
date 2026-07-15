@@ -77,3 +77,20 @@ test("uses the existing five-four school grade options", () => {
   assert.deepEqual(profile.gradesFor("小学", "上海"), ["一年级", "二年级", "三年级", "四年级", "五年级"]);
   assert.equal(profile.formatGrade("初中", "六年级（预初）"), "初中六年级");
 });
+
+test("local profile save resolves before remote synchronization", async () => {
+  const { profile, storage } = loadProfile({ xf_token: "signed-in" });
+  const pendingRequests = [];
+  global.wx.request = (options) => pendingRequests.push(options);
+
+  const result = await Promise.race([
+    profile.saveProfileOnboardingDraft({ city: "上海", region: "徐汇区", stage: "小学", gradeName: "三年级" }),
+    new Promise((resolve) => setTimeout(() => resolve("blocked"), 20)),
+  ]);
+
+  assert.notEqual(result, "blocked");
+  assert.equal(profile.buildPersonalizationQuery().includes("profileCity="), true);
+  assert.equal(storage.xf_profile_onboarding_sync_pending_v1, true);
+  assert.equal(pendingRequests.length, 2);
+  pendingRequests.forEach((request) => request.success({ statusCode: 200, data: { ok: true } }));
+});

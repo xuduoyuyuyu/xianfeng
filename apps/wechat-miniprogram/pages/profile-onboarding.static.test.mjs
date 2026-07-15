@@ -37,3 +37,15 @@ test("ordinary list requests carry profile context without changing search or ex
   assert.doesNotMatch(preload, /appendProfileQuery\([^\n]*\/api\/books\/external/);
   assert.doesNotMatch(topics, /appendProfileQuery\(searchUrl\)/);
 });
+
+test("profile save clears the visible list cache and reloads its first page", () => {
+  const programs = page("programs").js;
+  const reading = page("reading").js;
+  const materials = page("materials").js;
+  const topics = page("topics").js;
+
+  assert.match(programs, /onProfileOnboardingSaved\(\)[\s\S]*removeStorageSync\(PROGRAM_CACHE_KEY\)[\s\S]*loadPrograms\(\{ showRefreshing: true \}\)/);
+  assert.match(reading, /onProfileOnboardingSaved\(\)[\s\S]*clearReadingProfileCaches\(\)[\s\S]*loadBooks\(\{ showRefreshing: true \}\)/);
+  assert.match(materials, /onProfileOnboardingSaved\(\)[\s\S]*removeStorageSync\(MATERIAL_CACHE_KEY\)[\s\S]*loadMaterials\(\{ showRefreshing: true \}\)/);
+  assert.match(topics, /onProfileOnboardingSaved\(\)[\s\S]*removeStorageSync\(TOPIC_CACHE_KEY\)[\s\S]*loadTopics\(\{ showRefreshing: true \}\)/);
+});
