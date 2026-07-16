@@ -7,7 +7,7 @@ import { promisify } from "util";
 import Program from "../models/Program";
 import Book from "../models/Book";
 import GuestModel from "../models/Guest";
-import { ensureTranscriptSpeakerAttribution, generateMindMap, resolveProgramAiProvider } from "../services/programAi";
+import { ensureTranscriptQuality, ensureTranscriptSpeakerAttribution, generateMindMap, resolveProgramAiProvider } from "../services/programAi";
 import { uploadLocalAudioToTosAndSign } from "../services/programAi";
 import mongoose from "mongoose";
 import { attachDictionaryEntriesToPrograms, isHighQualityEducationTerm, removeProgramFromDictionary, syncProgramDictionaryEntries } from "../services/educationDictionary";
@@ -60,7 +60,6 @@ async function resolveGuestSpeakerNames(payload: any, generatedGuestName?: unkno
     const name = asText(value);
     if (isUsableGuestSpeakerName(name) && !names.includes(name)) names.push(name);
   };
-  addName(payload?.guest?.name);
   const bindings = Array.isArray(payload?.guestBindings) ? payload.guestBindings : [];
   const guestIds = bindings.map((binding: any) => binding?.guestId).filter(Boolean);
   if (guestIds.length) {
@@ -68,7 +67,13 @@ async function resolveGuestSpeakerNames(payload: any, generatedGuestName?: unkno
     const namesById = new Map(guests.map((guest: any) => [String(guest._id), guest.name]));
     for (const binding of bindings) addName(namesById.get(String(binding?.guestId)));
   }
-  addName(generatedGuestName);
+  if (!names.length) {
+    const fallbackNames = [payload?.guest?.name, generatedGuestName].map(asText).filter(isUsableGuestSpeakerName);
+    if (fallbackNames.length) {
+      const matchedGuests = await GuestModel.find({ name: { $in: fallbackNames } }).select("name").lean();
+      for (const guest of matchedGuests) addName((guest as any).name);
+    }
+  }
   return names;
 }
 
@@ -1322,7 +1327,8 @@ async function tryAutoGenerate(
     await onProgress?.(76, "extracting");
     const generated = await provider.extractProgramMetadata(rawTranscription);
     const guestSpeakerNames = await resolveGuestSpeakerNames(payload, generated?.guest?.name);
-    const transcription = await ensureTranscriptSpeakerAttribution(rawTranscription, guestSpeakerNames);
+    const attributedTranscription = await ensureTranscriptSpeakerAttribution(rawTranscription, guestSpeakerNames);
+    const transcription = await ensureTranscriptQuality(attributedTranscription, guestSpeakerNames);
     await onProgress?.(90, "extracted");
     console.log("[ai-program] metadata extraction done");
     const merged = mergeAiIntoPayload(payload, generated, transcription.transcript);

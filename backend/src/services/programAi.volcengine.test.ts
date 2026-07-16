@@ -2,6 +2,7 @@ import assert from "assert";
 import {
   buildParagraphTranscriptFromTimedItems,
   applyTranscriptSpeakerAssignments,
+  applyTranscriptQualitySegments,
   extractUtteranceSpeaker,
   getVolcengineFlashMaxLocalBytes,
   isVolcengineStandardQueryComplete,
@@ -11,6 +12,22 @@ import {
   shouldAttemptVolcengineFlashEndpoint,
   shouldUseVolcengineStandardEndpoint,
 } from "./programAi";
+
+assert.deepEqual(
+  applyTranscriptQualitySegments([
+    { time: "00:00-00:05", speaker: "主播·阿力", text: "短句" },
+    { time: "00:05-00:10", speaker: "嘉宾·魏亚妮", text: "回答" },
+  ], [{
+    startIndex: 0,
+    endIndex: 1,
+    speaker: "嘉宾·魏亚妮",
+    text: "这是一段经过整理后的完整中文逐字稿内容，去除了重复口头语，并确保表达连贯清晰，长度也符合最终入库要求。",
+  }], ["魏亚妮"])?.map((item) => ({ speaker: item.speaker, time: item.time })),
+  [{ speaker: "嘉宾·魏亚妮", time: "00:00-00:10" }]
+);
+assert.equal(applyTranscriptQualitySegments([
+  { time: "00:00-00:05", speaker: "主播·阿力", text: "短句" },
+], [{ startIndex: 0, endIndex: 0, speaker: "主播·阿力", text: "不足五十字" }], ["魏亚妮"]), null);
 
 assert.equal(needsTranscriptSpeakerAttribution([
   { time: "0", speaker: "主播·阿力", text: "1" },

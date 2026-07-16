@@ -1219,6 +1219,112 @@ export function needsTranscriptSpeakerAttribution(transcript: TranscriptSegment[
   return speakers.size <= 1 || !hasNamedGuest;
 }
 
+function normalizeFinalSpeakerLabel(value: unknown, guestNames: string[]): string {
+  const label = asText(value);
+  if (/^主播·阿力$/u.test(label)) return "主播·阿力";
+  if (/^主播·Jessie$/i.test(label)) return "主播·Jessie";
+  const guestName = label.replace(/^嘉宾·/u, "");
+  return guestNames.includes(guestName) ? `嘉宾·${guestName}` : "";
+}
+
+function mergedTranscriptTime(first: TranscriptSegment, last: TranscriptSegment): string {
+  const start = asText(first.time).split("-")[0] || asText(first.time);
+  const parts = asText(last.time).split("-");
+  const end = parts[parts.length - 1] || asText(last.time);
+  return start && end ? `${start}-${end}` : start || end;
+}
+
+export function applyTranscriptQualitySegments(
+  source: TranscriptSegment[],
+  rows: unknown,
+  guestNames: string[]
+): TranscriptSegment[] | null {
+  if (!Array.isArray(rows) || !rows.length) return null;
+  const output: TranscriptSegment[] = [];
+  let expectedStart = 0;
+  for (const row of rows as any[]) {
+    const startIndex = Number(row?.startIndex);
+    const endIndex = Number(row?.endIndex);
+    const speaker = normalizeFinalSpeakerLabel(row?.speaker, guestNames);
+    const text = asText(row?.text).replace(/家长先锋/g, "家长先疯");
+    if (
+      !Number.isInteger(startIndex) || !Number.isInteger(endIndex) ||
+      startIndex !== expectedStart || endIndex < startIndex || endIndex >= source.length ||
+      !speaker || text.length < 50 || text.length > 200
+    ) return null;
+    output.push({
+      time: mergedTranscriptTime(source[startIndex], source[endIndex]),
+      speaker,
+      text,
+      featured: source.slice(startIndex, endIndex + 1).some((segment) => segment.featured),
+    });
+    expectedStart = endIndex + 1;
+  }
+  return expectedStart === source.length ? output : null;
+}
+
+async function refineTranscriptChunkWithProvider(
+  source: TranscriptSegment[],
+  guestNames: string[],
+  config: MetadataLlmConfig | null
+): Promise<TranscriptSegment[] | null> {
+  if (!config) return null;
+  const prompt = [
+    "你是播客逐字稿编辑。将输入片段改写为连贯、规范的中文文稿。",
+    "删除嗯、呃、重复词、歌词；英文和中英混合表达翻译为自然中文；品牌统一写家长先疯。",
+    "允许合并相邻输入片段，但必须按顺序覆盖每个 index，不能遗漏或重复。",
+    "每个输出 text 必须为50至200个中文字符，句意完整。",
+    `speaker 只能是主播·阿力、主播·Jessie，或嘉宾名单中的实名：${guestNames.map((name) => `嘉宾·${name}`).join("、")}。`,
+    '只输出JSON：{"segments":[{"startIndex":0,"endIndex":1,"speaker":"主播·阿力","text":"..."}]}。',
+    JSON.stringify(source.map((segment, index) => ({ index, speaker: segment.speaker, text: segment.text }))),
+  ].join("\n");
+  try {
+    const response = await fetch(config.baseUrl.replace(/\/$/, "") + "/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.apiKey}` },
+      body: JSON.stringify({
+        model: config.modelId,
+        temperature: 0,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: `你通过 ${config.providerName} 生成符合质检标准的播客逐字稿，只输出JSON。` },
+          { role: "user", content: prompt },
+        ],
+      }),
+    });
+    if (!response.ok) return null;
+    const json: any = await response.json().catch(() => ({}));
+    const content = asText(json?.choices?.[0]?.message?.content);
+    if (!content) return null;
+    return applyTranscriptQualitySegments(source, JSON.parse(content)?.segments, guestNames);
+  } catch (_error) {
+    return null;
+  }
+}
+
+export async function ensureTranscriptQuality(input: {
+  transcript: TranscriptSegment[];
+  plainText: string;
+  durationSeconds: number;
+}, guestNames: string[]): Promise<typeof input> {
+  const chunks: TranscriptSegment[][] = [];
+  for (let index = 0; index < input.transcript.length; index += 24) chunks.push(input.transcript.slice(index, index + 24));
+  const refined: TranscriptSegment[] = [];
+  for (const chunk of chunks) {
+    const result =
+      await refineTranscriptChunkWithProvider(chunk, guestNames, resolveDeepSeekMetadataConfig()) ||
+      await refineTranscriptChunkWithProvider(chunk, guestNames, resolveArkMetadataConfig());
+    if (!result) throw new Error("逐字稿未通过50至200字、品牌名或说话人实名质检");
+    refined.push(...result);
+  }
+  const speakers = new Set(refined.map((segment) => segment.speaker));
+  if (!Array.from(speakers).some((speaker) => speaker.startsWith("主播·")) ||
+      !Array.from(speakers).some((speaker) => speaker.startsWith("嘉宾·"))) {
+    throw new Error("逐字稿未同时识别主播与绑定嘉宾，已停止写入");
+  }
+  return { ...input, transcript: refined, plainText: refined.map((segment) => segment.text).join("\n") };
+}
+
 class OpenAIProgramAiProvider implements ProgramAiProvider {
   private readonly apiKey: string;
   private readonly transcribeModel: string;
