@@ -72,7 +72,14 @@
       >{{item.label}} {{item.count}}</button>
     </view>
 
-    <view wx:if="{{loading}}" class="xf-native-search-state">
+    <view wx:if="{{loading}}" class="xf-native-search-progress" aria-label="搜索进度 {{searchProgress}}%">
+      <view class="xf-native-search-progress-track">
+        <view class="xf-native-search-progress-value" style="width: {{searchProgress}}%;"></view>
+      </view>
+      <text>正在加载更多结果 {{searchProgress}}%</text>
+    </view>
+
+    <view wx:if="{{loading && !visibleResults.length}}" class="xf-native-search-state">
       <view class="xf-native-search-skeleton"></view>
       <view class="xf-native-search-skeleton is-short"></view>
       <view class="xf-native-search-skeleton"></view>
@@ -87,7 +94,7 @@
       <text>没有找到相关内容，可以换个关键词试试。</text>
     </view>
 
-    <view wx:if="{{!loading && !error && visibleResults.length}}" class="xf-native-search-list">
+    <view wx:if="{{!error && visibleResults.length}}" class="xf-native-search-list">
       <view
         wx:for="{{visibleResults}}"
         wx:key="id"

@@ -570,12 +570,16 @@ describe("mama resource pool routes", () => {
   });
 
   it("lets operators filter the resource pool and update review state", async () => {
+    const femaleUser = await User.create({ username: "resource-female", password: "hash", gender: "女", role: "user" });
     const [readingProfile, toyProfile] = await MamaResourceProfile.create([
       {
+        userId: femaleUser._id,
         displayName: "阅读妈妈",
         contactPhone: "13800000000",
         status: "pending",
         city: "上海",
+        childStage: "小学",
+        childGender: "女孩",
         categories: ["亲子阅读"],
         consentAccepted: true,
         socialAccount: {
@@ -585,6 +589,22 @@ describe("mama resource pool routes", () => {
           followerCount: 12000,
           dataSource: "manual",
         },
+        mediaAccounts: [
+          {
+            platform: "xiaohongshu",
+            profileUrl: "https://www.xiaohongshu.com/user/profile/read",
+            normalizedProfileUrl: "xiaohongshu:user/profile/read",
+            followerCount: 12000,
+            dataSource: "manual",
+          },
+          {
+            platform: "douyin",
+            profileUrl: "https://www.douyin.com/user/read",
+            normalizedProfileUrl: "douyin:https://www.douyin.com/user/read",
+            followerCount: 3000,
+            dataSource: "manual",
+          },
+        ],
         rateCard: { rateRange: "300-500", availability: "每周 2 篇" },
       },
       {
@@ -610,6 +630,12 @@ describe("mama resource pool routes", () => {
     assert.equal(listData.total, 1);
     assert.equal(listData.items[0]._id, String(readingProfile._id));
     assert.equal(listData.items[0].socialAccount.followerCount, 12000);
+
+    const demographicResponse = await fetch(`${server.adminUrl}?childStage=${encodeURIComponent("小学")}&childGender=${encodeURIComponent("女孩")}&userGender=${encodeURIComponent("女")}&platform=douyin`);
+    assert.equal(demographicResponse.status, 200);
+    const demographicData = await demographicResponse.json();
+    assert.equal(demographicData.total, 1);
+    assert.equal(demographicData.items[0]._id, String(readingProfile._id));
 
     const reviewResponse = await fetch(`${server.adminUrl}/${readingProfile._id}/review`, {
       method: "PATCH",

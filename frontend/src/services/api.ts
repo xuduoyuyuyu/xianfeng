@@ -698,6 +698,10 @@ export interface MamaResourceQuery {
   status?: MamaResourceStatus | 'all';
   category?: string;
   minFollowers?: number | string;
+  childStage?: string;
+  childGender?: string;
+  userGender?: string;
+  platform?: MamaResourceMediaAccount['platform'];
   search?: string;
   page?: number;
   pageSize?: number;

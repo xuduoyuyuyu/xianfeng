@@ -19,7 +19,7 @@ function normalizeWechatProfileUser(value) {
 
 function hasPersistentAvatar(value) {
   const avatar = String(value || "").trim();
-  return /^https?:\/\//i.test(avatar) || avatar.startsWith("/uploads/");
+  return (/^https?:\/\//i.test(avatar) && !/^https?:\/\/tmp\//i.test(avatar)) || avatar.startsWith("/uploads/");
 }
 
 function needsWechatProfileCompletion(value) {

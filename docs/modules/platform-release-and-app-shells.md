@@ -68,6 +68,10 @@
   for the current foreground session. The four list requests include the
   complete profile and keep list caches isolated by profile; search, detail,
   and the external book library remain unpersonalized.
+  Native search focuses its input on entry and progressively shows completed
+  result groups while the remaining content sources load. A segmented progress
+  indicator reflects completed source requests; skeletons are reserved for the
+  interval before the first matching result arrives.
   The Baibaoxiang welfare shortcut opens native `pages/welfare/index` so the
   page uses mini-program chrome and hides backend 404s as an empty welfare
   state. Claim success is handled in the native page with the configured claim

@@ -697,13 +697,12 @@ page {
   position: fixed;
   top: 0;
   right: 0;
-  bottom: -96rpx;
+  bottom: 0;
   left: 0;
   z-index: 2147483647;
   display: flex;
   justify-content: flex-end;
   min-height: 100vh;
-  padding-bottom: 96rpx;
   box-sizing: border-box;
   background: rgba(15, 23, 42, 0.58);
   backdrop-filter: blur(12rpx);
@@ -714,8 +713,8 @@ page {
   width: 84vw;
   max-width: 640rpx;
   min-height: 100vh;
-  height: calc(100vh + 96rpx);
-  padding: 52rpx 34rpx 96rpx;
+  height: 100%;
+  padding: 52rpx 34rpx 0;
   overflow-y: auto;
   overflow-x: hidden;
   background: #f7f7f8;

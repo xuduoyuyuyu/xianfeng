@@ -25,9 +25,10 @@ test("admin mama resources page uses the Mama Haozhuan product name", () => {
   assert.doesNotMatch(source, /<h1[^>]*>妈妈资源池<\/h1>/);
 });
 
-test("admin mama resources page exposes review states and filters", () => {
+test("admin mama resources page defaults to all profiles and exposes profile filters", () => {
   assert.match(source, /mode === "review"/);
-  assert.match(source, /账号资料审核/);
+  assert.match(source, /账号资料/);
+  assert.match(source, /useState<MamaResourceStatus \| "all">\("all"\)/);
   assert.match(source, /待审核/);
   assert.match(source, /可派单/);
   assert.match(source, /资料不足/);
@@ -36,6 +37,17 @@ test("admin mama resources page exposes review states and filters", () => {
   assert.match(source, /categoryFilter/);
   assert.match(source, /statusFilter/);
   assert.match(source, /searchText/);
+  assert.match(source, /childStageFilter/);
+  assert.match(source, /childGenderFilter/);
+  assert.match(source, /userGenderFilter/);
+  assert.match(source, /platformFilter/);
+  assert.match(source, /全部孩子年龄/);
+  assert.match(source, /全部孩子性别/);
+  assert.match(source, /全部用户性别/);
+  assert.match(source, /小红书/);
+  assert.match(source, /抖音/);
+  assert.match(source, />\s*查看\s*<\/button>/);
+  assert.doesNotMatch(source, /审核\/补录|账号审核和补录|保存审核和人工补录/);
 });
 
 test("admin mama resources page shows account cards without removed offer and case sync fields", () => {
@@ -44,6 +56,7 @@ test("admin mama resources page shows account cards without removed offer and ca
   assert.match(source, /主页截图/);
   assert.match(source, /screenshotUrl/);
   assert.match(source, /realNameVerified/);
+  assert.match(source, /realNameVerified === true \? "inline-flex rounded-full bg-emerald-50/);
   assert.match(source, /childGender/);
   assert.match(source, /账号定位/);
   assert.doesNotMatch(source, /历史案例/);
@@ -195,7 +208,7 @@ test("admin mama resources detail editing is handled in a modal instead of a rig
   assert.match(source, /aria-modal="true"/);
   assert.match(source, /closeEdit/);
   assert.match(source, /编辑资源详情/);
-  assert.match(source, /rounded-full[^"]*审核\/补录|审核\/补录[\s\S]*rounded-full/);
+  assert.match(source, /rounded-full[^>]*>[\s\S]*?查看\s*<\/button>/);
   assert.doesNotMatch(source, /xl:grid-cols-\[1fr_420px\]/);
   assert.doesNotMatch(source, /选择一条资源后，可以补充账号基础数据/);
 });
@@ -237,7 +250,8 @@ test("admin task assignments support manual and previewed personal content link 
   assert.match(source, /点击左侧领取账号后，在这里查看身份信息、打标签并配置专属链接/);
   assert.match(source, /专属内容链接/);
   assert.match(source, /saveAssignmentContentUrl/);
-  assert.match(source, /批量导入专属链接/);
+  assert.match(source, /aria-label="导入专属链接"/);
+  assert.match(source, /选择 Excel 文件/);
   assert.match(source, /下载导入模板/);
   assert.match(source, /previewMamaResourceContentImport/);
   assert.match(source, /commitMamaResourceContentImport/);
@@ -253,7 +267,11 @@ test("admin task assignments support manual and previewed personal content link 
 });
 
 test("admin task content dispatch supports an ordered link pool with waiting state", () => {
-  assert.match(source, /批量链接池/);
+  assert.match(source, /const \[contentLinkImportOpen, setContentLinkImportOpen\] = useState\(false\)/);
+  assert.match(source, /onClick=\{\(\) => setContentLinkImportOpen\(true\)\}/);
+  assert.match(source, />导入链接<\/button>/);
+  assert.doesNotMatch(source, /批量链接池/);
+  assert.doesNotMatch(source, /批量导入专属链接/);
   assert.match(source, /contentLinkText/);
   assert.match(source, /导入并顺序分配/);
   assert.match(source, /链接按账号分配时间顺序绑定/);

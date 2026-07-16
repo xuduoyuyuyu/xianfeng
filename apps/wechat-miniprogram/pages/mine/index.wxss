@@ -208,7 +208,7 @@
 .xf-mine-settings-panel {
   width: 84vw;
   max-width: 640rpx;
-  padding: 52rpx 34rpx 96rpx;
+  padding: 52rpx 34rpx 0;
   gap: 26rpx;
   background: #f7f7f8;
 }

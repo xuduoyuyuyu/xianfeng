@@ -6,8 +6,7 @@
       <view class="xf-profile-header-spacer"></view>
     </view>
     <view class="xf-profile-card xf-account-avatar-card">
-      <image wx:if="{{profileDraft.avatar}}" class="xf-account-avatar-image" src="{{profileAvatar}}" mode="aspectFill" />
-      <view wx:else class="xf-account-avatar-empty">未设置</view>
+      <image class="xf-account-avatar-image" src="{{profileAvatar}}" mode="aspectFill" binderror="handleProfileAvatarError" />
       <view class="xf-account-avatar-body">
         <view class="xf-account-avatar-actions">
           <button open-type="chooseAvatar" bindchooseavatar="chooseProfileAvatar">选择微信头像</button>
@@ -19,7 +18,7 @@
     <view class="xf-profile-card">
       <view class="xf-profile-field">
         <text class="xf-profile-label">昵称</text>
-        <input type="nickname" value="{{profileDraft.name}}" placeholder="选择或输入微信昵称" bindinput="updateProfileName" />
+        <input type="nickname" value="{{profileDraft.name}}" placeholder="选择或输入微信昵称" bindinput="updateProfileName" bindblur="autoSaveProfileName" />
       </view>
       <view class="xf-profile-field">
         <text class="xf-profile-label">性别</text>

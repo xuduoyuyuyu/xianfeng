@@ -13,6 +13,7 @@ import {
 } from "../../services/api";
 
 const PAGE_SIZE = 20;
+const childStageOptions = ["孕产/婴幼儿", "幼儿园", "小学", "初中", "高中", "多孩家庭"];
 
 const statusOptions: Array<{ value: MamaResourceStatus | "all"; label: string }> = [
   { value: "all", label: "全部" },
@@ -246,6 +247,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
   const [contentLinkText, setContentLinkText] = useState("");
   const [contentImportPreview, setContentImportPreview] = useState<MamaResourceContentImportPreview | null>(null);
   const [contentImportOpen, setContentImportOpen] = useState(false);
+  const [contentLinkImportOpen, setContentLinkImportOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<MamaResourceTask | null>(null);
   const [taskManagerOpen, setTaskManagerOpen] = useState(false);
   const [taskCreateOpen, setTaskCreateOpen] = useState(false);
@@ -260,9 +262,13 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
   const [toast, setToast] = useState("");
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
-  const [statusFilter, setStatusFilter] = useState<MamaResourceStatus | "all">("pending");
+  const [statusFilter, setStatusFilter] = useState<MamaResourceStatus | "all">("all");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [minFollowers, setMinFollowers] = useState("");
+  const [childStageFilter, setChildStageFilter] = useState("");
+  const [childGenderFilter, setChildGenderFilter] = useState("");
+  const [userGenderFilter, setUserGenderFilter] = useState("");
+  const [platformFilter, setPlatformFilter] = useState<MamaResourceMediaAccount["platform"] | "">("");
   const [searchText, setSearchText] = useState("");
   const [taskCategoryFilter, setTaskCategoryFilter] = useState("");
   const [taskRiskTagFilter, setTaskRiskTagFilter] = useState("");
@@ -300,6 +306,10 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
         status: statusFilter,
         category: categoryFilter || undefined,
         minFollowers: minFollowers || undefined,
+        childStage: childStageFilter || undefined,
+        childGender: childGenderFilter || undefined,
+        userGender: userGenderFilter || undefined,
+        platform: platformFilter || undefined,
         search: searchText || undefined,
         page: nextPage,
         pageSize: PAGE_SIZE,
@@ -346,7 +356,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
 
   useEffect(() => {
     if (isReviewMode) loadItems(1);
-  }, [statusFilter, categoryFilter, minFollowers, isReviewMode]);
+  }, [statusFilter, categoryFilter, minFollowers, childStageFilter, childGenderFilter, userGenderFilter, platformFilter, isReviewMode]);
 
   useEffect(() => {
     if (!isReviewMode) loadTasks().catch(() => undefined);
@@ -399,6 +409,8 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
   const closeTaskManager = () => {
     if (taskLoading) return;
     setTaskManagerOpen(false);
+    setContentLinkImportOpen(false);
+    setContentImportOpen(false);
     setSelectedAssignmentId("");
   };
 
@@ -724,6 +736,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
       const { created, updated, unchanged } = response.data.summary;
       setToast(`导入完成：新增 ${created}，更新 ${updated}，未变化 ${unchanged}`);
       setContentImportOpen(false);
+      setContentLinkImportOpen(false);
       setContentImportPreview(null);
       await loadTaskWorkspace(selectedTask._id);
     } catch (commitError: any) {
@@ -747,6 +760,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
       const assignedText = assignedCount > 0 ? `，已顺序分配 ${assignedCount} 个账号` : "";
       setToast(`已导入 ${importedCount} 条链接${assignedText}${skippedText}`);
       await loadTaskWorkspace(selectedTask._id);
+      setContentLinkImportOpen(false);
     } catch (importError: any) {
       setToast(requestErrorMessage(importError, "批量链接导入失败"));
     } finally {
@@ -760,10 +774,10 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
         <div>
           <div className="flex items-center gap-3">
             <img src="/assets/mama-hao-zhuan-icon.png" alt="" className="h-9 w-9 object-contain" />
-            <h1 className="text-2xl font-black text-stone-900">{isReviewMode ? "账号资料审核" : "妈妈好赚"}</h1>
+            <h1 className="text-2xl font-black text-stone-900">{isReviewMode ? "账号资料" : "妈妈好赚"}</h1>
           </div>
           <p className="mt-1 text-sm font-medium text-stone-500">
-            {isReviewMode ? "独立审核妈妈账号资料，审核通过后进入任务匹配池。" : "创建任务、设置匹配权重，并在任务里完成账号派发。"}
+            {isReviewMode ? "查看妈妈好赚账号资料，并按用户与平台条件筛选。" : "创建任务、设置匹配权重，并在任务里完成账号派发。"}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -781,7 +795,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                 任务上架/选号
               </button>
               <Link to="/admin/mama-resources/review" className="rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-bold text-stone-700">
-                账号审核
+                账号资料
               </Link>
               <a
                 href="/mama-resources/apply"
@@ -829,7 +843,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
       </section> : null}
 
       {isReviewMode ? <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-        <div className="grid gap-3 lg:grid-cols-[1.2fr_0.9fr_0.9fr_0.8fr_auto]">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <input value={searchText} onChange={(event) => setSearchText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") loadItems(1); }} className="rounded-xl border border-stone-200 px-3 py-2 text-sm outline-none focus:border-[#6c27d6]" placeholder="搜索昵称、手机号、微信号、账号链接" />
           <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as MamaResourceStatus | "all")} className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#6c27d6]">
             {statusOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
@@ -837,6 +851,19 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
           <input value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} list="mama-resource-categories" className="rounded-xl border border-stone-200 px-3 py-2 text-sm outline-none focus:border-[#6c27d6]" placeholder="品类筛选" />
           <datalist id="mama-resource-categories">{categoryOptions.map((item) => <option key={item} value={item} />)}</datalist>
           <input value={minFollowers} onChange={(event) => setMinFollowers(event.target.value)} className="rounded-xl border border-stone-200 px-3 py-2 text-sm outline-none focus:border-[#6c27d6]" placeholder="最低粉丝数" />
+          <select value={childStageFilter} onChange={(event) => setChildStageFilter(event.target.value)} className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#6c27d6]">
+            <option value="">全部孩子年龄</option>
+            {childStageOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
+          <select value={childGenderFilter} onChange={(event) => setChildGenderFilter(event.target.value)} className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#6c27d6]">
+            <option value="">全部孩子性别</option><option value="男孩">男孩</option><option value="女孩">女孩</option>
+          </select>
+          <select value={userGenderFilter} onChange={(event) => setUserGenderFilter(event.target.value)} className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#6c27d6]">
+            <option value="">全部用户性别</option><option value="男">男</option><option value="女">女</option>
+          </select>
+          <select value={platformFilter} onChange={(event) => setPlatformFilter(event.target.value as MamaResourceMediaAccount["platform"] | "")} className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#6c27d6]">
+            <option value="">全部平台</option><option value="xiaohongshu">小红书</option><option value="douyin">抖音</option>
+          </select>
           <button type="button" onClick={() => loadItems(1)} className="rounded-xl border border-[#6c27d6] bg-[#f7f2ff] px-4 py-2 text-sm font-bold text-[#5e17eb]">筛选</button>
         </div>
       </section> : null}
@@ -865,7 +892,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                 <div className="mt-1 text-xs text-stone-500">{profile.city || "未填城市"} · {profile.childStage || "未填阶段"} · {profile.childGender || "未填性别"}</div>
                 <div className="mt-1 text-xs font-semibold text-stone-500">{maskAlipayAccount(profile.alipayAccount)}</div>
                 <div className="mt-1 text-xs font-semibold text-stone-500">
-                  {realNameLabel(profile.socialAccount.realNameVerified)}
+                  <span className={profile.socialAccount.realNameVerified === true ? "inline-flex rounded-full bg-emerald-50 px-2 py-1 text-emerald-700" : ""}>{realNameLabel(profile.socialAccount.realNameVerified)}</span>
                   {profile.socialAccount.screenshotUrl ? <a className="ml-2 text-[#6c27d6]" href={profile.socialAccount.screenshotUrl} target="_blank" rel="noreferrer">主页截图</a> : <span className="ml-2">未传截图</span>}
                 </div>
               </div>
@@ -875,7 +902,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
               <div className="font-black text-stone-900">{toCount(profile.socialAccount?.followerCount)}</div>
               <div><span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-black ${statusClass[profile.status]}`}>{statusLabel[profile.status]}</span></div>
               <button type="button" onClick={() => openEdit(profile)} className="inline-flex h-9 items-center justify-center rounded-full border border-[#e6d7ff] bg-[#f7f2ff] px-5 text-xs font-black text-[#5e17eb] shadow-sm transition hover:border-[#6c27d6] hover:bg-[#efe5ff]">
-                审核/补录
+                查看
               </button>
             </div>
           ))
@@ -898,7 +925,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                 <div className="text-xs font-black text-stone-400">编辑资源详情</div>
                 <h2 className="mt-1 text-xl font-black text-stone-900">{editing.displayName}</h2>
                 <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold text-stone-600">
-                  <span className="rounded-full bg-stone-100 px-2.5 py-1">{realNameLabel(editing.socialAccount.realNameVerified)}</span>
+                  <span className={`rounded-full px-2.5 py-1 ${editing.socialAccount.realNameVerified === true ? "bg-emerald-50 text-emerald-700" : "bg-stone-100"}`}>{realNameLabel(editing.socialAccount.realNameVerified)}</span>
                   <span className={`rounded-full border px-2.5 py-1 ${statusClass[editing.status]}`}>{statusLabel[editing.status]}</span>
                   {editing.socialAccount.screenshotUrl ? <a className="rounded-full bg-[#f6f0ff] px-2.5 py-1 text-[#6c27d6]" href={editing.socialAccount.screenshotUrl} target="_blank" rel="noreferrer">查看主页截图</a> : <span className="rounded-full bg-stone-100 px-2.5 py-1">未上传主页截图</span>}
                 </div>
@@ -907,7 +934,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
             </div>
             <div className="p-5">
               <div className="rounded-2xl border border-stone-200 bg-white p-4">
-                <div className="text-sm font-black text-stone-900">账号审核和补录</div>
+                <div className="text-sm font-black text-stone-900">账号资料</div>
                 <p className="mt-2 text-sm leading-6 text-stone-600">{editing.accountPositioning || "未填写账号定位"}</p>
                 <div className="mt-4 space-y-3">
                   {manualMediaAccounts.map((account, index) => (
@@ -928,13 +955,13 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                   <label className="text-sm font-bold text-stone-700">支付宝验证姓名<input value={manualAlipayVerifiedName} onChange={(event) => setManualAlipayVerifiedName(event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="支付宝实名认证姓名" /></label>
                 </div>
                 <div className="mt-3 grid gap-3">
-                  <label className="text-sm font-bold text-stone-700">审核状态<select value={reviewStatus} onChange={(event) => setReviewStatus(event.target.value as MamaResourceStatus)} className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm">{statusOptions.filter((item) => item.value !== "all").map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+                  <label className="text-sm font-bold text-stone-700">资料状态<select value={reviewStatus} onChange={(event) => setReviewStatus(event.target.value as MamaResourceStatus)} className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm">{statusOptions.filter((item) => item.value !== "all").map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
                   <label className="text-sm font-bold text-stone-700">运营备注<textarea value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} className="mt-1 min-h-[96px] w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" /></label>
                   <label className="text-sm font-bold text-stone-700">适合品类<input value={suitableCategoriesText} onChange={(event) => setSuitableCategoriesText(event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" /></label>
                   <label className="text-sm font-bold text-stone-700">风险标签<input value={riskTagsText} onChange={(event) => setRiskTagsText(event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="需补近期账号数据、内容不稳定" /></label>
                   <div className="rounded-xl bg-stone-50 px-3 py-2 text-xs font-semibold text-stone-500">最近更新：{toDateText(editing.updatedAt)} · 数据来源：{editing.socialAccount.dataSource || "pending"}</div>
                 </div>
-                <button onClick={saveManualData} disabled={saving} className="mt-4 w-full rounded-xl bg-[#6c27d6] px-4 py-3 text-sm font-black text-white disabled:bg-stone-300">{saving ? "保存中..." : "保存审核和人工补录"}</button>
+                <button onClick={saveManualData} disabled={saving} className="mt-4 w-full rounded-xl bg-[#6c27d6] px-4 py-3 text-sm font-black text-white disabled:bg-stone-300">{saving ? "保存中..." : "保存资料"}</button>
               </div>
             </div>
           </aside>
@@ -1019,7 +1046,10 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                 <h2 className="mt-1 text-xl font-black text-stone-900">{selectedTask?.title || "当前任务"}</h2>
                 <div className="mt-1 text-sm font-semibold text-stone-500">只展示已经领取当前任务的账号，并管理专属内容与运营状态。</div>
               </div>
-              <button type="button" onClick={closeTaskManager} disabled={taskLoading} className="rounded-full border border-stone-200 px-4 py-2 text-sm font-bold text-stone-600 hover:bg-stone-50 disabled:opacity-50">关闭</button>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => setContentLinkImportOpen(true)} disabled={!selectedTask || taskLoading} className="rounded-full bg-[#6c27d6] px-4 py-2 text-sm font-black text-white hover:bg-[#5e17eb] disabled:bg-stone-300">导入链接</button>
+                <button type="button" onClick={closeTaskManager} disabled={taskLoading} className="rounded-full border border-stone-200 px-4 py-2 text-sm font-bold text-stone-600 hover:bg-stone-50 disabled:opacity-50">关闭</button>
+              </div>
             </div>
             <div className="space-y-4 p-5">
                 <div className="rounded-2xl border border-stone-200 bg-white p-4">
@@ -1057,41 +1087,11 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                     ))}
                   </div>
                 </div>
-                <div className="rounded-2xl border border-[#e6ddff] bg-[#fbf9ff] p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="text-sm font-black text-stone-900">批量链接池</div>
-                        {selectedTask?.pausedForContent ? <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-black text-amber-700">等待内容分配</span> : null}
-                      </div>
-                      <div className="mt-1 text-xs font-semibold text-stone-500">
-                        已导入 {selectedTask?.contentLinkCount || 0} 条 · 已分配 {selectedTask?.contentLinkAssignedCount || 0} 条 · 剩余 {selectedTask?.contentLinkRemainingCount || 0} 条
-                      </div>
-                    </div>
-                    <button type="button" onClick={importContentLinks} disabled={!selectedTask || !contentLinkText.trim() || taskLoading} className="rounded-xl bg-[#6c27d6] px-3 py-2 text-xs font-black text-white disabled:bg-stone-300">
-                      {taskLoading ? "处理中..." : "导入并顺序分配"}
-                    </button>
-                  </div>
-                  <textarea
-                    value={contentLinkText}
-                    onChange={(event) => setContentLinkText(event.target.value)}
-                    placeholder="每行一个专属内容链接，也支持逗号分隔；重复链接会自动跳过"
-                    className="mt-3 min-h-[92px] w-full rounded-xl border border-[#d8ccff] bg-white px-3 py-2 text-sm outline-none focus:border-[#6c27d6]"
-                  />
-                  <div className="mt-2 text-xs font-semibold text-stone-500">链接按账号分配时间顺序绑定；链接耗尽后任务自动暂停，补充链接后恢复。</div>
-                </div>
                 <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <div className="text-sm font-black text-stone-900">领取任务账号</div>
                         <div className="mt-1 text-xs font-semibold text-stone-500">已领取 {assignments.length} 人 · 已配置内容 {configuredContentCount}/{assignments.length}</div>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={downloadContentImportTemplate} className="rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs font-black text-stone-700">下载导入模板</button>
-                        <label className="cursor-pointer rounded-lg bg-[#6c27d6] px-2.5 py-1.5 text-xs font-black text-white">
-                          批量导入专属链接
-                          <input type="file" accept=".xlsx,.xls" onChange={previewContentImport} className="hidden" />
-                        </label>
                       </div>
                     </div>
                     <div className="grid min-h-[360px] gap-4 xl:grid-cols-[minmax(220px,3fr)_minmax(0,7fr)]">
@@ -1207,8 +1207,46 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
           </aside>
         </div>
       ) : null}
+      {!isReviewMode && taskManagerOpen && contentLinkImportOpen ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4" onClick={() => !taskLoading && setContentLinkImportOpen(false)}>
+          <div role="dialog" aria-modal="true" aria-label="导入专属链接" className="w-full max-w-2xl rounded-2xl bg-white p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-lg font-black text-stone-900">导入链接</div>
+                <div className="mt-1 text-sm font-semibold text-stone-500">选择按领取顺序分配，或通过 Excel 按账号匹配导入。</div>
+              </div>
+              <button type="button" onClick={() => setContentLinkImportOpen(false)} disabled={taskLoading} className="text-xl font-black text-stone-400 disabled:opacity-50">×</button>
+            </div>
+            <div className="mt-5 rounded-2xl border border-[#e6ddff] bg-[#fbf9ff] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="text-sm font-black text-stone-900">按领取顺序导入</div>
+                    {selectedTask?.pausedForContent ? <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-black text-amber-700">等待内容分配</span> : null}
+                  </div>
+                  <div className="mt-1 text-xs font-semibold text-stone-500">已导入 {selectedTask?.contentLinkCount || 0} 条 · 已分配 {selectedTask?.contentLinkAssignedCount || 0} 条 · 剩余 {selectedTask?.contentLinkRemainingCount || 0} 条</div>
+                </div>
+                <button type="button" onClick={importContentLinks} disabled={!selectedTask || !contentLinkText.trim() || taskLoading} className="rounded-xl bg-[#6c27d6] px-3 py-2 text-xs font-black text-white disabled:bg-stone-300">{taskLoading ? "处理中..." : "导入并顺序分配"}</button>
+              </div>
+              <textarea value={contentLinkText} onChange={(event) => setContentLinkText(event.target.value)} placeholder="每行一个专属内容链接，也支持逗号分隔；重复链接会自动跳过" className="mt-3 min-h-[110px] w-full rounded-xl border border-[#d8ccff] bg-white px-3 py-2 text-sm outline-none focus:border-[#6c27d6]" />
+              <div className="mt-2 text-xs font-semibold text-stone-500">链接按账号分配时间顺序绑定；链接耗尽后任务自动暂停，补充链接后恢复。</div>
+            </div>
+            <div className="mt-4 rounded-2xl border border-stone-200 p-4">
+              <div className="text-sm font-black text-stone-900">按账号批量导入</div>
+              <div className="mt-1 text-xs font-semibold text-stone-500">下载模板填写账号与专属链接，上传后先预检再确认导入。</div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button type="button" onClick={downloadContentImportTemplate} disabled={taskLoading} className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-xs font-black text-stone-700 disabled:opacity-50">下载导入模板</button>
+                <label className={`rounded-lg bg-[#6c27d6] px-3 py-2 text-xs font-black text-white ${taskLoading ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}>
+                  选择 Excel 文件
+                  <input type="file" accept=".xlsx,.xls" disabled={taskLoading} onChange={previewContentImport} className="hidden" />
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {contentImportOpen && contentImportPreview ? (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 p-4" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-4" role="dialog" aria-modal="true">
           <div className="flex max-h-[80vh] w-full max-w-3xl flex-col rounded-2xl bg-white p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-3">
               <div>

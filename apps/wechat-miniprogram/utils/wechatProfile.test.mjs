@@ -30,12 +30,13 @@ test("saving a wechat profile uploads the chosen avatar and refreshes the shared
   const saved = [];
   const calls = [];
   let uploadCount = 0;
+  const uploadedPaths = [];
   let appUser = null;
   global.wx = {
     uploadFile(options) {
       uploadCount += 1;
+      uploadedPaths.push(options.filePath);
       assert.equal(options.name, "image");
-      assert.equal(options.filePath, "wxfile://chosen-avatar");
       assert.equal(options.header.Authorization, "Bearer token-1");
       options.success({ statusCode: 201, data: JSON.stringify({ url: "https://cdn.test/avatar.png" }) });
     }
@@ -63,8 +64,11 @@ test("saving a wechat profile uploads the chosen avatar and refreshes the shared
     assert.equal(saved.at(-1).user.avatar_image, "https://cdn.test/avatar.png");
     assert.equal(appUser.name, "小雨");
 
+    await saveWechatProfile({ name: "小雨", avatarPath: "http://tmp/chosen-avatar.jpeg" });
+    assert.deepEqual(uploadedPaths, ["wxfile://chosen-avatar", "http://tmp/chosen-avatar.jpeg"]);
+
     const removedUser = await saveWechatProfile({ name: "小雨", avatarPath: "", allowEmptyAvatar: true });
-    assert.equal(uploadCount, 1);
+    assert.equal(uploadCount, 2);
     assert.deepEqual(calls.at(-1), { method: "PATCH", url: "/api/users/me", data: { name: "小雨", avatar_image: "" } });
     assert.equal(removedUser.avatar, "");
     assert.equal(removedUser.avatar_image, "");

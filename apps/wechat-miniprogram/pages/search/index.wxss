@@ -464,6 +464,31 @@ page {
   font-size: 24rpx;
 }
 
+.xf-native-search-progress {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin-bottom: 20rpx;
+  color: #7b6c9f;
+  font-size: 21rpx;
+  font-weight: 700;
+}
+
+.xf-native-search-progress-track {
+  flex: 1;
+  height: 8rpx;
+  overflow: hidden;
+  border-radius: 999rpx;
+  background: #e9e2f8;
+}
+
+.xf-native-search-progress-value {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #8b5cf6, #5e17eb);
+  transition: width 180ms ease;
+}
+
 .xf-native-search-retry {
   display: flex;
   align-items: center;

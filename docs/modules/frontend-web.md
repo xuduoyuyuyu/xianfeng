@@ -55,8 +55,10 @@
   and optional extra account profile data, optional profile screenshot upload,
   follower count, and real-name verification status without asking for account
   credentials.
-  `/admin/mama-resources` is the operator review and manual data-completion
-  screen. The admin task workflow is task-first: operators list a task, open the
+  `/admin/mama-resources` is the operator account-data screen. Its account list
+  defaults to all profiles and filters by child stage, child gender, linked-user
+  gender, and submitted media platform; verified real-name status is shown as a
+  green badge. The admin task workflow is task-first: operators list a task, open the
   task workspace, then filter only the accounts that already claimed that task.
   Claimant rows expose the matched site user ID, mobile, station profile,
   platform account, and claim time so operators can distinguish similar users.
@@ -80,7 +82,6 @@
   `/admin/welfare` is the operator screen for configuring welfare campaigns,
   emoji or uploaded covers, stock, date windows, publish state, and enriched
   claim history.
-
 ### Deferred / Obsolete
 
 - Move detailed visual tuning workflows into `frontend/docs/` when they become

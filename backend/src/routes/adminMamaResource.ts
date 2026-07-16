@@ -153,6 +153,9 @@ function buildListFilter(query: Request["query"]) {
   const minFollowers = asOptionalNumber(query.minFollowers);
   const operatorTag = asText(query.operatorTag);
   const orderBlocked = asText(query.orderBlocked);
+  const childStage = asText(query.childStage);
+  const childGender = asText(query.childGender);
+  const platform = asText(query.platform);
 
   if (STATUSES.includes(status as MamaResourceStatus)) {
     filter.status = status;
@@ -168,6 +171,11 @@ function buildListFilter(query: Request["query"]) {
   }
   if (orderBlocked === "true" || orderBlocked === "false") {
     filter.orderBlocked = orderBlocked === "true";
+  }
+  if (childStage) filter.childStage = childStage;
+  if (childGender) filter.childGender = childGender;
+  if (MEDIA_PLATFORMS.has(platform)) {
+    filter.$and = [{ $or: [{ "mediaAccounts.platform": platform }, { "socialAccount.platform": platform }] }];
   }
   if (search) {
     const pattern = new RegExp(escapeRegex(search), "i");
@@ -306,6 +314,11 @@ router.get("/", async (req: Request, res: Response) => {
     const page = Math.max(1, parseInt(asText(req.query.page), 10) || 1);
     const pageSize = Math.max(1, Math.min(100, parseInt(asText(req.query.pageSize || req.query.limit), 10) || 20));
     const filter = buildListFilter(req.query);
+    const userGender = asText(req.query.userGender);
+    if (userGender) {
+      const userIds = await User.find({ gender: userGender }).distinct("_id");
+      filter.userId = { $in: userIds };
+    }
     const [items, total] = await Promise.all([
       MamaResourceProfile.find(filter)
         .sort({ updatedAt: -1 })

@@ -1160,6 +1160,10 @@ test("native search page replaces the webview global search entry", () => {
   assert.match(wxml, /class="xf-native-search-clock"/);
   assert.match(wxml, /wx:for="\{\{tabs\}\}"/);
   assert.match(wxml, /wx:for="\{\{visibleResults\}\}"/);
+  assert.match(wxml, /wx:if="\{\{loading\}\}" class="xf-native-search-progress"/);
+  assert.match(wxml, /style="width: \{\{searchProgress\}\}%;"/);
+  assert.match(wxml, /wx:if="\{\{loading && !visibleResults\.length\}\}" class="xf-native-search-state"/);
+  assert.match(wxml, /wx:if="\{\{!error && visibleResults\.length\}\}" class="xf-native-search-list"/);
   assert.match(wxml, /item\.iconImage \? 'has-icon-image' : ''/);
   assert.match(wxml, /item\.type === 'topics' \? 'has-topic-emoji' : ''/);
   assert.match(wxml, /item\.imageFallback \? 'has-fallback-avatar' : ''/);
@@ -1171,6 +1175,8 @@ test("native search page replaces the webview global search entry", () => {
   assert.match(js, /DEFAULT_SEARCH_PROMPTS/);
   assert.match(js, /searchPrompt: getInitialSearchPrompt\(\)/);
   assert.match(js, /inputFocus: false/);
+  assert.match(js, /readingSource,\s*inputFocus: true/);
+  assert.match(js, /searchProgress: Math\.round\(\(completedGroups \/ resultGroups\.length\) \* 100\)/);
   assert.doesNotMatch(js, /clearHistoryConfirming/);
   assert.match(js, /startSearchPromptRotation\(this\)/);
   assert.match(js, /stopSearchPromptRotation\(this\)/);
@@ -1565,6 +1571,7 @@ test("native search renders fast result groups before slower requests finish", a
 
     assert.deepEqual(context.data.visibleResults.map((item) => item.title), ["Magic workshop"]);
     assert.equal(context.data.loading, true);
+    assert.equal(context.data.searchProgress, 20);
 
     pending.forEach((options) => options.success({ statusCode: 200, data: [] }));
     await loadPromise;
@@ -5690,6 +5697,7 @@ test("native first-level content tabs fetch API data and open detail wrapper rou
     assert.match(wxml, /wx:if="\{\{settingsPanelOpen\}\}" class="xf-native-settings-mask" style="height: \{\{settingsPanelHeight\}\}px;" catchtap="closeSettings"/);
     assert.match(js, /settingsSections: SETTINGS_SECTIONS/);
     assert.match(js, /\.\.\.createNativeSettingsMethods\(\)/);
+    assert.match(fs.readFileSync(new URL("../utils/nativeSettings.js", import.meta.url), "utf8"), /info\.screenHeight \|\| info\.windowHeight/);
     assert.match(wxss, /@import "\.\.\/\.\.\/styles\/native-list\.wxss";/);
     const nativeTopbarStyle = fs.readFileSync(new URL("../styles/native-list.wxss", import.meta.url), "utf8").match(/\.xf-native-topbar \{[\s\S]*?\n\}/)?.[0] || "";
     assert.match(nativeTopbarStyle, /background: #ffffff;/);
@@ -5698,11 +5706,11 @@ test("native first-level content tabs fetch API data and open detail wrapper rou
     assert.match(nativeSearchPanelStyle, /margin: 0 -26rpx;/);
     assert.doesNotMatch(nativeSearchPanelStyle, /width: 100%;/);
     const nativeSettingsMaskStyle = fs.readFileSync(new URL("../styles/native-list.wxss", import.meta.url), "utf8").match(/\.xf-native-settings-mask \{[\s\S]*?\n\}/)?.[0] || "";
-    assert.match(nativeSettingsMaskStyle, /bottom: -96rpx;/);
+    assert.match(nativeSettingsMaskStyle, /bottom: 0;/);
     assert.match(nativeSettingsMaskStyle, /z-index: 2147483647;/);
-    assert.match(nativeSettingsMaskStyle, /padding-bottom: 96rpx;/);
+    assert.doesNotMatch(nativeSettingsMaskStyle, /padding-bottom: 96rpx;/);
     const nativeListWxss = fs.readFileSync(new URL("../styles/native-list.wxss", import.meta.url), "utf8");
-    assert.match(nativeListWxss, /\.xf-native-settings-panel \{[\s\S]*width: 84vw;[\s\S]*max-width: 640rpx;[\s\S]*height: calc\(100vh \+ 96rpx\);[\s\S]*padding: 52rpx 34rpx 96rpx;[\s\S]*background: #f7f7f8;[\s\S]*box-shadow: -36rpx 0 90rpx rgba\(15, 23, 42, 0\.2\);/);
+    assert.match(nativeListWxss, /\.xf-native-settings-panel \{[\s\S]*width: 84vw;[\s\S]*max-width: 640rpx;[\s\S]*height: 100%;[\s\S]*padding: 52rpx 34rpx 0;[\s\S]*background: #f7f7f8;[\s\S]*box-shadow: -36rpx 0 90rpx rgba\(15, 23, 42, 0\.2\);/);
     assert.doesNotMatch(nativeListWxss.match(/\.xf-native-settings-panel \{[\s\S]*?\n\}/)?.[0] || "", /transparent calc\(100% - 192rpx\)/);
     assert.match(nativeListWxss, /\.xf-native-settings-panel-inner \{[\s\S]*display: flex;[\s\S]*flex-direction: column;[\s\S]*gap: 26rpx;[\s\S]*min-height: 0;/);
     assert.match(nativeListWxss, /\.xf-native-settings-account,[\s\S]*\.xf-native-settings-card \{[\s\S]*margin-bottom: 0;[\s\S]*background: #ffffff;/);
@@ -10711,8 +10719,8 @@ test("programs tab renders a native first-level list and opens details through t
     assert.match(js, /goProgramsHome\(\)\s*\{[\s\S]*navigateProgramsHome\(\);[\s\S]*\}/);
     assert.match(wxml, /wx:if="\{\{settingsPanelOpen\}\}" class="xf-program-settings-mask" style="height: \{\{settingsPanelHeight\}\}px;" catchtap="closeSettings" catchtouchmove="noop"/);
     assert.match(wxml, /<scroll-view class="xf-program-settings-panel" style="height: \{\{settingsPanelHeight\}\}px; padding-top: \{\{profilePanelTop\}\}px;" scroll-y="true" enhanced show-scrollbar="false" catchtap="noop"/);
-    assert.match(wxss, /\.xf-program-settings-mask \{[\s\S]*bottom: -96rpx;[\s\S]*z-index: 2147483647;[\s\S]*padding-bottom: 96rpx;/);
-    assert.match(wxss, /\.xf-program-settings-panel \{[\s\S]*height: calc\(100vh \+ 96rpx\);[\s\S]*padding: 52rpx 34rpx 96rpx;/);
+    assert.match(wxss, /\.xf-program-settings-mask \{[\s\S]*bottom: 0;[\s\S]*z-index: 2147483647;/);
+    assert.match(wxss, /\.xf-program-settings-panel \{[\s\S]*height: 100%;[\s\S]*padding: 52rpx 34rpx 0;/);
     assert.match(wxml, /<view class="xf-program-settings-panel-inner">\s*<block wx:if="\{\{settingsPanelView === 'menu'\}\}">/);
     assert.match(wxml, /data-page="\{\{accountPage\}\}" data-title="\{\{accountTitle\}\}"/);
     assert.match(wxml, /\{\{accountTitle\}\}/);
@@ -10772,8 +10780,8 @@ test("programs tab renders a native first-level list and opens details through t
     assert.match(wxss, /\.xf-program-menu-icon::before \{[\s\S]*left: 0;[\s\S]*width: 18rpx;/);
     assert.match(wxss, /\.xf-program-menu-icon::before \{[\s\S]*top: 10rpx;/);
     assert.doesNotMatch(wxss, /\.xf-program-menu-icon::after/);
-    assert.match(wxss, /\.xf-program-settings-mask \{[\s\S]*position: fixed;[\s\S]*bottom: -96rpx;[\s\S]*z-index: 2147483647;[\s\S]*justify-content: flex-end;[\s\S]*padding-bottom: 96rpx;[\s\S]*background: rgba\(15, 23, 42, 0\.58\);/);
-    assert.match(wxss, /\.xf-program-settings-panel \{[\s\S]*width: 84vw;[\s\S]*max-width: 640rpx;[\s\S]*height: calc\(100vh \+ 96rpx\);[\s\S]*padding: 52rpx 34rpx 96rpx;[\s\S]*background: #f7f7f8;[\s\S]*box-shadow: -36rpx 0 90rpx rgba\(15, 23, 42, 0\.2\);/);
+    assert.match(wxss, /\.xf-program-settings-mask \{[\s\S]*position: fixed;[\s\S]*bottom: 0;[\s\S]*z-index: 2147483647;[\s\S]*justify-content: flex-end;[\s\S]*background: rgba\(15, 23, 42, 0\.58\);/);
+    assert.match(wxss, /\.xf-program-settings-panel \{[\s\S]*width: 84vw;[\s\S]*max-width: 640rpx;[\s\S]*height: 100%;[\s\S]*padding: 52rpx 34rpx 0;[\s\S]*background: #f7f7f8;[\s\S]*box-shadow: -36rpx 0 90rpx rgba\(15, 23, 42, 0\.2\);/);
     assert.match(wxss, /\.xf-program-settings-panel-inner \{[\s\S]*display: flex;[\s\S]*flex-direction: column;[\s\S]*gap: 26rpx;[\s\S]*min-height: 0;/);
     assert.match(wxss, /\.xf-program-settings-account,[\s\S]*\.xf-program-settings-card \{[\s\S]*margin-bottom: 0;[\s\S]*background: #ffffff;/);
     assert.match(wxss, /\.xf-program-settings-card \{[\s\S]*border-radius: 24rpx;/);
@@ -10860,7 +10868,7 @@ test("programs tab renders a native first-level list and opens details through t
     assert.doesNotMatch(wxss, /\.xf-program-meta \{/);
     assert.match(wxss, /\.xf-program-card/);
     assert.match(wxss, /min-height: 100vh/);
-    assert.equal(wxss.includes("env(safe-area-inset-bottom)"), false);
+    assert.match(wxss, /padding: 52rpx 34rpx 0;/);
 
     definition.onLoad.call(context);
     await Promise.resolve();
@@ -11987,7 +11995,7 @@ test("mine hamburger settings drawer matches the mobile web menu grouping and co
   assert.match(wxml, /class="xf-native-settings-emoji-icon xf-mine-settings-icon"/);
   assert.match(wxml, /class="xf-native-settings-label xf-mine-settings-label"/);
   assert.match(wxml, /class="xf-native-settings-chevron xf-mine-settings-chevron"/);
-  assert.match(wxss, /\.xf-mine-settings-panel \{[\s\S]*width: 84vw;[\s\S]*max-width: 640rpx;[\s\S]*padding: 52rpx 34rpx 96rpx;[\s\S]*gap: 26rpx;[\s\S]*background: #f7f7f8;/);
+  assert.match(wxss, /\.xf-mine-settings-panel \{[\s\S]*width: 84vw;[\s\S]*max-width: 640rpx;[\s\S]*padding: 52rpx 34rpx 0;[\s\S]*gap: 26rpx;[\s\S]*background: #f7f7f8;/);
   assert.match(wxss, /\.xf-mine-settings-account,[\s\S]*\.xf-mine-settings-card \{[\s\S]*margin-bottom: 0;[\s\S]*background: #ffffff;/);
   assert.match(wxss, /\.xf-mine-settings-row \{[\s\S]*min-height: 96rpx;[\s\S]*padding: 0 30rpx;/);
   assert.match(wxss, /\.xf-mine-settings-icon \{[\s\S]*width: 34rpx;[\s\S]*height: 34rpx;/);
@@ -12420,7 +12428,7 @@ test("programs hamburger settings drawer renders native menu content", () => {
   assert.match(wxss, /\.xf-program-settings-symbol \{[\s\S]*font-size: 30rpx;/);
   assert.match(wxss, /\.xf-program-settings-emoji-icon \{[\s\S]*font-size: 28rpx;/);
   assert.match(wxss, /\.xf-program-settings-mask \{[\s\S]*z-index: 2147483647;/);
-  assert.match(wxss, /\.xf-program-settings-panel \{[\s\S]*padding: 52rpx 34rpx 96rpx;/);
+  assert.match(wxss, /\.xf-program-settings-panel \{[\s\S]*padding: 52rpx 34rpx 0;/);
   assert.match(wxss, /\.xf-program-settings-panel \{[\s\S]*width: 84vw;[\s\S]*max-width: 640rpx;/);
   assert.match(wxss, /\.xf-program-settings-account,[\s\S]*\.xf-program-settings-card \{[\s\S]*margin-bottom: 0;[\s\S]*background: #ffffff;/);
   assert.match(wxss, /\.xf-program-settings-card \{[\s\S]*border-radius: 24rpx;/);
@@ -12549,7 +12557,7 @@ test("hamburger profile entries stay inside the open half-panel when the page su
     assert.equal(context.data.settingsPanelView, "profile");
     assert.equal(context.data.profileDraft.name, "阿力");
     assert.equal(context.data.profileDraft.gender, "男");
-    assert.equal(context.data.profileAvatar, "/uploads/avatar.png");
+    assert.equal(context.data.profileAvatar, "https://xianfeng.xinzhi.info/uploads/avatar.png");
     assert.deepEqual(navigations, []);
 
     for (const view of ["archive", "memory"]) {
@@ -12731,22 +12739,24 @@ test("shared native settings personal profile panel persists the account profile
     context.loadProfilePanel();
     assert.equal(context.data.profileDraft.name, "阿力");
     assert.equal(context.data.profileDraft.gender, "男");
-    assert.equal(context.data.profileAvatar, "/uploads/avatar.png");
+    assert.equal(context.data.profileAvatar, "https://xianfeng.xinzhi.info/uploads/avatar.png");
     context.updateProfileName({ detail: { value: "新昵称" } });
     context.chooseProfileGender({ currentTarget: { dataset: { value: "女" } } });
     context.chooseProfileAvatar({ detail: { avatarUrl: "/tmp/new-avatar.png" } });
-    assert.equal(context.data.profileDraft.avatar, "/tmp/new-avatar.png");
-    context.saveProfilePanel();
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(storage.get("xf_user").name, "新昵称");
     assert.equal(storage.get("xf_user").gender, "女");
     assert.equal(storage.get("xf_user").avatar, "/uploads/new-avatar.png");
-    assert.equal(context.data.accountAvatar, "/uploads/new-avatar.png");
+    assert.equal(context.data.accountAvatar, "https://xianfeng.xinzhi.info/uploads/new-avatar.png");
     context.returnSettingsMenu();
     assert.equal(context.data.settingsPanelView, "menu");
-    assert.equal(context.data.accountAvatar, "/uploads/new-avatar.png");
+    assert.equal(context.data.accountAvatar, "https://xianfeng.xinzhi.info/uploads/new-avatar.png");
     assert.match(context.data.profilePanelMessage, /资料已保存/);
     context.removeProfileAvatar();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(storage.get("xf_user").avatar, "");
+    assert.equal(context.data.profileAvatar, "/assets/tabbar/xiaowanzi.png");
+    context.handleProfileAvatarError();
     assert.equal(context.data.profileAvatar, "/assets/tabbar/xiaowanzi.png");
   } finally {
     global.wx = originalWx;

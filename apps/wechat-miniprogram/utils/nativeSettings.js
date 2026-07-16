@@ -1,5 +1,5 @@
 const { openWeb } = require("./webview");
-const { request } = require("./request");
+const { request, buildUrl } = require("./request");
 const { getToken, getUser, setSession, clearSession } = require("./session");
 const { CHILD_PROFILES_KEY, WEB_CHILD_PROFILES_KEY, hasDuplicateChildDisplayName, maskMobile, mergeChildProfileRecords, parseStoredValue } = require("./profileState");
 const { rememberCurrentExternalPage } = require("./xiaowanziReturn");
@@ -189,10 +189,18 @@ function buildProfileView(draft, message) {
   };
   return {
     profileDraft,
-    profileAvatar: profileDraft.avatar || ACCOUNT_AVATAR,
+    profileAvatar: resolveAccountAvatar(profileDraft.avatar),
     profileGenderOptions: optionList(PROFILE_GENDERS, profileDraft.gender),
     profilePanelMessage: message || ""
   };
+}
+
+function resolveAccountAvatar(value) {
+  const source = String(value || "").trim();
+  if (!source) return ACCOUNT_AVATAR;
+  if (source.startsWith("/uploads/")) return buildUrl(source);
+  if (/^http:\/\/xianfeng\.xinzhi\.info(?=\/|$)/i.test(source)) return source.replace(/^http:/i, "https:");
+  return source;
 }
 
 function buildArchiveTabs(children, activeId) {
@@ -408,7 +416,7 @@ function setSettingsTabbarHidden(page, hidden) {
 function getSettingsPanelHeight() {
   try {
     const info = wx.getWindowInfo ? wx.getWindowInfo() : (wx.getSystemInfoSync ? wx.getSystemInfoSync() : {});
-    return Math.max(0, Math.round(Number(info.windowHeight || info.screenHeight || 0)));
+    return Math.max(0, Math.round(Number(info.screenHeight || info.windowHeight || 0)));
   } catch (_error) {
     return 0;
   }
@@ -548,21 +556,42 @@ function createNativeSettingsMethods() {
 
     chooseProfileGender(event) {
       const value = String((event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.value) || "");
-      this.setData(buildProfileView({ ...(this.data.profileDraft || {}), gender: value }, ""));
+      const view = buildProfileView({ ...(this.data.profileDraft || {}), gender: value }, "");
+      this.setData(view);
+      this.saveProfileDraft(view.profileDraft);
     },
 
     chooseProfileAvatar(event) {
       const path = String(event && event.detail && event.detail.avatarUrl || "").trim();
-      if (path) this.setData(buildProfileView({ ...(this.data.profileDraft || {}), avatar: path }, ""));
+      if (!path) return;
+      const view = buildProfileView({ ...(this.data.profileDraft || {}), avatar: path }, "");
+      this.setData(view);
+      this.saveProfileDraft(view.profileDraft);
     },
 
     removeProfileAvatar() {
-      this.setData(buildProfileView({ ...(this.data.profileDraft || {}), avatar: "" }, ""));
+      const view = buildProfileView({ ...(this.data.profileDraft || {}), avatar: "" }, "");
+      this.setData(view);
+      this.saveProfileDraft(view.profileDraft);
+    },
+
+    handleProfileAvatarError() {
+      this.setData({ profileAvatar: ACCOUNT_AVATAR });
+    },
+
+    autoSaveProfileName() {
+      this.saveProfileDraft(this.data.profileDraft || {});
     },
 
     saveProfilePanel() {
-      if (this._savingProfile) return;
-      const draft = this.data.profileDraft || {};
+      this.saveProfileDraft(this.data.profileDraft || {});
+    },
+
+    saveProfileDraft(draft) {
+      if (this._savingProfile) {
+        this._pendingProfileDraft = draft;
+        return;
+      }
       const name = String(draft.name || "").trim();
       if (!name) {
         this.setData(buildProfileView(draft, "请先填写昵称"));
@@ -583,7 +612,7 @@ function createNativeSettingsMethods() {
             ...buildProfileView(user, "资料已保存"),
             accountTitle: user.name || "微信用户",
             accountSubtitle: "查看和管理个人资料",
-            accountAvatar: user.avatar || ACCOUNT_AVATAR,
+            accountAvatar: resolveAccountAvatar(user.avatar),
             accountPage: "/pages/mine/index",
             accountPanelView: "profile"
           });
@@ -596,11 +625,19 @@ function createNativeSettingsMethods() {
           if (pendingSettingsLoginDataset && typeof this.openSettingsItem === "function") {
             this.openSettingsItem({ currentTarget: { dataset: pendingSettingsLoginDataset } });
           }
+          this.flushPendingProfileDraft();
         })
         .catch((error) => {
           this._savingProfile = false;
           this.setData(buildProfileView(draft, String(error && error.message || "资料保存失败")));
+          this.flushPendingProfileDraft();
         });
+    },
+
+    flushPendingProfileDraft() {
+      const draft = this._pendingProfileDraft;
+      this._pendingProfileDraft = null;
+      if (draft) this.saveProfileDraft(draft);
     },
 
     loadArchivePanel() {
@@ -1097,7 +1134,7 @@ function createNativeSettingsMethods() {
         maskedMobile: maskMobile(user && user.mobile),
         accountTitle: token && name ? String(name) : "登录/注册",
         accountSubtitle: accountSubtitleFor(token, settingsMemberBadgeLabel),
-        accountAvatar: token && user.avatar ? user.avatar : ACCOUNT_AVATAR,
+        accountAvatar: token ? resolveAccountAvatar(user.avatar) : ACCOUNT_AVATAR,
         accountPage: token ? "/pages/mine/index" : "",
         accountPanelView: token ? "profile" : "",
         settingsMemberBadgeLabel

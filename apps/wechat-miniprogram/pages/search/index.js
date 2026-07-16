@@ -375,6 +375,7 @@ Page({
     filteredResults: [],
     visibleResults: [],
     loading: false,
+    searchProgress: 0,
     error: ""
   },
 
@@ -392,7 +393,8 @@ Page({
       submittedQuery: query,
       recentKeywords: readHistory(),
       searchSource: "",
-      readingSource
+      readingSource,
+      inputFocus: true
     });
     this.loadData().then(() => {
       if (query) this.applySearch(query);
@@ -433,7 +435,7 @@ Page({
   loadData() {
     const loadGeneration = Number(this._searchLoadGeneration || 0) + 1;
     this._searchLoadGeneration = loadGeneration;
-    this.setData({ loading: true, error: "" });
+    this.setData({ loading: true, searchProgress: 0, error: "" });
     if (this.data.searchSource === "reading") {
       const booksRequest = this.data.readingSource === "external"
         ? request({ url: `/api/books/external?current=1&size=${SEARCH_PAGE_SIZE}` }).then(normalizeExternalBooks)
@@ -443,6 +445,7 @@ Page({
         this.setData({
           allResults,
           loading: false,
+          searchProgress: 100,
           error: allResults.length ? "" : "搜索内容加载失败，请稍后重试"
         });
         if (this.data.submittedQuery) this.applySearch(this.data.submittedQuery);
@@ -450,6 +453,7 @@ Page({
         if (this._searchLoadGeneration !== loadGeneration) return;
         this.setData({
           loading: false,
+          searchProgress: 100,
           error: (error && error.message) || "搜索内容加载失败，请稍后重试"
         });
       });
@@ -458,11 +462,13 @@ Page({
       ? request({ url: `/api/books/external?current=1&size=${SEARCH_PAGE_SIZE}` }).then(normalizeExternalBooks).catch(() => [])
       : request({ url: "/api/books" }).then(normalizeBooks).catch(() => []);
     const resultGroups = [[], [], [], [], []];
+    let completedGroups = 0;
     const publishGroup = (index, results) => {
       if (this._searchLoadGeneration !== loadGeneration) return results;
       resultGroups[index] = Array.isArray(results) ? results : [];
+      completedGroups += 1;
       const allResults = [].concat(resultGroups[0], resultGroups[1], resultGroups[2], resultGroups[3], resultGroups[4]);
-      this.setData({ allResults, error: "" });
+      this.setData({ allResults, searchProgress: Math.round((completedGroups / resultGroups.length) * 100), error: "" });
       if (this.data.submittedQuery) this.applySearch(this.data.submittedQuery);
       return results;
     };
@@ -479,6 +485,7 @@ Page({
       this.setData({
         allResults,
         loading: false,
+        searchProgress: 100,
         error: allResults.length ? "" : "搜索内容加载失败，请稍后重试"
       });
       if (this.data.submittedQuery) this.applySearch(this.data.submittedQuery);
@@ -486,6 +493,7 @@ Page({
       if (this._searchLoadGeneration !== loadGeneration) return;
       this.setData({
         loading: false,
+        searchProgress: 100,
         error: (error && error.message) || "搜索内容加载失败，请稍后重试"
       });
     });

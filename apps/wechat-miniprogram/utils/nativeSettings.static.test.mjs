@@ -76,9 +76,18 @@ test("native settings completes wechat nickname and avatar before continuing an 
   assert.match(nativeSettingsSource, /typeof this\.onNativeSettingsProfileSaved === "function"/);
   assert.match(sharedTemplateSource, /open-type="chooseAvatar" bindchooseavatar="chooseProfileAvatar"/);
   assert.match(sharedTemplateSource, /type="nickname"/);
-  assert.match(sharedTemplateSource, /wx:if="\{\{profileDraft\.avatar\}\}" class="xf-account-avatar-image"/);
-  assert.match(sharedTemplateSource, /wx:else class="xf-account-avatar-empty">未设置<\/view>/);
+  assert.match(sharedTemplateSource, /class="xf-account-avatar-image" src="\{\{profileAvatar\}\}" mode="aspectFill" binderror="handleProfileAvatarError"/);
+  assert.match(sharedTemplateSource, /bindinput="updateProfileName" bindblur="autoSaveProfileName"/);
   assert.match(sharedTemplateSource, /wx:if="\{\{profileDraft\.avatar\}\}" bindtap="removeProfileAvatar">移除头像<\/button>/);
+  assert.match(sharedTemplateSource, /bindtap="saveProfilePanel">保存资料<\/button>/);
+  assert.match(nativeSettingsSource, /chooseProfileGender\(event\)[\s\S]*this\.saveProfileDraft\(view\.profileDraft\)/);
+  assert.match(nativeSettingsSource, /chooseProfileAvatar\(event\)[\s\S]*this\.saveProfileDraft\(view\.profileDraft\)/);
+  assert.match(nativeSettingsSource, /removeProfileAvatar\(\)[\s\S]*this\.saveProfileDraft\(view\.profileDraft\)/);
+  assert.match(nativeSettingsSource, /autoSaveProfileName\(\)[\s\S]*this\.saveProfileDraft/);
+  assert.match(nativeSettingsSource, /this\._pendingProfileDraft = draft/);
+  assert.match(nativeSettingsSource, /flushPendingProfileDraft\(\)[\s\S]*this\.saveProfileDraft\(draft\)/);
+  assert.match(nativeSettingsSource, /source\.startsWith\("\/uploads\/"\)[\s\S]*buildUrl\(source\)/);
+  assert.match(nativeSettingsSource, /xianfeng\\\.xinzhi\\\.info/);
 });
 
 test("native settings continues to the tapped menu item after phone login", async () => {

@@ -11110,11 +11110,6 @@
       grid-template-columns: repeat(12, minmax(0, 1fr));
     }
   }
-  .lg\:grid-cols-\[1\.2fr_0\.9fr_0\.9fr_0\.8fr_auto\] {
-    @media (width >= 64rem) {
-      grid-template-columns: 1.2fr 0.9fr 0.9fr 0.8fr auto;
-    }
-  }
   .lg\:grid-cols-\[280px_minmax\(0\,1fr\)\] {
     @media (width >= 64rem) {
       grid-template-columns: 280px minmax(0,1fr);
@@ -11274,6 +11269,11 @@
   .xl\:grid-cols-4 {
     @media (width >= 80rem) {
       grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+  .xl\:grid-cols-5 {
+    @media (width >= 80rem) {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
     }
   }
   .xl\:grid-cols-6 {
