@@ -1250,8 +1250,10 @@ export function applyTranscriptQualitySegments(
       .map((segment) => asText(segment.text))
       .join("")
       .replace(/家长先锋/g, "家长先疯");
-    const finalText = sourceText.length >= 10 && sourceText.length < 50 ? sourceText : text;
-    const minimumFaithfulLength = Math.min(50, Math.max(10, Math.ceil(sourceText.length * 0.5)));
+    const finalText = sourceText.length >= 1 && sourceText.length < 50 ? sourceText : text;
+    const minimumFaithfulLength = sourceText.length < 50
+      ? Math.max(1, sourceText.length)
+      : Math.min(50, Math.ceil(sourceText.length * 0.5));
     const sourceSpeakers = Array.from(new Set(
       source.slice(startIndex, endIndex + 1).map((segment) => normalizeFinalSpeakerLabel(segment.speaker, guestNames)).filter(Boolean)
     ));
@@ -1347,7 +1349,7 @@ export async function ensureTranscriptQuality(input: {
   const refined: TranscriptSegment[] = [];
   for (const chunk of chunks) {
     const shortTurnText = chunk.map((segment) => asText(segment.text)).join("").replace(/家长先锋/g, "家长先疯");
-    if (shortTurnText.length >= 10 && shortTurnText.length < 50) {
+    if (shortTurnText.length >= 1 && shortTurnText.length < 50) {
       const speaker = normalizeFinalSpeakerLabel(chunk[0].speaker, guestNames);
       if (!speaker) throw new Error("逐字稿未通过50至200字、品牌名或说话人实名质检");
       refined.push({

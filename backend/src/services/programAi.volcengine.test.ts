@@ -25,9 +25,9 @@ assert.deepEqual(
   }], ["魏亚妮"])?.map((item) => ({ speaker: item.speaker, time: item.time })),
   [{ speaker: "嘉宾·魏亚妮", time: "00:00-00:10" }]
 );
-assert.equal(applyTranscriptQualitySegments([
+assert.deepEqual(applyTranscriptQualitySegments([
   { time: "00:00-00:05", speaker: "主播·阿力", text: "短句" },
-], [{ startIndex: 0, endIndex: 0, speaker: "主播·阿力", text: "不足五十字" }], ["魏亚妮"]), null);
+], [{ startIndex: 0, endIndex: 0, speaker: "主播·阿力", text: "不足五十字" }], ["魏亚妮"])?.map((item) => item.text), ["短句"]);
 assert.equal(needsTranscriptSpeakerAttribution([
   { time: "0", speaker: "主播·阿力", text: "1" },
   { time: "1", speaker: "主播·Jessie", text: "2" },
