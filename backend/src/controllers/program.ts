@@ -714,12 +714,29 @@ function mergeAiIntoPayload(payload: any, generated: any, transcript: any[]) {
     profileUrl: mergePreferManualText(next.guest?.profileUrl, generated?.guest?.profileUrl),
   };
 
+  const generatedQuickView = Array.isArray(generated?.contentPack?.quickView)
+    ? generated.contentPack.quickView.filter((item: any) => asText(item?.summary))
+    : [];
+  const generatedMindMap = generatedQuickView.length
+    ? {
+        root: {
+          title: asText(generated?.summary?.headline) || asText(generated?.episodeTitle) || "本期内容脉络",
+          summary: asText(generated?.summary?.body),
+          children: generatedQuickView.map((item: any, index: number) => ({
+            title: asText(item?.timeRangeLabel) || `第${index + 1}部分`,
+            summary: asText(item?.summary),
+            source: { type: "transcript", time: asText(item?.timeRangeLabel) },
+          })),
+        },
+        generatedAt: new Date(),
+      }
+    : undefined;
   next.deepDive = {
     sectionTitle: mergePreferManualText(next.deepDive?.sectionTitle, generated?.deepDive?.sectionTitle),
     curatedReading: mergePreferManualArray(next.deepDive?.curatedReading, generated?.deepDive?.curatedReading),
     mindMap: next.deepDive?.mindMap && next.deepDive.mindMap.root && (next.deepDive.mindMap.root.title || (next.deepDive.mindMap.root.children && next.deepDive.mindMap.root.children.length > 0))
       ? next.deepDive.mindMap
-      : undefined,
+      : generatedMindMap,
   };
 
   next.contentPack = mergeContentPack(next.contentPack, generated?.contentPack);
