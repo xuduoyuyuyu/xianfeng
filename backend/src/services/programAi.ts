@@ -1199,7 +1199,7 @@ export async function ensureTranscriptSpeakerAttribution(input: {
     if (/^(?:主播·)?(?:阿力|ali)$/i.test(rawSpeaker)) return { ...segment, speaker: "主播·阿力" };
     if (/^(?:主播·)?jessie$/i.test(rawSpeaker)) return { ...segment, speaker: "主播·Jessie" };
     const match = rawSpeaker.match(/^嘉宾(\d*)$/u);
-    if (!match) return segment;
+    if (!match || !usableGuestNames.length) return segment;
     const guestIndex = match[1] ? Math.max(0, Number(match[1]) - 1) : 0;
     return { ...segment, speaker: `嘉宾·${usableGuestNames[guestIndex] || usableGuestNames[0]}` };
   });
