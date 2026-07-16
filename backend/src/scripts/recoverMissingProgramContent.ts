@@ -44,12 +44,21 @@ async function main() {
       .map((value) => value.trim())
       .filter(Boolean)
   );
+  const onlyProgramCodes = new Set(
+    (process.env.RECOVERY_ONLY_PROGRAM_CODES || "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean)
+  );
   const visiblePrograms = await Program.find({
     status: { $in: ["published", "group-only"] },
     "episodes.0.url": { $exists: true, $ne: "" },
   }).lean();
   const targets = visiblePrograms
-    .filter((program) => !hasGeneratedContent(program) || forcedProgramCodes.has(program.programCode || ""))
+    .filter((program) =>
+      (!onlyProgramCodes.size || onlyProgramCodes.has(program.programCode || "")) &&
+      (!hasGeneratedContent(program) || forcedProgramCodes.has(program.programCode || ""))
+    )
     .sort((a, b) => durationSeconds(a.episodes?.[0]?.duration) - durationSeconds(b.episodes?.[0]?.duration));
 
   console.log(JSON.stringify({ event: "recovery_targets", count: targets.length, codes: targets.map((p) => p.programCode) }));
