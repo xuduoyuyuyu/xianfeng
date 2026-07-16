@@ -1,6 +1,7 @@
 import assert from "assert";
 import {
   buildParagraphTranscriptFromTimedItems,
+  applyTranscriptSpeakerAssignments,
   extractUtteranceSpeaker,
   getVolcengineFlashMaxLocalBytes,
   isVolcengineStandardQueryComplete,
@@ -9,6 +10,25 @@ import {
   shouldAttemptVolcengineFlashEndpoint,
   shouldUseVolcengineStandardEndpoint,
 } from "./programAi";
+
+const singleSpeakerTranscript = [
+  { time: "00:00-00:10", speaker: "阿力", text: "今天我们请老师聊聊为什么离开学校。" },
+  { time: "00:10-00:20", speaker: "阿力", text: "我觉得人生没有几个两年，所以选择辞职。" },
+];
+assert.deepEqual(
+  applyTranscriptSpeakerAssignments(singleSpeakerTranscript, [
+    { index: 0, speaker: "阿力" },
+    { index: 1, speaker: "嘉宾" },
+  ])?.map((item) => item.speaker),
+  ["阿力", "嘉宾"]
+);
+assert.equal(
+  applyTranscriptSpeakerAssignments(singleSpeakerTranscript, [
+    { index: 0, speaker: "阿力" },
+    { index: 1, speaker: "阿力" },
+  ]),
+  null
+);
 
 assert.equal(extractUtteranceSpeaker({ additions: { speaker: "2" } }), "2");
 assert.deepEqual(

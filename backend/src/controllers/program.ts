@@ -7,7 +7,7 @@ import { promisify } from "util";
 import Program from "../models/Program";
 import Book from "../models/Book";
 import GuestModel from "../models/Guest";
-import { generateMindMap, resolveProgramAiProvider } from "../services/programAi";
+import { ensureTranscriptSpeakerAttribution, generateMindMap, resolveProgramAiProvider } from "../services/programAi";
 import { uploadLocalAudioToTosAndSign } from "../services/programAi";
 import mongoose from "mongoose";
 import { attachDictionaryEntriesToPrograms, isHighQualityEducationTerm, removeProgramFromDictionary, syncProgramDictionaryEntries } from "../services/educationDictionary";
@@ -1286,7 +1286,7 @@ async function tryAutoGenerate(
     }
     await onProgress?.(12, "transcribing");
     console.log("[ai-program] start transcription", { transcribePath, sourceUrlForAsr: sourceUrlForAsr || "(local-only)" });
-    const transcription = await provider.transcribeAudio(transcribePath, {
+    const rawTranscription = await provider.transcribeAudio(transcribePath, {
       sourceUrl: sourceUrlForAsr,
       onProgress: async (progress, stage) => {
         const normalizedStage = asText(stage) || "transcribing";
@@ -1294,6 +1294,7 @@ async function tryAutoGenerate(
         await onProgress?.(safeProgress, normalizedStage);
       },
     });
+    const transcription = await ensureTranscriptSpeakerAttribution(rawTranscription);
     await onProgress?.(62, "transcribed");
     console.log("[ai-program] transcription done", { segments: transcription.transcript.length });
     await onProgress?.(76, "extracting");

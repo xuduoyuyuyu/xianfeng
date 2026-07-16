@@ -1115,6 +1115,89 @@ async function extractMetadataWithPreferredTextProvider(
   return extractMetadataWithArk(input, fallbackTitle);
 }
 
+export function applyTranscriptSpeakerAssignments(
+  transcript: TranscriptSegment[],
+  assignments: unknown
+): TranscriptSegment[] | null {
+  const rows = Array.isArray(assignments) ? assignments : [];
+  if (rows.length !== transcript.length) return null;
+  const labels = new Map<number, string>();
+  for (const row of rows as any[]) {
+    const index = Number(row?.index);
+    const rawLabel = asText(row?.speaker);
+    const label = /^jessie$/i.test(rawLabel)
+      ? "Jessie"
+      : /^(?:阿力|ali)$/i.test(rawLabel)
+        ? "阿力"
+        : /^嘉宾\d*$/u.test(rawLabel)
+          ? rawLabel
+          : "";
+    if (!Number.isInteger(index) || index < 0 || index >= transcript.length || !label || labels.has(index)) return null;
+    labels.set(index, label);
+  }
+  const distinct = new Set(labels.values());
+  const hasHost = distinct.has("阿力") || distinct.has("Jessie");
+  const hasGuest = Array.from(distinct).some((label) => label.startsWith("嘉宾"));
+  if (!hasHost || !hasGuest) return null;
+  return transcript.map((segment, index) => ({ ...segment, speaker: labels.get(index)! }));
+}
+
+async function attributeTranscriptSpeakersWithProvider(
+  transcript: TranscriptSegment[],
+  config: MetadataLlmConfig | null
+): Promise<TranscriptSegment[] | null> {
+  if (!config) return null;
+  const segments = transcript.map((segment, index) => ({
+    index,
+    time: segment.time,
+    text: segment.text.slice(0, 500),
+  }));
+  const prompt = [
+    "你是播客逐字稿编辑。请判断每一段是谁在说话。",
+    "主播通常是阿力或Jessie，其他人统一写嘉宾；多位嘉宾依次写嘉宾、嘉宾2、嘉宾3。",
+    "根据开场、自我介绍、提问与回答、上下文衔接判断。不得遗漏、合并或新增段落。",
+    '只输出JSON：{"assignments":[{"index":0,"speaker":"阿力"}]}。',
+    JSON.stringify(segments),
+  ].join("\n");
+  try {
+    const response = await fetch(config.baseUrl.replace(/\/$/, "") + "/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.apiKey}` },
+      body: JSON.stringify({
+        model: config.modelId,
+        temperature: 0,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: `你通过 ${config.providerName} 校对播客说话人，只输出JSON。` },
+          { role: "user", content: prompt },
+        ],
+      }),
+    });
+    if (!response.ok) return null;
+    const json: any = await response.json().catch(() => ({}));
+    const content = asText(json?.choices?.[0]?.message?.content);
+    if (!content) return null;
+    const parsed = JSON.parse(content);
+    return applyTranscriptSpeakerAssignments(transcript, parsed?.assignments);
+  } catch (_error) {
+    return null;
+  }
+}
+
+export async function ensureTranscriptSpeakerAttribution(input: {
+  transcript: TranscriptSegment[];
+  plainText: string;
+  durationSeconds: number;
+}): Promise<typeof input> {
+  const speakers = new Set(input.transcript.map((segment) => asText(segment.speaker)).filter(Boolean));
+  if (input.transcript.length < 4 || speakers.size > 1) return input;
+  const attributed =
+    await attributeTranscriptSpeakersWithProvider(input.transcript, resolveDeepSeekMetadataConfig()) ||
+    await attributeTranscriptSpeakersWithProvider(input.transcript, resolveArkMetadataConfig());
+  if (!attributed) throw new Error("说话人分轨失败，文本模型未能可靠区分主播与嘉宾");
+  return { ...input, transcript: attributed };
+}
+
 class OpenAIProgramAiProvider implements ProgramAiProvider {
   private readonly apiKey: string;
   private readonly transcribeModel: string;
