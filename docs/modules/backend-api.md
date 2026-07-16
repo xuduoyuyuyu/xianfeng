@@ -236,6 +236,13 @@
   instead of the intake form. Public task submission stores proof link plus
   screenshot URL on the assignment before admin review marks it collected or
   rejected.
+- Admin `GET /api/users/:id/overview` is a read-only user-360 aggregation. It
+  combines the site account, Xiaowanzi child profiles and child memories,
+  existing authenticated page-view records, and Mama Haozhuan profile/task
+  assignment timestamps into one reverse-chronological timeline. It does not
+  introduce new behavioral tracking or mutate source records; Mama Haozhuan
+  ownership resolves by `userId` first and normalized mobile as the legacy
+  fallback.
 - Welfare campaigns are independent from guest listener benefits and Mama
   Haozhuan tasks. `WelfareCampaign` stores the uploaded/configured activity,
   stock, date window, publish state, claim instructions, and optional external

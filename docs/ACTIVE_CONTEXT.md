@@ -66,6 +66,12 @@ and missing screenshots after 24 hours are marked overdue. Admin can filter all
 three states from quick choices in the existing user-filter area without
 storing a second status field.
 
+Admin user management now opens a read-only user-360 detail from each account.
+It aggregates the site profile, Xiaowanzi child profiles and child memories,
+authenticated page visits already collected by the existing tracker, and Mama
+Haozhuan profile/task timestamps into one reverse-chronological timeline. This
+uses existing records only and does not add universal click or search tracking.
+
 Mini-program Mama Haozhuan form drafts are persisted only for the current
 logged-in account and use an account-scoped storage key. Logged-out, logout,
 account-deletion, and unauthorized states reset private form and task data; the

@@ -1001,6 +1001,23 @@ export interface User {
   updatedAt?: string;
 }
 
+export interface AdminUserTimelineItem {
+  occurredAt: string;
+  type: 'account' | 'profile' | 'child' | 'memory' | 'mama' | 'page';
+  title: string;
+  detail: string;
+}
+
+export interface AdminUserOverview {
+  user: User;
+  childProfiles: Array<Record<string, any>>;
+  childMemories: NonNullable<User['childMemories']>;
+  mamaProfile?: MamaResourceProfile | null;
+  mamaAssignments: Array<Omit<MamaResourceTaskAssignment, 'task'> & { task?: Pick<MamaResourceTask, '_id' | 'title' | 'category' | 'status'> | null }>;
+  pageVisitCount: number;
+  timeline: AdminUserTimelineItem[];
+}
+
 export interface BillingPlan {
   id: 'free' | 'plus' | 'pro';
   name: string;
@@ -1568,6 +1585,7 @@ export const adminApi = {
     api.get<Blob>(`/admin/welfare/${id}/claims/export`, { responseType: "blob" }),
 
   getUsers: () => api.get<User[]>('/users'),
+  getUserOverview: (id: string) => api.get<AdminUserOverview>(`/users/${id}/overview`),
   getUserPortrait: (params?: { role?: string; city?: string; grade?: string }) =>
     api.get<UserPortraitResponse>("/users/portrait", { params }),
   createUser: (data: Partial<User> & { password: string }) => api.post<{ message: string; user: User }>('/users/register', data),

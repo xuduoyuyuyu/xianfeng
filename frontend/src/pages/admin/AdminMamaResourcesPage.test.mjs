@@ -29,7 +29,7 @@ test("admin mama resources page defaults to all profiles and exposes profile fil
   assert.match(source, /mode === "review"/);
   assert.match(source, /账号资料/);
   assert.match(source, /useState<MamaResourceStatus \| "all">\("all"\)/);
-  assert.match(source, /待审核/);
+  assert.doesNotMatch(source, /\{ value: "pending", label: "待审核" \}/);
   assert.match(source, /可派单/);
   assert.match(source, /资料不足/);
   assert.match(source, /暂不合适/);
@@ -66,6 +66,9 @@ test("admin mama resources page shows account cards without removed offer and ca
   assert.match(source, /运营备注/);
   assert.match(source, /className="flex flex-wrap content-start items-start gap-1"/);
   assert.match(source, /className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-\[#f6f0ff\] px-2 py-1 text-xs font-bold leading-none text-\[#5e17eb\]"/);
+  assert.match(source, /profile\.mediaAccounts\?\.length \? profile\.mediaAccounts : \[profile\.socialAccount\]/);
+  assert.match(source, /account\.nickname \|\| mediaPlatformLabel\[account\.platform\] \|\| "未填昵称"/);
+  assert.match(source, /toCount\(account\.followerCount\)/);
 });
 
 test("admin mama resource api supports list, review, and manual update", () => {
@@ -235,6 +238,9 @@ test("admin mama resource review edits and saves every submitted media account",
   assert.match(source, /updateManualMediaAccount\(index, "followerCount"/);
   assert.match(source, /const mediaAccounts = manualMediaAccounts\.map/);
   assert.match(source, /mediaAccounts,[\s\S]*socialAccount: primaryXiaohongshuAccount/);
+  assert.match(source, /function extractProfileUrl\(value\?: string\)/);
+  assert.match(source, /match\(\/https\?:\\\/\\\/\[\^\\s<>/);
+  assert.match(source, /href=\{extractProfileUrl\(account\.profileUrl\)\}/);
 });
 
 test("admin task assignments support manual and previewed personal content link imports", () => {
@@ -253,6 +259,8 @@ test("admin task assignments support manual and previewed personal content link 
   assert.match(source, /aria-label="导入专属链接"/);
   assert.match(source, /选择 Excel 文件/);
   assert.match(source, /下载导入模板/);
+  assert.match(source, /downloadContentImportTemplate[^>]*className="inline-flex h-9 items-center justify-center whitespace-nowrap/);
+  assert.match(source, /<label className=\{`inline-flex h-9 items-center justify-center whitespace-nowrap[^`]*`\}>[\s\S]*选择 Excel 文件/);
   assert.match(source, /previewMamaResourceContentImport/);
   assert.match(source, /commitMamaResourceContentImport/);
   assert.match(source, /确认导入/);

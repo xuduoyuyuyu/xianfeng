@@ -271,6 +271,7 @@ function buildLoggedOutMamaResourceState() {
     ...buildApplyDraftState(cloneEmptyApplyDraft()),
     mamaResourceView: "apply",
     profileManagerMode: "overview",
+    addingMediaAccountOnly: false,
     isLoggedIn: false,
     mamaResourceProfile: null,
     mamaTasks: [],
@@ -1154,7 +1155,7 @@ Page({
   },
 
   openMediaAccountsManager() {
-    this.setData({ profileManagerMode: "media", message: "", messageType: "" });
+    this.setData({ profileManagerMode: "media", addingMediaAccountOnly: false, message: "", messageType: "" });
   },
 
   openPreferenceEditor() {
@@ -1295,6 +1296,12 @@ Page({
   addMediaAccount() {
     const mediaAccounts = normalizeExtraMediaAccounts(this.data.mediaAccounts).concat(blankMediaAccount());
     updatePageApplyDraft(this, { mediaAccounts });
+  },
+
+  openNewMediaAccount() {
+    const mediaAccounts = normalizeExtraMediaAccounts(this.data.mediaAccounts).concat(blankMediaAccount());
+    updatePageApplyDraft(this, { mediaAccounts });
+    this.setData({ profileManagerMode: "media", addingMediaAccountOnly: true, message: "", messageType: "" });
   },
 
   savePersonalInfo(event) {

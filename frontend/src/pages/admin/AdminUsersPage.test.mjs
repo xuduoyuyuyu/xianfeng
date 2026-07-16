@@ -14,6 +14,16 @@ test("admin users page surfaces frontend child memories", () => {
   assert.match(source, /whitespace-pre-wrap/, "memory summaries should preserve line breaks for review");
 });
 
+test("admin users page opens an aggregated profile and behavior timeline", () => {
+  assert.match(source, /adminApi\.getUserOverview\(row\._id\)/);
+  assert.match(source, /查看用户画像与时间线/);
+  assert.match(source, /孩子基本情况/);
+  assert.match(source, /妈妈好赚/);
+  assert.match(source, /用户时间线/);
+  assert.match(source, /overview\.timeline\.map/);
+  assert.match(source, /createPortal\([\s\S]*document\.body/);
+});
+
 test("static admin users screen uses the admin session for role updates", () => {
   assert.match(
     staticSource,

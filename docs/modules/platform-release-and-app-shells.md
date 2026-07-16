@@ -72,6 +72,9 @@
   result groups while the remaining content sources load. A segmented progress
   indicator reflects completed source requests; skeletons are reserved for the
   interval before the first matching result arrives.
+  Mama Haozhuan profile overview places task preferences before personal data
+  and exposes a bottom action that opens the existing media-account editor with
+  one new unselected platform account draft.
   The Baibaoxiang welfare shortcut opens native `pages/welfare/index` so the
   page uses mini-program chrome and hides backend 404s as an empty welfare
   state. Claim success is handled in the native page with the configured claim

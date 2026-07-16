@@ -7,6 +7,10 @@ import dotenv from "dotenv";
 import { AuthenticatedRequest } from "../middlewares/auth";
 import { sendMobileCodeByVolcengine } from "../services/smsVolcengine";
 import UserChildMemory from "../models/UserChildMemory";
+import UserXiaowanziSync from "../models/UserXiaowanziSync";
+import MamaResourceProfile from "../models/MamaResourceProfile";
+import MamaResourceTaskAssignment from "../models/MamaResourceTaskAssignment";
+import MamaResourceTask from "../models/MamaResourceTask";
 import { splitChildMemoryItems } from "../services/childMemory";
 import { grantFreeLoginPointsForUser, serializeBillingUser } from "../services/billing";
 import {
@@ -897,6 +901,86 @@ export class UserController {
       res.status(200).json(rows);
     } catch (error) {
       res.status(500).json({ message: "获取用户列表失败", error });
+    }
+  }
+
+  async getOverview(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const user = await User.findById(req.params.id).select("-password").lean();
+      if (!user) {
+        res.status(404).json({ message: "用户不存在" });
+        return;
+      }
+
+      const userId = String(user._id);
+      const usernameMobile = String(user.username || "").trim().match(/^u?(1\d{10})$/)?.[1] || "";
+      const mobile = String(user.mobile || "").trim() || usernameMobile;
+      const profileQuery: any = mobile
+        ? { $or: [{ userId: user._id }, { contactPhone: mobile }] }
+        : { userId: user._id };
+      const [sync, childMemories, pageVisits, mamaProfile] = await Promise.all([
+        UserXiaowanziSync.findOne({ userId: user._id }).lean(),
+        UserChildMemory.find({ userId: user._id }).sort({ updatedAt: -1 }).lean(),
+        UserPageVisit.find({ userId: user._id }).sort({ visitedAt: -1 }).limit(100).lean(),
+        MamaResourceProfile.findOne(profileQuery).lean(),
+      ]);
+
+      const assignments = mamaProfile
+        ? await MamaResourceTaskAssignment.find({ profileId: mamaProfile._id }).sort({ createdAt: -1 }).lean()
+        : [];
+      const taskIds = assignments.map((item: any) => item.taskId);
+      const tasks = taskIds.length
+        ? await MamaResourceTask.find({ _id: { $in: taskIds } }).select("title category status").lean()
+        : [];
+      const taskMap = new Map(tasks.map((task: any) => [String(task._id), task]));
+      const mamaAssignments = assignments.map((assignment: any) => ({
+        ...assignment,
+        task: taskMap.get(String(assignment.taskId)) || null,
+      }));
+
+      const timeline: Array<{ occurredAt: Date | string; type: string; title: string; detail: string }> = [];
+      const addEvent = (occurredAt: any, type: string, title: string, detail = "") => {
+        if (occurredAt) timeline.push({ occurredAt, type, title, detail });
+      };
+      addEvent(user.createdAt, "account", "注册账号", user.name || user.username);
+      (user.changeHistory || []).forEach((item: any) => {
+        addEvent(item.changedAt, "profile", "更新用户资料", `${item.field}：${item.oldValue || "空"} → ${item.newValue || "空"}`);
+      });
+      (sync?.childProfiles || []).forEach((child: any, index: number) => {
+        addEvent(child.updatedAt || child.createdAt || sync?.updatedAt, "child", "更新孩子档案", child.name || child.nickname || child.grade || `孩子 ${index + 1}`);
+      });
+      childMemories.forEach((memory: any) => {
+        addEvent(memory.updatedAt, "memory", "更新孩子记忆", memory.childId || "孩子档案");
+      });
+      if (mamaProfile) {
+        addEvent(mamaProfile.createdAt, "mama", "开通妈妈好赚资料", mamaProfile.displayName || "");
+        if (String(mamaProfile.updatedAt) !== String(mamaProfile.createdAt)) {
+          addEvent(mamaProfile.updatedAt, "mama", "更新妈妈好赚资料", `${mamaProfile.mediaAccounts?.length || 1} 个平台账号`);
+        }
+      }
+      mamaAssignments.forEach((assignment: any) => {
+        const taskTitle = assignment.task?.title || "妈妈好赚任务";
+        addEvent(assignment.createdAt, "mama", "领取妈妈好赚任务", taskTitle);
+        addEvent(assignment.contentUpdatedAt, "mama", "分配专属内容", taskTitle);
+        addEvent(assignment.submittedAt, "mama", "提交任务返图", taskTitle);
+        addEvent(assignment.reviewedAt, "mama", "任务完成审核", `${taskTitle} · ${assignment.status}`);
+      });
+      pageVisits.forEach((visit: any) => {
+        addEvent(visit.visitedAt, "page", "访问页面", visit.pageTitle || visit.pagePath);
+      });
+      timeline.sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
+
+      res.status(200).json({
+        user,
+        childProfiles: sync?.childProfiles || [],
+        childMemories,
+        mamaProfile,
+        mamaAssignments,
+        pageVisitCount: pageVisits.length,
+        timeline,
+      });
+    } catch (error) {
+      res.status(500).json({ message: "获取用户画像失败", error });
     }
   }
 

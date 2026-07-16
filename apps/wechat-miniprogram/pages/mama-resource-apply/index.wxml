@@ -40,6 +40,14 @@
 
         <block wx:if="{{profileManagerMode === 'overview'}}">
           <view class="xf-mama-info-list">
+            <view class="xf-mama-info-row is-preference" catchtap="openPreferenceEditor">
+              <view>
+                <text class="xf-mama-info-title">接单偏好</text>
+                <text class="xf-mama-info-copy">{{profileOverview.preferenceSummary}}</text>
+                <text class="xf-mama-info-copy">{{profileOverview.consentSummary}}</text>
+              </view>
+              <text class="xf-mama-info-action">编辑</text>
+            </view>
             <view class="xf-mama-info-row is-personal" catchtap="openPersonalInfoEditor">
               <view>
                 <text class="xf-mama-info-title">个人资料</text>
@@ -64,13 +72,8 @@
               </view>
               <text wx:if="{{item.summary}}" class="xf-mama-info-account-summary">{{item.summary}}</text>
             </view>
-            <view class="xf-mama-info-row is-preference" catchtap="openPreferenceEditor">
-              <view>
-                <text class="xf-mama-info-title">接单偏好</text>
-                <text class="xf-mama-info-copy">{{profileOverview.preferenceSummary}}</text>
-                <text class="xf-mama-info-copy">{{profileOverview.consentSummary}}</text>
-              </view>
-              <text class="xf-mama-info-action">编辑</text>
+            <view class="xf-mama-add-account-row">
+              <button type="button" class="xf-mama-add-account" catchtap="openNewMediaAccount">添加新平台账号</button>
             </view>
           </view>
           <view wx:if="{{message}}" class="xf-mama-message {{messageType}}">{{message}}</view>
@@ -108,9 +111,10 @@
 
         <view wx:elif="{{profileManagerMode === 'media'}}">
           <view class="xf-mama-editor-head">
-            <text class="xf-mama-section-heading">社交媒体账号</text>
+            <text class="xf-mama-section-heading">{{addingMediaAccountOnly ? "添加平台账号" : "社交媒体账号"}}</text>
             <view class="xf-mama-editor-back" catchtap="saveCurrentProfileSectionAndBack" role="button">保存并返回</view>
           </view>
+          <block wx:if="{{!addingMediaAccountOnly}}">
           <label class="xf-mama-field">账号昵称<text class="xf-mama-required">*</text><input name="xiaohongshuNickname" value="{{formDraft.xiaohongshuNickname}}" data-field="xiaohongshuNickname" bindinput="updateDraftField" placeholder="必填" placeholder-class="xf-mama-placeholder" /></label>
           <label class="xf-mama-field">小红书主页链接<text class="xf-mama-required">*</text><input class="{{formDraft.originalXiaohongshuProfileUrl ? 'is-locked' : ''}}" name="xiaohongshuProfileUrl" value="{{formDraft.xiaohongshuProfileUrl}}" data-field="xiaohongshuProfileUrl" bindinput="updateDraftField" disabled="{{formDraft.originalXiaohongshuProfileUrl}}" placeholder="可粘贴整段口令或主页短链接" placeholder-class="xf-mama-placeholder" /></label>
           <text wx:if="{{formDraft.originalXiaohongshuProfileUrl}}" class="xf-mama-upload-hint">主页链接已锁定，保存时只更新昵称等资料。</text>
@@ -128,7 +132,8 @@
               <button wx:for="{{realNameVerifiedOptions}}" wx:key="value" class="xf-mama-gender-chip {{(item.value === 'yes' && realNameVerified === true) || (item.value === 'no' && realNameVerified === false) ? 'is-active' : ''}}" data-value="{{item.value}}" catchtap="toggleRealNameVerified" aria-label="选择实名认证状态 {{item.label}}">{{item.label}}</button>
             </view>
           </label>
-          <view wx:for="{{mediaAccounts}}" wx:key="index" class="xf-mama-media-account">
+          </block>
+          <view wx:for="{{mediaAccounts}}" wx:key="index" hidden="{{addingMediaAccountOnly && index !== mediaAccounts.length - 1}}" class="xf-mama-media-account">
             <view class="xf-mama-media-head">
               <view class="xf-mama-media-title">
                 <view class="xf-mama-platform-logo {{item.platformLogoClass}}">
@@ -149,7 +154,7 @@
             <label class="xf-mama-field">账号昵称<text class="xf-mama-required">*</text><input value="{{item.nickname}}" data-index="{{index}}" data-field="nickname" bindinput="updateMediaAccountField" placeholder="必填" placeholder-class="xf-mama-placeholder" /></label>
             <label class="xf-mama-field">粉丝数<input type="number" value="{{item.followerCount}}" data-index="{{index}}" data-field="followerCount" bindinput="updateMediaAccountField" placeholder="例如：3600" placeholder-class="xf-mama-placeholder" /></label>
           </view>
-          <view class="xf-mama-add-account-row">
+          <view wx:if="{{!addingMediaAccountOnly}}" class="xf-mama-add-account-row">
             <button type="button" class="xf-mama-add-account" catchtap="addMediaAccount">添加新账号</button>
           </view>
           <view wx:if="{{message}}" class="xf-mama-message {{messageType}}">{{message}}</view>

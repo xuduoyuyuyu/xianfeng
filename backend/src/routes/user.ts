@@ -211,6 +211,7 @@ router.post("/me/avatar", authenticate, (req, res, next) => {
 }, userController.uploadAvatar);
 router.get("/", authenticate, requireAdmin, userController.getAll);
 router.get("/portrait", authenticate, requireAdmin, userController.getPortrait);
+router.get("/:id/overview", authenticate, requireAdmin, userController.getOverview);
 router.post("/register", optionalAuthenticate, userController.register);
 router.put("/:id", authenticate, requireAdmin, userController.update);
 router.delete("/:id", authenticate, requireAdmin, userController.delete);

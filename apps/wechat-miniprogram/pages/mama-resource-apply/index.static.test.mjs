@@ -109,6 +109,13 @@ test("mama resource profile management is always available and separates persona
   assert.match(wxmlSource, /class="xf-mama-info-row is-personal"[\s\S]*个人资料/);
   assert.match(wxmlSource, /class="xf-mama-info-row is-media"[\s\S]*社交媒体账号/);
   assert.match(wxmlSource, /class="xf-mama-info-row is-preference"[\s\S]*接单偏好/);
+  assert.ok(wxmlSource.indexOf('class="xf-mama-info-row is-preference"') < wxmlSource.indexOf('class="xf-mama-info-row is-personal"'));
+  assert.match(wxmlSource, /catchtap="openNewMediaAccount"[^>]*>添加新平台账号<\/button>/);
+  assert.match(jsSource, /openNewMediaAccount\(\)\s*\{[\s\S]*concat\(blankMediaAccount\(\)\)[\s\S]*updatePageApplyDraft\(this, \{ mediaAccounts \}\);[\s\S]*addingMediaAccountOnly: true[\s\S]*\}/);
+  assert.match(jsSource, /openMediaAccountsManager\(\)\s*\{[\s\S]*addingMediaAccountOnly: false[\s\S]*\}/);
+  assert.match(wxmlSource, /\{\{addingMediaAccountOnly \? "添加平台账号" : "社交媒体账号"\}\}/);
+  assert.match(wxmlSource, /<block wx:if="\{\{!addingMediaAccountOnly\}\}">[\s\S]*小红书主页链接[\s\S]*<\/block>/);
+  assert.match(wxmlSource, /hidden="\{\{addingMediaAccountOnly && index !== mediaAccounts\.length - 1\}\}" class="xf-mama-media-account"/);
   assert.match(wxssSource, /\.xf-mama-info-row\.is-personal \{/);
   assert.match(wxssSource, /\.xf-mama-info-row\.is-media \{/);
   assert.match(wxssSource, /\.xf-mama-info-row\.is-preference \{/);

@@ -75,6 +75,11 @@
   or “24小时未返图”; the existing user-filter section exposes those states as
   quick choices instead of adding a separate filter panel. This workflow does
   not send SMS.
+- `/admin/users` keeps inline account operations but makes each user openable
+  as a read-only 360-degree profile. The detail modal groups station identity,
+  child basics, Mama Haozhuan participation, and the backend-aggregated event
+  timeline, including registration, profile changes, recorded page visits,
+  child-memory updates, and task lifecycle events.
 - `/welfare` is the public Xiaowanzi treasure box page (`小玩子百宝箱`). It
   uses the gift icon asset and Xiaowanzi avatar treatment, lists claimable
   welfare separately from expired or sold-out historical welfare, and shows

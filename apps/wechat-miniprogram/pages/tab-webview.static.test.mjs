@@ -13253,7 +13253,7 @@ test("mama haozhuan opens a native mini program form instead of program detail w
     assert.doesNotMatch(page.wxml, /bindchange="selectChildGender"|请选择孩子性别/);
     assert.doesNotMatch(page.wxml, /报价区间|可接频率|历史案例链接/);
     assert.doesNotMatch(page.wxml, /rateRange|availability|caseLinksText/);
-    assert.match(page.wxml, /资料管理[\s\S]*catchtap="openPersonalInfoEditor"[\s\S]*catchtap="openMediaAccountsManager"[\s\S]*catchtap="openPreferenceEditor"[\s\S]*catchtap="submitProfileDraft"/);
+    assert.match(page.wxml, /资料管理[\s\S]*catchtap="openPreferenceEditor"[\s\S]*catchtap="openPersonalInfoEditor"[\s\S]*catchtap="openMediaAccountsManager"[\s\S]*catchtap="submitProfileDraft"/);
     assert.match(page.wxml, /bindsubmit="savePersonalInfo"[\s\S]*bindsubmit="savePreferences"/);
     assert.doesNotMatch(page.wxml, /bindsubmit="submit"/);
     assert.match(page.wxml, /可发品类[\s\S]*class="xf-mama-chip \{\{item\.selected \? 'is-active' : ''\}\}"/);

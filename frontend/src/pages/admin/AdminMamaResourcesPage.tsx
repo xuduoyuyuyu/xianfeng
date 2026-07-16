@@ -17,7 +17,6 @@ const childStageOptions = ["孕产/婴幼儿", "幼儿园", "小学", "初中", 
 
 const statusOptions: Array<{ value: MamaResourceStatus | "all"; label: string }> = [
   { value: "all", label: "全部" },
-  { value: "pending", label: "待审核" },
   { value: "approved", label: "可派单" },
   { value: "needs_info", label: "资料不足" },
   { value: "rejected", label: "暂不合适" },
@@ -190,6 +189,10 @@ function taskDraftFromTask(task: MamaResourceTask): TaskDraft {
 function toCount(value?: number | null): string {
   if (value === undefined || value === null) return "待补";
   return Number(value).toLocaleString("zh-CN");
+}
+
+function extractProfileUrl(value?: string): string {
+  return String(value || "").match(/https?:\/\/[^\s<>"'，。；、]+/i)?.[0].replace(/[)\]}，。！？；：,!?;:]+$/, "") || "";
 }
 
 function maskAlipayAccount(value: string | undefined): string {
@@ -888,7 +891,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
             <div key={profile._id} className="grid grid-cols-[1.2fr_1fr_0.7fr_0.8fr_auto] gap-3 border-b border-stone-100 px-4 py-4 text-sm last:border-b-0">
               <div className="min-w-0">
                 <div className="font-black text-stone-900">{profile.displayName}</div>
-                <a className="mt-1 block truncate text-xs font-semibold text-[#6c27d6]" href={profile.socialAccount.profileUrl} target="_blank" rel="noreferrer">{profile.socialAccount.nickname || profile.socialAccount.profileUrl}</a>
+                {extractProfileUrl(profile.socialAccount.profileUrl) ? <a className="mt-1 block truncate text-xs font-semibold text-[#6c27d6]" href={extractProfileUrl(profile.socialAccount.profileUrl)} target="_blank" rel="noreferrer">{profile.socialAccount.nickname || profile.socialAccount.profileUrl}</a> : <div className="mt-1 truncate text-xs font-semibold text-stone-500">{profile.socialAccount.nickname || "未识别主页链接"}</div>}
                 <div className="mt-1 text-xs text-stone-500">{profile.city || "未填城市"} · {profile.childStage || "未填阶段"} · {profile.childGender || "未填性别"}</div>
                 <div className="mt-1 text-xs font-semibold text-stone-500">{maskAlipayAccount(profile.alipayAccount)}</div>
                 <div className="mt-1 text-xs font-semibold text-stone-500">
@@ -899,7 +902,14 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
               <div className="flex flex-wrap content-start items-start gap-1">
                 {(profile.categories || []).slice(0, 3).map((category) => <span key={category} className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[#f6f0ff] px-2 py-1 text-xs font-bold leading-none text-[#5e17eb]">{category}</span>)}
               </div>
-              <div className="font-black text-stone-900">{toCount(profile.socialAccount?.followerCount)}</div>
+              <div className="space-y-1 text-xs text-stone-700">
+                {(profile.mediaAccounts?.length ? profile.mediaAccounts : [profile.socialAccount]).map((account, index) => (
+                  <div key={`${account.platform}-${account.profileUrl}-${index}`} className="flex items-center justify-between gap-2">
+                    <span className="min-w-0 truncate font-semibold">{account.nickname || mediaPlatformLabel[account.platform] || "未填昵称"}</span>
+                    <span className="shrink-0 font-black text-stone-900">{toCount(account.followerCount)}</span>
+                  </div>
+                ))}
+              </div>
               <div><span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-black ${statusClass[profile.status]}`}>{statusLabel[profile.status]}</span></div>
               <button type="button" onClick={() => openEdit(profile)} className="inline-flex h-9 items-center justify-center rounded-full border border-[#e6d7ff] bg-[#f7f2ff] px-5 text-xs font-black text-[#5e17eb] shadow-sm transition hover:border-[#6c27d6] hover:bg-[#efe5ff]">
                 查看
@@ -941,7 +951,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                     <div key={`${account.normalizedProfileUrl || account.profileUrl}-${index}`} className="rounded-xl border border-stone-200 bg-stone-50 p-3">
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-sm font-black text-stone-900">账号 {index + 1} · {mediaPlatformLabel[account.platform] || account.platform}</span>
-                        <a href={account.profileUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-[#6c27d6]">查看主页</a>
+                        {extractProfileUrl(account.profileUrl) ? <a href={extractProfileUrl(account.profileUrl)} target="_blank" rel="noreferrer" className="text-xs font-bold text-[#6c27d6]">查看主页</a> : <span className="text-xs font-semibold text-stone-400">未识别主页链接</span>}
                       </div>
                       <div className="mt-3 grid gap-3 sm:grid-cols-2">
                         <label className="text-sm font-bold text-stone-700">账号昵称<input value={account.nickname || ""} onChange={(event) => updateManualMediaAccount(index, "nickname", event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm" /></label>
@@ -1235,8 +1245,8 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
               <div className="text-sm font-black text-stone-900">按账号批量导入</div>
               <div className="mt-1 text-xs font-semibold text-stone-500">下载模板填写账号与专属链接，上传后先预检再确认导入。</div>
               <div className="mt-3 flex flex-wrap gap-2">
-                <button type="button" onClick={downloadContentImportTemplate} disabled={taskLoading} className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-xs font-black text-stone-700 disabled:opacity-50">下载导入模板</button>
-                <label className={`rounded-lg bg-[#6c27d6] px-3 py-2 text-xs font-black text-white ${taskLoading ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}>
+                <button type="button" onClick={downloadContentImportTemplate} disabled={taskLoading} className="inline-flex h-9 items-center justify-center whitespace-nowrap rounded-lg border border-stone-300 bg-white px-3 text-xs font-black text-stone-700 disabled:opacity-50">下载导入模板</button>
+                <label className={`inline-flex h-9 items-center justify-center whitespace-nowrap rounded-lg bg-[#6c27d6] px-3 text-xs font-black text-white ${taskLoading ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}>
                   选择 Excel 文件
                   <input type="file" accept=".xlsx,.xls" disabled={taskLoading} onChange={previewContentImport} className="hidden" />
                 </label>

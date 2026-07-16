@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useSelector } from "react-redux";
-import { adminApi, User } from "../../services/api";
+import { adminApi, AdminUserOverview, User } from "../../services/api";
 import TopAlert from "../../components/TopAlert";
 import { RootState } from "../../store";
 
@@ -95,6 +96,8 @@ const AdminUsersPage: React.FC = () => {
   const [resetTarget, setResetTarget] = useState<EditableUser | null>(null);
   const [resetPassword, setResetPassword] = useState("");
   const [memoryTarget, setMemoryTarget] = useState<EditableUser | null>(null);
+  const [overview, setOverview] = useState<AdminUserOverview | null>(null);
+  const [overviewLoadingId, setOverviewLoadingId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
   const loadUsers = async () => {
@@ -282,6 +285,19 @@ const AdminUsersPage: React.FC = () => {
     }
   };
 
+  const openOverview = async (row: EditableUser) => {
+    setOverviewLoadingId(row._id);
+    setError(null);
+    try {
+      const response = await adminApi.getUserOverview(row._id);
+      setOverview(response.data);
+    } catch (loadError: any) {
+      setError(loadError?.response?.data?.message || loadError?.message || "获取用户画像失败");
+    } finally {
+      setOverviewLoadingId(null);
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div className="admin-toolbar">
@@ -367,7 +383,7 @@ const AdminUsersPage: React.FC = () => {
                   <th className="px-4 py-3">城市</th>
                       <th className="px-4 py-3">区域</th>
                       <th className="px-4 py-3">年级</th>
-                      <th className="px-4 py-3">点数</th>
+                      <th className="px-4 py-3">当前点数</th>
                       <th className="px-4 py-3">记忆</th>
                   <th className="px-4 py-3 whitespace-nowrap">注册时间</th>
                   <th className="px-4 py-3 text-right">操作</th>
@@ -381,7 +397,7 @@ const AdminUsersPage: React.FC = () => {
                   return (
                     <tr key={row._id} className="hover:bg-stone-50/50 transition-colors">
                       <td className="px-4 py-3">
-                        <div className="font-bold text-sm text-stone-900">{row.username}</div>
+                        <button type="button" onClick={() => openOverview(row)} className="text-left text-sm font-bold text-stone-900 hover:text-[#5e17eb]" title="查看用户画像与时间线">{row.username}</button>
                         <div className="text-[10px] text-stone-400">{row._id.slice(-8).toUpperCase()}</div>
                       </td>
                       <td className="px-4 py-3">
@@ -440,6 +456,7 @@ const AdminUsersPage: React.FC = () => {
                             className={`truncate rounded-xl px-2 py-1.5 text-[11px] font-bold transition-colors ${row.memoryItemCount ? "border border-[#5e17eb]/20 bg-[#f7f3ff] text-[#5e17eb] hover:bg-[#efe7ff]" : "border border-stone-200 text-stone-400"}`}
                             disabled={!row.childMemories?.length}
                             onClick={() => setMemoryTarget(row)}
+                            title="查看记忆"
                             type="button"
                           >
                             {row.memoryItemCount ? `${row.memoryItemCount} 条` : "暂无"}
@@ -456,6 +473,15 @@ const AdminUsersPage: React.FC = () => {
                       </td>
                       <td className="px-3 py-4 text-right">
                         <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => openOverview(row)}
+                            disabled={saving || deleting || overviewLoadingId === row._id}
+                            className="rounded-lg border border-[#d9c7ff] px-2 py-1.5 text-[#5e17eb] hover:bg-[#f7f3ff] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="查看用户画像"
+                            type="button"
+                          >
+                            <span className="material-symbols-outlined text-base">timeline</span>
+                          </button>
                           <button
                             onClick={() => handleQuickSave(row)}
                             disabled={saving || deleting}
@@ -535,6 +561,70 @@ const AdminUsersPage: React.FC = () => {
           </div>
         ) : null}
       </div>
+
+      {overview ? createPortal((
+        <div className="fixed inset-0 z-[85] overflow-y-auto bg-black/40 p-4 backdrop-blur-sm" onClick={() => setOverview(null)}>
+          <div className="mx-auto my-6 max-w-5xl overflow-hidden rounded-3xl bg-[#faf9fc] shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-stone-200 bg-white px-6 py-5">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-[#5e17eb]">User 360</p>
+                <h2 className="mt-1 text-2xl font-black text-stone-900">{overview.user.name || overview.user.username}</h2>
+                <p className="mt-1 text-sm text-stone-500">{overview.user.username} · {overview.user.mobile || resolveMobile(overview.user as EditableUser) || "未绑定手机"} · 注册于 {formatDateTime(overview.user.createdAt)}</p>
+              </div>
+              <button type="button" onClick={() => setOverview(null)} className="rounded-full p-2 text-stone-400 hover:bg-stone-100"><span className="material-symbols-outlined">close</span></button>
+            </div>
+
+            <div className="grid gap-5 p-6 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
+              <div className="space-y-5">
+                <section className="rounded-2xl border border-stone-200 bg-white p-5">
+                  <h3 className="text-sm font-black text-stone-900">基本资料</h3>
+                  <div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+                    {[['站内昵称', overview.user.name || '未填写'], ['性别', overview.user.gender || '未填写'], ['家长身份', overview.user.parentRole || '未填写'], ['城市', overview.user.city || '未填写'], ['区域', overview.user.region || '未填写'], ['年级', overview.user.grade || overview.user.childGrade || '未填写'], ['会员', overview.user.membershipLabel || overview.user.proStatus || '免费用户'], ['点数', String(overview.user.proPointBalance || 0)], ['页面访问', `${overview.pageVisitCount} 次（最近 100 条）`]].map(([label, value]) => (
+                      <div key={label} className="rounded-xl bg-stone-50 px-3 py-3"><div className="text-xs font-bold text-stone-400">{label}</div><div className="mt-1 font-bold text-stone-800">{value}</div></div>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="rounded-2xl border border-stone-200 bg-white p-5">
+                  <div className="flex items-center justify-between"><h3 className="text-sm font-black text-stone-900">孩子基本情况</h3><span className="text-xs font-bold text-stone-400">{overview.childProfiles.length} 份档案</span></div>
+                  <div className="mt-4 space-y-3">
+                    {overview.childProfiles.length ? overview.childProfiles.map((child, index) => (
+                      <div key={child.id || child._id || index} className="rounded-xl bg-[#f7f3ff] px-4 py-3">
+                        <div className="font-black text-stone-900">{child.name || child.nickname || `孩子 ${index + 1}`}</div>
+                        <div className="mt-1 text-sm text-stone-600">{[child.gender, child.birthDate || child.birthday, child.stage, child.grade, child.city, child.region].filter(Boolean).join(' · ') || '基本情况待完善'}</div>
+                      </div>
+                    )) : <div className="rounded-xl bg-stone-50 px-4 py-6 text-center text-sm text-stone-400">暂无孩子档案</div>}
+                  </div>
+                </section>
+
+                <section className="rounded-2xl border border-stone-200 bg-white p-5">
+                  <div className="flex items-center justify-between"><h3 className="text-sm font-black text-stone-900">妈妈好赚</h3><span className="text-xs font-bold text-stone-400">{overview.mamaAssignments.length} 个任务</span></div>
+                  {overview.mamaProfile ? (
+                    <div className="mt-4 space-y-3">
+                      <div className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800"><span className="font-black">{overview.mamaProfile.displayName}</span><span className="ml-2">{overview.mamaProfile.status === 'approved' ? '可派单' : overview.mamaProfile.status}</span><div className="mt-1 text-xs">{(overview.mamaProfile.categories || []).join(' · ') || '未填写品类'} · {overview.mamaProfile.mediaAccounts?.length || 1} 个平台账号</div></div>
+                      {overview.mamaAssignments.map((assignment) => <div key={assignment._id} className="flex items-center justify-between gap-3 rounded-xl border border-stone-100 px-4 py-3 text-sm"><span className="font-bold text-stone-800">{assignment.task?.title || '妈妈好赚任务'}</span><span className="shrink-0 text-xs font-bold text-stone-500">{assignment.status}</span></div>)}
+                    </div>
+                  ) : <div className="mt-4 rounded-xl bg-stone-50 px-4 py-6 text-center text-sm text-stone-400">尚未开通妈妈好赚</div>}
+                </section>
+              </div>
+
+              <section className="rounded-2xl border border-stone-200 bg-white p-5">
+                <div className="flex items-center justify-between"><h3 className="text-sm font-black text-stone-900">用户时间线</h3><span className="text-xs font-bold text-stone-400">{overview.timeline.length} 条</span></div>
+                <div className="mt-5 max-h-[68vh] space-y-0 overflow-y-auto pr-1">
+                  {overview.timeline.length ? overview.timeline.map((item, index) => (
+                    <div key={`${item.occurredAt}-${item.type}-${index}`} className="relative border-l-2 border-[#e8ddff] pb-5 pl-5 last:pb-0">
+                      <span className="absolute -left-[7px] top-0 h-3 w-3 rounded-full border-2 border-white bg-[#6c27d6]" />
+                      <div className="text-xs font-bold text-stone-400">{formatDateTime(item.occurredAt)}</div>
+                      <div className="mt-1 text-sm font-black text-stone-900">{item.title}</div>
+                      {item.detail ? <div className="mt-1 break-words text-xs leading-5 text-stone-500">{item.detail}</div> : null}
+                    </div>
+                  )) : <div className="py-10 text-center text-sm text-stone-400">暂无行为记录</div>}
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      ), document.body) : null}
 
       {modalMode ? (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/35 p-6 backdrop-blur-sm">
