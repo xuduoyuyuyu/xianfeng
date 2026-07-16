@@ -1266,10 +1266,13 @@ export function applyTranscriptQualitySegments(
       .map((segment) => asText(segment.text))
       .join("")
       .replace(/家长先锋/g, "家长先疯");
-    const finalText = sourceText.length >= 1 && sourceText.length < 50 ? sourceText : text;
     const minimumFaithfulLength = sourceText.length < 50
       ? Math.max(1, sourceText.length)
       : Math.min(50, Math.ceil(sourceText.length * 0.5));
+    const finalText = sourceText.length >= 1 &&
+      (sourceText.length < 50 || text.length < minimumFaithfulLength)
+      ? sourceText
+      : text;
     const sourceSpeakers = Array.from(new Set(
       source.slice(startIndex, endIndex + 1).map((segment) => normalizeFinalSpeakerLabel(segment.speaker, guestNames)).filter(Boolean)
     ));

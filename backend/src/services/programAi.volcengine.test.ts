@@ -36,6 +36,10 @@ assert.deepEqual(applyTranscriptQualitySegments([
 assert.deepEqual(applyTranscriptQualitySegments([
   { time: "00:00-00:05", speaker: "主播·阿力", text: "短句" },
 ], [{ startIndex: 0, endIndex: 0, speaker: "主播·阿力", text: "不足五十字" }], ["魏亚妮"])?.map((item) => item.text), ["短句"]);
+const faithfulSourceText = "这是音频识别得到的真实原文内容，需要在整理结果过度缩短时完整保留，不能为了长度要求丢失事实。";
+assert.deepEqual(applyTranscriptQualitySegments([
+  { time: "00:00-00:20", speaker: "主播·阿力", text: faithfulSourceText },
+], [{ startIndex: 0, endIndex: 0, speaker: "主播·阿力", text: "过度缩短" }], ["魏亚妮"])?.map((item) => item.text), [faithfulSourceText]);
 assert.equal(needsTranscriptSpeakerAttribution([
   { time: "0", speaker: "主播·阿力", text: "1" },
   { time: "1", speaker: "主播·Jessie", text: "2" },
