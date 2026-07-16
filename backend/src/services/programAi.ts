@@ -1146,6 +1146,16 @@ export function applyTranscriptSpeakerAssignments(
   return transcript.map((segment, index) => ({ ...segment, speaker: labels.get(index)! }));
 }
 
+export function extractGradeGuestAliases(values: unknown[]): string[] {
+  const text = values.map((value) => asText(value)).filter(Boolean).join("\n");
+  const aliases: string[] = [];
+  for (const match of text.matchAll(/(?:[一二三四五六七八九]|1[0-2]|[1-9])年级/gu)) {
+    const alias = `${match[0]}学生`;
+    if (!aliases.includes(alias)) aliases.push(alias);
+  }
+  return aliases;
+}
+
 async function attributeTranscriptSpeakersWithProvider(
   transcript: TranscriptSegment[],
   guestNames: string[],

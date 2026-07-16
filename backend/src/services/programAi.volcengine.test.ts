@@ -5,6 +5,7 @@ import {
   applyTranscriptSpeakerAssignments,
   applyTranscriptQualitySegments,
   extractUtteranceSpeaker,
+  extractGradeGuestAliases,
   getVolcengineFlashMaxLocalBytes,
   isVolcengineStandardQueryComplete,
   needsTranscriptSpeakerAttribution,
@@ -13,6 +14,11 @@ import {
   shouldAttemptVolcengineFlashEndpoint,
   shouldUseVolcengineStandardEndpoint,
 } from "./programAi";
+
+assert.deepEqual(extractGradeGuestAliases([
+  "邀请三位小朋友，分别就读四年级、六年级和七年级。",
+  "四年级学生再次出现。",
+]), ["四年级学生", "六年级学生", "七年级学生"]);
 
 assert.deepEqual(buildFaithfulTranscriptChunk([
   { time: "00:00-00:10", speaker: "主播·阿力", text: "欢迎收听家长先锋。" },

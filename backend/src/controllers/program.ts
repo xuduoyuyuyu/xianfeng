@@ -7,7 +7,7 @@ import { promisify } from "util";
 import Program from "../models/Program";
 import Book from "../models/Book";
 import GuestModel from "../models/Guest";
-import { ensureTranscriptQuality, ensureTranscriptSpeakerAttribution, generateMindMap, resolveProgramAiProvider } from "../services/programAi";
+import { ensureTranscriptQuality, ensureTranscriptSpeakerAttribution, extractGradeGuestAliases, generateMindMap, resolveProgramAiProvider } from "../services/programAi";
 import { uploadLocalAudioToTosAndSign } from "../services/programAi";
 import mongoose from "mongoose";
 import { attachDictionaryEntriesToPrograms, isHighQualityEducationTerm, removeProgramFromDictionary, syncProgramDictionaryEntries } from "../services/educationDictionary";
@@ -73,6 +73,14 @@ async function resolveGuestSpeakerNames(payload: any, generatedGuestName?: unkno
       const matchedGuests = await GuestModel.find({ name: { $in: fallbackNames } }).select("name").lean();
       for (const guest of matchedGuests) addName((guest as any).name);
     }
+  }
+  if (!names.length) {
+    for (const alias of extractGradeGuestAliases([
+      payload?.title,
+      payload?.description,
+      payload?.guest?.bio,
+      generatedGuestName,
+    ])) addName(alias);
   }
   return names;
 }
