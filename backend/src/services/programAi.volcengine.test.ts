@@ -1,6 +1,7 @@
 import assert from "assert";
 import {
   buildParagraphTranscriptFromTimedItems,
+  buildFaithfulTranscriptChunk,
   applyTranscriptSpeakerAssignments,
   applyTranscriptQualitySegments,
   extractUtteranceSpeaker,
@@ -12,6 +13,15 @@ import {
   shouldAttemptVolcengineFlashEndpoint,
   shouldUseVolcengineStandardEndpoint,
 } from "./programAi";
+
+assert.deepEqual(buildFaithfulTranscriptChunk([
+  { time: "00:00-00:10", speaker: "主播·阿力", text: "欢迎收听家长先锋。" },
+  { time: "00:10-00:20", speaker: "主播·阿力", text: "今天继续聊教育。" },
+], ["魏亚妮"])?.map((item) => ({ time: item.time, speaker: item.speaker, text: item.text })), [{
+  time: "00:00-00:20",
+  speaker: "主播·阿力",
+  text: "欢迎收听家长先疯。今天继续聊教育。",
+}]);
 
 assert.deepEqual(
   applyTranscriptQualitySegments([
