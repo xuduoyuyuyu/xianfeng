@@ -716,7 +716,7 @@ function mergeAiIntoPayload(payload: any, generated: any, transcript: any[]) {
 
   next.deepDive = {
     sectionTitle: mergePreferManualText(next.deepDive?.sectionTitle, generated?.deepDive?.sectionTitle),
-    curatedReading: Array.isArray(next.deepDive?.curatedReading) ? next.deepDive.curatedReading : [],
+    curatedReading: mergePreferManualArray(next.deepDive?.curatedReading, generated?.deepDive?.curatedReading),
     mindMap: next.deepDive?.mindMap && next.deepDive.mindMap.root && (next.deepDive.mindMap.root.title || (next.deepDive.mindMap.root.children && next.deepDive.mindMap.root.children.length > 0))
       ? next.deepDive.mindMap
       : undefined,

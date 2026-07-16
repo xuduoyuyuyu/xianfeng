@@ -6,13 +6,17 @@ const CHECKPOINT_SIZE = 3;
 const CHECKPOINT_DELAY_MS = 15_000;
 
 function hasGeneratedContent(program: any): boolean {
-  return Boolean(
-    program?.transcript?.length ||
+  const hasTranscript = Boolean(program?.transcript?.length);
+  const hasContentPack = Boolean(
     program?.contentPack?.quickView?.length ||
     program?.contentPack?.minutes?.text?.trim() ||
-    program?.contentPack?.showNotes?.keyMoments?.length ||
-    program?.deepDive?.curatedReading?.length
+    program?.contentPack?.showNotes?.keyMoments?.length
   );
+  const hasDeepDive = Boolean(
+    program?.deepDive?.curatedReading?.length ||
+    program?.deepDive?.mindMap?.root?.title?.trim()
+  );
+  return hasTranscript && hasContentPack && hasDeepDive;
 }
 
 function durationSeconds(value: unknown): number {
