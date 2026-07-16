@@ -15,7 +15,7 @@ import {
 
 assert.deepEqual(
   applyTranscriptQualitySegments([
-    { time: "00:00-00:05", speaker: "主播·阿力", text: "短句" },
+    { time: "00:00-00:05", speaker: "嘉宾·魏亚妮", text: "短句" },
     { time: "00:05-00:10", speaker: "嘉宾·魏亚妮", text: "回答" },
   ], [{
     startIndex: 0,

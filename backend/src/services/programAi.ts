@@ -1245,13 +1245,16 @@ export function applyTranscriptQualitySegments(
   for (const row of rows as any[]) {
     const startIndex = Number(row?.startIndex);
     const endIndex = Number(row?.endIndex);
-    const speaker = normalizeFinalSpeakerLabel(row?.speaker, guestNames);
     const text = asText(row?.text).replace(/家长先锋/g, "家长先疯");
+    const sourceSpeakers = Array.from(new Set(
+      source.slice(startIndex, endIndex + 1).map((segment) => normalizeFinalSpeakerLabel(segment.speaker, guestNames)).filter(Boolean)
+    ));
+    const speaker = sourceSpeakers.length === 1 ? sourceSpeakers[0] : "";
     const invalidReason =
       !Number.isInteger(startIndex) || !Number.isInteger(endIndex) ? "non_integer_index" :
       startIndex !== expectedStart ? "non_contiguous_index" :
       endIndex < startIndex || endIndex >= source.length ? "index_out_of_range" :
-      !speaker ? "invalid_speaker" :
+      !speaker ? "mixed_or_invalid_source_speaker" :
       text.length < 50 || text.length > 200 ? "invalid_text_length" : "";
     if (invalidReason) {
       console.warn("[ai-program] transcript quality row rejected", {
@@ -1261,6 +1264,7 @@ export function applyTranscriptQualitySegments(
         endIndex,
         sourceLength: source.length,
         speaker: asText(row?.speaker),
+        sourceSpeakers,
         textLength: text.length,
       });
       return null;
@@ -1285,9 +1289,9 @@ async function refineTranscriptChunkWithProvider(
   const prompt = [
     "你是播客逐字稿编辑。将输入片段改写为连贯、规范的中文文稿。",
     "删除嗯、呃、重复词、歌词；英文和中英混合表达翻译为自然中文；品牌统一写家长先疯。",
-    "允许合并相邻输入片段，但必须按顺序覆盖每个 index，不能遗漏或重复。",
+    "只允许合并 speaker 完全相同的相邻输入片段，必须按顺序覆盖每个 index，不能遗漏或重复。",
     "每个输出 text 必须为50至200个中文字符，句意完整。",
-    `speaker 只能是主播·阿力、主播·Jessie，或嘉宾名单中的实名：${guestNames.map((name) => `嘉宾·${name}`).join("、")}。`,
+    "speaker 必须原样复制所覆盖输入片段的 speaker，不得重新判断或修改。",
     '只输出JSON：{"segments":[{"startIndex":0,"endIndex":1,"speaker":"主播·阿力","text":"..."}]}。',
     JSON.stringify(source.map((segment, index) => ({ index, speaker: segment.speaker, text: segment.text }))),
   ].join("\n");
