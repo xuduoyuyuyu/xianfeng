@@ -1340,11 +1340,16 @@ export async function ensureTranscriptQuality(input: {
   if (currentChunk.length) chunks.push(currentChunk);
   const refined: TranscriptSegment[] = [];
   for (const chunk of chunks) {
-    const shortTurnText = asText(chunk[0]?.text).replace(/家长先锋/g, "家长先疯");
-    if (chunk.length === 1 && shortTurnText.length >= 10 && shortTurnText.length < 50) {
+    const shortTurnText = chunk.map((segment) => asText(segment.text)).join("").replace(/家长先锋/g, "家长先疯");
+    if (shortTurnText.length >= 10 && shortTurnText.length < 50) {
       const speaker = normalizeFinalSpeakerLabel(chunk[0].speaker, guestNames);
       if (!speaker) throw new Error("逐字稿未通过50至200字、品牌名或说话人实名质检");
-      refined.push({ ...chunk[0], speaker, text: shortTurnText });
+      refined.push({
+        time: mergedTranscriptTime(chunk[0], chunk[chunk.length - 1]),
+        speaker,
+        text: shortTurnText,
+        featured: chunk.some((segment) => segment.featured),
+      });
       continue;
     }
     let result: TranscriptSegment[] | null = null;
