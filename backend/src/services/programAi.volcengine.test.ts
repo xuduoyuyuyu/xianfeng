@@ -17,10 +17,10 @@ const singleSpeakerTranscript = [
 ];
 assert.deepEqual(
   applyTranscriptSpeakerAssignments(singleSpeakerTranscript, [
-    { index: 0, speaker: "阿力" },
-    { index: 1, speaker: "魏亚妮" },
+    { index: 0, speaker: "主播·阿力" },
+    { index: 1, speaker: "嘉宾·魏亚妮" },
   ], ["魏亚妮"])?.map((item) => item.speaker),
-  ["阿力", "魏亚妮"]
+  ["主播·阿力", "嘉宾·魏亚妮"]
 );
 assert.equal(
   applyTranscriptSpeakerAssignments(singleSpeakerTranscript, [

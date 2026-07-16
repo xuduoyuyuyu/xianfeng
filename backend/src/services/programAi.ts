@@ -1126,18 +1126,21 @@ export function applyTranscriptSpeakerAssignments(
   for (const row of rows as any[]) {
     const index = Number(row?.index);
     const rawLabel = asText(row?.speaker);
-    const knownGuestName = guestNames.find((name) => name === rawLabel);
-    const label = /^jessie$/i.test(rawLabel)
-      ? "Jessie"
-      : /^(?:阿力|ali)$/i.test(rawLabel)
-        ? "阿力"
-        : knownGuestName || "";
+    const rawGuestName = rawLabel.replace(/^嘉宾·/u, "");
+    const knownGuestName = guestNames.find((name) => name === rawGuestName);
+    const label = /^(?:主播·)?jessie$/i.test(rawLabel)
+      ? "主播·Jessie"
+      : /^(?:主播·)?(?:阿力|ali)$/i.test(rawLabel)
+        ? "主播·阿力"
+        : knownGuestName
+          ? `嘉宾·${knownGuestName}`
+          : "";
     if (!Number.isInteger(index) || index < 0 || index >= transcript.length || !label || labels.has(index)) return null;
     labels.set(index, label);
   }
   const distinct = new Set(labels.values());
-  const hasHost = distinct.has("阿力") || distinct.has("Jessie");
-  const hasGuest = Array.from(distinct).some((label) => guestNames.includes(label));
+  const hasHost = Array.from(distinct).some((label) => label.startsWith("主播·"));
+  const hasGuest = Array.from(distinct).some((label) => label.startsWith("嘉宾·"));
   if (!hasHost || !hasGuest) return null;
   return transcript.map((segment, index) => ({ ...segment, speaker: labels.get(index)! }));
 }
@@ -1155,9 +1158,9 @@ async function attributeTranscriptSpeakersWithProvider(
   }));
   const prompt = [
     "你是播客逐字稿编辑。请判断每一段是谁在说话。",
-    `主播只能是阿力或Jessie，嘉宾只能从这个名单选择：${guestNames.join("、")}。`,
+    `主播标签只能是主播·阿力或主播·Jessie，嘉宾标签只能是嘉宾·姓名，姓名从这个名单选择：${guestNames.join("、")}。`,
     "根据开场、自我介绍、提问与回答、上下文衔接判断。不得遗漏、合并或新增段落。",
-    '只输出JSON：{"assignments":[{"index":0,"speaker":"阿力"}]}。',
+    '只输出JSON：{"assignments":[{"index":0,"speaker":"主播·阿力"},{"index":1,"speaker":"嘉宾·张三"}]}。',
     JSON.stringify(segments),
   ].join("\n");
   try {
@@ -1193,10 +1196,13 @@ export async function ensureTranscriptSpeakerAttribution(input: {
   const usableGuestNames = guestNames.map((name) => asText(name)).filter(Boolean);
   if (!usableGuestNames.length) throw new Error("节目缺少可用的嘉宾真实姓名，已停止写入逐字稿");
   const normalized = input.transcript.map((segment) => {
-    const match = asText(segment.speaker).match(/^嘉宾(\d*)$/u);
+    const rawSpeaker = asText(segment.speaker);
+    if (/^(?:主播·)?(?:阿力|ali)$/i.test(rawSpeaker)) return { ...segment, speaker: "主播·阿力" };
+    if (/^(?:主播·)?jessie$/i.test(rawSpeaker)) return { ...segment, speaker: "主播·Jessie" };
+    const match = rawSpeaker.match(/^嘉宾(\d*)$/u);
     if (!match) return segment;
     const guestIndex = match[1] ? Math.max(0, Number(match[1]) - 1) : 0;
-    return { ...segment, speaker: usableGuestNames[guestIndex] || usableGuestNames[0] };
+    return { ...segment, speaker: `嘉宾·${usableGuestNames[guestIndex] || usableGuestNames[0]}` };
   });
   const speakers = new Set(normalized.map((segment) => asText(segment.speaker)).filter(Boolean));
   if (normalized.length < 4 || speakers.size > 1) return { ...input, transcript: normalized };
