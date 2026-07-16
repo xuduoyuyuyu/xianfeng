@@ -1250,12 +1250,15 @@ export function applyTranscriptQualitySegments(
       source.slice(startIndex, endIndex + 1).map((segment) => normalizeFinalSpeakerLabel(segment.speaker, guestNames)).filter(Boolean)
     ));
     const speaker = sourceSpeakers.length === 1 ? sourceSpeakers[0] : "";
+    const originalTextLength = source.length === 1 ? asText(source[0].text).length : 0;
+    const preservesUnmergeableShortTurn = source.length === 1 &&
+      originalTextLength < 50 && text.length >= Math.max(10, originalTextLength);
     const invalidReason =
       !Number.isInteger(startIndex) || !Number.isInteger(endIndex) ? "non_integer_index" :
       startIndex !== expectedStart ? "non_contiguous_index" :
       endIndex < startIndex || endIndex >= source.length ? "index_out_of_range" :
       !speaker ? "mixed_or_invalid_source_speaker" :
-      text.length < 50 || text.length > 200 ? "invalid_text_length" : "";
+      (text.length < 50 && !preservesUnmergeableShortTurn) || text.length > 200 ? "invalid_text_length" : "";
     if (invalidReason) {
       console.warn("[ai-program] transcript quality row rejected", {
         reason: invalidReason,
@@ -1265,6 +1268,7 @@ export function applyTranscriptQualitySegments(
         sourceLength: source.length,
         speaker: asText(row?.speaker),
         sourceSpeakers,
+        originalTextLength,
         textLength: text.length,
       });
       return null;
@@ -1328,7 +1332,16 @@ export async function ensureTranscriptQuality(input: {
   durationSeconds: number;
 }, guestNames: string[]): Promise<typeof input> {
   const chunks: TranscriptSegment[][] = [];
-  for (let index = 0; index < input.transcript.length; index += 24) chunks.push(input.transcript.slice(index, index + 24));
+  let currentChunk: TranscriptSegment[] = [];
+  for (const segment of input.transcript) {
+    if (currentChunk.length &&
+        (currentChunk.length >= 24 || currentChunk[currentChunk.length - 1].speaker !== segment.speaker)) {
+      chunks.push(currentChunk);
+      currentChunk = [];
+    }
+    currentChunk.push(segment);
+  }
+  if (currentChunk.length) chunks.push(currentChunk);
   const refined: TranscriptSegment[] = [];
   for (const chunk of chunks) {
     let result: TranscriptSegment[] | null = null;
