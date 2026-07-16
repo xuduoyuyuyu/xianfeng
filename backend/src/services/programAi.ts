@@ -1250,15 +1250,12 @@ export function applyTranscriptQualitySegments(
       source.slice(startIndex, endIndex + 1).map((segment) => normalizeFinalSpeakerLabel(segment.speaker, guestNames)).filter(Boolean)
     ));
     const speaker = sourceSpeakers.length === 1 ? sourceSpeakers[0] : "";
-    const originalTextLength = source.length === 1 ? asText(source[0].text).length : 0;
-    const preservesUnmergeableShortTurn = source.length === 1 &&
-      originalTextLength < 50 && text.length >= Math.max(10, originalTextLength);
     const invalidReason =
       !Number.isInteger(startIndex) || !Number.isInteger(endIndex) ? "non_integer_index" :
       startIndex !== expectedStart ? "non_contiguous_index" :
       endIndex < startIndex || endIndex >= source.length ? "index_out_of_range" :
       !speaker ? "mixed_or_invalid_source_speaker" :
-      (text.length < 50 && !preservesUnmergeableShortTurn) || text.length > 200 ? "invalid_text_length" : "";
+      text.length < 50 || text.length > 200 ? "invalid_text_length" : "";
     if (invalidReason) {
       console.warn("[ai-program] transcript quality row rejected", {
         reason: invalidReason,
@@ -1268,7 +1265,6 @@ export function applyTranscriptQualitySegments(
         sourceLength: source.length,
         speaker: asText(row?.speaker),
         sourceSpeakers,
-        originalTextLength,
         textLength: text.length,
       });
       return null;
@@ -1344,6 +1340,13 @@ export async function ensureTranscriptQuality(input: {
   if (currentChunk.length) chunks.push(currentChunk);
   const refined: TranscriptSegment[] = [];
   for (const chunk of chunks) {
+    const shortTurnText = asText(chunk[0]?.text).replace(/家长先锋/g, "家长先疯");
+    if (chunk.length === 1 && shortTurnText.length >= 10 && shortTurnText.length < 50) {
+      const speaker = normalizeFinalSpeakerLabel(chunk[0].speaker, guestNames);
+      if (!speaker) throw new Error("逐字稿未通过50至200字、品牌名或说话人实名质检");
+      refined.push({ ...chunk[0], speaker, text: shortTurnText });
+      continue;
+    }
     let result: TranscriptSegment[] | null = null;
     for (let attempt = 0; attempt < 3 && !result; attempt += 1) {
       result =
