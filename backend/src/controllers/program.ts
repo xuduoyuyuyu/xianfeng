@@ -49,6 +49,29 @@ function asText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function isUsableGuestSpeakerName(value: unknown): boolean {
+  const name = asText(value);
+  return Boolean(name && !["节目特邀嘉宾", "待解析", "嘉宾"].includes(name));
+}
+
+async function resolveGuestSpeakerNames(payload: any, generatedGuestName?: unknown): Promise<string[]> {
+  const names: string[] = [];
+  const addName = (value: unknown) => {
+    const name = asText(value);
+    if (isUsableGuestSpeakerName(name) && !names.includes(name)) names.push(name);
+  };
+  addName(payload?.guest?.name);
+  const bindings = Array.isArray(payload?.guestBindings) ? payload.guestBindings : [];
+  const guestIds = bindings.map((binding: any) => binding?.guestId).filter(Boolean);
+  if (guestIds.length) {
+    const guests = await GuestModel.find({ _id: { $in: guestIds } }).select("name").lean();
+    const namesById = new Map(guests.map((guest: any) => [String(guest._id), guest.name]));
+    for (const binding of bindings) addName(namesById.get(String(binding?.guestId)));
+  }
+  addName(generatedGuestName);
+  return names;
+}
+
 function asObjectIdText(value: unknown): string {
   if (typeof value === "string") return value.trim();
   if (value instanceof mongoose.Types.ObjectId) return value.toHexString();
@@ -1294,11 +1317,12 @@ async function tryAutoGenerate(
         await onProgress?.(safeProgress, normalizedStage);
       },
     });
-    const transcription = await ensureTranscriptSpeakerAttribution(rawTranscription);
     await onProgress?.(62, "transcribed");
-    console.log("[ai-program] transcription done", { segments: transcription.transcript.length });
+    console.log("[ai-program] transcription done", { segments: rawTranscription.transcript.length });
     await onProgress?.(76, "extracting");
-    const generated = await provider.extractProgramMetadata(transcription);
+    const generated = await provider.extractProgramMetadata(rawTranscription);
+    const guestSpeakerNames = await resolveGuestSpeakerNames(payload, generated?.guest?.name);
+    const transcription = await ensureTranscriptSpeakerAttribution(rawTranscription, guestSpeakerNames);
     await onProgress?.(90, "extracted");
     console.log("[ai-program] metadata extraction done");
     const merged = mergeAiIntoPayload(payload, generated, transcription.transcript);
