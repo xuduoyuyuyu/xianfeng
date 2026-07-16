@@ -5,11 +5,25 @@ import {
   extractUtteranceSpeaker,
   getVolcengineFlashMaxLocalBytes,
   isVolcengineStandardQueryComplete,
+  needsTranscriptSpeakerAttribution,
   normalizeVolcenginePublicSourceUrl,
   shouldContinueVolcengineStandardPolling,
   shouldAttemptVolcengineFlashEndpoint,
   shouldUseVolcengineStandardEndpoint,
 } from "./programAi";
+
+assert.equal(needsTranscriptSpeakerAttribution([
+  { time: "0", speaker: "主播·阿力", text: "1" },
+  { time: "1", speaker: "主播·Jessie", text: "2" },
+  { time: "2", speaker: "主播·阿力", text: "3" },
+  { time: "3", speaker: "主播·Jessie", text: "4" },
+]), true);
+assert.equal(needsTranscriptSpeakerAttribution([
+  { time: "0", speaker: "主播·阿力", text: "1" },
+  { time: "1", speaker: "嘉宾·魏亚妮", text: "2" },
+  { time: "2", speaker: "主播·阿力", text: "3" },
+  { time: "3", speaker: "嘉宾·魏亚妮", text: "4" },
+]), false);
 
 const singleSpeakerTranscript = [
   { time: "00:00-00:10", speaker: "阿力", text: "今天我们请老师聊聊为什么离开学校。" },

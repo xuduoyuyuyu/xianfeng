@@ -1204,13 +1204,19 @@ export async function ensureTranscriptSpeakerAttribution(input: {
     const guestIndex = match[1] ? Math.max(0, Number(match[1]) - 1) : 0;
     return { ...segment, speaker: `嘉宾·${usableGuestNames[guestIndex] || usableGuestNames[0]}` };
   });
-  const speakers = new Set(normalized.map((segment) => asText(segment.speaker)).filter(Boolean));
-  if (normalized.length < 4 || speakers.size > 1) return { ...input, transcript: normalized };
+  if (!needsTranscriptSpeakerAttribution(normalized)) return { ...input, transcript: normalized };
   const attributed =
     await attributeTranscriptSpeakersWithProvider(normalized, usableGuestNames, resolveDeepSeekMetadataConfig()) ||
     await attributeTranscriptSpeakersWithProvider(normalized, usableGuestNames, resolveArkMetadataConfig());
   if (!attributed) throw new Error("说话人分轨失败，文本模型未能可靠区分主播与嘉宾");
   return { ...input, transcript: attributed };
+}
+
+export function needsTranscriptSpeakerAttribution(transcript: TranscriptSegment[]): boolean {
+  if (transcript.length < 4) return false;
+  const speakers = new Set(transcript.map((segment) => asText(segment.speaker)).filter(Boolean));
+  const hasNamedGuest = Array.from(speakers).some((speaker) => speaker.startsWith("嘉宾·"));
+  return speakers.size <= 1 || !hasNamedGuest;
 }
 
 class OpenAIProgramAiProvider implements ProgramAiProvider {
