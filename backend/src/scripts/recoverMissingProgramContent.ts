@@ -27,12 +27,18 @@ function durationSeconds(value: unknown): number {
 
 async function main() {
   await mongoose.connect(process.env.MONGO_URI || "mongodb://xianfeng_mongo:27017/xianfeng");
+  const forcedProgramCodes = new Set(
+    (process.env.RECOVERY_REPROCESS_PROGRAM_CODES || "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean)
+  );
   const visiblePrograms = await Program.find({
     status: { $in: ["published", "group-only"] },
     "episodes.0.url": { $exists: true, $ne: "" },
   }).lean();
   const targets = visiblePrograms
-    .filter((program) => !hasGeneratedContent(program))
+    .filter((program) => !hasGeneratedContent(program) || forcedProgramCodes.has(program.programCode || ""))
     .sort((a, b) => durationSeconds(a.episodes?.[0]?.duration) - durationSeconds(b.episodes?.[0]?.duration));
 
   console.log(JSON.stringify({ event: "recovery_targets", count: targets.length, codes: targets.map((p) => p.programCode) }));
@@ -47,7 +53,8 @@ async function main() {
   for (let index = 0; index < targets.length; index += 1) {
     const target = targets[index];
     const current = await Program.findById(target._id);
-    if (!current || hasGeneratedContent(current)) {
+    const forceReprocess = forcedProgramCodes.has(target.programCode || "");
+    if (!current || (hasGeneratedContent(current) && !forceReprocess)) {
       skipped += 1;
       console.log(JSON.stringify({ event: "recovery_skip", index: index + 1, programCode: target.programCode }));
       continue;

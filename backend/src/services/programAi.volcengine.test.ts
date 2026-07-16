@@ -1,5 +1,7 @@
 import assert from "assert";
 import {
+  buildParagraphTranscriptFromTimedItems,
+  extractUtteranceSpeaker,
   getVolcengineFlashMaxLocalBytes,
   isVolcengineStandardQueryComplete,
   normalizeVolcenginePublicSourceUrl,
@@ -7,6 +9,16 @@ import {
   shouldAttemptVolcengineFlashEndpoint,
   shouldUseVolcengineStandardEndpoint,
 } from "./programAi";
+
+assert.equal(extractUtteranceSpeaker({ additions: { speaker: "2" } }), "2");
+assert.deepEqual(
+  buildParagraphTranscriptFromTimedItems([
+    { startSec: 0, endSec: 5, speaker: "1", text: "大家好，我是 Jessie，欢迎收听本期家长先疯。" },
+    { startSec: 6, endSec: 12, speaker: "2", text: "哈喽，我是阿力，今天我们来聊孩子的阅读。" },
+    { startSec: 13, endSec: 20, speaker: "3", text: "谢谢邀请，我先从自己的教学经历开始分享。" },
+  ]).map((item) => item.speaker),
+  ["Jessie", "阿力", "嘉宾"]
+);
 
 assert.equal(
   normalizeVolcenginePublicSourceUrl(

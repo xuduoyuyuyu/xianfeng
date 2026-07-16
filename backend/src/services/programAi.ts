@@ -473,6 +473,25 @@ function looksLikeQuestionPrompt(text: string): boolean {
   return /[??]/.test(normalized) || /为什么|怎么|如何|能不能|可不可以|是不是|请你|请您|想请教/.test(normalized);
 }
 
+export function resolveKnownHostName(text: string): "阿力" | "Jessie" | "" {
+  const normalized = asText(text).replace(/\s+/g, "").toLowerCase();
+  if (!normalized) return "";
+  if (/(?:大家好[,，。]?|哈[喽咯罗][,，。]?)?我是(?:主播)?(?:jessie|杰西)/i.test(normalized)) return "Jessie";
+  if (/(?:大家好[,，。]?|哈[喽咯罗][,，。]?)?我是(?:主播)?(?:阿力|阿丽|ali)/i.test(normalized)) return "阿力";
+  return "";
+}
+
+export function extractUtteranceSpeaker(item: any): string {
+  return (
+    asText(item?.speaker) ||
+    asText(item?.speaker_id) ||
+    asText(item?.spk) ||
+    asText(item?.speaker_label) ||
+    asText(item?.additions?.speaker) ||
+    ""
+  );
+}
+
 function getTimedUtteranceSpeakerKey(item: TimedUtterance, index: number): string {
   const rawSpeaker = asText(item.speaker);
   if (rawSpeaker) return rawSpeaker;
@@ -485,6 +504,7 @@ function resolveRoleLabels(
   const firstSeenKeys: string[] = [];
   const keyCounts = new Map<string, number>();
   const hostScores = new Map<string, number>();
+  const knownHostNames = new Map<string, "阿力" | "Jessie">();
 
   for (const paragraph of paragraphs) {
     if (!firstSeenKeys.includes(paragraph.speakerKey)) {
@@ -496,6 +516,8 @@ function resolveRoleLabels(
       (looksLikeHostParagraph(paragraph.text) ? 3 : 0) +
       (looksLikeQuestionPrompt(paragraph.text) ? 1 : 0);
     hostScores.set(paragraph.speakerKey, (hostScores.get(paragraph.speakerKey) || 0) + hostScoreBoost);
+    const knownHostName = resolveKnownHostName(paragraph.text);
+    if (knownHostName) knownHostNames.set(paragraph.speakerKey, knownHostName);
   }
 
   let hostKey = "";
@@ -515,38 +537,29 @@ function resolveRoleLabels(
   const guestLabelMap = new Map<string, string>();
   let guestIndex = 1;
 
-  // 把 host speaker 映射为"主播·{名字}"
-  const hostDisplayName = (() => {
-    const nam = normalizeSpeakerToken(hostKey);
-    if (/ali|阿力/.test(nam)) return "主播·阿力";
-    if (/jessie/.test(nam)) return "主播·Jessie";
-    return "主播·阿力";
-  })();
-
   return paragraphs.map((paragraph, index) => {
     const explicitSpeaker = paragraph.speakerKey;
     const normExplicit = normalizeSpeakerToken(explicitSpeaker);
 
-    // 明确是 host speaker
-    if (paragraph.speakerKey === hostKey && hostKeyScore > 0) {
-      return hostDisplayName;
-    }
+    const knownHostName = knownHostNames.get(paragraph.speakerKey);
+    if (knownHostName) return knownHostName;
     if (isExplicitHostSpeaker(explicitSpeaker)) {
-      // 根据实际名字映射
-      if (/ali|阿力/.test(normExplicit)) return "主播·阿力";
-      if (/jessie/.test(normExplicit)) return "主播·Jessie";
-      return hostDisplayName;
+      if (/ali|阿力|阿丽/.test(normExplicit)) return "阿力";
+      if (/jessie|杰西/.test(normExplicit)) return "Jessie";
+      return "主播";
     }
 
     // 嘉宾绝对不能是阿力或 Jessie
     if (/ali|阿力|jessie/.test(normExplicit)) {
-      return hostDisplayName;
+      return /jessie/.test(normExplicit) ? "Jessie" : "阿力";
     }
+
+    if (paragraph.speakerKey === hostKey && hostKeyScore > 0) return "主播";
 
     const isUnknownSpeaker = explicitSpeaker.startsWith("__unknown");
 
     if (!guestLabelMap.has(explicitSpeaker) && !isUnknownSpeaker) {
-      guestLabelMap.set(explicitSpeaker, `嘉宾${guestIndex}`);
+      guestLabelMap.set(explicitSpeaker, guestIndex === 1 ? "嘉宾" : `嘉宾${guestIndex}`);
       guestIndex += 1;
     }
 
@@ -555,7 +568,7 @@ function resolveRoleLabels(
     }
 
     if (index === 0 && !hostKeyScore && looksLikeHostParagraph(paragraph.text)) {
-      return hostDisplayName;
+      return "主播";
     }
 
     return `嘉宾${Math.max(1, guestIndex - 1)}`;
@@ -652,7 +665,7 @@ function scoreFeaturedParagraph(text: string): number {
   return score;
 }
 
-function buildParagraphTranscriptFromTimedItems(items: TimedUtterance[], fallbackDurationSeconds = 180): TranscriptSegment[] {
+export function buildParagraphTranscriptFromTimedItems(items: TimedUtterance[], fallbackDurationSeconds = 180): TranscriptSegment[] {
   const normalizedItems = items
     .map((item) => ({
       startSec: Math.max(0, Math.floor(Number(item.startSec) || 0)),
@@ -685,7 +698,6 @@ function buildParagraphTranscriptFromTimedItems(items: TimedUtterance[], fallbac
   // Re-sort after offset correction
   normalizedItems.sort((a, b) => a.startSec - b.startSec);
 
-  const minParagraphChars = 70;
   const maxParagraphChars = 180;
   const maxParagraphSentences = 4;
   const maxGapSeconds = 3;
@@ -705,7 +717,7 @@ function buildParagraphTranscriptFromTimedItems(items: TimedUtterance[], fallbac
       gapSeconds > maxGapSeconds ||
       currentText.length >= maxParagraphChars ||
       current.texts.length >= maxParagraphSentences ||
-      (item.speakerKey !== current.speakerKey && currentText.length >= minParagraphChars);
+      item.speakerKey !== current.speakerKey;
     if (shouldBreak) {
       paragraphs.push(current);
       current = { startSec: item.startSec, endSec: safeEnd, speakerKey: item.speakerKey, texts: [item.text] };
@@ -750,7 +762,7 @@ function buildParagraphTranscriptFromTimedItems(items: TimedUtterance[], fallbac
   const featuredIndexes = new Set(ranked.map((item) => item.idx));
   const transcript = finalParagraphs.map((item, idx) => ({
     time: `${formatClock(item.startSec)}-${formatClock(item.endSec)}`,
-    speaker: speakerLabels[idx] || "主播·阿力",
+    speaker: speakerLabels[idx] || "主播",
     text: item.text,
     featured: featuredIndexes.has(idx),
   }));
@@ -789,7 +801,7 @@ function splitToTranscriptParagraphs(text: string, durationSeconds: number): Tra
   const featuredIndexes = new Set(ranked.map((item) => item.idx));
   return outputParagraphs.map((item, idx) => ({
     time: `${formatClock(idx * gap)}-${formatClock(Math.min(safeDuration, (idx + 1) * gap))}`,
-    speaker: idx % 2 === 0 ? "主播·阿力" : "嘉宾",
+    speaker: idx % 2 === 0 ? "主播" : "嘉宾",
     text: item.endsWith("。") ? item : `${item}。`,
     featured: featuredIndexes.has(idx),
   }));
@@ -1250,12 +1262,7 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
         return {
           startSec: Math.max(0, Math.floor(startMs / 1000)),
           endSec: Math.max(Math.floor(startMs / 1000) + 1, Math.floor(endMs / 1000)),
-          speaker:
-            asText(item?.speaker) ||
-            asText(item?.speaker_id) ||
-            asText(item?.spk) ||
-            asText(item?.speaker_label) ||
-            "",
+          speaker: extractUtteranceSpeaker(item),
           text: asText(item?.text),
         };
       })
@@ -1282,6 +1289,7 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
         model_name: "bigmodel",
         show_utterances: true,
         enable_punc: true,
+        enable_speaker_info: true,
       },
     };
     console.log("[ai-program] volc submit request", {
@@ -1462,6 +1470,7 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
         model_name: "bigmodel",
         show_utterances: true,
         enable_punc: true,
+        enable_speaker_info: true,
       },
     } : null;
     let json: any = {};
@@ -1575,12 +1584,7 @@ class VolcengineProgramAiProvider implements ProgramAiProvider {
         return {
           startSec: Math.max(0, Math.floor(startMs / 1000)),
           endSec: Math.max(Math.floor(startMs / 1000) + 1, Math.floor(endMs / 1000)),
-          speaker:
-            asText(item?.speaker) ||
-            asText(item?.speaker_id) ||
-            asText(item?.spk) ||
-            asText(item?.speaker_label) ||
-            "",
+          speaker: extractUtteranceSpeaker(item),
           text: asText(item?.text),
         };
       }),
