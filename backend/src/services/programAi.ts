@@ -1283,7 +1283,8 @@ export function applyTranscriptQualitySegments(
 async function refineTranscriptChunkWithProvider(
   source: TranscriptSegment[],
   guestNames: string[],
-  config: MetadataLlmConfig | null
+  config: MetadataLlmConfig | null,
+  attempt = 0
 ): Promise<TranscriptSegment[] | null> {
   if (!config) return null;
   const prompt = [
@@ -1291,7 +1292,9 @@ async function refineTranscriptChunkWithProvider(
     "删除嗯、呃、重复词、歌词；英文和中英混合表达翻译为自然中文；品牌统一写家长先疯。",
     "只允许合并 speaker 完全相同的相邻输入片段，必须按顺序覆盖每个 index，不能遗漏或重复。",
     "每个输出 text 必须为50至200个中文字符，句意完整。",
+    "若短片段无法与相邻同一 speaker 片段合并，必须忠实改写成至少50字的完整书面表达，不得增加原文没有的事实或观点。",
     "speaker 必须原样复制所覆盖输入片段的 speaker，不得重新判断或修改。",
+    attempt > 0 ? "上一次输出未通过长度或覆盖校验，本次必须逐条检查后再输出。" : "",
     '只输出JSON：{"segments":[{"startIndex":0,"endIndex":1,"speaker":"主播·阿力","text":"..."}]}。',
     JSON.stringify(source.map((segment, index) => ({ index, speaker: segment.speaker, text: segment.text }))),
   ].join("\n");
@@ -1331,8 +1334,8 @@ export async function ensureTranscriptQuality(input: {
     let result: TranscriptSegment[] | null = null;
     for (let attempt = 0; attempt < 3 && !result; attempt += 1) {
       result =
-        await refineTranscriptChunkWithProvider(chunk, guestNames, resolveDeepSeekMetadataConfig()) ||
-        await refineTranscriptChunkWithProvider(chunk, guestNames, resolveArkMetadataConfig());
+        await refineTranscriptChunkWithProvider(chunk, guestNames, resolveDeepSeekMetadataConfig(), attempt) ||
+        await refineTranscriptChunkWithProvider(chunk, guestNames, resolveArkMetadataConfig(), attempt);
     }
     if (!result) throw new Error("逐字稿未通过50至200字、品牌名或说话人实名质检");
     refined.push(...result);
