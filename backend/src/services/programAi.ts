@@ -1234,6 +1234,22 @@ function mergedTranscriptTime(first: TranscriptSegment, last: TranscriptSegment)
   return start && end ? `${start}-${end}` : start || end;
 }
 
+function splitTranscriptText(text: string, maxLength = 200): string[] {
+  const parts: string[] = [];
+  let remaining = text;
+  while (remaining.length > maxLength) {
+    const window = remaining.slice(0, maxLength + 1);
+    const candidates = ["。", "！", "？", ".", "!", "?", "；", ";"]
+      .map((mark) => window.lastIndexOf(mark))
+      .filter((index) => index >= Math.floor(maxLength * 0.5));
+    const splitAt = candidates.length ? Math.max(...candidates) + 1 : maxLength;
+    parts.push(remaining.slice(0, splitAt).trim());
+    remaining = remaining.slice(splitAt).trim();
+  }
+  if (remaining) parts.push(remaining);
+  return parts.filter(Boolean);
+}
+
 export function applyTranscriptQualitySegments(
   source: TranscriptSegment[],
   rows: unknown,
@@ -1263,7 +1279,7 @@ export function applyTranscriptQualitySegments(
       startIndex !== expectedStart ? "non_contiguous_index" :
       endIndex < startIndex || endIndex >= source.length ? "index_out_of_range" :
       !speaker ? "mixed_or_invalid_source_speaker" :
-      finalText.length < minimumFaithfulLength || finalText.length > 200 ? "invalid_text_length" : "";
+      finalText.length < minimumFaithfulLength ? "invalid_text_length" : "";
     if (invalidReason) {
       console.warn("[ai-program] transcript quality row rejected", {
         reason: invalidReason,
@@ -1277,12 +1293,11 @@ export function applyTranscriptQualitySegments(
       });
       return null;
     }
-    output.push({
-      time: mergedTranscriptTime(source[startIndex], source[endIndex]),
-      speaker,
-      text: finalText,
-      featured: source.slice(startIndex, endIndex + 1).some((segment) => segment.featured),
-    });
+    const time = mergedTranscriptTime(source[startIndex], source[endIndex]);
+    const featured = source.slice(startIndex, endIndex + 1).some((segment) => segment.featured);
+    for (const [partIndex, part] of splitTranscriptText(finalText).entries()) {
+      output.push({ time, speaker, text: part, featured: featured && partIndex === 0 });
+    }
     expectedStart = endIndex + 1;
   }
   return expectedStart === source.length ? output : null;
