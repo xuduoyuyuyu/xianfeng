@@ -51,7 +51,7 @@ function asText(value: unknown): string {
 
 function isUsableGuestSpeakerName(value: unknown): boolean {
   const name = asText(value);
-  return Boolean(name && !["节目特邀嘉宾", "待解析", "嘉宾"].includes(name));
+  return Boolean(name && !["节目特邀嘉宾", "待解析", "嘉宾", "阿力", "Jessie"].includes(name));
 }
 
 async function resolveGuestSpeakerNames(payload: any, generatedGuestName?: unknown): Promise<string[]> {

@@ -1141,7 +1141,7 @@ export function applyTranscriptSpeakerAssignments(
   const distinct = new Set(labels.values());
   const hasHost = Array.from(distinct).some((label) => label.startsWith("主播·"));
   const hasGuest = Array.from(distinct).some((label) => label.startsWith("嘉宾·"));
-  if (!hasHost || !hasGuest) return null;
+  if (!hasHost || (guestNames.length ? !hasGuest : distinct.size < 2)) return null;
   return transcript.map((segment, index) => ({ ...segment, speaker: labels.get(index)! }));
 }
 
@@ -1194,7 +1194,6 @@ export async function ensureTranscriptSpeakerAttribution(input: {
   durationSeconds: number;
 }, guestNames: string[]): Promise<typeof input> {
   const usableGuestNames = guestNames.map((name) => asText(name)).filter(Boolean);
-  if (!usableGuestNames.length) throw new Error("节目缺少可用的嘉宾真实姓名，已停止写入逐字稿");
   const normalized = input.transcript.map((segment) => {
     const rawSpeaker = asText(segment.speaker);
     if (/^(?:主播·)?(?:阿力|ali)$/i.test(rawSpeaker)) return { ...segment, speaker: "主播·阿力" };
@@ -1407,9 +1406,12 @@ export async function ensureTranscriptQuality(input: {
     refined.push(...result);
   }
   const speakers = new Set(refined.map((segment) => segment.speaker));
-  if (!Array.from(speakers).some((speaker) => speaker.startsWith("主播·")) ||
-      !Array.from(speakers).some((speaker) => speaker.startsWith("嘉宾·"))) {
-    throw new Error("逐字稿未同时识别主播与绑定嘉宾，已停止写入");
+  const hasHost = Array.from(speakers).some((speaker) => speaker.startsWith("主播·"));
+  const hasGuest = Array.from(speakers).some((speaker) => speaker.startsWith("嘉宾·"));
+  if (!hasHost || (guestNames.length ? !hasGuest : speakers.size < 2)) {
+    throw new Error(guestNames.length
+      ? "逐字稿未同时识别主播与绑定嘉宾，已停止写入"
+      : "双主播节目未可靠区分阿力与Jessie，已停止写入");
   }
   return { ...input, transcript: refined, plainText: refined.map((segment) => segment.text).join("\n") };
 }
