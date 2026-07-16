@@ -1,5 +1,6 @@
 const { getNativeTopbarMetrics } = require("../../utils/nativeChrome");
 const { request, buildUrl } = require("../../utils/request");
+const { copyTextSilently } = require("../../utils/clipboard");
 const { createPageShare, enableShareMenu } = require("../../utils/share");
 const { ensureBackStackForBackButtonPage, goProgramsHome: navigateProgramsHome, smartBackHome } = require("../../utils/nativePageNav");
 const { SETTINGS_SECTIONS, createNativeSettingsMethods } = require("../../utils/nativeSettings");
@@ -11,6 +12,7 @@ const CHILD_GENDER_OPTIONS = [
   { value: "男孩", label: "男孩" },
   { value: "女孩", label: "女孩" }
 ];
+const CONTENT_CAPABILITY_OPTIONS = ["能拍", "能剪", "能写"];
 const REAL_NAME_VERIFIED_OPTIONS = [
   { value: "yes", label: "已实名" },
   { value: "no", label: "未实名" }
@@ -32,6 +34,7 @@ const EMPTY_APPLY_DRAFT = {
   city: "",
   childStage: "",
   childGender: "",
+  contentCapabilities: [],
   xiaohongshuNickname: "",
   xiaohongshuProfileUrl: "",
   originalXiaohongshuProfileUrl: "",
@@ -50,6 +53,14 @@ function buildCategoryOptions(selectedCategories) {
   return CATEGORY_OPTIONS.map((label) => ({
     label,
     selected: selected.indexOf(label) >= 0
+  }));
+}
+
+function buildContentCapabilityOptions(contentCapabilities) {
+  const selected = Array.isArray(contentCapabilities) ? contentCapabilities : [];
+  return CONTENT_CAPABILITY_OPTIONS.map((label) => ({
+    label,
+    selected: selected.includes(label)
   }));
 }
 
@@ -142,7 +153,8 @@ function buildProfileOverview(formDraft) {
     draft.contactWechat ? `微信 ${draft.contactWechat}` : "",
     draft.contactPhone ? `手机 ${draft.contactPhone}` : "",
     draft.alipayAccount ? `支付宝 ${draft.alipayAccount}` : "",
-    draft.alipayVerifiedName ? `验证姓名 ${draft.alipayVerifiedName}` : ""
+    draft.alipayVerifiedName ? `验证姓名 ${draft.alipayVerifiedName}` : "",
+    draft.contentCapabilities.length ? `创作能力 ${draft.contentCapabilities.join("、")}` : ""
   ].filter(Boolean);
   const allAccounts = [normalizeMediaAccount({
     platform: "xiaohongshu",
@@ -171,6 +183,7 @@ function cloneEmptyApplyDraft() {
   return {
     ...EMPTY_APPLY_DRAFT,
     mediaAccounts: [],
+    contentCapabilities: [],
     selectedCategories: []
   };
 }
@@ -186,6 +199,7 @@ function normalizeApplyDraft(value) {
     city: asText(source.city).trim(),
     childStage: asText(source.childStage).trim(),
     childGender: asText(source.childGender).trim(),
+    contentCapabilities: Array.isArray(source.contentCapabilities) ? source.contentCapabilities.map(asText).filter(Boolean) : [],
     xiaohongshuNickname: asText(source.xiaohongshuNickname).trim(),
     xiaohongshuProfileUrl: asText(source.xiaohongshuProfileUrl).trim(),
     originalXiaohongshuProfileUrl: asText(source.originalXiaohongshuProfileUrl).trim(),
@@ -258,6 +272,8 @@ function buildApplyDraftState(draftValue) {
     childStageIndex: childStageIndexFor(formDraft.childStage),
     childStage: formDraft.childStage,
     childGender: formDraft.childGender,
+    contentCapabilities: formDraft.contentCapabilities,
+    contentCapabilityOptions: buildContentCapabilityOptions(formDraft.contentCapabilities),
     xiaohongshuScreenshotUrl: formDraft.xiaohongshuScreenshotUrl,
     realNameVerified: formDraft.realNameVerified,
     mediaAccounts: formDraft.mediaAccounts,
@@ -539,6 +555,7 @@ function buildProfileDraftPatch(profile) {
     city: source.city || "",
     childStage: source.childStage || "",
     childGender: source.childGender || "",
+    contentCapabilities: Array.isArray(source.contentCapabilities) ? source.contentCapabilities : [],
     xiaohongshuNickname: primary.nickname || "",
     xiaohongshuProfileUrl: primary.profileUrl || "",
     originalXiaohongshuProfileUrl: primary.profileUrl || "",
@@ -587,6 +604,7 @@ function updatePageApplyDraft(page, patch) {
     ...(currentData.formDraft || {}),
     childStage: currentData.childStage,
     childGender: currentData.childGender,
+    contentCapabilities: currentData.contentCapabilities,
     xiaohongshuScreenshotUrl: currentData.xiaohongshuScreenshotUrl,
     realNameVerified: currentData.realNameVerified,
     selectedCategories: currentData.selectedCategories,
@@ -610,6 +628,7 @@ Page({
     profileManagerMode: "overview",
     childStages: CHILD_STAGE_OPTIONS,
     childGenderOptions: CHILD_GENDER_OPTIONS,
+    contentCapabilityOptions: buildContentCapabilityOptions([]),
     realNameVerifiedOptions: REAL_NAME_VERIFIED_OPTIONS,
     settingsSections: SETTINGS_SECTIONS,
     topbarHeight: 88,
@@ -900,6 +919,10 @@ Page({
     this.setData({ taskContentLinkOpen: false });
   },
 
+  copyMamaTaskContentLink() {
+    copyTextSilently(this.data.currentMamaTask && this.data.currentMamaTask.contentUrl);
+  },
+
   openMamaTaskSharePoster() {
     const task = this.data.currentMamaTask || {};
     const taskId = asText(task.taskId || task._id).trim();
@@ -948,7 +971,7 @@ Page({
   drawMamaTaskShareImage(task, qrPath, examplePath) {
     const canvasId = "mamaTaskShareCanvas";
     const ctx = wx.createCanvasContext(canvasId, this);
-    const title = truncatePosterText(task.title || "妈妈好赚任务", 22);
+    const title = truncatePosterText(task.title || "好赚任务", 22);
     const category = truncatePosterText(task.category || "小红书任务", 18);
     const announcement = truncatePosterText(task.announcement || "任务包含：发布内容+评论区维护", 30);
     const settlement = truncatePosterText(task.settlementStandard || "按平台要求发布并保留，后台审核通过后进入结算。", 58);
@@ -1314,7 +1337,8 @@ Page({
       alipayVerifiedName: String(values.alipayVerifiedName || "").trim(),
       city: String(values.city || "").trim(),
       childStage: this.data.childStage,
-      childGender: this.data.childGender
+      childGender: this.data.childGender,
+      contentCapabilities: this.data.contentCapabilities
     });
     this.submitProfileDraft({ stayInApply: true });
   },
@@ -1384,6 +1408,16 @@ Page({
   toggleChildGender(event) {
     const value = String(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.value || "").trim();
     updatePageApplyDraft(this, { childGender: value === this.data.childGender ? "" : value });
+  },
+
+  toggleContentCapability(event) {
+    const value = String(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.value || "").trim();
+    if (!value) return;
+    const current = Array.isArray(this.data.contentCapabilities) ? this.data.contentCapabilities : [];
+    const contentCapabilities = current.includes(value)
+      ? current.filter((item) => item !== value)
+      : current.concat(value);
+    updatePageApplyDraft(this, { contentCapabilities });
   },
 
   toggleRealNameVerified(event) {
@@ -1499,6 +1533,7 @@ Page({
       city: String(values.city || "").trim(),
       childStage: this.data.childStage,
       childGender: this.data.childGender,
+      contentCapabilities: this.data.contentCapabilities,
       xiaohongshuNickname: String(values.xiaohongshuNickname || "").trim(),
       xiaohongshuProfileUrl: lockedXiaohongshuProfileUrl || String(values.xiaohongshuProfileUrl || "").trim(),
       xiaohongshuScreenshotUrl: this.data.xiaohongshuScreenshotUrl,
@@ -1524,6 +1559,7 @@ Page({
       xiaohongshuProfileUrl: lockedXiaohongshuProfileUrl || draft.xiaohongshuProfileUrl,
       childStage: this.data.childStage,
       childGender: this.data.childGender,
+      contentCapabilities: this.data.contentCapabilities,
       xiaohongshuScreenshotUrl: this.data.xiaohongshuScreenshotUrl,
       realNameVerified: this.data.realNameVerified,
       categories: this.data.selectedCategories,
@@ -1606,7 +1642,7 @@ Page({
 
   onShareAppMessage() {
     return createPageShare({
-      title: "妈妈好赚",
+      title: "好赚",
       path: "/pages/mama-resource-apply/index?shared=1",
       imageUrl: MAMA_RESOURCE_SHARE_COVER_IMAGE
     }).onShareAppMessage();
@@ -1614,7 +1650,7 @@ Page({
 
   onShareTimeline() {
     return createPageShare({
-      title: "妈妈好赚",
+      title: "好赚",
       path: "/pages/mama-resource-apply/index?shared=1",
       imageUrl: MAMA_RESOURCE_SHARE_COVER_IMAGE
     }).onShareTimeline();

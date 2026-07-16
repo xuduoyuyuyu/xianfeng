@@ -9,6 +9,6 @@ const source = readFileSync(resolve(__dirname, "AdminDashboardPage.tsx"), "utf8"
 
 test("admin dashboard exposes a mama resource pool shortcut", () => {
   assert.match(source, /to="\/admin\/mama-resources"/);
-  assert.match(source, /妈妈好赚/);
+  assert.match(source, /好赚/);
   assert.match(source, /\/assets\/mama-hao-zhuan-icon\.png/);
 });

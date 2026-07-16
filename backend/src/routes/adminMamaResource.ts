@@ -155,6 +155,7 @@ function buildListFilter(query: Request["query"]) {
   const orderBlocked = asText(query.orderBlocked);
   const childStage = asText(query.childStage);
   const childGender = asText(query.childGender);
+  const contentCapabilities = asTextArray(query.contentCapabilities);
   const platform = asText(query.platform);
 
   if (STATUSES.includes(status as MamaResourceStatus)) {
@@ -174,6 +175,7 @@ function buildListFilter(query: Request["query"]) {
   }
   if (childStage) filter.childStage = childStage;
   if (childGender) filter.childGender = childGender;
+  if (contentCapabilities.length) filter.contentCapabilities = { $all: contentCapabilities };
   if (MEDIA_PLATFORMS.has(platform)) {
     filter.$and = [{ $or: [{ "mediaAccounts.platform": platform }, { "socialAccount.platform": platform }] }];
   }
@@ -351,7 +353,7 @@ router.get("/tasks", async (_req: Request, res: Response) => {
 
 router.get("/tasks/content-import/template", (_req: Request, res: Response) => {
   const sheet = XLSX.utils.json_to_sheet([
-    { 妈妈好赚账号ID: "请填写系统账号ID", 专属内容链接: "https://my.feishu.cn/wiki/example" },
+    { 好赚账号ID: "请填写系统账号ID", 专属内容链接: "https://my.feishu.cn/wiki/example" },
   ]);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, sheet, "专属链接");
@@ -480,7 +482,7 @@ router.post(
         task._id,
         rawRows.map((row, index) => ({
           rowNumber: index + 2,
-          profileId: asText(row["妈妈好赚账号ID"]),
+          profileId: asText(row["好赚账号ID"] || row["妈妈好赚账号ID"]),
           rawContentUrl: row["专属内容链接"],
         }))
       );
@@ -787,6 +789,7 @@ router.put("/:id", async (req: Request, res: Response) => {
     update.alipayAccount = alipayAccount;
     update.alipayVerifiedName = alipayVerifiedName;
     if (body.categories !== undefined) update.categories = asTextArray(body.categories);
+    if (body.contentCapabilities !== undefined) update.contentCapabilities = asTextArray(body.contentCapabilities);
     if (STATUSES.includes(asText(body.status) as MamaResourceStatus)) update.status = asText(body.status);
     const mediaAccounts = manualMediaAccounts(body.mediaAccounts);
     if (mediaAccounts) {

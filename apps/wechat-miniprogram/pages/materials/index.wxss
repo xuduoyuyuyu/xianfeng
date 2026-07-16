@@ -188,18 +188,9 @@
   line-height: 1.45;
 }
 
-.xf-materials-link-hint {
-  display: block;
-  margin-top: 28rpx;
-  color: #7c6aaa;
-  font-size: 24rpx;
-  font-weight: 700;
-  line-height: 1.4;
-}
-
 .xf-materials-link-url {
   display: block;
-  margin-top: 12rpx;
+  margin-top: 28rpx;
   padding: 22rpx;
   border: 2rpx solid #e2d8ff;
   border-radius: 22rpx;

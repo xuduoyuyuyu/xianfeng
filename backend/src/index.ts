@@ -34,6 +34,7 @@ import tutorbotRoutes from "./routes/tutorbot";
 import aiCompatRoutes from "./routes/aiCompat";
 import billingRoutes from "./routes/billing";
 import wechatMiniRoutes from "./routes/wechatMini";
+import searchRoutes from "./routes/search";
 import { publicRouter as topicPublicRoutes, adminRouter as topicAdminRoutes } from "./routes/topic";
 import { UserController } from "./controllers/user";
 import { authenticate } from "./middlewares/auth";
@@ -95,6 +96,7 @@ app.use(
 );
 
 app.use("/api/programs", programRoutes);
+app.use("/api/search", searchRoutes);
 app.use("/api/guests", guestRoutes);
 app.use("/api/books", bookRoutes);
 // 微信小店商品链接

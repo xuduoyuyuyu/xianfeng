@@ -47,7 +47,7 @@ function evaluateHelper(name) {
 test("mama resource application route is public and avoids account credentials", () => {
   assert.match(appSource, /import MamaResourceApplyPage from "\.\/pages\/MamaResourceApplyPage";/);
   assert.match(appSource, /if \(normalizedPathname === "\/mama-resources\/apply"\) \{\s*return <MamaResourceApplyPage \/>;\s*\}/s);
-  assert.match(source, /妈妈好赚/);
+  assert.match(source, /好赚/);
   assert.doesNotMatch(source, /妈妈发稿资源池/);
   assert.match(source, /\/assets\/mama-hao-zhuan-icon\.png/);
   assert.match(source, /#5e17eb/);
@@ -61,18 +61,26 @@ test("mama resource application route is public and avoids account credentials",
   assert.doesNotMatch(source, /password/i);
 });
 
+test("mama resource page exposes the Haozhuan share title", () => {
+  assert.match(source, /document\.title = "好赚"/);
+  assert.match(staticSource, /<title>好赚<\/title>/);
+});
+
 test("mama resource application opens with the icon intro card before the form", () => {
-  assert.match(source, /<div className="rounded-\[17px\][\s\S]*妈妈好赚[\s\S]*资料管理/);
+  assert.match(source, /<div className="rounded-\[17px\][\s\S]*好赚[\s\S]*资料管理/);
   assert.match(source, /type ProfileManagerMode = "overview" \| "personal" \| "media" \| "preference";/);
   assert.match(source, /const \[profileManagerMode, setProfileManagerMode\] = useState<ProfileManagerMode>\("overview"\);/);
   assert.match(source, /profileManagerMode === "overview"[\s\S]*个人资料[\s\S]*社交媒体账号[\s\S]*接单偏好/);
   assert.match(source, /profileManagerMode === "personal"[\s\S]*保存个人信息/);
+  assert.match(source, /const contentCapabilityOptions = \["能拍", "能剪", "能写"\]/);
+  assert.match(source, /创作能力[\s\S]*form\.contentCapabilities\.includes\(item\)/);
+  assert.match(apiSource, /contentCapabilities: string\[\];/);
   assert.match(source, /profileManagerMode === "media"[\s\S]*保存社交媒体账号/);
   assert.match(source, /profileManagerMode === "preference"[\s\S]*保存接单偏好/);
   assert.match(source, /profileOverview/);
   assert.match(source, /保存并返回/);
   assert.match(source, /<h1 className="text-\[19px\][^"]*">资料管理<\/h1>/);
-  assert.doesNotMatch(source, /妈妈好赚资料提交/);
+  assert.doesNotMatch(source, /好赚资料提交/);
   assert.doesNotMatch(source, /<form id="mama-resource-apply-form"[\s\S]*<img src="\/assets\/mama-hao-zhuan-icon\.png"/);
   assert.match(source, /max-w-\[760px\]/);
   assert.doesNotMatch(source, /xl:grid-cols/);
@@ -81,8 +89,8 @@ test("mama resource application opens with the icon intro card before the form",
 test("mini program mama entry uses a static form page instead of SPA fallback", () => {
   assert.match(staticSource, /<form id="mama-resource-apply-form"/);
   assert.match(staticSource, /<h1>资料提交<\/h1>/);
-  assert.doesNotMatch(staticSource, /妈妈好赚资料提交/);
-  assert.match(staticSource, /<section class="intro-card">[\s\S]*妈妈好赚[\s\S]*<\/section>\s*<form id="mama-resource-apply-form" class="card">/);
+  assert.doesNotMatch(staticSource, /好赚资料提交/);
+  assert.match(staticSource, /<section class="intro-card">[\s\S]*好赚[\s\S]*<\/section>\s*<form id="mama-resource-apply-form" class="card">/);
   assert.match(staticSource, /fetch\("\/api\/mama-resources\/applications"/);
   assert.doesNotMatch(staticSource, /programs\/list/);
 });
@@ -165,6 +173,10 @@ test("mama resource application form submits a light supply profile", () => {
   assert.match(source, /alipayAccount: form\.alipayAccount\.trim\(\)/);
   assert.match(source, /alipayVerifiedName: form\.alipayVerifiedName\.trim\(\)/);
   assert.match(source, /publicApi\.submitMamaResourceApplication/);
+  assert.match(source, /const persistProfile = async \(\): Promise<boolean>/);
+  assert.match(source, /资料尚未提交：请补齐个人资料、社交媒体账号，并勾选资料使用授权。/);
+  assert.match(source, /const saveCurrentProfileSectionAndBack = async \(\) => \{[\s\S]*setProfileManagerMode\("overview"\);[\s\S]*await persistProfile\(\);[\s\S]*\};/);
+  assert.match(source, /const handleSubmit = async \(event: React\.FormEvent\) => \{[\s\S]*event\.preventDefault\(\);[\s\S]*await persistProfile\(\);[\s\S]*\};/);
 });
 
 test("mama resource public api posts applications", () => {

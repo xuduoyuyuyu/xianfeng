@@ -329,7 +329,7 @@ router.get("/me/tasks", authenticate, async (req: AuthenticatedRequest, res: Res
         .filter((task) => task.claimable),
     });
   } catch (error: any) {
-    res.status(500).json({ message: error?.message || "获取妈妈好赚任务失败" });
+    res.status(500).json({ message: error?.message || "获取好赚任务失败" });
   }
 });
 
@@ -337,7 +337,7 @@ router.post("/tasks/:taskId/claims", authenticate, async (req: AuthenticatedRequ
   try {
     const profile = await findApprovedProfileForUser(asText(req.user?.id));
     if (!profile) {
-      res.status(404).json({ message: "还没有可派单的妈妈好赚账号" });
+      res.status(404).json({ message: "还没有可派单的好赚账号" });
       return;
     }
     if (profile.orderBlocked) {
@@ -399,7 +399,7 @@ router.get("/me/tasks/:taskId", authenticate, async (req: AuthenticatedRequest, 
   try {
     const profile = await findApprovedProfileForUser(asText(req.user?.id));
     if (!profile) {
-      res.status(404).json({ message: "还没有可派单的妈妈好赚账号" });
+      res.status(404).json({ message: "还没有可派单的好赚账号" });
       return;
     }
     const task = await MamaResourceTaskAssignment.findOne({ _id: asText(req.params.taskId), profileId: profile._id }).populate("taskId");
@@ -418,7 +418,7 @@ router.post("/me/tasks/:taskId/submissions", authenticate, async (req: Authentic
   try {
     const profile = await findApprovedProfileForUser(asText(req.user?.id));
     if (!profile) {
-      res.status(404).json({ message: "还没有可派单的妈妈好赚账号" });
+      res.status(404).json({ message: "还没有可派单的好赚账号" });
       return;
     }
     const proofLink = asText(req.body?.proofLink);
@@ -549,6 +549,7 @@ router.post("/applications", optionalAuthenticate, async (req: AuthenticatedRequ
       city: asText(req.body?.city),
       childStage: asText(req.body?.childStage),
       childGender: asText(req.body?.childGender),
+      contentCapabilities: asTextArray(req.body?.contentCapabilities),
       categories: asTextArray(req.body?.categories),
       status: "approved",
       accountPositioning: asText(req.body?.accountPositioning),

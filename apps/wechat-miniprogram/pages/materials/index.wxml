@@ -86,8 +86,7 @@
         <button class="xf-materials-link-close" catchtap="closeMaterialLinkModal" aria-label="关闭资料链接">×</button>
       </view>
       <text wx:if="{{materialLinkModalTitle}}" class="xf-materials-link-name">{{materialLinkModalTitle}}</text>
-      <text class="xf-materials-link-hint">长按可复制：</text>
-      <text class="xf-materials-link-url" user-select="true">{{materialLinkModalUrl}}</text>
+      <text class="xf-materials-link-url" user-select="true" catchtap="copyMaterialModalLink">{{materialLinkModalUrl}}</text>
     </view>
   </view>
 

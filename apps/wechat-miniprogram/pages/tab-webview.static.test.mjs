@@ -645,12 +645,13 @@ test("welfare opens as a native mini program page and hides backend 404 noise", 
   assert.match(page.wxml, /claimDialogVisible/);
   assert.match(page.wxml, /claimDialogActivationCode/);
   assert.match(page.wxml, /copyActivationCode/);
-  assert.match(page.wxml, /复制链接/);
-  assert.match(page.wxml, /class="xf-welfare-dialog-link"[^>]*bindtap="openClaimLink"/);
-  assert.match(page.wxml, /<button catchtap="\{\{claimDialogIsMiniProgramLink \? 'openClaimLink' : 'copyClaimLink'\}\}">\{\{claimDialogIsMiniProgramLink \? '点击获取' : '复制链接'\}\}<\/button>/);
+  assert.match(page.wxml, /class="xf-welfare-dialog-link"[\s\S]*<text user-select="true" catchtap="copyClaimLink"/);
+  assert.match(page.wxml, /<button wx:if="\{\{claimDialogIsMiniProgramLink\}\}" catchtap="openClaimLink">点击获取<\/button>/);
+  assert.doesNotMatch(page.wxml, />复制链接<\/button>/);
   assert.doesNotMatch(page.wxml, /xf-welfare-item-status/);
   assert.doesNotMatch(page.wxml, /Request failed with status code 404/);
   assert.match(page.js, /request\(\{ url: "\/api\/welfare\/campaigns" \}\)/);
+  assert.doesNotMatch(page.js, /ensureBackStackForBackButtonPage/);
   assert.match(page.js, /claimDialogInstructions/);
   assert.match(page.js, /claimDialogIsMiniProgramLink:\s*[^,]*\.includes\("小程序"\)/);
   assert.match(page.js, /closeClaimDialog\(\)[\s\S]*claimDialogIsMiniProgramLink:\s*false/);
@@ -1160,8 +1161,12 @@ test("native search page replaces the webview global search entry", () => {
   assert.match(wxml, /class="xf-native-search-clock"/);
   assert.match(wxml, /wx:for="\{\{tabs\}\}"/);
   assert.match(wxml, /wx:for="\{\{visibleResults\}\}"/);
-  assert.match(wxml, /wx:if="\{\{loading\}\}" class="xf-native-search-progress"/);
+  assert.match(wxml, /class="xf-native-search-tabs \{\{loading \? 'is-loading' : ''\}\}"[\s\S]*wx:if="\{\{loading\}\}" class="xf-native-search-progress"/);
   assert.match(wxml, /style="width: \{\{searchProgress\}\}%;"/);
+  assert.match(wxml, /class="xf-native-search-progress-percent">\{\{searchProgress\}\}%<\/text>/);
+  assert.doesNotMatch(wxml, /正在加载更多结果/);
+  assert.match(wxss, /\.xf-native-search-progress-track \{[\s\S]*height: 4rpx;[\s\S]*background: rgba\(94, 23, 235, 0\.1\);/);
+  assert.match(wxss, /\.xf-native-search-progress \{[\s\S]*position: absolute;[\s\S]*bottom: 0;/);
   assert.match(wxml, /wx:if="\{\{loading && !visibleResults\.length\}\}" class="xf-native-search-state"/);
   assert.match(wxml, /wx:if="\{\{!error && visibleResults\.length\}\}" class="xf-native-search-list"/);
   assert.match(wxml, /item\.iconImage \? 'has-icon-image' : ''/);
@@ -1176,7 +1181,9 @@ test("native search page replaces the webview global search entry", () => {
   assert.match(js, /searchPrompt: getInitialSearchPrompt\(\)/);
   assert.match(js, /inputFocus: false/);
   assert.match(js, /readingSource,\s*inputFocus: true/);
-  assert.match(js, /searchProgress: Math\.round\(\(completedGroups \/ resultGroups\.length\) \* 100\)/);
+  assert.match(js, /onReady\(\) \{[\s\S]*this\.setData\(\{ inputFocus: false \}, \(\) => \{[\s\S]*this\.setData\(\{ inputFocus: true \}\);/);
+  assert.match(js, /request\(\{ url: `\/api\/search\?q=\$\{encodeURIComponent\(query\)\}` \}\)/);
+  assert.match(js, /this\._searchInputTimer = setTimeout\(\(\) => this\.loadData\(\), 220\)/);
   assert.doesNotMatch(js, /clearHistoryConfirming/);
   assert.match(js, /startSearchPromptRotation\(this\)/);
   assert.match(js, /stopSearchPromptRotation\(this\)/);
@@ -1200,6 +1207,7 @@ test("native search page replaces the webview global search entry", () => {
   assert.match(js, /request\(\{ url: `\/api\/programs\?page=1&pageSize=\$\{SEARCH_PAGE_SIZE\}` \}\)/);
   assert.match(js, /request\(\{ url: "\/api\/books" \}\)/);
   assert.match(js, /request\(\{ url: "\/api\/learning-materials" \}\)/);
+  assert.match(js, /path: id \? `\/materials\/\$\{encodeURIComponent\(id\)\}` : ""/);
   assert.match(js, /request\(\{ url: `\/api\/topic-hub\?page=1&limit=\$\{SEARCH_PAGE_SIZE\}` \}\)/);
   assert.match(js, /request\(\{ url: `\/api\/guests\?page=1&pageSize=\$\{SEARCH_PAGE_SIZE\}` \}\)/);
   assert.match(js, /function resultMatches\(result, keyword\)/);
@@ -1221,8 +1229,11 @@ test("native search page replaces the webview global search entry", () => {
   assert.match(js, /confirmText: "删除"/);
   assert.match(js, /if \(!res \|\| !res\.confirm\) return;/);
   assert.match(js, /recentKeywords: clearHistory\(\)/);
-  assert.match(js, /openWeb\(result\.path, result\.title\)/);
-  assert.match(js, /wx\.setClipboardData/);
+  assert.match(js, /const nativeRoute = buildNativeResultRoute\(result\)/);
+  assert.match(js, /wx\.navigateTo\(\{ url: nativeRoute \}\)/);
+  assert.match(js, /copyTextSilently/);
+  assert.match(wxml, /class="xf-materials-link-url"[^>]*catchtap="copyMaterialLink"/);
+  assert.doesNotMatch(wxml, /长按可复制/);
   assert.match(wxss, /\.xf-native-search-field \{[\s\S]*height: 70rpx;[\s\S]*border: 2rpx solid #d8d0ef;[\s\S]*border-radius: 999rpx;/);
   assert.match(wxss, /\.xf-native-search-panel \{[\s\S]*width: 100%;[\s\S]*margin: 0;[\s\S]*padding: 18rpx 0 24rpx;/);
   assert.match(wxss, /\.xf-native-search-circle \{[\s\S]*border: 3rpx solid #4b5563;/);
@@ -1332,11 +1343,12 @@ test("back-button pages normalize a root launch into a swipe-back page stack", (
     global.getCurrentPages = () => [{ route: "pages/pro/index", options: { xf_back_stack: "1" } }];
     assert.equal(ensureBackStackForBackButtonPage({ plan: "plus" }), false);
 
-    for (const name of ["pro", "welfare", "mine/archive", "mine/memory", "mine/settings"]) {
+    for (const name of ["pro", "mine/archive", "mine/memory", "mine/settings"]) {
       const page = readPage(name);
       assert.match(page.js, /ensureBackStackForBackButtonPage/);
       assert.match(page.js, /if \(ensureBackStackForBackButtonPage\(options\)\) return;/);
     }
+    assert.doesNotMatch(readPage("welfare").js, /ensureBackStackForBackButtonPage/);
     const mamaPage = readPage("mama-resource-apply");
     assert.match(mamaPage.js, /ensureBackStackForBackButtonPage/);
     assert.match(mamaPage.js, /const pendingMamaTaskId = asText\(options\.taskId \|\| parseSceneParam\(options\.scene, "m"\)\)\.trim\(\)/);
@@ -1468,6 +1480,59 @@ test("native search stores reading keyword before opening fallback reading list"
   }
 });
 
+test("native search opens material links in a modal and other site results in native detail routes", () => {
+  const definition = loadPageDefinition("search");
+  const originalNavigateTo = global.wx.navigateTo;
+  const originalSetClipboardData = global.wx.setClipboardData;
+  const navigations = [];
+  const copied = [];
+  const context = {
+    ...definition,
+    data: {
+      ...definition.data,
+      visibleResults: [
+        {
+          id: "materials-material-pinyin",
+          type: "materials",
+          title: "拼音资料",
+          path: "/materials/material-pinyin",
+          copyUrl: "https://example.com/pinyin.pdf"
+        },
+        {
+          id: "topics-pinyin-start",
+          type: "topics",
+          title: "拼音启蒙",
+          path: "/topics/pinyin-start"
+        }
+      ]
+    },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+
+  try {
+    global.wx.navigateTo = (options) => navigations.push(options);
+    global.wx.setClipboardData = (options) => copied.push(options.data);
+
+    definition.openResult.call(context, { currentTarget: { dataset: { index: 0 } } });
+    assert.equal(context.data.materialLinkModalOpen, true);
+    assert.equal(context.data.materialLinkModalTitle, "拼音资料");
+    assert.equal(context.data.materialLinkModalUrl, "https://example.com/pinyin.pdf");
+    assert.deepEqual(navigations, []);
+    definition.copyMaterialLink.call(context);
+    assert.deepEqual(copied, ["https://example.com/pinyin.pdf"]);
+
+    definition.openResult.call(context, { currentTarget: { dataset: { index: 1 } } });
+    assert.deepEqual(navigations[0], {
+      url: "/pages/webview/index?nativeTopic=1&topicSlug=pinyin-start&title=%E6%8B%BC%E9%9F%B3%E5%90%AF%E8%92%99"
+    });
+  } finally {
+    global.wx.navigateTo = originalNavigateTo;
+    global.wx.setClipboardData = originalSetClipboardData;
+  }
+});
+
 test("native search page keeps all-site results while following the current reading library source", async () => {
   const definition = loadPageDefinition("search");
   const originalRequest = global.wx.request;
@@ -1545,10 +1610,10 @@ test("native search page keeps all-site results while following the current read
   }
 });
 
-test("native search renders fast result groups before slower requests finish", async () => {
+test("native search requests matched summaries instead of downloading every content list", async () => {
   const definition = loadPageDefinition("search");
   const originalRequest = global.wx.request;
-  const pending = [];
+  const requests = [];
   const context = {
     ...definition,
     data: { ...definition.data, searchInput: "Magic", submittedQuery: "Magic" },
@@ -1559,23 +1624,67 @@ test("native search renders fast result groups before slower requests finish", a
 
   try {
     global.wx.request = (options) => {
-      if (String(options.url).includes("/api/programs")) {
-        options.success({ statusCode: 200, data: { data: [{ _id: "program-fast", title: "Magic workshop" }] } });
-        return;
-      }
-      pending.push(options);
+      requests.push(options.url);
+      options.success({
+        statusCode: 200,
+        data: {
+          programs: [{ _id: "program-fast", title: "Magic workshop" }],
+          books: [],
+          materials: [],
+          topics: [],
+          experts: []
+        }
+      });
     };
 
-    const loadPromise = definition.loadData.call(context);
-    await new Promise((resolve) => setImmediate(resolve));
+    await definition.loadData.call(context);
 
+    assert.deepEqual(requests, ["https://xianfeng.xinzhi.info/api/search?q=Magic"]);
     assert.deepEqual(context.data.visibleResults.map((item) => item.title), ["Magic workshop"]);
-    assert.equal(context.data.loading, true);
-    assert.equal(context.data.searchProgress, 20);
-
-    pending.forEach((options) => options.success({ statusCode: 200, data: [] }));
-    await loadPromise;
     assert.equal(context.data.loading, false);
+    assert.equal(context.data.searchProgress, 100);
+  } finally {
+    global.wx.request = originalRequest;
+  }
+});
+
+test("native search falls back to existing content endpoints when the summary endpoint is unavailable", async () => {
+  const definition = loadPageDefinition("search");
+  const originalRequest = global.wx.request;
+  const requests = [];
+  const context = {
+    ...definition,
+    data: { ...definition.data, searchInput: "Magic", submittedQuery: "Magic" },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+
+  try {
+    global.wx.request = (options) => {
+      requests.push(options.url);
+      if (String(options.url).includes("/api/search?")) {
+        options.success({ statusCode: 404, data: { message: "Not Found" } });
+        return;
+      }
+      if (String(options.url).includes("/api/programs?")) {
+        options.success({ statusCode: 200, data: { programs: [{ _id: "program-fallback", title: "Magic workshop" }] } });
+        return;
+      }
+      options.success({ statusCode: 200, data: [] });
+    };
+
+    await definition.loadData.call(context);
+
+    assert.equal(requests.some((url) => String(url).includes("/api/search?")), true);
+    assert.equal(requests.some((url) => String(url).includes("/api/programs?")), true);
+    assert.equal(requests.some((url) => String(url).endsWith("/api/books")), true);
+    assert.equal(requests.some((url) => String(url).endsWith("/api/learning-materials")), true);
+    assert.equal(requests.some((url) => String(url).includes("/api/topic-hub?")), true);
+    assert.equal(requests.some((url) => String(url).includes("/api/guests?")), true);
+    assert.deepEqual(context.data.visibleResults.map((item) => item.title), ["Magic workshop"]);
+    assert.equal(context.data.loading, false);
+    assert.equal(context.data.error, "");
   } finally {
     global.wx.request = originalRequest;
   }
@@ -5879,7 +5988,8 @@ test("native first-level content tabs fetch API data and open detail wrapper rou
   assert.match(materials.wxml, /class="xf-materials-copy-icon" src="\/assets\/icons\/unlink\.svg"/);
   assert.doesNotMatch(materials.wxml, />复制链接<\/button>/);
   assert.match(materials.wxml, /wx:if="\{\{materialLinkModalOpen\}\}" class="xf-materials-link-mask"/);
-  assert.match(materials.wxml, /资料链接[\s\S]*长按可复制：[\s\S]*user-select="true"[\s\S]*\{\{materialLinkModalUrl\}\}/);
+  assert.match(materials.wxml, /资料链接[\s\S]*user-select="true"[^>]*catchtap="copyMaterialModalLink"[\s\S]*\{\{materialLinkModalUrl\}\}/);
+  assert.doesNotMatch(materials.wxml, /长按可复制/);
   assert.match(materials.wxml, /wx:for="\{\{materialFilterGroups\}\}"[\s\S]*wx:for-item="group"[\s\S]*class="xf-native-filter-section"/);
   assert.match(materials.wxml, /<text class="xf-native-filter-section-title">\{\{group\.title\}\}<\/text>/);
   assert.match(materials.wxml, /wx:for="\{\{group\.options\}\}"[\s\S]*wx:for-item="option"[\s\S]*class="xf-native-filter-chip \{\{option\.selected \? 'is-active' : ''\}\}"[\s\S]*data-tag="\{\{option\.value\}\}"[\s\S]*catchtap="onDrawerMaterialTagTap"/);
@@ -6344,7 +6454,7 @@ test("native first-level pages keep filter drawers page-local inside the search 
   assert.match(topics.wxml, /catchtap="applyTopicFilterDraft"[\s\S]*查看 \{\{topicFilterPreviewCount\}\} 个话题/);
 });
 
-test("materials tab opens a selectable link modal without system clipboard feedback", () => {
+test("materials tab opens its link modal and copies the displayed link silently on tap", () => {
   const definition = loadPageDefinition("materials");
   const originalSetClipboardData = global.wx.setClipboardData;
   const originalShowToast = global.wx.showToast;
@@ -6391,6 +6501,10 @@ test("materials tab opens a selectable link modal without system clipboard feedb
     assert.equal(context.data.materialLinkModalOpen, true);
     assert.equal(context.data.materialLinkModalTitle, "练笔9五年级");
     assert.equal(context.data.materialLinkModalUrl, "https://pan.quark.cn/s/demo");
+
+    definition.copyMaterialModalLink.call(context);
+    assert.deepEqual(copied, ["https://pan.quark.cn/s/demo"]);
+    assert.deepEqual(toasts, []);
 
     definition.closeMaterialLinkModal.call(context);
     assert.equal(context.data.materialLinkModalOpen, false);
@@ -10733,7 +10847,7 @@ test("programs tab renders a native first-level list and opens details through t
     assert.match(nativeSettings, /title: "先疯智库"[\s\S]*page: "\/pages\/experts\/index"/);
   assert.match(nativeSettings, /title: "学习资料"/);
   assert.match(nativeSettings, /title: "教育规划"/);
-  assert.match(nativeSettings, /title: "知物"[\s\S]*title: "百宝箱"[\s\S]*image: "\/assets\/menu\/welfare-gift-icon\.png"[\s\S]*page: "\/pages\/welfare\/index"[\s\S]*title: "妈妈好赚"[\s\S]*image: "\/assets\/menu\/mama-hao-zhuan-icon\.png"[\s\S]*page: "\/pages\/mama-resource-apply\/index"/);
+  assert.match(nativeSettings, /title: "知物"[\s\S]*title: "百宝箱"[\s\S]*image: "\/assets\/menu\/welfare-gift-icon\.png"[\s\S]*page: "\/pages\/welfare\/index"[\s\S]*title: "好赚"[\s\S]*image: "\/assets\/menu\/mama-hao-zhuan-icon\.png"[\s\S]*page: "\/pages\/mama-resource-apply\/index"/);
   assert.match(nativeSettings, /title: "设置"/);
     assert.match(wxml, /wx:for="\{\{settingsSections\}\}"/);
     assert.match(wxml, /wx:for="\{\{section\.items\}\}"/);
@@ -13240,7 +13354,7 @@ test("mama haozhuan opens a native mini program form instead of program detail w
     assert.match(page.wxml, /wx:if="\{\{settingsPanelOpen\}\}" class="xf-native-settings-mask" style="height: \{\{settingsPanelHeight\}\}px;" catchtap="closeSettings"/);
     assert.match(page.wxml, /wx:for="\{\{settingsSections\}\}"/);
     assert.doesNotMatch(page.wxml, /xf-mama-back/);
-    assert.match(page.wxml, /xf-mama-intro-card[\s\S]*妈妈好赚[\s\S]*<view class="xf-mama-card xf-mama-profile-manager">[\s\S]*资料管理[\s\S]*保存资料/);
+    assert.match(page.wxml, /xf-mama-intro-card[\s\S]*好赚[\s\S]*<view class="xf-mama-card xf-mama-profile-manager">[\s\S]*资料管理[\s\S]*保存资料/);
     assert.doesNotMatch(page.wxml, /<view class="xf-mama-card">[\s\S]*<form class="xf-mama-form" bindsubmit="submit">\s*<view class="xf-mama-head">\s*<image class="xf-mama-icon"/);
     assert.match(page.wxml, /运营会按备注联系你。/);
     assert.doesNotMatch(page.wxml, /我同意家和万事团队为发稿资源匹配和运营联系使用以上资料/);
@@ -14877,20 +14991,21 @@ test("native expert detail shows five booklists and can expand the remainder", (
   assert.match(wxss, /\.xf-expert-detail-booklist-link \{[\s\S]*box-sizing: border-box;[\s\S]*min-height: 94rpx;/);
 });
 
-test("native expert detail renders authored works and copies social profiles", () => {
+test("native expert detail renders authored works and copies social links silently", () => {
   const { js, wxml, wxss } = readPage("webview");
 
   assert.match(js, /const authoredBooks = \(Array\.isArray\(item\.authoredBooks\)/);
   assert.match(js, /openNativeExpertAuthoredBook\(event\)/);
   assert.match(js, /copyNativeExpertSocial\(event\)/);
-  assert.match(js, /wx\.setClipboardData\(\{/);
-  assert.match(js, /url \? "链接已复制" : "账号名称已复制"/);
+  assert.match(js, /copyTextSilently\(value\)/);
+  assert.doesNotMatch(js, /url \? "链接已复制" : "账号名称已复制"/);
   assert.match(wxml, /wx:if="\{\{nativeExpert\.authoredBooks\.length\}\}" class="xf-expert-detail-card is-authored-books"/);
   assert.match(wxml, /scroll-x="true"[\s\S]*catchtap="openNativeExpertAuthoredBook"/);
   assert.doesNotMatch(wxml, /data-detail="\{\{item\.hasDetail\}\}"/);
   assert.match(wxml, /class="xf-expert-detail-authored-action">查看详情<\/text>/);
   assert.match(wxml, /wx:if="\{\{nativeExpert\.socialProfiles\.length\}\}" class="xf-expert-detail-card is-social-media"/);
   assert.match(wxml, /catchtap="copyNativeExpertSocial"/);
+  assert.doesNotMatch(wxml, /class="xf-expert-detail-social-copy">复制<\/text>/);
   assert.match(wxss, /\.xf-expert-detail-authored-scroll \{/);
   assert.match(wxss, /\.xf-expert-detail-social-item \{/);
 });
@@ -14920,6 +15035,7 @@ test("native expert detail renders bound extension materials and copies their li
   assert.match(wxml, /class="xf-expert-detail-card is-extension-materials"/);
   assert.match(wxml, /class="xf-expert-detail-section-title">拓展资料<\/text>/);
   assert.match(wxml, /wx:for="\{\{nativeExpert\.extensionMaterials\}\}"[\s\S]*catchtap="copyNativeExpertMaterial"/);
+  assert.doesNotMatch(wxml, /class="xf-expert-detail-extension-action">复制链接<\/text>/);
   assert.match(wxss, /\.xf-expert-detail-extension-item \{/);
 });
 
@@ -15876,7 +15992,8 @@ test("webview native program detail page keeps program, book, and topic details 
     assert.match(wxss, /\.xf-book-detail-nav-title \{[\s\S]*position: absolute;[\s\S]*left: 50%;[\s\S]*align-items: center;[\s\S]*text-align: center;[\s\S]*transform: translateX\(-50%\);/);
     assert.match(wxss, /\.xf-material-detail-page \{[\s\S]*background: #f3f2f8;/);
     assert.match(wxss, /\.xf-material-detail-card\.is-hero \{[\s\S]*background: radial-gradient/);
-    assert.match(wxss, /\.xf-material-detail-copy[\s\S]*background: #5e17eb;/);
+  assert.match(wxml, /class="xf-material-detail-link" user-select="true" bindtap="copyNativeMaterialLink"/);
+    assert.doesNotMatch(wxml, /class="xf-material-detail-copy/);
     assert.match(wxss, /\.xf-expert-detail-page \{[\s\S]*background: #f3f2f8;/);
     assert.match(wxss, /\.xf-expert-detail-card\.is-profile \{[\s\S]*background: #ffffff;[\s\S]*text-align: center;/);
     assert.match(wxss, /\.xf-expert-detail-agent-card \{[\s\S]*background: #ffffff;/);

@@ -1,5 +1,6 @@
 const { WEB_ROUTES } = require("../../utils/config");
 const { request } = require("../../utils/request");
+const { copyTextSilently } = require("../../utils/clipboard");
 const { getNativeTopbarMetrics } = require("../../utils/nativeChrome");
 const { createPageShare, enableShareMenu } = require("../../utils/share");
 const { setSelectedTab } = require("../../utils/tabbar");
@@ -576,6 +577,10 @@ Page({
       materialLinkModalTitle: "",
       materialLinkModalUrl: ""
     });
+  },
+
+  copyMaterialModalLink() {
+    copyTextSilently(this.data.materialLinkModalUrl);
   },
 
   openFullList() {

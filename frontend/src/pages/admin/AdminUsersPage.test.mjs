@@ -18,7 +18,7 @@ test("admin users page opens an aggregated profile and behavior timeline", () =>
   assert.match(source, /adminApi\.getUserOverview\(row\._id\)/);
   assert.match(source, /查看用户画像与时间线/);
   assert.match(source, /孩子基本情况/);
-  assert.match(source, /妈妈好赚/);
+  assert.match(source, /好赚/);
   assert.match(source, /用户时间线/);
   assert.match(source, /overview\.timeline\.map/);
   assert.match(source, /createPortal\([\s\S]*document\.body/);

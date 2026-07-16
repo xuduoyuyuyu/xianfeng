@@ -429,8 +429,7 @@
 
     <view class="xf-material-detail-card is-link">
       <text class="xf-material-detail-section-title">资料链接</text>
-      <text class="xf-material-detail-link">{{nativeMaterial.hasLink ? nativeMaterial.fileUrl : "暂无资料链接"}}</text>
-      <button class="xf-material-detail-copy {{nativeMaterial.hasLink ? '' : 'is-disabled'}}" bindtap="copyNativeMaterialLink">复制链接</button>
+      <text class="xf-material-detail-link" user-select="true" bindtap="copyNativeMaterialLink">{{nativeMaterial.hasLink ? nativeMaterial.fileUrl : "暂无资料链接"}}</text>
       <button class="xf-material-detail-secondary" bindtap="goMaterialsList">返回资料列表</button>
     </view>
   </scroll-view>
@@ -730,10 +729,9 @@
           catchtap="copyNativeExpertMaterial"
         >
           <view>
-            <text class="xf-expert-detail-extension-title">{{item.title}}</text>
-            <text wx:if="{{item.description}}" class="xf-expert-detail-extension-copy">{{item.description}}</text>
+            <text class="xf-expert-detail-extension-title" user-select="true">{{item.title}}</text>
+            <text wx:if="{{item.description}}" class="xf-expert-detail-extension-copy" user-select="true">{{item.description}}</text>
           </view>
-          <text class="xf-expert-detail-extension-action">复制链接</text>
         </view>
       </view>
     </view>
@@ -752,9 +750,8 @@
         >
           <view class="xf-expert-detail-social-copy-row">
             <text class="xf-expert-detail-social-platform">{{item.platform}}</text>
-            <text class="xf-expert-detail-social-copy">复制</text>
           </view>
-          <text class="xf-expert-detail-social-label">{{item.title || item.url}}</text>
+          <text class="xf-expert-detail-social-label" user-select="true">{{item.title || item.url}}</text>
         </view>
       </view>
     </view>

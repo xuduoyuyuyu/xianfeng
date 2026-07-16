@@ -17,11 +17,11 @@ test("admin mama resource pool is routed and appears in the sidebar", () => {
   assert.match(appSource, /<Route path="mama-resources" element=\{<AdminMamaResourcesPage \/>} \/>/);
   assert.match(appSource, /<Route path="mama-resources\/review" element=\{<AdminMamaResourceReviewPage \/>} \/>/);
   assert.match(layoutSource, /\/assets\/mama-hao-zhuan-icon\.png/);
-  assert.match(layoutSource, /妈妈好赚/);
+  assert.match(layoutSource, /好赚/);
 });
 
-test("admin mama resources page uses the Mama Haozhuan product name", () => {
-  assert.match(source, /妈妈好赚/);
+test("admin mama resources page uses the Haozhuan product name", () => {
+  assert.match(source, /好赚/);
   assert.doesNotMatch(source, /<h1[^>]*>妈妈资源池<\/h1>/);
 });
 
@@ -31,6 +31,9 @@ test("admin mama resources page defaults to all profiles and exposes profile fil
   assert.match(source, /useState<MamaResourceStatus \| "all">\("all"\)/);
   assert.doesNotMatch(source, /\{ value: "pending", label: "待审核" \}/);
   assert.match(source, /可派单/);
+  assert.match(source, /创作能力/);
+  assert.match(source, /contentCapabilityFilter/);
+  assert.match(backendSource, /filter\.contentCapabilities = \{ \$all: contentCapabilities \}/);
   assert.match(source, /资料不足/);
   assert.match(source, /暂不合适/);
   assert.match(source, /minFollowers/);

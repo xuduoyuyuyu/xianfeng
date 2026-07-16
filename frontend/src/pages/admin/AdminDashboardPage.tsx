@@ -165,7 +165,7 @@ const AdminDashboardPage: React.FC = () => {
             className="admin-pill-btn admin-pill-btn-secondary"
           >
             <img src="/assets/mama-hao-zhuan-icon.png" alt="" className="h-5 w-5 object-contain" />
-            妈妈好赚
+            好赚
           </Link>
         </div>
       </div>

@@ -14,6 +14,7 @@ import {
 
 const PAGE_SIZE = 20;
 const childStageOptions = ["孕产/婴幼儿", "幼儿园", "小学", "初中", "高中", "多孩家庭"];
+const contentCapabilityOptions = ["能拍", "能剪", "能写"];
 
 const statusOptions: Array<{ value: MamaResourceStatus | "all"; label: string }> = [
   { value: "all", label: "全部" },
@@ -270,6 +271,8 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
   const [minFollowers, setMinFollowers] = useState("");
   const [childStageFilter, setChildStageFilter] = useState("");
   const [childGenderFilter, setChildGenderFilter] = useState("");
+  const [contentCapabilityFilter, setContentCapabilityFilter] = useState<string[]>([]);
+  const [contentCapabilityFilterOpen, setContentCapabilityFilterOpen] = useState(false);
   const [userGenderFilter, setUserGenderFilter] = useState("");
   const [platformFilter, setPlatformFilter] = useState<MamaResourceMediaAccount["platform"] | "">("");
   const [searchText, setSearchText] = useState("");
@@ -311,6 +314,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
         minFollowers: minFollowers || undefined,
         childStage: childStageFilter || undefined,
         childGender: childGenderFilter || undefined,
+        contentCapabilities: contentCapabilityFilter.length ? contentCapabilityFilter : undefined,
         userGender: userGenderFilter || undefined,
         platform: platformFilter || undefined,
         search: searchText || undefined,
@@ -321,7 +325,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
       setTotal(response.data.total || 0);
       setPage(response.data.page || nextPage);
     } catch (loadError: any) {
-      setError(loadError?.response?.data?.message || loadError?.message || "加载妈妈好赚失败");
+      setError(loadError?.response?.data?.message || loadError?.message || "加载好赚失败");
     } finally {
       setLoading(false);
     }
@@ -359,7 +363,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
 
   useEffect(() => {
     if (isReviewMode) loadItems(1);
-  }, [statusFilter, categoryFilter, minFollowers, childStageFilter, childGenderFilter, userGenderFilter, platformFilter, isReviewMode]);
+  }, [statusFilter, categoryFilter, minFollowers, childStageFilter, childGenderFilter, userGenderFilter, platformFilter, contentCapabilityFilter, isReviewMode]);
 
   useEffect(() => {
     if (!isReviewMode) loadTasks().catch(() => undefined);
@@ -707,7 +711,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
       const url = URL.createObjectURL(response.data);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = "妈妈好赚专属链接导入模板.xlsx";
+      anchor.download = "好赚专属链接导入模板.xlsx";
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (downloadError: any) {
@@ -777,10 +781,10 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
         <div>
           <div className="flex items-center gap-3">
             <img src="/assets/mama-hao-zhuan-icon.png" alt="" className="h-9 w-9 object-contain" />
-            <h1 className="text-2xl font-black text-stone-900">{isReviewMode ? "账号资料" : "妈妈好赚"}</h1>
+            <h1 className="text-2xl font-black text-stone-900">{isReviewMode ? "账号资料" : "好赚"}</h1>
           </div>
           <p className="mt-1 text-sm font-medium text-stone-500">
-            {isReviewMode ? "查看妈妈好赚账号资料，并按用户与平台条件筛选。" : "创建任务、设置匹配权重，并在任务里完成账号派发。"}
+            {isReviewMode ? "查看好赚账号资料，并按用户与平台条件筛选。" : "创建任务、设置匹配权重，并在任务里完成账号派发。"}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -867,6 +871,26 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
           <select value={platformFilter} onChange={(event) => setPlatformFilter(event.target.value as MamaResourceMediaAccount["platform"] | "")} className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#6c27d6]">
             <option value="">全部平台</option><option value="xiaohongshu">小红书</option><option value="douyin">抖音</option>
           </select>
+          <div className="relative">
+            <button type="button" onClick={() => setContentCapabilityFilterOpen((open) => !open)} className="flex h-full min-h-10 w-full items-center justify-between rounded-xl border border-stone-200 bg-white px-3 py-2 text-left text-sm outline-none hover:border-[#6c27d6]">
+              <span>{contentCapabilityFilter.length ? contentCapabilityFilter.join("、") : "创作能力"}</span>
+              <span className="text-stone-400">⌄</span>
+            </button>
+            {contentCapabilityFilterOpen ? (
+              <div className="absolute left-0 top-[calc(100%+6px)] z-30 w-full min-w-48 rounded-xl border border-stone-200 bg-white p-3 shadow-xl">
+                <div className="flex flex-wrap gap-2">
+                  {contentCapabilityOptions.map((item) => {
+                    const selected = contentCapabilityFilter.includes(item);
+                    return <button key={item} type="button" onClick={() => setContentCapabilityFilter((current) => selected ? current.filter((value) => value !== item) : current.concat(item))} className={`rounded-full border px-3 py-1.5 text-xs font-bold ${selected ? "border-[#6c27d6] bg-[#6c27d6] text-white" : "border-stone-200 bg-white text-stone-600"}`}>{item}</button>;
+                  })}
+                </div>
+                <div className="mt-3 flex justify-end gap-2 border-t border-stone-100 pt-3">
+                  <button type="button" onClick={() => setContentCapabilityFilter([])} className="px-2 py-1 text-xs font-bold text-stone-500">清空</button>
+                  <button type="button" onClick={() => setContentCapabilityFilterOpen(false)} className="rounded-lg bg-[#f6f0ff] px-3 py-1.5 text-xs font-black text-[#5e17eb]">确定</button>
+                </div>
+              </div>
+            ) : null}
+          </div>
           <button type="button" onClick={() => loadItems(1)} className="rounded-xl border border-[#6c27d6] bg-[#f7f2ff] px-4 py-2 text-sm font-bold text-[#5e17eb]">筛选</button>
         </div>
       </section> : null}
@@ -893,6 +917,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                 <div className="font-black text-stone-900">{profile.displayName}</div>
                 {extractProfileUrl(profile.socialAccount.profileUrl) ? <a className="mt-1 block truncate text-xs font-semibold text-[#6c27d6]" href={extractProfileUrl(profile.socialAccount.profileUrl)} target="_blank" rel="noreferrer">{profile.socialAccount.nickname || profile.socialAccount.profileUrl}</a> : <div className="mt-1 truncate text-xs font-semibold text-stone-500">{profile.socialAccount.nickname || "未识别主页链接"}</div>}
                 <div className="mt-1 text-xs text-stone-500">{profile.city || "未填城市"} · {profile.childStage || "未填阶段"} · {profile.childGender || "未填性别"}</div>
+                {profile.contentCapabilities?.length ? <div className="mt-1 text-xs font-semibold text-stone-500">创作能力 {profile.contentCapabilities.join("、")}</div> : null}
                 <div className="mt-1 text-xs font-semibold text-stone-500">{maskAlipayAccount(profile.alipayAccount)}</div>
                 <div className="mt-1 text-xs font-semibold text-stone-500">
                   <span className={profile.socialAccount.realNameVerified === true ? "inline-flex rounded-full bg-emerald-50 px-2 py-1 text-emerald-700" : ""}>{realNameLabel(profile.socialAccount.realNameVerified)}</span>

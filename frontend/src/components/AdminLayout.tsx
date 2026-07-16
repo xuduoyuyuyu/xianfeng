@@ -81,7 +81,7 @@ const AdminLayout: React.FC = () => {
               <p className="px-1 mb-1.5 text-[11px] font-bold tracking-[0.08em] text-stone-400 uppercase">用户</p>
               <div className="space-y-1">
                 {renderNavItem("/admin/users", "group", "用户管理")}
-                {renderNavItem("/admin/mama-resources", "campaign", "妈妈好赚", "/assets/mama-hao-zhuan-icon.png")}
+                {renderNavItem("/admin/mama-resources", "campaign", "好赚", "/assets/mama-hao-zhuan-icon.png")}
                 {renderNavItem("/admin/welfare", "featured_seasonal_and_gifts", "百宝箱", "/assets/welfare-gift-icon.png")}
                 {renderNavItem("/admin/user-portrait", "monitoring", "用户画像")}
               </div>

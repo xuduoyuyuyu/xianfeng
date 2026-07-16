@@ -69,6 +69,13 @@
   store onboarding grade in `childGrade` without overwriting legacy `grade`,
   while the Xiaowanzi sync endpoint remains the child-archive source of truth.
 
+- Public `/api/search?q=` is the lightweight cross-content search boundary for
+  Programs, local Reading, Materials, Topics, and Guests. It queries published
+  or otherwise publicly visible records in parallel, projects card-level fields,
+  truncates long body text, and returns at most 80 matches per content type. Mini
+  program search must use this endpoint instead of downloading complete public
+  lists before filtering on-device.
+
 - Mobile invite gating is enforced in the backend before new-user creation.
   Admin `SystemSetting` config now controls the active code, activation limit,
   used count, and expiry time. `LOGIN_INVITE_CODE` and
@@ -181,14 +188,16 @@
   intake without account credentials, including profile screenshot URL, follower
   count, and real-name verification status. Public
   `/api/mama-resources/uploads` accepts image-only Xiaohongshu profile
-  screenshots. The admin resource list can filter by child stage, child gender,
-  linked-user gender, and submitted media platform without changing stored
-  review state. When a web user is authenticated, application ownership is bound
+  screenshots. `MamaResourceProfile.contentCapabilities` stores the personal
+  multi-select values `能拍`, `能剪`, and `能写`. The admin resource list can
+  filter by child stage, child gender, linked-user gender, submitted media
+  platform, and profiles containing all selected content capabilities without
+  changing stored review state. When a web user is authenticated, application ownership is bound
   to the authenticated user's normalized mobile instead of any editable form
   phone, so future task access and profile updates resolve through the same
   account. Admin `/api/admin/mama-resources` handles review state, filtering,
   manual metrics, screenshots, and operator notes.
-- Mama Haozhuan tasks are listed independently from accounts.
+- Haozhuan (`好赚`) tasks are listed independently from accounts.
   `MamaResourceTask` stores the listed project/campaign, while
   `MamaResourceTaskAssignment` stores a user's claim for that task plus
   proof/review status. Admin

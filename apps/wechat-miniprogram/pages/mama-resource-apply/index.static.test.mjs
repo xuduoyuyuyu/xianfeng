@@ -67,6 +67,13 @@ test("social account inputs invite pasted commands and short links without domai
 });
 
 test("mama resource profile management is always available and separates personal and media data", () => {
+  assert.match(wxmlSource, /创作能力[\s\S]*toggleContentCapability/);
+  assert.match(jsSource, /CONTENT_CAPABILITY_OPTIONS = \["能拍", "能剪", "能写"\]/);
+  assert.match(jsSource, /function buildContentCapabilityOptions\(contentCapabilities\)/);
+  assert.match(jsSource, /contentCapabilities: Array\.isArray\(source\.contentCapabilities\)/);
+  assert.match(wxmlSource, /item\.selected \? 'is-active' : ''/);
+  assert.match(wxmlSource, /创作能力[\s\S]*class="xf-mama-chip \{\{item\.selected \? 'is-active' : ''\}\}"/);
+  assert.doesNotMatch(wxmlSource, /contentCapabilities\.indexOf/);
   assert.match(jsSource, /MEDIA_PLATFORM_OPTIONS/);
   const platformOptions = jsSource.match(/const MEDIA_PLATFORM_OPTIONS = \[[\s\S]*?\n\];/)?.[0] || "";
   assert.match(platformOptions, /xiaohongshu/);
@@ -190,7 +197,7 @@ test("approved mama resource account can view assigned tasks and submit proof", 
 
   assert.match(wxmlSource, /mamaResourceView === 'tasks'/);
   assert.match(wxmlSource, /mamaResourceView === 'detail'/);
-  assert.match(wxmlSource, /xf-mama-task-title[\s\S]*妈妈好赚/);
+  assert.match(wxmlSource, /xf-mama-task-title[\s\S]*好赚/);
   assert.match(wxmlSource, /xf-mama-task-hero-icon[\s\S]*\/assets\/menu\/mama-hao-zhuan-icon\.png/);
   assert.match(wxmlSource, /xf-mama-task-logo[\s\S]*\/assets\/menu\/mama-hao-zhuan-icon\.png/);
   assert.match(wxmlSource, /xf-mama-task-price-label[\s\S]*任务单价/);
@@ -220,7 +227,7 @@ test("approved mama resource account can view assigned tasks and submit proof", 
   assert.match(wxssSource, /\.xf-mama-proof-card \.xf-mama-section-title \{[\s\S]*padding-left: 0;[\s\S]*padding-right: 0;/);
 });
 
-test("assigned users open a selectable personal content link modal", () => {
+test("assigned users can tap the personal content link to copy it silently", () => {
   assert.match(jsSource, /const contentUrl = asText\(source\.contentUrl\)\.trim\(\)/);
   assert.match(jsSource, /hasContentUrl: Boolean\(contentUrl\)/);
   assert.match(jsSource, /taskContentLinkOpen: false/);
@@ -234,8 +241,9 @@ test("assigned users open a selectable personal content link modal", () => {
   assert.match(wxmlSource, /打开专属内容/);
   assert.match(wxmlSource, /wx:if="\{\{taskContentLinkOpen\}\}"[^>]*class="xf-mama-dialog-mask"/);
   assert.match(wxmlSource, />资料链接</);
-  assert.match(wxmlSource, />长按可复制：</);
-  assert.match(wxmlSource, /user-select="true"[^>]*>\{\{currentMamaTask\.contentUrl\}\}<\/text>/);
+  assert.doesNotMatch(wxmlSource, /长按可复制/);
+  assert.match(wxmlSource, /user-select="true"[^>]*catchtap="copyMamaTaskContentLink"[^>]*>\{\{currentMamaTask\.contentUrl\}\}<\/text>/);
+  assert.match(jsSource, /copyMamaTaskContentLink\(\) \{[\s\S]*copyTextSilently\(this\.data\.currentMamaTask && this\.data\.currentMamaTask\.contentUrl\);/);
   assert.match(wxmlSource, /catchtap="closeMamaTaskContent"/);
   assert.match(wxssSource, /\.xf-mama-content-link-dialog \{/);
   assert.match(wxssSource, /\.xf-mama-content-link-value \{[\s\S]*user-select: text;/);
@@ -331,7 +339,7 @@ test("mama resource profile saves directly without a review gate", () => {
 
   assert.match(wxmlSource, /mamaResourceView === 'apply'/);
   assert.match(wxmlSource, /mamaResourceView === 'reviewing'/);
-  assert.match(wxmlSource, /妈妈好赚/);
+  assert.match(wxmlSource, /好赚/);
 });
 
 test("mama resource task loading errors do not force the application form", () => {
@@ -353,12 +361,12 @@ test("task announcement only appears when configured and opens a modal", () => {
   assert.match(wxssSource, /\.xf-mama-dialog-close \{[\s\S]*position: absolute;[\s\S]*top: 24rpx;[\s\S]*right: 24rpx;/);
 });
 
-test("mama resource share card is unified under the mama haozhuan page name", () => {
+test("mama resource share card uses the Haozhuan page name", () => {
   assert.match(jsSource, /const MAMA_RESOURCE_SHARE_COVER_IMAGE = "\/assets\/share\/mama-hao-zhuan-cover\.png"/);
-  assert.match(jsSource, /title: "妈妈好赚"/);
+  assert.match(jsSource, /title: "好赚"/);
   assert.match(jsSource, /path: "\/pages\/mama-resource-apply\/index\?shared=1"/);
   assert.match(jsSource, /const launchedFromShare = asText\(options\.shared\) === "1";/);
   assert.match(jsSource, /if \(!pendingMamaTaskId && !launchedFromShare && ensureBackStackForBackButtonPage\(options\)\) return;/);
   assert.match(jsSource, /imageUrl: MAMA_RESOURCE_SHARE_COVER_IMAGE/);
-  assert.doesNotMatch(jsSource, /妈妈好赚资料提交/);
+  assert.doesNotMatch(jsSource, /好赚资料提交/);
 });

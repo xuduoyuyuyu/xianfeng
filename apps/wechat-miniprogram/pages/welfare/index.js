@@ -1,10 +1,11 @@
 const { request } = require("../../utils/request");
+const { copyTextSilently } = require("../../utils/clipboard");
 const { getToken } = require("../../utils/session");
 const { subscribeAuthExpired } = require("../../utils/authExpiry");
 const { API_ORIGIN } = require("../../utils/config");
 const { getNativeTopbarMetrics } = require("../../utils/nativeChrome");
 const { createPageShare, enableShareMenu } = require("../../utils/share");
-const { ensureBackStackForBackButtonPage, goProgramsHome: navigateProgramsHome, smartBackHome } = require("../../utils/nativePageNav");
+const { goProgramsHome: navigateProgramsHome, smartBackHome } = require("../../utils/nativePageNav");
 
 const SHARE_OPTIONS = {
   title: "小玩子百宝箱",
@@ -128,8 +129,7 @@ Page({
     claimDialogActivationCode: ""
   },
 
-  onLoad(options = {}) {
-    if (ensureBackStackForBackButtonPage(options)) return;
+  onLoad() {
     enableShareMenu();
     this.syncTopbarMetrics();
     this._unsubscribeAuthExpired = subscribeAuthExpired(() => this.showLoginGate());
@@ -280,14 +280,7 @@ Page({
   },
 
   copyClaimLink() {
-    const url = String(this.data.claimDialogExternalUrl || "").trim();
-    if (!url) return;
-    wx.setClipboardData({
-      data: url,
-      success() {
-        wx.showToast({ title: "链接已复制", icon: "none" });
-      }
-    });
+    copyTextSilently(this.data.claimDialogExternalUrl);
   },
 
   openClaimLink() {

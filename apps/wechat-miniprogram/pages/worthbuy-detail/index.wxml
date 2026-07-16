@@ -54,7 +54,7 @@
       <text class="section-title">参考来源</text>
       <view wx:for="{{report.references}}" wx:key="url" class="wbd-reference" data-url="{{item.url}}" bindtap="copyReference" role="button" aria-label="复制参考来源">
         <text class="wbd-reference-index">{{index + 1}}.</text>
-        <text class="wbd-reference-content">{{item.title || item.url}}</text>
+        <text class="wbd-reference-content" user-select="true">{{item.title || item.url}}</text>
       </view>
     </view>
     <text wx:if="{{report.analyzedAt}}" class="wbd-time">分析时间：{{report.analyzedAt}}</text>

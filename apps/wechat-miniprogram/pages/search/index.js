@@ -1,9 +1,9 @@
 const { DEFAULT_WEB_ORIGIN } = require("../../utils/config");
 const { request } = require("../../utils/request");
+const { copyTextSilently } = require("../../utils/clipboard");
 const { getNativeTopbarMetrics } = require("../../utils/nativeChrome");
 const { createPageShare, enableShareMenu } = require("../../utils/share");
 const { goProgramsHome: navigateProgramsHome, smartBackHome } = require("../../utils/nativePageNav");
-const { openWeb } = require("../../utils/webview");
 const { SETTINGS_SECTIONS, createNativeSettingsMethods } = require("../../utils/nativeSettings");
 const { DEFAULT_SEARCH_PROMPTS, getInitialSearchPrompt, startSearchPromptRotation, stopSearchPromptRotation } = require("../../utils/searchPrompts");
 
@@ -98,6 +98,20 @@ function openMiniProgramShortLink(value) {
     }
   });
   return true;
+}
+
+function buildNativeResultRoute(result) {
+  const item = result || {};
+  const path = String(item.path || "").trim();
+  const title = String(item.title || "家长先疯").trim() || "家长先疯";
+  const topicMatch = item.type === "topics" ? path.match(/^\/topics\/([^/?#]+)$/) : null;
+  if (topicMatch) {
+    return `/pages/webview/index?nativeTopic=1&topicSlug=${encodeURIComponent(decodeURIComponent(topicMatch[1]))}&title=${encodeURIComponent(title)}`;
+  }
+  if (["programs", "books", "materials", "experts"].includes(item.type) && path) {
+    return `/pages/webview/index?url=${encodeURIComponent(path)}&title=${encodeURIComponent(title)}`;
+  }
+  return "";
 }
 
 function normalizeResult(type, item) {
@@ -217,6 +231,7 @@ function normalizeMaterials(response) {
       description: firstText([item.description], "点击复制资料链接，在浏览器或网盘 App 中继续打开"),
       meta: category,
       tags: safeTags([category].concat(safeTags(item.description, 2)).join("|"), 3),
+      path: id ? `/materials/${encodeURIComponent(id)}` : "",
       copyUrl: firstText([item.fileUrl, item.url, item.link], "")
     });
   }).filter((item) => item.id);
@@ -376,7 +391,10 @@ Page({
     visibleResults: [],
     loading: false,
     searchProgress: 0,
-    error: ""
+    error: "",
+    materialLinkModalOpen: false,
+    materialLinkModalTitle: "",
+    materialLinkModalUrl: ""
   },
 
   onLoad(options) {
@@ -401,6 +419,12 @@ Page({
     });
   },
 
+  onReady() {
+    this.setData({ inputFocus: false }, () => {
+      this.setData({ inputFocus: true });
+    });
+  },
+
   onShow() {
     enableShareMenu();
     this.syncTopbarMetrics();
@@ -408,6 +432,7 @@ Page({
   },
 
   onUnload() {
+    clearTimeout(this._searchInputTimer);
     stopSearchPromptRotation(this);
   },
 
@@ -435,7 +460,31 @@ Page({
   loadData() {
     const loadGeneration = Number(this._searchLoadGeneration || 0) + 1;
     this._searchLoadGeneration = loadGeneration;
-    this.setData({ loading: true, searchProgress: 0, error: "" });
+    const query = String(this.data.searchInput || this.data.submittedQuery || "").trim();
+    if (!query) {
+      this.setData({ loading: false, searchProgress: 0, error: "" });
+      return Promise.resolve();
+    }
+    this.setData({ loading: true, searchProgress: 12, error: "", submittedQuery: query });
+    if (this.data.searchSource !== "reading" && this.data.readingSource !== "external") {
+      return request({ url: `/api/search?q=${encodeURIComponent(query)}` })
+        .then((response) => {
+          if (this._searchLoadGeneration !== loadGeneration) return;
+          const data = response || {};
+          const allResults = []
+            .concat(normalizePrograms({ programs: data.programs || [] }))
+            .concat(normalizeBooks(data.books || []))
+            .concat(normalizeMaterials(data.materials || []))
+            .concat(normalizeTopics({ topics: data.topics || [] }))
+            .concat(normalizeGuests({ guests: data.experts || [] }));
+          this.setData({ allResults, loading: false, searchProgress: 100, error: "" });
+          this.applySearch(query);
+        })
+        .catch((error) => {
+          if (this._searchLoadGeneration !== loadGeneration) return;
+          return this.loadLegacySearchData(loadGeneration, query);
+        });
+    }
     if (this.data.searchSource === "reading") {
       const booksRequest = this.data.readingSource === "external"
         ? request({ url: `/api/books/external?current=1&size=${SEARCH_PAGE_SIZE}` }).then(normalizeExternalBooks)
@@ -458,6 +507,10 @@ Page({
         });
       });
     }
+    return this.loadLegacySearchData(loadGeneration, query);
+  },
+
+  loadLegacySearchData(loadGeneration, query) {
     const booksRequest = this.data.readingSource === "external"
       ? request({ url: `/api/books/external?current=1&size=${SEARCH_PAGE_SIZE}` }).then(normalizeExternalBooks).catch(() => [])
       : request({ url: "/api/books" }).then(normalizeBooks).catch(() => []);
@@ -529,10 +582,14 @@ Page({
     const query = value.trim();
     this.setData({ searchInput: value, activeTab: "all" });
     if (!query) {
+      clearTimeout(this._searchInputTimer);
       this.resetSearchResults();
       return;
     }
+    this.setData({ submittedQuery: query });
     this.applySearch(query);
+    clearTimeout(this._searchInputTimer);
+    this._searchInputTimer = setTimeout(() => this.loadData(), 220);
   },
 
   focusSearchInput() {
@@ -555,7 +612,8 @@ Page({
       activeTab: "all",
       recentKeywords
     });
-    this.applySearch(query);
+    clearTimeout(this._searchInputTimer);
+    this.loadData();
   },
 
   closeSearchInput() {
@@ -575,7 +633,8 @@ Page({
       activeTab: "all",
       recentKeywords
     });
-    this.applySearch(keyword);
+    clearTimeout(this._searchInputTimer);
+    this.loadData();
   },
 
   clearSearchHistory() {
@@ -619,16 +678,25 @@ Page({
       wx.switchTab({ url: result.page });
       return;
     }
-    if (result.copyUrl) {
-      wx.setClipboardData({
-        data: result.copyUrl,
-        success() {
-          wx.showToast({ title: "链接已复制", icon: "success" });
-        },
-        fail() {
-          wx.showToast({ title: "复制失败", icon: "none" });
-        }
+    if (result.type === "materials") {
+      if (!result.copyUrl) {
+        wx.showToast({ title: "暂无资料链接", icon: "none" });
+        return;
+      }
+      this.setData({
+        materialLinkModalOpen: true,
+        materialLinkModalTitle: result.title,
+        materialLinkModalUrl: result.copyUrl
       });
+      return;
+    }
+    const nativeRoute = buildNativeResultRoute(result);
+    if (nativeRoute) {
+      wx.navigateTo({ url: nativeRoute });
+      return;
+    }
+    if (result.copyUrl) {
+      copyTextSilently(result.copyUrl);
       return;
     }
     if (result.path) {
@@ -641,9 +709,22 @@ Page({
         wx.navigateTo({ url: `/pages/worthbuy-detail/index?query=${encodeURIComponent(decodeURIComponent(worthBuyMatch[1]))}` });
         return;
       }
-      openWeb(result.path, result.title);
     }
   },
+
+  closeMaterialLinkModal() {
+    this.setData({
+      materialLinkModalOpen: false,
+      materialLinkModalTitle: "",
+      materialLinkModalUrl: ""
+    });
+  },
+
+  copyMaterialLink() {
+    copyTextSilently(this.data.materialLinkModalUrl);
+  },
+
+  noop() {},
 
   onResultImageError(event) {
     const id = String(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.id || "");

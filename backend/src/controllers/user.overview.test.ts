@@ -83,6 +83,6 @@ describe("admin user overview", () => {
     assert.equal(res.body.pageVisitCount, 1);
     assert.ok(res.body.timeline.some((item: any) => item.title === "注册账号"));
     assert.ok(res.body.timeline.some((item: any) => item.title === "访问页面" && item.detail === "节目"));
-    assert.ok(res.body.timeline.some((item: any) => item.title === "领取妈妈好赚任务"));
+    assert.ok(res.body.timeline.some((item: any) => item.title === "领取好赚任务"));
   });
 });

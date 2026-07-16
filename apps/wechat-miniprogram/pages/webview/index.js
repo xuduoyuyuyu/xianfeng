@@ -2,6 +2,7 @@ const { DEFAULT_WEB_ORIGIN } = require("../../utils/config");
 const { getNativeTopbarMetrics, getNativeWebviewParams } = require("../../utils/nativeChrome");
 const { SETTINGS_SECTIONS, createNativeSettingsMethods } = require("../../utils/nativeSettings");
 const { request } = require("../../utils/request");
+const { copyTextSilently } = require("../../utils/clipboard");
 const { preloadNativeReadingBooks } = require("../../utils/readingPreload");
 const { getToken } = require("../../utils/session");
 const { createPageShare, createWebviewShare, enableShareMenu } = require("../../utils/share");
@@ -3508,30 +3509,14 @@ Page({
     const label = firstText([dataset.copyLabel], "");
     const value = url || label;
     if (!value) return;
-    wx.setClipboardData({
-      data: value,
-      success() {
-        wx.showToast({ title: url ? "链接已复制" : "账号名称已复制", icon: "success" });
-      },
-      fail() {
-        wx.showToast({ title: "复制失败", icon: "none" });
-      }
-    });
+    copyTextSilently(value);
   },
 
   copyNativeExpertMaterial(event) {
     const dataset = event && event.currentTarget ? event.currentTarget.dataset || {} : {};
     const url = firstText([dataset.copyUrl], "");
     if (!url) return;
-    wx.setClipboardData({
-      data: url,
-      success() {
-        wx.showToast({ title: "资料链接已复制", icon: "success" });
-      },
-      fail() {
-        wx.showToast({ title: "复制失败", icon: "none" });
-      }
-    });
+    copyTextSilently(url);
   },
 
   setNativeExpertProfileTab(event) {
@@ -3774,15 +3759,7 @@ Page({
       wx.showToast({ title: "暂无资料链接", icon: "none" });
       return;
     }
-    wx.setClipboardData({
-      data: url,
-      success() {
-        wx.showToast({ title: "链接已复制", icon: "success" });
-      },
-      fail() {
-        wx.showToast({ title: "复制失败", icon: "none" });
-      }
-    });
+    copyTextSilently(url);
   },
 
   onUnload() {

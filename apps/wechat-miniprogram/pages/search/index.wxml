@@ -62,7 +62,7 @@
   </view>
 
   <view wx:if="{{submittedQuery}}" class="xf-native-search-results">
-    <view class="xf-native-search-tabs">
+    <view class="xf-native-search-tabs {{loading ? 'is-loading' : ''}}">
       <button
         wx:for="{{tabs}}"
         wx:key="key"
@@ -70,13 +70,12 @@
         data-tab="{{item.key}}"
         bindtap="switchTab"
       >{{item.label}} {{item.count}}</button>
-    </view>
-
-    <view wx:if="{{loading}}" class="xf-native-search-progress" aria-label="搜索进度 {{searchProgress}}%">
-      <view class="xf-native-search-progress-track">
-        <view class="xf-native-search-progress-value" style="width: {{searchProgress}}%;"></view>
+      <view wx:if="{{loading}}" class="xf-native-search-progress" aria-label="搜索进度 {{searchProgress}}%">
+        <view class="xf-native-search-progress-track">
+          <view class="xf-native-search-progress-value" style="width: {{searchProgress}}%;"></view>
+        </view>
+        <text class="xf-native-search-progress-percent">{{searchProgress}}%</text>
       </view>
-      <text>正在加载更多结果 {{searchProgress}}%</text>
     </view>
 
     <view wx:if="{{loading && !visibleResults.length}}" class="xf-native-search-state">
@@ -119,6 +118,17 @@
           </view>
         </view>
       </view>
+    </view>
+  </view>
+
+  <view wx:if="{{materialLinkModalOpen}}" class="xf-materials-link-mask" catchtap="closeMaterialLinkModal" catchtouchmove="noop">
+    <view class="xf-materials-link-modal" catchtap="noop">
+      <view class="xf-materials-link-head">
+        <text class="xf-materials-link-title">资料链接</text>
+        <button class="xf-materials-link-close" catchtap="closeMaterialLinkModal" aria-label="关闭资料链接">×</button>
+      </view>
+      <text wx:if="{{materialLinkModalTitle}}" class="xf-materials-link-name">{{materialLinkModalTitle}}</text>
+      <text class="xf-materials-link-url" user-select="true" catchtap="copyMaterialLink">{{materialLinkModalUrl}}</text>
     </view>
   </view>
 

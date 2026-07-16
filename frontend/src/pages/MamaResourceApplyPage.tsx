@@ -9,6 +9,7 @@ import type { RootState } from "../store";
 const categoryOptions = ["亲子阅读", "学习用品", "母婴", "儿童健康", "家庭消费", "教育规划"];
 const childStageOptions = ["孕产/婴幼儿", "幼儿园", "小学", "初中", "高中", "多孩家庭"];
 const childGenderOptions = ["男孩", "女孩"];
+const contentCapabilityOptions = ["能拍", "能剪", "能写"];
 const platformOptions = [
   { value: "xiaohongshu", label: "小红书" },
   { value: "douyin", label: "抖音" },
@@ -46,6 +47,7 @@ type FormState = {
   city: string;
   childStage: string;
   childGender: string;
+  contentCapabilities: string[];
   xiaohongshuNickname: string;
   xiaohongshuProfileUrl: string;
   xiaohongshuScreenshotUrl: string;
@@ -77,6 +79,7 @@ const initialForm: FormState = {
   city: "",
   childStage: "",
   childGender: "",
+  contentCapabilities: [],
   xiaohongshuNickname: "",
   xiaohongshuProfileUrl: "",
   xiaohongshuScreenshotUrl: "",
@@ -104,6 +107,7 @@ export function formStateFromProfile(profile: MamaResourceProfile, loggedInMobil
     city: profile.city || "",
     childStage: profile.childStage || "",
     childGender: profile.childGender || "",
+    contentCapabilities: profile.contentCapabilities || [],
     xiaohongshuNickname: profile.socialAccount?.nickname || "",
     xiaohongshuProfileUrl: profile.socialAccount?.profileUrl || "",
     xiaohongshuScreenshotUrl: profile.socialAccount?.screenshotUrl || "",
@@ -213,7 +217,7 @@ function MamaResourceAccountCard({ profile, onManage }: { profile: MamaResourceP
       <img src="/assets/mama-hao-zhuan-icon.png" alt="" className="h-[48px] w-[48px] object-contain" />
       <div className="min-w-0">
         <div className="text-[11px] font-black text-[#7c2ce6]">账号已通过</div>
-        <div className="mt-[2px] text-[17px] font-black text-[#151222]">妈妈好赚</div>
+        <div className="mt-[2px] text-[17px] font-black text-[#151222]">好赚</div>
         <div className="mt-[3px] truncate text-[11.5px] font-bold text-[#6b6474]">{profile.displayName || "已审核账号"} · 可接：{profile.categories.length ? profile.categories.join("、") : "亲子阅读、学习用品"}</div>
       </div>
       <button type="button" onClick={onManage} className="rounded-full bg-[#f3eaff] px-[12px] py-[8px] text-[12px] font-black text-[#6c27d6]">资料管理</button>
@@ -361,6 +365,7 @@ function buildProfileOverview(form: FormState) {
     form.displayName || "未填姓名/昵称",
     form.contactWechat ? `微信 ${form.contactWechat}` : "",
     form.contactPhone ? `手机 ${form.contactPhone}` : "",
+    form.contentCapabilities.length ? `创作能力 ${form.contentCapabilities.join("、")}` : "",
   ].filter(Boolean).join(" · ");
   const accountCount = [
     form.xiaohongshuNickname || form.xiaohongshuProfileUrl || form.followerCount,
@@ -377,6 +382,13 @@ function buildProfileOverview(form: FormState) {
 
 const MamaResourceApplyPage: React.FC = () => {
   const { user, token } = useSelector((state: RootState) => state.user);
+  useEffect(() => {
+    const previousTitle = document.title;
+    document.title = "好赚";
+    return () => {
+      document.title = previousTitle;
+    };
+  }, []);
   const [form, setForm] = useState<FormState>(initialForm);
   const [profileManagerMode, setProfileManagerMode] = useState<ProfileManagerMode>("overview");
   const [submitting, setSubmitting] = useState(false);
@@ -518,11 +530,6 @@ const MamaResourceApplyPage: React.FC = () => {
     }));
   };
 
-  const saveCurrentProfileSectionAndBack = () => {
-    setMessage("");
-    setProfileManagerMode("overview");
-  };
-
   const openTask = (task: MamaResourceTask) => {
     selectedTaskRef.current = task;
     setSelectedTask(task);
@@ -644,22 +651,21 @@ const MamaResourceApplyPage: React.FC = () => {
     }
   };
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const persistProfile = async (): Promise<boolean> => {
     if (!form.alipayAccount.trim()) {
       setSubmitted(false);
       setMessage("请填写支付宝账号");
-      return;
+      return false;
     }
     if (!form.alipayVerifiedName.trim()) {
       setSubmitted(false);
       setMessage("请填写支付宝验证姓名");
-      return;
+      return false;
     }
     if (!canSubmit) {
       setSubmitted(false);
-      setMessage("请先补齐个人资料、社交媒体账号，并勾选资料使用授权。");
-      return;
+      setMessage("资料尚未提交：请补齐个人资料、社交媒体账号，并勾选资料使用授权。");
+      return false;
     }
     const mutation = authMutationRef.current;
     setSubmitting(true);
@@ -674,6 +680,7 @@ const MamaResourceApplyPage: React.FC = () => {
         city: form.city.trim(),
         childStage: form.childStage,
         childGender: form.childGender,
+        contentCapabilities: form.contentCapabilities,
         xiaohongshuNickname: form.xiaohongshuNickname.trim(),
         xiaohongshuProfileUrl: form.xiaohongshuProfileUrl.trim(),
         xiaohongshuScreenshotUrl: form.xiaohongshuScreenshotUrl,
@@ -685,23 +692,34 @@ const MamaResourceApplyPage: React.FC = () => {
         blockedCategories: form.blockedCategories,
         consentAccepted: form.consentAccepted,
       });
-      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return false;
       setSubmitted(true);
       setProfileManagerMode("overview");
       setMessage("资料已提交，我们会先完成账号审核，再联系你确认适合的发稿机会。");
       await loadProfileAndTasks();
+      return true;
     } catch (error: any) {
-      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
+      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return false;
       const nextMessage =
         error?.response?.data?.message ||
         error?.message ||
         "提交失败，请稍后重试";
       setSubmitted(false);
       setMessage(nextMessage);
+      return false;
     } finally {
-      if (!isCurrentAuthMutation(authMutationRef.current, mutation)) return;
-      setSubmitting(false);
+      if (isCurrentAuthMutation(authMutationRef.current, mutation)) setSubmitting(false);
     }
+  };
+
+  const saveCurrentProfileSectionAndBack = async () => {
+    setProfileManagerMode("overview");
+    await persistProfile();
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    await persistProfile();
   };
 
   const inputClass = "mt-[6px] h-[39px] min-h-[39px] w-full rounded-[11px] border border-[#ddd7e8] bg-white px-[11px] text-[13px] font-medium leading-[39px] outline-none focus:border-[#6c27d6]";
@@ -718,7 +736,7 @@ const MamaResourceApplyPage: React.FC = () => {
             <div className="mb-[11px] flex items-center gap-[9px]">
               <img src="/assets/mama-hao-zhuan-icon.png" alt="" className="h-[44px] w-[44px] shrink-0 object-contain" />
               <h1 className="text-[19px] font-black leading-[1.18] text-[#151222]">
-                妈妈好赚
+                好赚
               </h1>
             </div>
             <p className="text-[13px] font-semibold leading-[1.68] text-[#5f5966]">
@@ -892,6 +910,16 @@ const MamaResourceApplyPage: React.FC = () => {
                     <div className="mt-[6px] flex flex-wrap gap-[6px]">
                       {childGenderOptions.map((item) => (
                         <button key={item} type="button" onClick={() => updateField("childGender", item)} className={chipClass(form.childGender === item)}>
+                          {item}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className={fieldClass}>
+                    <div>创作能力</div>
+                    <div className="mt-[6px] flex flex-wrap gap-[6px]">
+                      {contentCapabilityOptions.map((item) => (
+                        <button key={item} type="button" onClick={() => updateField("contentCapabilities", toggleValue(form.contentCapabilities, item))} className={`min-h-[31px] rounded-full border px-[13px] text-[13.5px] font-extrabold leading-[31px] ${form.contentCapabilities.includes(item) ? "border-[#6c27d6] bg-[#6c27d6] text-white" : "border-[#ddd7e8] bg-white text-[#5d5666]"}`}>
                           {item}
                         </button>
                       ))}

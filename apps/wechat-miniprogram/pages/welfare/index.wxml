@@ -92,9 +92,9 @@
         </view>
         <button bindtap="copyActivationCode">复制</button>
       </view>
-      <view wx:if="{{claimDialogExternalUrl}}" class="xf-welfare-dialog-link" bindtap="openClaimLink" role="button" aria-label="打开小程序链接">
-        <text>{{claimDialogExternalUrl}}</text>
-        <button catchtap="{{claimDialogIsMiniProgramLink ? 'openClaimLink' : 'copyClaimLink'}}">{{claimDialogIsMiniProgramLink ? '点击获取' : '复制链接'}}</button>
+      <view wx:if="{{claimDialogExternalUrl}}" class="xf-welfare-dialog-link">
+        <text user-select="true" catchtap="copyClaimLink" role="button" aria-label="复制链接">{{claimDialogExternalUrl}}</text>
+        <button wx:if="{{claimDialogIsMiniProgramLink}}" catchtap="openClaimLink">点击获取</button>
       </view>
       <button class="xf-welfare-dialog-close" bindtap="closeClaimDialog">知道了</button>
     </view>

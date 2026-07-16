@@ -39,6 +39,7 @@ export interface MamaResourceProfile extends mongoose.Document {
   city?: string;
   childStage?: string;
   childGender?: string;
+  contentCapabilities: string[];
   categories: string[];
   operatorTags: string[];
   orderBlocked: boolean;
@@ -118,6 +119,7 @@ const mamaResourceProfileSchema = new mongoose.Schema(
     city: { type: String, default: "", trim: true },
     childStage: { type: String, default: "", trim: true },
     childGender: { type: String, default: "", trim: true },
+    contentCapabilities: { type: [String], default: [] },
     categories: { type: [String], default: [] },
     operatorTags: { type: [String], default: [] },
     orderBlocked: { type: Boolean, default: false, index: true },

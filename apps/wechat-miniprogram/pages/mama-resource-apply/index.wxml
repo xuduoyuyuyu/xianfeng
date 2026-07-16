@@ -19,7 +19,7 @@
         <view class="xf-mama-head">
           <image class="xf-mama-icon" src="/assets/menu/mama-hao-zhuan-icon.png" mode="aspectFit" />
           <view>
-            <text class="xf-mama-title">妈妈好赚</text>
+            <text class="xf-mama-title">好赚</text>
           </view>
         </view>
         <text class="xf-mama-intro-text">如果你愿意用自己的社交媒体账号接亲子、教育、家庭消费相关发稿，可以先把基础资料提交给我们，运营会按备注联系你。</text>
@@ -105,6 +105,12 @@
               <button wx:for="{{childGenderOptions}}" wx:key="value" class="xf-mama-gender-chip {{childGender === item.value ? 'is-active' : ''}}" data-value="{{item.value}}" catchtap="toggleChildGender" aria-label="选择孩子性别 {{item.label}}">{{item.label}}</button>
             </view>
           </label>
+          <view class="xf-mama-field">
+            <text>创作能力</text>
+            <view class="xf-mama-chips">
+              <button wx:for="{{contentCapabilityOptions}}" wx:key="label" class="xf-mama-chip {{item.selected ? 'is-active' : ''}}" data-value="{{item.label}}" catchtap="toggleContentCapability" aria-label="选择创作能力 {{item.label}}">{{item.label}}</button>
+            </view>
+          </view>
           <view wx:if="{{message}}" class="xf-mama-message {{messageType}}">{{message}}</view>
           <button form-type="submit" class="xf-mama-submit">保存个人信息</button>
         </form>
@@ -187,7 +193,7 @@
       <view class="xf-mama-review-card {{mamaResourceProfile.status}}">
         <view class="xf-mama-review-icon">{{mamaResourceProfile.status === "needs_info" ? "!" : (mamaResourceProfile.status === "rejected" ? "×" : "✓")}}</view>
         <text class="xf-mama-review-title">{{mamaResourceProfile.statusText || "资料已保存"}}</text>
-        <text wx:if="{{mamaResourceProfile.status === 'pending'}}" class="xf-mama-review-copy">你的妈妈好赚资料已经保存，运营会按备注联系你。</text>
+        <text wx:if="{{mamaResourceProfile.status === 'pending'}}" class="xf-mama-review-copy">你的好赚资料已经保存，运营会按备注联系你。</text>
         <text wx:elif="{{mamaResourceProfile.status === 'needs_info'}}" class="xf-mama-review-copy">运营需要你补充或修正部分资料。补充后会继续用于任务匹配。</text>
         <text wx:elif="{{mamaResourceProfile.status === 'rejected'}}" class="xf-mama-review-copy">当前资料暂未通过本期任务匹配。你可以按运营建议调整后重新提交。</text>
         <text wx:else class="xf-mama-review-copy">资料状态已更新，请稍后刷新查看最新结果。</text>
@@ -227,7 +233,7 @@
         <image class="xf-mama-task-hero-icon" src="/assets/menu/mama-hao-zhuan-icon.png" mode="aspectFit" />
         <view>
           <text class="xf-mama-task-kicker">账号已通过</text>
-          <text class="xf-mama-task-title">妈妈好赚</text>
+          <text class="xf-mama-task-title">好赚</text>
           <text class="xf-mama-task-subtitle">{{mamaResourceProfile.displayName || "已审核账号"}} · 可接：{{mamaResourceProfile.categoriesText || "亲子阅读、学习用品"}}</text>
         </view>
         <button class="xf-mama-task-manage" catchtap="openProfileManager">资料管理</button>
@@ -361,8 +367,7 @@
       <button type="button" class="xf-mama-dialog-close xf-mama-content-link-close" catchtap="closeMamaTaskContent">×</button>
       <text class="xf-mama-content-link-title">资料链接</text>
       <text class="xf-mama-content-link-name">{{currentMamaTask.title}}</text>
-      <text class="xf-mama-content-link-label">长按可复制：</text>
-      <text class="xf-mama-content-link-value" user-select="true">{{currentMamaTask.contentUrl}}</text>
+      <text class="xf-mama-content-link-value" user-select="true" catchtap="copyMamaTaskContentLink">{{currentMamaTask.contentUrl}}</text>
     </view>
   </view>
 

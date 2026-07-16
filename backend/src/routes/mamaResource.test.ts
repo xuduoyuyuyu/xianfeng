@@ -580,6 +580,7 @@ describe("mama resource pool routes", () => {
         city: "上海",
         childStage: "小学",
         childGender: "女孩",
+        contentCapabilities: ["能拍", "能剪", "能写"],
         categories: ["亲子阅读"],
         consentAccepted: true,
         socialAccount: {
@@ -636,6 +637,12 @@ describe("mama resource pool routes", () => {
     const demographicData = await demographicResponse.json();
     assert.equal(demographicData.total, 1);
     assert.equal(demographicData.items[0]._id, String(readingProfile._id));
+
+    const capabilityResponse = await fetch(`${server.adminUrl}?contentCapabilities=${encodeURIComponent("能拍")}&contentCapabilities=${encodeURIComponent("能写")}`);
+    assert.equal(capabilityResponse.status, 200);
+    const capabilityData = await capabilityResponse.json();
+    assert.equal(capabilityData.total, 1);
+    assert.equal(capabilityData.items[0]._id, String(readingProfile._id));
 
     const reviewResponse = await fetch(`${server.adminUrl}/${readingProfile._id}/review`, {
       method: "PATCH",
@@ -1134,14 +1141,14 @@ describe("mama resource pool routes", () => {
     );
     const templateBook = XLSX.read(Buffer.from(await templateResponse.arrayBuffer()));
     const templateRows = XLSX.utils.sheet_to_json<Record<string, string>>(templateBook.Sheets[templateBook.SheetNames[0]], { defval: "" });
-    assert.deepEqual(Object.keys(templateRows[0]), ["妈妈好赚账号ID", "专属内容链接"]);
+    assert.deepEqual(Object.keys(templateRows[0]), ["好赚账号ID", "专属内容链接"]);
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([
-      { 妈妈好赚账号ID: String(existingProfile._id), 专属内容链接: "https://my.feishu.cn/wiki/import-existing" },
-      { 妈妈好赚账号ID: String(newProfile._id), 专属内容链接: "https://my.feishu.cn/wiki/import-new" },
-      { 妈妈好赚账号ID: String(pendingProfile._id), 专属内容链接: "https://my.feishu.cn/wiki/import-pending" },
-      { 妈妈好赚账号ID: "invalid-id", 专属内容链接: "https://my.feishu.cn/wiki/import-invalid" },
+      { 好赚账号ID: String(existingProfile._id), 专属内容链接: "https://my.feishu.cn/wiki/import-existing" },
+      { 好赚账号ID: String(newProfile._id), 专属内容链接: "https://my.feishu.cn/wiki/import-new" },
+      { 好赚账号ID: String(pendingProfile._id), 专属内容链接: "https://my.feishu.cn/wiki/import-pending" },
+      { 好赚账号ID: "invalid-id", 专属内容链接: "https://my.feishu.cn/wiki/import-invalid" },
     ]), "专属链接");
     const form = new FormData();
     form.append("file", new Blob([XLSX.write(workbook, { type: "buffer", bookType: "xlsx" })]), "content-links.xlsx");
@@ -1181,7 +1188,7 @@ describe("mama resource pool routes", () => {
 
     const duplicateBook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(duplicateBook, XLSX.utils.json_to_sheet([
-      { 妈妈好赚账号ID: String(newProfile._id), 专属内容链接: "https://my.feishu.cn/wiki/duplicate-one" },
+      { 好赚账号ID: String(newProfile._id), 专属内容链接: "https://my.feishu.cn/wiki/duplicate-one" },
       { 妈妈好赚账号ID: String(newProfile._id), 专属内容链接: "https://my.feishu.cn/wiki/duplicate-two" },
     ]), "专属链接");
     const duplicateForm = new FormData();

@@ -636,6 +636,7 @@ export interface MamaResourceProfile {
   city?: string;
   childStage?: string;
   childGender?: string;
+  contentCapabilities: string[];
   categories: string[];
   operatorTags?: string[];
   orderBlocked?: boolean;
@@ -681,6 +682,7 @@ export interface MamaResourceApplicationInput {
   city?: string;
   childStage?: string;
   childGender?: string;
+  contentCapabilities?: string[] | string;
   xiaohongshuNickname?: string;
   xiaohongshuProfileUrl: string;
   xiaohongshuScreenshotUrl?: string;
@@ -700,6 +702,7 @@ export interface MamaResourceQuery {
   minFollowers?: number | string;
   childStage?: string;
   childGender?: string;
+  contentCapabilities?: string[];
   userGender?: string;
   platform?: MamaResourceMediaAccount['platform'];
   search?: string;

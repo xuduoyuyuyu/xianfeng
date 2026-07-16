@@ -68,13 +68,16 @@
   for the current foreground session. The four list requests include the
   complete profile and keep list caches isolated by profile; search, detail,
   and the external book library remain unpersonalized.
-  Native search focuses its input on entry and progressively shows completed
-  result groups while the remaining content sources load. A segmented progress
-  indicator reflects completed source requests; skeletons are reserved for the
-  interval before the first matching result arrives.
-  Mama Haozhuan profile overview places task preferences before personal data
+  Native search focuses its input after the native input is mounted and sends
+  debounced keywords to the lightweight backend `/api/search` boundary. It
+  renders only matched card summaries instead of downloading complete Programs,
+  Reading, Materials, Topics, and Guest lists for on-device filtering. Its thin
+  progress indicator shares the active-tab baseline; skeletons are reserved for
+  the interval before the first matching result arrives.
+  Haozhuan (`好赚`) profile overview places task preferences before personal data
   and exposes a bottom action that opens the existing media-account editor with
-  one new unselected platform account draft.
+  one new unselected platform account draft. Its personal editor also persists
+  optional `能拍`, `能剪`, and `能写` multi-select capability chips.
   The Baibaoxiang welfare shortcut opens native `pages/welfare/index` so the
   page uses mini-program chrome and hides backend 404s as an empty welfare
   state. Claim success is handled in the native page with the configured claim
@@ -148,7 +151,7 @@
   WeChat `chooseAvatar` plus `nickname` input before resuming the pending
   action. The avatar is uploaded through the existing authenticated user-avatar
   endpoint and the nickname/avatar URL are persisted through `/api/users/me`;
-  existing custom profiles remain unchanged. Mama Haozhuan may copy the station
+  existing custom profiles remain unchanged. Haozhuan may copy the station
   nickname only into an empty personal display-name field and never into a
   social-platform account nickname.
 - Native settings own local app preferences and maintenance actions. Font size
@@ -172,7 +175,7 @@
   social-media, authored-work, and recommended-booklist counts from the public
   guest API.
 - `pages/mama-resource-apply/index` is a native mini-program form for the
-  Mama Haozhuan supply intake. It mirrors the public web form and uses
+  Haozhuan supply intake. It mirrors the public web form and uses
   `wx.chooseMedia`/`wx.uploadFile` for Xiaohongshu profile screenshots.
   Unsubmitted form values are kept only for an authenticated account, under an
   account-scoped local draft key, and cleared after a successful submission or
@@ -186,9 +189,13 @@
   price/settlement/requirements, lets the user claim available tasks first,
   then submit proof link plus completion screenshot for admin collection review.
   Assigned tasks with a private content link show a `内容已下发` marker and an
-  `打开专属内容` action. The action opens the existing mini-program web-view
-  route; if navigation fails, the link is copied to the clipboard. No SMS
-  notification is part of this version.
+  `打开专属内容` action. The action opens an in-page link modal. Tapping the
+  displayed link copies it without adding copy guidance or success/failure copy
+  messages to the page; link text remains selectable for long-press copying as
+  a fallback. The same tap-to-copy contract applies to visible
+  external links on native material, search, welfare, guest-profile, and
+  WorthBuy surfaces; internal navigation and editable URL inputs are unchanged.
+  No SMS notification is part of this version.
   The detail page can generate a compact task share image with a mini-program
   code from `/api/wechat-mini/mama-resource-task-qrcode`; scanning the code
   reopens `pages/mama-resource-apply/index` with the task id in `scene`.

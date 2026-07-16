@@ -1309,7 +1309,6 @@ page {
 
 .xf-mama-content-link-title,
 .xf-mama-content-link-name,
-.xf-mama-content-link-label,
 .xf-mama-content-link-value {
   display: block;
 }
@@ -1330,17 +1329,10 @@ page {
   line-height: 1.5;
 }
 
-.xf-mama-content-link-label {
-  margin-top: 28rpx;
-  color: #8878ad;
-  font-size: 25rpx;
-  font-weight: 800;
-}
-
 .xf-mama-content-link-value {
   box-sizing: border-box;
   width: 100%;
-  margin-top: 12rpx;
+  margin-top: 28rpx;
   padding: 24rpx 20rpx;
   border: 2rpx solid #ddd1ff;
   border-radius: 20rpx;

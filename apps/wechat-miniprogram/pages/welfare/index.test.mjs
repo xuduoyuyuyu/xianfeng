@@ -20,13 +20,10 @@ test("welfare login success continues the pending claim", () => {
   assert.match(handler, /claimWelfare/);
 });
 
-test("welfare claim link button opens mini-program links and copies ordinary links", () => {
-  assert.match(
-    wxml,
-    /<button catchtap="\{\{claimDialogIsMiniProgramLink \? 'openClaimLink' : 'copyClaimLink'\}\}">\{\{claimDialogIsMiniProgramLink \? '点击获取' : '复制链接'\}\}<\/button>/
-  );
-  assert.doesNotMatch(
-    wxml,
-    /<button catchtap="copyClaimLink">\{\{claimDialogIsMiniProgramLink \? '点击获取' : '复制链接'\}\}<\/button>/
-  );
+test("welfare displayed links copy silently while mini-program links keep their open action", () => {
+  assert.match(wxml, /<text user-select="true" catchtap="copyClaimLink"[^>]*>\{\{claimDialogExternalUrl\}\}<\/text>/);
+  assert.match(wxml, /<button wx:if="\{\{claimDialogIsMiniProgramLink\}\}" catchtap="openClaimLink">点击获取<\/button>/);
+  assert.doesNotMatch(wxml, />复制链接<\/button>/);
+  assert.match(js, /copyClaimLink\(\) \{[\s\S]*copyTextSilently\(this\.data\.claimDialogExternalUrl\);/);
+  assert.doesNotMatch(js, /链接已复制/);
 });

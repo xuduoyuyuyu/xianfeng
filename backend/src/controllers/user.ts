@@ -953,14 +953,14 @@ export class UserController {
         addEvent(memory.updatedAt, "memory", "更新孩子记忆", memory.childId || "孩子档案");
       });
       if (mamaProfile) {
-        addEvent(mamaProfile.createdAt, "mama", "开通妈妈好赚资料", mamaProfile.displayName || "");
+        addEvent(mamaProfile.createdAt, "mama", "开通好赚资料", mamaProfile.displayName || "");
         if (String(mamaProfile.updatedAt) !== String(mamaProfile.createdAt)) {
-          addEvent(mamaProfile.updatedAt, "mama", "更新妈妈好赚资料", `${mamaProfile.mediaAccounts?.length || 1} 个平台账号`);
+          addEvent(mamaProfile.updatedAt, "mama", "更新好赚资料", `${mamaProfile.mediaAccounts?.length || 1} 个平台账号`);
         }
       }
       mamaAssignments.forEach((assignment: any) => {
-        const taskTitle = assignment.task?.title || "妈妈好赚任务";
-        addEvent(assignment.createdAt, "mama", "领取妈妈好赚任务", taskTitle);
+        const taskTitle = assignment.task?.title || "好赚任务";
+        addEvent(assignment.createdAt, "mama", "领取好赚任务", taskTitle);
         addEvent(assignment.contentUpdatedAt, "mama", "分配专属内容", taskTitle);
         addEvent(assignment.submittedAt, "mama", "提交任务返图", taskTitle);
         addEvent(assignment.reviewedAt, "mama", "任务完成审核", `${taskTitle} · ${assignment.status}`);

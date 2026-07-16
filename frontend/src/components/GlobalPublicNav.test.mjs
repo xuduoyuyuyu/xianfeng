@@ -56,8 +56,8 @@ test("mobile menu cards keep natural height and let the panel scroll", () => {
 test("public menu shows Xiaowanzi treasure box between Worthbuy and Mama Haozhuan", () => {
   assert.match(
     source,
-    /to="\/worthbuy" active=\{activeWorthBuy\} icon="verified" label="知物"[\s\S]*to="\/welfare" active=\{activeWelfare\} image="\/assets\/welfare-gift-icon\.png" label="小玩子百宝箱"[\s\S]*to="\/mama-resources\/apply" active=\{activeMamaHaozhuan\} image="\/assets\/mama-hao-zhuan-icon\.png" label="妈妈好赚"/,
-    "小玩子百宝箱 should use the gift asset and sit between 知物 and 妈妈好赚 in the public menu"
+    /to="\/worthbuy" active=\{activeWorthBuy\} icon="verified" label="知物"[\s\S]*to="\/welfare" active=\{activeWelfare\} image="\/assets\/welfare-gift-icon\.png" label="小玩子百宝箱"[\s\S]*to="\/mama-resources\/apply" active=\{activeMamaHaozhuan\} image="\/assets\/mama-hao-zhuan-icon\.png" label="好赚"/,
+    "小玩子百宝箱 should use the gift asset and sit between 知物 and 好赚 in the public menu"
   );
 });
 

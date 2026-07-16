@@ -1,4 +1,5 @@
 const { request } = require("../../utils/request");
+const { copyTextSilently } = require("../../utils/clipboard");
 const { getUser } = require("../../utils/session");
 const { getNativeTopbarMetrics } = require("../../utils/nativeChrome");
 const { createPageShare, enableShareMenu } = require("../../utils/share");
@@ -53,7 +54,7 @@ Page({
     }
     context.draw();
   },
-  copyReference(event) { const url = String(event.currentTarget.dataset.url || ""); if (!url) return; wx.setClipboardData({ data: url }); },
+  copyReference(event) { copyTextSilently(event.currentTarget.dataset.url); },
   goBack() { if (getCurrentPages().length > 1) wx.navigateBack(); else wx.redirectTo({ url: "/pages/worthbuy/index" }); },
   goProgramsHome() { navigateProgramsHome(); },
   goWorthBuyList() { wx.redirectTo({ url: "/pages/worthbuy/index" }); },

@@ -77,9 +77,12 @@
   not send SMS.
 - `/admin/users` keeps inline account operations but makes each user openable
   as a read-only 360-degree profile. The detail modal groups station identity,
-  child basics, Mama Haozhuan participation, and the backend-aggregated event
+  child basics, Haozhuan (`好赚`) participation, and the backend-aggregated event
   timeline, including registration, profile changes, recorded page visits,
   child-memory updates, and task lifecycle events.
+- The Haozhuan personal profile exposes `能拍`, `能剪`, and `能写` as optional
+  multi-select capabilities. The admin account list exposes the same values in
+  a multi-select popover and sends them to the backend as an all-selected match.
 - `/welfare` is the public Xiaowanzi treasure box page (`小玩子百宝箱`). It
   uses the gift icon asset and Xiaowanzi avatar treatment, lists claimable
   welfare separately from expired or sold-out historical welfare, and shows

@@ -598,13 +598,13 @@ const AdminUsersPage: React.FC = () => {
                 </section>
 
                 <section className="rounded-2xl border border-stone-200 bg-white p-5">
-                  <div className="flex items-center justify-between"><h3 className="text-sm font-black text-stone-900">妈妈好赚</h3><span className="text-xs font-bold text-stone-400">{overview.mamaAssignments.length} 个任务</span></div>
+                  <div className="flex items-center justify-between"><h3 className="text-sm font-black text-stone-900">好赚</h3><span className="text-xs font-bold text-stone-400">{overview.mamaAssignments.length} 个任务</span></div>
                   {overview.mamaProfile ? (
                     <div className="mt-4 space-y-3">
                       <div className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800"><span className="font-black">{overview.mamaProfile.displayName}</span><span className="ml-2">{overview.mamaProfile.status === 'approved' ? '可派单' : overview.mamaProfile.status}</span><div className="mt-1 text-xs">{(overview.mamaProfile.categories || []).join(' · ') || '未填写品类'} · {overview.mamaProfile.mediaAccounts?.length || 1} 个平台账号</div></div>
-                      {overview.mamaAssignments.map((assignment) => <div key={assignment._id} className="flex items-center justify-between gap-3 rounded-xl border border-stone-100 px-4 py-3 text-sm"><span className="font-bold text-stone-800">{assignment.task?.title || '妈妈好赚任务'}</span><span className="shrink-0 text-xs font-bold text-stone-500">{assignment.status}</span></div>)}
+                      {overview.mamaAssignments.map((assignment) => <div key={assignment._id} className="flex items-center justify-between gap-3 rounded-xl border border-stone-100 px-4 py-3 text-sm"><span className="font-bold text-stone-800">{assignment.task?.title || '好赚任务'}</span><span className="shrink-0 text-xs font-bold text-stone-500">{assignment.status}</span></div>)}
                     </div>
-                  ) : <div className="mt-4 rounded-xl bg-stone-50 px-4 py-6 text-center text-sm text-stone-400">尚未开通妈妈好赚</div>}
+                  ) : <div className="mt-4 rounded-xl bg-stone-50 px-4 py-6 text-center text-sm text-stone-400">尚未开通好赚</div>}
                 </section>
               </div>
 
