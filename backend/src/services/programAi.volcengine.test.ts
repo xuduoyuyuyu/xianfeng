@@ -19,6 +19,13 @@ assert.deepEqual(
   ]).map((item) => item.speaker),
   ["Jessie", "阿力", "嘉宾"]
 );
+assert.deepEqual(
+  buildParagraphTranscriptFromTimedItems([
+    { startSec: 0, endSec: 5, speaker: "1", text: "欢迎收听本期家长先疯，今天我们聊亲子关系。" },
+    { startSec: 6, endSec: 12, speaker: "2", text: "谢谢邀请，我先分享一个真实案例。" },
+  ]).map((item) => item.speaker),
+  ["阿力", "嘉宾"]
+);
 
 assert.equal(
   normalizeVolcenginePublicSourceUrl(

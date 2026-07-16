@@ -464,7 +464,7 @@ function isExplicitGuestSpeaker(value: unknown): boolean {
 function looksLikeHostParagraph(text: string): boolean {
   const normalized = asText(text).replace(/\s+/g, "");
   if (!normalized) return false;
-  return /欢迎回到|欢迎来到|今天我们|这一期|本期节目|接下来我们|我想追问|我想请教|先聊聊|大家好|感谢来到/.test(normalized);
+  return /欢迎回到|欢迎来到|欢迎收听|今天我们|这一期|本期节目|接下来我们|我想追问|我想请教|先聊聊|感谢来到/.test(normalized);
 }
 
 function looksLikeQuestionPrompt(text: string): boolean {
@@ -546,7 +546,7 @@ function resolveRoleLabels(
     if (isExplicitHostSpeaker(explicitSpeaker)) {
       if (/ali|阿力|阿丽/.test(normExplicit)) return "阿力";
       if (/jessie|杰西/.test(normExplicit)) return "Jessie";
-      return "主播";
+      return "阿力";
     }
 
     // 嘉宾绝对不能是阿力或 Jessie
@@ -554,7 +554,8 @@ function resolveRoleLabels(
       return /jessie/.test(normExplicit) ? "Jessie" : "阿力";
     }
 
-    if (paragraph.speakerKey === hostKey && hostKeyScore > 0) return "主播";
+    if (paragraph.speakerKey === hostKey && hostKeyScore > 0) return "阿力";
+    if ((hostScores.get(paragraph.speakerKey) || 0) >= 3) return "阿力";
 
     const isUnknownSpeaker = explicitSpeaker.startsWith("__unknown");
 
@@ -568,7 +569,7 @@ function resolveRoleLabels(
     }
 
     if (index === 0 && !hostKeyScore && looksLikeHostParagraph(paragraph.text)) {
-      return "主播";
+      return "阿力";
     }
 
     return `嘉宾${Math.max(1, guestIndex - 1)}`;
@@ -762,7 +763,7 @@ export function buildParagraphTranscriptFromTimedItems(items: TimedUtterance[], 
   const featuredIndexes = new Set(ranked.map((item) => item.idx));
   const transcript = finalParagraphs.map((item, idx) => ({
     time: `${formatClock(item.startSec)}-${formatClock(item.endSec)}`,
-    speaker: speakerLabels[idx] || "主播",
+    speaker: speakerLabels[idx] || "阿力",
     text: item.text,
     featured: featuredIndexes.has(idx),
   }));
@@ -801,7 +802,7 @@ function splitToTranscriptParagraphs(text: string, durationSeconds: number): Tra
   const featuredIndexes = new Set(ranked.map((item) => item.idx));
   return outputParagraphs.map((item, idx) => ({
     time: `${formatClock(idx * gap)}-${formatClock(Math.min(safeDuration, (idx + 1) * gap))}`,
-    speaker: idx % 2 === 0 ? "主播" : "嘉宾",
+    speaker: idx % 2 === 0 ? "阿力" : "嘉宾",
     text: item.endsWith("。") ? item : `${item}。`,
     featured: featuredIndexes.has(idx),
   }));
