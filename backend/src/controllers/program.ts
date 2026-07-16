@@ -1157,7 +1157,7 @@ export async function runAsyncParseTask(
     const payload = await applyShowNotesRendering(sanitizeProgramPayload(aiResult.payload, false));
     const status = aiResult.aiStatus === "generated" ? "success" : "failed";
     const parsePatch = parseMetaPatch(status, aiResult.aiMessage || "", status === "failed" ? 100 : 100, status === "failed" ? "failed" : "completed");
-    await Program.findByIdAndUpdate(programId, { ...payload, ...parsePatch }, { new: false });
+    await Program.findByIdAndUpdate(programId, status === "success" ? { ...payload, ...parsePatch } : parsePatch, { new: false });
     await createInboxMessage({
       sourceType: "program_parse_task",
       sourceId: parseRunId,
@@ -1174,11 +1174,11 @@ export async function runAsyncParseTask(
         parsePatch,
       },
     }).catch(() => {});
-    const dictionarySourceText = buildProgramSourceTextForDictionary(payload);
-    await syncProgramDictionaryEntries(programId, payload.termGlossary, "ai_program", {
-      sourceText: dictionarySourceText,
-    });
     if (status === "success") {
+      const dictionarySourceText = buildProgramSourceTextForDictionary(payload);
+      await syncProgramDictionaryEntries(programId, payload.termGlossary, "ai_program", {
+        sourceText: dictionarySourceText,
+      });
       await createAgentTask({
         taskType: "proofread_transcript",
         targetType: "program",

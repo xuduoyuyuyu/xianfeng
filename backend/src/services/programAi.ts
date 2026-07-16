@@ -1246,6 +1246,11 @@ export function applyTranscriptQualitySegments(
     const startIndex = Number(row?.startIndex);
     const endIndex = Number(row?.endIndex);
     const text = asText(row?.text).replace(/家长先锋/g, "家长先疯");
+    const sourceText = source.slice(startIndex, endIndex + 1)
+      .map((segment) => asText(segment.text))
+      .join("")
+      .replace(/家长先锋/g, "家长先疯");
+    const finalText = sourceText.length >= 10 && sourceText.length < 50 ? sourceText : text;
     const sourceSpeakers = Array.from(new Set(
       source.slice(startIndex, endIndex + 1).map((segment) => normalizeFinalSpeakerLabel(segment.speaker, guestNames)).filter(Boolean)
     ));
@@ -1255,7 +1260,7 @@ export function applyTranscriptQualitySegments(
       startIndex !== expectedStart ? "non_contiguous_index" :
       endIndex < startIndex || endIndex >= source.length ? "index_out_of_range" :
       !speaker ? "mixed_or_invalid_source_speaker" :
-      text.length < 50 || text.length > 200 ? "invalid_text_length" : "";
+      finalText.length < 10 || finalText.length > 200 || (sourceText.length >= 50 && finalText.length < 50) ? "invalid_text_length" : "";
     if (invalidReason) {
       console.warn("[ai-program] transcript quality row rejected", {
         reason: invalidReason,
@@ -1265,14 +1270,14 @@ export function applyTranscriptQualitySegments(
         sourceLength: source.length,
         speaker: asText(row?.speaker),
         sourceSpeakers,
-        textLength: text.length,
+        textLength: finalText.length,
       });
       return null;
     }
     output.push({
       time: mergedTranscriptTime(source[startIndex], source[endIndex]),
       speaker,
-      text,
+      text: finalText,
       featured: source.slice(startIndex, endIndex + 1).some((segment) => segment.featured),
     });
     expectedStart = endIndex + 1;
