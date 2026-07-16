@@ -1221,8 +1221,8 @@ export function needsTranscriptSpeakerAttribution(transcript: TranscriptSegment[
 
 function normalizeFinalSpeakerLabel(value: unknown, guestNames: string[]): string {
   const label = asText(value);
-  if (/^主播·阿力$/u.test(label)) return "主播·阿力";
-  if (/^主播·Jessie$/i.test(label)) return "主播·Jessie";
+  if (/^(?:主播·)?阿力$/u.test(label)) return "主播·阿力";
+  if (/^(?:主播·)?Jessie$/i.test(label)) return "主播·Jessie";
   const guestName = label.replace(/^嘉宾·/u, "");
   return guestNames.includes(guestName) ? `嘉宾·${guestName}` : "";
 }
@@ -1247,11 +1247,24 @@ export function applyTranscriptQualitySegments(
     const endIndex = Number(row?.endIndex);
     const speaker = normalizeFinalSpeakerLabel(row?.speaker, guestNames);
     const text = asText(row?.text).replace(/家长先锋/g, "家长先疯");
-    if (
-      !Number.isInteger(startIndex) || !Number.isInteger(endIndex) ||
-      startIndex !== expectedStart || endIndex < startIndex || endIndex >= source.length ||
-      !speaker || text.length < 50 || text.length > 200
-    ) return null;
+    const invalidReason =
+      !Number.isInteger(startIndex) || !Number.isInteger(endIndex) ? "non_integer_index" :
+      startIndex !== expectedStart ? "non_contiguous_index" :
+      endIndex < startIndex || endIndex >= source.length ? "index_out_of_range" :
+      !speaker ? "invalid_speaker" :
+      text.length < 50 || text.length > 200 ? "invalid_text_length" : "";
+    if (invalidReason) {
+      console.warn("[ai-program] transcript quality row rejected", {
+        reason: invalidReason,
+        expectedStart,
+        startIndex,
+        endIndex,
+        sourceLength: source.length,
+        speaker: asText(row?.speaker),
+        textLength: text.length,
+      });
+      return null;
+    }
     output.push({
       time: mergedTranscriptTime(source[startIndex], source[endIndex]),
       speaker,
