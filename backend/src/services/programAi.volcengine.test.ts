@@ -95,6 +95,12 @@ assert.deepEqual(
   ], [])?.map((item) => item.speaker),
   ["主播·阿力", "主播·Jessie"]
 );
+assert.deepEqual(
+  applyTranscriptSpeakerAssignments(singleSpeakerTranscript.slice(0, 1), [
+    { index: 0, speaker: "嘉宾·魏亚妮" },
+  ], ["魏亚妮"], false)?.map((item) => item.speaker),
+  ["嘉宾·魏亚妮"]
+);
 assert.equal(
   applyTranscriptSpeakerAssignments(singleSpeakerTranscript, [
     { index: 0, speaker: "阿力" },

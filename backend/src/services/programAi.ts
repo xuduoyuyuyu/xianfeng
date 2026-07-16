@@ -1118,7 +1118,8 @@ async function extractMetadataWithPreferredTextProvider(
 export function applyTranscriptSpeakerAssignments(
   transcript: TranscriptSegment[],
   assignments: unknown,
-  guestNames: string[] = []
+  guestNames: string[] = [],
+  requireRoleMix = true
 ): TranscriptSegment[] | null {
   const rows = Array.isArray(assignments) ? assignments : [];
   if (rows.length !== transcript.length) return null;
@@ -1141,7 +1142,7 @@ export function applyTranscriptSpeakerAssignments(
   const distinct = new Set(labels.values());
   const hasHost = Array.from(distinct).some((label) => label.startsWith("主播·"));
   const hasGuest = Array.from(distinct).some((label) => label.startsWith("嘉宾·"));
-  if (!hasHost || (guestNames.length ? !hasGuest : distinct.size < 2)) return null;
+  if (requireRoleMix && (!hasHost || (guestNames.length ? !hasGuest : distinct.size < 2))) return null;
   return transcript.map((segment, index) => ({ ...segment, speaker: labels.get(index)! }));
 }
 
@@ -1151,19 +1152,23 @@ async function attributeTranscriptSpeakersWithProvider(
   config: MetadataLlmConfig | null
 ): Promise<TranscriptSegment[] | null> {
   if (!config) return null;
-  const segments = transcript.map((segment, index) => ({
-    index,
-    time: segment.time,
-    text: segment.text.slice(0, 500),
-  }));
-  const prompt = [
-    "你是播客逐字稿编辑。请判断每一段是谁在说话。",
-    `主播标签只能是主播·阿力或主播·Jessie，嘉宾标签只能是嘉宾·姓名，姓名从这个名单选择：${guestNames.join("、")}。`,
-    "根据开场、自我介绍、提问与回答、上下文衔接判断。不得遗漏、合并或新增段落。",
-    '只输出JSON：{"assignments":[{"index":0,"speaker":"主播·阿力"},{"index":1,"speaker":"嘉宾·张三"}]}。',
-    JSON.stringify(segments),
-  ].join("\n");
-  try {
+  const attributed: TranscriptSegment[] = [];
+  const chunkSize = 80;
+  for (let offset = 0; offset < transcript.length; offset += chunkSize) {
+    const chunk = transcript.slice(offset, offset + chunkSize);
+    const segments = chunk.map((segment, index) => ({
+      index,
+      time: segment.time,
+      text: segment.text.slice(0, 500),
+    }));
+    const prompt = [
+      "你是播客逐字稿编辑。请判断每一段是谁在说话。",
+      `主播标签只能是主播·阿力或主播·Jessie，嘉宾标签只能是嘉宾·姓名，姓名从这个名单选择：${guestNames.join("、")}。`,
+      "根据开场、自我介绍、提问与回答、上下文衔接判断。不得遗漏、合并或新增段落。",
+      '只输出JSON：{"assignments":[{"index":0,"speaker":"主播·阿力"},{"index":1,"speaker":"嘉宾·张三"}]}。',
+      JSON.stringify(segments),
+    ].join("\n");
+    try {
     const response = await fetch(config.baseUrl.replace(/\/$/, "") + "/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.apiKey}` },
@@ -1182,10 +1187,18 @@ async function attributeTranscriptSpeakersWithProvider(
     const content = asText(json?.choices?.[0]?.message?.content);
     if (!content) return null;
     const parsed = JSON.parse(content);
-    return applyTranscriptSpeakerAssignments(transcript, parsed?.assignments, guestNames);
-  } catch (_error) {
-    return null;
+      const assignedChunk = applyTranscriptSpeakerAssignments(chunk, parsed?.assignments, guestNames, false);
+      if (!assignedChunk) return null;
+      attributed.push(...assignedChunk);
+    } catch (_error) {
+      return null;
+    }
   }
+  const speakers = new Set(attributed.map((segment) => segment.speaker));
+  const hasHost = Array.from(speakers).some((speaker) => speaker.startsWith("主播·"));
+  const hasGuest = Array.from(speakers).some((speaker) => speaker.startsWith("嘉宾·"));
+  if (!hasHost || (guestNames.length ? !hasGuest : speakers.size < 2)) return null;
+  return attributed;
 }
 
 export async function ensureTranscriptSpeakerAttribution(input: {
