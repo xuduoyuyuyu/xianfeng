@@ -1328,9 +1328,12 @@ export async function ensureTranscriptQuality(input: {
   for (let index = 0; index < input.transcript.length; index += 24) chunks.push(input.transcript.slice(index, index + 24));
   const refined: TranscriptSegment[] = [];
   for (const chunk of chunks) {
-    const result =
-      await refineTranscriptChunkWithProvider(chunk, guestNames, resolveDeepSeekMetadataConfig()) ||
-      await refineTranscriptChunkWithProvider(chunk, guestNames, resolveArkMetadataConfig());
+    let result: TranscriptSegment[] | null = null;
+    for (let attempt = 0; attempt < 3 && !result; attempt += 1) {
+      result =
+        await refineTranscriptChunkWithProvider(chunk, guestNames, resolveDeepSeekMetadataConfig()) ||
+        await refineTranscriptChunkWithProvider(chunk, guestNames, resolveArkMetadataConfig());
+    }
     if (!result) throw new Error("逐字稿未通过50至200字、品牌名或说话人实名质检");
     refined.push(...result);
   }
