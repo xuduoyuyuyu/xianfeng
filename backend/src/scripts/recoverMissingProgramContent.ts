@@ -29,6 +29,13 @@ function durationSeconds(value: unknown): number {
   return Number.MAX_SAFE_INTEGER;
 }
 
+function normalizeRecoveryAudioUrl(value: string): string {
+  const match = value.match(
+    /^https:\/\/dts-api\.xiaoyuzhoufm\.com\/track\/[^/]+\/[^/]+\/(media\.xyzcdn\.net\/.*)$/
+  );
+  return match ? `https://${match[1]}` : value;
+}
+
 async function main() {
   await mongoose.connect(process.env.MONGO_URI || "mongodb://xianfeng_mongo:27017/xianfeng");
   const forcedProgramCodes = new Set(
@@ -63,7 +70,7 @@ async function main() {
       console.log(JSON.stringify({ event: "recovery_skip", index: index + 1, programCode: target.programCode }));
       continue;
     }
-    const audioUrl = current.episodes?.[0]?.url || "";
+    const audioUrl = normalizeRecoveryAudioUrl(current.episodes?.[0]?.url || "");
     await runAsyncParseTask(String(current._id), audioUrl, { forceTranscriptRegenerate: true });
     await new Promise((resolve) => setTimeout(resolve, 5_000));
     const result = await Program.findById(current._id).lean();
