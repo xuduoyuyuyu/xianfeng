@@ -1237,7 +1237,7 @@ function splitTranscriptText(text: string, maxLength = 200): string[] {
   const parts: string[] = [];
   let remaining = text;
   while (remaining.length > maxLength) {
-    const window = remaining.slice(0, maxLength + 1);
+    const window = remaining.slice(0, maxLength);
     const candidates = ["。", "！", "？", ".", "!", "?", "；", ";"]
       .map((mark) => window.lastIndexOf(mark))
       .filter((index) => index >= Math.floor(maxLength * 0.5));
