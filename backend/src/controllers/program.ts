@@ -67,6 +67,15 @@ async function resolveGuestSpeakerNames(payload: any, generatedGuestName?: unkno
     const namesById = new Map(guests.map((guest: any) => [String(guest._id), guest.name]));
     for (const binding of bindings) addName(namesById.get(String(binding?.guestId)));
   }
+  const gradeAliases = extractGradeGuestAliases([
+    payload?.title,
+    payload?.description,
+    payload?.guest?.bio,
+    generatedGuestName,
+  ]);
+  if (!names.length && gradeAliases.length > 1) {
+    for (const alias of gradeAliases) addName(alias);
+  }
   if (!names.length) {
     const fallbackNames = [payload?.guest?.name, generatedGuestName].map(asText).filter(isUsableGuestSpeakerName);
     if (fallbackNames.length) {
@@ -75,12 +84,7 @@ async function resolveGuestSpeakerNames(payload: any, generatedGuestName?: unkno
     }
   }
   if (!names.length) {
-    for (const alias of extractGradeGuestAliases([
-      payload?.title,
-      payload?.description,
-      payload?.guest?.bio,
-      generatedGuestName,
-    ])) addName(alias);
+    for (const alias of gradeAliases) addName(alias);
   }
   return names;
 }
