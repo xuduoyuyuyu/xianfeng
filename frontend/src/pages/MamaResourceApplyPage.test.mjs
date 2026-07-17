@@ -110,18 +110,24 @@ test("mama resource application form submits a light supply profile", () => {
   assert.match(source, /微信号[\s\S]*name="contactWechat"[\s\S]*优先通过微信添加[\s\S]*手机号[\s\S]*name="contactPhone"[\s\S]*备用联系电话/);
   assert.match(staticSource, /微信号[\s\S]*name="contactWechat"[\s\S]*优先通过微信添加[\s\S]*required[\s\S]*手机号[\s\S]*name="contactPhone"[\s\S]*备用联系电话/);
   assert.doesNotMatch(staticSource, /name="contactPhone"[^>]*required/);
-  assert.match(source, /placeholder="上海 \/ 杭州"/);
-  assert.match(staticSource, /placeholder="上海 \/ 杭州"/);
+  assert.doesNotMatch(source, />\s*城市\s*</);
+  assert.doesNotMatch(staticSource, /name="city"/);
+  assert.match(source, /children\.find\(\(child\) => String\(child\.city/);
   assert.doesNotMatch(source, /上海 \/ 杭州 \/ 线上/);
   assert.doesNotMatch(staticSource, /上海 \/ 杭州 \/ 线上/);
   assert.match(source, /childStage/);
   assert.match(source, /childGender/);
-  assert.match(source, /const childGenderOptions = \["男孩", "女孩"\]/);
-  assert.match(source, /孩子阶段[\s\S]*name="childStage"[\s\S]*孩子性别[\s\S]*childGenderOptions\.map[\s\S]*type="button"[\s\S]*updateField\("childGender", item\)/);
-  assert.match(source, /form\.childGender === item/);
+  assert.match(source, /withArchiveDemographics\(formStateFromProfile/);
+  assert.match(source, /孩子档案[\s\S]*openChildCreate[\s\S]*<span>添加孩子<\/span>/);
+  assert.doesNotMatch(source, />\s*孩子阶段\s*</);
+  assert.doesNotMatch(source, />\s*孩子性别\s*</);
+  assert.match(source, /openChildCreate[\s\S]*xf-open-child-profile-create/);
+  assert.doesNotMatch(source, /updateField\("childStage"|updateField\("childGender"/);
   assert.doesNotMatch(source, /<select[\s\S]*name="childGender"/);
-  assert.match(staticSource, /孩子阶段[\s\S]*name="childStage"[\s\S]*孩子性别[\s\S]*class="[^"]*gender-options[^"]*"[\s\S]*data-value="男孩"[\s\S]*data-value="女孩"/);
   assert.doesNotMatch(staticSource, /<select name="childGender"/);
+  assert.doesNotMatch(staticSource, /<select name="childStage"/);
+  assert.match(staticSource, /xiaowanzi_child_profiles_v1/);
+  assert.match(staticSource, /添加孩子请前往档案管理/);
   assert.match(source, /小红书主页链接[\s\S]*xiaohongshuProfileUrl[\s\S]*小红书页面截图[\s\S]*type="file"[\s\S]*accept="image\/\*"/);
   assert.match(source, /xiaohongshuProfileUrl[\s\S]*placeholder="可粘贴整段口令或主页短链接"/);
   assert.match(source, /account\.profileUrl[\s\S]*placeholder="可粘贴整段口令或主页链接"/);
@@ -235,7 +241,12 @@ test("reviewing profiles show status, review note, and profile management", () =
 
 test("approved profiles render account home and complete task cards", () => {
   assert.match(source, /function MamaResourceAccountCard/);
-  assert.match(source, /账号已通过/);
+  assert.match(source, /\/wel\/assets\/wel-avatar\/xiaowanzi-turban\.png/);
+  assert.doesNotMatch(source, /<h2[^>]*>任务列表<\/h2>|可领取与进行中的任务/);
+  assert.doesNotMatch(source, /function MamaResourceAccountCard[\s\S]*账号已通过[\s\S]*function MamaResourceTaskCard/);
+  assert.match(source, /UID \{profile\.publicUid\}/);
+  assert.match(source, /navigator\.clipboard\?\.writeText\(profile\.publicUid\)/);
+  assert.match(source, /aria-label="复制UID"[\s\S]*复制/);
   assert.match(source, /资料管理/);
   assert.match(source, /function MamaResourceTaskCard/);
   assert.match(source, /任务单价/);

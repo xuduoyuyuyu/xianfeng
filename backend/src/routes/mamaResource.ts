@@ -9,6 +9,7 @@ import MamaResourceTaskAssignment from "../models/MamaResourceTaskAssignment";
 import User from "../models/User";
 import { authenticate, optionalAuthenticate, AuthenticatedRequest } from "../middlewares/auth";
 import { assignNextMamaResourceContentLink } from "../services/mamaResourceContentLinks";
+import { ensurePublicUid } from "../services/publicUid";
 
 const router = Router();
 const uploadDir = path.join(process.cwd(), "uploads", "mama-resources");
@@ -175,11 +176,12 @@ function primaryXiaohongshuAccountForProfile(profile: any) {
     .find((account) => account.platform === "xiaohongshu" && account.profileUrl && account.normalizedProfileUrl) || null;
 }
 
-function publicProfilePayload(profile: any) {
+function publicProfilePayload(profile: any, publicUid?: string) {
   const source = typeof profile.toObject === "function" ? profile.toObject() : profile;
   return {
     ...source,
     _id: String(source._id),
+    ...(publicUid ? { publicUid } : {}),
   };
 }
 
@@ -295,13 +297,17 @@ async function findApprovedProfileForUser(userId: string) {
 
 router.get("/me/tasks", authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const profile = await findProfileForUser(asText(req.user?.id));
+    const userId = asText(req.user?.id);
+    const [profile, publicUid] = await Promise.all([
+      findProfileForUser(userId),
+      ensurePublicUid(userId),
+    ]);
     if (!profile) {
       res.json({ profile: null, tasks: [], availableTasks: [] });
       return;
     }
     if (profile.status !== "approved") {
-      res.json({ profile: publicProfilePayload(profile), tasks: [], availableTasks: [] });
+      res.json({ profile: publicProfilePayload(profile, publicUid), tasks: [], availableTasks: [] });
       return;
     }
     const tasks = await MamaResourceTaskAssignment.find({ profileId: profile._id })
@@ -322,7 +328,7 @@ router.get("/me/tasks", authenticate, async (req: AuthenticatedRequest, res: Res
     const availableActivePromotionCounts = await getAssignmentCountsForTaskIds(allTaskIds, activePromotionStatuses);
     const claimCounts = await getClaimCountsForTaskIds(allTaskIds);
     res.json({
-      profile: publicProfilePayload(profile),
+      profile: publicProfilePayload(profile, publicUid),
       tasks: tasks.map((task) => publicTaskPayload(task, activePromotionCounts, claimCounts)),
       availableTasks: availableTasks
         .map((task) => publicAvailableTaskPayload(task, claimCounts, availableActivePromotionCounts))

@@ -84,6 +84,21 @@ function mergeChildProfileRecords(nativeValue, webValue, options = {}) {
   return Array.from(merged.values());
 }
 
+function saveChildProfileRecords(children, options = {}) {
+  const savedChildren = mergeChildProfileRecords(children, [], options);
+  wx.setStorageSync(CHILD_PROFILES_KEY, savedChildren);
+  wx.setStorageSync(WEB_CHILD_PROFILES_KEY, JSON.stringify(savedChildren));
+  if (getToken()) {
+    const { request } = require("./request");
+    Promise.resolve(request({
+      url: "/api/users/me/xiaowanzi-sync",
+      method: "PATCH",
+      data: { childProfiles: savedChildren }
+    })).catch(() => {});
+  }
+  return savedChildren;
+}
+
 function hasDuplicateChildDisplayName(children, draft) {
   const draftName = normalizeChildDisplayName(draft && (draft.displayName || draft.name || draft.title));
   const draftId = String((draft && draft.id) || "");
@@ -161,6 +176,7 @@ module.exports = {
   buildProfileState,
   hasDuplicateChildDisplayName,
   mergeChildProfileRecords,
+  saveChildProfileRecords,
   maskMobile,
   parseStoredValue
 };

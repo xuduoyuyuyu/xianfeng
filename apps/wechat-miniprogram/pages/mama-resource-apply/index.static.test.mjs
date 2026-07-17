@@ -48,6 +48,20 @@ test("mama resource form keeps a logged-in account-scoped draft across page exit
   assert.match(wxmlSource, /资料会用于任务匹配和运营联系，可联系运营停用或更新。/);
 });
 
+test("mama resource demographics fill empty values from child archives", () => {
+  assert.match(jsSource, /fillApplyDraftFromArchive\(loadApplyDraft\(\)\)/);
+  assert.match(jsSource, /archiveCity = asText\(children\.find[\s\S]*children\.length > 1[\s\S]*city: archiveCity[\s\S]*childStage: "多孩家庭", childGender: ""/);
+  assert.match(jsSource, /value\.includes\("孕产"\) \|\| value\.includes\("婴幼儿"\)[\s\S]*return "孕产\/婴幼儿"/);
+  assert.match(jsSource, /allowsUnknownGender = asText\(child\.grade\)\.includes\("孕产"\)/);
+  assert.match(jsSource, /childStage: archiveStage/);
+  assert.match(jsSource, /childGender: allowsUnknownGender \? "" : child\.gender === "男" \? "男孩"/);
+  assert.match(wxmlSource, /孩子档案[\s\S]*catchtap="openChildCreate">添加孩子 <text>›<\/text>/);
+  assert.doesNotMatch(wxmlSource, />城市<input|name="city"/);
+  assert.match(wxssSource, /\.xf-mama-archive-link \{[\s\S]*border: 2rpx solid #cbb7f4;[\s\S]*border-radius: 22rpx/);
+  assert.match(jsSource, /openChildCreate\(\)[\s\S]*\/pages\/mine\/archive\/index\?action=add/);
+  assert.doesNotMatch(wxmlSource, /bindchange="selectChildStage"|catchtap="toggleChildGender"/);
+});
+
 test("mama resource form persists and submits required Alipay profile fields", () => {
   assert.match(jsSource, /alipayAccount: asText\(source\.alipayAccount\)\.trim\(\)/);
   assert.match(jsSource, /alipayVerifiedName: asText\(source\.alipayVerifiedName\)\.trim\(\)/);
@@ -200,7 +214,12 @@ test("approved mama resource account can view assigned tasks and submit proof", 
   assert.match(wxmlSource, /mamaResourceView === 'tasks'/);
   assert.match(wxmlSource, /mamaResourceView === 'detail'/);
   assert.match(wxmlSource, /xf-mama-task-title[\s\S]*好赚/);
-  assert.match(wxmlSource, /xf-mama-task-hero-icon[\s\S]*\/assets\/menu\/mama-hao-zhuan-icon\.png/);
+  assert.match(wxmlSource, /xf-mama-task-mascot[\s\S]*\/assets\/wel-avatar\/xiaowanzi-turban\.png[\s\S]*mode="aspectFit"/);
+  assert.doesNotMatch(wxmlSource, /任务列表|可领取与进行中的任务/);
+  assert.match(wxmlSource, /资料管理[\s\S]*xf-mama-task-uid-row[\s\S]*UID \{\{mamaResourceProfile\.publicUid\}\}[\s\S]*catchtap="copyMamaUid"[\s\S]*复制/);
+  assert.match(jsSource, /copyMamaUid\(\)[\s\S]*copyTextSilently\(this\.data\.mamaResourceProfile/);
+  assert.doesNotMatch(wxmlSource, /xf-mama-task-hero-icon/);
+  assert.match(wxssSource, /\.xf-mama-task-identity\s*\{[\s\S]*flex-direction:\s*column;/);
   assert.match(wxmlSource, /xf-mama-task-logo[\s\S]*\/assets\/menu\/mama-hao-zhuan-icon\.png/);
   assert.match(wxmlSource, /xf-mama-task-price-label[\s\S]*任务单价/);
   assert.match(wxmlSource, /xf-mama-task-price-group[\s\S]*任务单价[\s\S]*\{\{item\.unitPriceText\}\}[\s\S]*class="xf-mama-task-traffic">投流补贴 \{\{item\.trafficFeeText\}\}/);
@@ -280,7 +299,7 @@ test("logged-out mama resource users see the apply form and authorize on protect
 test("mama resource task share image includes a direct mini-program qrcode", () => {
   assert.match(jsSource, /openMamaTaskSharePoster\(\)/);
   assert.match(jsSource, /const pendingMamaTaskId = asText\(options\.taskId \|\| parseSceneParam\(options\.scene, "m"\)\)\.trim\(\)/);
-  assert.match(jsSource, /if \(!pendingMamaTaskId && !launchedFromShare && ensureBackStackForBackButtonPage\(options\)\) return;/);
+  assert.doesNotMatch(jsSource, /ensureBackStackForBackButtonPage/);
   assert.match(jsSource, /mamaTaskShareQrUrl\(taskId\)/);
   assert.match(jsSource, /currentMiniProgramEnvVersion\(\)/);
   assert.match(jsSource, /envVersion=\$\{encodeURIComponent\(envVersion\)\}/);
@@ -375,8 +394,7 @@ test("mama resource share card uses the Haozhuan page name", () => {
   assert.match(jsSource, /const MAMA_RESOURCE_SHARE_COVER_IMAGE = "\/assets\/share\/mama-hao-zhuan-cover\.png"/);
   assert.match(jsSource, /title: "好赚"/);
   assert.match(jsSource, /path: "\/pages\/mama-resource-apply\/index\?shared=1"/);
-  assert.match(jsSource, /const launchedFromShare = asText\(options\.shared\) === "1";/);
-  assert.match(jsSource, /if \(!pendingMamaTaskId && !launchedFromShare && ensureBackStackForBackButtonPage\(options\)\) return;/);
+  assert.match(jsSource, /goBack\(\)[\s\S]*mamaResourceView === "detail"[\s\S]*backToMamaTasks\(\)[\s\S]*mamaResourceView === "apply" && profile\.status === "approved"[\s\S]*mamaResourceView: "tasks"[\s\S]*pages\.length > 1[\s\S]*wx\.navigateBack\(\{ delta: 1 \}\)[\s\S]*wx\.exitMiniProgram\(\)/);
   assert.match(jsSource, /imageUrl: MAMA_RESOURCE_SHARE_COVER_IMAGE/);
   assert.doesNotMatch(jsSource, /好赚资料提交/);
 });

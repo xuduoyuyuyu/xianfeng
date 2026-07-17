@@ -246,8 +246,8 @@ function serializeTask(task: any, stats?: Map<string, MamaResourceContentLinkSta
 function assignmentProofStatus(assignment: any): "returned" | "missing" | "overdue" {
   const source = typeof assignment?.toObject === "function" ? assignment.toObject() : assignment;
   if (asText(source?.proofScreenshotUrl)) return "returned";
-  const assignedAt = new Date(source?.createdAt || "");
-  if (!Number.isNaN(assignedAt.getTime()) && Date.now() - assignedAt.getTime() >= PROOF_RETURN_WINDOW_MS) {
+  const contentUpdatedAt = new Date(source?.contentUpdatedAt || "");
+  if (asText(source?.contentUrl) && !Number.isNaN(contentUpdatedAt.getTime()) && Date.now() - contentUpdatedAt.getTime() >= PROOF_RETURN_WINDOW_MS) {
     return "overdue";
   }
   return "missing";
@@ -716,7 +716,8 @@ router.get("/tasks/:taskId/assignments", async (req: Request, res: Response) => 
     } else if (proofStatus === "missing" || proofStatus === "overdue") {
       filter.proofScreenshotUrl = { $in: ["", null] };
       if (proofStatus === "overdue") {
-        filter.createdAt = { $lte: new Date(Date.now() - PROOF_RETURN_WINDOW_MS) };
+        filter.contentUrl = { $exists: true, $nin: ["", null] };
+        filter.contentUpdatedAt = { $lte: new Date(Date.now() - PROOF_RETURN_WINDOW_MS) };
       }
     }
     const assignments = await MamaResourceTaskAssignment.find(filter)

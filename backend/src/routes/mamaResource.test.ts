@@ -843,6 +843,9 @@ describe("mama resource pool routes", () => {
     assert.equal(listResponse.status, 200);
     const listData = await listResponse.json();
     assert.equal(listData.profile.status, "approved");
+    assert.match(listData.profile.publicUid, /^\d{9}$/);
+    const savedUser = await User.findById(user._id).lean();
+    assert.equal(savedUser?.publicUid, listData.profile.publicUid);
     assert.equal(listData.tasks.length, 1);
     assert.equal(listData.tasks[0].unitPriceCents, 3000);
     assert.equal(listData.tasks[0].trafficFeeCents, null);
@@ -850,6 +853,12 @@ describe("mama resource pool routes", () => {
     assert.deepEqual(listData.tasks[0].exampleImageUrls, ["/uploads/admin/example-updated.png"]);
     assert.equal(listData.tasks[0]._id, assigned.assignments[0]._id);
     assert.equal(listData.tasks[0].taskId, created.task._id);
+
+    const repeatedListResponse = await fetch(`${server.publicUrl}/me/tasks`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const repeatedListData = await repeatedListResponse.json();
+    assert.equal(repeatedListData.profile.publicUid, listData.profile.publicUid);
 
     const proofPayload = {
       proofLink: "https://www.xiaohongshu.com/explore/comment-proof",
@@ -1361,7 +1370,7 @@ describe("mama resource pool routes", () => {
     assert.equal((await MamaResourceTask.findById(task._id).lean())?.pausedForContent, true);
   });
 
-  it("marks and filters returned, missing, and overdue task proof screenshots", async () => {
+  it("starts proof return timing only after the content link is configured", async () => {
     const task = await MamaResourceTask.create({
       title: "返图状态测试任务",
       category: "亲子阅读",
@@ -1405,13 +1414,15 @@ describe("mama resource pool routes", () => {
         taskId: task._id,
         profileId: missingProfile._id,
         status: "assigned",
-        createdAt: new Date(now - 2 * 60 * 60 * 1000),
+        createdAt: new Date(now - 30 * 60 * 60 * 1000),
       },
       {
         taskId: task._id,
         profileId: overdueProfile._id,
         status: "assigned",
         createdAt: new Date(now - 25 * 60 * 60 * 1000),
+        contentUrl: "https://my.feishu.cn/wiki/overdue-proof-content",
+        contentUpdatedAt: new Date(now - 25 * 60 * 60 * 1000),
       },
     ]);
 

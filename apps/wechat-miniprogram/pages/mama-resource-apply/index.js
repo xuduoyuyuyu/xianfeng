@@ -2,9 +2,10 @@ const { getNativeTopbarMetrics } = require("../../utils/nativeChrome");
 const { request, buildUrl } = require("../../utils/request");
 const { copyTextSilently } = require("../../utils/clipboard");
 const { createPageShare, enableShareMenu } = require("../../utils/share");
-const { ensureBackStackForBackButtonPage, goProgramsHome: navigateProgramsHome, smartBackHome } = require("../../utils/nativePageNav");
+const { goProgramsHome: navigateProgramsHome } = require("../../utils/nativePageNav");
 const { SETTINGS_SECTIONS, createNativeSettingsMethods } = require("../../utils/nativeSettings");
 const { getToken, getUser } = require("../../utils/session");
+const { CHILD_PROFILES_KEY, WEB_CHILD_PROFILES_KEY, mergeChildProfileRecords } = require("../../utils/profileState");
 
 const CATEGORY_OPTIONS = ["亲子阅读", "学习用品", "母婴", "儿童健康", "家庭消费", "教育规划"];
 const CHILD_STAGE_OPTIONS = ["孕产/婴幼儿", "幼儿园", "小学", "初中", "高中", "多孩家庭"];
@@ -261,6 +262,42 @@ function getApplyDraftStorageKey() {
 
 function childStageIndexFor(childStage) {
   return CHILD_STAGE_OPTIONS.indexOf(childStage);
+}
+
+function childStageFromArchiveGrade(grade) {
+  const value = asText(grade).trim();
+  if (value.includes("孕产") || value.includes("婴幼儿")) return "孕产/婴幼儿";
+  if (value.includes("学前")) return "幼儿园";
+  return ["小学", "初中", "高中"].find((stage) => value.includes(stage)) || "";
+}
+
+function fillApplyDraftFromArchive(draftValue) {
+  const draft = normalizeApplyDraft(draftValue);
+  const children = mergeChildProfileRecords(
+    wx.getStorageSync(CHILD_PROFILES_KEY),
+    wx.getStorageSync(WEB_CHILD_PROFILES_KEY)
+  );
+  if (!children.length) return normalizeApplyDraft({ ...draft, city: "", childStage: "", childGender: "" });
+  const archiveCity = asText(children.find((child) => asText(child.city).trim())?.city).trim();
+  if (children.length > 1) {
+    return normalizeApplyDraft({ ...draft, city: archiveCity, childStage: "多孩家庭", childGender: "" });
+  }
+  const child = children[0];
+  const archiveStage = childStageFromArchiveGrade(child.grade);
+  const allowsUnknownGender = asText(child.grade).includes("孕产");
+  return normalizeApplyDraft({
+    ...draft,
+    city: archiveCity,
+    childStage: archiveStage,
+    childGender: allowsUnknownGender ? "" : child.gender === "男" ? "男孩" : child.gender === "女" ? "女孩" : ""
+  });
+}
+
+function hasArchiveChildren() {
+  return mergeChildProfileRecords(
+    wx.getStorageSync(CHILD_PROFILES_KEY),
+    wx.getStorageSync(WEB_CHILD_PROFILES_KEY)
+  ).length > 0;
 }
 
 function buildApplyDraftState(draftValue) {
@@ -650,6 +687,7 @@ Page({
     childStageIndex: -1,
     childStage: "",
     childGender: "",
+    hasArchiveChildren: false,
     xiaohongshuScreenshotUrl: "",
     xiaohongshuScreenshotUploading: false,
     mamaResourceView: "apply",
@@ -679,9 +717,7 @@ Page({
 
   onLoad(options = {}) {
     const pendingMamaTaskId = asText(options.taskId || parseSceneParam(options.scene, "m")).trim();
-    const launchedFromShare = asText(options.shared) === "1";
-    if (!pendingMamaTaskId && !launchedFromShare && ensureBackStackForBackButtonPage(options)) return;
-    const storedDraft = loadApplyDraft();
+    const storedDraft = fillApplyDraftFromArchive(loadApplyDraft());
     const userMobile = readStoredUserMobile();
     const formDraft = normalizeApplyDraft({
       ...storedDraft,
@@ -690,7 +726,8 @@ Page({
     this.setData({
       launchedFromSettings: String(options.from || "") === "settings",
       pendingMamaTaskId,
-      ...buildApplyDraftState(formDraft)
+      ...buildApplyDraftState(formDraft),
+      hasArchiveChildren: hasArchiveChildren()
     });
     this.syncTopbarMetrics();
     this.syncAccountEntry();
@@ -699,6 +736,8 @@ Page({
   },
 
   onShow() {
+    const formDraft = fillApplyDraftFromArchive(this.data.formDraft);
+    this.setData({ ...buildApplyDraftState(formDraft), hasArchiveChildren: hasArchiveChildren() });
     this.syncTopbarMetrics();
     this.syncAccountEntry();
     if (this.data.mamaResourceView !== "detail") {
@@ -736,7 +775,31 @@ Page({
   },
 
   goBack() {
-    smartBackHome();
+    if (this.data.mamaResourceView === "detail") {
+      this.backToMamaTasks();
+      return;
+    }
+    const profile = this.data.mamaResourceProfile || {};
+    if (this.data.mamaResourceView === "apply" && profile.status === "approved") {
+      if (this.data.profileManagerMode !== "overview") {
+        this.backToProfileOverview();
+        return;
+      }
+      this.setData({ mamaResourceView: "tasks", message: "", messageType: "" });
+      return;
+    }
+    const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
+    if (pages.length > 1) {
+      wx.navigateBack({ delta: 1 });
+      return;
+    }
+    if (typeof wx.exitMiniProgram === "function") {
+      wx.exitMiniProgram();
+    }
+  },
+
+  openChildCreate() {
+    wx.navigateTo({ url: "/pages/mine/archive/index?action=add" });
   },
 
   updateApplyDraft(patch) {
@@ -923,6 +986,10 @@ Page({
 
   copyMamaTaskContentLink() {
     copyTextSilently(this.data.currentMamaTask && this.data.currentMamaTask.contentUrl);
+  },
+
+  copyMamaUid() {
+    copyTextSilently(this.data.mamaResourceProfile && this.data.mamaResourceProfile.publicUid);
   },
 
   openMamaTaskSharePoster() {

@@ -7,8 +7,7 @@ import type { MamaResourceProfile, MamaResourceTask } from "../services/api";
 import type { RootState } from "../store";
 
 const categoryOptions = ["亲子阅读", "学习用品", "母婴", "儿童健康", "家庭消费", "教育规划"];
-const childStageOptions = ["孕产/婴幼儿", "幼儿园", "小学", "初中", "高中", "多孩家庭"];
-const childGenderOptions = ["男孩", "女孩"];
+const childProfilesKey = "xiaowanzi_child_profiles_v1";
 const contentCapabilityOptions = ["能拍", "能剪", "能写"];
 const platformOptions = [
   { value: "xiaohongshu", label: "小红书" },
@@ -91,6 +90,31 @@ const initialForm: FormState = {
   blockedCategories: "",
   consentAccepted: false,
 };
+
+function archiveDemographics(): Pick<FormState, "city" | "childStage" | "childGender"> & { hasChildren: boolean } {
+  if (typeof window === "undefined") return { city: "", childStage: "", childGender: "", hasChildren: false };
+  try {
+    const parsed = JSON.parse(localStorage.getItem(childProfilesKey) || "[]");
+    const children = Array.isArray(parsed) ? parsed.filter((child) => child && !child.draft && String(child.displayName || "").trim()) : [];
+    if (!children.length) return { city: "", childStage: "", childGender: "", hasChildren: false };
+    const city = String(children.find((child) => String(child.city || "").trim())?.city || "").trim();
+    if (children.length > 1) return { city, childStage: "多孩家庭", childGender: "", hasChildren: true };
+    const child = children[0];
+    const grade = String(child.grade || "");
+    const childStage = grade.includes("孕产") || grade.includes("婴幼儿") ? "孕产/婴幼儿"
+      : grade.includes("学前") ? "幼儿园"
+      : ["小学", "初中", "高中"].find((stage) => grade.includes(stage)) || "";
+    const childGender = grade.includes("孕产") ? "" : child.gender === "女" ? "女孩" : child.gender === "男" ? "男孩" : "";
+    return { city, childStage, childGender, hasChildren: true };
+  } catch {
+    return { city: "", childStage: "", childGender: "", hasChildren: false };
+  }
+}
+
+function withArchiveDemographics(form: FormState): FormState {
+  const archive = archiveDemographics();
+  return { ...form, city: archive.city, childStage: archive.childStage, childGender: archive.childGender };
+}
 
 export function formStateFromProfile(profile: MamaResourceProfile, loggedInMobile: string): FormState {
   const primaryProfileUrl = profile.socialAccount?.profileUrl || "";
@@ -212,15 +236,24 @@ function replaceClaimedTask(tasks: MamaResourceTask[], availableTasks: MamaResou
 }
 
 function MamaResourceAccountCard({ profile, onManage }: { profile: MamaResourceProfile; onManage: () => void }) {
+  const copyUid = () => {
+    if (profile.publicUid) void navigator.clipboard?.writeText(profile.publicUid).catch(() => undefined);
+  };
+
   return (
-    <div className="grid grid-cols-[48px_1fr_auto] items-center gap-[11px] rounded-[18px] bg-white p-[15px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
-      <img src="/assets/mama-hao-zhuan-icon.png" alt="" className="h-[48px] w-[48px] object-contain" />
-      <div className="min-w-0">
-        <div className="text-[11px] font-black text-[#7c2ce6]">账号已通过</div>
-        <div className="mt-[2px] text-[17px] font-black text-[#151222]">好赚</div>
-        <div className="mt-[3px] truncate text-[11.5px] font-bold text-[#6b6474]">{profile.displayName || "已审核账号"} · 可接：{profile.categories.length ? profile.categories.join("、") : "亲子阅读、学习用品"}</div>
+    <div className="rounded-[20px] border border-[#5e17eb]/10 bg-white px-[16px] py-[18px] text-center shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
+      <img src="/wel/assets/wel-avatar/xiaowanzi-turban.png" alt="小玩子" className="mx-auto h-[86px] w-[86px] object-contain" />
+      <div className="mt-[11px] min-w-0">
+        <div className="text-[17px] font-black text-[#151222]">好赚</div>
+        <div className="mx-auto mt-[5px] max-w-[290px] text-[11.5px] font-bold leading-[1.55] text-[#6b6474]">{profile.displayName || "已审核账号"} · 可接：{profile.categories.length ? profile.categories.join("、") : "亲子阅读、学习用品"}</div>
       </div>
-      <button type="button" onClick={onManage} className="rounded-full bg-[#f3eaff] px-[12px] py-[8px] text-[12px] font-black text-[#6c27d6]">资料管理</button>
+      <button type="button" onClick={onManage} className="mt-[13px] rounded-full bg-[#f3eaff] px-[14px] py-[7px] text-[12px] font-black text-[#6c27d6] active:scale-[0.98]">资料管理</button>
+      {profile.publicUid ? (
+        <div className="mt-[7px] flex items-center justify-center gap-[4px] text-[10.5px] font-black text-[#6c27d6]">
+          <span className="rounded-full bg-[#f3eaff] px-[8px] py-[4px]">UID {profile.publicUid}</span>
+          <button type="button" onClick={copyUid} aria-label="复制UID" className="rounded-full bg-[#e8d8ff] px-[7px] py-[4px] active:scale-[0.96]">复制</button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -434,8 +467,8 @@ const MamaResourceApplyPage: React.FC = () => {
       setProfile(nextProfile);
       setTasks(response.data.tasks || []);
       setAvailableTasks(response.data.availableTasks || []);
-      if (nextProfile) setForm(formStateFromProfile(nextProfile, loggedInMobile));
-      else setForm({ ...initialForm, contactPhone: loggedInMobile });
+      if (nextProfile) setForm(withArchiveDemographics(formStateFromProfile(nextProfile, loggedInMobile)));
+      else setForm(withArchiveDemographics({ ...initialForm, contactPhone: loggedInMobile }));
       setRequiresLogin(false);
       setLoadedAuthIdentity(authIdentity);
       setPageMode(nextProfile === null ? "apply" : nextProfile.status === "approved" ? "tasks" : "reviewing");
@@ -487,6 +520,12 @@ const MamaResourceApplyPage: React.FC = () => {
     }));
   }, [loggedInMobile]);
 
+  useEffect(() => {
+    const refresh = () => setForm((current) => withArchiveDemographics(current));
+    document.addEventListener("xf-child-profiles-updated", refresh);
+    return () => document.removeEventListener("xf-child-profiles-updated", refresh);
+  }, []);
+
   const profileOverview = useMemo(() => buildProfileOverview(form), [form]);
   const visibleTasks = useMemo(() => {
     const assignedTaskIds = new Set(tasks.map(taskIdentity));
@@ -507,6 +546,7 @@ const MamaResourceApplyPage: React.FC = () => {
     );
   }, [form, submitting, uploadingScreenshot]);
   const requiredMark = <span className="ml-0.5 text-[#e11d48]" aria-hidden="true">*</span>;
+  const openChildCreate = () => document.dispatchEvent(new CustomEvent("xf-open-child-profile-create"));
 
   const updateField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -774,11 +814,15 @@ const MamaResourceApplyPage: React.FC = () => {
               <button type="button" onClick={() => setPageMode("apply")} className="mt-[14px] rounded-full border border-[#6c27d6] px-[15px] py-[8px] text-[12px] font-black text-[#6c27d6]">资料管理</button>
             </div>
           ) : pageMode === "tasks" && profile ? (
-            <div className="grid gap-[12px]">
+            <div>
               <MamaResourceAccountCard profile={profile} onManage={() => setPageMode("apply")} />
-              {visibleTasks.length ? visibleTasks.map((task) => (
-                <MamaResourceTaskCard key={taskIdentity(task)} task={task} onOpen={() => openTask(task)} />
-              )) : <div className="rounded-[17px] bg-white px-[14px] py-[24px] text-center text-[13px] font-bold text-[#6b6474]">暂时没有可接任务</div>}
+              <section className="mt-[13px] rounded-[20px] border border-white/70 bg-white/40 p-[12px]">
+                <div className="grid gap-[10px]">
+                  {visibleTasks.length ? visibleTasks.map((task) => (
+                    <MamaResourceTaskCard key={taskIdentity(task)} task={task} onOpen={() => openTask(task)} />
+                  )) : <div className="rounded-[17px] bg-white px-[14px] py-[24px] text-center text-[13px] font-bold text-[#6b6474]">暂时没有可接任务</div>}
+                </div>
+              </section>
             </div>
           ) : pageMode === "detail" && selectedTask ? (
             <MamaResourceTaskDetail
@@ -893,28 +937,9 @@ const MamaResourceApplyPage: React.FC = () => {
                     支付宝验证姓名 {requiredMark}
                     <input name="alipayVerifiedName" className={inputClass} value={form.alipayVerifiedName} onChange={(event) => updateField("alipayVerifiedName", event.target.value)} placeholder="支付宝实名认证姓名" />
                   </label>
-                  <label className={fieldClass}>
-                    城市
-                    <input className={inputClass} value={form.city} onChange={(event) => updateField("city", event.target.value)} placeholder="上海 / 杭州" />
-                  </label>
-                  <label className={fieldClass}>
-                    孩子阶段
-                    <select name="childStage" className={`${inputClass} text-[#8b8792]`} value={form.childStage} onChange={(event) => updateField("childStage", event.target.value)}>
-                      <option value="">请选择</option>
-                      {childStageOptions.map((item) => (
-                        <option key={item} value={item}>{item}</option>
-                      ))}
-                    </select>
-                  </label>
                   <div className={fieldClass}>
-                    <div>孩子性别</div>
-                    <div className="mt-[6px] flex flex-wrap gap-[6px]">
-                      {childGenderOptions.map((item) => (
-                        <button key={item} type="button" onClick={() => updateField("childGender", item)} className={chipClass(form.childGender === item)}>
-                          {item}
-                        </button>
-                      ))}
-                    </div>
+                    孩子档案
+                    <button type="button" className={`${inputClass} flex items-center justify-between border-[#cbb7f4] text-left font-bold text-[#6c27d6]`} onClick={openChildCreate}><span>添加孩子</span><span className="text-lg">›</span></button>
                   </div>
                   <div className={fieldClass}>
                     <div>创作能力</div>

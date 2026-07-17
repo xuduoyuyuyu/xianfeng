@@ -91,20 +91,11 @@
             <label class="xf-mama-field">手机号<input name="contactPhone" value="{{formDraft.contactPhone}}" data-field="contactPhone" bindinput="updateDraftField" placeholder="备用联系电话" placeholder-class="xf-mama-placeholder" /></label>
             <label class="xf-mama-field">支付宝账号<text class="xf-mama-required">*</text><input name="alipayAccount" value="{{formDraft.alipayAccount}}" data-field="alipayAccount" bindinput="updateDraftField" placeholder="用于任务结算转账" placeholder-class="xf-mama-placeholder" /></label>
             <label class="xf-mama-field">支付宝验证姓名<text class="xf-mama-required">*</text><input name="alipayVerifiedName" value="{{formDraft.alipayVerifiedName}}" data-field="alipayVerifiedName" bindinput="updateDraftField" placeholder="支付宝实名认证姓名" placeholder-class="xf-mama-placeholder" /></label>
-            <label class="xf-mama-field">城市<input name="city" value="{{formDraft.city}}" data-field="city" bindinput="updateDraftField" placeholder="上海 / 杭州" placeholder-class="xf-mama-placeholder" /></label>
           </view>
-          <label class="xf-mama-field">
-            孩子阶段
-            <picker mode="selector" range="{{childStages}}" value="{{childStageIndex}}" bindchange="selectChildStage">
-              <view class="xf-mama-picker">{{childStage || "请选择孩子阶段"}}</view>
-            </picker>
-          </label>
-          <label class="xf-mama-field">
-            孩子性别
-            <view class="xf-mama-gender-options">
-              <button wx:for="{{childGenderOptions}}" wx:key="value" class="xf-mama-gender-chip {{childGender === item.value ? 'is-active' : ''}}" data-value="{{item.value}}" catchtap="toggleChildGender" aria-label="选择孩子性别 {{item.label}}">{{item.label}}</button>
-            </view>
-          </label>
+          <view class="xf-mama-field">
+            孩子档案
+            <view class="xf-mama-archive-link" catchtap="openChildCreate">添加孩子 <text>›</text></view>
+          </view>
           <view class="xf-mama-field">
             <text>创作能力</text>
             <view class="xf-mama-chips">
@@ -230,36 +221,43 @@
 
     <block wx:elif="{{mamaResourceView === 'tasks'}}">
       <view class="xf-mama-task-hero">
-        <image class="xf-mama-task-hero-icon" src="/assets/menu/mama-hao-zhuan-icon.png" mode="aspectFit" />
-        <view>
-          <text class="xf-mama-task-kicker">账号已通过</text>
-          <text class="xf-mama-task-title">好赚</text>
-          <text class="xf-mama-task-subtitle">{{mamaResourceProfile.displayName || "已审核账号"}} · 可接：{{mamaResourceProfile.categoriesText || "亲子阅读、学习用品"}}</text>
+        <image class="xf-mama-task-mascot" src="/assets/wel-avatar/xiaowanzi-turban.png" mode="aspectFit" />
+        <view class="xf-mama-task-identity">
+          <view class="xf-mama-task-hero-copy">
+            <text class="xf-mama-task-title">好赚</text>
+            <text class="xf-mama-task-subtitle">{{mamaResourceProfile.displayName || "已审核账号"}} · 可接：{{mamaResourceProfile.categoriesText || "亲子阅读、学习用品"}}</text>
+          </view>
         </view>
         <button class="xf-mama-task-manage" catchtap="openProfileManager">资料管理</button>
+        <view wx:if="{{mamaResourceProfile.publicUid}}" class="xf-mama-task-uid-row">
+          <text class="xf-mama-task-uid-label">UID {{mamaResourceProfile.publicUid}}</text>
+          <button class="xf-mama-task-uid-copy" catchtap="copyMamaUid" aria-label="复制UID">复制</button>
+        </view>
       </view>
 
-      <view wx:if="{{mamaTasksLoading}}" class="xf-mama-task-empty">任务加载中...</view>
-      <view wx:elif="{{mamaTasks.length === 0}}" class="xf-mama-task-empty">暂无可领取任务，运营上架后会显示在这里。</view>
-      <view wx:else class="xf-mama-task-list">
-        <view wx:for="{{mamaTasks}}" wx:key="_id" class="xf-mama-task-row" data-id="{{item._id}}" catchtap="openMamaTask">
-          <view class="xf-mama-task-row-head">
-            <image class="xf-mama-task-logo" src="/assets/menu/mama-hao-zhuan-icon.png" mode="aspectFit" />
-            <view class="xf-mama-task-main">
-              <text class="xf-mama-task-name">{{item.title}}</text>
-              <text class="xf-mama-task-meta">{{item.category}} · {{item.dataCycle || "T+9"}}</text>
+      <view class="xf-mama-task-section">
+        <view wx:if="{{mamaTasksLoading}}" class="xf-mama-task-empty">任务加载中...</view>
+        <view wx:elif="{{mamaTasks.length === 0}}" class="xf-mama-task-empty">暂无可领取任务，运营上架后会显示在这里。</view>
+        <view wx:else class="xf-mama-task-list">
+          <view wx:for="{{mamaTasks}}" wx:key="_id" class="xf-mama-task-row" data-id="{{item._id}}" catchtap="openMamaTask">
+            <view class="xf-mama-task-row-head">
+              <image class="xf-mama-task-logo" src="/assets/menu/mama-hao-zhuan-icon.png" mode="aspectFit" />
+              <view class="xf-mama-task-main">
+                <text class="xf-mama-task-name">{{item.title}}</text>
+                <text class="xf-mama-task-meta">{{item.category}} · {{item.dataCycle || "T+9"}}</text>
+              </view>
+              <view class="xf-mama-task-price-group">
+                <text class="xf-mama-task-price-label">任务单价</text>
+                <text class="xf-mama-task-price">{{item.unitPriceText}}</text>
+                <text wx:if="{{item.hasTrafficFee}}" class="xf-mama-task-traffic">投流补贴 {{item.trafficFeeText}}</text>
+              </view>
             </view>
-            <view class="xf-mama-task-price-group">
-              <text class="xf-mama-task-price-label">任务单价</text>
-              <text class="xf-mama-task-price">{{item.unitPriceText}}</text>
-              <text wx:if="{{item.hasTrafficFee}}" class="xf-mama-task-traffic">投流补贴 {{item.trafficFeeText}}</text>
+            <view class="xf-mama-task-stats">
+              <text>{{item.statusText}}</text>
+              <text>推广 {{item.promotionCountText}} 人</text>
+              <text>{{item.remainingClaimText}}</text>
+              <text wx:if="{{item.hasContentUrl}}">内容已下发</text>
             </view>
-          </view>
-          <view class="xf-mama-task-stats">
-            <text>{{item.statusText}}</text>
-            <text>推广 {{item.promotionCountText}} 人</text>
-            <text>{{item.remainingClaimText}}</text>
-            <text wx:if="{{item.hasContentUrl}}">内容已下发</text>
           </view>
         </view>
       </view>

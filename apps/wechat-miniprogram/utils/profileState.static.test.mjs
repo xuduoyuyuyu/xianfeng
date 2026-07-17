@@ -1,9 +1,18 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const require = createRequire(import.meta.url);
 const { hasDuplicateChildDisplayName, mergeChildProfileRecords } = require("./profileState.js");
+const source = readFileSync(new URL("./profileState.js", import.meta.url), "utf8");
+
+test("all native child archive saves use the shared local and account sync boundary", () => {
+  assert.match(source, /function saveChildProfileRecords\(children, options = \{\}\)/);
+  assert.match(source, /wx\.setStorageSync\(CHILD_PROFILES_KEY, savedChildren\)/);
+  assert.match(source, /wx\.setStorageSync\(WEB_CHILD_PROFILES_KEY, JSON\.stringify\(savedChildren\)\)/);
+  assert.match(source, /url: "\/api\/users\/me\/xiaowanzi-sync"[\s\S]*data: \{ childProfiles: savedChildren \}/);
+});
 
 test("child profile merge keeps persisted web children when native only has a draft", () => {
   const nativeChildren = [

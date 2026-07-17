@@ -91,7 +91,6 @@ const proofStatusFilterOptions: Array<{ value: TaskProofStatusFilter; label: str
   { value: "all", label: "全部返图状态" },
   { value: "returned", label: "已返图" },
   { value: "missing", label: "未返图" },
-  { value: "overdue", label: "24小时未返图" },
 ];
 
 type TaskDraft = {
@@ -235,9 +234,6 @@ function assignmentBadge(status?: string) {
 function proofStatusBadge(status?: MamaResourceProofStatus) {
   if (status === "returned") {
     return <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-black text-emerald-700">已返图</span>;
-  }
-  if (status === "overdue") {
-    return <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-black text-rose-700">24小时未返图</span>;
   }
   return <span className="rounded-full border border-stone-200 bg-stone-100 px-2 py-1 text-xs font-black text-stone-600">未返图</span>;
 }

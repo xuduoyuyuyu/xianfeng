@@ -1,5 +1,5 @@
 const { createPageShare, enableShareMenu } = require("../../../utils/share");
-const { buildProfileState, CHILD_PROFILES_KEY, WEB_CHILD_PROFILES_KEY, hasDuplicateChildDisplayName, mergeChildProfileRecords } = require("../../../utils/profileState");
+const { buildProfileState, CHILD_PROFILES_KEY, WEB_CHILD_PROFILES_KEY, hasDuplicateChildDisplayName, mergeChildProfileRecords, saveChildProfileRecords } = require("../../../utils/profileState");
 const { readFontSizeSetting } = require("../../../utils/nativeSettings");
 const { ensureBackStackForBackButtonPage } = require("../../../utils/nativePageNav");
 const { rememberCurrentExternalPage } = require("../../../utils/xiaowanziReturn");
@@ -9,9 +9,11 @@ const CHAT_CONTEXT_KEY = "xiaowanzi_chat_context_v1";
 const CHILD_AVATAR = "/assets/wel-avatar/no-hat.png";
 const RELATIONS = ["儿子", "女儿"];
 const TAGS = ["睡眠", "情绪", "专注力", "社交", "学习习惯", "亲子沟通"];
-const STAGES = ["学前", "小学", "初中", "高中"];
-const PARSE_STAGES = ["高中", "初中", "小学", "学前"];
+const STAGES = ["孕产", "婴幼儿", "学前", "小学", "初中", "高中"];
+const PARSE_STAGES = ["高中", "初中", "小学", "学前", "婴幼儿", "孕产"];
 const GRADES_BY_STAGE = {
+  "孕产": ["孕产"],
+  "婴幼儿": ["婴幼儿"],
   "学前": ["未入园", "托班", "小班", "中班", "大班"],
   "小学": ["一年级", "二年级", "三年级", "四年级", "五年级", "六年级"],
   "初中": ["六年级（预初）", "七年级", "八年级", "九年级"],
@@ -74,9 +76,7 @@ function loadChildren() {
 }
 
 function saveChildren(children) {
-  const savedChildren = mergeChildProfileRecords(children, [], { avatarFallback: CHILD_AVATAR });
-  wx.setStorageSync(CHILD_PROFILES_KEY, savedChildren);
-  wx.setStorageSync(WEB_CHILD_PROFILES_KEY, JSON.stringify(savedChildren));
+  saveChildProfileRecords(children, { avatarFallback: CHILD_AVATAR });
 }
 
 function parseGrade(raw) {
@@ -101,6 +101,7 @@ function gradesFor(stage, city) {
 
 function formatGrade(stage, gradeName) {
   if (!stage || !gradeName) return "";
+  if (stage === "孕产" || stage === "婴幼儿") return stage;
   if (stage === "学前") return `学前${gradeName}`;
   if (stage === "小学") return `小学${gradeName}`;
   if (stage === "初中") return `初中${String(gradeName || "").replace("（预初）", "")}`;

@@ -1,7 +1,7 @@
 const { openWeb } = require("./webview");
 const { request, buildUrl } = require("./request");
 const { getToken, getUser, setSession, clearSession } = require("./session");
-const { CHILD_PROFILES_KEY, WEB_CHILD_PROFILES_KEY, hasDuplicateChildDisplayName, maskMobile, mergeChildProfileRecords, parseStoredValue } = require("./profileState");
+const { CHILD_PROFILES_KEY, WEB_CHILD_PROFILES_KEY, hasDuplicateChildDisplayName, maskMobile, mergeChildProfileRecords, parseStoredValue, saveChildProfileRecords } = require("./profileState");
 const { rememberCurrentExternalPage } = require("./xiaowanziReturn");
 const { STAGES, GRADES_BY_STAGE, gradesFor, formatGrade, parseGrade, districtsFor } = require("./profileOnboarding");
 const {
@@ -145,9 +145,7 @@ function loadArchiveChildren() {
 }
 
 function saveArchiveChildren(children) {
-  const savedChildren = mergeChildProfileRecords(children, [], { avatarFallback: CHILD_AVATAR });
-  wx.setStorageSync(CHILD_PROFILES_KEY, savedChildren);
-  wx.setStorageSync(WEB_CHILD_PROFILES_KEY, JSON.stringify(savedChildren));
+  saveChildProfileRecords(children, { avatarFallback: CHILD_AVATAR });
 }
 
 function profileComplete(child) {

@@ -221,26 +221,7 @@
           <label>姓名/昵称<input name="displayName" placeholder="例如：安安妈妈" required /></label>
           <label>微信号<input name="contactWechat" placeholder="优先通过微信添加" required /></label>
           <label>手机号<input name="contactPhone" placeholder="备用联系电话" /></label>
-          <label>城市<input name="city" placeholder="上海 / 杭州" /></label>
-          <label>
-            孩子阶段
-            <select name="childStage">
-              <option value="">请选择</option>
-              <option>孕产/婴幼儿</option>
-              <option>幼儿园</option>
-              <option>小学</option>
-              <option>初中</option>
-              <option>高中</option>
-              <option>多孩家庭</option>
-            </select>
-          </label>
-          <div class="field-block">
-            孩子性别
-            <div class="chips gender-options" id="childGenderOptions">
-              <button type="button" class="chip" data-value="男孩">男孩</button>
-              <button type="button" class="chip" data-value="女孩">女孩</button>
-            </div>
-          </div>
+          <div class="field-block"><small>添加孩子请前往档案管理</small></div>
           <label>小红书主页链接<input name="xiaohongshuProfileUrl" placeholder="可粘贴整段口令或主页短链接" required /></label>
           <label>
             小红书页面截图
@@ -284,7 +265,9 @@
       const form = document.getElementById("mama-resource-apply-form");
       const message = document.getElementById("message");
       const selectedCategories = new Set();
-      let childGender = "";
+      let archiveChildStage = "";
+      let archiveChildGender = "";
+      let archiveCity = "";
       let xiaohongshuScreenshotUrl = "";
       let realNameVerified = null;
 
@@ -301,14 +284,31 @@
         }
       });
 
-      document.getElementById("childGenderOptions").addEventListener("click", (event) => {
-        const button = event.target.closest(".chip");
-        if (!button) return;
-        childGender = button.dataset.value || "";
-        document.querySelectorAll("#childGenderOptions .chip").forEach((item) => {
-          item.classList.toggle("on", item === button);
-        });
-      });
+      function loadArchiveDemographics() {
+        let children = [];
+        try {
+          const parsed = JSON.parse(localStorage.getItem("xiaowanzi_child_profiles_v1") || "[]");
+          children = Array.isArray(parsed) ? parsed.filter((item) => item && !item.draft) : [];
+        } catch (_) {}
+        archiveCity = String((children.find((item) => String(item.city || "").trim()) || {}).city || "").trim();
+        if (children.length > 1) {
+          archiveChildStage = "多孩家庭";
+          archiveChildGender = "";
+        } else if (children.length === 1) {
+          const child = children[0];
+          const grade = String(child.grade || "");
+          archiveChildStage = grade.includes("孕产") || grade.includes("婴幼儿") ? "孕产/婴幼儿"
+            : grade.includes("幼儿园") ? "幼儿园"
+            : grade.includes("小学") ? "小学"
+            : grade.includes("初中") ? "初中"
+            : grade.includes("高中") ? "高中" : "";
+          archiveChildGender = grade.includes("孕产") ? "" : child.gender === "女" ? "女孩" : child.gender === "男" ? "男孩" : "";
+        } else {
+          archiveChildStage = "";
+          archiveChildGender = "";
+        }
+      }
+      loadArchiveDemographics();
 
       document.getElementById("realNameVerifiedOptions").addEventListener("click", (event) => {
         const button = event.target.closest(".chip");
@@ -354,9 +354,9 @@
           displayName: String(data.get("displayName") || "").trim(),
           contactPhone: String(data.get("contactPhone") || "").trim(),
           contactWechat: String(data.get("contactWechat") || "").trim(),
-          city: String(data.get("city") || "").trim(),
-          childStage: String(data.get("childStage") || ""),
-          childGender,
+          city: archiveCity,
+          childStage: archiveChildStage,
+          childGender: archiveChildGender,
           xiaohongshuProfileUrl: String(data.get("xiaohongshuProfileUrl") || "").trim(),
           xiaohongshuScreenshotUrl,
           followerCount: String(data.get("followerCount") || "").trim(),
@@ -379,7 +379,6 @@
           if (!response.ok) throw new Error(result.message || result.error || "提交失败，请稍后重试");
           form.reset();
           selectedCategories.clear();
-          childGender = "";
           xiaohongshuScreenshotUrl = "";
           realNameVerified = null;
           document.querySelectorAll(".chip.on").forEach((item) => item.classList.remove("on"));

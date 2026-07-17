@@ -56,7 +56,8 @@
   page and delays detail prefetch to one visible topic after the list is already
   rendered, while filter data can still use the larger background source.
   On first entry, an incomplete local child profile opens a native onboarding
-  modal for city, region, stage, and grade. Before login, saving writes an
+  modal for city, region, stage, and grade. Child stages include pregnancy and
+  infant profiles before preschool and school stages. Before login, saving writes an
   isolated pending personalization context rather than a formal child archive;
   list requests may use that pending context immediately. After phone login,
   the shell reads remote child profiles before any archive write. A complete
@@ -68,6 +69,13 @@
   for the current foreground session. The four list requests include the
   complete profile and keep list caches isolated by profile; search, detail,
   and the external book library remain unpersonalized.
+  Child profiles are the shared source of truth across native archive entry
+  points. Every saved native child list is written to both compatibility cache
+  keys and, when logged in, patched to `/api/users/me/xiaowanzi-sync`. The native
+  Mama Resource personal-information form displays the archive-derived child
+  stage and gender instead of editing an independent copy; its archive link is
+  the only child-editing entry. Multiple archives map to `多孩家庭`, and
+  pregnancy-stage archives do not infer a child gender.
   Native search focuses its input after the native input is mounted and sends
   debounced keywords to the lightweight backend `/api/search` boundary. It
   renders only matched card summaries instead of downloading complete Programs,

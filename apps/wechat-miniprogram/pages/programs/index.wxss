@@ -113,6 +113,12 @@ page {
   animation: xfProgramWelfareEntryShake 0.72s 0.24s cubic-bezier(0.2, 0.9, 0.22, 1) both;
 }
 
+@media (max-width: 380px) {
+  .xf-program-welfare-button {
+    display: none;
+  }
+}
+
 @keyframes xfProgramWelfareEntryShake {
   0%,
   100% {

@@ -320,11 +320,11 @@ test("admin task assignments upload and replace transfer screenshots", () => {
   assert.match(source, /任务转账凭证/);
 });
 
-test("admin task assignments mark and filter proof screenshot return status", () => {
+test("admin task assignments show proof return status without a 24-hour badge", () => {
   assert.match(source, /全部返图状态/);
   assert.match(source, /已返图/);
   assert.match(source, /未返图/);
-  assert.match(source, /24小时未返图/);
+  assert.doesNotMatch(source, /24小时未返图/);
   assert.match(source, /用户筛选/);
   assert.match(source, /aria-label="返图状态快捷筛选"/);
   assert.doesNotMatch(source, /aria-label="返图状态筛选"/);
@@ -333,5 +333,7 @@ test("admin task assignments mark and filter proof screenshot return status", ()
   assert.match(apiSource, /proofStatus\?: MamaResourceProofStatus;/);
   assert.match(apiSource, /proofStatus\?: 'all' \| 'returned' \| 'missing' \| 'overdue'/);
   assert.match(backendSource, /proofStatus === "overdue"/);
-  assert.match(backendSource, /24 \* 60 \* 60 \* 1000/);
+  assert.match(backendSource, /filter\.contentUpdatedAt = \{ \$lte:/);
+  assert.match(backendSource, /asText\(source\?\.contentUrl\)/);
+  assert.doesNotMatch(backendSource, /filter\.createdAt = \{ \$lte:/);
 });

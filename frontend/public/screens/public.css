@@ -1704,9 +1704,6 @@
   .h-\[45\%\] {
     height: 45%;
   }
-  .h-\[48px\] {
-    height: 48px;
-  }
   .h-\[52px\] {
     height: 52px;
   }
@@ -1748,6 +1745,9 @@
   }
   .h-\[86\%\] {
     height: 86%;
+  }
+  .h-\[86px\] {
+    height: 86px;
   }
   .h-\[91\%\] {
     height: 91%;
@@ -2238,9 +2238,6 @@
   .w-\[45\%\] {
     width: 45%;
   }
-  .w-\[48px\] {
-    width: 48px;
-  }
   .w-\[52px\] {
     width: 52px;
   }
@@ -2282,6 +2279,9 @@
   }
   .w-\[86\%\] {
     width: 86%;
+  }
+  .w-\[86px\] {
+    width: 86px;
   }
   .w-\[92\%\] {
     width: 92%;
@@ -2444,6 +2444,9 @@
   }
   .max-w-\[110px\] {
     max-width: 110px;
+  }
+  .max-w-\[290px\] {
+    max-width: 290px;
   }
   .max-w-\[300px\] {
     max-width: 300px;
@@ -2991,9 +2994,6 @@
   .grid-cols-\[42px_1fr_auto\] {
     grid-template-columns: 42px 1fr auto;
   }
-  .grid-cols-\[48px_1fr_auto\] {
-    grid-template-columns: 48px 1fr auto;
-  }
   .grid-cols-\[minmax\(0\,1fr\)_120px_120px_auto_auto\] {
     grid-template-columns: minmax(0,1fr) 120px 120px auto auto;
   }
@@ -3186,6 +3186,9 @@
   .gap-\[3px\] {
     gap: 3px;
   }
+  .gap-\[4px\] {
+    gap: 4px;
+  }
   .gap-\[5px\] {
     gap: 5px;
   }
@@ -3203,9 +3206,6 @@
   }
   .gap-\[10px\] {
     gap: 10px;
-  }
-  .gap-\[11px\] {
-    gap: 11px;
   }
   .gap-\[12px\] {
     gap: 12px;
@@ -3910,6 +3910,9 @@
   .border-\[\#2563eb\]\/20 {
     border-color: color-mix(in oklab, #2563eb 20%, transparent);
   }
+  .border-\[\#cbb7f4\] {
+    border-color: #cbb7f4;
+  }
   .border-\[\#cdb7ff\] {
     border-color: #cdb7ff;
   }
@@ -4428,6 +4431,9 @@
   }
   .bg-\[\#c7bbff\] {
     background-color: #c7bbff;
+  }
+  .bg-\[\#e8d8ff\] {
+    background-color: #e8d8ff;
   }
   .bg-\[\#e8e8f9\] {
     background-color: #e8e8f9;
@@ -5714,6 +5720,12 @@
   .px-12 {
     padding-inline: calc(var(--spacing) * 12);
   }
+  .px-\[7px\] {
+    padding-inline: 7px;
+  }
+  .px-\[8px\] {
+    padding-inline: 8px;
+  }
   .px-\[9px\] {
     padding-inline: 9px;
   }
@@ -5734,6 +5746,9 @@
   }
   .px-\[15px\] {
     padding-inline: 15px;
+  }
+  .px-\[16px\] {
+    padding-inline: 16px;
   }
   .px-\[18px\] {
     padding-inline: 18px;
@@ -5785,6 +5800,9 @@
   }
   .py-20 {
     padding-block: calc(var(--spacing) * 20);
+  }
+  .py-\[4px\] {
+    padding-block: 4px;
   }
   .py-\[5px\] {
     padding-block: 5px;
@@ -6297,6 +6315,10 @@
   .leading-\[1\.45\] {
     --tw-leading: 1.45;
     line-height: 1.45;
+  }
+  .leading-\[1\.55\] {
+    --tw-leading: 1.55;
+    line-height: 1.55;
   }
   .leading-\[1\.65\] {
     --tw-leading: 1.65;
@@ -10294,6 +10316,11 @@
   .active\:scale-\[0\.95\] {
     &:active {
       scale: 0.95;
+    }
+  }
+  .active\:scale-\[0\.96\] {
+    &:active {
+      scale: 0.96;
     }
   }
   .active\:scale-\[0\.98\] {

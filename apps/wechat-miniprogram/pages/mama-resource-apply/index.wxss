@@ -241,6 +241,29 @@ page {
   text-align: center;
 }
 
+.xf-mama-archive-link {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 78rpx;
+  min-height: 78rpx;
+  margin-top: 12rpx;
+  border: 2rpx solid #cbb7f4;
+  border-radius: 22rpx;
+  background: #ffffff;
+  color: #6c27d6;
+  font-size: 26rpx;
+  font-weight: 800;
+  padding: 0 22rpx;
+}
+
+.xf-mama-archive-link text {
+  font-size: 34rpx;
+  line-height: 1;
+}
+
 .xf-mama-field input.is-locked {
   background: #f6f2ff;
   color: #70687f;
@@ -707,22 +730,37 @@ page {
 }
 
 .xf-mama-task-hero {
-  display: grid;
-  grid-template-columns: 76rpx minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 20rpx;
   box-sizing: border-box;
-  padding: 26rpx 28rpx;
-  border-radius: 30rpx;
+  padding: 32rpx 30rpx 28rpx;
+  border-radius: 34rpx;
   background: #ffffff;
   color: #151222;
   border: 2rpx solid rgba(108, 39, 214, 0.1);
   box-shadow: 0 14rpx 36rpx rgba(108, 39, 214, 0.08);
 }
 
+.xf-mama-task-identity {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 20rpx;
+  text-align: center;
+}
+
+.xf-mama-task-hero-copy {
+  width: 100%;
+  min-width: 0;
+}
+
+.xf-mama-task-mascot {
+  display: block;
+  width: 164rpx;
+  height: 164rpx;
+  margin: 0 auto;
+}
+
 .xf-mama-task-manage {
-  align-self: center;
-  margin: 0;
+  margin: 24rpx auto 0;
   padding: 16rpx 20rpx;
   border: 0;
   border-radius: 999rpx;
@@ -737,34 +775,45 @@ page {
   border: 0;
 }
 
-.xf-mama-task-hero-icon {
-  width: 76rpx;
-  height: 76rpx;
-}
-
-.xf-mama-task-kicker,
 .xf-mama-task-title,
 .xf-mama-task-subtitle {
   display: block;
 }
 
-.xf-mama-task-kicker {
-  display: inline-flex;
-  align-items: center;
-  padding: 7rpx 16rpx;
-  border-radius: 999rpx;
-  background: #f4eeff;
-  color: #6c27d6;
-  font-size: 22rpx;
-  font-weight: 900;
-  line-height: 1;
-}
-
 .xf-mama-task-title {
-  margin-top: 8rpx;
   font-size: 36rpx;
   font-weight: 900;
   line-height: 1.2;
+}
+
+.xf-mama-task-uid-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+  margin-top: 14rpx;
+}
+
+.xf-mama-task-uid-label,
+.xf-mama-task-uid-copy {
+  margin: 0;
+  padding: 7rpx 13rpx;
+  border: 0;
+  border-radius: 999rpx;
+  background: #f3eaff;
+  color: #6c27d6;
+  font-size: 20rpx;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.xf-mama-task-uid-copy {
+  padding: 7rpx 12rpx;
+  background: #e8d8ff;
+}
+
+.xf-mama-task-uid-copy::after {
+  border: 0;
 }
 
 .xf-mama-task-subtitle {
@@ -775,8 +824,38 @@ page {
   line-height: 1.45;
 }
 
+.xf-mama-task-section {
+  box-sizing: border-box;
+  margin-top: 26rpx;
+  padding: 28rpx 24rpx 24rpx;
+  border: 2rpx solid rgba(255, 255, 255, 0.72);
+  border-radius: 34rpx;
+  background: rgba(255, 255, 255, 0.38);
+}
+
+.xf-mama-task-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 24rpx;
+  padding: 0 4rpx 22rpx;
+  border-bottom: 2rpx solid rgba(108, 39, 214, 0.1);
+}
+
+.xf-mama-task-section-title {
+  color: #151222;
+  font-size: 32rpx;
+  font-weight: 950;
+}
+
+.xf-mama-task-section-copy {
+  color: #8a8394;
+  font-size: 22rpx;
+  font-weight: 750;
+}
+
 .xf-mama-task-empty {
-  margin-top: 22rpx;
+  margin-top: 20rpx;
   padding: 36rpx 28rpx;
   border-radius: 28rpx;
   background: #ffffff;
@@ -791,7 +870,7 @@ page {
   display: flex;
   flex-direction: column;
   gap: 18rpx;
-  margin-top: 22rpx;
+  margin-top: 20rpx;
 }
 
 .xf-mama-task-row {

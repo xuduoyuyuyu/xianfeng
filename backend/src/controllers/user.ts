@@ -880,7 +880,12 @@ export class UserController {
 
   async getAll(_req: Request, res: Response): Promise<void> {
     try {
-      const users = await User.find().select("-password").lean();
+      const users = await User.find()
+        .select(
+          "_id username mobile name role city region childGrade grade proStatus proPlan proExpiresAt proPointBalance changeHistory createdAt"
+        )
+        .slice("changeHistory", -6)
+        .lean();
       const userIds = users.map((user: any) => user._id);
       const [memories, syncs, mamaProfiles] = userIds.length
         ? await Promise.all([

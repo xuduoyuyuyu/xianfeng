@@ -628,6 +628,14 @@ test("native topbars expose a direct Baibaoxiang welfare shortcut", () => {
   assert.doesNotMatch(nativeListWxss, /xfNativeWelfareEntryShake[^\n;]*infinite/);
 });
 
+test("narrow native topbars hide the welfare shortcut before it can overlap the centered logo", () => {
+  const nativeList = fs.readFileSync(new URL("../styles/native-list.wxss", import.meta.url), "utf8");
+  const programs = readPage("programs").wxss;
+  assert.match(nativeList, /@media \(max-width: 380px\) \{[\s\S]*\.xf-native-welfare-button \{[\s\S]*display: none;/);
+  assert.match(programs, /@media \(max-width: 380px\) \{[\s\S]*\.xf-program-welfare-button \{[\s\S]*display: none;/);
+  assert.match(readNativeSettings(), /title: "百宝箱"[\s\S]*page: "\/pages\/welfare\/index"/);
+});
+
 test("welfare opens as a native mini program page and hides backend 404 noise", async () => {
   const appJson = JSON.parse(fs.readFileSync(new URL("../app.json", import.meta.url), "utf8"));
   const page = readPage("welfare");
@@ -1411,9 +1419,9 @@ test("back-button pages normalize a root launch into a swipe-back page stack", (
     }
     assert.doesNotMatch(readPage("welfare").js, /ensureBackStackForBackButtonPage/);
     const mamaPage = readPage("mama-resource-apply");
-    assert.match(mamaPage.js, /ensureBackStackForBackButtonPage/);
+    assert.doesNotMatch(mamaPage.js, /ensureBackStackForBackButtonPage/);
     assert.match(mamaPage.js, /const pendingMamaTaskId = asText\(options\.taskId \|\| parseSceneParam\(options\.scene, "m"\)\)\.trim\(\)/);
-    assert.match(mamaPage.js, /if \(!pendingMamaTaskId && !launchedFromShare && ensureBackStackForBackButtonPage\(options\)\) return;/);
+    assert.match(mamaPage.js, /goBack\(\)\s*\{[\s\S]*wx\.navigateBack\(\{ delta: 1 \}\)[\s\S]*wx\.exitMiniProgram\(\)[\s\S]*\}/);
   } finally {
     global.getCurrentPages = originalGetCurrentPages;
     global.wx.switchTab = originalSwitchTab;
@@ -12997,20 +13005,20 @@ test("shared native settings profile panel edits archives and opens memory manag
     assert.equal(context.data.archiveDraft.gender, "女");
     context.chooseArchiveRegion({ detail: { value: 1 } });
     assert.equal(context.data.archiveDraft.region, "徐汇区");
-    context.updateArchiveStageGradeColumn({ detail: { column: 0, value: 3 } });
-    assert.deepEqual(context.data.archiveStageGradeValue, [3, 0]);
+    context.updateArchiveStageGradeColumn({ detail: { column: 0, value: 5 } });
+    assert.deepEqual(context.data.archiveStageGradeValue, [5, 0]);
     assert.deepEqual(context.data.archiveStageGradeColumns[1], ["高一年级", "高二年级", "高三年级"]);
-    context.chooseArchiveStageGrade({ detail: { value: [3, 1] } });
+    context.chooseArchiveStageGrade({ detail: { value: [5, 1] } });
     assert.equal(context.data.archiveStage, "高中");
-    assert.equal(context.data.archiveStageIndex, 3);
+    assert.equal(context.data.archiveStageIndex, 5);
     assert.equal(context.data.archiveGradeIndex, 1);
     assert.equal(context.data.archiveDraft.grade, "高二年级");
-    context.updateArchiveStageGradeColumn({ detail: { column: 0, value: 1 } });
-    assert.deepEqual(context.data.archiveStageGradeValue, [1, 0]);
+    context.updateArchiveStageGradeColumn({ detail: { column: 0, value: 3 } });
+    assert.deepEqual(context.data.archiveStageGradeValue, [3, 0]);
     assert.deepEqual(context.data.archiveStageGradeColumns[1], ["一年级", "二年级", "三年级", "四年级", "五年级"]);
-    context.chooseArchiveStageGrade({ detail: { value: [1, 2] } });
+    context.chooseArchiveStageGrade({ detail: { value: [3, 2] } });
     assert.equal(context.data.archiveStage, "小学");
-    assert.equal(context.data.archiveStageIndex, 1);
+    assert.equal(context.data.archiveStageIndex, 3);
     assert.equal(context.data.archiveGradeName, "三年级");
     assert.equal(context.data.archiveGradeIndex, 2);
     assert.equal(context.data.archiveDraft.grade, "小学三年级");
@@ -13134,18 +13142,18 @@ test("standalone archive page uses a linked stage and grade picker", () => {
     };
 
     definition.loadProfile.call(context);
-    definition.updateStageGradeColumn.call(context, { detail: { column: 0, value: 3 } });
-    assert.deepEqual(context.data.stageGradeValue, [3, 0]);
+    definition.updateStageGradeColumn.call(context, { detail: { column: 0, value: 5 } });
+    assert.deepEqual(context.data.stageGradeValue, [5, 0]);
     assert.deepEqual(context.data.stageGradeColumns[1], ["高一年级", "高二年级", "高三年级"]);
-    definition.chooseStageGrade.call(context, { detail: { value: [3, 2] } });
+    definition.chooseStageGrade.call(context, { detail: { value: [5, 2] } });
     assert.equal(context.data.stage, "高中");
     assert.equal(context.data.gradeName, "高三年级");
     assert.equal(context.data.draft.grade, "高三年级");
 
-    definition.updateStageGradeColumn.call(context, { detail: { column: 0, value: 2 } });
-    assert.deepEqual(context.data.stageGradeValue, [2, 0]);
+    definition.updateStageGradeColumn.call(context, { detail: { column: 0, value: 4 } });
+    assert.deepEqual(context.data.stageGradeValue, [4, 0]);
     assert.deepEqual(context.data.stageGradeColumns[1], ["六年级（预初）", "七年级", "八年级", "九年级"]);
-    definition.chooseStageGrade.call(context, { detail: { value: [2, 1] } });
+    definition.chooseStageGrade.call(context, { detail: { value: [4, 1] } });
     assert.equal(context.data.stage, "初中");
     assert.equal(context.data.gradeName, "七年级");
     assert.equal(context.data.draft.grade, "初中七年级");
@@ -13410,8 +13418,8 @@ test("mama haozhuan opens a native mini program form instead of program detail w
     assert.match(page.js, /launchedFromSettings: false/);
     assert.match(page.js, /backTop: 8/);
     assert.match(page.js, /backSize: 32/);
-    assert.match(page.js, /smartBackHome/);
-    assert.match(page.js, /goBack\(\)\s*\{[\s\S]*smartBackHome\(\);[\s\S]*\}/);
+    assert.doesNotMatch(page.js, /smartBackHome|ensureBackStackForBackButtonPage/);
+    assert.match(page.js, /goBack\(\)\s*\{[\s\S]*mamaResourceView === "apply" && profile\.status === "approved"[\s\S]*mamaResourceView: "tasks"[\s\S]*pages\.length > 1[\s\S]*wx\.navigateBack\(\{ delta: 1 \}\)[\s\S]*wx\.exitMiniProgram\(\)[\s\S]*\}/);
     assert.match(page.wxml, /wx:if="\{\{settingsPanelOpen\}\}" class="xf-native-settings-mask" style="height: \{\{settingsPanelHeight\}\}px;" catchtap="closeSettings"/);
     assert.match(page.wxml, /wx:for="\{\{settingsSections\}\}"/);
     assert.doesNotMatch(page.wxml, /xf-mama-back/);
@@ -13423,7 +13431,9 @@ test("mama haozhuan opens a native mini program form instead of program detail w
     assert.match(page.wxml, /<input name="displayName"[\s\S]*placeholder-class="xf-mama-placeholder"/);
     assert.match(page.wxml, /账号定位[\s\S]*<textarea name="accountPositioning"[\s\S]*placeholder-class="xf-mama-textarea-placeholder"/);
     assert.match(page.wxml, /微信号[\s\S]*name="contactWechat"[\s\S]*优先通过微信添加[\s\S]*手机号[\s\S]*name="contactPhone"[\s\S]*备用联系电话/);
-    assert.match(page.wxml, /孩子阶段[\s\S]*childStages[\s\S]*孩子性别[\s\S]*wx:for="\{\{childGenderOptions\}\}"[\s\S]*class="xf-mama-gender-chip \{\{childGender === item\.value \? 'is-active' : ''\}\}"[\s\S]*data-value="\{\{item\.value\}\}"/);
+    assert.match(page.wxml, /孩子档案[\s\S]*openChildCreate">添加孩子 <text>›<\/text>/);
+    assert.doesNotMatch(page.wxml, /孩子阶段|孩子性别|openChildArchive/);
+    assert.doesNotMatch(page.wxml, /bindchange="selectChildStage"|catchtap="toggleChildGender"/);
     assert.match(page.js, /value: "男孩"[\s\S]*value: "女孩"/);
     assert.doesNotMatch(page.wxml, /bindchange="selectChildGender"|请选择孩子性别/);
     assert.doesNotMatch(page.wxml, /报价区间|可接频率|历史案例链接/);
@@ -15000,6 +15010,8 @@ test("native non-agent expert detail uses standalone profile and complete partic
   assert.doesNotMatch(normalizeProgramsSource, /\.slice\(/, "native expert normalization should retain every related program returned by the API");
   assert.match(js, /socialCount: socialProfiles\.length/);
   assert.match(wxss, /\.xf-expert-detail-card\.is-profile\.is-static \{[\s\S]*padding:/);
+  assert.match(wxss, /\.xf-expert-detail-avatar-wrap \{[\s\S]*width: 188rpx;[\s\S]*padding: 12rpx;[\s\S]*border: 2rpx solid #eee8ff;[\s\S]*background: #f4f0ff;/);
+  assert.match(wxss, /\.xf-expert-detail-avatar \{[\s\S]*width: 164rpx;[\s\S]*height: 164rpx;[\s\S]*border-radius: 32rpx;[\s\S]*background: #ffffff;/);
   assert.match(wxss, /\.xf-expert-detail-name-row \{[^}]*flex-direction: column;[^}]*align-items: center;/);
   assert.match(wxss, /\.xf-expert-detail-stat-pills \{[\s\S]*display: flex;[\s\S]*flex-wrap: wrap;/);
   assert.match(wxss, /\.xf-expert-detail-card\.is-static-programs,[\s\S]*\.xf-expert-detail-card\.is-static-publications,[\s\S]*\.xf-expert-detail-card\.is-booklists \{[\s\S]*text-align: left;/);

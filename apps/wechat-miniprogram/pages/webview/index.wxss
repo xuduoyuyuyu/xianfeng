@@ -3112,17 +3112,21 @@ page {
 }
 
 .xf-expert-detail-avatar-wrap {
-  width: 178rpx;
-  height: 178rpx;
+  box-sizing: border-box;
+  width: 188rpx;
+  height: 188rpx;
   margin: 0 auto;
-  border: 8rpx solid #f0ecff;
-  border-radius: 42rpx;
+  padding: 12rpx;
+  border: 2rpx solid #eee8ff;
+  border-radius: 40rpx;
+  background: #f4f0ff;
 }
 
 .xf-expert-detail-avatar {
-  width: 100%;
-  height: 100%;
-  border-radius: 34rpx;
+  width: 164rpx;
+  height: 164rpx;
+  border-radius: 32rpx;
+  background: #ffffff;
 }
 
 .xf-expert-detail-ai-badge {

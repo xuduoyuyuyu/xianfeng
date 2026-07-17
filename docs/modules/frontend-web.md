@@ -54,7 +54,10 @@
   social-media account, and task-preference sections. It collects Xiaohongshu
   and optional extra account profile data, optional profile screenshot upload,
   follower count, and real-name verification status without asking for account
-  credentials.
+  credentials. Child stage and gender are read from the shared child-profile
+  archive and can only be changed through `档案管理`; archive saves notify
+  the account-sync owner so every Web child-creation entry converges on the
+  same server-side child profile list.
   `/admin/mama-resources` is the operator account-data screen. Its account list
   defaults to all profiles and filters by child stage, child gender, linked-user
   gender, and submitted media platform; verified real-name status is shown as a

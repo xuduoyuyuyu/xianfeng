@@ -198,6 +198,10 @@
   account. Admin `/api/admin/mama-resources` handles review state, filtering,
   manual metrics, screenshots, and operator notes.
 - Haozhuan (`好赚`) tasks are listed independently from accounts.
+  Each site user has an optional immutable public-facing `publicUid`: the
+  authenticated Haozhuan task read lazily assigns a globally unique nine-digit
+  numeric value for legacy users, persists it on `User`, and returns it with the
+  account profile for display and copy. MongoDB `_id` remains internal.
   `MamaResourceTask` stores the listed project/campaign, while
   `MamaResourceTaskAssignment` stores a user's claim for that task plus
   proof/review status. Admin

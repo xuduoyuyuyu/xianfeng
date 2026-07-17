@@ -138,6 +138,15 @@ test("uses the existing five-four school grade options", () => {
   assert.equal(profile.formatGrade("初中", "六年级（预初）"), "初中六年级");
 });
 
+test("supports pregnancy and infant stages in child profiles", () => {
+  const { profile } = loadProfile();
+  assert.deepEqual(profile.STAGES.slice(0, 2), ["孕产", "婴幼儿"]);
+  assert.deepEqual(profile.gradesFor("孕产", ""), ["孕产"]);
+  assert.deepEqual(profile.gradesFor("婴幼儿", ""), ["婴幼儿"]);
+  assert.equal(profile.formatGrade("孕产", "孕产"), "孕产");
+  assert.deepEqual(profile.parseGrade("婴幼儿"), { stage: "婴幼儿", gradeName: "婴幼儿" });
+});
+
 test("logged-in profile save remains pending before remote reconciliation", async () => {
   const { profile, storage } = loadProfile({ xf_token: "signed-in" });
   const pendingRequests = [];

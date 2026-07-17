@@ -628,6 +628,7 @@ export interface MamaResourceMediaAccount {
 
 export interface MamaResourceProfile {
   _id: string;
+  publicUid?: string;
   userId?: string;
   displayName: string;
   contactPhone?: string;

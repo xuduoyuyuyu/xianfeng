@@ -2,6 +2,7 @@ const {
   CHILD_PROFILES_KEY,
   WEB_CHILD_PROFILES_KEY,
   mergeChildProfileRecords,
+  saveChildProfileRecords,
 } = require("./profileState");
 const { getToken } = require("./session");
 
@@ -9,8 +10,10 @@ const LAST_CHILD_ID_KEY = "xiaowanzi_last_child_id_v1";
 const SYNC_PENDING_KEY = "xf_profile_onboarding_sync_pending_v1";
 const PENDING_PROFILE_KEY = "xf_profile_onboarding_pending_v1";
 const CHILD_AVATAR = "/assets/wel-avatar/no-hat.png";
-const STAGES = ["学前", "小学", "初中", "高中"];
+const STAGES = ["孕产", "婴幼儿", "学前", "小学", "初中", "高中"];
 const GRADES_BY_STAGE = {
+  孕产: ["孕产"],
+  婴幼儿: ["婴幼儿"],
   学前: ["未入园", "托班", "小班", "中班", "大班"],
   小学: ["一年级", "二年级", "三年级", "四年级", "五年级", "六年级"],
   初中: ["六年级（预初）", "七年级", "八年级", "九年级"],
@@ -44,6 +47,7 @@ function gradesFor(stage, city) {
 
 function formatGrade(stage, gradeName) {
   if (!stage || !gradeName) return "";
+  if (stage === "孕产" || stage === "婴幼儿") return stage;
   if (stage === "学前") return `学前${gradeName}`;
   if (stage === "小学") return `小学${gradeName}`;
   if (stage === "初中") return `初中${trim(gradeName).replace("（预初）", "")}`;
@@ -53,7 +57,7 @@ function formatGrade(stage, gradeName) {
 function parseGrade(raw) {
   const text = trim(raw);
   if (!text) return { stage: "", gradeName: "" };
-  for (const stage of ["高中", "初中", "小学", "学前"]) {
+  for (const stage of ["高中", "初中", "小学", "学前", "婴幼儿", "孕产"]) {
     const gradeName = GRADES_BY_STAGE[stage].find((item) => text.includes(item) || text === item);
     if (gradeName) return { stage, gradeName };
   }
@@ -140,8 +144,7 @@ function getProfileOnboardingState() {
 }
 
 function saveChildren(children) {
-  wx.setStorageSync(CHILD_PROFILES_KEY, children);
-  wx.setStorageSync(WEB_CHILD_PROFILES_KEY, JSON.stringify(children));
+  saveChildProfileRecords(children, { avatarFallback: CHILD_AVATAR });
 }
 
 function cacheProfileOnboardingChildren(children) {
