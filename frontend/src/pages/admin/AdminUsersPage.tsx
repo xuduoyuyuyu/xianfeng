@@ -5,7 +5,7 @@ import { adminApi, AdminUserOverview, User } from "../../services/api";
 import TopAlert from "../../components/TopAlert";
 import { RootState } from "../../store";
 
-type EditableUser = Pick<User, "_id" | "username" | "mobile" | "role" | "city" | "region" | "childGrade" | "grade" | "name" | "proPointBalance" | "changeHistory" | "childMemories" | "memoryItemCount" | "memoryPreview" | "latestMemoryAt" | "createdAt">;
+type EditableUser = Pick<User, "_id" | "username" | "mobile" | "role" | "city" | "region" | "childGrade" | "grade" | "name" | "membershipTier" | "hasMamaResource" | "mamaResourceId" | "childStages" | "childGrades" | "proPointBalance" | "changeHistory" | "childMemories" | "memoryItemCount" | "memoryPreview" | "latestMemoryAt" | "createdAt">;
 type UserModalMode = "create" | "edit" | null;
 
 type UserFormState = {
@@ -59,6 +59,11 @@ function toEditableUser(row: User): EditableUser {
     region: row.region,
     childGrade: row.childGrade,
     grade: row.grade,
+    membershipTier: row.membershipTier || "free",
+    hasMamaResource: row.hasMamaResource === true,
+    mamaResourceId: row.mamaResourceId || "",
+    childStages: row.childStages || [],
+    childGrades: row.childGrades || [],
     proPointBalance: Number(row.proPointBalance || 0),
     changeHistory: row.changeHistory || [],
     childMemories: row.childMemories || [],
@@ -90,6 +95,12 @@ const AdminUsersPage: React.FC = () => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [keyword, setKeyword] = useState("");
+  const [mamaFilter, setMamaFilter] = useState("");
+  const [membershipFilter, setMembershipFilter] = useState("");
+  const [cityFilter, setCityFilter] = useState("");
+  const [regionFilter, setRegionFilter] = useState("");
+  const [childStageFilter, setChildStageFilter] = useState("");
+  const [gradeFilter, setGradeFilter] = useState("");
   const [modalMode, setModalMode] = useState<UserModalMode>(null);
   const [editingUser, setEditingUser] = useState<EditableUser | null>(null);
   const [form, setForm] = useState<UserFormState>(EMPTY_USER_FORM);
@@ -99,6 +110,7 @@ const AdminUsersPage: React.FC = () => {
   const [overview, setOverview] = useState<AdminUserOverview | null>(null);
   const [overviewLoadingId, setOverviewLoadingId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
 
   const loadUsers = async () => {
     setLoading(true);
@@ -119,19 +131,34 @@ const AdminUsersPage: React.FC = () => {
 
   const filteredItems = useMemo(() => {
     const key = keyword.trim().toLowerCase();
-    if (!key) return items;
-    return items.filter((row) => `${row.username} ${row.name || ""} ${resolveMobile(row)} ${row.role} ${row.city || ""} ${row.region || ""} ${row.childGrade || ""} ${row.grade || ""} ${row.memoryPreview || ""}`.toLowerCase().includes(key));
-  }, [items, keyword]);
+    return items.filter((row) => {
+      if (key && !`${row.username} ${row.name || ""} ${resolveMobile(row)} ${row.role} ${row.city || ""} ${row.region || ""} ${row.childGrade || ""} ${row.grade || ""} ${(row.childStages || []).join(" ")} ${(row.childGrades || []).join(" ")} ${row.memoryPreview || ""}`.toLowerCase().includes(key)) return false;
+      if (mamaFilter && String(row.hasMamaResource) !== mamaFilter) return false;
+      if (membershipFilter && row.membershipTier !== membershipFilter) return false;
+      if (cityFilter && row.city !== cityFilter) return false;
+      if (regionFilter && row.region !== regionFilter) return false;
+      if (childStageFilter && !(row.childStages || []).includes(childStageFilter)) return false;
+      if (gradeFilter && ![row.grade, row.childGrade, ...(row.childGrades || [])].filter(Boolean).includes(gradeFilter)) return false;
+      return true;
+    });
+  }, [items, keyword, mamaFilter, membershipFilter, cityFilter, regionFilter, childStageFilter, gradeFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE));
+  const filterOptions = useMemo(() => ({
+    cities: Array.from(new Set(items.map((row) => row.city).filter(Boolean))).sort(),
+    regions: Array.from(new Set(items.map((row) => row.region).filter(Boolean))).sort(),
+    childStages: Array.from(new Set(items.flatMap((row) => row.childStages || []))).sort(),
+    grades: Array.from(new Set(items.flatMap((row) => [row.grade, row.childGrade, ...(row.childGrades || [])].filter(Boolean)))).sort(),
+  }), [items]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
   const pagedItems = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return filteredItems.slice(start, start + PAGE_SIZE);
-  }, [filteredItems, currentPage]);
+    const start = (currentPage - 1) * pageSize;
+    return filteredItems.slice(start, start + pageSize);
+  }, [filteredItems, currentPage, pageSize]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [keyword]);
+  }, [keyword, mamaFilter, membershipFilter, cityFilter, regionFilter, childStageFilter, gradeFilter]);
 
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
@@ -351,16 +378,24 @@ const AdminUsersPage: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-2xl border border-stone-100 overflow-hidden">
-        <div className="flex flex-col gap-4 border-b border-stone-100 px-6 py-5 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-4 border-b border-stone-100 px-6 py-5">
           <div className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500">用户列表</div>
-          <div className="relative">
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
+            <div className="relative md:col-span-2">
             <input
-              className="w-80 max-w-full rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-stone-900 caret-[#5e17eb] placeholder:text-stone-400 transition-all focus:border-[#5e17eb] focus:ring-4 focus:ring-[#5e17eb]/5"
+              className="w-full rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-stone-900 caret-[#5e17eb] placeholder:text-stone-400 transition-all focus:border-[#5e17eb] focus:ring-4 focus:ring-[#5e17eb]/5"
               placeholder="搜索用户名 / 昵称 / 手机号 / 角色 / 城市 / 区域 / 年级"
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
             />
             <span className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 text-base">search</span>
+            </div>
+            <select className={inputClass} value={mamaFilter} onChange={(event) => setMamaFilter(event.target.value)}><option value="">全部好赚状态</option><option value="true">是好赚用户</option><option value="false">非好赚用户</option></select>
+            <select className={inputClass} value={membershipFilter} onChange={(event) => setMembershipFilter(event.target.value)}><option value="">全部会员</option><option value="free">免费用户</option><option value="plus">Plus</option><option value="pro">Pro</option></select>
+            <select className={inputClass} value={cityFilter} onChange={(event) => setCityFilter(event.target.value)}><option value="">全部城市</option>{filterOptions.cities.map((value) => <option key={value} value={value}>{value}</option>)}</select>
+            <select className={inputClass} value={regionFilter} onChange={(event) => setRegionFilter(event.target.value)}><option value="">全部区域</option>{filterOptions.regions.map((value) => <option key={value} value={value}>{value}</option>)}</select>
+            <select className={inputClass} value={childStageFilter} onChange={(event) => setChildStageFilter(event.target.value)}><option value="">全部孩子年龄段</option>{filterOptions.childStages.map((value) => <option key={value} value={value}>{value}</option>)}</select>
+            <select className={inputClass} value={gradeFilter} onChange={(event) => setGradeFilter(event.target.value)}><option value="">全部年级</option>{filterOptions.grades.map((value) => <option key={value} value={value}>{value}</option>)}</select>
           </div>
         </div>
 
@@ -373,10 +408,12 @@ const AdminUsersPage: React.FC = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-                <table className="w-full min-w-[1060px] text-left">
+                <table className="w-full min-w-[1320px] text-left">
               <thead className="bg-white text-stone-500 uppercase text-[10px] font-black tracking-[0.2em]">
                 <tr>
                   <th className="px-4 py-3">用户名</th>
+                  <th className="px-4 py-3">用户 ID</th>
+                  <th className="px-4 py-3">好赚 ID</th>
                   <th className="px-4 py-3">昵称</th>
                   <th className="px-4 py-3">手机号</th>
                   <th className="px-4 py-3">角色</th>
@@ -398,8 +435,9 @@ const AdminUsersPage: React.FC = () => {
                     <tr key={row._id} className="hover:bg-stone-50/50 transition-colors">
                       <td className="px-4 py-3">
                         <button type="button" onClick={() => openOverview(row)} className="text-left text-sm font-bold text-stone-900 hover:text-[#5e17eb]" title="查看用户画像与时间线">{row.username}</button>
-                        <div className="text-[10px] text-stone-400">{row._id.slice(-8).toUpperCase()}</div>
                       </td>
+                      <td className="px-4 py-3 font-mono text-xs text-stone-600">{row._id}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-stone-600">{row.mamaResourceId || "-"}</td>
                       <td className="px-4 py-3">
                         <input
                           className={`w-24 ${inputClass}`}
@@ -539,7 +577,14 @@ const AdminUsersPage: React.FC = () => {
         )}
         {!loading && filteredItems.length > 0 ? (
           <div className="flex items-center justify-between border-t border-stone-100 px-6 py-4 text-sm text-stone-500">
-            <div>第 {currentPage}/{totalPages} 页，每页 {PAGE_SIZE} 条，共 {filteredItems.length} 条</div>
+            <div className="flex items-center gap-2">
+              <span>第 {currentPage}/{totalPages} 页，共 {filteredItems.length} 条</span>
+              <select className="rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-xs font-bold text-stone-700" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setCurrentPage(1); }}>
+                <option value={20}>每页 20 条</option>
+                <option value={50}>每页 50 条</option>
+                <option value={100}>每页 100 条</option>
+              </select>
+            </div>
             <div className="flex gap-2">
               <button
                 className="rounded-xl border border-stone-200 px-3 py-2 text-xs font-bold text-stone-700 disabled:cursor-not-allowed disabled:opacity-50"

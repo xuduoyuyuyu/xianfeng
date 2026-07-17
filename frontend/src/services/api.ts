@@ -968,6 +968,10 @@ export interface User {
   proPlan?: 'plus' | 'pro' | 'monthly' | 'yearly' | '';
   membershipTier?: 'free' | 'plus' | 'pro';
   membershipLabel?: string;
+  hasMamaResource?: boolean;
+  mamaResourceId?: string;
+  childStages?: string[];
+  childGrades?: string[];
   proExpiresAt?: string | null;
   proPurchasedAt?: string | null;
   proRefundEligibleUntil?: string | null;
@@ -1527,7 +1531,11 @@ export const adminApi = {
     api.patch<LearningMaterial>(`/admin/learning-materials/${id}/status`, { status }),
 
   getMamaResources: (params?: MamaResourceQuery) =>
-    api.get<MamaResourceListResponse>('/admin/mama-resources', { params }),
+    api.get<MamaResourceListResponse>('/admin/mama-resources', {
+      params: params
+        ? { ...params, contentCapabilities: params.contentCapabilities?.join(',') }
+        : undefined,
+    }),
   getMamaResource: (id: string) =>
     api.get<{ profile: MamaResourceProfile }>(`/admin/mama-resources/${id}`),
   updateMamaResource: (id: string, data: Partial<MamaResourceProfile>) =>

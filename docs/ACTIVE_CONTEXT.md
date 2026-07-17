@@ -71,6 +71,13 @@ It aggregates the site profile, Xiaowanzi child profiles and child memories,
 authenticated page visits already collected by the existing tracker, and Mama
 Haozhuan profile/task timestamps into one reverse-chronological timeline. This
 uses existing records only and does not add universal click or search tracking.
+The full user list also derives filterable tags for Mama Haozhuan participation,
+active membership tier, city, region, child stage, and every child grade before
+client-side pagination, so combined filters apply to the complete loaded list.
+It exposes the full site user ID used by welfare claims plus the latest linked
+Mama Haozhuan profile ID, and operators can page the loaded list at 20, 50, or
+100 rows. Admin navigation keeps Haozhuan and Treasure Box under Decisions after
+Worth Buy instead of grouping them under Users.
 
 Mini-program Mama Haozhuan form drafts are persisted only for the current
 logged-in account and use an account-scoped storage key. Logged-out, logout,

@@ -20,6 +20,10 @@ test("admin welfare page is routed and named treasure box", () => {
   assert.match(source, /<h1 className="mt-1 text-3xl font-black text-\[#171321\]">百宝箱<\/h1>/);
 });
 
+test("admin welfare and Haozhuan navigation sit under decisions after Worth Buy", () => {
+  assert.match(layoutSource, /决策[\s\S]*知物管理[\s\S]*好赚[\s\S]*百宝箱[\s\S]*用户[\s\S]*用户管理/);
+});
+
 test("admin welfare page configures campaigns, inventory, dates, upload image, and claim history", () => {
   assert.match(source, /title/);
   assert.match(source, /subtitle/);

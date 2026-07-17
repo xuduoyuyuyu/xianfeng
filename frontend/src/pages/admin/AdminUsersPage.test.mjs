@@ -24,6 +24,31 @@ test("admin users page opens an aggregated profile and behavior timeline", () =>
   assert.match(source, /createPortal\([\s\S]*document\.body/);
 });
 
+test("admin users page filters by profile tags", () => {
+  assert.match(source, /全部好赚状态/);
+  assert.match(source, /全部会员/);
+  assert.match(source, /全部城市/);
+  assert.match(source, /全部区域/);
+  assert.match(source, /全部孩子年龄段/);
+  assert.match(source, /全部年级/);
+  assert.match(source, /String\(row\.hasMamaResource\) !== mamaFilter/);
+  assert.match(source, /row\.membershipTier !== membershipFilter/);
+  assert.match(source, /row\.childStages/);
+  assert.match(source, /row\.childGrades/);
+});
+
+test("admin users page exposes business IDs and adjustable pagination", () => {
+  assert.match(source, />用户 ID</);
+  assert.match(source, />好赚 ID</);
+  assert.match(source, /row\._id/);
+  assert.match(source, /row\.mamaResourceId \|\| "-"/);
+  assert.match(source, /useState\(PAGE_SIZE\)/);
+  assert.match(source, /<option value=\{20\}>每页 20 条<\/option>/);
+  assert.match(source, /<option value=\{50\}>每页 50 条<\/option>/);
+  assert.match(source, /<option value=\{100\}>每页 100 条<\/option>/);
+  assert.match(source, /setPageSize\(Number\(event\.target\.value\)\); setCurrentPage\(1\)/);
+});
+
 test("static admin users screen uses the admin session for role updates", () => {
   assert.match(
     staticSource,

@@ -882,16 +882,62 @@ export class UserController {
     try {
       const users = await User.find().select("-password").lean();
       const userIds = users.map((user: any) => user._id);
-      const memories = userIds.length
-        ? await UserChildMemory.find({ userId: { $in: userIds } })
-            .select("userId childId enabled summary updatedAt")
-            .lean()
-        : [];
+      const [memories, syncs, mamaProfiles] = userIds.length
+        ? await Promise.all([
+            UserChildMemory.find({ userId: { $in: userIds } })
+              .select("userId childId enabled summary updatedAt")
+              .lean(),
+            UserXiaowanziSync.find({ userId: { $in: userIds } })
+              .select("userId childProfiles")
+              .lean(),
+            MamaResourceProfile.find({
+              $or: [
+                { userId: { $in: userIds } },
+                { contactPhone: { $in: users.map((user: any) => normalizeMobile(user.mobile || user.username)).filter(Boolean) } },
+              ],
+            })
+              .select("userId contactPhone childStage")
+              .sort({ updatedAt: -1 })
+              .lean(),
+          ])
+        : [[], [], []];
       const memoryMap = summarizeAdminChildMemories(memories as AdminChildMemoryDoc[]);
+      const syncMap = new Map(syncs.map((sync: any) => [String(sync.userId), sync]));
+      const mamaUserIds = new Set<string>();
+      const mamaPhones = new Set<string>();
+      const mamaIdByUserId = new Map<string, string>();
+      const mamaIdByPhone = new Map<string, string>();
+      const mamaStagesByUserId = new Map<string, string[]>();
+      const mamaStagesByPhone = new Map<string, string[]>();
+      mamaProfiles.forEach((profile: any) => {
+        const userId = String(profile.userId || "");
+        const phone = normalizeMobile(profile.contactPhone);
+        const stage = String(profile.childStage || "").trim();
+        if (userId) mamaUserIds.add(userId);
+        if (phone) mamaPhones.add(phone);
+        if (userId && !mamaIdByUserId.has(userId)) mamaIdByUserId.set(userId, String(profile._id));
+        if (phone && !mamaIdByPhone.has(phone)) mamaIdByPhone.set(phone, String(profile._id));
+        if (stage && userId) mamaStagesByUserId.set(userId, Array.from(new Set([...(mamaStagesByUserId.get(userId) || []), stage])));
+        if (stage && phone) mamaStagesByPhone.set(phone, Array.from(new Set([...(mamaStagesByPhone.get(phone) || []), stage])));
+      });
       const rows = users.map((user: any) => {
-        const memorySummary = memoryMap.get(String(user._id));
+        const userId = String(user._id);
+        const phone = normalizeMobile(user.mobile || user.username);
+        const memorySummary = memoryMap.get(userId);
+        const childProfiles = Array.isArray(syncMap.get(userId)?.childProfiles) ? syncMap.get(userId).childProfiles : [];
+        const childStages = Array.from(new Set([
+          ...childProfiles.map((child: any) => String(child?.stage || "").trim()).filter(Boolean),
+          ...(mamaStagesByUserId.get(userId) || []),
+          ...(mamaStagesByPhone.get(phone) || []),
+        ]));
+        const childGrades = Array.from(new Set(childProfiles.map((child: any) => String(child?.grade || "").trim()).filter(Boolean)));
         return {
           ...user,
+          ...serializeBillingUser(user),
+          hasMamaResource: mamaUserIds.has(userId) || (!!phone && mamaPhones.has(phone)),
+          mamaResourceId: mamaIdByUserId.get(userId) || mamaIdByPhone.get(phone) || "",
+          childStages,
+          childGrades,
           childMemories: memorySummary?.childMemories || [],
           memoryItemCount: memorySummary?.memoryItemCount || 0,
           memoryPreview: memorySummary?.memoryPreview || "",

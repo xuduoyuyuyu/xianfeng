@@ -44,10 +44,16 @@ describe("admin user overview", () => {
       mobile: "13800138000",
       password: "hashed",
       name: "测试妈妈",
+      city: "上海",
+      region: "浦东新区",
+      grade: "三年级",
+      proStatus: "active",
+      proPlan: "plus",
+      proExpiresAt: new Date("2099-01-01T00:00:00.000Z"),
     });
     await UserXiaowanziSync.create({
       userId: user._id,
-      childProfiles: [{ name: "小宝", gender: "女孩", grade: "小学" }],
+      childProfiles: [{ name: "小宝", gender: "女孩", stage: "小学", grade: "三年级" }],
     });
     await UserPageVisit.create({
       userId: user._id,
@@ -61,6 +67,7 @@ describe("admin user overview", () => {
       userId: user._id,
       displayName: "测试妈妈",
       contactPhone: "13800138000",
+      childStage: "小学",
       consentAccepted: true,
       socialAccount: {
         platform: "xiaohongshu",
@@ -84,5 +91,14 @@ describe("admin user overview", () => {
     assert.ok(res.body.timeline.some((item: any) => item.title === "注册账号"));
     assert.ok(res.body.timeline.some((item: any) => item.title === "访问页面" && item.detail === "节目"));
     assert.ok(res.body.timeline.some((item: any) => item.title === "领取好赚任务"));
+
+    const listRes = createMockResponse();
+    await new UserController().getAll({} as any, listRes as any);
+    const listed = listRes.body.find((item: any) => String(item._id) === String(user._id));
+    assert.equal(listed.hasMamaResource, true);
+    assert.equal(listed.mamaResourceId, String(profile._id));
+    assert.equal(listed.membershipTier, "plus");
+    assert.deepEqual(listed.childStages, ["小学"]);
+    assert.deepEqual(listed.childGrades, ["三年级"]);
   });
 });

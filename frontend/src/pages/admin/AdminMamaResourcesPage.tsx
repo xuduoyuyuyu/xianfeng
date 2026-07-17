@@ -899,9 +899,10 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
       {toast ? <div className="rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{toast}</div> : null}
 
       {isReviewMode ? <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
-        <div className="grid grid-cols-[1.2fr_1fr_0.7fr_0.8fr_auto] gap-3 border-b border-stone-100 bg-stone-50 px-4 py-3 text-xs font-black text-stone-500">
+        <div className="grid grid-cols-[1.2fr_0.9fr_1fr_0.45fr_0.65fr_auto] gap-3 border-b border-stone-100 bg-stone-50 px-4 py-3 text-xs font-black text-stone-500">
           <span>账号卡片</span>
           <span>品类</span>
+          <span>平台账号</span>
           <span>粉丝数</span>
           <span>状态</span>
           <span>操作</span>
@@ -912,7 +913,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
           <div className="px-4 py-10 text-center text-sm font-semibold text-stone-500">暂无资源</div>
         ) : (
           items.map((profile) => (
-            <div key={profile._id} className="grid grid-cols-[1.2fr_1fr_0.7fr_0.8fr_auto] gap-3 border-b border-stone-100 px-4 py-4 text-sm last:border-b-0">
+            <div key={profile._id} className="grid grid-cols-[1.2fr_0.9fr_1fr_0.45fr_0.65fr_auto] gap-3 border-b border-stone-100 px-4 py-4 text-sm last:border-b-0">
               <div className="min-w-0">
                 <div className="font-black text-stone-900">{profile.displayName}</div>
                 {extractProfileUrl(profile.socialAccount.profileUrl) ? <a className="mt-1 block truncate text-xs font-semibold text-[#6c27d6]" href={extractProfileUrl(profile.socialAccount.profileUrl)} target="_blank" rel="noreferrer">{profile.socialAccount.nickname || profile.socialAccount.profileUrl}</a> : <div className="mt-1 truncate text-xs font-semibold text-stone-500">{profile.socialAccount.nickname || "未识别主页链接"}</div>}
@@ -929,9 +930,16 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
               </div>
               <div className="space-y-1 text-xs text-stone-700">
                 {(profile.mediaAccounts?.length ? profile.mediaAccounts : [profile.socialAccount]).map((account, index) => (
-                  <div key={`${account.platform}-${account.profileUrl}-${index}`} className="flex items-center justify-between gap-2">
-                    <span className="min-w-0 truncate font-semibold">{account.nickname || mediaPlatformLabel[account.platform] || "未填昵称"}</span>
-                    <span className="shrink-0 font-black text-stone-900">{toCount(account.followerCount)}</span>
+                  <div key={`${account.platform}-${account.profileUrl}-${index}`} className="flex h-5 min-w-0 items-center gap-1.5">
+                    <span className="shrink-0 text-stone-400">{mediaPlatformLabel[account.platform] || "其他"}</span>
+                    {extractProfileUrl(account.profileUrl) ? <a className="min-w-0 truncate font-semibold text-[#6c27d6]" href={extractProfileUrl(account.profileUrl)} target="_blank" rel="noreferrer">{account.nickname || "未填昵称"}</a> : <span className="min-w-0 truncate font-semibold">{account.nickname || "未填昵称"}</span>}
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-1 text-xs text-stone-700">
+                {(profile.mediaAccounts?.length ? profile.mediaAccounts : [profile.socialAccount]).map((account, index) => (
+                  <div key={`${account.platform}-${account.profileUrl}-${index}`} className="flex h-5 items-center font-black text-stone-900">
+                    {toCount(account.followerCount)}
                   </div>
                 ))}
               </div>

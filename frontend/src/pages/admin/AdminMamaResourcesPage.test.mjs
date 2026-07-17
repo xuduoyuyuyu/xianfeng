@@ -54,6 +54,7 @@ test("admin mama resources page defaults to all profiles and exposes profile fil
 });
 
 test("admin mama resources page shows account cards without removed offer and case sync fields", () => {
+  assert.match(source, />平台账号</);
   assert.match(source, /粉丝数/);
   assert.match(source, /实名认证/);
   assert.match(source, /主页截图/);
@@ -70,7 +71,9 @@ test("admin mama resources page shows account cards without removed offer and ca
   assert.match(source, /className="flex flex-wrap content-start items-start gap-1"/);
   assert.match(source, /className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-\[#f6f0ff\] px-2 py-1 text-xs font-bold leading-none text-\[#5e17eb\]"/);
   assert.match(source, /profile\.mediaAccounts\?\.length \? profile\.mediaAccounts : \[profile\.socialAccount\]/);
-  assert.match(source, /account\.nickname \|\| mediaPlatformLabel\[account\.platform\] \|\| "未填昵称"/);
+  assert.match(source, /mediaPlatformLabel\[account\.platform\] \|\| "其他"/);
+  assert.match(source, /account\.nickname \|\| "未填昵称"/);
+  assert.match(source, /className="flex h-5 items-center font-black text-stone-900"/);
   assert.match(source, /toCount\(account\.followerCount\)/);
 });
 
@@ -80,6 +83,7 @@ test("admin mama resource api supports list, review, and manual update", () => {
   assert.match(apiSource, /screenshotUrl\?: string;/);
   assert.match(apiSource, /realNameVerified\?: boolean \| null;/);
   assert.match(apiSource, /getMamaResources: \(params\?: MamaResourceQuery\)/);
+  assert.match(apiSource, /contentCapabilities: params\.contentCapabilities\?\.join\(','\)/);
   assert.match(apiSource, /reviewMamaResource: \(id: string, data: MamaResourceReviewInput\)/);
   assert.match(apiSource, /updateMamaResource: \(id: string, data: Partial<MamaResourceProfile>\)/);
   assert.match(apiSource, /\/admin\/mama-resources/);
