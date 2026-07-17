@@ -47,6 +47,7 @@ test("admin users page keeps business IDs in the clicked detail instead of the t
   assert.doesNotMatch(source, /<th[^>]*>好赚 ID<\/th>/);
   assert.match(source, /\['用户 ID', overview\.user\._id\]/);
   assert.match(source, /\['好赚 ID', overview\.mamaProfile\?\._id \|\| '未开通'\]/);
+  assert.match(source, /\['UID', overview\.user\.publicUid \|\| '未生成'\]/);
 });
 
 test("admin users page exposes adjustable pagination", () => {

@@ -624,7 +624,7 @@ const AdminUsersPage: React.FC = () => {
                 <section className="rounded-2xl border border-stone-200 bg-white p-5">
                   <h3 className="text-sm font-black text-stone-900">基本资料</h3>
                   <div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
-                    {[['用户 ID', overview.user._id], ['好赚 ID', overview.mamaProfile?._id || '未开通'], ['站内昵称', overview.user.name || '未填写'], ['性别', overview.user.gender || '未填写'], ['家长身份', overview.user.parentRole || '未填写'], ['城市', overview.user.city || '未填写'], ['区域', overview.user.region || '未填写'], ['年级', overview.user.grade || overview.user.childGrade || '未填写'], ['会员', overview.user.membershipLabel || overview.user.proStatus || '免费用户'], ['点数', String(overview.user.proPointBalance || 0)], ['页面访问', `${overview.pageVisitCount} 次（最近 100 条）`]].map(([label, value]) => (
+                    {[['UID', overview.user.publicUid || '未生成'], ['用户 ID', overview.user._id], ['好赚 ID', overview.mamaProfile?._id || '未开通'], ['站内昵称', overview.user.name || '未填写'], ['性别', overview.user.gender || '未填写'], ['家长身份', overview.user.parentRole || '未填写'], ['城市', overview.user.city || '未填写'], ['区域', overview.user.region || '未填写'], ['年级', overview.user.grade || overview.user.childGrade || '未填写'], ['会员', overview.user.membershipLabel || overview.user.proStatus || '免费用户'], ['点数', String(overview.user.proPointBalance || 0)], ['页面访问', `${overview.pageVisitCount} 次（最近 100 条）`]].map(([label, value]) => (
                       <div key={label} className="rounded-xl bg-stone-50 px-3 py-3"><div className="text-xs font-bold text-stone-400">{label}</div><div className="mt-1 font-bold text-stone-800">{value}</div></div>
                     ))}
                   </div>

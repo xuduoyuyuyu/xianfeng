@@ -43,6 +43,7 @@ describe("admin user overview", () => {
       username: "u13800138000",
       mobile: "13800138000",
       password: "hashed",
+      publicUid: "718292950",
       name: "测试妈妈",
       city: "上海",
       region: "浦东新区",
@@ -84,6 +85,7 @@ describe("admin user overview", () => {
 
     assert.equal(res.statusCode, 200);
     assert.equal(res.body.user.name, "测试妈妈");
+    assert.equal(res.body.user.publicUid, "718292950");
     assert.equal(res.body.childProfiles[0].name, "小宝");
     assert.equal(res.body.mamaProfile.displayName, "测试妈妈");
     assert.equal(res.body.mamaAssignments[0].task.title, "测试发布任务");

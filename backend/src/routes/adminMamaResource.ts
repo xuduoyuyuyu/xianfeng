@@ -337,8 +337,16 @@ router.get("/", async (req: Request, res: Response) => {
         .lean(),
       MamaResourceProfile.countDocuments(filter),
     ]);
+    const userIds = items.map((item: any) => item.userId).filter(Boolean);
+    const users = userIds.length
+      ? await User.find({ _id: { $in: userIds } }).select("_id publicUid").lean()
+      : [];
+    const publicUidByUserId = new Map(users.map((user: any) => [String(user._id), asText(user.publicUid)]));
     res.json({
-      items: items.map(serializeProfile),
+      items: items.map((item: any) => ({
+        ...serializeProfile(item),
+        publicUid: publicUidByUserId.get(String(item.userId || "")) || "",
+      })),
       total,
       page,
       pageSize,

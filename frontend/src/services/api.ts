@@ -963,6 +963,7 @@ export interface GuestKnowledgeSyncResponse {
 
 export interface User {
   _id: string;
+  publicUid?: string;
   username: string;
   mobile?: string;
   role: 'admin' | 'user';

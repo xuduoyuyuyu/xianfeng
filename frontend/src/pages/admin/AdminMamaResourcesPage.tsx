@@ -913,6 +913,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
             <div key={profile._id} className="grid grid-cols-[1.2fr_0.9fr_1.25fr_0.65fr_auto] gap-3 border-b border-stone-100 px-4 py-4 text-sm last:border-b-0">
               <div className="min-w-0">
                 <div className="font-black text-stone-900">{profile.displayName}</div>
+                {profile.publicUid ? <div className="mt-1 text-xs font-normal text-[#6c27d6]">UID {profile.publicUid}</div> : null}
                 {extractProfileUrl(profile.socialAccount.profileUrl) ? <a className="mt-1 block truncate text-xs font-semibold text-[#6c27d6]" href={extractProfileUrl(profile.socialAccount.profileUrl)} target="_blank" rel="noreferrer">{profile.socialAccount.nickname || profile.socialAccount.profileUrl}</a> : <div className="mt-1 truncate text-xs font-semibold text-stone-500">{profile.socialAccount.nickname || "未识别主页链接"}</div>}
                 <div className="mt-1 text-xs text-stone-500">{profile.city || "未填城市"} · {profile.childStage || "未填阶段"} · {profile.childGender || "未填性别"}</div>
                 {profile.contentCapabilities?.length ? <div className="mt-1 text-xs font-semibold text-stone-500">创作能力 {profile.contentCapabilities.join("、")}</div> : null}
@@ -958,6 +959,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
               <div>
                 <div className="text-xs font-black text-stone-400">编辑资源详情</div>
                 <h2 className="mt-1 text-xl font-black text-stone-900">{editing.displayName}</h2>
+                {editing.publicUid ? <div className="mt-1 text-xs font-normal text-[#6c27d6]">UID {editing.publicUid}</div> : null}
                 <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold text-stone-600">
                   <span className={`rounded-full px-2.5 py-1 ${editing.socialAccount.realNameVerified === true ? "bg-emerald-50 text-emerald-700" : "bg-stone-100"}`}>{realNameLabel(editing.socialAccount.realNameVerified)}</span>
                   <span className={`rounded-full border px-2.5 py-1 ${statusClass[editing.status]}`}>{statusLabel[editing.status]}</span>
