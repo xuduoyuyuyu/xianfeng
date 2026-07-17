@@ -171,7 +171,7 @@ const ProgramDetailPage: React.FC = () => {
   const relatedPrograms = programs.filter((item) => item._id !== program?._id).slice(0, 4);
   const summary = program?.summary;
   const summaryHeadline = summary?.headline?.trim() || program?.title || "";
-  const summaryBody = cleanSummaryBody(summary?.body || program?.description) || "本期节目围绕家庭教育与成长展开讨论。";
+  const summaryBody = cleanSummaryBody(summary?.body || summary?.description || program?.description) || "本期节目围绕家庭教育与成长展开讨论。";
   const summaryHighlightLabel = summary?.highlightLabel || "";
   const summaryHighlightText = summary?.highlightText || (transcriptSegments[1]?.text && transcriptSegments[1].text !== summaryBody ? transcriptSegments[1].text : "");
   const summaryTags = (summary?.tags || []).filter(Boolean).slice(0, 4);

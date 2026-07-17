@@ -1852,7 +1852,7 @@
     const summaryHeadline = summary.headline || program.title || "本期节目";
     const summaryOverviewCard = document.getElementById("summary-overview-card");
     document.getElementById("summary-headline").innerHTML = '<span class="w-1.5 h-4 bg-primary rounded-xl"></span>' + summaryHeadline;
-    document.getElementById("summary-body").textContent = cleanSummaryBody(summary.body || program.description || "");
+    document.getElementById("summary-body").textContent = cleanSummaryBody(summary.body || summary.description || program.description || "");
     const hasHighlight = hasText(summary.highlightLabel) || hasText(summary.highlightText);
     const summaryHighlightCard = document.getElementById("summary-highlight-card");
     if (summaryHighlightCard) summaryHighlightCard.classList.toggle("hidden", !hasHighlight);

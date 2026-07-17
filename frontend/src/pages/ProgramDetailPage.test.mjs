@@ -84,3 +84,7 @@ test("program detail uses native mini program chrome spacing when embedded", () 
   assert.match(source, /padding-top: var\(--xf-mp-nav-height, 88px\) !important;/);
   assert.match(source, /padding-bottom: 0 !important;/);
 });
+
+test("program detail prefers generated summary prose over timeline-heavy episode descriptions", () => {
+  assert.match(source, /summary\?\.body \|\| summary\?\.description \|\| program\?\.description/);
+});

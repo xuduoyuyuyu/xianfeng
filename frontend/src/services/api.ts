@@ -84,6 +84,7 @@ export interface Episode {
 export interface ProgramSummary {
   headline: string;
   body: string;
+  description?: string;
   highlightLabel: string;
   highlightText: string;
   tags: string[];

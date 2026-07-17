@@ -7,6 +7,10 @@ import { dirname, resolve } from "node:path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(resolve(__dirname, "podcast-detail.html"), "utf8");
 
+test("podcast detail prefers generated summary prose over timeline-heavy episode descriptions", () => {
+  assert.match(source, /summary\.body \|\| summary\.description \|\| program\.description/);
+});
+
 test("podcast detail iframe uses the local optimized fallback guest avatar", () => {
   assert.match(source, /const FALLBACK_AVATAR = "\/assets\/wel-avatar\/optimized\/no-hat\.webp";/, "script fallback avatar should be local");
   assert.match(source, /function resolveGuestAvatar\(url\)/, "template should normalize missing and fallback avatar urls");
