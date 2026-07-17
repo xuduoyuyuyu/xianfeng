@@ -70,7 +70,7 @@ const PublicScreenRouter: React.FC = () => {
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const normalizedPathname = pathname.startsWith("/v2/") ? pathname.slice(3) : pathname === "/v2" ? "/" : pathname;
-  const screenRev = "20260708-podcast-detail-scroll-1";
+  const screenRev = "20260717-podcast-summary-1";
   const [programDetailFrameHeight, setProgramDetailFrameHeight] = React.useState<string | null>(null);
 
   useEffect(() => {
