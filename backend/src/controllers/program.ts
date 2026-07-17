@@ -1302,7 +1302,7 @@ async function tryAutoGenerate(
         const publicBaseUrl = process.env.VOLCENGINE_PUBLIC_BASE_URL || "";
         if (dlStat.size > FLASH_SAFE_MB * 1024 * 1024 && publicBaseUrl && uploadedAudioUrl.startsWith("http")) {
           console.log(`[ai-program] 远程音频 ${Math.round(dlStat.size/1024/1024)}MB 超过 ${FLASH_SAFE_MB}MB，使用 Standard 模式 + 远程 URL`);
-          transcribePath = "";
+          transcribePath = tmpFile;
           sourceUrlForAsr = uploadedAudioUrl;
         } else {
           transcribePath = tmpFile;
