@@ -20,7 +20,7 @@ page {
 
 .xf-welfare-hero {
   position: relative;
-  padding: 52rpx 0 34rpx;
+  padding: 72rpx 0 34rpx;
 }
 
 .xf-welfare-hero-row {

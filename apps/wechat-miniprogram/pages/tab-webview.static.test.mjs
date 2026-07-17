@@ -665,6 +665,7 @@ test("welfare opens as a native mini program page and hides backend 404 noise", 
   assert.match(page.js, /isNotFoundError\(error\)[\s\S]*activeCampaigns: \[\][\s\S]*historyCampaigns: \[\][\s\S]*message: ""/);
   assert.match(page.wxss, /\.xf-welfare-page \{[\s\S]*background: #f0edff;/);
   assert.match(page.wxss, /\.xf-welfare-page \{[\s\S]*font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Arial, sans-serif;/);
+  assert.match(page.wxss, /\.xf-welfare-hero \{[\s\S]*padding: 72rpx 0 34rpx;/);
   assert.match(page.wxss, /\.xf-welfare-title \{[\s\S]*font-size: 72rpx;/);
   assert.match(page.wxss, /\.xf-welfare-title \{[\s\S]*font-weight: 500;/);
   assert.match(page.wxss, /\.xf-welfare-subtitle \{[\s\S]*font-size: 30rpx;[\s\S]*font-weight: 700;[\s\S]*line-height: 1\.7;/);
