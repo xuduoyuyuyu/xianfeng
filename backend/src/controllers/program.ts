@@ -2101,11 +2101,15 @@ export class ProgramController {
         timeRangeLabel: q.timeRangeLabel || "",
         summary: q.summary || ""
       }));
+      const transcriptText = (p.transcript || []).map((segment: any) =>
+        `[${segment.time || ""}] ${segment.speaker || ""}：${segment.text || ""}`
+      ).join("\n");
 
       const node = await generateMindMap({
         title: p.title || "",
         summaryBody: (summary as any).body || p.description || "",
         highlightText: (summary as any).highlightText || "",
+        transcriptText,
         dictionaryEntries: dictEntries,
         quickView: quickView,
       });

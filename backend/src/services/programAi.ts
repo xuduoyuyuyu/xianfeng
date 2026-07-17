@@ -1971,6 +1971,7 @@ export async function generateMindMap(input: {
   title: string;
   summaryBody: string;
   highlightText: string;
+  transcriptText: string;
   dictionaryEntries: Array<{ term: string; definition: string }>;
   quickView: Array<{ timeRangeLabel: string; summary: string }>;
 }): Promise<MindMapNode | null> {
@@ -1999,6 +2000,9 @@ ${termsText}
 
 时间线摘要:
 ${quickViewText}
+
+整期逐字稿（脉络内容的主要依据）:
+${input.transcriptText.slice(0, 48000)}
 
 ⚠️ 纯净度要求:
 - 禁止输出ASR中的音乐歌词、歌曲信息
@@ -2038,6 +2042,8 @@ ${quickViewText}
 6. source.time 根据 quickView 时间线填写,确保时间格式为 HH:MM:SS(如 00:15:30)
 7. 只输出 JSON，不要任何解释文字、不要 markdown 代码块标记
 8. 忽略输入文本中的音乐片段、歌词——它们不属于知识树内容
+9. 必须综合整期逐字稿提炼主题，不得把时间线摘要按顺序改写成脉络
+10. 主题节点应体现问题、原因、方法、案例之间的结构关系，信息密度参考“考场心理学”样板
 
 请直接返回 JSON：`;
 

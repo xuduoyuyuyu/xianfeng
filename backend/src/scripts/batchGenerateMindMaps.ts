@@ -47,6 +47,9 @@ async function main() {
         title: p.title || "未命名",
         summaryBody: summary.body || p.description || "",
         highlightText: summary.highlightText || "",
+        transcriptText: (p.transcript || []).map((segment: any) =>
+          `[${segment.time || ""}] ${segment.speaker || ""}：${segment.text || ""}`
+        ).join("\n"),
         dictionaryEntries,
         quickView: quickView.map((q: any) => ({
           timeRangeLabel: q.timeRangeLabel || `${q.startTime}-${q.endTime}`,
