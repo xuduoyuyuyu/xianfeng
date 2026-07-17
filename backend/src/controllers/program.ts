@@ -60,21 +60,19 @@ async function resolveGuestSpeakerNames(payload: any, generatedGuestName?: unkno
     const name = asText(value);
     if (isUsableGuestSpeakerName(name) && !names.includes(name)) names.push(name);
   };
-  const bindings = Array.isArray(payload?.guestBindings) ? payload.guestBindings : [];
-  const guestIds = bindings.map((binding: any) => binding?.guestId).filter(Boolean);
-  if (guestIds.length) {
-    const guests = await GuestModel.find({ _id: { $in: guestIds } }).select("name").lean();
-    const namesById = new Map(guests.map((guest: any) => [String(guest._id), guest.name]));
-    for (const binding of bindings) addName(namesById.get(String(binding?.guestId)));
-  }
   const gradeAliases = extractGradeGuestAliases([
     payload?.title,
     payload?.description,
     payload?.guest?.bio,
     generatedGuestName,
   ]);
-  if (!names.length && gradeAliases.length > 1) {
-    for (const alias of gradeAliases) addName(alias);
+  if (gradeAliases.length > 1) return gradeAliases;
+  const bindings = Array.isArray(payload?.guestBindings) ? payload.guestBindings : [];
+  const guestIds = bindings.map((binding: any) => binding?.guestId).filter(Boolean);
+  if (guestIds.length) {
+    const guests = await GuestModel.find({ _id: { $in: guestIds } }).select("name").lean();
+    const namesById = new Map(guests.map((guest: any) => [String(guest._id), guest.name]));
+    for (const binding of bindings) addName(namesById.get(String(binding?.guestId)));
   }
   if (!names.length) {
     const fallbackNames = [payload?.guest?.name, generatedGuestName].map(asText).filter(isUsableGuestSpeakerName);
