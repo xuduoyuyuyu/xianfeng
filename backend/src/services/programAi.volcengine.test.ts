@@ -114,6 +114,13 @@ assert.equal(
   ], ["魏亚妮"]),
   null
 );
+assert.equal(
+  applyTranscriptSpeakerAssignments(singleSpeakerTranscript, [
+    { index: 0, speaker: "主播·阿力" },
+    { index: 1, speaker: "嘉宾·四年级学生" },
+  ], ["四年级学生", "六年级学生"]),
+  null
+);
 
 assert.equal(extractUtteranceSpeaker({ additions: { speaker: "2" } }), "2");
 assert.deepEqual(

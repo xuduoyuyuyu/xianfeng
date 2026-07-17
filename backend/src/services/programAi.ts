@@ -1142,7 +1142,8 @@ export function applyTranscriptSpeakerAssignments(
   const distinct = new Set(labels.values());
   const hasHost = Array.from(distinct).some((label) => label.startsWith("主播·"));
   const hasGuest = Array.from(distinct).some((label) => label.startsWith("嘉宾·"));
-  if (requireRoleMix && (!hasHost || (guestNames.length ? !hasGuest : distinct.size < 2))) return null;
+  const hasEveryGuest = guestNames.every((name) => distinct.has(`嘉宾·${name}`));
+  if (requireRoleMix && (!hasHost || (guestNames.length ? !hasGuest || !hasEveryGuest : distinct.size < 2))) return null;
   return transcript.map((segment, index) => ({ ...segment, speaker: labels.get(index)! }));
 }
 
@@ -1174,6 +1175,7 @@ async function attributeTranscriptSpeakersWithProvider(
     const prompt = [
       "你是播客逐字稿编辑。请判断每一段是谁在说话。",
       `主播标签只能是主播·阿力或主播·Jessie，嘉宾标签只能是嘉宾·姓名，姓名从这个名单选择：${guestNames.join("、")}。`,
+      guestNames.length > 1 ? `本期名单中的每位嘉宾都参与了对话，最终必须让这些嘉宾标签都至少出现一次：${guestNames.map((name) => `嘉宾·${name}`).join("、")}。` : "",
       "根据开场、自我介绍、提问与回答、上下文衔接判断。不得遗漏、合并或新增段落。",
       '只输出JSON：{"assignments":[{"index":0,"speaker":"主播·阿力"},{"index":1,"speaker":"嘉宾·张三"}]}。',
       JSON.stringify(segments),
@@ -1207,7 +1209,8 @@ async function attributeTranscriptSpeakersWithProvider(
   const speakers = new Set(attributed.map((segment) => segment.speaker));
   const hasHost = Array.from(speakers).some((speaker) => speaker.startsWith("主播·"));
   const hasGuest = Array.from(speakers).some((speaker) => speaker.startsWith("嘉宾·"));
-  if (!hasHost || (guestNames.length ? !hasGuest : speakers.size < 2)) return null;
+  const hasEveryGuest = guestNames.every((name) => speakers.has(`嘉宾·${name}`));
+  if (!hasHost || (guestNames.length ? !hasGuest || !hasEveryGuest : speakers.size < 2)) return null;
   return attributed;
 }
 
@@ -1431,7 +1434,8 @@ export async function ensureTranscriptQuality(input: {
   const speakers = new Set(refined.map((segment) => segment.speaker));
   const hasHost = Array.from(speakers).some((speaker) => speaker.startsWith("主播·"));
   const hasGuest = Array.from(speakers).some((speaker) => speaker.startsWith("嘉宾·"));
-  if (!hasHost || (guestNames.length ? !hasGuest : speakers.size < 2)) {
+  const hasEveryGuest = guestNames.every((name) => speakers.has(`嘉宾·${name}`));
+  if (!hasHost || (guestNames.length ? !hasGuest || !hasEveryGuest : speakers.size < 2)) {
     throw new Error(guestNames.length
       ? "逐字稿未同时识别主播与绑定嘉宾，已停止写入"
       : "双主播节目未可靠区分阿力与Jessie，已停止写入");
