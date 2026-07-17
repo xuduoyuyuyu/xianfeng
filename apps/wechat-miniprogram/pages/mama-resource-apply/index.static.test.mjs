@@ -167,6 +167,8 @@ test("mama resource profile management is always available and separates persona
   assert.match(jsSource, /const lockedXiaohongshuProfileUrl = asText\(draft\.originalXiaohongshuProfileUrl\)\.trim\(\);/);
   assert.match(jsSource, /xiaohongshuProfileUrl: lockedXiaohongshuProfileUrl \|\| draft\.xiaohongshuProfileUrl/);
   assert.match(wxssSource, /\.xf-mama-field input\.is-locked \{/);
+  assert.match(wxssSource, /\.xf-mama-field input,[\s\S]*\.xf-mama-picker \{[\s\S]*text-align: center;/);
+  assert.match(wxssSource, /\.xf-mama-field textarea \{[\s\S]*text-align: center;/);
   assert.match(jsSource, /nickname: draft\.xiaohongshuNickname/);
   assert.match(jsSource, /title: account\.nickname \|\| `\$\{account\.platformLabel \|\| "媒体"\}账号 \$\{index \+ 1\}`/);
   assert.match(jsSource, /summary: account\.platform === "xiaohongshu" \? "" :/);
@@ -329,7 +331,11 @@ test("mama resource task example images use native-loadable URLs without a fixed
 test("mama resource profile saves directly without a review gate", () => {
   assert.doesNotMatch(jsSource, /profile\.status !== "approved"[\s\S]*mamaResourceView: "reviewing"/);
   assert.match(jsSource, /submitProfileDraft\(options = \{\}\)/);
-  assert.match(jsSource, /saveCurrentProfileSectionAndBack\(\)[\s\S]*submitProfileDraft\(\{ stayInApply: true \}\)/);
+  assert.match(jsSource, /saveCurrentProfileSectionAndBack\(\)[\s\S]*backToProfileOverview\(\)/);
+  assert.match(jsSource, /savePersonalInfo\(event\)[\s\S]*请填写姓名\/昵称和微信号[\s\S]*backToProfileOverview\(\)/);
+  assert.match(jsSource, /saveMediaAccounts\(\)[\s\S]*请填写小红书账号昵称[\s\S]*请填写小红书主页链接[\s\S]*backToProfileOverview\(\)/);
+  assert.match(jsSource, /savePreferences\(event\)[\s\S]*backToProfileOverview\(\)/);
+  assert.match(jsSource, /submitMamaResourcePayload\(payload, options = \{\}\)[\s\S]*请先填写姓名\/昵称、微信号和小红书主页链接/);
   assert.match(jsSource, /status: "approved"/);
   assert.match(jsSource, /mamaResourceView: "tasks"/);
   assert.match(jsSource, /资料已保存，运营会按备注跟进/);

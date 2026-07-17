@@ -1191,7 +1191,7 @@ Page({
 
   saveCurrentProfileSectionAndBack() {
     if (this.data.submitting) return;
-    this.submitProfileDraft({ stayInApply: true });
+    this.backToProfileOverview();
   },
 
   updateTaskProofLink(event) {
@@ -1329,7 +1329,7 @@ Page({
 
   savePersonalInfo(event) {
     const values = (event && event.detail && event.detail.value) || {};
-    updatePageApplyDraft(this, {
+    const draft = updatePageApplyDraft(this, {
       displayName: String(values.displayName || "").trim(),
       contactPhone: String(values.contactPhone || "").trim(),
       contactWechat: String(values.contactWechat || "").trim(),
@@ -1340,13 +1340,26 @@ Page({
       childGender: this.data.childGender,
       contentCapabilities: this.data.contentCapabilities
     });
-    this.submitProfileDraft({ stayInApply: true });
+    if (!draft.displayName || !draft.contactWechat) {
+      this.setData({ message: "请填写姓名/昵称和微信号", messageType: "error" });
+      return;
+    }
+    if (!draft.alipayAccount || !draft.alipayVerifiedName) {
+      this.setData({ message: "请填写支付宝账号和验证姓名", messageType: "error" });
+      return;
+    }
+    this.backToProfileOverview();
   },
 
   saveMediaAccounts() {
     const draft = this.data.formDraft || {};
+    const xiaohongshuProfileUrl = asText(draft.originalXiaohongshuProfileUrl || draft.xiaohongshuProfileUrl).trim();
     if (!asText(draft.xiaohongshuNickname).trim()) {
       this.setData({ message: "请填写小红书账号昵称", messageType: "error" });
+      return;
+    }
+    if (!xiaohongshuProfileUrl) {
+      this.setData({ message: "请填写小红书主页链接", messageType: "error" });
       return;
     }
     const missingNicknameIndex = normalizeExtraMediaAccounts(this.data.mediaAccounts).findIndex((account) => !account.nickname);
@@ -1354,7 +1367,7 @@ Page({
       this.setData({ message: `请填写第${missingNicknameIndex + 2}个账号的账号昵称`, messageType: "error" });
       return;
     }
-    this.submitProfileDraft({ stayInApply: true });
+    this.backToProfileOverview();
   },
 
   savePreferences(event) {
@@ -1366,7 +1379,7 @@ Page({
       blockedCategories: String(values.blockedCategories || "").trim(),
       consentAccepted: true
     });
-    this.submitProfileDraft({ stayInApply: true });
+    this.backToProfileOverview();
   },
 
   updateMediaAccountField(event) {
