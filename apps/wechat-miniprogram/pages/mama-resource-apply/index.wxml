@@ -221,7 +221,7 @@
 
     <block wx:elif="{{mamaResourceView === 'tasks'}}">
       <view class="xf-mama-task-hero">
-        <image class="xf-mama-task-mascot" src="/assets/wel-avatar/xiaowanzi-turban.png" mode="aspectFit" />
+        <image class="xf-mama-task-mascot" src="https://xianfeng.xinzhi.info/wel/assets/wel-avatar/xiaowanzi-turban.png" mode="aspectFit" />
         <view class="xf-mama-task-identity">
           <view class="xf-mama-task-hero-copy">
             <text class="xf-mama-task-title">好赚</text>
