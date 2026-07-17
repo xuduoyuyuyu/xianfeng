@@ -10,10 +10,20 @@ import {
   isVolcengineStandardQueryComplete,
   needsTranscriptSpeakerAttribution,
   normalizeVolcenginePublicSourceUrl,
+  sanitizeGeneratedSummaryBody,
   shouldContinueVolcengineStandardPolling,
   shouldAttemptVolcengineFlashEndpoint,
   shouldUseVolcengineStandardEndpoint,
 } from "./programAi";
+
+assert.equal(
+  sanitizeGeneratedSummaryBody("本期围绕中高考作文命题展开讨论。 📢本期嘉宾：夏智老师 00:00:31 简评作文"),
+  "本期围绕中高考作文命题展开讨论。"
+);
+assert.equal(
+  sanitizeGeneratedSummaryBody("节目分析了作文命题与评分标准。 00:05:57 解读成全的深层含义"),
+  "节目分析了作文命题与评分标准。"
+);
 
 assert.deepEqual(extractGradeGuestAliases([
   "邀请三位小朋友，分别就读四年级、六年级和七年级。",

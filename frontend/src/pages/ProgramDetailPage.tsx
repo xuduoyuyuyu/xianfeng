@@ -54,6 +54,17 @@ function hasText(value?: string | null): boolean {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+function cleanSummaryBody(value?: string | null): string {
+  const text = (value || "").trim();
+  const boundaries = [
+    text.indexOf("本期嘉宾"),
+    text.search(/\b\d{1,2}:\d{2}(?::\d{2})?\b/u),
+  ].filter((index) => index >= 0);
+  return (boundaries.length > 0 ? text.slice(0, Math.min(...boundaries)) : text)
+    .replace(/[📢🎙️🎵🎶📮\s]+$/gu, "")
+    .trim();
+}
+
 function normalizeCuratedReadingKey(value?: string): string {
   return (value || "").trim().toLowerCase().replace(/\s+/g, " ");
 }
@@ -160,7 +171,7 @@ const ProgramDetailPage: React.FC = () => {
   const relatedPrograms = programs.filter((item) => item._id !== program?._id).slice(0, 4);
   const summary = program?.summary;
   const summaryHeadline = summary?.headline?.trim() || program?.title || "";
-  const summaryBody = summary?.body || program?.description || "本期节目围绕家庭教育与成长展开讨论。";
+  const summaryBody = cleanSummaryBody(summary?.body || program?.description) || "本期节目围绕家庭教育与成长展开讨论。";
   const summaryHighlightLabel = summary?.highlightLabel || "";
   const summaryHighlightText = summary?.highlightText || (transcriptSegments[1]?.text && transcriptSegments[1].text !== summaryBody ? transcriptSegments[1].text : "");
   const summaryTags = (summary?.tags || []).filter(Boolean).slice(0, 4);

@@ -908,10 +908,22 @@ function buildMetadataPrompt(input: { plainText: string }): string {
     "6) minutes.text 为整期内容纪要,不基于时间戳,控制在 1000 字以内,用段落形式而非列表。",
     "7) showNotes.keyMoments 使用'时间 + 要点'格式，要点可直接转发分享。",
     "8) 忽略文本中的音乐片段、歌词、歌曲信息--这些不属于节目内容。",
+    "9) summary.body 只写整期内容的总结性概括；禁止写时间戳、时间轴、本期嘉宾/主播/音乐信息或关于我们等节目尾注。",
     "",
     "文本内容(注意:去除了音乐/歌词段的纯净文本):",
     input.plainText.slice(0, 12000),
   ].join("\n");
+}
+
+export function sanitizeGeneratedSummaryBody(value: unknown): string {
+  const text = asText(value);
+  if (!text) return "";
+  const boundaryIndexes = [
+    text.search(/本期嘉宾/u),
+    text.search(/\b\d{1,2}:\d{2}(?::\d{2})?\b/u),
+  ].filter((index) => index >= 0);
+  const clean = boundaryIndexes.length > 0 ? text.slice(0, Math.min(...boundaryIndexes)) : text;
+  return clean.replace(/[📢🎙️🎵🎶📮\s]+$/gu, "").trim();
 }
 
 function normalizeMetadataResult(
@@ -982,7 +994,7 @@ function normalizeMetadataResult(
     episodeDuration: `${Math.max(1, Math.round((input.durationSeconds || 180) / 60))} 分钟`,
     summary: {
       headline: cleanStr(parsed?.summary?.headline),
-      body: cleanStr(parsed?.summary?.body),
+      body: sanitizeGeneratedSummaryBody(cleanStr(parsed?.summary?.body)),
       highlightLabel: cleanStr(parsed?.summary?.highlightLabel),
       highlightText: cleanStr(parsed?.summary?.highlightText),
       tags: cleanArray(parsed?.summary?.tags),

@@ -1512,6 +1512,17 @@
     return String(value || "").trim().length > 0;
   }
 
+  function cleanSummaryBody(value) {
+    var text = String(value || "").trim();
+    var boundaries = [
+      text.indexOf("本期嘉宾"),
+      text.search(/\b\d{1,2}:\d{2}(?::\d{2})?\b/)
+    ].filter(function (index) { return index >= 0; });
+    return (boundaries.length ? text.slice(0, Math.min.apply(Math, boundaries)) : text)
+      .replace(/[📢🎙️🎵🎶📮\s]+$/g, "")
+      .trim();
+  }
+
   function hasMindMapContent(deepDive) {
     const mindMap = deepDive && deepDive.mindMap;
     const root = mindMap && mindMap.root;
@@ -1841,7 +1852,7 @@
     const summaryHeadline = summary.headline || program.title || "本期节目";
     const summaryOverviewCard = document.getElementById("summary-overview-card");
     document.getElementById("summary-headline").innerHTML = '<span class="w-1.5 h-4 bg-primary rounded-xl"></span>' + summaryHeadline;
-    document.getElementById("summary-body").textContent = summary.body || program.description || "";
+    document.getElementById("summary-body").textContent = cleanSummaryBody(summary.body || program.description || "");
     const hasHighlight = hasText(summary.highlightLabel) || hasText(summary.highlightText);
     const summaryHighlightCard = document.getElementById("summary-highlight-card");
     if (summaryHighlightCard) summaryHighlightCard.classList.toggle("hidden", !hasHighlight);
