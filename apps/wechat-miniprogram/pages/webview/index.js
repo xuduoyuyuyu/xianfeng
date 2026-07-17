@@ -360,6 +360,17 @@ function firstText(values, fallback) {
   return fallback;
 }
 
+function sanitizeProgramSummaryBody(value) {
+  const text = String(value || "").trim();
+  const boundaries = [
+    text.indexOf("本期嘉宾"),
+    text.search(/\b\d{1,2}:\d{2}(?::\d{2})?\b/)
+  ].filter((index) => index >= 0);
+  return (boundaries.length ? text.slice(0, Math.min(...boundaries)) : text)
+    .replace(/[📢🎙️🎵📮\s]+$/g, "")
+    .trim();
+}
+
 function sanitizeNativeTopicSharePath(value) {
   const source = String(value || "").trim() || "/topics";
   try {
@@ -864,11 +875,12 @@ function normalizeProgramDetail(program) {
   const tags = normalizeTags(summary.tags);
   const title = firstText([item.title], "节目详情");
   const showLabel = String(item.programShow || "").trim() === "zhiji" ? "中年知己" : "家长先疯";
-  const summaryBody = firstText([
+  const summaryBody = sanitizeProgramSummaryBody(firstText([
     summary.body,
+    summary.description,
     item.description,
     item.contentPack && item.contentPack.minutes && item.contentPack.minutes.text
-  ], "本期节目围绕家庭教育与成长展开讨论。");
+  ], "本期节目围绕家庭教育与成长展开讨论。"));
 
   return {
     id: firstText([item._id, item.programCode, title], title),
