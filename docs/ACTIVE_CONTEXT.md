@@ -1,11 +1,28 @@
 # Active Context - Xianfeng
 
-Last rewritten: 2026-07-15
+Last rewritten: 2026-07-17
 
 > This file is a SNAPSHOT, not a journal. Rewrite it at every workstream close,
 > keep it around 60 lines, and use git history for older context.
 
 ## Current Focus
+
+Production program-content recovery is closed for automatic processing. Of 129
+visible programs, 125 now have a transcript, a valid content pack, and valid
+deep-dive content. Transcript labels are constrained to `主播·阿力`,
+`主播·Jessie`, and named `嘉宾·…` roles; recovered samples stayed within the
+200-character paragraph cap. Four multi-guest programs remain isolated for
+manual speaker attribution because strict validation rejected them without
+overwriting existing content: `6982bf7670aae7e967849f92`,
+`682321da24f8559346634127`, `6a1bd1847460cabdeb589754`, and
+`69d49d37b977fb2c47487017`. Full-transcript mind-map regeneration remains
+blocked by tenant policy and must not be routed around.
+
+Program summary rendering now prefers generated summary prose over the raw
+episode description and truncates compatibility fallbacks at `本期嘉宾` or the
+first timestamp. The live 2025 Shanghai essay episode therefore displays only
+its concise thematic summary, without guest, timeline, host, music, or footer
+metadata. Commits `7e47238b` and `a7394a2a` are deployed to production.
 
 Guest detail pages split legacy semicolon-delimited book source strings into
 real list names, remove exact normalized duplicates in first-seen order, and
@@ -101,6 +118,7 @@ with more claims than codes reject updates until operators correct the data.
 
 | Workstream | State | Waiting on |
 | --- | --- | --- |
+| Production program-content recovery | completed | Four isolated multi-guest programs require manual speaker attribution; thematic mind-map regeneration is policy-blocked |
 | Mini-program profile onboarding and list personalization | active | WeChat DevTools/device visual and logged-in sync verification |
 | WeChat mini-program virtual payment | active | WeChat后台 product/callback config, public HTTPS sandbox callback/backend, and DevTools/device sandbox validation |
 | Mama Haozhuan task dispatch | active | Admin and mini-program runtime review of per-user content links, plus mobile Web authenticated runtime and visual review; SMS intentionally excluded |
@@ -122,6 +140,12 @@ with more claims than codes reject updates until operators correct the data.
 - `docs/ACTIVE_CONTEXT.md` is rewritten, not appended.
 
 ## Recent Decisions
+
+- 2026-07-17 - Reject recovery output unless it preserves named host/guest
+  attribution and the 200-character paragraph cap; failed strict validation
+  does not overwrite prior content. Prefer generated summary prose in program
+  detail and never display guest, timestamp, host, music, or footer metadata in
+  the summary card.
 
 - 2026-07-16 - Treat a Mama Haozhuan task claim as the sole authority for
   content dispatch. Do not create assignments from task auto-match, admin
