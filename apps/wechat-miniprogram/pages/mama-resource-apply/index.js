@@ -895,7 +895,9 @@ Page({
           taskClaiming: false,
           taskProofLink: claimedTask.proofLink || "",
           taskProofScreenshotUrl: claimedTask.proofScreenshotUrl || "",
-          taskMessage: "领取成功，请按要求完成后提交回填",
+          taskMessage: claimedTask.hasContentUrl
+            ? "领取成功，内容已下发，请按要求完成后提交反馈"
+            : "领取成功，请等待运营审核并下发具体内容链接",
           taskMessageType: "success"
         });
       })

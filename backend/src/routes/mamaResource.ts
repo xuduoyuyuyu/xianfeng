@@ -431,6 +431,15 @@ router.post("/me/tasks/:taskId/submissions", authenticate, async (req: Authentic
       res.status(400).json({ message: "请上传完成截图" });
       return;
     }
+    const assignment = await MamaResourceTaskAssignment.findOne({ _id: asText(req.params.taskId), profileId: profile._id }).select("contentUrl").lean();
+    if (!assignment) {
+      res.status(404).json({ message: "任务不存在" });
+      return;
+    }
+    if (!asText(assignment.contentUrl)) {
+      res.status(409).json({ message: "请等待运营下发具体内容链接后再提交反馈" });
+      return;
+    }
     const task = await MamaResourceTaskAssignment.findOneAndUpdate(
       { _id: asText(req.params.taskId), profileId: profile._id },
       {

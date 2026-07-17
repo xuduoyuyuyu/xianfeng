@@ -416,13 +416,10 @@ router.post("/tasks/:taskId/content-links", async (req: Request, res: Response) 
 router.patch("/tasks/assignments/:assignmentId/content", async (req: Request, res: Response) => {
   try {
     const contentUrl = normalizeContentUrl(req.body?.contentUrl);
-    if (!contentUrl) {
-      res.status(400).json({ message: "请填写专属内容链接" });
-      return;
-    }
+    const contentUpdatedAt = contentUrl ? new Date() : null;
     const assignment = await MamaResourceTaskAssignment.findOneAndUpdate(
       idQuery(asText(req.params.assignmentId)),
-      { contentUrl, contentUpdatedAt: new Date() },
+      { contentUrl, contentUpdatedAt },
       { returnDocument: "after", runValidators: true }
     )
       .populate("taskId")
@@ -430,6 +427,13 @@ router.patch("/tasks/assignments/:assignmentId/content", async (req: Request, re
     if (!assignment) {
       res.status(404).json({ message: "任务账号不存在" });
       return;
+    }
+    if (!contentUrl) {
+      await MamaResourceTaskContentLink.updateMany(
+        { assignmentId: assignment._id },
+        { $set: { assignmentId: null, assignedProfileId: null, assignedAt: null } }
+      );
+      await syncMamaResourceTaskContentState(assignment.taskId);
     }
     res.json({ assignment: (await serializeAssignmentsWithUsers([assignment]))[0] });
   } catch (error: any) {

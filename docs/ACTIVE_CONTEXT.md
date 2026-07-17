@@ -65,6 +65,10 @@ screenshots are marked returned, missing screenshots are marked not returned,
 and missing screenshots after 24 hours are marked overdue. Admin can filter all
 three states from quick choices in the existing user-filter area without
 storing a second status field.
+Claiming a task only reserves participation. Until operations assigns a
+non-empty personal content URL, clients show a waiting-for-review message and
+hide proof submission and transfer credentials; the backend also rejects early
+proof submissions. Feedback controls appear only after content is assigned.
 
 Admin user management now opens a read-only user-360 detail from each account.
 It aggregates the site profile, Xiaowanzi child profiles and child memories,

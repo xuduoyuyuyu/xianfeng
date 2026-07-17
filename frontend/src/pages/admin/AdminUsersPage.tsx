@@ -145,10 +145,12 @@ const AdminUsersPage: React.FC = () => {
 
   const filterOptions = useMemo(() => ({
     cities: Array.from(new Set(items.map((row) => row.city).filter(Boolean))).sort(),
-    regions: Array.from(new Set(items.map((row) => row.region).filter(Boolean))).sort(),
+    regions: cityFilter
+      ? Array.from(new Set(items.filter((row) => row.city === cityFilter).map((row) => row.region).filter(Boolean))).sort()
+      : [],
     childStages: Array.from(new Set(items.flatMap((row) => row.childStages || []))).sort(),
     grades: Array.from(new Set(items.flatMap((row) => [row.grade, row.childGrade, ...(row.childGrades || [])].filter(Boolean)))).sort(),
-  }), [items]);
+  }), [items, cityFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
   const pagedItems = useMemo(() => {
@@ -380,8 +382,9 @@ const AdminUsersPage: React.FC = () => {
       <div className="bg-white rounded-2xl border border-stone-100 overflow-hidden">
         <div className="flex flex-col gap-4 border-b border-stone-100 px-6 py-5">
           <div className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500">用户列表</div>
-          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
-            <div className="relative md:col-span-2">
+          <div className="overflow-x-auto pb-1">
+          <div className="grid min-w-[1280px] grid-cols-[minmax(280px,2fr)_repeat(6,minmax(140px,1fr))] gap-2">
+            <div className="relative">
             <input
               className="w-full rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-stone-900 caret-[#5e17eb] placeholder:text-stone-400 transition-all focus:border-[#5e17eb] focus:ring-4 focus:ring-[#5e17eb]/5"
               placeholder="搜索用户名 / 昵称 / 手机号 / 角色 / 城市 / 区域 / 年级"
@@ -390,12 +393,13 @@ const AdminUsersPage: React.FC = () => {
             />
             <span className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 text-base">search</span>
             </div>
-            <select className={inputClass} value={mamaFilter} onChange={(event) => setMamaFilter(event.target.value)}><option value="">全部好赚状态</option><option value="true">是好赚用户</option><option value="false">非好赚用户</option></select>
+            <select className={inputClass} value={mamaFilter} onChange={(event) => setMamaFilter(event.target.value)}><option value="">全部</option><option value="true">好赚</option></select>
             <select className={inputClass} value={membershipFilter} onChange={(event) => setMembershipFilter(event.target.value)}><option value="">全部会员</option><option value="free">免费用户</option><option value="plus">Plus</option><option value="pro">Pro</option></select>
-            <select className={inputClass} value={cityFilter} onChange={(event) => setCityFilter(event.target.value)}><option value="">全部城市</option>{filterOptions.cities.map((value) => <option key={value} value={value}>{value}</option>)}</select>
-            <select className={inputClass} value={regionFilter} onChange={(event) => setRegionFilter(event.target.value)}><option value="">全部区域</option>{filterOptions.regions.map((value) => <option key={value} value={value}>{value}</option>)}</select>
+            <select className={inputClass} value={cityFilter} onChange={(event) => { setCityFilter(event.target.value); setRegionFilter(""); }}><option value="">全部城市</option>{filterOptions.cities.map((value) => <option key={value} value={value}>{value}</option>)}</select>
+            <select className={inputClass} value={regionFilter} disabled={!cityFilter} onChange={(event) => setRegionFilter(event.target.value)}><option value="">{cityFilter ? "全部区域" : "请先选择城市"}</option>{filterOptions.regions.map((value) => <option key={value} value={value}>{value}</option>)}</select>
             <select className={inputClass} value={childStageFilter} onChange={(event) => setChildStageFilter(event.target.value)}><option value="">全部孩子年龄段</option>{filterOptions.childStages.map((value) => <option key={value} value={value}>{value}</option>)}</select>
             <select className={inputClass} value={gradeFilter} onChange={(event) => setGradeFilter(event.target.value)}><option value="">全部年级</option>{filterOptions.grades.map((value) => <option key={value} value={value}>{value}</option>)}</select>
+          </div>
           </div>
         </div>
 
@@ -408,12 +412,10 @@ const AdminUsersPage: React.FC = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-                <table className="w-full min-w-[1320px] text-left">
+                <table className="w-full min-w-[1120px] text-left">
               <thead className="bg-white text-stone-500 uppercase text-[10px] font-black tracking-[0.2em]">
                 <tr>
                   <th className="px-4 py-3">用户名</th>
-                  <th className="px-4 py-3">用户 ID</th>
-                  <th className="px-4 py-3">好赚 ID</th>
                   <th className="px-4 py-3">昵称</th>
                   <th className="px-4 py-3">手机号</th>
                   <th className="px-4 py-3">角色</th>
@@ -436,8 +438,6 @@ const AdminUsersPage: React.FC = () => {
                       <td className="px-4 py-3">
                         <button type="button" onClick={() => openOverview(row)} className="text-left text-sm font-bold text-stone-900 hover:text-[#5e17eb]" title="查看用户画像与时间线">{row.username}</button>
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs text-stone-600">{row._id}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-stone-600">{row.mamaResourceId || "-"}</td>
                       <td className="px-4 py-3">
                         <input
                           className={`w-24 ${inputClass}`}
@@ -624,7 +624,7 @@ const AdminUsersPage: React.FC = () => {
                 <section className="rounded-2xl border border-stone-200 bg-white p-5">
                   <h3 className="text-sm font-black text-stone-900">基本资料</h3>
                   <div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
-                    {[['站内昵称', overview.user.name || '未填写'], ['性别', overview.user.gender || '未填写'], ['家长身份', overview.user.parentRole || '未填写'], ['城市', overview.user.city || '未填写'], ['区域', overview.user.region || '未填写'], ['年级', overview.user.grade || overview.user.childGrade || '未填写'], ['会员', overview.user.membershipLabel || overview.user.proStatus || '免费用户'], ['点数', String(overview.user.proPointBalance || 0)], ['页面访问', `${overview.pageVisitCount} 次（最近 100 条）`]].map(([label, value]) => (
+                    {[['用户 ID', overview.user._id], ['好赚 ID', overview.mamaProfile?._id || '未开通'], ['站内昵称', overview.user.name || '未填写'], ['性别', overview.user.gender || '未填写'], ['家长身份', overview.user.parentRole || '未填写'], ['城市', overview.user.city || '未填写'], ['区域', overview.user.region || '未填写'], ['年级', overview.user.grade || overview.user.childGrade || '未填写'], ['会员', overview.user.membershipLabel || overview.user.proStatus || '免费用户'], ['点数', String(overview.user.proPointBalance || 0)], ['页面访问', `${overview.pageVisitCount} 次（最近 100 条）`]].map(([label, value]) => (
                       <div key={label} className="rounded-xl bg-stone-50 px-3 py-3"><div className="text-xs font-bold text-stone-400">{label}</div><div className="mt-1 font-bold text-stone-800">{value}</div></div>
                     ))}
                   </div>

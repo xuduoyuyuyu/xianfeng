@@ -225,6 +225,10 @@ test("approved mama resource account can view assigned tasks and submit proof", 
   assert.match(jsSource, /function formatDateText\(value\)/);
   assert.match(wxmlSource, /提交回填/);
   assert.match(wxmlSource, /上传完成截图/);
+  assert.match(wxmlSource, /wx:if="\{\{!currentMamaTask\.isClaimable && !currentMamaTask\.hasContentUrl\}\}"[\s\S]*已领取，等待运营下发/);
+  assert.match(wxmlSource, /wx:if="\{\{!currentMamaTask\.isClaimable && currentMamaTask\.hasContentUrl\}\}"[^>]*class="xf-mama-proof-card"/);
+  assert.match(wxmlSource, /placeholder="粘贴笔记内容"/);
+  assert.match(wxmlSource, /此操作只是领取任务。领取后请等待运营下发具体内容链接并完成审核/);
   assert.match(wxssSource, /\.xf-mama-proof-card \{[\s\S]*padding: 6rpx 24rpx 28rpx;/);
   assert.match(wxssSource, /\.xf-mama-proof-card \.xf-mama-section-title \{[\s\S]*padding-left: 0;[\s\S]*padding-right: 0;/);
 });
@@ -255,7 +259,7 @@ test("assigned users can tap the personal content link to copy it silently", () 
 test("assigned users can preview a read-only transfer credential", () => {
   assert.match(jsSource, /transferScreenshotUrl: normalizeMamaResourceImageUrl\(source\.transferScreenshotUrl\)/);
   assert.match(jsSource, /previewTransferScreenshot\(\)[\s\S]*wx\.previewImage\(\{ current, urls: \[current\] \}\)/);
-  assert.match(wxmlSource, /wx:if="\{\{currentMamaTask\.transferScreenshotUrl\}\}"[\s\S]*转账凭证/);
+  assert.match(wxmlSource, /wx:if="\{\{currentMamaTask\.hasContentUrl && currentMamaTask\.transferScreenshotUrl\}\}"[\s\S]*转账凭证/);
   assert.match(wxmlSource, /src="\{\{currentMamaTask\.transferScreenshotUrl\}\}"[^>]*catchtap="previewTransferScreenshot"/);
   assert.match(wxmlSource, /class="xf-mama-proof-card"[\s\S]*完成链接[\s\S]*class="xf-mama-transfer-card"[\s\S]*转账凭证/);
   assert.doesNotMatch(wxmlSource, /class="xf-mama-transfer-card"[\s\S]*转账凭证[\s\S]*class="xf-mama-proof-card"/);

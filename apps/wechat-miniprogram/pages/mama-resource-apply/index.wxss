@@ -1133,6 +1133,41 @@ page {
   background: #ffffff;
 }
 
+.xf-mama-claim-note,
+.xf-mama-waiting-title,
+.xf-mama-waiting-copy {
+  display: block;
+}
+
+.xf-mama-claim-note {
+  color: #75668e;
+  font-size: 23rpx;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.xf-mama-waiting-card {
+  margin: 24rpx;
+  padding: 24rpx;
+  border: 2rpx solid #e4d7ff;
+  border-radius: 22rpx;
+  background: #f8f4ff;
+}
+
+.xf-mama-waiting-title {
+  color: #4e1e95;
+  font-size: 27rpx;
+  font-weight: 900;
+}
+
+.xf-mama-waiting-copy {
+  margin-top: 10rpx;
+  color: #75668e;
+  font-size: 23rpx;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
 .xf-mama-transfer-card {
   margin-top: 20rpx;
   padding: 22rpx;

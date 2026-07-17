@@ -291,12 +291,17 @@ test("assigned task detail uploads and submits proof while preserving returned t
   assert.match(source, /publicApi\.uploadMamaResourceScreenshot\(file\)/);
   assert.match(source, /publicApi\.submitMamaResourceTaskProof\(assignmentTaskIdentity\(selectedTask\), \{\s*proofLink,\s*proofScreenshotUrl,?\s*\}\)/);
   assert.match(source, /提交回填/);
+  assert.match(source, /!task\.claimable && contentUrl \? <div/);
+  assert.match(source, /!task\.claimable && !contentUrl \? <div/);
+  assert.match(source, /已领取，等待运营下发/);
+  assert.match(source, /placeholder="粘贴笔记内容"/);
+  assert.match(source, /此操作只是领取任务。领取后请等待运营下发具体内容链接并完成审核/);
   assert.match(source, /setSelectedTask\(updatedTask\)/);
   assert.match(source, /setTasks\(\(current\) => current\.map/);
 });
 
 test("assigned task detail shows a read-only transfer credential when present", () => {
-  assert.match(source, /task\.transferScreenshotUrl \? <div/);
+  assert.match(source, /contentUrl && task\.transferScreenshotUrl \? <div/);
   assert.match(source, /转账凭证/);
   assert.match(source, /href=\{task\.transferScreenshotUrl\}/);
   assert.match(source, /src=\{task\.transferScreenshotUrl\}/);

@@ -851,16 +851,34 @@ describe("mama resource pool routes", () => {
     assert.equal(listData.tasks[0]._id, assigned.assignments[0]._id);
     assert.equal(listData.tasks[0].taskId, created.task._id);
 
+    const proofPayload = {
+      proofLink: "https://www.xiaohongshu.com/explore/comment-proof",
+      proofScreenshotUrl: "/uploads/mama-resources/proof.png",
+    };
+    const earlySubmitResponse = await fetch(`${server.publicUrl}/me/tasks/${assigned.assignments[0]._id}/submissions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(proofPayload),
+    });
+    assert.equal(earlySubmitResponse.status, 409);
+
+    const contentResponse = await fetch(`${server.adminUrl}/tasks/assignments/${assigned.assignments[0]._id}/content`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contentUrl: "https://my.feishu.cn/wiki/assigned-content" }),
+    });
+    assert.equal(contentResponse.status, 200);
+
     const submitResponse = await fetch(`${server.publicUrl}/me/tasks/${assigned.assignments[0]._id}/submissions`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        proofLink: "https://www.xiaohongshu.com/explore/comment-proof",
-        proofScreenshotUrl: "/uploads/mama-resources/proof.png",
-      }),
+      body: JSON.stringify(proofPayload),
     });
     assert.equal(submitResponse.status, 200);
     const submitted = await submitResponse.json();
@@ -1125,6 +1143,19 @@ describe("mama resource pool routes", () => {
     assert.equal(manualResponse.status, 200);
     const manualData = await manualResponse.json();
     assert.equal(manualData.assignment.contentUrl, "https://my.feishu.cn/wiki/manual-link");
+
+    const clearManualResponse = await fetch(`${server.adminUrl}/tasks/assignments/${existingAssignment._id}/content`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contentUrl: "" }),
+    });
+    assert.equal(clearManualResponse.status, 200);
+    const clearManualData = await clearManualResponse.json();
+    assert.equal(clearManualData.assignment.contentUrl, "");
+    assert.equal(clearManualData.assignment.contentUpdatedAt, null);
+    const clearedAssignment = await MamaResourceTaskAssignment.findById(existingAssignment._id).lean();
+    assert.equal(clearedAssignment?.contentUrl, "");
+    assert.equal(clearedAssignment?.contentUpdatedAt, null);
 
     const invalidManualResponse = await fetch(`${server.adminUrl}/tasks/assignments/${existingAssignment._id}/content`, {
       method: "PATCH",

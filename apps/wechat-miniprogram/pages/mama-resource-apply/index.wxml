@@ -328,14 +328,20 @@
           </view>
 
           <view wx:if="{{currentMamaTask.isClaimable}}" class="xf-mama-task-actions">
+            <text class="xf-mama-claim-note">此操作只是领取任务。领取后请等待运营下发具体内容链接并完成审核，内容下发前无需填写反馈。</text>
             <button class="xf-mama-submit" data-action="claim" open-type="{{isLoggedIn ? '' : 'getPhoneNumber'}}" bindgetphonenumber="authorizeMamaResourceAction" disabled="{{taskClaiming}}" catchtap="claimMamaTask">{{taskClaiming ? "领取中..." : "立即领取"}}</button>
+          </view>
+
+          <view wx:if="{{!currentMamaTask.isClaimable && !currentMamaTask.hasContentUrl}}" class="xf-mama-waiting-card">
+            <text class="xf-mama-waiting-title">已领取，等待运营下发</text>
+            <text class="xf-mama-waiting-copy">当前只是领取任务。运营审核后会下发具体内容链接，收到内容后再按要求完成并提交反馈。</text>
           </view>
 
           <view wx:if="{{taskMessage}}" class="xf-mama-message {{taskMessageType}}">{{taskMessage}}</view>
 
-          <view wx:if="{{!currentMamaTask.isClaimable}}" class="xf-mama-proof-card">
+          <view wx:if="{{!currentMamaTask.isClaimable && currentMamaTask.hasContentUrl}}" class="xf-mama-proof-card">
             <text class="xf-mama-section-title">完成证明</text>
-            <label class="xf-mama-field">完成链接<input value="{{taskProofLink}}" bindinput="updateTaskProofLink" placeholder="粘贴小红书笔记链接" placeholder-class="xf-mama-placeholder" /></label>
+            <label class="xf-mama-field">完成链接<input value="{{taskProofLink}}" bindinput="updateTaskProofLink" placeholder="粘贴笔记内容" placeholder-class="xf-mama-placeholder" /></label>
             <button class="xf-mama-upload-button" type="button" loading="{{taskProofScreenshotUploading}}" disabled="{{taskProofScreenshotUploading}}" catchtap="chooseTaskProofScreenshot">
               {{taskProofScreenshotUrl ? "已上传，重新选择" : "上传完成截图"}}
             </button>
@@ -343,7 +349,7 @@
             <button class="xf-mama-submit" data-action="proof" open-type="{{isLoggedIn ? '' : 'getPhoneNumber'}}" bindgetphonenumber="authorizeMamaResourceAction" disabled="{{taskSubmitting}}" catchtap="submitTaskProof">{{taskSubmitting ? "提交中..." : "提交回填"}}</button>
           </view>
 
-          <view wx:if="{{currentMamaTask.transferScreenshotUrl}}" class="xf-mama-transfer-card">
+          <view wx:if="{{currentMamaTask.hasContentUrl && currentMamaTask.transferScreenshotUrl}}" class="xf-mama-transfer-card">
             <text class="xf-mama-section-title">转账凭证</text>
             <image class="xf-mama-transfer-image" src="{{currentMamaTask.transferScreenshotUrl}}" mode="widthFix" catchtap="previewTransferScreenshot" />
           </view>

@@ -55,7 +55,7 @@ test("admin mama resources page defaults to all profiles and exposes profile fil
 
 test("admin mama resources page shows account cards without removed offer and case sync fields", () => {
   assert.match(source, />平台账号</);
-  assert.match(source, /粉丝数/);
+  assert.doesNotMatch(source, /<span>粉丝数<\/span>/);
   assert.match(source, /实名认证/);
   assert.match(source, /主页截图/);
   assert.match(source, /screenshotUrl/);
@@ -73,8 +73,8 @@ test("admin mama resources page shows account cards without removed offer and ca
   assert.match(source, /profile\.mediaAccounts\?\.length \? profile\.mediaAccounts : \[profile\.socialAccount\]/);
   assert.match(source, /mediaPlatformLabel\[account\.platform\] \|\| "其他"/);
   assert.match(source, /account\.nickname \|\| "未填昵称"/);
-  assert.match(source, /className="flex h-5 items-center font-black text-stone-900"/);
-  assert.match(source, /toCount\(account\.followerCount\)/);
+  assert.match(source, /account\.followerCount === undefined \|\| account\.followerCount === null \? "待补" : `\$\{toCount\(account\.followerCount\)\} 粉丝`/);
+  assert.match(source, /grid-cols-\[1\.2fr_0\.9fr_1\.25fr_0\.65fr_auto\]/);
 });
 
 test("admin mama resource api supports list, review, and manual update", () => {
@@ -263,6 +263,8 @@ test("admin task assignments support manual and previewed personal content link 
   assert.match(source, /点击左侧领取账号后，在这里查看身份信息、打标签并配置专属链接/);
   assert.match(source, /专属内容链接/);
   assert.match(source, /saveAssignmentContentUrl/);
+  assert.match(source, /setContentUrlDrafts\(\(current\) => \(\{ \.\.\.current, \[assignment\._id\]: response\.data\.assignment\.contentUrl \|\| "" \}\)\)/);
+  assert.match(source, /专属内容链接已撤回/);
   assert.match(source, /aria-label="导入专属链接"/);
   assert.match(source, /选择 Excel 文件/);
   assert.match(source, /下载导入模板/);

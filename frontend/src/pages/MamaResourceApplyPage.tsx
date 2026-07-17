@@ -295,19 +295,20 @@ function MamaResourceTaskDetail({ task, claiming, claimError, proofLink, proofSc
         <div className="mt-[12px] border-t border-[#eee9f4] pt-[12px]"><div className="text-[13px] font-black">项目要求</div><p className="mt-[5px] text-[12px] font-semibold leading-[1.65] text-[#6b6474]">{task.requirement || "提交小红书笔记链接和完成截图，否则无法结算。"}</p></div>
         {task.exampleImageUrls?.length ? <div className="mt-[10px] grid grid-cols-2 gap-[8px]">{task.exampleImageUrls.map((url) => <img key={url} src={url} alt="任务示例" className="w-full rounded-[10px] object-cover" />)}</div> : null}
         {contentUrl ? <button ref={contentLinkOpenerRef} type="button" onClick={onOpenLink} className="mt-[15px] w-full rounded-[13px] border border-[#d9c8ff] bg-[#f7f2ff] p-[13px] text-left text-[14px] font-black text-[#6c27d6]">你的专属任务内容 <span className="float-right">查看 ›</span></button> : null}
-        {task.claimable ? <button type="button" disabled={claiming} onClick={onClaim} className="mt-[15px] w-full rounded-[13px] bg-[#6c27d6] p-[13px] text-[14px] font-black text-white disabled:bg-[#c8c2d3]">{claiming ? "领取中..." : "立即领取"}</button> : null}
+        {task.claimable ? <div className="mt-[15px]"><p className="rounded-[12px] bg-[#f8f4ff] p-[11px] text-[12px] font-bold leading-[1.65] text-[#75668e]">此操作只是领取任务。领取后请等待运营下发具体内容链接并完成审核，内容下发前无需填写反馈。</p><button type="button" disabled={claiming} onClick={onClaim} className="mt-[10px] w-full rounded-[13px] bg-[#6c27d6] p-[13px] text-[14px] font-black text-white disabled:bg-[#c8c2d3]">{claiming ? "领取中..." : "立即领取"}</button></div> : null}
+        {!task.claimable && !contentUrl ? <div className="mt-[15px] rounded-[13px] border border-[#e4d7ff] bg-[#f8f4ff] p-[13px]"><p className="text-[14px] font-black text-[#4e1e95]">已领取，等待运营下发</p><p className="mt-[5px] text-[12px] font-bold leading-[1.65] text-[#75668e]">当前只是领取任务。运营审核后会下发具体内容链接，收到内容后再按要求完成并提交反馈。</p></div> : null}
         {claimError ? <p className="mt-[10px] text-[12px] font-bold text-[#be123c]">{claimError}</p> : null}
       </div>
-      {task.transferScreenshotUrl ? <div className="rounded-[18px] bg-white p-[15px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
+      {contentUrl && task.transferScreenshotUrl ? <div className="rounded-[18px] bg-white p-[15px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
         <h3 className="text-[16px] font-black text-[#151222]">转账凭证</h3>
         <a href={task.transferScreenshotUrl} target="_blank" rel="noreferrer" className="mt-[10px] block">
           <img src={task.transferScreenshotUrl} alt="任务转账凭证" className="max-h-[260px] w-full rounded-[11px] object-contain" />
         </a>
       </div> : null}
-      {!task.claimable ? <div className="rounded-[18px] bg-white p-[15px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
+      {!task.claimable && contentUrl ? <div className="rounded-[18px] bg-white p-[15px] shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
         <h3 className="text-[16px] font-black text-[#151222]">任务回填</h3>
         <label className="mt-[12px] block text-[12.5px] font-extrabold text-[#4b4453]">完成链接
-          <input name="proofLink" value={proofLink} onChange={(event) => onProofLinkChange(event.target.value)} placeholder="请粘贴已发布内容链接" className="mt-[6px] h-[39px] w-full rounded-[11px] border border-[#ddd7e8] px-[11px] text-[13px] outline-none focus:border-[#6c27d6]" />
+          <input name="proofLink" value={proofLink} onChange={(event) => onProofLinkChange(event.target.value)} placeholder="粘贴笔记内容" className="mt-[6px] h-[39px] w-full rounded-[11px] border border-[#ddd7e8] px-[11px] text-[13px] outline-none focus:border-[#6c27d6]" />
         </label>
         <label className="mt-[12px] block text-[12.5px] font-extrabold text-[#4b4453]">完成截图
           <input type="file" accept="image/*" disabled={proofUploading || proofSubmitting} onChange={onProofScreenshotChange} className="mt-[6px] block w-full text-[12px] font-bold text-[#6b6474] file:mr-[10px] file:rounded-full file:border-0 file:bg-[#f3eaff] file:px-[12px] file:py-[8px] file:font-black file:text-[#6c27d6]" />

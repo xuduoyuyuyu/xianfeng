@@ -25,23 +25,31 @@ test("admin users page opens an aggregated profile and behavior timeline", () =>
 });
 
 test("admin users page filters by profile tags", () => {
-  assert.match(source, /全部好赚状态/);
+  assert.match(source, /<option value="">全部<\/option><option value="true">好赚<\/option>/);
+  assert.doesNotMatch(source, /非好赚用户/);
   assert.match(source, /全部会员/);
   assert.match(source, /全部城市/);
   assert.match(source, /全部区域/);
+  assert.match(source, /items\.filter\(\(row\) => row\.city === cityFilter\)/);
+  assert.match(source, /setCityFilter\(event\.target\.value\); setRegionFilter\(""\)/);
+  assert.match(source, /disabled=\{!cityFilter\}/);
   assert.match(source, /全部孩子年龄段/);
   assert.match(source, /全部年级/);
   assert.match(source, /String\(row\.hasMamaResource\) !== mamaFilter/);
   assert.match(source, /row\.membershipTier !== membershipFilter/);
   assert.match(source, /row\.childStages/);
   assert.match(source, /row\.childGrades/);
+  assert.match(source, /grid-cols-\[minmax\(280px,2fr\)_repeat\(6,minmax\(140px,1fr\)\)\]/);
 });
 
-test("admin users page exposes business IDs and adjustable pagination", () => {
-  assert.match(source, />用户 ID</);
-  assert.match(source, />好赚 ID</);
-  assert.match(source, /row\._id/);
-  assert.match(source, /row\.mamaResourceId \|\| "-"/);
+test("admin users page keeps business IDs in the clicked detail instead of the table", () => {
+  assert.doesNotMatch(source, /<th[^>]*>用户 ID<\/th>/);
+  assert.doesNotMatch(source, /<th[^>]*>好赚 ID<\/th>/);
+  assert.match(source, /\['用户 ID', overview\.user\._id\]/);
+  assert.match(source, /\['好赚 ID', overview\.mamaProfile\?\._id \|\| '未开通'\]/);
+});
+
+test("admin users page exposes adjustable pagination", () => {
   assert.match(source, /useState\(PAGE_SIZE\)/);
   assert.match(source, /<option value=\{20\}>每页 20 条<\/option>/);
   assert.match(source, /<option value=\{50\}>每页 50 条<\/option>/);
