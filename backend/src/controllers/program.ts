@@ -49,6 +49,18 @@ function asText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function isProgramDescriptionPlaceholder(value: unknown): boolean {
+  const text = asText(value);
+  if (!text) return false;
+  return /音频.{0,12}(?:已上传|上传完成|正在解析|待解析)/i.test(text)
+    || /(?:正在解析中|请编辑节目信息)/i.test(text);
+}
+
+function resolveFormalProgramDescription(program: any): string {
+  const candidates = [program?.description, program?.summary?.description, program?.summary?.body];
+  return candidates.map(asText).find((text) => text && !isProgramDescriptionPlaceholder(text)) || "";
+}
+
 function isUsableGuestSpeakerName(value: unknown): boolean {
   const name = asText(value);
   return Boolean(name && !["节目特邀嘉宾", "待解析", "嘉宾", "阿力", "Jessie"].includes(name));
@@ -863,7 +875,10 @@ function ensureBaseFieldsFromGenerated(payload: any, generated: any, transcript:
   return {
     ...payload,
     title: mergePreferManualText(payload?.title, generated?.episodeTitle),
-    description: mergePreferManualText(payload?.description, summaryBody || transcriptText),
+    description: mergePreferManualText(
+      isProgramDescriptionPlaceholder(payload?.description) ? "" : payload?.description,
+      summaryBody || transcriptText
+    ),
     coverImage:
       asText(payload?.coverImage) ||
       "http://xianfeng.xinzhi.info/uploads/images/1779669071894-42qbgvdv.png",
@@ -1595,6 +1610,7 @@ export class ProgramController {
       // 补充轻量布尔字段（transcript/deepDive 原始数据不返回，节省数百KB）
       const listWithFlags = attachedGuests.map(({ transcript, deepDive, ...program }: any) => ({
         ...program,
+        description: resolveFormalProgramDescription(program),
         hasTranscript: Array.isArray(transcript) ? transcript.length : 0,
         hasDeepDive: !!(deepDive?.curatedReading?.length),
       }));
@@ -1662,6 +1678,7 @@ export class ProgramController {
         }
       }
       result.deepDive = await buildPublicCuratedReading(result);
+      result.description = resolveFormalProgramDescription(result);
       res.status(200).json(result);
     } catch (error) {
       res.status(500).json({ message: "获取节目失败", error });
