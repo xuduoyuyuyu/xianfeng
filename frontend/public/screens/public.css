@@ -1659,6 +1659,9 @@
   .h-\[7\.8rem\] {
     height: 7.8rem;
   }
+  .h-\[14px\] {
+    height: 14px;
+  }
   .h-\[15px\] {
     height: 15px;
   }
@@ -2186,6 +2189,9 @@
   }
   .w-\[12\%\] {
     width: 12%;
+  }
+  .w-\[14px\] {
+    width: 14px;
   }
   .w-\[15\%\] {
     width: 15%;
@@ -3185,9 +3191,6 @@
   }
   .gap-\[3px\] {
     gap: 3px;
-  }
-  .gap-\[4px\] {
-    gap: 4px;
   }
   .gap-\[5px\] {
     gap: 5px;
@@ -4432,9 +4435,6 @@
   .bg-\[\#c7bbff\] {
     background-color: #c7bbff;
   }
-  .bg-\[\#e8d8ff\] {
-    background-color: #e8d8ff;
-  }
   .bg-\[\#e8e8f9\] {
     background-color: #e8e8f9;
   }
@@ -5582,6 +5582,15 @@
   .mask-repeat {
     mask-repeat: repeat;
   }
+  .fill-none {
+    fill: none;
+  }
+  .stroke-current {
+    stroke: currentcolor;
+  }
+  .stroke-\[1\.8\] {
+    stroke-width: 1.8;
+  }
   .object-contain {
     object-fit: contain;
   }
@@ -5720,12 +5729,6 @@
   .px-12 {
     padding-inline: calc(var(--spacing) * 12);
   }
-  .px-\[7px\] {
-    padding-inline: 7px;
-  }
-  .px-\[8px\] {
-    padding-inline: 8px;
-  }
   .px-\[9px\] {
     padding-inline: 9px;
   }
@@ -5800,9 +5803,6 @@
   }
   .py-20 {
     padding-block: calc(var(--spacing) * 20);
-  }
-  .py-\[4px\] {
-    padding-block: 4px;
   }
   .py-\[5px\] {
     padding-block: 5px;
@@ -10316,11 +10316,6 @@
   .active\:scale-\[0\.95\] {
     &:active {
       scale: 0.95;
-    }
-  }
-  .active\:scale-\[0\.96\] {
-    &:active {
-      scale: 0.96;
     }
   }
   .active\:scale-\[0\.98\] {

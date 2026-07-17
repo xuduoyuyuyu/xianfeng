@@ -214,9 +214,13 @@ test("approved mama resource account can view assigned tasks and submit proof", 
   assert.match(wxmlSource, /mamaResourceView === 'tasks'/);
   assert.match(wxmlSource, /mamaResourceView === 'detail'/);
   assert.match(wxmlSource, /xf-mama-task-title[\s\S]*好赚/);
-  assert.match(wxmlSource, /xf-mama-task-mascot[\s\S]*https:\/\/xianfeng\.xinzhi\.info\/wel\/assets\/wel-avatar\/xiaowanzi-turban\.png[\s\S]*mode="aspectFit"/);
+  assert.match(wxmlSource, /xf-mama-task-mascot[\s\S]*\/assets\/menu\/mama-hao-zhuan-icon\.png[\s\S]*mode="aspectFit"/);
   assert.doesNotMatch(wxmlSource, /任务列表|可领取与进行中的任务/);
-  assert.match(wxmlSource, /资料管理[\s\S]*xf-mama-task-uid-row[\s\S]*UID \{\{mamaResourceProfile\.publicUid\}\}[\s\S]*catchtap="copyMamaUid"[\s\S]*复制/);
+  assert.match(wxmlSource, /资料管理[\s\S]*xf-mama-task-uid-row" catchtap="copyMamaUid"[\s\S]*UID \{\{mamaResourceProfile\.publicUid\}\}[\s\S]*xf-mama-task-copy-icon/);
+  assert.match(wxssSource, /\.xf-mama-task-uid-label\s*\{[^}]*padding:\s*0;/);
+  assert.match(wxssSource, /\.xf-mama-task-uid-label\s*\{[^}]*font-weight:\s*400;/);
+  assert.match(wxssSource, /\.xf-mama-task-uid-copy\s*\{[^}]*background:\s*transparent;/);
+  assert.match(wxssSource, /\.xf-mama-task-uid-copy\s*\{[^}]*align-items:\s*center;/);
   assert.match(jsSource, /copyMamaUid\(\)[\s\S]*copyTextSilently\(this\.data\.mamaResourceProfile/);
   assert.doesNotMatch(wxmlSource, /xf-mama-task-hero-icon/);
   assert.match(wxssSource, /\.xf-mama-task-identity\s*\{[\s\S]*flex-direction:\s*column;/);

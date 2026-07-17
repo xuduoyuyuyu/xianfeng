@@ -316,6 +316,14 @@ router.get("/", async (req: Request, res: Response) => {
     const page = Math.max(1, parseInt(asText(req.query.page), 10) || 1);
     const pageSize = Math.max(1, Math.min(100, parseInt(asText(req.query.pageSize || req.query.limit), 10) || 20));
     const filter = buildListFilter(req.query);
+    const search = asText(req.query.search);
+    if (search) {
+      const pattern = new RegExp(escapeRegex(search), "i");
+      const uidUserIds = await User.find({ publicUid: pattern }).distinct("_id");
+      if (uidUserIds.length) {
+        filter.$or = [...(filter.$or || []), { userId: { $in: uidUserIds } }];
+      }
+    }
     const userGender = asText(req.query.userGender);
     if (userGender) {
       const userIds = await User.find({ gender: userGender }).distinct("_id");
@@ -696,6 +704,7 @@ router.get("/tasks/:taskId/assignments", async (req: Request, res: Response) => 
           { username: pattern },
           { name: pattern },
           { mobile: pattern },
+          { publicUid: pattern },
         ];
         if (mongoose.Types.ObjectId.isValid(search)) userSearchClauses.push({ _id: search });
         const users = await User.find({ $or: userSearchClauses }).select("mobile").lean();

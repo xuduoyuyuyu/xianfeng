@@ -570,7 +570,7 @@ describe("mama resource pool routes", () => {
   });
 
   it("lets operators filter the resource pool and update review state", async () => {
-    const femaleUser = await User.create({ username: "resource-female", password: "hash", gender: "女", role: "user" });
+    const femaleUser = await User.create({ username: "resource-female", password: "hash", publicUid: "718292948", gender: "女", role: "user" });
     const [readingProfile, toyProfile] = await MamaResourceProfile.create([
       {
         userId: femaleUser._id,
@@ -631,6 +631,12 @@ describe("mama resource pool routes", () => {
     assert.equal(listData.total, 1);
     assert.equal(listData.items[0]._id, String(readingProfile._id));
     assert.equal(listData.items[0].socialAccount.followerCount, 12000);
+
+    const uidSearchResponse = await fetch(`${server.adminUrl}?search=718292948`);
+    assert.equal(uidSearchResponse.status, 200);
+    const uidSearchData = await uidSearchResponse.json();
+    assert.equal(uidSearchData.total, 1);
+    assert.equal(uidSearchData.items[0]._id, String(readingProfile._id));
 
     const demographicResponse = await fetch(`${server.adminUrl}?childStage=${encodeURIComponent("小学")}&childGender=${encodeURIComponent("女孩")}&userGender=${encodeURIComponent("女")}&platform=douyin`);
     assert.equal(demographicResponse.status, 200);
@@ -1608,6 +1614,7 @@ describe("mama resource pool routes", () => {
       city: "上海",
       region: "长宁区",
       childGrade: "小学一年级",
+      publicUid: "718292949",
       role: "user",
     });
     const token = jwt.sign({ id: String(user._id), role: "user" }, process.env.JWT_SECRET || "your-secret-key");
@@ -1659,6 +1666,14 @@ describe("mama resource pool routes", () => {
     assert.equal(assignments.assignments[0].user.name, "圆圆妈妈");
     assert.equal(assignments.assignments[0].user.region, "长宁区");
     assert.equal(assignments.assignments[0].user.childGrade, "小学一年级");
+
+    const uidAssignmentsResponse = await fetch(
+      `${server.adminUrl}/tasks/${claimedTask._id}/assignments?search=718292949`
+    );
+    assert.equal(uidAssignmentsResponse.status, 200);
+    const uidAssignments = await uidAssignmentsResponse.json();
+    assert.equal(uidAssignments.assignments.length, 1);
+    assert.equal(uidAssignments.assignments[0].profileId, String(profile._id));
 
     const myTasksResponse = await fetch(`${server.publicUrl}/me/tasks`, {
       headers: { Authorization: `Bearer ${token}` },

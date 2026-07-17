@@ -40,6 +40,9 @@ test("admin mama resources page defaults to all profiles and exposes profile fil
   assert.match(source, /categoryFilter/);
   assert.match(source, /statusFilter/);
   assert.match(source, /searchText/);
+  assert.match(source, /placeholder="搜索UID、昵称、手机号、微信号、账号链接"/);
+  assert.match(backendSource, /User\.find\(\{ publicUid: pattern \}\)\.distinct\("_id"\)/);
+  assert.match(backendSource, /\{ publicUid: pattern \}/);
   assert.match(source, /childStageFilter/);
   assert.match(source, /childGenderFilter/);
   assert.match(source, /userGenderFilter/);

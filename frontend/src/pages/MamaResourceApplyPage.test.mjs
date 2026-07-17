@@ -241,12 +241,13 @@ test("reviewing profiles show status, review note, and profile management", () =
 
 test("approved profiles render account home and complete task cards", () => {
   assert.match(source, /function MamaResourceAccountCard/);
-  assert.match(source, /\/wel\/assets\/wel-avatar\/xiaowanzi-turban\.png/);
+  assert.match(source, /<img src="\/assets\/mama-hao-zhuan-icon\.png" alt="好赚" className="mx-auto h-\[86px\] w-\[86px\] object-contain"/);
   assert.doesNotMatch(source, /<h2[^>]*>任务列表<\/h2>|可领取与进行中的任务/);
   assert.doesNotMatch(source, /function MamaResourceAccountCard[\s\S]*账号已通过[\s\S]*function MamaResourceTaskCard/);
   assert.match(source, /UID \{profile\.publicUid\}/);
   assert.match(source, /navigator\.clipboard\?\.writeText\(profile\.publicUid\)/);
-  assert.match(source, /aria-label="复制UID"[\s\S]*复制/);
+  assert.match(source, /onClick=\{copyUid\} aria-label=\{`复制UID \$\{profile\.publicUid\}`\}[\s\S]*UID \{profile\.publicUid\}[\s\S]*<svg[\s\S]*stroke-current/);
+  assert.match(source, /font-normal[^\n]*[\s\S]*UID \{profile\.publicUid\}/);
   assert.match(source, /资料管理/);
   assert.match(source, /function MamaResourceTaskCard/);
   assert.match(source, /任务单价/);

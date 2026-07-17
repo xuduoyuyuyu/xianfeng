@@ -242,17 +242,19 @@ function MamaResourceAccountCard({ profile, onManage }: { profile: MamaResourceP
 
   return (
     <div className="rounded-[20px] border border-[#5e17eb]/10 bg-white px-[16px] py-[18px] text-center shadow-[0_8px_22px_rgba(94,23,235,0.08)]">
-      <img src="/wel/assets/wel-avatar/xiaowanzi-turban.png" alt="小玩子" className="mx-auto h-[86px] w-[86px] object-contain" />
+      <img src="/assets/mama-hao-zhuan-icon.png" alt="好赚" className="mx-auto h-[86px] w-[86px] object-contain" />
       <div className="mt-[11px] min-w-0">
         <div className="text-[17px] font-black text-[#151222]">好赚</div>
         <div className="mx-auto mt-[5px] max-w-[290px] text-[11.5px] font-bold leading-[1.55] text-[#6b6474]">{profile.displayName || "已审核账号"} · 可接：{profile.categories.length ? profile.categories.join("、") : "亲子阅读、学习用品"}</div>
       </div>
       <button type="button" onClick={onManage} className="mt-[13px] rounded-full bg-[#f3eaff] px-[14px] py-[7px] text-[12px] font-black text-[#6c27d6] active:scale-[0.98]">资料管理</button>
       {profile.publicUid ? (
-        <div className="mt-[7px] flex items-center justify-center gap-[4px] text-[10.5px] font-black text-[#6c27d6]">
-          <span className="rounded-full bg-[#f3eaff] px-[8px] py-[4px]">UID {profile.publicUid}</span>
-          <button type="button" onClick={copyUid} aria-label="复制UID" className="rounded-full bg-[#e8d8ff] px-[7px] py-[4px] active:scale-[0.96]">复制</button>
-        </div>
+        <button type="button" onClick={copyUid} aria-label={`复制UID ${profile.publicUid}`} className="mx-auto mt-[7px] flex items-center justify-center gap-[3px] bg-transparent p-0 text-[10.5px] font-normal leading-none text-[#6c27d6] active:scale-[0.98]">
+          <span>UID {profile.publicUid}</span>
+          <span className="flex h-[20px] w-[20px] items-center justify-center text-[#7c2ce6]" aria-hidden="true">
+            <svg viewBox="0 0 24 24" aria-hidden="true" className="h-[14px] w-[14px] fill-none stroke-current stroke-[1.8]"><rect x="8" y="8" width="11" height="11" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></svg>
+          </span>
+        </button>
       ) : null}
     </div>
   );

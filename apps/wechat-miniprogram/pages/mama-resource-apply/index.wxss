@@ -794,26 +794,52 @@ page {
   margin-top: 14rpx;
 }
 
-.xf-mama-task-uid-label,
-.xf-mama-task-uid-copy {
+.xf-mama-task-uid-label {
   margin: 0;
-  padding: 7rpx 13rpx;
-  border: 0;
-  border-radius: 999rpx;
-  background: #f3eaff;
+  padding: 0;
   color: #6c27d6;
   font-size: 20rpx;
-  font-weight: 900;
+  font-weight: 400;
   line-height: 1.2;
 }
 
 .xf-mama-task-uid-copy {
-  padding: 7rpx 12rpx;
-  background: #e8d8ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36rpx;
+  height: 36rpx;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  line-height: 36rpx;
 }
 
 .xf-mama-task-uid-copy::after {
   border: 0;
+}
+
+.xf-mama-task-copy-icon {
+  position: relative;
+  box-sizing: border-box;
+  width: 19rpx;
+  height: 19rpx;
+  margin: 0;
+  border: 2rpx solid #7c2ce6;
+  border-radius: 4rpx;
+}
+
+.xf-mama-task-copy-icon::before {
+  position: absolute;
+  top: -7rpx;
+  left: -7rpx;
+  box-sizing: border-box;
+  width: 19rpx;
+  height: 19rpx;
+  border: 2rpx solid #7c2ce6;
+  border-radius: 4rpx;
+  content: "";
 }
 
 .xf-mama-task-subtitle {

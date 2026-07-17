@@ -221,7 +221,7 @@
 
     <block wx:elif="{{mamaResourceView === 'tasks'}}">
       <view class="xf-mama-task-hero">
-        <image class="xf-mama-task-mascot" src="https://xianfeng.xinzhi.info/wel/assets/wel-avatar/xiaowanzi-turban.png" mode="aspectFit" />
+        <image class="xf-mama-task-mascot" src="/assets/menu/mama-hao-zhuan-icon.png" mode="aspectFit" />
         <view class="xf-mama-task-identity">
           <view class="xf-mama-task-hero-copy">
             <text class="xf-mama-task-title">好赚</text>
@@ -229,9 +229,11 @@
           </view>
         </view>
         <button class="xf-mama-task-manage" catchtap="openProfileManager">资料管理</button>
-        <view wx:if="{{mamaResourceProfile.publicUid}}" class="xf-mama-task-uid-row">
+        <view wx:if="{{mamaResourceProfile.publicUid}}" class="xf-mama-task-uid-row" catchtap="copyMamaUid" role="button" aria-label="复制UID {{mamaResourceProfile.publicUid}}">
           <text class="xf-mama-task-uid-label">UID {{mamaResourceProfile.publicUid}}</text>
-          <button class="xf-mama-task-uid-copy" catchtap="copyMamaUid" aria-label="复制UID">复制</button>
+          <view class="xf-mama-task-uid-copy" aria-hidden="true">
+            <view class="xf-mama-task-copy-icon" aria-hidden="true"></view>
+          </view>
         </view>
       </view>
 

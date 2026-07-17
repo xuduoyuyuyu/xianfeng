@@ -849,7 +849,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
 
       {isReviewMode ? <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <input value={searchText} onChange={(event) => setSearchText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") loadItems(1); }} className="rounded-xl border border-stone-200 px-3 py-2 text-sm outline-none focus:border-[#6c27d6]" placeholder="搜索昵称、手机号、微信号、账号链接" />
+          <input value={searchText} onChange={(event) => setSearchText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") loadItems(1); }} className="rounded-xl border border-stone-200 px-3 py-2 text-sm outline-none focus:border-[#6c27d6]" placeholder="搜索UID、昵称、手机号、微信号、账号链接" />
           <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as MamaResourceStatus | "all")} className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#6c27d6]">
             {statusOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
           </select>
