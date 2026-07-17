@@ -640,6 +640,7 @@ test("welfare opens as a native mini program page and hides backend 404 noise", 
   assert.match(page.wxml, /class="xf-native-menu-button xf-native-back-button"/);
   assert.match(page.wxml, /class="xf-welfare-scroll" style="height: calc\(100vh - \{\{chromeHeight\}\}px\);"/);
   assert.match(page.wxml, /小玩子百宝箱/);
+  assert.doesNotMatch(page.wxml, /我的福利|xf-welfare-pill/);
   assert.match(page.wxml, /class="xf-welfare-mascot" src="\/assets\/wel-avatar\/wizard\.png"/);
   assert.match(page.wxml, /今天没有新的福利，过几天再来看看。/);
   assert.match(page.wxml, /claimDialogVisible/);
@@ -667,6 +668,9 @@ test("welfare opens as a native mini program page and hides backend 404 noise", 
   assert.match(page.wxss, /\.xf-welfare-title \{[\s\S]*font-size: 72rpx;/);
   assert.match(page.wxss, /\.xf-welfare-title \{[\s\S]*font-weight: 500;/);
   assert.match(page.wxss, /\.xf-welfare-subtitle \{[\s\S]*font-size: 30rpx;[\s\S]*font-weight: 700;[\s\S]*line-height: 1\.7;/);
+  assert.doesNotMatch(page.wxss, /\.xf-welfare-pill/);
+  const welfareHeroRowStyle = page.wxss.match(/\.xf-welfare-hero-row \{[\s\S]*?\n\}/)?.[0] || "";
+  assert.doesNotMatch(welfareHeroRowStyle, /margin-top:/);
   assert.match(page.wxss, /\.xf-welfare-mascot \{[\s\S]*width: 184rpx;[\s\S]*height: 184rpx;[\s\S]*margin-top: -48rpx;/);
   assert.match(page.wxss, /\.xf-welfare-state \{[\s\S]*font-size: 28rpx;[\s\S]*font-weight: 700;/);
   assert.match(page.wxss, /\.xf-welfare-dialog-mask/);
@@ -1117,6 +1121,62 @@ test("welfare lets claimed campaigns reopen claim instructions without another c
     assert.equal(state.claimDialogExternalUrl, "https://example.com/claim");
     assert.equal(state.claimDialogActivationCode, "CLAIMED-CODE");
     assert.equal(state.claimingId, "");
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
+test("welfare lets claimed history reopen instructions without allowing a historical claim", async () => {
+  const definition = loadPageDefinition("welfare");
+  const pageSource = readPage("welfare");
+  const originalWx = global.wx;
+  const state = {
+    ...definition.data,
+    historyCampaigns: [
+      {
+        _id: "history-claimed",
+        title: "历史已领福利",
+        claimInstructions: "历史领取说明",
+        activationCode: "HISTORY-CODE",
+        claimedByMe: true
+      },
+      {
+        _id: "history-unclaimed",
+        title: "历史未领福利",
+        claimedByMe: false
+      }
+    ]
+  };
+  let postCount = 0;
+
+  assert.match(pageSource.wxml, /wx:for="\{\{historyCampaigns\}\}" wx:key="_id" class="xf-welfare-item is-history" data-id="\{\{item\._id\}\}" bindtap="claimWelfare"/);
+
+  try {
+    global.wx = {
+      request(options) {
+        if (options.method === "POST") postCount += 1;
+        options.fail({ errMsg: "unexpected post" });
+      }
+    };
+    const page = {
+      ...definition,
+      data: state,
+      setData(patch) {
+        Object.assign(state, patch);
+      }
+    };
+
+    definition.claimWelfare.call(page, { currentTarget: { dataset: { id: "history-claimed" } } });
+    assert.equal(state.claimDialogVisible, true);
+    assert.equal(state.claimDialogTitle, "历史已领福利");
+    assert.equal(state.claimDialogInstructions, "历史领取说明");
+    assert.equal(state.claimDialogActivationCode, "HISTORY-CODE");
+
+    definition.closeClaimDialog.call(page);
+    definition.claimWelfare.call(page, { currentTarget: { dataset: { id: "history-unclaimed" } } });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(postCount, 0);
+    assert.equal(state.claimDialogVisible, false);
   } finally {
     global.wx = originalWx;
   }

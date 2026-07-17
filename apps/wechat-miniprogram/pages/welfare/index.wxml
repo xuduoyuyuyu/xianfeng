@@ -10,10 +10,6 @@
 
   <scroll-view class="xf-welfare-scroll" style="height: calc(100vh - {{chromeHeight}}px);" scroll-y enhanced show-scrollbar="false">
     <view class="xf-welfare-hero">
-      <view class="xf-welfare-pill">
-        <image src="/assets/menu/welfare-gift-icon.png" mode="aspectFit" />
-        <text>我的福利</text>
-      </view>
       <view class="xf-welfare-hero-row">
         <view class="xf-welfare-hero-copy">
           <text class="xf-welfare-title">小玩子百宝箱</text>
@@ -63,7 +59,7 @@
         <text>历史福利</text>
         <text>历史内容</text>
       </view>
-      <view wx:for="{{historyCampaigns}}" wx:key="_id" class="xf-welfare-item is-history">
+      <view wx:for="{{historyCampaigns}}" wx:key="_id" class="xf-welfare-item is-history" data-id="{{item._id}}" bindtap="claimWelfare">
         <view class="xf-welfare-item-cover">
           <text wx:if="{{item.coverEmoji}}" class="xf-welfare-item-emoji">{{item.coverEmoji}}</text>
           <image wx:else src="{{item.coverImageUrl}}" mode="aspectFit" />

@@ -225,7 +225,9 @@ Page({
   claimWelfare(event) {
     const id = event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.id;
     if (!id) return;
-    const selected = this.data.activeCampaigns.find((campaign) => campaign._id === id);
+    const activeCampaign = this.data.activeCampaigns.find((campaign) => campaign._id === id);
+    const historyCampaign = this.data.historyCampaigns.find((campaign) => campaign._id === id);
+    const selected = activeCampaign || historyCampaign;
     if (selected && selected.claimedByMe) {
       const externalUrl = selected.externalUrl || "";
       this.setData({
@@ -238,6 +240,7 @@ Page({
       });
       return;
     }
+    if (historyCampaign) return;
     this.setData({ claimingId: id, message: "" });
     request({ url: `/api/welfare/campaigns/${id}/claims`, method: "POST" })
       .then((response) => {
