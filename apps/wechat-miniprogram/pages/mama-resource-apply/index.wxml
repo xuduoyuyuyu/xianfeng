@@ -94,7 +94,8 @@
           </view>
           <view class="xf-mama-field">
             孩子档案
-            <view class="xf-mama-archive-link" catchtap="openChildCreate">添加孩子 <text>›</text></view>
+            <view wx:if="{{hasArchiveChildren}}" class="xf-mama-archive-link" catchtap="openChildArchive"><text class="xf-mama-archive-value">{{archiveChildrenText}}</text><text>›</text></view>
+            <view wx:else class="xf-mama-archive-link" catchtap="openChildCreate">添加孩子 <text>›</text></view>
           </view>
           <view class="xf-mama-field">
             <text>创作能力</text>

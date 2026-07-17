@@ -273,10 +273,7 @@ function childStageFromArchiveGrade(grade) {
 
 function fillApplyDraftFromArchive(draftValue) {
   const draft = normalizeApplyDraft(draftValue);
-  const children = mergeChildProfileRecords(
-    wx.getStorageSync(CHILD_PROFILES_KEY),
-    wx.getStorageSync(WEB_CHILD_PROFILES_KEY)
-  );
+  const children = readArchiveChildren();
   if (!children.length) return normalizeApplyDraft({ ...draft, city: "", childStage: "", childGender: "" });
   const archiveCity = asText(children.find((child) => asText(child.city).trim())?.city).trim();
   if (children.length > 1) {
@@ -293,11 +290,22 @@ function fillApplyDraftFromArchive(draftValue) {
   });
 }
 
-function hasArchiveChildren() {
+function readArchiveChildren() {
   return mergeChildProfileRecords(
     wx.getStorageSync(CHILD_PROFILES_KEY),
     wx.getStorageSync(WEB_CHILD_PROFILES_KEY)
-  ).length > 0;
+  );
+}
+
+function buildArchiveChildrenState() {
+  const children = readArchiveChildren();
+  return {
+    hasArchiveChildren: children.length > 0,
+    archiveChildrenText: children
+      .map((child) => [asText(child.displayName || child.name).trim(), asText(child.grade).trim()].filter(Boolean).join(" · "))
+      .filter(Boolean)
+      .join("、")
+  };
 }
 
 function buildApplyDraftState(draftValue) {
@@ -688,6 +696,7 @@ Page({
     childStage: "",
     childGender: "",
     hasArchiveChildren: false,
+    archiveChildrenText: "",
     xiaohongshuScreenshotUrl: "",
     xiaohongshuScreenshotUploading: false,
     mamaResourceView: "apply",
@@ -727,7 +736,7 @@ Page({
       launchedFromSettings: String(options.from || "") === "settings",
       pendingMamaTaskId,
       ...buildApplyDraftState(formDraft),
-      hasArchiveChildren: hasArchiveChildren()
+      ...buildArchiveChildrenState()
     });
     this.syncTopbarMetrics();
     this.syncAccountEntry();
@@ -737,7 +746,7 @@ Page({
 
   onShow() {
     const formDraft = fillApplyDraftFromArchive(this.data.formDraft);
-    this.setData({ ...buildApplyDraftState(formDraft), hasArchiveChildren: hasArchiveChildren() });
+    this.setData({ ...buildApplyDraftState(formDraft), ...buildArchiveChildrenState() });
     this.syncTopbarMetrics();
     this.syncAccountEntry();
     if (this.data.mamaResourceView !== "detail") {
@@ -799,7 +808,17 @@ Page({
   },
 
   openChildCreate() {
-    wx.navigateTo({ url: "/pages/mine/archive/index?action=add" });
+    const hasChildren = readArchiveChildren().length > 0;
+    this.openSettings();
+    this.setData({ settingsPanelView: "archive" });
+    this.loadArchivePanel();
+    if (hasChildren) this.addArchiveChild();
+  },
+
+  openChildArchive() {
+    this.openSettings();
+    this.setData({ settingsPanelView: "archive" });
+    this.loadArchivePanel();
   },
 
   updateApplyDraft(patch) {

@@ -264,6 +264,17 @@ page {
   line-height: 1;
 }
 
+.xf-mama-archive-link .xf-mama-archive-value {
+  overflow: hidden;
+  min-width: 0;
+  color: #171321;
+  font-size: 25rpx;
+  font-weight: 500;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .xf-mama-field input.is-locked {
   background: #f6f2ff;
   color: #70687f;

@@ -13431,8 +13431,8 @@ test("mama haozhuan opens a native mini program form instead of program detail w
     assert.match(page.wxml, /<input name="displayName"[\s\S]*placeholder-class="xf-mama-placeholder"/);
     assert.match(page.wxml, /账号定位[\s\S]*<textarea name="accountPositioning"[\s\S]*placeholder-class="xf-mama-textarea-placeholder"/);
     assert.match(page.wxml, /微信号[\s\S]*name="contactWechat"[\s\S]*优先通过微信添加[\s\S]*手机号[\s\S]*name="contactPhone"[\s\S]*备用联系电话/);
-    assert.match(page.wxml, /孩子档案[\s\S]*openChildCreate">添加孩子 <text>›<\/text>/);
-    assert.doesNotMatch(page.wxml, /孩子阶段|孩子性别|openChildArchive/);
+    assert.match(page.wxml, /孩子档案[\s\S]*wx:if="\{\{hasArchiveChildren\}\}"[\s\S]*openChildArchive[\s\S]*\{\{archiveChildrenText\}\}[\s\S]*wx:else[\s\S]*openChildCreate">添加孩子/);
+    assert.doesNotMatch(page.wxml, /孩子阶段|孩子性别/);
     assert.doesNotMatch(page.wxml, /bindchange="selectChildStage"|catchtap="toggleChildGender"/);
     assert.match(page.js, /value: "男孩"[\s\S]*value: "女孩"/);
     assert.doesNotMatch(page.wxml, /bindchange="selectChildGender"|请选择孩子性别/);

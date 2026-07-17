@@ -91,23 +91,24 @@ const initialForm: FormState = {
   consentAccepted: false,
 };
 
-function archiveDemographics(): Pick<FormState, "city" | "childStage" | "childGender"> & { hasChildren: boolean } {
-  if (typeof window === "undefined") return { city: "", childStage: "", childGender: "", hasChildren: false };
+function archiveDemographics(): Pick<FormState, "city" | "childStage" | "childGender"> & { hasChildren: boolean; childrenLabel: string } {
+  if (typeof window === "undefined") return { city: "", childStage: "", childGender: "", hasChildren: false, childrenLabel: "" };
   try {
     const parsed = JSON.parse(localStorage.getItem(childProfilesKey) || "[]");
     const children = Array.isArray(parsed) ? parsed.filter((child) => child && !child.draft && String(child.displayName || "").trim()) : [];
-    if (!children.length) return { city: "", childStage: "", childGender: "", hasChildren: false };
+    if (!children.length) return { city: "", childStage: "", childGender: "", hasChildren: false, childrenLabel: "" };
+    const childrenLabel = children.map((child) => [String(child.displayName || "").trim(), String(child.grade || "").trim()].filter(Boolean).join(" · ")).join("、");
     const city = String(children.find((child) => String(child.city || "").trim())?.city || "").trim();
-    if (children.length > 1) return { city, childStage: "多孩家庭", childGender: "", hasChildren: true };
+    if (children.length > 1) return { city, childStage: "多孩家庭", childGender: "", hasChildren: true, childrenLabel };
     const child = children[0];
     const grade = String(child.grade || "");
     const childStage = grade.includes("孕产") || grade.includes("婴幼儿") ? "孕产/婴幼儿"
       : grade.includes("学前") ? "幼儿园"
       : ["小学", "初中", "高中"].find((stage) => grade.includes(stage)) || "";
     const childGender = grade.includes("孕产") ? "" : child.gender === "女" ? "女孩" : child.gender === "男" ? "男孩" : "";
-    return { city, childStage, childGender, hasChildren: true };
+    return { city, childStage, childGender, hasChildren: true, childrenLabel };
   } catch {
-    return { city: "", childStage: "", childGender: "", hasChildren: false };
+    return { city: "", childStage: "", childGender: "", hasChildren: false, childrenLabel: "" };
   }
 }
 
@@ -529,6 +530,7 @@ const MamaResourceApplyPage: React.FC = () => {
   }, []);
 
   const profileOverview = useMemo(() => buildProfileOverview(form), [form]);
+  const archiveSummary = archiveDemographics();
   const visibleTasks = useMemo(() => {
     const assignedTaskIds = new Set(tasks.map(taskIdentity));
     return [...tasks, ...availableTasks.filter((task) => !assignedTaskIds.has(taskIdentity(task)))];
@@ -549,6 +551,7 @@ const MamaResourceApplyPage: React.FC = () => {
   }, [form, submitting, uploadingScreenshot]);
   const requiredMark = <span className="ml-0.5 text-[#e11d48]" aria-hidden="true">*</span>;
   const openChildCreate = () => document.dispatchEvent(new CustomEvent("xf-open-child-profile-create"));
+  const openChildArchive = () => document.dispatchEvent(new CustomEvent("xf-open-child-profile"));
 
   const updateField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -941,7 +944,7 @@ const MamaResourceApplyPage: React.FC = () => {
                   </label>
                   <div className={fieldClass}>
                     孩子档案
-                    <button type="button" className={`${inputClass} flex items-center justify-between border-[#cbb7f4] text-left font-bold text-[#6c27d6]`} onClick={openChildCreate}><span>添加孩子</span><span className="text-lg">›</span></button>
+                    <button type="button" className={`${inputClass} flex items-center justify-between border-[#cbb7f4] text-left font-bold text-[#6c27d6]`} onClick={archiveSummary.hasChildren ? openChildArchive : openChildCreate}><span className={archiveSummary.hasChildren ? "truncate font-medium text-[#171321]" : ""}>{archiveSummary.hasChildren ? archiveSummary.childrenLabel : "添加孩子"}</span><span className="text-lg">›</span></button>
                   </div>
                   <div className={fieldClass}>
                     <div>创作能力</div>

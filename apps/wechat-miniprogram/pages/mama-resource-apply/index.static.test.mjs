@@ -55,10 +55,12 @@ test("mama resource demographics fill empty values from child archives", () => {
   assert.match(jsSource, /allowsUnknownGender = asText\(child\.grade\)\.includes\("孕产"\)/);
   assert.match(jsSource, /childStage: archiveStage/);
   assert.match(jsSource, /childGender: allowsUnknownGender \? "" : child\.gender === "男" \? "男孩"/);
-  assert.match(wxmlSource, /孩子档案[\s\S]*catchtap="openChildCreate">添加孩子 <text>›<\/text>/);
+  assert.match(wxmlSource, /孩子档案[\s\S]*wx:if="\{\{hasArchiveChildren\}\}"[\s\S]*catchtap="openChildArchive"[\s\S]*\{\{archiveChildrenText\}\}[\s\S]*wx:else[\s\S]*catchtap="openChildCreate">添加孩子/);
   assert.doesNotMatch(wxmlSource, />城市<input|name="city"/);
   assert.match(wxssSource, /\.xf-mama-archive-link \{[\s\S]*border: 2rpx solid #cbb7f4;[\s\S]*border-radius: 22rpx/);
-  assert.match(jsSource, /openChildCreate\(\)[\s\S]*\/pages\/mine\/archive\/index\?action=add/);
+  assert.match(jsSource, /openChildCreate\(\)[\s\S]*this\.openSettings\(\)[\s\S]*settingsPanelView: "archive"[\s\S]*this\.loadArchivePanel\(\)[\s\S]*this\.addArchiveChild\(\)/);
+  assert.match(jsSource, /buildArchiveChildrenState\(\)[\s\S]*archiveChildrenText[\s\S]*openChildArchive\(\)[\s\S]*this\.openSettings\(\)[\s\S]*settingsPanelView: "archive"[\s\S]*this\.loadArchivePanel\(\)/);
+  assert.doesNotMatch(jsSource, /openChild(?:Create|Archive)\(\)[\s\S]{0,240}wx\.navigateTo/);
   assert.doesNotMatch(wxmlSource, /bindchange="selectChildStage"|catchtap="toggleChildGender"/);
 });
 

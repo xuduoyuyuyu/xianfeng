@@ -118,10 +118,12 @@ test("mama resource application form submits a light supply profile", () => {
   assert.match(source, /childStage/);
   assert.match(source, /childGender/);
   assert.match(source, /withArchiveDemographics\(formStateFromProfile/);
-  assert.match(source, /孩子档案[\s\S]*openChildCreate[\s\S]*<span>添加孩子<\/span>/);
+  assert.match(source, /孩子档案[\s\S]*onClick=\{archiveSummary\.hasChildren \? openChildArchive : openChildCreate\}/);
   assert.doesNotMatch(source, />\s*孩子阶段\s*</);
   assert.doesNotMatch(source, />\s*孩子性别\s*</);
   assert.match(source, /openChildCreate[\s\S]*xf-open-child-profile-create/);
+  assert.match(source, /openChildArchive[\s\S]*xf-open-child-profile/);
+  assert.match(source, /archiveSummary\.hasChildren \? archiveSummary\.childrenLabel : "添加孩子"/);
   assert.doesNotMatch(source, /updateField\("childStage"|updateField\("childGender"/);
   assert.doesNotMatch(source, /<select[\s\S]*name="childGender"/);
   assert.doesNotMatch(staticSource, /<select name="childGender"/);
