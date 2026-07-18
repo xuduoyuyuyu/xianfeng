@@ -13423,6 +13423,7 @@ test("mama haozhuan opens a native mini program form instead of program detail w
     assert.match(page.wxml, /wx:if="\{\{settingsPanelOpen\}\}" class="xf-native-settings-mask" style="height: \{\{settingsPanelHeight\}\}px;" catchtap="closeSettings"/);
     assert.match(page.wxml, /wx:for="\{\{settingsSections\}\}"/);
     assert.doesNotMatch(page.wxml, /xf-mama-back/);
+    assert.match(page.wxml, /wx:if="\{\{!isLoggedIn\}\}"[\s\S]*登录后进入好赚[\s\S]*open-type="getPhoneNumber"[\s\S]*bindgetphonenumber="authorizeMamaResourceAction"[\s\S]*wx:elif="\{\{mamaResourceView === 'apply'\}\}"/);
     assert.match(page.wxml, /xf-mama-intro-card[\s\S]*好赚[\s\S]*<view class="xf-mama-card xf-mama-profile-manager">[\s\S]*资料管理[\s\S]*保存资料/);
     assert.doesNotMatch(page.wxml, /<view class="xf-mama-card">[\s\S]*<form class="xf-mama-form" bindsubmit="submit">\s*<view class="xf-mama-head">\s*<image class="xf-mama-icon"/);
     assert.match(page.wxml, /运营会按备注联系你。/);

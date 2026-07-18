@@ -44,7 +44,7 @@ function evaluateHelper(name) {
   return Function(`${sourceFunction(name)}; return ${name};`)();
 }
 
-test("mama resource application route is public and avoids account credentials", () => {
+test("mama resource application page is public while submission stays login-gated", () => {
   assert.match(appSource, /import MamaResourceApplyPage from "\.\/pages\/MamaResourceApplyPage";/);
   assert.match(appSource, /if \(normalizedPathname === "\/mama-resources\/apply"\) \{\s*return <MamaResourceApplyPage \/>;\s*\}/s);
   assert.match(source, /好赚/);

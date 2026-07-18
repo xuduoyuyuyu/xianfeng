@@ -76,6 +76,11 @@ routing, assigned/claimable tasks, detail, and proof submission. The admin 3:7
 claimant master-detail view includes the bound site user ID, mobile, station
 profile fields, platform account fields, operator tags, and an account-level
 block that prevents new claims without disrupting existing task completion.
+Submitting or updating a Mama Haozhuan profile requires an authenticated site
+user; the write binds that user directly and ensures its stable numeric UID
+before returning the saved profile. The native Mama Haozhuan page also gates
+all profile and task content behind WeChat phone authorization, including
+direct entries opened from a shared page.
 Assignment responses derive proof-return
 state from the completion screenshot and assignment creation time: submitted
 screenshots are marked returned, missing screenshots are marked not returned,

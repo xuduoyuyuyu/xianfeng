@@ -7,7 +7,7 @@ import MamaResourceProfile from "../models/MamaResourceProfile";
 import MamaResourceTask from "../models/MamaResourceTask";
 import MamaResourceTaskAssignment from "../models/MamaResourceTaskAssignment";
 import User from "../models/User";
-import { authenticate, optionalAuthenticate, AuthenticatedRequest } from "../middlewares/auth";
+import { authenticate, AuthenticatedRequest } from "../middlewares/auth";
 import { assignNextMamaResourceContentLink } from "../services/mamaResourceContentLinks";
 import { ensurePublicUid } from "../services/publicUid";
 
@@ -481,13 +481,16 @@ router.post("/uploads", (req: Request, res: Response) => {
   });
 });
 
-router.post("/applications", optionalAuthenticate, async (req: AuthenticatedRequest, res: Response) => {
+router.post("/applications", authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const displayName = asText(req.body?.displayName);
     const submittedContactPhone = asText(req.body?.contactPhone);
-    const authenticatedUser = req.user?.id
-      ? await User.findById(req.user.id, { mobile: 1 }).lean()
-      : null;
+    const authenticatedUser = await User.findById(req.user?.id, { mobile: 1 }).lean();
+    if (!authenticatedUser) {
+      res.status(401).json({ message: "用户不存在或登录已过期" });
+      return;
+    }
+    const publicUid = await ensurePublicUid(asText(req.user?.id));
     const authenticatedMobile = normalizePhoneDigits((authenticatedUser as any)?.mobile);
     const contactPhone = authenticatedMobile || submittedContactPhone;
     const contactWechat = asText(req.body?.contactWechat);
@@ -555,7 +558,7 @@ router.post("/applications", optionalAuthenticate, async (req: AuthenticatedRequ
     });
     if (!primaryAccountReplaced) resolvedMediaAccounts.unshift(resolvedPrimaryXiaohongshuAccount);
     const profilePayload = {
-      ...(req.user?.id ? { userId: req.user.id } : {}),
+      userId: req.user?.id,
       displayName,
       contactPhone,
       contactWechat,
@@ -597,13 +600,13 @@ router.post("/applications", optionalAuthenticate, async (req: AuthenticatedRequ
         returnDocument: "after",
         runValidators: true,
       });
-      res.json({ profile: publicProfilePayload(profile) });
+      res.json({ profile: publicProfilePayload(profile, publicUid) });
       return;
     }
 
     const profile = await MamaResourceProfile.create(profilePayload);
 
-    res.status(201).json({ profile: publicProfilePayload(profile) });
+    res.status(201).json({ profile: publicProfilePayload(profile, publicUid) });
   } catch (error: any) {
     if (error?.code === 11000) {
       res.status(409).json({ message: "这个小红书主页链接已经提交过，请联系运营更新资料" });

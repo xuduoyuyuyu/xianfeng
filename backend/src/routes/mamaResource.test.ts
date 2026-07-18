@@ -21,6 +21,13 @@ type TestServer = {
   adminUrl: string;
 };
 
+function applicationHeaders(token: string) {
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+}
+
 async function startServer(): Promise<TestServer> {
   const app = express();
   app.use(express.json());
@@ -50,6 +57,8 @@ async function startServer(): Promise<TestServer> {
 describe("mama resource pool routes", () => {
   let mongo: MongoMemoryServer;
   let server: TestServer;
+  let applicationToken: string;
+  let applicationUserId: string;
 
   before(async () => {
     mongo = await MongoMemoryServer.create({ instance: { ip: "127.0.0.1" } });
@@ -69,6 +78,9 @@ describe("mama resource pool routes", () => {
     await MamaResourceTaskAssignment.deleteMany({});
     await MamaResourceTaskContentLink.deleteMany({});
     await User.deleteMany({});
+    const applicationUser = await User.create({ username: "application-user", password: "hash", role: "user" });
+    applicationUserId = String(applicationUser._id);
+    applicationToken = jwt.sign({ id: applicationUserId, role: "user" }, process.env.JWT_SECRET || "your-secret-key");
   });
 
   it("uploads a public Xiaohongshu account screenshot", async () => {
@@ -101,10 +113,22 @@ describe("mama resource pool routes", () => {
     await fs.unlink(path.join(process.cwd(), data.url.replace(/^\//, ""))).catch(() => undefined);
   });
 
-  it("accepts a light public application without sensitive credentials", async () => {
+  it("rejects an application without login", async () => {
     const response = await fetch(`${server.publicUrl}/applications`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ displayName: "未登录用户" }),
+    });
+
+    assert.equal(response.status, 401);
+    assert.equal((await response.json()).message, "未登录或登录已过期");
+    assert.equal(await MamaResourceProfile.countDocuments(), 0);
+  });
+
+  it("accepts a signed-in application without sensitive credentials", async () => {
+    const response = await fetch(`${server.publicUrl}/applications`, {
+      method: "POST",
+      headers: applicationHeaders(applicationToken),
       body: JSON.stringify({
         displayName: "安安妈妈",
         contactWechat: "anan-mom",
@@ -140,6 +164,8 @@ describe("mama resource pool routes", () => {
     assert.equal(data.profile.contentCases.length, 0);
     assert.equal(data.profile.rateCard.rateRange, "");
     assert.equal(data.profile.rateCard.availability, "");
+    assert.match(data.profile.publicUid, /^\d{9}$/);
+    assert.equal(String(data.profile.userId), applicationUserId);
     assert.equal("password" in data.profile, false);
   });
 
@@ -147,7 +173,7 @@ describe("mama resource pool routes", () => {
     const command = "我在小红书收获了9105次赞与收藏，来看看我的主页>> https://xhslink.com/m/33T8SSC3sBq";
     const response = await fetch(`${server.publicUrl}/applications`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: applicationHeaders(applicationToken),
       body: JSON.stringify({
         displayName: "短链接妈妈",
         contactWechat: "short-link-mom",
@@ -172,7 +198,7 @@ describe("mama resource pool routes", () => {
     };
     const missingResponse = await fetch(`${server.publicUrl}/applications`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: applicationHeaders(applicationToken),
       body: JSON.stringify({ ...basePayload, alipayVerifiedName: "张三" }),
     });
     assert.equal(missingResponse.status, 400);
@@ -180,7 +206,7 @@ describe("mama resource pool routes", () => {
 
     const response = await fetch(`${server.publicUrl}/applications`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: applicationHeaders(applicationToken),
       body: JSON.stringify({
         ...basePayload,
         alipayAccount: "  payout@example.com  ",
@@ -196,7 +222,7 @@ describe("mama resource pool routes", () => {
   it("accepts separated personal info with multiple media accounts while keeping a primary account", async () => {
     const response = await fetch(`${server.publicUrl}/applications`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: applicationHeaders(applicationToken),
       body: JSON.stringify({
         displayName: "多账号妈妈",
         contactWechat: "multi-mom",
@@ -251,7 +277,7 @@ describe("mama resource pool routes", () => {
   it("requires WeChat as the primary contact instead of phone", async () => {
     const response = await fetch(`${server.publicUrl}/applications`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: applicationHeaders(applicationToken),
       body: JSON.stringify({
         displayName: "安安妈妈",
         contactPhone: "13800000000",
@@ -282,7 +308,7 @@ describe("mama resource pool routes", () => {
 
     const response = await fetch(`${server.publicUrl}/applications`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: applicationHeaders(applicationToken),
       body: JSON.stringify({
         displayName: "更新账号",
         contactPhone: "13900000000",
@@ -334,7 +360,7 @@ describe("mama resource pool routes", () => {
 
     const response = await fetch(`${server.publicUrl}/applications`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: applicationHeaders(applicationToken),
       body: JSON.stringify({
         displayName: "已提交账号",
         contactPhone: "13800000000",
@@ -361,7 +387,7 @@ describe("mama resource pool routes", () => {
   it("allows repeated media account nicknames when profile links are different", async () => {
     const response = await fetch(`${server.publicUrl}/applications`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: applicationHeaders(applicationToken),
       body: JSON.stringify({
         displayName: "同昵称账号",
         contactPhone: "13800000001",
@@ -408,7 +434,7 @@ describe("mama resource pool routes", () => {
 
     const response = await fetch(`${server.publicUrl}/applications`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: applicationHeaders(applicationToken),
       body: JSON.stringify({
         displayName: "更新账号",
         contactPhone: "13800000000",
@@ -457,7 +483,7 @@ describe("mama resource pool routes", () => {
 
     const response = await fetch(`${server.publicUrl}/applications`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: applicationHeaders(applicationToken),
       body: JSON.stringify({
         displayName: "旧账号",
         contactPhone: "13800000000",

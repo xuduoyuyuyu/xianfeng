@@ -34,6 +34,42 @@ page {
   margin-top: 48rpx;
 }
 
+.xf-mama-login-card {
+  margin-top: 0;
+  padding: 64rpx 36rpx 40rpx;
+  text-align: center;
+}
+
+.xf-mama-login-icon {
+  width: 112rpx;
+  height: 112rpx;
+  margin: 0 auto;
+}
+
+.xf-mama-login-title,
+.xf-mama-login-copy {
+  display: block;
+}
+
+.xf-mama-login-title {
+  margin-top: 24rpx;
+  color: #171321;
+  font-size: 38rpx;
+  font-weight: 900;
+}
+
+.xf-mama-login-copy {
+  margin: 18rpx auto 0;
+  color: #6b6474;
+  font-size: 26rpx;
+  font-weight: 650;
+  line-height: 1.7;
+}
+
+.xf-mama-login-card .xf-mama-submit {
+  margin-top: 36rpx;
+}
+
 .xf-mama-form {
   display: block;
 }

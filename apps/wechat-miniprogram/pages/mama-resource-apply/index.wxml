@@ -14,7 +14,16 @@
   </view>
 
   <view class="xf-mama-content">
-    <block wx:if="{{mamaResourceView === 'apply'}}">
+    <block wx:if="{{!isLoggedIn}}">
+      <view class="xf-mama-card xf-mama-login-card">
+        <image class="xf-mama-login-icon" src="/assets/menu/mama-hao-zhuan-icon.png" mode="aspectFit" />
+        <text class="xf-mama-login-title">登录后进入好赚</text>
+        <text class="xf-mama-login-copy">好赚资料、媒体账号和任务信息仅对当前账号展示，请先授权微信手机号登录。</text>
+        <button class="xf-mama-submit" data-action="enter" open-type="getPhoneNumber" bindgetphonenumber="authorizeMamaResourceAction">授权登录</button>
+      </view>
+    </block>
+
+    <block wx:elif="{{mamaResourceView === 'apply'}}">
       <view class="xf-mama-intro-card">
         <view class="xf-mama-head">
           <image class="xf-mama-icon" src="/assets/menu/mama-hao-zhuan-icon.png" mode="aspectFit" />
