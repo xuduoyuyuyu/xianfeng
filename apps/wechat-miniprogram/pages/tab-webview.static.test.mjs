@@ -15821,6 +15821,7 @@ test("webview native program detail page keeps program, book, and topic details 
       switchTab() {},
       showToast() {},
       createInnerAudioContext() {
+        audioRuntime.createCalls = (audioRuntime.createCalls || 0) + 1;
         return {
           currentTime: audioRuntime.currentTime,
           onPlay(handler) { audioRuntime.handlers.play = handler; },
@@ -16217,6 +16218,8 @@ test("webview native program detail page keeps program, book, and topic details 
     assert.equal(context.data.nativeMaterialMode, false);
     assert.equal(context.data.title, "加餐 | 创意写作是更好的写作方式吗？");
     assert.equal(context.data.nativeProgram.title, "加餐 | 创意写作是更好的写作方式吗？");
+    assert.equal(audioRuntime.createCalls, 1);
+    assert.equal(context.audioContext.src, "https://xianfeng.xinzhi.info/uploads/audio/abc.mp3");
     assert.equal(context.data.nativeProgram.showLabel, "中年知己");
     assert.deepEqual(context.data.nativeProgram.contentModes.map((item) => item.key), ["quickview", "mindmap", "transcript"]);
     assert.equal(context.data.activeContentMode, "quickview");

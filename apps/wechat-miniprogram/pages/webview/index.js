@@ -1979,6 +1979,7 @@ Page({
     nativeWorthBuy: null,
     activeContentMode: "quickview",
     isAudioPlaying: false,
+    audioLoading: false,
     audioPlaybackRate: 1,
     audioSpeedLabel: "1.0x",
     playerQuickActionsOpen: false,
@@ -2955,6 +2956,7 @@ Page({
           nativeProgramLoading: false,
           nativeProgramError: ""
         });
+        this.ensureNativeAudioContext(nativeProgram.audioUrl);
       })
       .catch((error) => {
         this.setData({
@@ -3341,20 +3343,38 @@ Page({
       return;
     }
     this.showNativePlayerQuickActions();
-    if (!this.audioContext) {
-      this.audioContext = wx.createInnerAudioContext();
-      this.audioContext.onPlay(() => this.setData({ isAudioPlaying: true }));
-      this.audioContext.onPause(() => this.setData({ isAudioPlaying: false }));
-      this.audioContext.onStop(() => this.setData({ isAudioPlaying: false }));
-      this.audioContext.onEnded(() => this.setData({ isAudioPlaying: false }));
-    }
+    this.ensureNativeAudioContext(program.audioUrl);
     if (this.data.isAudioPlaying) {
       this.audioContext.pause();
       return;
     }
-    this.audioContext.src = program.audioUrl;
+    this.setData({ audioLoading: true });
     this.audioContext.playbackRate = this.data.audioPlaybackRate || 1;
     this.audioContext.play();
+  },
+
+  ensureNativeAudioContext(audioUrl) {
+    const src = String(audioUrl || "").trim();
+    if (!src) return null;
+    if (!this.audioContext) {
+      this.audioContext = wx.createInnerAudioContext();
+      this.audioContext.onPlay(() => this.setData({ isAudioPlaying: true, audioLoading: false }));
+      this.audioContext.onPause(() => this.setData({ isAudioPlaying: false, audioLoading: false }));
+      this.audioContext.onStop(() => this.setData({ isAudioPlaying: false, audioLoading: false }));
+      this.audioContext.onEnded(() => this.setData({ isAudioPlaying: false, audioLoading: false }));
+      if (typeof this.audioContext.onError === "function") {
+        this.audioContext.onError(() => {
+          const playRequested = this.data.audioLoading;
+          const failedContext = this.audioContext;
+          this.audioContext = null;
+          if (failedContext && typeof failedContext.destroy === "function") failedContext.destroy();
+          this.setData({ isAudioPlaying: false, audioLoading: false });
+          if (playRequested) wx.showToast({ title: "音频加载失败，请稍后重试", icon: "none" });
+        });
+      }
+    }
+    if (this.audioContext.src !== src) this.audioContext.src = src;
+    return this.audioContext;
   },
 
   seekNativeAudio(event) {

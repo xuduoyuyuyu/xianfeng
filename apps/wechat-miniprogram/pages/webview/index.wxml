@@ -35,7 +35,7 @@
           </button>
           <button class="xf-program-detail-play" bindtap="toggleNativeAudio">
             <image class="xf-program-detail-play-icon" src="{{isAudioPlaying ? '/assets/program-detail/program-pause-purple.png' : '/assets/program-detail/program-play-purple.png'}}" mode="aspectFit" />
-            <text>{{isAudioPlaying ? "暂停收听" : "立即收听"}}</text>
+            <text>{{audioLoading ? "音频加载中…" : (isAudioPlaying ? "暂停收听" : "立即收听")}}</text>
           </button>
         </view>
       </view>

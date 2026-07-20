@@ -23,6 +23,9 @@ episode description and truncates compatibility fallbacks at `本期嘉宾` or t
 first timestamp. The live 2025 Shanghai essay episode therefore displays only
 its concise thematic summary, without guest, timeline, host, music, or footer
 metadata. Commits `7e47238b` and `a7394a2a` are deployed to production.
+Native mini-program program details now prepare their audio context as soon as
+detail data arrives; early taps show an explicit loading state while external
+audio sources buffer, and playback failures remain retryable.
 
 Guest detail pages split legacy semicolon-delimited book source strings into
 real list names, remove exact normalized duplicates in first-seen order, and
