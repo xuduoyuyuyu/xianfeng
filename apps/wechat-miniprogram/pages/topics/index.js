@@ -463,17 +463,10 @@ function ensureTopicDisplayTags(topic) {
   return { ...topic, displayTags: tags.slice(0, 3), tags };
 }
 
-function sanitizeTopicPath(path) {
-  const source = String(path || "").trim() || "/topics";
-  const url = new URL(source.startsWith("http") ? source : `https://xianfeng.xinzhi.info${source.startsWith("/") ? source : `/${source}`}`);
-  ["xf_token", "token", "secret", "userId"].forEach((key) => url.searchParams.delete(key));
-  const query = url.searchParams.toString();
-  return `${url.pathname}${query ? `?${query}` : ""}${url.hash || ""}`;
-}
-
 function buildTopicSharePath(topic) {
   const item = topic || {};
-  const target = `/pages/webview/index?url=${encodeURIComponent(sanitizeTopicPath(item.path))}&title=${encodeURIComponent(item.title || "请教详情")}&topicId=${encodeURIComponent(item.id || item.slug || "")}`;
+  const topicSlug = String(item.slug || item.id || "").trim();
+  const target = `/pages/webview/index?nativeTopic=1&topicSlug=${encodeURIComponent(topicSlug)}&title=${encodeURIComponent(item.title || "请教详情")}`;
   return createPageShare({
     title: item.title || "家长先疯请教",
     path: target

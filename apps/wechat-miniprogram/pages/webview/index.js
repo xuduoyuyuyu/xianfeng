@@ -371,25 +371,11 @@ function sanitizeProgramSummaryBody(value) {
     .trim();
 }
 
-function sanitizeNativeTopicSharePath(value) {
-  const source = String(value || "").trim() || "/topics";
-  try {
-    const url = new URL(source.startsWith("http") ? source : `${DEFAULT_WEB_ORIGIN}${source.startsWith("/") ? source : `/${source}`}`);
-    ["xf_token", "token", "secret", "userId"].forEach((key) => url.searchParams.delete(key));
-    const query = url.searchParams.toString();
-    return `${url.pathname}${query ? `?${query}` : ""}${url.hash || ""}`;
-  } catch (_error) {
-    return source.startsWith("/") ? source : `/${source}`;
-  }
-}
-
 function createNativeTopicShare(data) {
   const topic = data && data.nativeTopic || {};
   const slug = firstText([topic.slug, data && data.nativeTopicSlug, topic.id], "");
   const title = firstText([topic.title, data && data.title], "家长先疯请教");
-  const topicId = firstText([topic.id, topic.slug, slug], "");
-  const topicPath = sanitizeNativeTopicSharePath(topic.path || (slug ? `/topics/${slug}` : "/topics"));
-  const target = `/pages/webview/index?url=${encodeURIComponent(topicPath)}&title=${encodeURIComponent(title)}&topicId=${encodeURIComponent(topicId)}`;
+  const target = `/pages/webview/index?nativeTopic=1&topicSlug=${encodeURIComponent(slug)}&title=${encodeURIComponent(title)}`;
   return createPageShare({
     title,
     path: target

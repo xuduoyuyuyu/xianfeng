@@ -6179,6 +6179,7 @@ test("native first-level content tabs fetch API data and open detail wrapper rou
   assert.doesNotMatch(topics.js, /openWeb\(topic\.path, topic\.title/);
   assert.doesNotMatch(topics.wxml, /xf-topics-share-button|aria-label="分享话题"/);
   assert.match(topics.js, /function buildTopicSharePath\(topic\)/);
+  assert.match(topics.js, /nativeTopic=1&topicSlug=\$\{encodeURIComponent\(topicSlug\)\}/);
   assert.match(topics.js, /topicShareTarget\(event\)/);
   assert.match(topics.js, /onShareAppMessage\(event\)/);
   assert.match(topics.wxml, /class="xf-native-card xf-topics-card \{\{item\.canOpen \? '' : 'is-disabled'\}\} \{\{deleteTopicId === item\.id \? 'is-delete-ready' : ''\}\}"/);
@@ -9356,6 +9357,29 @@ test("topics tab blocks unfinished topics from opening a generated detail page",
   } finally {
     global.wx = originalWx;
   }
+});
+
+test("topics tab shares the native topic route used by direct navigation", () => {
+  const definition = loadPageDefinition("topics");
+  const context = {
+    ...definition,
+    data: {
+      ...definition.data,
+      topics: [{ id: "topic-record-id", slug: "grade-one-math", title: "一年级数学学习方法选择" }]
+    }
+  };
+
+  const share = definition.onShareAppMessage.call(context, {
+    target: { dataset: { topicId: "topic-record-id" } }
+  });
+  const target = new URL(share.path, "https://mini.local");
+
+  assert.equal(target.pathname, "/pages/webview/index");
+  assert.equal(target.searchParams.get("nativeTopic"), "1");
+  assert.equal(target.searchParams.get("topicSlug"), "grade-one-math");
+  assert.equal(target.searchParams.get("title"), "一年级数学学习方法选择");
+  assert.equal(target.searchParams.has("url"), false);
+  assert.equal(target.searchParams.has("topicId"), false);
 });
 
 test("topics tab disables zero-node topics before they can open an empty detail", () => {
@@ -12563,12 +12587,15 @@ test("topics cards share native landing paths without leaking web params", () =>
   assert.equal(share.path.includes("userId"), false);
   const nested = new URL(share.path, "https://mini.local");
   assert.equal(nested.pathname, "/pages/webview/index");
-  assert.equal(nested.searchParams.get("url"), "/topics/writing-growth?ref=a%26b&section=one%3D1#part=2");
+  assert.equal(nested.searchParams.get("nativeTopic"), "1");
+  assert.equal(nested.searchParams.get("topicSlug"), "writing-growth");
   assert.equal(nested.searchParams.get("title"), "写作&成长=一#章");
-  assert.equal(nested.searchParams.get("topicId"), "topic-1");
+  assert.equal(nested.searchParams.has("url"), false);
+  assert.equal(nested.searchParams.has("topicId"), false);
   assert.equal(timelineShare.title, "写作&成长=一#章");
   assert.equal(timelineShare.query.includes("xf_token"), false);
-  assert.equal(new URLSearchParams(timelineShare.query).get("topicId"), "topic-1");
+  assert.equal(new URLSearchParams(timelineShare.query).get("nativeTopic"), "1");
+  assert.equal(new URLSearchParams(timelineShare.query).get("topicSlug"), "writing-growth");
 });
 
 test("programs hamburger settings drawer renders native menu content", () => {
@@ -14678,11 +14705,12 @@ test("native topic detail keeps system sharing while removing the custom share b
     assert.equal(share.title, "不分享话题");
     const direct = new URL(share.path, "https://mini.local");
     assert.equal(direct.pathname, "/pages/webview/index");
-    assert.equal(direct.searchParams.get("url"), "/topics/no-share-topic");
+    assert.equal(direct.searchParams.get("nativeTopic"), "1");
+    assert.equal(direct.searchParams.get("topicSlug"), "no-share-topic");
     assert.equal(direct.searchParams.get("title"), "不分享话题");
-    assert.equal(direct.searchParams.get("topicId"), "no-share-topic");
     assert.equal(timelineShare.title, "不分享话题");
-    assert.equal(new URLSearchParams(timelineShare.query).get("topicId"), "no-share-topic");
+    assert.equal(new URLSearchParams(timelineShare.query).get("nativeTopic"), "1");
+    assert.equal(new URLSearchParams(timelineShare.query).get("topicSlug"), "no-share-topic");
   } finally {
     global.wx = originalWx;
   }
