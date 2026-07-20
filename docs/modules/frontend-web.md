@@ -83,6 +83,9 @@
   child basics, Haozhuan (`好赚`) participation, and the backend-aggregated event
   timeline, including registration, profile changes, recorded page visits,
   child-memory updates, and task lifecycle events.
+  Its keyword search covers UID, site nickname, and linked Haozhuan nicknames.
+  Bound profiles on `/admin/mama-resources/review` link to `/admin/users` and
+  automatically open that existing User 360 detail.
 - The Haozhuan personal profile exposes `能拍`, `能剪`, and `能写` as optional
   multi-select capabilities. The admin account list exposes the same values in
   a multi-select popover and sends them to the backend as an all-selected match.

@@ -196,7 +196,11 @@
   to the authenticated user's normalized mobile instead of any editable form
   phone, so future task access and profile updates resolve through the same
   account. Admin `/api/admin/mama-resources` handles review state, filtering,
-  manual metrics, screenshots, and operator notes.
+  manual metrics, screenshots, and operator notes. The admin user-list
+  projection includes `publicUid` and deduplicated linked Haozhuan
+  display/platform nicknames so the frontend can search the complete loaded
+  user set without per-row profile requests. Profile linkage prefers `userId`
+  and retains normalized phone matching for legacy rows.
 - Haozhuan (`好赚`) tasks are listed independently from accounts.
   Each site user has an optional immutable public-facing `publicUid`: the
   authenticated Haozhuan task read lazily assigns a globally unique nine-digit

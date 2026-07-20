@@ -973,6 +973,7 @@ export interface User {
   membershipLabel?: string;
   hasMamaResource?: boolean;
   mamaResourceId?: string;
+  mamaResourceNicknames?: string[];
   childStages?: string[];
   childGrades?: string[];
   proExpiresAt?: string | null;

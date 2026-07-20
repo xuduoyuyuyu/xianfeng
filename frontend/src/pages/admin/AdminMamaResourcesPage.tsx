@@ -936,9 +936,12 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                 ))}
               </div>
               <div><span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-black ${statusClass[profile.status]}`}>{statusLabel[profile.status]}</span></div>
-              <button type="button" onClick={() => openEdit(profile)} className="inline-flex h-9 items-center justify-center rounded-full border border-[#e6d7ff] bg-[#f7f2ff] px-5 text-xs font-black text-[#5e17eb] shadow-sm transition hover:border-[#6c27d6] hover:bg-[#efe5ff]">
-                查看
-              </button>
+              <div className="flex flex-col gap-2">
+                {profile.userId ? <Link to={`/admin/users?userId=${encodeURIComponent(profile.userId)}`} className="inline-flex h-9 items-center justify-center rounded-full bg-[#6c27d6] px-4 text-xs font-black text-white shadow-sm transition hover:bg-[#5e17eb]">用户详情</Link> : null}
+                <button type="button" onClick={() => openEdit(profile)} className="inline-flex h-9 items-center justify-center rounded-full border border-[#e6d7ff] bg-[#f7f2ff] px-5 text-xs font-black text-[#5e17eb] shadow-sm transition hover:border-[#6c27d6] hover:bg-[#efe5ff]">
+                  查看资料
+                </button>
+              </div>
             </div>
           ))
         )}

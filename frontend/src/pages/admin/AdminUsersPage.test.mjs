@@ -42,6 +42,13 @@ test("admin users page filters by profile tags", () => {
   assert.match(source, /grid-cols-\[minmax\(280px,2fr\)_repeat\(6,minmax\(140px,1fr\)\)\]/);
 });
 
+test("admin users page searches UID and Haozhuan nicknames and opens linked users", () => {
+  assert.match(source, /row\.publicUid/);
+  assert.match(source, /row\.mamaResourceNicknames/);
+  assert.match(source, /searchParams\.get\("userId"\)/);
+  assert.match(source, /openOverview\(row\)/);
+});
+
 test("admin users page keeps business IDs in the clicked detail instead of the table", () => {
   assert.doesNotMatch(source, /<th[^>]*>用户 ID<\/th>/);
   assert.doesNotMatch(source, /<th[^>]*>好赚 ID<\/th>/);

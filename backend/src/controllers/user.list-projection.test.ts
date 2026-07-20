@@ -12,4 +12,12 @@ describe("admin user list projection", () => {
     assert.match(getAll, /\.slice\("changeHistory", -6\)/);
     assert.doesNotMatch(getAll, /\.select\("-password"\)/);
   });
+
+  it("includes UID and Haozhuan nicknames for admin search", () => {
+    const getAll = source.slice(source.indexOf("async getAll("), source.indexOf("async getOverview("));
+
+    assert.match(getAll, /_id publicUid username mobile name role/);
+    assert.match(getAll, /displayName socialAccount\.nickname mediaAccounts\.nickname/);
+    assert.match(getAll, /mamaResourceNicknames:/);
+  });
 });

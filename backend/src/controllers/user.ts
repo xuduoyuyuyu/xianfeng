@@ -882,7 +882,7 @@ export class UserController {
     try {
       const users = await User.find()
         .select(
-          "_id username mobile name role city region childGrade grade proStatus proPlan proExpiresAt proPointBalance changeHistory createdAt"
+          "_id publicUid username mobile name role city region childGrade grade proStatus proPlan proExpiresAt proPointBalance changeHistory createdAt"
         )
         .slice("changeHistory", -6)
         .lean();
@@ -901,7 +901,7 @@ export class UserController {
                 { contactPhone: { $in: users.map((user: any) => normalizeMobile(user.mobile || user.username)).filter(Boolean) } },
               ],
             })
-              .select("userId contactPhone childStage")
+              .select("userId contactPhone childStage displayName socialAccount.nickname mediaAccounts.nickname")
               .sort({ updatedAt: -1 })
               .lean(),
           ])
@@ -914,6 +914,8 @@ export class UserController {
       const mamaIdByPhone = new Map<string, string>();
       const mamaStagesByUserId = new Map<string, string[]>();
       const mamaStagesByPhone = new Map<string, string[]>();
+      const mamaNicknamesByUserId = new Map<string, string[]>();
+      const mamaNicknamesByPhone = new Map<string, string[]>();
       mamaProfiles.forEach((profile: any) => {
         const userId = String(profile.userId || "");
         const phone = normalizeMobile(profile.contactPhone);
@@ -924,6 +926,13 @@ export class UserController {
         if (phone && !mamaIdByPhone.has(phone)) mamaIdByPhone.set(phone, String(profile._id));
         if (stage && userId) mamaStagesByUserId.set(userId, Array.from(new Set([...(mamaStagesByUserId.get(userId) || []), stage])));
         if (stage && phone) mamaStagesByPhone.set(phone, Array.from(new Set([...(mamaStagesByPhone.get(phone) || []), stage])));
+        const nicknames = [
+          profile.displayName,
+          profile.socialAccount?.nickname,
+          ...(profile.mediaAccounts || []).map((account: any) => account?.nickname),
+        ].map((value) => String(value || "").trim()).filter(Boolean);
+        if (nicknames.length && userId) mamaNicknamesByUserId.set(userId, Array.from(new Set([...(mamaNicknamesByUserId.get(userId) || []), ...nicknames])));
+        if (nicknames.length && phone) mamaNicknamesByPhone.set(phone, Array.from(new Set([...(mamaNicknamesByPhone.get(phone) || []), ...nicknames])));
       });
       const rows = users.map((user: any) => {
         const userId = String(user._id);
@@ -941,6 +950,10 @@ export class UserController {
           ...serializeBillingUser(user),
           hasMamaResource: mamaUserIds.has(userId) || (!!phone && mamaPhones.has(phone)),
           mamaResourceId: mamaIdByUserId.get(userId) || mamaIdByPhone.get(phone) || "",
+          mamaResourceNicknames: Array.from(new Set([
+            ...(mamaNicknamesByUserId.get(userId) || []),
+            ...(mamaNicknamesByPhone.get(phone) || []),
+          ])),
           childStages,
           childGrades,
           childMemories: memorySummary?.childMemories || [],

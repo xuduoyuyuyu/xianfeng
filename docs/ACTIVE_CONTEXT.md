@@ -103,6 +103,9 @@ uses existing records only and does not add universal click or search tracking.
 The full user list also derives filterable tags for Mama Haozhuan participation,
 active membership tier, city, region, child stage, and every child grade before
 client-side pagination, so combined filters apply to the complete loaded list.
+Its keyword search also covers the stable UID plus linked Haozhuan station and
+platform nicknames. Haozhuan account cards link directly to the same User 360
+detail when the profile has a bound site user.
 It exposes the full site user ID used by welfare claims plus the latest linked
 Mama Haozhuan profile ID, and operators can page the loaded list at 20, 50, or
 100 rows. Admin navigation keeps Haozhuan and Treasure Box under Decisions after

@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSelector } from "react-redux";
+import { useSearchParams } from "react-router-dom";
 import { adminApi, AdminUserOverview, User } from "../../services/api";
 import TopAlert from "../../components/TopAlert";
 import { RootState } from "../../store";
 
-type EditableUser = Pick<User, "_id" | "username" | "mobile" | "role" | "city" | "region" | "childGrade" | "grade" | "name" | "membershipTier" | "hasMamaResource" | "mamaResourceId" | "childStages" | "childGrades" | "proPointBalance" | "changeHistory" | "childMemories" | "memoryItemCount" | "memoryPreview" | "latestMemoryAt" | "createdAt">;
+type EditableUser = Pick<User, "_id" | "publicUid" | "username" | "mobile" | "role" | "city" | "region" | "childGrade" | "grade" | "name" | "membershipTier" | "hasMamaResource" | "mamaResourceId" | "mamaResourceNicknames" | "childStages" | "childGrades" | "proPointBalance" | "changeHistory" | "childMemories" | "memoryItemCount" | "memoryPreview" | "latestMemoryAt" | "createdAt">;
 type UserModalMode = "create" | "edit" | null;
 
 type UserFormState = {
@@ -51,6 +52,7 @@ function formatDateTime(value?: string): string {
 function toEditableUser(row: User): EditableUser {
   return {
     _id: row._id,
+    publicUid: row.publicUid || "",
     username: row.username,
     name: row.name || "",
     mobile: row.mobile || "",
@@ -62,6 +64,7 @@ function toEditableUser(row: User): EditableUser {
     membershipTier: row.membershipTier || "free",
     hasMamaResource: row.hasMamaResource === true,
     mamaResourceId: row.mamaResourceId || "",
+    mamaResourceNicknames: row.mamaResourceNicknames || [],
     childStages: row.childStages || [],
     childGrades: row.childGrades || [],
     proPointBalance: Number(row.proPointBalance || 0),
@@ -86,6 +89,7 @@ function resolveMobile(row: Pick<EditableUser, "mobile" | "username">): string {
 }
 
 const AdminUsersPage: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { admin } = useSelector((state: RootState) => state.admin);
   const myId = (admin as any)?._id || (admin as any)?.id || "";
 
@@ -132,7 +136,7 @@ const AdminUsersPage: React.FC = () => {
   const filteredItems = useMemo(() => {
     const key = keyword.trim().toLowerCase();
     return items.filter((row) => {
-      if (key && !`${row.username} ${row.name || ""} ${resolveMobile(row)} ${row.role} ${row.city || ""} ${row.region || ""} ${row.childGrade || ""} ${row.grade || ""} ${(row.childStages || []).join(" ")} ${(row.childGrades || []).join(" ")} ${row.memoryPreview || ""}`.toLowerCase().includes(key)) return false;
+      if (key && !`${row.publicUid || ""} ${row.username} ${row.name || ""} ${(row.mamaResourceNicknames || []).join(" ")} ${resolveMobile(row)} ${row.role} ${row.city || ""} ${row.region || ""} ${row.childGrade || ""} ${row.grade || ""} ${(row.childStages || []).join(" ")} ${(row.childGrades || []).join(" ")} ${row.memoryPreview || ""}`.toLowerCase().includes(key)) return false;
       if (mamaFilter && String(row.hasMamaResource) !== mamaFilter) return false;
       if (membershipFilter && row.membershipTier !== membershipFilter) return false;
       if (cityFilter && row.city !== cityFilter) return false;
@@ -327,6 +331,17 @@ const AdminUsersPage: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    const userId = searchParams.get("userId");
+    if (loading || !userId) return;
+    const row = items.find((item) => item._id === userId);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("userId");
+    setSearchParams(nextParams, { replace: true });
+    if (row) openOverview(row);
+    else setError("未找到对应用户");
+  }, [items, loading, searchParams, setSearchParams]);
+
   return (
     <div className="space-y-8">
       <div className="admin-toolbar">
@@ -387,7 +402,7 @@ const AdminUsersPage: React.FC = () => {
             <div className="relative">
             <input
               className="w-full rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-stone-900 caret-[#5e17eb] placeholder:text-stone-400 transition-all focus:border-[#5e17eb] focus:ring-4 focus:ring-[#5e17eb]/5"
-              placeholder="搜索用户名 / 昵称 / 手机号 / 角色 / 城市 / 区域 / 年级"
+              placeholder="搜索UID / 用户昵称 / 好赚昵称 / 手机号 / 角色 / 城市 / 区域 / 年级"
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
             />

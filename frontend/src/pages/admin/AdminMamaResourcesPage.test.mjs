@@ -56,7 +56,9 @@ test("admin mama resources page defaults to all profiles and exposes profile fil
   assert.match(source, /全部用户性别/);
   assert.match(source, /小红书/);
   assert.match(source, /抖音/);
-  assert.match(source, />\s*查看\s*<\/button>/);
+  assert.match(source, />\s*查看资料\s*<\/button>/);
+  assert.match(source, /to=\{`\/admin\/users\?userId=\$\{encodeURIComponent\(profile\.userId\)\}`\}/);
+  assert.match(source, />用户详情<\/Link>/);
   assert.doesNotMatch(source, /审核\/补录|账号审核和补录|保存审核和人工补录/);
 });
 
@@ -225,7 +227,7 @@ test("admin mama resources detail editing is handled in a modal instead of a rig
   assert.match(source, /aria-modal="true"/);
   assert.match(source, /closeEdit/);
   assert.match(source, /编辑资源详情/);
-  assert.match(source, /rounded-full[^>]*>[\s\S]*?查看\s*<\/button>/);
+  assert.match(source, /rounded-full[^>]*>[\s\S]*?查看资料\s*<\/button>/);
   assert.doesNotMatch(source, /xl:grid-cols-\[1fr_420px\]/);
   assert.doesNotMatch(source, /选择一条资源后，可以补充账号基础数据/);
 });
