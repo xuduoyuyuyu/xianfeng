@@ -178,16 +178,16 @@ test("podcast detail related links navigate the parent shell instead of nesting 
   assert.doesNotMatch(renderRelatedSource, /href="\/programs\/' \+ routeId/, "related links should not default-navigate inside the iframe");
 });
 
-test("podcast detail related content stays compact without summaries", () => {
+test("podcast detail related cards stay concise without summaries", () => {
   const renderRelatedStart = source.indexOf("function renderRelated");
   const fetchRelatedStart = source.indexOf("async function fetchRelatedPrograms");
   assert.notEqual(renderRelatedStart, -1, "renderRelated should exist");
   assert.notEqual(fetchRelatedStart, -1, "fetchRelatedPrograms should exist after renderRelated");
   const renderRelatedSource = source.slice(renderRelatedStart, fetchRelatedStart);
 
-  assert.match(source, /id="related-programs-list" class="space-y-0"/, "related list should remove vertical gaps");
-  assert.match(renderRelatedSource, /class="group block cursor-pointer py-3 border-b/, "related item should use compact vertical padding");
-  assert.match(renderRelatedSource, /<h4 class="mt-0 text-xs font-bold text-on-surface/, "related title should be the primary visible line");
+  assert.match(source, /id="related-programs-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"/, "related list should use a responsive card grid");
+  assert.match(renderRelatedSource, /rounded-3xl border border-gray-200 bg-white/, "related item should render as a distinct card");
+  assert.match(renderRelatedSource, /<h3 class="line-clamp-2 text-sm font-black text-on-surface/, "related title should be the primary visible line");
   assert.match(renderRelatedSource, /formatRelatedGuestMeta\(item\)/, "related item should use guest name and title as optional metadata");
   assert.doesNotMatch(renderRelatedSource, /sidebar-episode-num/, "related item should not render the old episode label");
   assert.doesNotMatch(renderRelatedSource, /EP\./, "related item should not render an EP label");
@@ -195,21 +195,21 @@ test("podcast detail related content stays compact without summaries", () => {
   assert.doesNotMatch(renderRelatedSource, /<p class="text-\[11px\]/, "related item should not render long description paragraphs");
 });
 
-test("podcast detail related content matches curated reading item font size", () => {
+test("podcast detail renders related programs as bottom cards", () => {
   const renderRelatedStart = source.indexOf("function renderRelated");
   const fetchRelatedStart = source.indexOf("async function fetchRelatedPrograms");
   const renderRelatedSource = source.slice(renderRelatedStart, fetchRelatedStart);
 
-  assert.match(source, /curated-reading-list"[\s\S]*<h4 class="text-xs font-bold text-on-surface/, "curated reading titles should use the baseline item size");
-  assert.match(renderRelatedSource, /<h4 class="[^"]*text-xs font-bold text-on-surface/, "related titles should use the same item title size as curated reading");
-  assert.doesNotMatch(renderRelatedSource, /<h4 class="text-\[13px\]/, "related titles should not be larger than curated reading titles");
+  assert.match(source, /<section id="related-programs-wrap" class="hidden px-6 pb-44 max-w-7xl mx-auto">/, "related programs should live in a dedicated section after the main detail content");
+  assert.match(source, /<h2 class="mt-2 text-2xl font-black tracking-tight text-on-surface">相关节目<\/h2>/, "bottom section should use the requested related-program heading");
+  assert.match(renderRelatedSource, /aspect-video/, "related cards should include program covers");
+  assert.match(renderRelatedSource, /line-clamp-2 text-sm font-black/, "related cards should keep titles compact");
 });
 
-test("podcast detail deep dive keeps curated reading and related content adjacent", () => {
+test("podcast detail keeps curated reading in the sidebar without related programs", () => {
   assert.match(source, /<div class="p-8 pb-8">/, "deep dive content should use one padded body instead of splitting curated and related into separate padded blocks");
   assert.match(source, /<div id="curated-reading-wrap" class="mb-5">\s*<p class="text-\[10px\] font-black text-gray-400 uppercase tracking-widest mb-3">推荐阅读<\/p>/, "curated reading should use compact bottom spacing");
-  assert.match(source, /<div id="deep-dive-divider" class="h-px bg-gray-100 w-full mb-5"><\/div>\s*<div id="related-programs-wrap">\s*<p class="text-\[10px\] font-black text-gray-400 uppercase tracking-widest mb-3">相关内容推荐<\/p>/, "related content should follow the divider without an extra blank padded band");
-  assert.doesNotMatch(source, /<div class="px-8 pb-8">\s*<p class="text-\[10px\] font-black text-gray-400 uppercase tracking-widest mb-4">相关内容推荐 Related Content<\/p>/, "related content should not live in a separate padded block that creates a vertical gap");
+  assert.doesNotMatch(source, /id="deep-dive-divider"/, "sidebar should not keep a divider for the moved related section");
 });
 
 test("podcast detail related content replaces episode labels with guest metadata", () => {
@@ -246,11 +246,11 @@ test("podcast detail reflows desktop layout when all detail content is empty", (
   assert.match(source, /<main id="program-detail-main"/, "main area should be addressable for compact empty-content spacing");
   assert.match(source, /id="program-detail-main-grid"/, "main desktop grid should be addressable for empty-content layout");
   assert.match(source, /id="detail-content-column"/, "detail content column should be independently hideable");
-  assert.match(source, /function syncDeepDiveExtrasLayout\(programs\)/, "empty-content layout should use one helper for the right-side deep dive card state");
-  assert.match(source, /const hasDeepDiveExtras = hasRealCuratedReading\(playerState\.currentProgram && playerState\.currentProgram\.deepDive\) \|\| hasRealRelatedPrograms\(programs\);/, "empty-content layout should know whether the right-side deep dive card has real data");
+  assert.match(source, /function syncDeepDiveExtrasLayout\(\)/, "empty-content layout should use one helper for the right-side deep dive card state");
+  assert.match(source, /const hasDeepDiveExtras = hasRealCuratedReading\(playerState\.currentProgram && playerState\.currentProgram\.deepDive\);/, "right-side deep dive state should depend only on curated reading after related programs move to the bottom");
   assert.match(source, /main\.classList\.toggle\("detail-content-empty-main", !modes\.length\)/, "empty detail content should also compact the main page spacing");
   assert.match(source, /grid\.classList\.toggle\("detail-content-empty-layout", !modes\.length\)/, "empty detail content should switch the whole desktop grid layout");
-  assert.match(source, /syncDeepDiveExtrasLayout\(availability && availability\.relatedPrograms\)/, "tab configuration should sync fake deep dive extras");
+  assert.match(source, /syncDeepDiveExtrasLayout\(\)/, "tab configuration should sync the real deep dive state");
   assert.match(source, /contentColumn\.classList\.toggle\("hidden", !modes\.length\)/, "empty detail content should remove the left column from layout flow");
   assert.match(source, /\.detail-content-empty-main\s*\{[\s\S]*padding-top:\s*2rem !important;[\s\S]*\}/, "empty detail content should reduce the large desktop blank band before the aside");
   assert.match(source, /\.detail-content-empty-layout\s*#deep-dive-aside\s*\{[\s\S]*grid-column: 1 \/ -1(?: !important)?;/, "aside should span the available grid when detail content is absent");
@@ -261,7 +261,7 @@ test("podcast detail reflows desktop layout when all detail content is empty", (
 
 test("podcast detail does not render synthetic summary or deep dive placeholders for empty parsed content", () => {
   assert.match(source, /function hasRealCuratedReading\(deepDive\)/, "curated reading availability should be based on real data");
-  assert.match(source, /function hasRealRelatedPrograms\(programs\)/, "related availability should be based on real data");
+  assert.match(source, /const relatedItems = Array\.isArray\(programs\)[\s\S]*programs\.filter/, "related availability should be based on returned program records");
   assert.match(source, /const summaryHeadline = summary\.headline \|\| program\.title \|\| "本期节目";/, "empty summary headline should fall back to a real title rather than a dash");
   assert.match(source, /const hasHighlight = hasText\(summary\.highlightLabel\) \|\| hasText\(summary\.highlightText\);/, "summary highlight should be gated by real highlight text");
   assert.match(source, /summaryHighlightCard\.classList\.toggle\("hidden", !hasHighlight\)/, "empty summary highlight cards should be hidden");

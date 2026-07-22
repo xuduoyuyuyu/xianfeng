@@ -1019,6 +1019,86 @@ page {
   line-height: 84rpx;
 }
 
+.xf-program-detail-related-section {
+  margin: 36rpx 0 10rpx;
+}
+
+.xf-program-detail-related-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  padding: 0 28rpx 20rpx;
+}
+
+.xf-program-detail-related-kicker {
+  color: #5e17eb;
+  font-size: 18rpx;
+  font-weight: 900;
+  letter-spacing: 4rpx;
+}
+
+.xf-program-detail-related-title {
+  color: #211a18;
+  font-size: 36rpx;
+  font-weight: 900;
+}
+
+.xf-program-detail-related-scroll {
+  width: 100%;
+  white-space: nowrap;
+}
+
+.xf-program-detail-related-track {
+  display: inline-flex;
+  gap: 20rpx;
+  padding: 0 28rpx 18rpx;
+}
+
+.xf-program-detail-related-card {
+  display: flex;
+  flex-direction: column;
+  width: 330rpx;
+  padding: 0 0 22rpx;
+  overflow: hidden;
+  border-radius: 24rpx;
+  background: #ffffff;
+  box-shadow: 0 10rpx 30rpx rgba(36, 24, 10, 0.08);
+  text-align: left;
+  white-space: normal;
+}
+
+.xf-program-detail-related-card::after {
+  border: 0;
+}
+
+.xf-program-detail-related-cover {
+  width: 100%;
+  height: 186rpx;
+  background: #ebe8f0;
+}
+
+.xf-program-detail-related-item-title {
+  display: -webkit-box;
+  margin: 20rpx 20rpx 0;
+  overflow: hidden;
+  color: #211a18;
+  font-size: 25rpx;
+  font-weight: 900;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.xf-program-detail-related-meta {
+  margin: 10rpx 20rpx 0;
+  overflow: hidden;
+  color: #9b98a4;
+  font-size: 20rpx;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .xf-program-detail-library-arrow {
   display: block;
   width: 34rpx;

@@ -907,6 +907,21 @@ function normalizeProgramDetail(program) {
   };
 }
 
+function normalizeRelatedPrograms(value) {
+  return Array.isArray(value)
+    ? value.map((item) => {
+      const firstBinding = item && Array.isArray(item.guestBindings) ? item.guestBindings[0] : null;
+      const guest = firstBinding && firstBinding.guest ? firstBinding.guest : null;
+      return {
+        id: firstText([item && item._id, item && item.programCode], ""),
+        title: firstText([item && item.title], "相关节目"),
+        coverImage: normalizeImage(item && item.coverImage),
+        guestMeta: guest ? [guest.name, guest.title].filter(Boolean).join(" ") : ""
+      };
+    }).filter((item) => item.id).slice(0, 6)
+    : [];
+}
+
 function formatBookRating(rating) {
   const number = Number(rating);
   if (!Number.isFinite(number) || number <= 0) return "";
@@ -2005,6 +2020,7 @@ Page({
     const rawSrc = decodeURIComponent(options.url || "");
     const title = resolveWebviewTitle(rawSrc, decodeURIComponent(options.title || ""));
     const src = withNativeWebviewParams(rawSrc);
+    this.shareSrc = src;
     if (isProWebPath(src)) {
       const openNativePro = wx.redirectTo || wx.navigateTo;
       if (openNativePro) {
@@ -2938,9 +2954,13 @@ Page({
 
   loadNativeProgram(programId) {
     const encodedId = encodeURIComponent(programId);
-    return request({ url: `/api/programs/${encodedId}` })
-      .then((response) => {
+    return Promise.all([
+      request({ url: `/api/programs/${encodedId}` }),
+      request({ url: `/api/programs/${encodedId}/related` }).catch(() => ({ recommendedPrograms: [] }))
+    ])
+      .then(([response, relatedResponse]) => {
         const nativeProgram = normalizeProgramDetail(response && (response.program || response.data || response));
+        nativeProgram.relatedPrograms = normalizeRelatedPrograms(relatedResponse && relatedResponse.recommendedPrograms);
         const wishState = readGuestWishState(nativeProgram.guestId);
         nativeProgram.guestWishSent = wishState.sent;
         nativeProgram.guestWishCount = wishState.count;
@@ -3472,6 +3492,18 @@ Page({
     });
   },
 
+  openNativeRelatedProgram(event) {
+    const index = Number(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.index);
+    const relatedPrograms = this.data.nativeProgram && Array.isArray(this.data.nativeProgram.relatedPrograms)
+      ? this.data.nativeProgram.relatedPrograms
+      : [];
+    const related = relatedPrograms[index];
+    if (!related || !related.id) return;
+    wx.navigateTo({
+      url: `/pages/webview/index?title=${encodeURIComponent(related.title || "节目详情")}&url=${encodeURIComponent(`${DEFAULT_WEB_ORIGIN}/programs/${encodeURIComponent(related.id)}`)}`
+    });
+  },
+
   toggleNativeExpertWish() {
     const expert = this.data.nativeExpert || {};
     submitNativeGuestWish(this, "nativeExpert", expert.id, expert.id);
@@ -3798,7 +3830,7 @@ Page({
     }
     return createWebviewShare({
       title: this.data.title,
-      src: this.data.src
+      src: this.data.src || this.shareSrc
     }).onShareAppMessage();
   },
 
@@ -3809,7 +3841,7 @@ Page({
     }
     return createWebviewShare({
       title: this.data.title,
-      src: this.data.src
+      src: this.data.src || this.shareSrc
     }).onShareTimeline();
   }
 });

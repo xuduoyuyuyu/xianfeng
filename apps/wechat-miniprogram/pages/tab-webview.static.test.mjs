@@ -12549,6 +12549,43 @@ test("webview detail page shares the current web route without leaking token", (
   assert.equal("imageUrl" in timelineShare, false);
 });
 
+test("native webview details share their original detail route instead of the website home", () => {
+  const { js } = readPage("webview");
+  const definition = loadPageDefinition("webview");
+  const details = [
+    ["节目详情", "/programs/program-1"],
+    ["图书详情", "/reading/book-1"],
+    ["外部图书详情", "/library/external-book-1"],
+    ["资料详情", "/materials/material-1"]
+  ];
+
+  assert.match(js, /this\.shareSrc = src;/, "onLoad should preserve the resolved route before native detail mode clears src");
+  assert.match(js, /src: this\.data\.src \|\| this\.shareSrc/g, "friend and timeline shares should use the preserved native-detail route");
+
+  for (const [title, pathname] of details) {
+    const context = {
+      data: {
+        title,
+        src: "",
+        nativeTopicMode: false,
+        nativeExpertMode: false
+      },
+      shareSrc: `https://xianfeng.xinzhi.info${pathname}?xf_mp=1&xf_token=secret`
+    };
+    const appMessage = definition.onShareAppMessage.call(context);
+    const timeline = definition.onShareTimeline.call(context);
+    const appTarget = new URL(appMessage.path, "https://mini.local");
+    const appDetail = new URL(appTarget.searchParams.get("url"));
+    const timelineTarget = new URL(`/pages/webview/index?${timeline.query}`, "https://mini.local");
+    const timelineDetail = new URL(timelineTarget.searchParams.get("url"));
+
+    assert.equal(appDetail.pathname, pathname, `${title} friend share should keep its detail route`);
+    assert.equal(timelineDetail.pathname, pathname, `${title} timeline share should keep its detail route`);
+    assert.equal(appMessage.path.includes("xf_token"), false);
+    assert.equal(timeline.query.includes("xf_token"), false);
+  }
+});
+
 test("topics cards share native landing paths without leaking web params", () => {
   const definition = loadPageDefinition("topics");
   const context = {
@@ -15163,6 +15200,10 @@ test("native expert sharing reopens the same expert instead of the website home"
 
 test("webview native program detail page keeps program, book, and topic details in the mobile web style", async () => {
   const { js, json, wxml, wxss } = readPage("webview");
+  assert.match(js, /request\(\{ url: `\/api\/programs\/\$\{encodedId\}\/related` \}\)/, "native program detail should request guest-related programs");
+  assert.match(wxml, /wx:if="\{\{nativeProgram\.relatedPrograms\.length\}\}"[\s\S]*>相关节目<\/text>/, "native program detail should render a related-program section at the bottom");
+  assert.match(wxml, /catchtap="openNativeRelatedProgram"/, "related program cards should open another native detail");
+  assert.match(wxss, /\.xf-program-detail-related-scroll\s*\{[\s\S]*white-space: nowrap;/, "related programs should use a horizontal mobile shelf");
   const definition = loadPageDefinition("webview");
   const originalWx = global.wx;
   const requests = [];
@@ -15286,6 +15327,22 @@ test("webview native program detail page keeps program, book, and topic details 
         requests.push(options.url);
         if (options.url.endsWith("/return-wish")) {
           options.success({ statusCode: 200, data: { ok: true, count: 1 } });
+          return;
+        }
+        if (options.url.endsWith("/api/programs/abc/related")) {
+          options.success({
+            statusCode: 200,
+            data: {
+              recommendedPrograms: [
+                {
+                  _id: "program-related-1",
+                  title: "同一位嘉宾的另一档节目",
+                  coverImage: "/uploads/related-cover.png",
+                  guestBindings: [{ guest: { name: "刘美文", title: "美文工作室负责人" } }]
+                }
+              ]
+            }
+          });
           return;
         }
         if (options.url.endsWith("/api/books/book-1")) {
@@ -16285,8 +16342,8 @@ test("webview native program detail page keeps program, book, and topic details 
     await definition.loadNativeProgram.call(context, "abc");
     assert.equal(context.data.selectedProgramDictionaryEntry, null);
     assert.equal(context.data.nativeProgram.transcript[0].contentNodes[0].type, "dictionary");
-    requests.pop();
-    requestOptions.pop();
+    requests.splice(-2, 2);
+    requestOptions.splice(-2, 2);
     assert.equal(context.data.nativeProgram.hasExtension, true);
     assert.equal(context.data.nativeProgram.curatedReading.length, 2);
     assert.equal(context.data.nativeProgram.curatedReading[0].title, "把阅读变成表达");
@@ -16299,14 +16356,21 @@ test("webview native program detail page keeps program, book, and topic details 
     assert.equal(context.data.nativeProgram.curatedReading[1].meta, "作者：清单作者");
     assert.equal(context.data.nativeProgram.curatedReading[1].bookId, "");
     assert.equal(context.data.nativeProgram.curatedReading[1].url, "");
+    assert.equal(context.data.nativeProgram.relatedPrograms.length, 1);
+    assert.equal(context.data.nativeProgram.relatedPrograms[0].title, "同一位嘉宾的另一档节目");
+    assert.equal(context.data.nativeProgram.relatedPrograms[0].guestMeta, "刘美文 美文工作室负责人");
+    definition.openNativeRelatedProgram.call(context, { currentTarget: { dataset: { index: 0 } } });
+    const relatedProgramNavigation = new URL(navigations.at(-1).url, "https://mini.local");
+    assert.equal(relatedProgramNavigation.pathname, "/pages/webview/index");
+    assert.equal(relatedProgramNavigation.searchParams.get("url"), "https://xianfeng.xinzhi.info/programs/program-related-1");
     definition.openNativeProgramCuratedBook.call(context, { currentTarget: { dataset: { index: 0 } } });
-    assert.equal(navigations.length, 1);
-    const curatedBookNavigation = new URL(navigations[0].url, "https://mini.local");
+    assert.equal(navigations.length, 2);
+    const curatedBookNavigation = new URL(navigations[1].url, "https://mini.local");
     assert.equal(curatedBookNavigation.pathname, "/pages/webview/index");
     assert.equal(curatedBookNavigation.searchParams.get("title"), "把阅读变成表达");
     assert.equal(curatedBookNavigation.searchParams.get("url"), "https://xianfeng.xinzhi.info/reading/curated-book-1");
     definition.openNativeProgramCuratedBook.call(context, { currentTarget: { dataset: { index: 1 } } });
-    assert.equal(navigations.length, 1);
+    assert.equal(navigations.length, 2);
     assert.equal(context.data.nativeProgram.guests.length, 2);
     assert.deepEqual(context.data.nativeProgram.guests.map((guest) => guest.name), ["刘美文", "王璇"]);
     assert.equal(
@@ -16343,8 +16407,9 @@ test("webview native program detail page keeps program, book, and topic details 
     definition.useNativeProgramGuestAvatarFallback.call(context);
     assert.equal(context.data.nativeProgram.guestAvatar, "/assets/wel-avatar/no-hat.png");
     assert.equal(context.data.nativeProgram.guestAvatarFallback, true);
-    assert.equal(requests.length, requestCountBeforeProgram + 1);
-    assert.equal(requests.at(-1).endsWith("/api/programs/abc"), true);
+    assert.equal(requests.length, requestCountBeforeProgram + 2);
+    assert.equal(requests.slice(-2).some((url) => url.endsWith("/api/programs/abc")), true);
+    assert.equal(requests.slice(-2).some((url) => url.endsWith("/api/programs/abc/related")), true);
     assert.equal(Object.hasOwn(context.data, "nativeListPage"), false);
 
     definition.toggleNativeProgramGuestWish.call(context);

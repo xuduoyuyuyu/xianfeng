@@ -180,10 +180,11 @@ with more claims than codes reject updates until operators correct the data.
   filter. Social profiles remain real guest fields and copy their URL or
   account name rather than opening an external page; empty sections are omitted.
 
-- 2026-07-15 - Native guest and topic detail shares point directly to their
-  `pages/webview/index` target instead of flashing the generic share landing
-  page first. The share page remains registered for Xiaowanzi conversation
-  content, scene-based QR entry, and compatibility with existing shared links.
+- 2026-07-22 - Native program, book, external-library, material, guest, and
+  topic detail shares retain their exact detail target and reopen it through
+  `pages/webview/index` instead of falling back to the website home. The share
+  page remains registered for Xiaowanzi conversation content, scene-based QR
+  entry, and compatibility with existing shared links.
 
 - 2026-07-15 - Treat semicolon-delimited `sourceName` values as multiple real
   guest booklists. Normalize whitespace and wrapping book-title marks, preserve

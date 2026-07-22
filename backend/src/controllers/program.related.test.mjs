@@ -7,30 +7,25 @@ import { dirname, resolve } from "node:path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(resolve(__dirname, "program.ts"), "utf8");
 
-test("public related programs include education dictionary overlap in candidate selection", () => {
+test("public related programs require a shared bound guest", () => {
   assert.match(
     source,
-    /const currentDictionaryEntryIds = new Set[\s\S]*dictionaryEntryIds[\s\S]*filter\(Boolean\)/,
-    "related scoring should read the current program's dictionary entry ids"
+    /if \(!currentGuestIds\.size\) \{[\s\S]*recommendedPrograms: \[\][\s\S]*return;/,
+    "programs without a bound guest should not receive generic recommendations"
   );
   assert.match(
     source,
-    /if \(currentDictionaryEntryIds\.size\) \{[\s\S]*orFilters\.push\(\{[\s\S]*dictionaryEntryIds:\s*\{[\s\S]*\$in:/,
-    "related candidate filtering should include programs sharing dictionary entries"
+    /"guestBindings\.guestId": \{[\s\S]*\$in: Array\.from\(currentGuestIds\)/,
+    "candidate filtering should require at least one shared guest id"
   );
   assert.match(
     source,
     /const dictionaryOverlap = Array\.from\(dictionaryEntryIds\)\.filter\(\(x\) => currentDictionaryEntryIds\.has\(x\)\)\.length;/,
-    "related scoring should count dictionary overlap per candidate"
-  );
-  assert.match(
-    source,
-    /if \(dictionaryOverlap > 0\) reasons\.push\(`同词条\$\{dictionaryOverlap\}项`\);/,
-    "related reasons should expose dictionary overlap to callers"
+    "same-guest candidates may still use dictionary overlap for ordering"
   );
   assert.match(
     source,
     /const score = sameGuestCount \* 100 \+ dictionaryOverlap \* 20 \+ tagOverlap \* 10 \+ termOverlap \* 3;/,
-    "dictionary overlap should meaningfully influence ranking"
+    "shared guest should remain the dominant ranking signal"
   );
 });

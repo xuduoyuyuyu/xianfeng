@@ -33,6 +33,8 @@
   legacy-string equality. The guest detail API is the list source: mobile guest
   pages show five entries initially with local expand/collapse, while desktop
   pages keep the complete list visible.
+- Public program detail pages render same-guest related programs as a card grid
+  at the bottom of the page and hide the section when the API returns no match.
 - Child profile drawer creates local unnamed draft profiles immediately in the
   tabs UI, but only one unnamed draft may exist at a time; Xiaowanzi only
   treats saved non-draft profiles as selectable or syncable.

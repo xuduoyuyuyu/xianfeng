@@ -56,6 +56,10 @@
   program detail: both `published` and `group-only` programs contribute to
   related-program cards, program counts, and content tags; drafts remain
   excluded.
+- `/api/programs/:id/related` returns only other visible programs that share at
+  least one bound guest with the current program. Programs without a bound
+  guest return an empty recommendation list; dictionary terms and tags rank
+  matches but cannot create a relationship by themselves.
 
 - Public Programs, local Reading, Materials, and Topics list endpoints accept
   the optional complete `profileCity`, `profileRegion`, and `profileGrade`

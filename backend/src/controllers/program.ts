@@ -1470,31 +1470,27 @@ export class ProgramController {
           .filter(Boolean)
       );
 
-      const baseFilter: Record<string, any> = { status: { $in: PUBLIC_PROGRAM_STATUSES }, _id: { $ne: (current as any)._id } };
-      const orFilters: Record<string, any>[] = [];
-      if (currentGuestIds.size) {
-        orFilters.push({
-          "guestBindings.guestId": {
-            $in: Array.from(currentGuestIds)
-              .map((x) => String(x))
-              .filter((x) => mongoose.Types.ObjectId.isValid(x))
-              .map((x) => new mongoose.Types.ObjectId(x)),
+      if (!currentGuestIds.size) {
+        res.status(200).json({
+          current: {
+            _id: String((current as any)._id),
+            programCode: asText((current as any).programCode),
+            title: asText((current as any).title),
           },
+          recommendedPrograms: [],
         });
+        return;
       }
-      if (currentTags.size) {
-        orFilters.push({ "summary.tags": { $in: Array.from(currentTags) } });
-      }
-      if (currentDictionaryEntryIds.size) {
-        orFilters.push({
-          dictionaryEntryIds: {
-            $in: Array.from(currentDictionaryEntryIds)
-              .filter((x) => mongoose.Types.ObjectId.isValid(x))
-              .map((x) => new mongoose.Types.ObjectId(x)),
-          },
-        });
-      }
-      const filter = orFilters.length ? { ...baseFilter, $or: orFilters } : baseFilter;
+
+      const filter: Record<string, any> = {
+        status: { $in: PUBLIC_PROGRAM_STATUSES },
+        _id: { $ne: (current as any)._id },
+        "guestBindings.guestId": {
+          $in: Array.from(currentGuestIds)
+            .filter((x) => mongoose.Types.ObjectId.isValid(x))
+            .map((x) => new mongoose.Types.ObjectId(x)),
+        },
+      };
       const candidatesRaw = await Program.find(filter)
         .sort({ publishedAt: -1, updatedAt: -1 })
         .limit(80)

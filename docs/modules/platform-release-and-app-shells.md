@@ -140,7 +140,11 @@
 - WeChat friend sharing uses `pages/share/index` as the branded landing page
   with the local logo asset, then opens the encoded target page. Timeline
   sharing keeps WeChat's page-query model and does not rely on a target path
-  override. Xiaowanzi generated share posters request a topic-specific
+  override. Native program, book, external-library, and material details retain
+  their original web route while rendering without a `web-view`, so friend and
+  timeline shares reopen that exact detail instead of the website root. Native
+  topic and guest details keep their dedicated detail-share routes. Xiaowanzi
+  generated share posters request a topic-specific
   mini-program code when the selected reply contains a topic link; the code
   lands on `pages/share/index` with a short topic scene and then opens the
   matching topic detail. Xiaowanzi conversation posters save the selected
@@ -182,6 +186,8 @@
 - Native guest profile statistics and guest-list cards show non-zero program,
   social-media, authored-work, and recommended-booklist counts from the public
   guest API.
+- Native program detail pages mirror the public same-guest relationship at the
+  bottom as a horizontal program shelf and omit it when there are no matches.
 - `pages/mama-resource-apply/index` is a native mini-program form for the
   Haozhuan supply intake. It mirrors the public web form and uses
   `wx.chooseMedia`/`wx.uploadFile` for Xiaohongshu profile screenshots.

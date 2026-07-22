@@ -207,6 +207,23 @@
       </view>
     </view>
 
+    <view wx:if="{{nativeProgram.relatedPrograms.length}}" class="xf-program-detail-related-section">
+      <view class="xf-program-detail-related-head">
+        <text class="xf-program-detail-related-kicker">RELATED PROGRAMS</text>
+        <text class="xf-program-detail-related-title">相关节目</text>
+      </view>
+      <scroll-view class="xf-program-detail-related-scroll" scroll-x enhanced show-scrollbar="false">
+        <view class="xf-program-detail-related-track">
+          <button wx:for="{{nativeProgram.relatedPrograms}}" wx:key="id" class="xf-program-detail-related-card" data-index="{{index}}" catchtap="openNativeRelatedProgram">
+            <image wx:if="{{item.coverImage}}" class="xf-program-detail-related-cover" src="{{item.coverImage}}" mode="aspectFill" />
+            <view wx:else class="xf-program-detail-related-cover is-empty"></view>
+            <text class="xf-program-detail-related-item-title">{{item.title}}</text>
+            <text wx:if="{{item.guestMeta}}" class="xf-program-detail-related-meta">{{item.guestMeta}}</text>
+          </button>
+        </view>
+      </scroll-view>
+    </view>
+
     <button class="xf-program-detail-library-link" bindtap="goProgramList">查看全部节目库 <image class="xf-program-detail-library-arrow" src="/assets/program-detail/program-arrow-forward-purple.png" mode="aspectFit" /></button>
   </scroll-view>
 
