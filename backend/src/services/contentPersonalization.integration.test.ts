@@ -26,10 +26,11 @@ test("maps only approved real fields into advanced profile ranking", () => {
   assert.match(topicSource, /tags:\s*\[item\.tags\]/);
 });
 
-test("keeps profile ranking before pagination and outside explicit search", () => {
+test("pins the newest program before personalizing and paginating the remainder", () => {
   assert.match(programSource, /const profile = q \? null : parseContentProfile/);
   assert.match(topicSource, /const profile = search \? null : parseContentProfile/);
-  assert.match(programSource, /rankPersonalizedContent[\s\S]*\.slice\(skip, skip \+ pageSize\)/);
+  assert.match(programSource, /isProgramInPromotionWindow\(foundPrograms\[0\]\) \? 1 : 0/);
+  assert.match(programSource, /foundPrograms\.slice\(0, promotedProgramCount\)[\s\S]*rankPersonalizedContent\(foundPrograms\.slice\(promotedProgramCount\)[\s\S]*\.slice\(skip, skip \+ pageSize\)/);
   assert.match(topicSource, /rankPersonalizedContent[\s\S]*\.slice\(\(pageNum - 1\) \* limitNum, pageNum \* limitNum\)/);
 
   const externalStart = bookSource.indexOf("async getExternalLibraryPublic");

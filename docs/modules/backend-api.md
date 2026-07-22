@@ -61,10 +61,18 @@
   guest return an empty recommendation list; dictionary terms and tags rank
   matches but cannot create a relationship by themselves.
 
-- Public Programs, local Reading, Materials, and Topics list endpoints accept
-  the optional complete `profileCity`, `profileRegion`, and `profileGrade`
-  query set. Ordinary list requests use field-layer weights for region, city,
-  exact grade, adjacent same-stage grade, and stage before pagination.
+- Public Programs first resolve chronological order by `publishedAt`, then
+  `createdAt`, then `_id`, all descending. For complete child-profile requests,
+  the newest program remains pinned as the first promoted item for seven days
+  after publication while all remaining programs are relevance-ranked before
+  pagination. A newer publication immediately replaces the pinned item and the
+  replaced program returns to the personalized pool; after seven days with no
+  replacement, the pinned item unlocks automatically. Search and requests
+  without a complete profile remain fully chronological. Local
+  Reading, Materials, and Topics list endpoints accept the optional complete
+  `profileCity`, `profileRegion`, and `profileGrade` query set. Their ordinary
+  list requests use field-layer weights for region, city, exact grade,
+  adjacent same-stage grade, and stage before pagination.
   Structured grade fields and tags outweigh incidental body text; positive
   equal-score items may use real publish time as a tie-breaker, while zero-score
   items retain business order and Reading retains quality order for equal

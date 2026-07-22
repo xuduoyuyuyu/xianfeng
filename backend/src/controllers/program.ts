@@ -17,6 +17,7 @@ import { AuthenticatedRequest } from "../middlewares/auth";
 import { createAgentTask } from "../services/agentTaskDispatcher";
 import { createInboxMessage } from "../services/adminInbox";
 import { parseContentProfile, rankPersonalizedContent } from "../services/contentPersonalization";
+import { isProgramInPromotionWindow } from "../services/programPromotion";
 
 const execFileAsync = promisify(execFile);
 const PUBLIC_PROGRAM_STATUSES = ["published", "group-only"] as const;
@@ -1592,14 +1593,18 @@ export class ProgramController {
         .sort({ publishedAt: -1, createdAt: -1, _id: -1 });
       if (!profile) programQuery.skip(skip).limit(pageSize);
       const foundPrograms = await programQuery.lean();
+      const promotedProgramCount = profile && isProgramInPromotionWindow(foundPrograms[0]) ? 1 : 0;
       const programs = profile
-        ? rankPersonalizedContent(foundPrograms, profile, (item: any) => ({
-            structured: [],
-            tags: [item.summary?.tags, item.programShow],
-            title: [item.title],
-            body: [item.description, item.summary?.headline, item.summary?.body],
-            publishedAt: item.publishedAt || item.createdAt,
-          })).slice(skip, skip + pageSize)
+        ? [
+            ...foundPrograms.slice(0, promotedProgramCount),
+            ...rankPersonalizedContent(foundPrograms.slice(promotedProgramCount), profile, (item: any) => ({
+              structured: [],
+              tags: [item.summary?.tags, item.programShow],
+              title: [item.title],
+              body: [item.description, item.summary?.headline, item.summary?.body],
+              publishedAt: item.publishedAt || item.createdAt,
+            })),
+          ].slice(skip, skip + pageSize)
         : foundPrograms;
       const attached = await attachDictionaryEntriesToPrograms(programs, false);
       const attachedGuests = await attachGuestBindingsToPrograms(attached);
