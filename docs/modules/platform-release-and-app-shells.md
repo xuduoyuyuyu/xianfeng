@@ -112,7 +112,10 @@
 - The native Xiaowanzi attachment menu starts image recognition directly:
   camera, album images, and image files are read as base64 and sent to the
   backend `attachments/recognize` endpoint before the parsed result is included
-  in the next chat prompt.
+  in the next chat prompt. Links in Xiaowanzi replies keep native navigation for
+  recognized site content, while ordinary external URLs copy to the clipboard.
+  External mini-program short links still open directly when supported and copy
+  to the clipboard if WeChat cannot complete the jump.
 - The native Pro page displays `xiaowanzi_file` in the point usage policy as
   "小玩子图片文件处理", 1 point per processing request, using backend
   `/api/billing/plans` when available and the same fallback copy offline.
@@ -182,7 +185,8 @@
   name filters. Real authored books render as a horizontally scrollable card
   section and enter the existing native book detail. Active social profiles
   render only when present; tapping copies the external URL, or the account
-  name when no URL exists, instead of opening third-party pages.
+  name when no URL exists, instead of opening third-party pages. Public content
+  and reference rows use the same tap-to-copy behavior for their bound links.
 - Native guest profile statistics and guest-list cards show non-zero program,
   social-media, authored-work, and recommended-booklist counts from the public
   guest API.

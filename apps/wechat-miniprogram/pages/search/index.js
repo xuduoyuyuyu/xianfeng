@@ -89,12 +89,16 @@ function normalizeSearchOption(value) {
 
 function openMiniProgramShortLink(value) {
   const shortLink = String(value || "").trim();
-  if (!/^#小程序:\/\//u.test(shortLink) || typeof wx.navigateToMiniProgram !== "function") return false;
+  if (!/^#小程序:\/\//u.test(shortLink)) return false;
+  if (typeof wx.navigateToMiniProgram !== "function") {
+    copyTextSilently(shortLink);
+    return true;
+  }
   wx.navigateToMiniProgram({
     shortLink,
     fail(error) {
       if (/cancel/i.test(String(error && error.errMsg || ""))) return;
-      wx.showToast({ title: "暂时无法打开，请稍后重试", icon: "none" });
+      copyTextSilently(shortLink);
     }
   });
   return true;

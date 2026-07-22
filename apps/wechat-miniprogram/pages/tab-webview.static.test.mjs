@@ -2075,7 +2075,7 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.match(js, /function isShareableAssistantMessageValue\(role, content, pending, error\)/);
     assert.match(js, /shareable: isShareableAssistantMessageValue\(role, content, item && item\.pending, item && item\.error\)/);
     assert.match(js, /contentParts: buildMessageContentParts\(content\)/);
-    assert.match(js, /openMessageLink\(event\) \{[\s\S]*openWeb\(url, title, \{ preserveXiaowanziLayer: true \}\);[\s\S]*\}/);
+    assert.match(js, /openMessageLink\(event\) \{[\s\S]*copyTextSilently\(url\);[\s\S]*\}/);
     assert.match(wxss, /\.xf-xiaowanzi-message-link \{[\s\S]*display: flex;[\s\S]*align-items: center;[\s\S]*width: 100%;[\s\S]*margin: 2rpx 0 8rpx;[\s\S]*padding: 20rpx 22rpx;[\s\S]*border: 1rpx solid rgba\(115, 83, 224, 0\.24\);[\s\S]*border-radius: 30rpx;[\s\S]*background: linear-gradient\(135deg, rgba\(126, 95, 255, 0\.14\) 0%, rgba\(217, 196, 255, 0\.22\) 100%\);/);
     assert.doesNotMatch(wxss, /\.xf-xiaowanzi-message-link \{[\s\S]*margin: 8rpx 0 10rpx;/);
     assert.doesNotMatch(wxss, /\.xf-xiaowanzi-message-link-index/);
@@ -2389,7 +2389,7 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.match(wxss, /\.xf-xiaowanzi-message\.is-selecting\.is-selected \.xf-xiaowanzi-assistant-card \{[\s\S]*border-color: #7c34e8;[\s\S]*box-shadow:[\s\S]*0 0 0 4rpx rgba\(124, 52, 232, 0\.08\),[\s\S]*0 14rpx 30rpx rgba\(72, 75, 132, 0\.08\);/);
     assert.match(js, /setSelectedTab\(this, 2, \{ hidden: true \}\)/);
     assert.match(js, /getNativeTopbarMetrics/);
-    assert.match(js, /const \{ openWeb \} = require\("\.\.\/\.\.\/utils\/webview"\)/);
+    assert.match(js, /const \{ copyTextSilently \} = require\("\.\.\/\.\.\/utils\/clipboard"\)/);
     assert.match(js, /function buildNativeShellData\(\)/);
     assert.match(js, /const knowledgeHeight = 34;/);
     assert.match(js, /const knowledgeWidth = 86;/);
@@ -15176,6 +15176,26 @@ test("native expert detail renders bound extension materials and copies their li
   assert.match(wxml, /wx:for="\{\{nativeExpert\.extensionMaterials\}\}"[\s\S]*catchtap="copyNativeExpertMaterial"/);
   assert.doesNotMatch(wxml, /class="xf-expert-detail-extension-action">复制链接<\/text>/);
   assert.match(wxss, /\.xf-expert-detail-extension-item \{/);
+});
+
+test("native expert public content copies its bound link", () => {
+  const { wxml } = readPage("webview");
+
+  assert.match(wxml, /wx:for="\{\{nativeExpert\.publicItems\}\}"[\s\S]*data-copy-url="\{\{reference\.url\}\}"[\s\S]*catchtap="copyNativeExpertMaterial"/);
+});
+
+test("native external content copies links that cannot be opened", () => {
+  const xiaowanzi = readPage("xiaowanzi");
+  const reading = readPage("reading");
+  const search = readPage("search");
+  const welfare = readPage("welfare");
+
+  assert.match(xiaowanzi.js, /openMessageLink\(event\) \{[\s\S]*copyTextSilently\(url\);[\s\S]*\}/);
+  assert.match(reading.js, /typeof wx\.navigateToMiniProgram !== "function"\) \{[\s\S]*copyTextSilently\(shortLink\);[\s\S]*return true;/);
+  assert.match(reading.js, /wx\.navigateToMiniProgram\(\{[\s\S]*fail\(error\) \{[\s\S]*copyTextSilently\(shortLink\);/);
+  assert.match(search.js, /typeof wx\.navigateToMiniProgram !== "function"\) \{[\s\S]*copyTextSilently\(shortLink\);[\s\S]*return true;/);
+  assert.match(search.js, /wx\.navigateToMiniProgram\(\{[\s\S]*fail\(error\) \{[\s\S]*copyTextSilently\(shortLink\);/);
+  assert.match(welfare.js, /wx\.navigateToMiniProgram\(\{[\s\S]*fail\(error\) \{[\s\S]*copyTextSilently\(link\);/);
 });
 
 test("native expert sharing reopens the same expert instead of the website home", () => {

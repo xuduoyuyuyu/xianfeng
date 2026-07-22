@@ -5,7 +5,7 @@ const { setSelectedTab } = require("../../utils/tabbar");
 const { CHILD_PROFILES_KEY, WEB_CHILD_PROFILES_KEY, mergeChildProfileRecords, parseStoredValue } = require("../../utils/profileState");
 const { getNativeTopbarMetrics } = require("../../utils/nativeChrome");
 const { createNativeSettingsMethods, setSettingsTabbarHidden } = require("../../utils/nativeSettings");
-const { openWeb } = require("../../utils/webview");
+const { copyTextSilently } = require("../../utils/clipboard");
 const { returnFromXiaowanzi } = require("../../utils/xiaowanziReturn");
 const { openNativeSearch } = require("../../utils/nativePageNav");
 
@@ -3179,7 +3179,7 @@ Page({
       wx.switchTab({ url: nativeTabRoute });
       return;
     }
-    openWeb(url, title, { preserveXiaowanziLayer: true });
+    copyTextSilently(url);
   },
 
   openKnowledgeHub() {

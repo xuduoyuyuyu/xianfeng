@@ -776,7 +776,14 @@
     <view wx:if="{{!nativeExpert.agentEnabled && nativeExpert.publicItems.length}}" class="xf-expert-detail-card is-static-publications">
       <text class="xf-expert-detail-section-title">公开内容与资料</text>
       <view class="xf-expert-detail-static-public-list">
-        <view wx:for="{{nativeExpert.publicItems}}" wx:for-item="reference" wx:key="title" class="xf-expert-detail-profile-link is-reference">
+        <view
+          wx:for="{{nativeExpert.publicItems}}"
+          wx:for-item="reference"
+          wx:key="title"
+          class="xf-expert-detail-profile-link is-reference"
+          data-copy-url="{{reference.url}}"
+          catchtap="copyNativeExpertMaterial"
+        >
           <text class="xf-expert-detail-profile-link-title">{{reference.title}}</text>
           <text wx:if="{{reference.source || reference.label}}" class="xf-expert-detail-profile-link-meta">{{reference.source || reference.label}}</text>
         </view>

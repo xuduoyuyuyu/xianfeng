@@ -297,7 +297,7 @@ Page({
       shortLink: link,
       fail(error) {
         if (/cancel/i.test(String(error && error.errMsg || ""))) return;
-        wx.showToast({ title: "暂时无法打开，请复制链接", icon: "none" });
+        copyTextSilently(link);
       }
     });
   },
