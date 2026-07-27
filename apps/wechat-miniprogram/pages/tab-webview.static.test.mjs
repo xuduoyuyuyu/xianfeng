@@ -12504,6 +12504,31 @@ test("main mini program pages expose WeChat share handlers", () => {
   }
 });
 
+test("materials page shares the selected material detail while its link dialog is open", () => {
+  const definition = loadPageDefinition("materials");
+  const context = {
+    data: {
+      ...definition.data,
+      materialLinkModalOpen: true,
+      materialLinkModalId: "material-1",
+      materialLinkModalTitle: "2026年高考资料"
+    }
+  };
+
+  const appMessage = definition.onShareAppMessage.call(context);
+  const appTarget = new URL(appMessage.path, "https://mini.local");
+  const appDetail = new URL(appTarget.searchParams.get("url"));
+  const timeline = definition.onShareTimeline.call(context);
+  const timelineTarget = new URL(`/pages/webview/index?${timeline.query}`, "https://mini.local");
+  const timelineDetail = new URL(timelineTarget.searchParams.get("url"));
+
+  assert.equal(appMessage.title, "2026年高考资料");
+  assert.equal(appTarget.pathname, "/pages/webview/index");
+  assert.equal(appDetail.pathname, "/materials/material-1");
+  assert.equal(timeline.title, "2026年高考资料");
+  assert.equal(timelineDetail.pathname, "/materials/material-1");
+});
+
 test("mini program page share falls back to page screenshots unless a cover is explicit", () => {
   const { createPageShare } = require("../utils/share.js");
   const screenshotShare = createPageShare({

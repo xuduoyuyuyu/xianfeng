@@ -2,7 +2,7 @@ const { WEB_ROUTES } = require("../../utils/config");
 const { request } = require("../../utils/request");
 const { copyTextSilently } = require("../../utils/clipboard");
 const { getNativeTopbarMetrics } = require("../../utils/nativeChrome");
-const { createPageShare, enableShareMenu } = require("../../utils/share");
+const { createPageShare, createWebviewShare, enableShareMenu } = require("../../utils/share");
 const { setSelectedTab } = require("../../utils/tabbar");
 const { goProgramsHome: navigateProgramsHome, openNativeSearch } = require("../../utils/nativePageNav");
 const { openWeb } = require("../../utils/webview");
@@ -385,6 +385,7 @@ Page({
     error: "",
     hasCache: false,
     materialLinkModalOpen: false,
+    materialLinkModalId: "",
     materialLinkModalTitle: "",
     materialLinkModalUrl: "",
     settingsPanelOpen: false,
@@ -566,6 +567,7 @@ Page({
     }
     this.setData({
       materialLinkModalOpen: true,
+      materialLinkModalId: String(material.id || "").trim(),
       materialLinkModalTitle: String(material.title || "").trim(),
       materialLinkModalUrl: url
     });
@@ -574,6 +576,7 @@ Page({
   closeMaterialLinkModal() {
     this.setData({
       materialLinkModalOpen: false,
+      materialLinkModalId: "",
       materialLinkModalTitle: "",
       materialLinkModalUrl: ""
     });
@@ -716,10 +719,24 @@ Page({
   },
 
   onShareAppMessage() {
+    const materialId = String(this.data.materialLinkModalId || "").trim();
+    if (this.data.materialLinkModalOpen && materialId) {
+      return createWebviewShare({
+        title: this.data.materialLinkModalTitle || "资料",
+        src: `${WEB_ROUTES.materials}/${encodeURIComponent(materialId)}`
+      }).onShareAppMessage();
+    }
     return pageShare.onShareAppMessage();
   },
 
   onShareTimeline() {
+    const materialId = String(this.data.materialLinkModalId || "").trim();
+    if (this.data.materialLinkModalOpen && materialId) {
+      return createWebviewShare({
+        title: this.data.materialLinkModalTitle || "资料",
+        src: `${WEB_ROUTES.materials}/${encodeURIComponent(materialId)}`
+      }).onShareTimeline();
+    }
     return pageShare.onShareTimeline();
   }
 });
