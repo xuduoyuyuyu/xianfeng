@@ -6541,7 +6541,9 @@ test("materials tab opens its link modal and copies the displayed link silently 
 
   try {
     const context = {
+      ...definition,
       data: {
+        ...definition.data,
         materials: [
           {
             fileUrl: "https://pan.quark.cn/s/demo",
@@ -12504,29 +12506,134 @@ test("main mini program pages expose WeChat share handlers", () => {
   }
 });
 
-test("materials page shares the selected material detail while its link dialog is open", () => {
+test("materials page share reopens the selected link dialog on the same page", () => {
   const definition = loadPageDefinition("materials");
   const context = {
+    ...definition,
     data: {
       ...definition.data,
       materialLinkModalOpen: true,
       materialLinkModalId: "material-1",
-      materialLinkModalTitle: "2026年高考资料"
-    }
+      materialLinkModalTitle: "2026年高考资料",
+      materialLinkModalUrl: "https://pan.quark.cn/s/material-1",
+      materialShareImageUrl: "/tmp/material-share.png"
+    },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    },
+    syncTopbarMetrics() {},
+    syncAccountEntry() {},
+    loadCachedMaterials() {},
+    loadMaterials() {}
   };
+
+  definition.onLoad.call(context, { materialId: "material-1" });
+  clearInterval(context.searchPromptTimer);
+  assert.equal(context.pendingSharedMaterialId, "material-1");
 
   const appMessage = definition.onShareAppMessage.call(context);
   const appTarget = new URL(appMessage.path, "https://mini.local");
-  const appDetail = new URL(appTarget.searchParams.get("url"));
   const timeline = definition.onShareTimeline.call(context);
-  const timelineTarget = new URL(`/pages/webview/index?${timeline.query}`, "https://mini.local");
-  const timelineDetail = new URL(timelineTarget.searchParams.get("url"));
+  const timelineTarget = new URL(`/pages/materials/index?${timeline.query}`, "https://mini.local");
 
   assert.equal(appMessage.title, "2026年高考资料");
-  assert.equal(appTarget.pathname, "/pages/webview/index");
-  assert.equal(appDetail.pathname, "/materials/material-1");
+  assert.equal(appTarget.pathname, "/pages/materials/index");
+  assert.equal(appTarget.searchParams.get("materialId"), "material-1");
+  assert.equal(appMessage.imageUrl, "/tmp/material-share.png");
   assert.equal(timeline.title, "2026年高考资料");
-  assert.equal(timelineDetail.pathname, "/materials/material-1");
+  assert.equal(timelineTarget.searchParams.get("materialId"), "material-1");
+  assert.equal(timeline.imageUrl, "/tmp/material-share.png");
+
+  context.pendingSharedMaterialId = appTarget.searchParams.get("materialId");
+  const opened = definition.openSharedMaterialIfReady.call(context, [
+    {
+      id: "material-1",
+      title: "2026年高考资料",
+      fileUrl: "https://pan.quark.cn/s/material-1"
+    }
+  ]);
+
+  assert.equal(opened, true);
+  assert.equal(context.pendingSharedMaterialId, "");
+  assert.equal(context.data.materialLinkModalOpen, true);
+  assert.equal(context.data.materialLinkModalId, "material-1");
+  assert.equal(context.data.materialLinkModalTitle, "2026年高考资料");
+  assert.equal(context.data.materialLinkModalUrl, "https://pan.quark.cn/s/material-1");
+});
+
+test("materials uses a separate share image while keeping the in-app dialog centered", () => {
+  const { js, wxml, wxss } = readPage("materials");
+  const maskStyle = wxss.match(/\.xf-materials-link-mask \{[\s\S]*?\n\}/)?.[0] || "";
+  const modalStyle = wxss.match(/\.xf-materials-link-modal \{[\s\S]*?\n\}/)?.[0] || "";
+
+  assert.match(maskStyle, /align-items: center;/);
+  assert.doesNotMatch(modalStyle, /translateY/);
+  assert.match(wxml, /canvas-id="materialsShareCanvas"[\s\S]*width="750"[\s\S]*height="600"/);
+  assert.match(wxss, /\.xf-materials-share-canvas \{[\s\S]*left: -10000px;[\s\S]*top: -10000px;/);
+  assert.match(js, /drawMaterialShareCanvas\(ctx, material\)/);
+  assert.match(js, /drawShareText\(ctx, "资料链接", 92, 238/);
+});
+
+test("materials prepares the selected material share image before WeChat sharing", () => {
+  const definition = loadPageDefinition("materials");
+  const originalCreateCanvasContext = global.wx.createCanvasContext;
+  const originalCanvasToTempFilePath = global.wx.canvasToTempFilePath;
+  const drawnTexts = [];
+  const context = {
+    ...definition,
+    data: {
+      ...definition.data,
+      materialLinkModalId: "material-1"
+    },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+
+  try {
+    global.wx.createCanvasContext = (canvasId, page) => {
+      assert.equal(canvasId, "materialsShareCanvas");
+      assert.equal(page, context);
+      return {
+        setFillStyle() {},
+        setFontSize() {},
+        fillRect() {},
+        beginPath() {},
+        moveTo() {},
+        lineTo() {},
+        quadraticCurveTo() {},
+        closePath() {},
+        fill() {},
+        fillText(text, x, y) {
+          drawnTexts.push([text, x, y]);
+        },
+        draw(_reserve, callback) {
+          callback();
+        }
+      };
+    };
+    global.wx.canvasToTempFilePath = (options, page) => {
+      assert.equal(page, context);
+      assert.equal(options.canvasId, "materialsShareCanvas");
+      assert.equal(options.width, 750);
+      assert.equal(options.height, 600);
+      options.success({ tempFilePath: "/tmp/material-share.png" });
+    };
+
+    definition.prepareMaterialShareImage.call(context, {
+      id: "material-1",
+      title: "2026年高考资料",
+      fileUrl: "https://pan.quark.cn/s/material-1"
+    });
+
+    assert.equal(context.data.materialShareImageUrl, "/tmp/material-share.png");
+    assert.ok(drawnTexts.some(([text, x, y]) => text === "资料链接" && x === 92 && y === 238));
+    assert.ok(drawnTexts.some(([text]) => text === "2026年高考资料"));
+    assert.ok(drawnTexts.some(([text]) => text.includes("https://pan.quark.cn")));
+  } finally {
+    global.wx.createCanvasContext = originalCreateCanvasContext;
+    global.wx.canvasToTempFilePath = originalCanvasToTempFilePath;
+  }
 });
 
 test("mini program page share falls back to page screenshots unless a cover is explicit", () => {

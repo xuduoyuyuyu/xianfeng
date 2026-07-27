@@ -90,6 +90,8 @@
     </view>
   </view>
 
+  <canvas canvas-id="materialsShareCanvas" class="xf-materials-share-canvas" width="750" height="600"></canvas>
+
   <view wx:if="{{filterDrawerOpen}}" class="xf-native-filter-mask" catchtap="closeFilterDrawer" catchtouchmove="noop">
     <view
       class="xf-native-filter-drawer"

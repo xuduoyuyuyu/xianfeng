@@ -185,8 +185,11 @@ with more claims than codes reject updates until operators correct the data.
   `pages/webview/index` instead of falling back to the website home. The share
   page remains registered for Xiaowanzi conversation content, scene-based QR
   entry, and compatibility with existing shared links. Sharing from the native
-  materials tab while one material's link dialog is open now targets that exact
-  material detail; a plain materials-tab share still opens the materials list.
+  materials tab while one material's link dialog is open now reopens the same
+  materials page with that link dialog restored. The in-app dialog stays
+  vertically centered, while its dedicated share image renders the same dialog
+  higher inside the WeChat card crop; a plain materials-tab share still opens
+  the materials list.
 
 - 2026-07-15 - Treat semicolon-delimited `sourceName` values as multiple real
   guest booklists. Normalize whitespace and wrapping book-title marks, preserve
