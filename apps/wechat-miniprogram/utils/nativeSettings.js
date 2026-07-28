@@ -69,6 +69,7 @@ const LAST_CHILD_ID_KEY = "xiaowanzi_last_child_id_v1";
 const MEMORY_ENABLED_KEY = "xf_child_memory_enabled";
 const FONT_SIZE_KEY = "xf_profile_font_size";
 const SETTINGS_MEMBERSHIP_BADGE_KEY = "xf_settings_membership_badge";
+const PENDING_SETTINGS_PANEL_KEY = "xf_pending_settings_panel_v1";
 const CHAT_CONTEXT_KEY = "xiaowanzi_chat_context_v1";
 const CHILD_AVATAR = "/assets/wel-avatar/no-hat.png";
 const ACCOUNT_AVATAR = "/assets/tabbar/xiaowanzi.png";
@@ -436,6 +437,27 @@ function openSettingsProfileView(page, view) {
   }
 }
 
+function queueNativeSettingsPanel(view) {
+  const panelView = view === "profile" || view === "archive" || view === "memory" || view === "settings"
+    ? view
+    : "menu";
+  wx.setStorageSync(PENDING_SETTINGS_PANEL_KEY, panelView);
+}
+
+function consumeNativeSettingsPanel(page) {
+  if (!page || !page.data || page.data.settingsProfilePanelSupported !== true) return false;
+  const panelView = String(wx.getStorageSync(PENDING_SETTINGS_PANEL_KEY) || "").trim();
+  if (!panelView) return false;
+  wx.removeStorageSync(PENDING_SETTINGS_PANEL_KEY);
+  setSettingsTabbarHidden(page, true);
+  if (panelView === "menu") {
+    page.setData({ settingsPanelHeight: getSettingsPanelHeight(), settingsPanelOpen: true, settingsPanelView: "menu" });
+    return true;
+  }
+  openSettingsProfileView(page, panelView);
+  return true;
+}
+
 function openWechatProfileCompletion(page, user) {
   if (!needsWechatProfileCompletion(user)) return false;
   const profile = normalizeProfileUser(user);
@@ -611,7 +633,7 @@ function createNativeSettingsMethods() {
             accountTitle: user.name || "微信用户",
             accountSubtitle: "查看和管理个人资料",
             accountAvatar: resolveAccountAvatar(user.avatar),
-            accountPage: "/pages/mine/index",
+            accountPage: "",
             accountPanelView: "profile"
           });
           this.syncAccountEntry();
@@ -1133,11 +1155,12 @@ function createNativeSettingsMethods() {
         accountTitle: token && name ? String(name) : "登录/注册",
         accountSubtitle: accountSubtitleFor(token, settingsMemberBadgeLabel),
         accountAvatar: token ? resolveAccountAvatar(user.avatar) : ACCOUNT_AVATAR,
-        accountPage: token ? "/pages/mine/index" : "",
+        accountPage: "",
         accountPanelView: token ? "profile" : "",
         settingsMemberBadgeLabel
       });
       refreshSettingsMembershipBadge(this, token);
+      consumeNativeSettingsPanel(this);
     }
   };
 }
@@ -1147,8 +1170,10 @@ module.exports = {
   applyFontSizeSetting,
   buildFontOptions,
   clearAppCache,
+  consumeNativeSettingsPanel,
   createNativeSettingsMethods,
   deleteAccountFromSettings,
+  queueNativeSettingsPanel,
   readFontSizeSetting,
   readWebviewFontSizeParam,
   getSettingsPanelHeight,

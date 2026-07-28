@@ -11364,7 +11364,7 @@ test("programs tab renders a native first-level list and opens details through t
     definition.openSettings.call(context);
     assert.equal(context.data.accountTitle, "夏老师");
     assert.equal(context.data.accountSubtitle, "查看和管理个人资料");
-    assert.equal(context.data.accountPage, "/pages/mine/index");
+    assert.equal(context.data.accountPage, "");
     assert.equal(tabBarData.hidden, true);
 
     definition.closeSettings.call(context);
@@ -12167,7 +12167,7 @@ test("mine profile actions open native profile panel entries", () => {
   ]);
   const context = {
     ...definition,
-    data: { ...definition.data },
+    data: { ...definition.data, redirectingLegacyMine: false },
     setData(payload) {
       this.data = { ...this.data, ...payload };
     }

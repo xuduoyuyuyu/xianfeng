@@ -111,11 +111,6 @@
           "name": "Pro",
           "pathName": "pages/pro/index",
           "query": ""
-        },
-        {
-          "name": "我的",
-          "pathName": "pages/mine/index",
-          "query": ""
         }
       ]
     }

@@ -1,6 +1,6 @@
 <import src="../../templates/settings-profile-views.wxml" />
 
-<view class="xf-mine-page {{fontSizeClass}}" style="padding-top: {{chromeHeight}}px;">
+<view wx:if="{{!redirectingLegacyMine}}" class="xf-mine-page {{fontSizeClass}}" style="padding-top: {{chromeHeight}}px;">
   <view class="xf-native-topbar" style="height: {{topbarHeight}}px;">
     <view class="xf-native-nav-row" style="height: {{topbarHeight}}px;">
       <view class="xf-native-menu-button" style="top: {{logoTop}}px; height: {{logoHeight}}px;" catchtap="openSettings" role="button" aria-label="打开设置">

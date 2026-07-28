@@ -9,7 +9,9 @@ const nativeSettingsSource = fs.readFileSync(new URL("./nativeSettings.js", impo
 const nativeChromeSource = fs.readFileSync(new URL("./nativeChrome.js", import.meta.url), "utf8");
 const appWxssSource = fs.readFileSync(new URL("../app.wxss", import.meta.url), "utf8");
 const sharedTemplateSource = fs.readFileSync(new URL("../templates/settings-profile-views.wxml", import.meta.url), "utf8");
+const minePageSource = fs.readFileSync(new URL("../pages/mine/index.js", import.meta.url), "utf8");
 const mineTemplateSource = fs.readFileSync(new URL("../pages/mine/index.wxml", import.meta.url), "utf8");
+const projectConfigSource = fs.readFileSync(new URL("../project.config.json", import.meta.url), "utf8");
 const programsTemplateSource = fs.readFileSync(new URL("../pages/programs/index.wxml", import.meta.url), "utf8");
 const readingTemplateSource = fs.readFileSync(new URL("../pages/reading/index.wxml", import.meta.url), "utf8");
 const materialsTemplateSource = fs.readFileSync(new URL("../pages/materials/index.wxml", import.meta.url), "utf8");
@@ -40,6 +42,70 @@ test("native settings implements font size and cache clearing actions", () => {
   assert.match(mineTemplateSource, /settingsPanelView === 'settings'[\s\S]*class="xf-mine-panel-view xf-settings-panel \{\{fontSizeClass\}\}"/);
   assert.match(mineTemplateSource, /bindtap="clearCache"/);
   assert.match(mineTemplateSource, /class="xf-setting-row xf-setting-button" bindtap="clearCache"><text>应用管理<\/text><text class="xf-setting-value">清理缓存 ›<\/text><\/button>/);
+});
+
+test("legacy mine entries reopen the existing half-screen panel instead of rendering an account page", () => {
+  assert.match(minePageSource, /queueNativeSettingsPanel\(requestedPanel \|\| \(getToken\(\) \? "profile" : "menu"\)\)/);
+  assert.match(minePageSource, /onLoad\(options = \{\}\)[\s\S]*this\.redirectLegacyMine\(\)/);
+  assert.match(minePageSource, /onShow\(\)[\s\S]*setTimeout\(\(\) => \{[\s\S]*pages\[pages\.length - 1\] === this[\s\S]*this\.redirectLegacyMine\(\)/);
+  assert.match(minePageSource, /redirectLegacyMine\(\) \{[\s\S]*wx\.reLaunch\(\{ url: "\/pages\/programs\/index" \}\)/);
+  assert.match(mineTemplateSource, /wx:if="\{\{!redirectingLegacyMine\}\}"/);
+  assert.doesNotMatch(projectConfigSource, /"name": "我的"/);
+});
+
+test("queued native settings views are consumed by a supported half-screen panel", () => {
+  const originalWx = global.wx;
+  const storage = new Map();
+  let loadedView = "";
+  let tabbarHidden = false;
+  global.wx = {
+    getStorageSync(key) {
+      return storage.has(key) ? storage.get(key) : "";
+    },
+    setStorageSync(key, value) {
+      storage.set(key, value);
+    },
+    removeStorageSync(key) {
+      storage.delete(key);
+    },
+    getWindowInfo() {
+      return { screenHeight: 844 };
+    }
+  };
+
+  const nativeSettingsFile = require.resolve("./nativeSettings.js");
+  delete require.cache[nativeSettingsFile];
+  const { consumeNativeSettingsPanel, queueNativeSettingsPanel } = require(nativeSettingsFile);
+  const context = {
+    data: { settingsProfilePanelSupported: true },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    },
+    loadProfilePanelView(view) {
+      loadedView = view;
+    },
+    getTabBar() {
+      return {
+        setData(payload) {
+          tabbarHidden = payload.hidden;
+        }
+      };
+    }
+  };
+
+  try {
+    queueNativeSettingsPanel("profile");
+    assert.equal(consumeNativeSettingsPanel(context), true);
+    assert.equal(context.data.settingsPanelOpen, true);
+    assert.equal(context.data.settingsPanelView, "profile");
+    assert.equal(context.data.settingsPanelHeight, 844);
+    assert.equal(loadedView, "profile");
+    assert.equal(tabbarHidden, true);
+    assert.equal(storage.size, 0);
+  } finally {
+    global.wx = originalWx;
+    delete require.cache[nativeSettingsFile];
+  }
 });
 
 test("native settings wires account deletion to the shared settings action", () => {

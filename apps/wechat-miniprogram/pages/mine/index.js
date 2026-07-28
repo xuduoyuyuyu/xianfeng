@@ -4,7 +4,7 @@ const { buildProfileState, CHILD_PROFILES_KEY, WEB_CHILD_PROFILES_KEY, maskMobil
 const { getToken, getUser, clearSession } = require("../../utils/session");
 const { getNativeTopbarMetrics } = require("../../utils/nativeChrome");
 const { goProgramsHome: navigateProgramsHome } = require("../../utils/nativePageNav");
-const { SETTINGS_SECTIONS, applyFontSizeSetting, buildFontOptions, clearAppCache, createNativeSettingsMethods, readFontSizeSetting, setSettingsTabbarHidden, getSettingsPanelHeight } = require("../../utils/nativeSettings");
+const { SETTINGS_SECTIONS, applyFontSizeSetting, buildFontOptions, clearAppCache, createNativeSettingsMethods, readFontSizeSetting, setSettingsTabbarHidden, getSettingsPanelHeight, queueNativeSettingsPanel } = require("../../utils/nativeSettings");
 
 const SHARE_OPTIONS = {
   title: "家长先疯",
@@ -172,6 +172,7 @@ function loadUser() {
 
 Page({
   data: {
+    redirectingLegacyMine: true,
     settingsSections: SETTINGS_SECTIONS,
     topbarHeight: 88,
     chromeHeight: 88,
@@ -218,14 +219,23 @@ Page({
   },
 
   onLoad(options = {}) {
-    enableShareMenu();
-    this.syncTopbarMetrics();
-    this.syncAccountEntry();
-    this.refresh();
-    this.applyInitialPanel(options);
+    const requestedPanel = String(options.panel || "").trim();
+    queueNativeSettingsPanel(requestedPanel || (getToken() ? "profile" : "menu"));
+    this.redirectLegacyMine();
+  },
+
+  redirectLegacyMine() {
+    wx.reLaunch({ url: "/pages/programs/index" });
   },
 
   onShow() {
+    if (this.data.redirectingLegacyMine) {
+      setTimeout(() => {
+        const pages = getCurrentPages();
+        if (pages.length && pages[pages.length - 1] === this) this.redirectLegacyMine();
+      }, 0);
+      return;
+    }
     enableShareMenu();
     this.syncTopbarMetrics();
     this.syncAccountEntry();

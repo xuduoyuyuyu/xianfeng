@@ -158,6 +158,9 @@
   Native settings, first-level menu account cards, every sidebar menu item,
   and the Mine login entry expose `open-type="getPhoneNumber"` directly when
   signed out instead of routing through the intermediate `pages/login` screen.
+  `pages/mine/index` is compatibility-only: legacy or cached entries return to
+  Programs and open the same native half-screen settings/profile panel instead
+  of rendering a standalone account overview.
   The shell sends the `getPhoneNumber` code with `wx.login` to the backend,
   stores the returned JWT/user profile, and then continues once to the menu
   destination originally tapped.
