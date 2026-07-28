@@ -189,7 +189,10 @@ with more claims than codes reject updates until operators correct the data.
   materials page with that link dialog restored. The in-app dialog stays
   vertically centered, while its dedicated share image renders the same dialog
   higher inside the WeChat card crop; a plain materials-tab share still opens
-  the materials list.
+  the materials list. Sharing a material from native search now preserves the
+  search keyword and active result tab, then restores that exact material's
+  link dialog after the recipient's search results load. Native search material
+  shares use the same dedicated 5:4 link-dialog image as the materials page.
 
 - 2026-07-15 - Treat semicolon-delimited `sourceName` values as multiple real
   guest booklists. Normalize whitespace and wrapping book-title marks, preserve

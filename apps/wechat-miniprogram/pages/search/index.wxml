@@ -132,6 +132,8 @@
     </view>
   </view>
 
+  <canvas canvas-id="searchMaterialsShareCanvas" class="xf-materials-share-canvas" width="750" height="600"></canvas>
+
   <view wx:if="{{settingsPanelOpen}}" class="xf-native-settings-mask" style="height: {{settingsPanelHeight}}px;" catchtap="closeSettings" catchtouchmove="noop">
     <scroll-view class="xf-native-settings-panel" style="height: {{settingsPanelHeight}}px; padding-top: {{profilePanelTop}}px;" scroll-y="true" enhanced show-scrollbar="false" catchtap="noop">
       <view class="xf-native-settings-panel-inner">

@@ -561,6 +561,15 @@ page {
   box-shadow: 0 24rpx 80rpx rgba(50, 37, 86, 0.18);
 }
 
+.xf-materials-share-canvas {
+  position: fixed;
+  left: -10000px;
+  top: -10000px;
+  width: 750px;
+  height: 600px;
+  pointer-events: none;
+}
+
 .xf-materials-link-head {
   display: flex;
   align-items: center;

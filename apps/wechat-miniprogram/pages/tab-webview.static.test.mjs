@@ -1602,6 +1602,157 @@ test("native search opens material links in a modal and other site results in na
   }
 });
 
+test("native search material share restores the same result page and link modal", () => {
+  const definition = loadPageDefinition("search");
+  const material = {
+    id: "materials-material-math",
+    type: "materials",
+    title: "五年级上册沪教版电子教材",
+    path: "/materials/material-math",
+    copyUrl: "https://pan.quark.cn/s/material-math",
+    searchText: "五年级上册沪教版电子教材 数学"
+  };
+  const context = {
+    ...definition,
+    data: {
+      ...definition.data,
+      searchInput: "数学",
+      submittedQuery: "数学",
+      activeTab: "materials",
+      materialLinkModalOpen: true,
+      materialLinkModalId: "material-math",
+      materialLinkModalTitle: material.title,
+      materialLinkModalUrl: material.copyUrl,
+      materialShareImageUrl: "/tmp/search-material-share.png"
+    },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+
+  const appMessage = definition.onShareAppMessage.call(context);
+  const appTarget = new URL(appMessage.path, "https://mini.local");
+  const timeline = definition.onShareTimeline.call(context);
+  const timelineTarget = new URL(`/pages/search/index?${timeline.query}`, "https://mini.local");
+
+  assert.equal(appMessage.title, material.title);
+  assert.equal(appTarget.pathname, "/pages/search/index");
+  assert.equal(appTarget.searchParams.get("q"), "数学");
+  assert.equal(appTarget.searchParams.get("tab"), "materials");
+  assert.equal(appTarget.searchParams.get("materialId"), "material-math");
+  assert.equal(appMessage.imageUrl, "/tmp/search-material-share.png");
+  assert.equal(timelineTarget.searchParams.get("q"), "数学");
+  assert.equal(timelineTarget.searchParams.get("tab"), "materials");
+  assert.equal(timelineTarget.searchParams.get("materialId"), "material-math");
+  assert.equal(timeline.imageUrl, "/tmp/search-material-share.png");
+
+  context.pendingSharedMaterialId = appTarget.searchParams.get("materialId");
+  context.data.materialLinkModalOpen = false;
+  context.data.materialLinkModalId = "";
+  context.data.materialLinkModalTitle = "";
+  context.data.materialLinkModalUrl = "";
+  context.data.allResults = [material];
+  definition.applySearch.call(context, "数学");
+
+  assert.equal(context.pendingSharedMaterialId, "");
+  assert.equal(context.data.activeTab, "materials");
+  assert.equal(context.data.materialLinkModalOpen, true);
+  assert.equal(context.data.materialLinkModalId, "material-math");
+  assert.equal(context.data.materialLinkModalTitle, material.title);
+  assert.equal(context.data.materialLinkModalUrl, material.copyUrl);
+
+  const loadContext = {
+    ...definition,
+    data: { ...definition.data },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    },
+    syncTopbarMetrics() {},
+    syncAccountEntry() {},
+    loadData() {
+      return Promise.resolve();
+    },
+    applySearch() {}
+  };
+  definition.onLoad.call(loadContext, {
+    q: encodeURIComponent("数学"),
+    tab: "materials",
+    materialId: "material-math"
+  });
+  clearInterval(loadContext.searchPromptTimer);
+
+  assert.equal(loadContext.pendingSharedMaterialId, "material-math");
+  assert.equal(loadContext.data.searchInput, "数学");
+  assert.equal(loadContext.data.submittedQuery, "数学");
+  assert.equal(loadContext.data.activeTab, "materials");
+});
+
+test("native search material share uses the materials-page share image layout", () => {
+  const definition = loadPageDefinition("search");
+  const { wxml, wxss } = readPage("search");
+  const originalCreateCanvasContext = global.wx.createCanvasContext;
+  const originalCanvasToTempFilePath = global.wx.canvasToTempFilePath;
+  const drawnTexts = [];
+  const context = {
+    ...definition,
+    data: {
+      ...definition.data,
+      materialLinkModalId: "material-math"
+    },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+
+  assert.match(wxml, /canvas-id="searchMaterialsShareCanvas"[\s\S]*width="750"[\s\S]*height="600"/);
+  assert.match(wxss, /\.xf-materials-share-canvas \{[\s\S]*left: -10000px;[\s\S]*top: -10000px;/);
+
+  try {
+    global.wx.createCanvasContext = (canvasId, page) => {
+      assert.equal(canvasId, "searchMaterialsShareCanvas");
+      assert.equal(page, context);
+      return {
+        setFillStyle() {},
+        setFontSize() {},
+        fillRect() {},
+        beginPath() {},
+        moveTo() {},
+        lineTo() {},
+        quadraticCurveTo() {},
+        closePath() {},
+        fill() {},
+        fillText(text, x, y) {
+          drawnTexts.push([text, x, y]);
+        },
+        draw(_reserve, callback) {
+          callback();
+        }
+      };
+    };
+    global.wx.canvasToTempFilePath = (options, page) => {
+      assert.equal(page, context);
+      assert.equal(options.canvasId, "searchMaterialsShareCanvas");
+      assert.equal(options.width, 750);
+      assert.equal(options.height, 600);
+      options.success({ tempFilePath: "/tmp/search-material-share.png" });
+    };
+
+    definition.prepareMaterialShareImage.call(context, {
+      id: "material-math",
+      title: "五年级上册沪教版电子教材",
+      fileUrl: "https://pan.quark.cn/s/material-math"
+    });
+
+    assert.equal(context.data.materialShareImageUrl, "/tmp/search-material-share.png");
+    assert.ok(drawnTexts.some(([text, x, y]) => text === "资料链接" && x === 92 && y === 238));
+    assert.ok(drawnTexts.some(([text]) => text === "五年级上册沪教版电子教材"));
+    assert.ok(drawnTexts.some(([text]) => text.includes("https://pan.quark.cn")));
+  } finally {
+    global.wx.createCanvasContext = originalCreateCanvasContext;
+    global.wx.canvasToTempFilePath = originalCanvasToTempFilePath;
+  }
+});
+
 test("native search page keeps all-site results while following the current reading library source", async () => {
   const definition = loadPageDefinition("search");
   const originalRequest = global.wx.request;

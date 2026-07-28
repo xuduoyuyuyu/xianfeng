@@ -12,6 +12,9 @@ const READING_PENDING_FILTER_KEY = "xf_reading_pending_filter_v1";
 const SEARCH_PAGE_SIZE = 80;
 const LOGO_HEIGHT_RPX = 56;
 const GUEST_FALLBACK_AVATAR = "/assets/wel-avatar/no-hat.png";
+const MATERIAL_SHARE_CANVAS_ID = "searchMaterialsShareCanvas";
+const MATERIAL_SHARE_CANVAS_WIDTH = 750;
+const MATERIAL_SHARE_CANVAS_HEIGHT = 600;
 const GUEST_FALLBACK_AVATAR_MARKERS = [
   "/assets/xiaowanzi-nohat.png",
   "/assets/wel-avatar/no-hat.png",
@@ -43,6 +46,89 @@ function firstText(values, fallback) {
     if (text) return text;
   }
   return fallback;
+}
+
+function truncateMaterialShareText(value, maxLength) {
+  const text = String(value || "").trim();
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, Math.max(1, maxLength - 1))}…`;
+}
+
+function splitMaterialShareText(value, maxLength, maxLines) {
+  const text = String(value || "").trim();
+  const lines = [];
+  for (let index = 0; index < text.length && lines.length < maxLines; index += maxLength) {
+    lines.push(text.slice(index, index + maxLength));
+  }
+  if (text.length > maxLength * maxLines && lines.length) {
+    lines[lines.length - 1] = `${lines[lines.length - 1].slice(0, Math.max(1, maxLength - 1))}…`;
+  }
+  return lines;
+}
+
+function drawMaterialShareRoundRect(ctx, x, y, width, height, radius) {
+  const safeRadius = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + safeRadius, y);
+  ctx.lineTo(x + width - safeRadius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
+  ctx.lineTo(x + width, y + height - safeRadius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - safeRadius, y + height);
+  ctx.lineTo(x + safeRadius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - safeRadius);
+  ctx.lineTo(x, y + safeRadius);
+  ctx.quadraticCurveTo(x, y, x + safeRadius, y);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawShareText(ctx, text, x, y, fontSize, color, bold = false) {
+  ctx.setFillStyle(color);
+  ctx.setFontSize(fontSize);
+  ctx.font = `${bold ? "bold " : ""}${fontSize}px sans-serif`;
+  ctx.fillText(text, x, y);
+}
+
+function drawMaterialShareCanvas(ctx, material) {
+  const title = truncateMaterialShareText(material && material.title, 26) || "资料";
+  const url = String((material && material.fileUrl) || "").trim();
+  const domainMatch = url.match(/^https?:\/\/([^/]+)/i);
+  const domain = String((domainMatch && domainMatch[1]) || "").toUpperCase();
+  const urlLines = splitMaterialShareText(url, 38, 2);
+
+  ctx.setFillStyle("#f8f6fc");
+  ctx.fillRect(0, 0, MATERIAL_SHARE_CANVAS_WIDTH, MATERIAL_SHARE_CANVAS_HEIGHT);
+
+  ctx.setFillStyle("#7824ef");
+  drawMaterialShareRoundRect(ctx, 42, 34, 52, 52, 26);
+  drawShareText(ctx, "疯", 53, 72, 27, "#ffffff", true);
+  drawShareText(ctx, "家和万事｜服务家庭 智慧决策", 112, 70, 27, "#6d6878", false);
+
+  ctx.setFillStyle("#ffffff");
+  drawMaterialShareRoundRect(ctx, 38, 106, 674, 408, 24);
+  drawShareText(ctx, title, 66, 158, 31, "#211631", true);
+  ctx.setFillStyle("#f3edff");
+  drawMaterialShareRoundRect(ctx, 66, 180, 128, 40, 20);
+  drawShareText(ctx, "资料分享", 84, 208, 21, "#6f2be8", true);
+  drawShareText(ctx, "点击复制资料链接，在浏览器或网盘 App 中继续打开", 66, 270, 22, "#777184");
+  drawShareText(ctx, domain || "资料链接", 66, 318, 22, "#6f2be8", true);
+
+  ctx.setFillStyle("rgba(31, 24, 43, 0.46)");
+  ctx.fillRect(0, 0, MATERIAL_SHARE_CANVAS_WIDTH, MATERIAL_SHARE_CANVAS_HEIGHT);
+
+  ctx.setFillStyle("#ffffff");
+  drawMaterialShareRoundRect(ctx, 60, 176, 630, 300, 28);
+  drawShareText(ctx, "资料链接", 92, 238, 32, "#24163a", true);
+  ctx.setFillStyle("#f3edff");
+  drawMaterialShareRoundRect(ctx, 618, 198, 48, 48, 24);
+  drawShareText(ctx, "×", 632, 234, 32, "#5e17eb", false);
+  drawShareText(ctx, title, 92, 294, 26, "#4e3d66", true);
+  ctx.setFillStyle("#f7f7fb");
+  drawMaterialShareRoundRect(ctx, 88, 326, 574, 104, 18);
+  urlLines.forEach((line, index) => {
+    drawShareText(ctx, line, 110, 365 + index * 34, 21, "#65718a", true);
+  });
+  drawShareText(ctx, "点击链接即可复制", 92, 458, 20, "#8c8398", false);
 }
 
 function normalizeImage(value) {
@@ -85,6 +171,12 @@ function normalizeSearchOption(value) {
   } catch (_error) {
     return source;
   }
+}
+
+function getMaterialResultId(result) {
+  if (!result || result.type !== "materials") return "";
+  const matched = String(result.path || "").match(/^\/materials\/([^/?#]+)$/);
+  return matched ? normalizeSearchOption(matched[1]) : "";
 }
 
 function openMiniProgramShortLink(value) {
@@ -397,8 +489,10 @@ Page({
     searchProgress: 0,
     error: "",
     materialLinkModalOpen: false,
+    materialLinkModalId: "",
     materialLinkModalTitle: "",
-    materialLinkModalUrl: ""
+    materialLinkModalUrl: "",
+    materialShareImageUrl: ""
   },
 
   onLoad(options) {
@@ -407,6 +501,9 @@ Page({
     this.syncAccountEntry();
     startSearchPromptRotation(this);
     const query = String(options && options.q ? decodeURIComponent(options.q) : "").trim();
+    const requestedTab = normalizeSearchOption(options && options.tab);
+    const activeTab = BASE_TABS.some((tab) => tab.key === requestedTab) ? requestedTab : "all";
+    this.pendingSharedMaterialId = normalizeSearchOption(options && options.materialId);
     const readingSource = normalizeSearchOption(options && options.readingSource) === "external"
       ? "external"
       : "native";
@@ -415,6 +512,7 @@ Page({
       submittedQuery: query,
       recentKeywords: readHistory(),
       searchSource: "",
+      activeTab,
       readingSource,
       inputFocus: true
     });
@@ -569,6 +667,7 @@ Page({
       visibleResults,
       tabs: buildTabs(filteredResults)
     });
+    this.openSharedMaterialIfReady(filteredResults);
   },
 
   resetSearchResults() {
@@ -689,8 +788,15 @@ Page({
       }
       this.setData({
         materialLinkModalOpen: true,
+        materialLinkModalId: getMaterialResultId(result),
         materialLinkModalTitle: result.title,
-        materialLinkModalUrl: result.copyUrl
+        materialLinkModalUrl: result.copyUrl,
+        materialShareImageUrl: ""
+      });
+      this.prepareMaterialShareImage({
+        id: getMaterialResultId(result),
+        title: result.title,
+        fileUrl: result.copyUrl
       });
       return;
     }
@@ -716,11 +822,57 @@ Page({
     }
   },
 
+  openSharedMaterialIfReady(results) {
+    const materialId = String(this.pendingSharedMaterialId || "").trim();
+    if (!materialId) return false;
+    const result = (Array.isArray(results) ? results : []).find(
+      (item) => getMaterialResultId(item) === materialId
+    );
+    if (!result || !result.copyUrl) return false;
+    this.pendingSharedMaterialId = "";
+    this.setData({
+      materialLinkModalOpen: true,
+      materialLinkModalId: materialId,
+      materialLinkModalTitle: result.title,
+      materialLinkModalUrl: result.copyUrl,
+      materialShareImageUrl: ""
+    });
+    this.prepareMaterialShareImage({
+      id: materialId,
+      title: result.title,
+      fileUrl: result.copyUrl
+    });
+    return true;
+  },
+
+  prepareMaterialShareImage(material) {
+    if (typeof wx.createCanvasContext !== "function" || typeof wx.canvasToTempFilePath !== "function") return;
+    const materialId = String((material && material.id) || "").trim();
+    const ctx = wx.createCanvasContext(MATERIAL_SHARE_CANVAS_ID, this);
+    drawMaterialShareCanvas(ctx, material || {});
+    ctx.draw(false, () => {
+      wx.canvasToTempFilePath({
+        canvasId: MATERIAL_SHARE_CANVAS_ID,
+        width: MATERIAL_SHARE_CANVAS_WIDTH,
+        height: MATERIAL_SHARE_CANVAS_HEIGHT,
+        destWidth: MATERIAL_SHARE_CANVAS_WIDTH * 2,
+        destHeight: MATERIAL_SHARE_CANVAS_HEIGHT * 2,
+        fileType: "png",
+        success: (result) => {
+          if (String(this.data.materialLinkModalId || "").trim() !== materialId) return;
+          this.setData({ materialShareImageUrl: result.tempFilePath || "" });
+        }
+      }, this);
+    });
+  },
+
   closeMaterialLinkModal() {
     this.setData({
       materialLinkModalOpen: false,
+      materialLinkModalId: "",
       materialLinkModalTitle: "",
-      materialLinkModalUrl: ""
+      materialLinkModalUrl: "",
+      materialShareImageUrl: ""
     });
   },
 
@@ -756,10 +908,36 @@ Page({
   ...createNativeSettingsMethods(),
 
   onShareAppMessage() {
+    const materialId = String(this.data.materialLinkModalId || "").trim();
+    if (this.data.materialLinkModalOpen && materialId) {
+      return createPageShare({
+        title: this.data.materialLinkModalTitle || "资料",
+        path: "/pages/search/index",
+        query: {
+          q: this.data.submittedQuery || this.data.searchInput,
+          tab: this.data.activeTab || "all",
+          materialId
+        },
+        imageUrl: this.data.materialShareImageUrl || undefined
+      }).onShareAppMessage();
+    }
     return pageShare.onShareAppMessage();
   },
 
   onShareTimeline() {
+    const materialId = String(this.data.materialLinkModalId || "").trim();
+    if (this.data.materialLinkModalOpen && materialId) {
+      return createPageShare({
+        title: this.data.materialLinkModalTitle || "资料",
+        path: "/pages/search/index",
+        query: {
+          q: this.data.submittedQuery || this.data.searchInput,
+          tab: this.data.activeTab || "all",
+          materialId
+        },
+        imageUrl: this.data.materialShareImageUrl || undefined
+      }).onShareTimeline();
+    }
     return pageShare.onShareTimeline();
   }
 });
