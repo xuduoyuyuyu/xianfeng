@@ -36,7 +36,6 @@ Component({
 
   pageLifetimes: {
     show() {
-      this.refresh();
       void this.reconcileAfterLogin();
     },
   },

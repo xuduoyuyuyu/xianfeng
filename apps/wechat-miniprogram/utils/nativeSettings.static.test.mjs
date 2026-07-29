@@ -44,8 +44,9 @@ test("native settings implements font size and cache clearing actions", () => {
   assert.match(mineTemplateSource, /class="xf-setting-row xf-setting-button" bindtap="clearCache"><text>应用管理<\/text><text class="xf-setting-value">清理缓存 ›<\/text><\/button>/);
 });
 
-test("legacy mine entries reopen the existing half-screen panel instead of rendering an account page", () => {
-  assert.match(minePageSource, /queueNativeSettingsPanel\(requestedPanel \|\| \(getToken\(\) \? "profile" : "menu"\)\)/);
+test("legacy mine entries return to Programs without opening login unless a panel was explicitly requested", () => {
+  assert.match(minePageSource, /if \(requestedPanel\) queueNativeSettingsPanel\(requestedPanel\)/);
+  assert.doesNotMatch(minePageSource, /queueNativeSettingsPanel\(requestedPanel \|\|/);
   assert.match(minePageSource, /onLoad\(options = \{\}\)[\s\S]*this\.redirectLegacyMine\(\)/);
   assert.match(minePageSource, /onShow\(\)[\s\S]*setTimeout\(\(\) => \{[\s\S]*pages\[pages\.length - 1\] === this[\s\S]*this\.redirectLegacyMine\(\)/);
   assert.match(minePageSource, /redirectLegacyMine\(\) \{[\s\S]*wx\.reLaunch\(\{ url: "\/pages\/programs\/index" \}\)/);

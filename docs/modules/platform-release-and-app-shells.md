@@ -55,9 +55,10 @@
   The native Topics list prioritizes fast first paint: it loads 10 topics per
   page and delays detail prefetch to one visible topic after the list is already
   rendered, while filter data can still use the larger background source.
-  On first entry, an incomplete local child profile opens a native onboarding
-  modal for city, region, stage, and grade. Child stages include pregnancy and
-  infant profiles before preschool and school stages. Before login, saving writes an
+  First entry always leaves the public list visible and does not automatically
+  open login or profile onboarding. City, region, stage, and grade remain
+  available from the user-invoked child archive flow. Child stages include
+  pregnancy and infant profiles before preschool and school stages. Before login, saving writes an
   isolated pending personalization context rather than a formal child archive;
   list requests may use that pending context immediately. After phone login,
   the shell reads remote child profiles before any archive write. A complete
@@ -158,9 +159,10 @@
   Native settings, first-level menu account cards, every sidebar menu item,
   and the Mine login entry expose `open-type="getPhoneNumber"` directly when
   signed out instead of routing through the intermediate `pages/login` screen.
-  `pages/mine/index` is compatibility-only: legacy or cached entries return to
-  Programs and open the same native half-screen settings/profile panel instead
-  of rendering a standalone account overview.
+  `pages/mine/index` is compatibility-only: bare legacy or cached entries return
+  to Programs without opening login; an explicit `panel` query reopens the same
+  native half-screen settings/profile panel instead of rendering a standalone
+  account overview.
   The shell sends the `getPhoneNumber` code with `wx.login` to the backend,
   stores the returned JWT/user profile, and then continues once to the menu
   destination originally tapped.

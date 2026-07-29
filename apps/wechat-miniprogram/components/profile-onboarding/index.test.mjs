@@ -24,6 +24,13 @@ test("profile dialog contains only the requested archive fields", () => {
   assert.match(js, /this\.triggerEvent\("saved"/);
 });
 
+test("first page entry does not automatically open the profile dialog", () => {
+  const js = fs.readFileSync(path.join(dir, "index.js"), "utf8");
+
+  assert.match(js, /pageLifetimes:\s*\{\s*show\(\)\s*\{\s*void this\.reconcileAfterLogin\(\);\s*\},\s*\}/);
+  assert.doesNotMatch(js, /pageLifetimes:\s*\{[\s\S]*?show\(\)\s*\{[\s\S]*?this\.refresh\(\)/);
+});
+
 test("profile dialog matches the reference card hierarchy", () => {
   const wxml = fs.readFileSync(path.join(dir, "index.wxml"), "utf8");
   const wxss = fs.readFileSync(path.join(dir, "index.wxss"), "utf8");

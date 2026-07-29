@@ -34,10 +34,11 @@ parser when filtering, so a selected list matches books whose combined source
 field contains it. This remains a frontend interpretation of existing data;
 production records and backend API contracts are unchanged.
 
-The WeChat mini-program is adding minimal child-profile onboarding. An
-incomplete local archive opens a native modal for city, region, stage, and
-grade; closing lasts only for the current foreground session. Before login,
-saving creates pending personalization context rather than a formal archive.
+The WeChat mini-program is adding minimal child-profile onboarding. Public
+lists remain visible on first entry; login and child-profile onboarding open
+only from an explicit user action. The archive flow collects city, region,
+stage, and grade. Before login, saving creates pending personalization context
+rather than a formal archive.
 After phone login the shell reads the account archives first: an exact match
 is reused, an empty account gets its first child, and different data requires
 an explicit create-or-discard choice without overwriting an existing child.

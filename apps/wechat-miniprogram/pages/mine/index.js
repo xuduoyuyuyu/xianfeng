@@ -220,7 +220,7 @@ Page({
 
   onLoad(options = {}) {
     const requestedPanel = String(options.panel || "").trim();
-    queueNativeSettingsPanel(requestedPanel || (getToken() ? "profile" : "menu"));
+    if (requestedPanel) queueNativeSettingsPanel(requestedPanel);
     this.redirectLegacyMine();
   },
 
