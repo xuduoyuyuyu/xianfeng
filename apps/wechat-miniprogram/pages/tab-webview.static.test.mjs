@@ -14018,6 +14018,66 @@ test("mama haozhuan page uploads Xiaohongshu account screenshot from phone", asy
   }
 });
 
+test("mama haozhuan keeps the media editor open when the phone picker returns", async () => {
+  const definition = loadPageDefinition("mama-resource-apply");
+  const originalWx = global.wx;
+  let chooseOptions = null;
+  let taskRefreshes = 0;
+
+  try {
+    global.wx = {
+      loadFontFace() {},
+      getStorageSync() {
+        return "";
+      },
+      showShareMenu() {},
+      chooseMedia(options) {
+        chooseOptions = options;
+      },
+      uploadFile(options) {
+        options.success({ statusCode: 200, data: JSON.stringify({ url: "/uploads/images/new-profile.png" }) });
+      }
+    };
+    const context = {
+      ...definition,
+      data: {
+        ...definition.data,
+        mamaResourceView: "apply",
+        profileManagerMode: "media",
+        mamaResourceProfile: { status: "approved" }
+      },
+      setData(payload) {
+        this.data = { ...this.data, ...payload };
+      },
+      syncTopbarMetrics() {},
+      syncAccountEntry() {},
+      loadMamaTasks() {
+        taskRefreshes += 1;
+        this.setData({ mamaResourceView: "tasks" });
+        return Promise.resolve();
+      }
+    };
+
+    const uploadPromise = definition.chooseXiaohongshuScreenshot.call(context);
+    assert.equal(context.data.xiaohongshuScreenshotUploading, true);
+
+    definition.onShow.call(context);
+
+    assert.equal(taskRefreshes, 0);
+    assert.equal(context.data.mamaResourceView, "apply");
+    assert.equal(context.data.profileManagerMode, "media");
+
+    chooseOptions.success({ tempFiles: [{ tempFilePath: "/tmp/new-xhs-page.png" }] });
+    await uploadPromise;
+
+    assert.equal(context.data.xiaohongshuScreenshotUrl, "/uploads/images/new-profile.png");
+    assert.equal(context.data.mamaResourceView, "apply");
+    assert.equal(context.data.profileManagerMode, "media");
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
 test("mama haozhuan keeps an existing screenshot without showing a red upload failure", async () => {
   const definition = loadPageDefinition("mama-resource-apply");
   const originalWx = global.wx;

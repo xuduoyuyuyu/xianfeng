@@ -200,6 +200,8 @@
 - `pages/mama-resource-apply/index` is a native mini-program form for the
   Haozhuan supply intake. It mirrors the public web form and uses
   `wx.chooseMedia`/`wx.uploadFile` for Xiaohongshu profile screenshots.
+  Returning from the native camera or album preserves the current profile
+  editor; `onShow` refreshes tasks only while the task center is visible.
   Unsubmitted form values are kept only for an authenticated account, under an
   account-scoped local draft key, and cleared after a successful submission or
   explicit logout/account deletion. Logged-out and unauthorized states render

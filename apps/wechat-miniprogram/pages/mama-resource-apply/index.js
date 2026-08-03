@@ -749,7 +749,7 @@ Page({
     this.setData({ ...buildApplyDraftState(formDraft), ...buildArchiveChildrenState() });
     this.syncTopbarMetrics();
     this.syncAccountEntry();
-    if (this.data.mamaResourceView !== "detail") {
+    if (this.data.mamaResourceView === "tasks") {
       this.loadMamaTasks();
     }
     enableShareMenu();
