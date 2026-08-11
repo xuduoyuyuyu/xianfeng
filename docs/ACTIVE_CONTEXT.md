@@ -1,6 +1,6 @@
 # Active Context - Xianfeng
 
-Last rewritten: 2026-07-17
+Last rewritten: 2026-08-11
 
 > This file is a SNAPSHOT, not a journal. Rewrite it at every workstream close,
 > keep it around 60 lines, and use git history for older context.
@@ -67,6 +67,19 @@ nickname is still a generated placeholder or whose avatar is missing receive a
 native WeChat avatar/nickname completion step before the pending protected
 action resumes. The confirmed nickname and uploaded permanent avatar are saved
 to the shared user profile; existing custom profiles are not overwritten.
+
+Native `闪测` keeps its catalog public, but entering the first `八大能力`
+question is now a protected action. Self and child modes reuse the shared
+phone-login flow, and child mode continues to use the existing remote archive
+panel. After choosing self mode or a child archive, the client reads that
+subject's newest saved result and opens it directly when present; only the
+explicit `重新测一次` action starts a fresh questionnaire. After question 40,
+the authenticated backend stores the 40 answers and
+server-derived eight-dimension result under the current user; child submissions
+must reference a child profile owned by that same account. The result page
+distinguishes saving, saved, and retryable failure states instead of claiming a
+local-only result, and labels all eight radar axes with their server-aligned
+integer score on the shared 1-to-5 scale.
 
 Mama Haozhuan content dispatch now uses existing task claims as its only account
 source: task creation, manual selection, and Excel import no longer create

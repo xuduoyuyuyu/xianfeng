@@ -1,0 +1,6 @@
+{
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "phone-login-gate": "../../components/phone-login-gate/index"
+  }
+}

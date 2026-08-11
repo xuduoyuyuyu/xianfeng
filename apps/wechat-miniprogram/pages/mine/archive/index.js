@@ -152,11 +152,17 @@ function viewModel(children, activeId, draft, message) {
   const regionOptions = districtsFor(draft.city);
   const selectedGrade = formatGrade(parsed.stage, parsed.gradeName);
   const stageIndex = STAGES.indexOf(parsed.stage) >= 0 ? STAGES.indexOf(parsed.stage) : 0;
+  const tabs = buildTabs(children, activeId);
+  const relationOptions = optionList(RELATIONS, draft.relation);
+  const tagOptions = optionList(TAGS, "").map((item) => ({
+    ...item,
+    selected: draft.concernTags.includes(item.value)
+  }));
   return {
     ...buildProfileState(),
     ...readFontSizeSetting(),
     title: "档案管理",
-    children: buildTabs(children, activeId),
+    children: tabs,
     hasChildren: children.length > 0,
     draft,
     stage: parsed.stage,
@@ -169,16 +175,34 @@ function viewModel(children, activeId, draft, message) {
     stageGradeColumns: picker.columns,
     stageGradeValue: picker.value,
     regionOptions,
-    relationOptions: optionList(RELATIONS, draft.relation),
+    relationOptions,
     stageOptions: STAGES,
     gradeDropdownOpen: false,
-    tagOptions: optionList(TAGS, "").map((item) => ({
-      ...item,
-      selected: draft.concernTags.includes(item.value)
-    })),
+    tagOptions,
     insightGrade: selectedGrade.replace(/^学前/, ""),
     profileStatus: profileComplete({ ...draft, grade: selectedGrade }) ? "可绑定" : "待补全",
-    message: message || ""
+    message: message || "",
+    profileHeaderHeight: 48,
+    archiveHasChildren: children.length > 0,
+    archiveChildren: tabs,
+    archiveInsightGrade: selectedGrade.replace(/^学前/, ""),
+    archiveDraft: draft,
+    archiveProfileStatus: profileComplete({ ...draft, grade: selectedGrade }) ? "可绑定" : "待补全",
+    archiveRelationOptions: relationOptions,
+    archiveRegionOptions: regionOptions,
+    archiveRegionIndex: Math.max(0, regionOptions.indexOf(draft.region)),
+    archiveStageOptions: STAGES,
+    archiveStageIndex: stageIndex,
+    archiveStage: parsed.stage,
+    archiveGradeOptions: gradeOptions,
+    archiveStageGradeColumns: picker.columns,
+    archiveStageGradeValue: picker.value,
+    archiveGradeDisplayText: selectedGrade ? `${parsed.stage} · ${parsed.gradeName}` : "请选择年级",
+    archiveGradeSelectOptions: optionList(gradeOptions, parsed.gradeName),
+    archiveGradeName: parsed.gradeName,
+    archiveGradeDropdownOpen: false,
+    archiveTagOptions: tagOptions,
+    profilePanelMessage: message || ""
   };
 }
 
@@ -188,6 +212,7 @@ Page({
   onLoad(options = {}) {
     if (ensureBackStackForBackButtonPage(options)) return;
     enableShareMenu();
+    this.returnToFlashTest = String(options.returnTo || "") === "flash-test";
     const shouldCreateChild = String(options.action || "") === "add";
     this.loadProfile({ createChild: shouldCreateChild });
     this.skipNextShowLoad = shouldCreateChild;
@@ -341,7 +366,11 @@ Page({
     this.activeId = draft.id;
     saveChildren(children);
     wx.setStorageSync(LAST_CHILD_ID_KEY, draft.id);
-    this.setData(viewModel(children, draft.id, draft, "档案已保存"));
+    this.setData(viewModel(children, draft.id, draft, "档案已保存"), () => {
+      if (this.returnToFlashTest && typeof wx.navigateBack === "function") {
+        wx.navigateBack({ delta: 1 });
+      }
+    });
   },
 
   deleteChild() {
@@ -385,6 +414,62 @@ Page({
       return;
     }
     wx.switchTab({ url: "/pages/mine/index" });
+  },
+
+  returnSettingsMenu() {
+    this.goBack();
+  },
+
+  selectArchiveChild(event) {
+    this.selectChild(event);
+  },
+
+  addArchiveChild() {
+    this.addChild();
+  },
+
+  updateArchiveName(event) {
+    this.updateName(event);
+  },
+
+  updateArchiveCity(event) {
+    this.updateCity(event);
+  },
+
+  updateArchiveRegionInput(event) {
+    this.updateRegionInput(event);
+  },
+
+  chooseArchiveRegion(event) {
+    this.chooseRegion(event);
+  },
+
+  chooseArchiveBirthDate(event) {
+    this.chooseBirthDate(event);
+  },
+
+  chooseArchiveRelation(event) {
+    this.chooseRelation(event);
+  },
+
+  updateArchiveStageGradeColumn(event) {
+    this.updateStageGradeColumn(event);
+  },
+
+  chooseArchiveStageGrade(event) {
+    this.chooseStageGrade(event);
+  },
+
+  saveArchivePanel() {
+    this.saveProfile();
+  },
+
+  deleteArchiveChild() {
+    this.deleteChild();
+  },
+
+  findXiaowanzi() {
+    this.openXiaowanzi();
   },
 
   goLogin() {

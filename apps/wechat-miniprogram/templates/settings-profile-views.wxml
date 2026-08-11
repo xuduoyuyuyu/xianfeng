@@ -118,8 +118,9 @@
         </view>
       </view>
       <view class="xf-profile-actions">
-        <button class="xf-profile-primary" bindtap="saveArchivePanel">保存档案</button>
-        <button class="xf-profile-secondary" bindtap="findXiaowanzi">找小玩子</button>
+        <button class="{{archiveSelectionMode ? 'xf-profile-secondary' : 'xf-profile-primary'}}" bindtap="saveArchivePanel">保存档案</button>
+        <button wx:if="{{archiveSelectionMode}}" class="xf-profile-primary" bindtap="confirmArchiveSelection">{{archiveSelectionActionLabel}}</button>
+        <button wx:else class="xf-profile-secondary" bindtap="findXiaowanzi">找小玩子</button>
       </view>
     </view>
     <view class="xf-profile-message">{{profilePanelMessage}}</view>

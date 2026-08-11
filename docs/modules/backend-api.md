@@ -102,6 +102,15 @@
   mobile later from native settings. If the authorized mobile already belongs
   to an existing account, that mobile account wins: the mini-program openid is
   moved to that account and the response returns that account's JWT.
+- Authenticated flash-test history is stored as user-owned `FlashTestResult`
+  records. `POST /api/flash-tests/results` accepts only the current supported
+  `eight-talents` question version and exactly 40 integer answers from 1 to 5;
+  the backend derives all eight dimension scores instead of trusting client
+  scores. Child-mode writes require an existing child ID in the current user's
+  `UserXiaowanziSync.childProfiles`. `GET /api/flash-tests/results` returns only
+  the authenticated user's newest results, supports assessment, self/child,
+  and child-ID filters for restoring the matching subject's latest result, and
+  never accepts a client-supplied owner ID.
 - Billing exposes `free`, `plus`, and `pro` catalog plans. Free login grants
   are 10 points per day with a hard monthly free-account cap of 30 points,
   including legacy free balances above the cap. `plus` costs ¥19.9 for 200

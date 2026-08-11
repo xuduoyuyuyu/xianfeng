@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" fill="none">
+  <defs>
+    <linearGradient id="talent-gradient" x1="16" y1="10" x2="82" y2="88" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8738F4" />
+      <stop offset="1" stop-color="#5C20C5" />
+    </linearGradient>
+  </defs>
+  <rect width="96" height="96" rx="24" fill="url(#talent-gradient)" />
+  <circle cx="22" cy="18" r="28" fill="#FFFFFF" fill-opacity="0.06" />
+  <path d="M48 18V78M18 48H78M27 27L69 69M69 27L27 69" stroke="#FFFFFF" stroke-opacity="0.34" stroke-width="2.4" stroke-linecap="round" />
+  <polygon points="48,18 69,27 78,48 69,69 48,78 27,69 18,48 27,27" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="3" stroke-linejoin="round" />
+  <polygon points="48,25 63,33 72,48 64,64 48,70 33,63 25,48 34,34" fill="#FFFFFF" fill-opacity="0.22" stroke="#FFFFFF" stroke-width="3.4" stroke-linejoin="round" />
+  <circle cx="48" cy="48" r="4.5" fill="#FFFFFF" />
+</svg>

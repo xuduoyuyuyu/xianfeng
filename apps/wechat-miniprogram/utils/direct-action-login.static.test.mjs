@@ -9,6 +9,7 @@ const pages = [
   ["Worthbuy", "../pages/worthbuy/index.wxml"],
   ["Xiaowanzi", "../pages/xiaowanzi/index.wxml"],
   ["Mama Resource", "../pages/mama-resource-apply/index.wxml"],
+  ["Flash Test", "../pages/flash-test/index.wxml"],
   ["WebView", "../pages/webview/index.wxml"]
 ];
 
@@ -24,6 +25,7 @@ test("protected primary actions directly own the phone authorization gesture", (
   assert.match(read("../pages/worthbuy/index.wxml"), /wb-submit[^>]*open-type="\{\{isLoggedIn \? '' : 'getPhoneNumber'\}\}"[^>]*bindgetphonenumber="authorizeAnalysis"/);
   assert.match(read("../pages/xiaowanzi/index.wxml"), /xf-xiaowanzi-send[^>]*open-type="\{\{isLoggedIn \? '' : 'getPhoneNumber'\}\}"[^>]*bindgetphonenumber="authorizeXiaowanziSend"/);
   assert.match(read("../pages/mama-resource-apply/index.wxml"), /xf-mama-submit[^>]*open-type="\{\{isLoggedIn \? '' : 'getPhoneNumber'\}\}"/);
+  assert.match(read("../pages/flash-test/index.wxml"), /xf-flash-mode-card[^>]*open-type="\{\{isLoggedIn \? '' : 'getPhoneNumber'\}\}"[^>]*bindgetphonenumber="authorizeAssessment"/);
   assert.match(read("../pages/webview/index.wxml"), /xf-expert-detail-login[^>]*open-type="getPhoneNumber"[^>]*bindgetphonenumber="authorizeNativeExpert"/);
 });
 

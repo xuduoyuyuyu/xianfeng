@@ -30,6 +30,30 @@
 
 ## WeChat Mini Program Shell
 
+- The public sidebar entry `闪测` opens a native test catalog so later tests can
+  be added without changing the sidebar contract. The first catalog item is the
+  native `八大能力` assessment. Selecting its card opens the self/child subject
+  choice as a bottom modal. The first subject-choice tap is also the native
+  `getPhoneNumber` authorization gesture when the user is logged out, and the
+  chosen action resumes only after the shared login/profile-completion flow
+  succeeds. Self mode first restores the current user's newest saved result,
+  while parent-proxy mode opens the
+  existing shared child-archive side panel in place. Selecting an existing
+  archive, or creating and saving one there, first restores that child's newest
+  result when present and otherwise starts the test without separate picker or
+  confirmation pages. Only `重新测一次` bypasses result restoration and starts a
+  fresh questionnaire. The child mode uses a separate 40-question set grounded in observable
+  learning, family-life, and peer behavior. Both modes use 1–5 sliders and
+  treat tapping a numeric label or releasing the slider at its unchanged
+  default center as an explicit answer, so score 3 is selectable without first
+  moving away from 3. Catalog, introduction, subject choice, question, and
+  result screens use the existing pale-purple shell, white cards, an existing
+  no-hat Xiaowanzi asset where appropriate, and purple as the action color. Both modes receive an integer 1–5 radar
+  profile plus rule-generated observational analysis. Completing question 40
+  saves the answers and derived eight-dimension result to the authenticated
+  account through `/api/flash-tests/results`; child mode also sends the selected
+  archive ID. The result screen reports saving, saved, and retryable failure
+  states and displays each radar-axis score on the shared 1-to-5 scale.
 - WorthBuy uses dedicated native routes `pages/worthbuy/index` and
   `pages/worthbuy-detail/index`. They reuse `/api/worthbuy` for anonymous
   public reads, owner-scoped history, Pro-gated analysis, deletion, and detail

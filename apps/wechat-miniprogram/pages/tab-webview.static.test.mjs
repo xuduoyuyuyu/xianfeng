@@ -12341,7 +12341,7 @@ test("mine hamburger settings drawer matches the mobile web menu grouping and co
     ["account", ["pro", "archive"]],
     ["content", ["programs", "experts"]],
     ["library", ["reading", "materials", "planning"]],
-    ["ask", ["topics", "worthbuy", "welfare", "mamaHaozhuan"]],
+    ["ask", ["topics", "flashTest", "worthbuy", "welfare", "mamaHaozhuan"]],
     ["memory", ["memory"]],
     ["settings", ["settings"]]
   ]);
@@ -13152,9 +13152,12 @@ test("shared native settings drawer renders profile subviews in place on first-l
   assert.match(archivePanelStyles, /\.xf-profile-panel \{[\s\S]*background: #f6f7fb;/);
   assert.doesNotMatch(archivePanelStyles.match(/\.xf-profile-panel \{[\s\S]*?\n\}/)?.[0] || "", /transparent calc\(100% - 96rpx\)/);
   assert.match(template, /class="xf-profile-delete-child" bindtap="deleteArchiveChild">删除<\/button>/);
-  assert.match(archivePageTemplate, /class="xf-profile-delete-child" bindtap="deleteChild">删除<\/button>/);
-  assert.match(template, /<button class="xf-profile-secondary" bindtap="findXiaowanzi">找小玩子<\/button>\s*<\/view>\s*<\/view>\s*<view class="xf-profile-message">\{\{profilePanelMessage\}\}<\/view>\s*<view class="xf-profile-delete-zone">\s*<button class="xf-profile-delete-child" bindtap="deleteArchiveChild">删除<\/button>\s*<\/view>/);
-  assert.match(archivePageTemplate, /<button class="xf-profile-secondary" bindtap="openXiaowanzi">找小玩子<\/button>\s*<\/view>\s*<\/view>\s*<view class="xf-profile-message">\{\{message\}\}<\/view>\s*<view class="xf-profile-delete-zone">\s*<button class="xf-profile-delete-child" bindtap="deleteChild">删除<\/button>\s*<\/view>/);
+  assert.match(archivePageTemplate, /<import src="\.\.\/\.\.\/\.\.\/templates\/settings-profile-views\.wxml" \/>/);
+  assert.match(archivePageTemplate, /is="xfSettingsArchivePanel"/);
+  assert.match(template, /<button class="\{\{archiveSelectionMode \? 'xf-profile-secondary' : 'xf-profile-primary'\}\}" bindtap="saveArchivePanel">保存档案<\/button>/);
+  assert.match(template, /<button wx:if="\{\{archiveSelectionMode\}\}" class="xf-profile-primary" bindtap="confirmArchiveSelection">\{\{archiveSelectionActionLabel\}\}<\/button>/);
+  assert.match(template, /<button wx:else class="xf-profile-secondary" bindtap="findXiaowanzi">找小玩子<\/button>\s*<\/view>\s*<\/view>\s*<view class="xf-profile-message">\{\{profilePanelMessage\}\}<\/view>\s*<view class="xf-profile-delete-zone">\s*<button class="xf-profile-delete-child" bindtap="deleteArchiveChild">删除<\/button>\s*<\/view>/);
+  assert.match(archivePageTemplate, /profilePanelMessage: profilePanelMessage/);
   assert.match(fs.readFileSync(new URL("../pages/mine/archive/index.wxss", import.meta.url), "utf8"), /\.xf-archive-panel \{[\s\S]*padding-bottom: 56rpx;/);
   for (const styles of [nativeListStyles, archivePanelStyles]) {
     assert.match(styles, /\.xf-profile-delete-zone \{[\s\S]*display: flex;[\s\S]*justify-content: center;[\s\S]*padding: 6rpx 0 16rpx;/);
@@ -13182,7 +13185,8 @@ test("shared native settings drawer renders profile subviews in place on first-l
   assert.doesNotMatch(template, /wx:for="\{\{archiveStageOptions\}\}"[\s\S]*data-value="\{\{item\.value\}\}"[\s\S]*bindtap="chooseArchiveStage"/);
   assert.doesNotMatch(template, /bindtap="toggleArchiveGradeOptions"/);
   assert.doesNotMatch(template, /wx:for="\{\{archiveGradeSelectOptions\}\}"[\s\S]*data-value="\{\{item\.value\}\}"[\s\S]*bindtap="chooseArchiveGrade"/);
-  assert.match(archivePageTemplate, /mode="multiSelector" range="\{\{stageGradeColumns\}\}" value="\{\{stageGradeValue\}\}" bindcolumnchange="updateStageGradeColumn" bindchange="chooseStageGrade"/);
+  assert.match(archivePageTemplate, /archiveStageGradeColumns: archiveStageGradeColumns/);
+  assert.match(archivePageTemplate, /archiveStageGradeValue: archiveStageGradeValue/);
   assert.doesNotMatch(archivePageTemplate, /range="\{\{stageOptions\}\}" value="\{\{stageIndex\}\}" bindchange="chooseStage"/);
   assert.doesNotMatch(archivePageTemplate, /range="\{\{gradeOptions\}\}" value="0" bindchange="chooseGrade"/);
   assert.doesNotMatch(archivePageTemplate, /bindtap="toggleStageOptions"/);
@@ -13566,6 +13570,52 @@ test("standalone archive page opens an add-child draft from explicit action", ()
   }
 });
 
+test("standalone archive page returns to flash test after saving a new child", () => {
+  const { CHILD_PROFILES_KEY } = require("../utils/profileState.js");
+  const definition = loadPageDefinition("mine/archive");
+  const storage = new Map([[CHILD_PROFILES_KEY, []]]);
+  const navigations = [];
+  const context = {
+    ...definition,
+    data: { ...definition.data },
+    setData(payload, callback) {
+      this.data = { ...this.data, ...payload };
+      if (typeof callback === "function") callback();
+    }
+  };
+  const originalWx = global.wx;
+
+  try {
+    global.wx = {
+      getStorageSync(key) {
+        return storage.get(key) || "";
+      },
+      setStorageSync(key, value) {
+        storage.set(key, value);
+      },
+      showShareMenu() {
+        return undefined;
+      },
+      navigateBack(options) {
+        navigations.push(options);
+      }
+    };
+
+    definition.onLoad.call(context, { action: "add", returnTo: "flash-test" });
+    const draftId = context.data.draft.id;
+    definition.updateName.call(context, { detail: { value: "小圆子" } });
+    definition.chooseBirthDate.call(context, { detail: { value: "2022-01-02" } });
+    definition.chooseStageGrade.call(context, { detail: { value: [0, 0] } });
+    definition.saveProfile.call(context);
+
+    assert.deepEqual(navigations, [{ delta: 1 }]);
+    assert.equal(storage.get("xiaowanzi_last_child_id_v1"), draftId);
+    assert.equal(storage.get(CHILD_PROFILES_KEY).at(-1).displayName, "小圆子");
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
 test("standalone archive page rejects duplicate child names", () => {
   const { CHILD_PROFILES_KEY, WEB_CHILD_PROFILES_KEY } = require("../utils/profileState.js");
   const definition = loadPageDefinition("mine/archive");
@@ -13747,7 +13797,9 @@ test("mama haozhuan opens a native mini program form instead of program detail w
     assert.deepEqual(navigations, [{ url: "/pages/mine/archive/index?from=settings" }]);
     navigations.length = 0;
 
-    context.openSettingsItem({ currentTarget: { dataset: { sectionIndex: 3, itemIndex: 3 } } });
+    const mamaSectionIndex = nativeSettings.SETTINGS_SECTIONS.findIndex((section) => section.key === "ask");
+    const mamaItemIndex = nativeSettings.SETTINGS_SECTIONS[mamaSectionIndex].items.findIndex((item) => item.key === "mamaHaozhuan");
+    context.openSettingsItem({ currentTarget: { dataset: { sectionIndex: mamaSectionIndex, itemIndex: mamaItemIndex } } });
 
     assert.deepEqual(navigations, [{ url: "/pages/mama-resource-apply/index?from=settings" }]);
     assert.equal(appJson.pages.includes("pages/mama-resource-apply/index"), true);
