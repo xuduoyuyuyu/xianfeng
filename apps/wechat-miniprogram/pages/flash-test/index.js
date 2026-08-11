@@ -4,11 +4,21 @@ const { createNativeSettingsMethods, getSettingsPanelHeight } = require("../../u
 const { buildProfileState } = require("../../utils/profileState");
 const { request } = require("../../utils/request");
 const { getToken } = require("../../utils/session");
+const { createPageShare, enableShareMenu } = require("../../utils/share");
 const { ANSWER_LABELS, buildAnalysis, dimensionsForMode, scoreAssessment } = require("../../utils/talentAssessment");
 
 const DEFAULT_SLIDER_VALUE = 3;
 const ASSESSMENT_VERSION = "2026-08-11";
 const LAST_CHILD_ID_KEY = "xiaowanzi_last_child_id_v1";
+const CATALOG_SHARE_OPTIONS = {
+  title: "闪测｜测一测，更懂自己和孩子",
+  path: "/pages/flash-test/index"
+};
+const EIGHT_TALENTS_SHARE_OPTIONS = {
+  title: "八大能力｜看见更容易被调用的能力组合",
+  path: "/pages/flash-test/index",
+  query: { test: "eight-talents" }
+};
 const TESTS = [
   {
     id: "eight-talents",
@@ -113,14 +123,34 @@ Page({
     savedResultId: ""
   },
 
-  onLoad() {
+  onLoad(options = {}) {
     this.answers = Array(40).fill(null);
+    enableShareMenu();
     this.syncTopbarMetrics();
     this.setData({ isLoggedIn: Boolean(getToken()) });
+    const sharedTestId = String(options.test || "");
+    if (sharedTestId) {
+      this.openAssessment({ currentTarget: { dataset: { id: sharedTestId } } });
+    }
   },
 
   onShow() {
+    enableShareMenu();
     this.setData({ isLoggedIn: Boolean(getToken()) });
+  },
+
+  getShareOptions() {
+    return this.data.selectedTestTitle || this.data.stage !== "catalog"
+      ? EIGHT_TALENTS_SHARE_OPTIONS
+      : CATALOG_SHARE_OPTIONS;
+  },
+
+  onShareAppMessage() {
+    return createPageShare(this.getShareOptions()).onShareAppMessage();
+  },
+
+  onShareTimeline() {
+    return createPageShare(this.getShareOptions()).onShareTimeline();
   },
 
   syncTopbarMetrics() {
@@ -154,7 +184,7 @@ Page({
       return;
     }
     if (this.data.stage === "result") {
-      this.setData({ stage: "catalog", message: "" });
+      this.setData({ stage: "catalog", selectedTestTitle: "", message: "" });
       return;
     }
     smartBackHome();
@@ -170,7 +200,7 @@ Page({
 
   closeSubjectModal() {
     this.forceNewAssessment = false;
-    this.setData({ subjectModalOpen: false });
+    this.setData({ subjectModalOpen: false, selectedTestTitle: "" });
   },
 
   chooseMode(event) {

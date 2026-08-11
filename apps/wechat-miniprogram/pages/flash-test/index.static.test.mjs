@@ -224,6 +224,64 @@ test("flash test opens as a test catalog before choosing the assessment subject"
   assert.match(styles, /\.xf-flash-result-hero\s*\{[^}]*background:\s*#ffffff/s);
 });
 
+test("flash test shares the catalog or the exact assessment entry without personal state", () => {
+  const definition = loadFlashPageDefinition();
+  const originalWx = global.wx;
+  let shareMenuOptions = null;
+  const context = {
+    ...definition,
+    data: { ...definition.data },
+    syncTopbarMetrics() {},
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+
+  try {
+    global.wx = {
+      getStorageSync() {
+        return "";
+      },
+      showShareMenu(options) {
+        shareMenuOptions = options;
+      }
+    };
+
+    definition.onLoad.call(context, { test: "eight-talents" });
+    assert.deepEqual(shareMenuOptions, {
+      withShareTicket: true,
+      menus: ["shareAppMessage", "shareTimeline"]
+    });
+    assert.equal(context.data.subjectModalOpen, true);
+    assert.equal(context.data.selectedTestTitle, "八大能力");
+
+    assert.deepEqual(definition.onShareAppMessage.call(context), {
+      title: "八大能力｜看见更容易被调用的能力组合",
+      path: "/pages/flash-test/index?test=eight-talents"
+    });
+    assert.deepEqual(definition.onShareTimeline.call(context), {
+      title: "八大能力｜看见更容易被调用的能力组合",
+      query: "test=eight-talents"
+    });
+
+    context.data = {
+      ...context.data,
+      stage: "catalog",
+      subjectModalOpen: false,
+      selectedTestTitle: "",
+      mode: "child",
+      selectedChildId: "child-private",
+      selectedChildName: "不应分享"
+    };
+    assert.deepEqual(definition.onShareAppMessage.call(context), {
+      title: "闪测｜测一测，更懂自己和孩子",
+      path: "/pages/flash-test/index"
+    });
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
 test("assessment card opens subject choice in a modal without intermediate stages", () => {
   const definition = loadFlashPageDefinition();
   const context = {

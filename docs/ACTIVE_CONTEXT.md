@@ -71,7 +71,10 @@ to the shared user profile; existing custom profiles are not overwritten.
 Native `闪测` keeps its catalog public, but entering the first `八大能力`
 question is now a protected action. Self and child modes reuse the shared
 phone-login flow, and child mode continues to use the existing remote archive
-panel. After choosing self mode or a child archive, the client reads that
+panel. The catalog and the specific `八大能力` entry both support native
+friend and timeline sharing; the specific share restores the identity chooser
+without carrying child identity, answers, progress, or result state. After
+choosing self mode or a child archive, the client reads that
 subject's newest saved result and opens it directly when present; only the
 explicit `重新测一次` action starts a fresh questionnaire. After question 40,
 the authenticated backend stores the 40 answers and
