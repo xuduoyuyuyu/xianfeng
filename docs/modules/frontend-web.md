@@ -72,6 +72,9 @@
   claim-limit field for the mini-program first-come task flow and multiple
   example images uploaded through the admin image upload endpoint. Submitted
   proof is reviewed from the task assignment list as collected or rejected.
+  Submitted completion links are shown as copy-only text so untrusted or
+  incomplete link values cannot be interpreted as routes inside the admin SPA;
+  completion screenshots remain directly previewable.
   The same assignment list shows private-content configuration progress and
   supports direct link editing plus Excel template download, preflight review,
   and explicit import confirmation. Operators may also paste a task-level link

@@ -685,6 +685,29 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
     }
   };
 
+  const copyAssignmentProofLink = async (proofLink: string) => {
+    const text = String(proofLink || "").trim();
+    if (!text) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.setAttribute("readonly", "readonly");
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      setToast("完成链接已复制");
+    } catch {
+      setToast("复制失败，请手动选择完成链接");
+    }
+  };
+
   const handleTransferScreenshotUpload = async (assignmentId: string, file?: File) => {
     if (!file || transferScreenshotUploadingId) return;
     setTransferScreenshotUploadingId(assignmentId);
@@ -1209,9 +1232,17 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                             </div>
                           </div>
                           {selectedAssignment.proofLink || selectedAssignment.proofScreenshotUrl ? (
-                            <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
-                              {selectedAssignment.proofLink ? <a className="rounded-full bg-[#f6f0ff] px-2.5 py-1 text-[#6c27d6]" href={selectedAssignment.proofLink} target="_blank" rel="noreferrer">完成链接</a> : null}
-                              {selectedAssignment.proofScreenshotUrl ? <a className="rounded-full bg-[#f6f0ff] px-2.5 py-1 text-[#6c27d6]" href={selectedAssignment.proofScreenshotUrl} target="_blank" rel="noreferrer">完成截图</a> : null}
+                            <div className="mt-2 space-y-2 text-xs font-bold">
+                              {selectedAssignment.proofLink ? (
+                                <div aria-label="完成链接">
+                                  <div className="mb-1 text-xs font-black text-stone-600">完成链接</div>
+                                  <div className="flex items-stretch gap-2">
+                                    <div className="min-w-0 flex-1 break-all rounded-lg border border-[#e6ddff] bg-[#fbf9ff] px-2.5 py-2 font-semibold leading-5 text-stone-700">{selectedAssignment.proofLink}</div>
+                                    <button type="button" onClick={() => void copyAssignmentProofLink(selectedAssignment.proofLink || "")} className="shrink-0 rounded-lg border border-[#6c27d6] bg-[#f7f2ff] px-3 py-2 font-black text-[#5e17eb]">复制</button>
+                                  </div>
+                                </div>
+                              ) : null}
+                              {selectedAssignment.proofScreenshotUrl ? <a className="inline-flex rounded-full bg-[#f6f0ff] px-2.5 py-1 text-[#6c27d6]" href={selectedAssignment.proofScreenshotUrl} target="_blank" rel="noreferrer">完成截图</a> : null}
                             </div>
                           ) : <div className="mt-2 text-xs font-semibold text-stone-400">用户尚未提交证明</div>}
                           <div className="mt-3 rounded-xl bg-stone-50 p-3">

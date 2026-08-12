@@ -329,6 +329,15 @@ test("admin task assignments upload and replace transfer screenshots", () => {
   assert.match(source, /任务转账凭证/);
 });
 
+test("admin task assignments display submitted completion links as copy-only proof", () => {
+  assert.match(source, /const copyAssignmentProofLink = async \(proofLink: string\) =>/);
+  assert.match(source, /navigator\.clipboard\?\.writeText/);
+  assert.match(source, /aria-label="完成链接"/);
+  assert.match(source, /\{selectedAssignment\.proofLink\}/);
+  assert.match(source, /copyAssignmentProofLink\(selectedAssignment\.proofLink \|\| ""\)/);
+  assert.doesNotMatch(source, /href=\{selectedAssignment\.proofLink\}/);
+});
+
 test("admin task assignments show proof return status without a 24-hour badge", () => {
   assert.match(source, /全部返图状态/);
   assert.match(source, /已返图/);
