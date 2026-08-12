@@ -22,6 +22,25 @@ function hasPersistentAvatar(value) {
   return (/^https?:\/\//i.test(avatar) && !/^https?:\/\/tmp\//i.test(avatar)) || avatar.startsWith("/uploads/");
 }
 
+function expiredAvatarError() {
+  return new Error("头像已失效，请重新选择微信头像");
+}
+
+function ensureLocalAvatarExists(filePath) {
+  return new Promise((resolve, reject) => {
+    const manager = wx.getFileSystemManager && wx.getFileSystemManager();
+    if (!manager || typeof manager.access !== "function") {
+      resolve();
+      return;
+    }
+    manager.access({
+      path: filePath,
+      success: resolve,
+      fail: () => reject(expiredAvatarError())
+    });
+  });
+}
+
 function needsWechatProfileCompletion(value) {
   const user = normalizeWechatProfileUser(value);
   return isPlaceholderName(user.name) || !hasPersistentAvatar(user.avatar);
@@ -46,7 +65,8 @@ function uploadWechatAvatar(filePath) {
         reject(new Error((data && (data.error || data.message)) || "头像上传失败"));
       },
       fail(error) {
-        reject(new Error((error && error.errMsg) || "头像上传失败"));
+        const message = String(error && error.errMsg || "");
+        reject(/no such file or directory/i.test(message) ? expiredAvatarError() : new Error(message || "头像上传失败"));
       }
     });
   });
@@ -61,11 +81,15 @@ async function saveWechatProfile({ name, avatarPath, allowEmptyAvatar = false, g
     ? current.avatar
     : String(avatarPath || "").trim();
   if (!chosenAvatar && !allowEmptyAvatar) throw new Error("请选择微信头像");
-  const avatarImage = !chosenAvatar
-    ? ""
-    : hasPersistentAvatar(chosenAvatar)
-      ? chosenAvatar
-      : await uploadWechatAvatar(chosenAvatar);
+  let avatarImage = "";
+  if (chosenAvatar) {
+    if (hasPersistentAvatar(chosenAvatar)) {
+      avatarImage = chosenAvatar;
+    } else {
+      await ensureLocalAvatarExists(chosenAvatar);
+      avatarImage = await uploadWechatAvatar(chosenAvatar);
+    }
+  }
   const data = { name: safeName, avatar_image: avatarImage };
   if (typeof gender === "string") data.gender = gender;
   const responseUser = await request({
@@ -87,6 +111,7 @@ async function saveWechatProfile({ name, avatarPath, allowEmptyAvatar = false, g
 }
 
 module.exports = {
+  hasPersistentAvatar,
   isPlaceholderName,
   needsWechatProfileCompletion,
   normalizeWechatProfileUser,

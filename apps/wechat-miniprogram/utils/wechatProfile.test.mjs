@@ -33,6 +33,9 @@ test("saving a wechat profile uploads the chosen avatar and refreshes the shared
   const uploadedPaths = [];
   let appUser = null;
   global.wx = {
+    getFileSystemManager() {
+      return { access: ({ success }) => success() };
+    },
     uploadFile(options) {
       uploadCount += 1;
       uploadedPaths.push(options.filePath);
@@ -80,5 +83,77 @@ test("saving a wechat profile uploads the chosen avatar and refreshes the shared
     delete require.cache[sessionPath];
     global.wx = originalWx;
     global.getApp = originalGetApp;
+  }
+});
+
+test("saving a wechat profile asks for a new avatar when the temporary file expired", async () => {
+  const originalWx = global.wx;
+  let uploadCount = 0;
+  global.wx = {
+    getFileSystemManager() {
+      return { access: ({ fail }) => fail({ errMsg: "access:fail no such file or directory" }) };
+    },
+    uploadFile() {
+      uploadCount += 1;
+    }
+  };
+  require.cache[requestPath] = { exports: {
+    buildUrl: (path) => `https://api.test${path}`,
+    request: async () => ({})
+  } };
+  require.cache[sessionPath] = { exports: {
+    getToken: () => "token-1",
+    getUser: () => ({ name: "微信用户", avatar_image: "" }),
+    setSession() {}
+  } };
+
+  try {
+    delete require.cache[modulePath];
+    const { saveWechatProfile } = require(modulePath);
+    await assert.rejects(
+      saveWechatProfile({ name: "小雨", avatarPath: "http://tmp/stale-avatar.jpeg" }),
+      /头像已失效，请重新选择微信头像/
+    );
+    assert.equal(uploadCount, 0);
+  } finally {
+    delete require.cache[modulePath];
+    delete require.cache[requestPath];
+    delete require.cache[sessionPath];
+    global.wx = originalWx;
+  }
+});
+
+test("saving a wechat profile hides uploadFile errors when the avatar expires during upload", async () => {
+  const originalWx = global.wx;
+  global.wx = {
+    getFileSystemManager() {
+      return { access: ({ success }) => success() };
+    },
+    uploadFile({ fail }) {
+      fail({ errMsg: "uploadFile:fail createUploadTask:fail no such file or directory" });
+    }
+  };
+  require.cache[requestPath] = { exports: {
+    buildUrl: (path) => `https://api.test${path}`,
+    request: async () => ({})
+  } };
+  require.cache[sessionPath] = { exports: {
+    getToken: () => "token-1",
+    getUser: () => ({ name: "微信用户", avatar_image: "" }),
+    setSession() {}
+  } };
+
+  try {
+    delete require.cache[modulePath];
+    const { saveWechatProfile } = require(modulePath);
+    await assert.rejects(
+      saveWechatProfile({ name: "小雨", avatarPath: "wxfile://expired-during-upload" }),
+      /头像已失效，请重新选择微信头像/
+    );
+  } finally {
+    delete require.cache[modulePath];
+    delete require.cache[requestPath];
+    delete require.cache[sessionPath];
+    global.wx = originalWx;
   }
 });

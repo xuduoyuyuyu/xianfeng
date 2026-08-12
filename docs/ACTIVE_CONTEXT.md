@@ -84,6 +84,11 @@ distinguishes saving, saved, and retryable failure states instead of claiming a
 local-only result, and labels all eight radar axes with their server-aligned
 integer score on the shared 1-to-5 scale.
 
+The shared mini-program phone-login profile step only preloads persistent
+avatars. Expired WeChat temporary avatar paths are cleared before display, and
+save-time file expiry asks the user to choose the avatar again instead of
+showing the raw `uploadFile` error.
+
 Mama Haozhuan content dispatch now uses existing task claims as its only account
 source: task creation, manual selection, and Excel import no longer create
 assignments for unclaimed accounts. Operators can fill private links

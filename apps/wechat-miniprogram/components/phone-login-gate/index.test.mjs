@@ -26,6 +26,7 @@ test("shared phone login gate saves the session and emits success", async () => 
   require.cache[sessionPath] = { exports: { setSession: (payload) => saved.push(payload) } };
   require.cache[authExpiryPath] = { exports: { resolveAuthExpired: () => { resolved += 1; } } };
   require.cache[wechatProfilePath] = { exports: {
+    hasPersistentAvatar: () => true,
     isPlaceholderName: () => false,
     needsWechatProfileCompletion: () => false,
     normalizeWechatProfileUser: (user) => user,
@@ -82,9 +83,10 @@ test("shared phone login waits for missing wechat profile details before resumin
   require.cache[sessionPath] = { exports: { setSession() {} } };
   require.cache[authExpiryPath] = { exports: { resolveAuthExpired() {} } };
   require.cache[wechatProfilePath] = { exports: {
+    hasPersistentAvatar: (avatar) => /^https:\/\/cdn\.test\//.test(String(avatar || "")),
     isPlaceholderName: (name) => !name || name === "微信用户",
     needsWechatProfileCompletion: () => true,
-    normalizeWechatProfileUser: (user) => ({ ...user, avatar: user.avatar_image || "" }),
+    normalizeWechatProfileUser: (user) => ({ ...user, avatar: user.avatar_image || "http://tmp/stale-avatar.jpeg" }),
     saveWechatProfile: async ({ name, avatarPath }) => ({ id: "user-1", name, avatar: avatarPath, avatar_image: avatarPath })
   } };
   global.Component = (value) => { definition = value; };
@@ -104,6 +106,7 @@ test("shared phone login waits for missing wechat profile details before resumin
     definition.methods.loginWithPhone.call(context, { detail: { code: "phone-code" } });
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(context.data.completingProfile, true);
+    assert.equal(context.data.profileAvatar, "");
     assert.deepEqual(events, []);
 
     definition.methods.chooseWechatAvatar.call(context, { detail: { avatarUrl: "https://cdn.test/new-avatar.png" } });

@@ -2,6 +2,7 @@ const { request } = require("../../utils/request");
 const { setSession } = require("../../utils/session");
 const { resolveAuthExpired } = require("../../utils/authExpiry");
 const {
+  hasPersistentAvatar,
   isPlaceholderName,
   needsWechatProfileCompletion,
   normalizeWechatProfileUser,
@@ -68,7 +69,7 @@ Component({
                 this.setData({
                   completingProfile: true,
                   profileName: isPlaceholderName(user.name) ? "" : user.name,
-                  profileAvatar: user.avatar,
+                  profileAvatar: hasPersistentAvatar(user.avatar) ? user.avatar : "",
                   profileMessage: ""
                 });
                 return;
