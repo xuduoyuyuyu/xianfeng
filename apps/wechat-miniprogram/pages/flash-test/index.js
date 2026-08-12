@@ -46,7 +46,7 @@ const TESTS = [
     badge: "阅读基础",
     title: "识字量",
     subtitle: "孩子读字、家长判断，用分层样本估算当前识字范围",
-    icon: "/assets/flash-test/character-recognition.webp",
+    icon: "/assets/flash-test/character-recognition.png",
     source: "30 字探索性抽样 · 不作诊断",
     meta: "30 字 · 约 3 分钟",
     childOnly: true

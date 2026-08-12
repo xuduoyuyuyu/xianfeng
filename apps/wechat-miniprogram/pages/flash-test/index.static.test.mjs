@@ -165,12 +165,12 @@ test("flash test opens as a test catalog before choosing the assessment subject"
   const icon = fs.readFileSync(path.join(miniProgramRoot, "assets/flash-test/eight-talents.svg"), "utf8");
   const heroIconPath = path.join(miniProgramRoot, "assets/flash-test/flash-test-hero-icon.png");
   const assessmentIconPath = path.join(miniProgramRoot, "assets/flash-test/assessment-checklist.png");
-  const recognitionIconPath = path.join(miniProgramRoot, "assets/flash-test/character-recognition.webp");
+  const recognitionIconPath = path.join(miniProgramRoot, "assets/flash-test/character-recognition.png");
 
   assert.match(source, /stage:\s*"catalog"/);
   assert.match(source, /根据沈辛成《超越分数》整理/);
   assert.match(source, /icon:\s*"\/assets\/flash-test\/assessment-checklist\.png"/);
-  assert.match(source, /icon:\s*"\/assets\/flash-test\/character-recognition\.webp"/);
+  assert.match(source, /icon:\s*"\/assets\/flash-test\/character-recognition\.png"/);
   assert.match(template, /stage === 'catalog'/);
   assert.match(template, /xf-flash-catalog-title">闪测/);
   assert.match(template, /xf-flash-catalog-hero/);
