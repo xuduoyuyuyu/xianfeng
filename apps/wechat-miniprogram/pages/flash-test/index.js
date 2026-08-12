@@ -6,9 +6,16 @@ const { request } = require("../../utils/request");
 const { getToken } = require("../../utils/session");
 const { createPageShare, enableShareMenu } = require("../../utils/share");
 const { ANSWER_LABELS, buildAnalysis, dimensionsForMode, scoreAssessment } = require("../../utils/talentAssessment");
+const {
+  CHARACTER_RECOGNITION_VERSION,
+  CHARACTER_SAMPLE_SIZE,
+  buildCharacterRecognitionAnalysis,
+  buildCharacterSample,
+  estimateCharacterRecognition
+} = require("../../utils/characterRecognition");
 
 const DEFAULT_SLIDER_VALUE = 3;
-const ASSESSMENT_VERSION = "2026-08-11";
+const EIGHT_TALENTS_VERSION = "2026-08-11";
 const LAST_CHILD_ID_KEY = "xiaowanzi_last_child_id_v1";
 const CATALOG_SHARE_OPTIONS = {
   title: "闪测｜测一测，更懂自己和孩子",
@@ -19,6 +26,11 @@ const EIGHT_TALENTS_SHARE_OPTIONS = {
   path: "/pages/flash-test/index",
   query: { test: "eight-talents" }
 };
+const CHARACTER_RECOGNITION_SHARE_OPTIONS = {
+  title: "识字量｜用 30 个字快速了解孩子的识字范围",
+  path: "/pages/flash-test/index",
+  query: { test: "character-recognition" }
+};
 const TESTS = [
   {
     id: "eight-talents",
@@ -28,6 +40,16 @@ const TESTS = [
     icon: "/assets/flash-test/assessment-checklist.png",
     source: "根据沈辛成《超越分数》整理",
     meta: "40 题 · 约 8 分钟"
+  },
+  {
+    id: "character-recognition",
+    badge: "阅读基础",
+    title: "识字量",
+    subtitle: "孩子读字、家长判断，用分层样本估算当前识字范围",
+    icon: "/assets/flash-test/character-recognition.webp",
+    source: "30 字探索性抽样 · 不作诊断",
+    meta: "30 字 · 约 3 分钟",
+    childOnly: true
   }
 ];
 
@@ -88,7 +110,9 @@ Page({
     logoHeight: 28,
     stage: "catalog",
     tests: TESTS,
+    selectedTestId: "",
     selectedTestTitle: "",
+    selectedTestChildOnly: false,
     subjectModalOpen: false,
     youngChildWarningOpen: false,
     youngChildName: "",
@@ -114,6 +138,12 @@ Page({
     answeredCount: 0,
     currentDimension: INITIAL_QUESTION_STATE.currentDimension,
     currentQuestion: INITIAL_QUESTION_STATE.currentQuestion,
+    recognitionIndex: 0,
+    recognitionNumber: 1,
+    recognitionCharacter: "",
+    recognitionProgressPercent: 3,
+    recognitionSummary: null,
+    resultType: "talents",
     message: "",
     radarSize: 320,
     analysisTitle: "",
@@ -125,6 +155,8 @@ Page({
 
   onLoad(options = {}) {
     this.answers = Array(40).fill(null);
+    this.recognitionSample = [];
+    this.recognitionTestedCharacters = [];
     enableShareMenu();
     this.syncTopbarMetrics();
     this.setData({ isLoggedIn: Boolean(getToken()) });
@@ -140,9 +172,10 @@ Page({
   },
 
   getShareOptions() {
-    return this.data.selectedTestTitle || this.data.stage !== "catalog"
-      ? EIGHT_TALENTS_SHARE_OPTIONS
-      : CATALOG_SHARE_OPTIONS;
+    if (this.data.stage === "catalog" && !this.data.subjectModalOpen) return CATALOG_SHARE_OPTIONS;
+    if (this.data.selectedTestId === "character-recognition") return CHARACTER_RECOGNITION_SHARE_OPTIONS;
+    if (this.data.selectedTestId === "eight-talents" || this.data.stage !== "catalog") return EIGHT_TALENTS_SHARE_OPTIONS;
+    return CATALOG_SHARE_OPTIONS;
   },
 
   onShareAppMessage() {
@@ -183,8 +216,12 @@ Page({
       this.previousQuestion();
       return;
     }
+    if (this.data.stage === "recognition") {
+      this.previousRecognitionCharacter();
+      return;
+    }
     if (this.data.stage === "result") {
-      this.setData({ stage: "catalog", selectedTestTitle: "", message: "" });
+      this.setData({ stage: "catalog", selectedTestId: "", selectedTestTitle: "", message: "" });
       return;
     }
     smartBackHome();
@@ -195,16 +232,27 @@ Page({
     const test = TESTS.find((item) => item.id === testId);
     if (!test) return;
     this.forceNewAssessment = false;
-    this.setData({ selectedTestTitle: test.title, subjectModalOpen: true, message: "" });
+    this.setData({
+      selectedTestId: test.id,
+      selectedTestTitle: test.title,
+      selectedTestChildOnly: Boolean(test.childOnly),
+      subjectModalOpen: true,
+      message: ""
+    });
   },
 
   closeSubjectModal() {
     this.forceNewAssessment = false;
-    this.setData({ subjectModalOpen: false, selectedTestTitle: "" });
+    this.setData({
+      subjectModalOpen: false,
+      selectedTestId: "",
+      selectedTestTitle: "",
+      selectedTestChildOnly: false
+    });
   },
 
   chooseMode(event) {
-    const mode = String(event.currentTarget.dataset.mode || "self");
+    const mode = this.data.selectedTestChildOnly ? "child" : String(event.currentTarget.dataset.mode || "self");
     this.pendingAssessmentAction = { type: "start", mode };
     if (!getToken()) return;
     this.pendingAssessmentAction = null;
@@ -217,7 +265,7 @@ Page({
   },
 
   authorizeAssessment(event) {
-    const mode = String(event.currentTarget.dataset.mode || "self");
+    const mode = this.data.selectedTestChildOnly ? "child" : String(event.currentTarget.dataset.mode || "self");
     this.pendingAssessmentAction = { type: "start", mode };
     const gate = this.selectComponent("#flashTestPhoneLoginGate");
     if (gate && typeof gate.loginWithPhone === "function") gate.loginWithPhone(event);
@@ -299,15 +347,22 @@ Page({
   },
 
   loadLatestResult(mode, child = null) {
+    const assessmentId = this.data.selectedTestId || "eight-talents";
     const childId = mode === "child" && child ? String(child.id || "") : "";
     const childQuery = childId ? `&childId=${encodeURIComponent(childId)}` : "";
+    const limit = assessmentId === "character-recognition" ? 50 : 1;
     return request({
-      url: `/api/flash-tests/results?assessmentId=eight-talents&mode=${mode}${childQuery}&limit=1`
+      url: `/api/flash-tests/results?assessmentId=${assessmentId}&mode=${mode}${childQuery}&limit=${limit}`
     }).then((payload) => {
       const results = payload && Array.isArray(payload.results) ? payload.results : [];
+      if (assessmentId === "character-recognition") {
+        this.recognitionTestedCharacters = [...new Set(results.flatMap((item) => (
+          Array.isArray(item.sampleCharacters) ? item.sampleCharacters : []
+        )))];
+      }
       const result = results[0] || null;
       if (!result) return null;
-      const matchesSubject = result.assessmentId === "eight-talents"
+      const matchesSubject = result.assessmentId === assessmentId
         && result.mode === mode
         && (mode !== "child" || String(result.childId || "") === childId);
       if (!matchesSubject) throw new Error("历史结果读取异常，请稍后重试");
@@ -317,18 +372,59 @@ Page({
 
   showSavedResult(result, child = null) {
     const mode = result && result.mode === "child" ? "child" : "self";
+    const assessmentId = String(result && result.assessmentId || "");
+    const selectedChildId = mode === "child" ? String(result.childId || (child && child.id) || "") : "";
+    const selectedChildName = mode === "child" ? String(result.childName || (child && child.name) || "") : "";
+    if (assessmentId === "character-recognition") {
+      const savedSummary = result && result.recognitionSummary;
+      const summary = savedSummary && {
+        ...savedSummary,
+        cumulativeRecognizedCount: Number(savedSummary.cumulativeRecognizedCount ?? savedSummary.recognizedCount),
+        cumulativeSampledCount: Number(savedSummary.cumulativeSampledCount ?? savedSummary.sampledCount),
+        completedRounds: Number(savedSummary.completedRounds || 1)
+      };
+      if (!summary || Number(summary.sampledCount) !== CHARACTER_SAMPLE_SIZE || !String(summary.estimateLabel || "")) {
+        throw new Error("历史结果数据异常，请稍后重试");
+      }
+      const analysis = buildCharacterRecognitionAnalysis(summary, selectedChildName || "孩子");
+      this.answers = Array(CHARACTER_SAMPLE_SIZE).fill(null);
+      this.scores = null;
+      this.forceNewAssessment = false;
+      this.setData({
+        stage: "result",
+        resultType: "recognition",
+        selectedTestId: assessmentId,
+        selectedTestTitle: "识字量",
+        selectedTestChildOnly: true,
+        subjectModalOpen: false,
+        settingsPanelOpen: false,
+        mode,
+        modeLabel: `为${selectedChildName}测`,
+        selectedChildId,
+        selectedChildName,
+        recognitionSummary: summary,
+        analysisTitle: analysis.title,
+        analysisParagraphs: analysis.paragraphs,
+        resultSaveState: "saved",
+        resultSaveMessage: "已保存到我的数据",
+        savedResultId: String(result.id || ""),
+        message: ""
+      });
+      return;
+    }
     const scores = result && Array.isArray(result.scores) ? result.scores : [];
     if (scores.length !== 8 || scores.some((score) => !Number.isInteger(Number(score.radarValue)))) {
       throw new Error("历史结果数据异常，请稍后重试");
     }
-    const selectedChildId = mode === "child" ? String(result.childId || (child && child.id) || "") : "";
-    const selectedChildName = mode === "child" ? String(result.childName || (child && child.name) || "") : "";
     const analysis = buildAnalysis(scores, mode);
     this.answers = Array(40).fill(null);
     this.scores = scores;
     this.forceNewAssessment = false;
     this.setData({
       stage: "result",
+      resultType: "talents",
+      selectedTestId: "eight-talents",
+      selectedTestTitle: "八大能力",
       subjectModalOpen: false,
       settingsPanelOpen: false,
       mode,
@@ -364,6 +460,13 @@ Page({
         return false;
       })
       .catch((error) => {
+        const unsupportedRecognitionHistory = this.data.selectedTestId === "character-recognition"
+          && Number(error && error.statusCode) === 400
+          && String(error && error.message || "") === "暂不支持该测试";
+        if (unsupportedRecognitionHistory) {
+          this.beginNewAssessment(mode, child);
+          return false;
+        }
         this.setData({
           isLoggedIn: Boolean(getToken())
         });
@@ -378,6 +481,7 @@ Page({
   },
 
   shouldWarnForYoungChild(child) {
+    if (this.data.selectedTestId === "character-recognition") return false;
     const grade = String((child && child.grade) || "").trim();
     return /^(孕产|婴幼儿|学前)/.test(grade) || /^(小学)?(?:一年级|二年级)$/.test(grade);
   },
@@ -410,13 +514,34 @@ Page({
 
   startAssessment(mode, child = null) {
     this.forceNewAssessment = false;
-    this.answers = Array(40).fill(null);
     this.scores = null;
     const selectedChildId = mode === "child" && child ? child.id : "";
     const selectedChildName = mode === "child" && child ? child.name : "";
     if (selectedChildId) wx.setStorageSync(LAST_CHILD_ID_KEY, selectedChildId);
+    if (this.data.selectedTestId === "character-recognition") {
+      this.recognitionSample = buildCharacterSample(
+        Math.random,
+        this.recognitionSample,
+        this.recognitionTestedCharacters
+      );
+      this.answers = Array(CHARACTER_SAMPLE_SIZE).fill(null);
+      this.setData({
+        stage: "recognition",
+        resultType: "recognition",
+        mode: "child",
+        modeLabel: `为${selectedChildName}测`,
+        selectedChildId,
+        selectedChildName,
+        recognitionSummary: null,
+        message: ""
+      });
+      this.showRecognitionCharacter(0);
+      return;
+    }
+    this.answers = Array(40).fill(null);
     this.setData({
       stage: "questions",
+      resultType: "talents",
       mode,
       modeLabel: mode === "child" ? `为${selectedChildName}测` : "测自己",
       selectedChildId,
@@ -426,6 +551,58 @@ Page({
       message: ""
     });
     this.showQuestion(0, 0);
+  },
+
+  showRecognitionCharacter(index) {
+    const boundedIndex = Math.max(0, Math.min(CHARACTER_SAMPLE_SIZE - 1, index));
+    this.setData({
+      stage: "recognition",
+      recognitionIndex: boundedIndex,
+      recognitionNumber: boundedIndex + 1,
+      recognitionCharacter: this.recognitionSample[boundedIndex],
+      recognitionProgressPercent: Math.round(((boundedIndex + 1) / CHARACTER_SAMPLE_SIZE) * 100),
+      message: ""
+    });
+  },
+
+  answerRecognitionCharacter(event) {
+    const value = Number(event.currentTarget.dataset.value);
+    if (value !== 0 && value !== 1) return;
+    this.answers[this.data.recognitionIndex] = value;
+    if (this.data.recognitionIndex < CHARACTER_SAMPLE_SIZE - 1) {
+      this.showRecognitionCharacter(this.data.recognitionIndex + 1);
+      return;
+    }
+    this.finishCharacterRecognition();
+  },
+
+  previousRecognitionCharacter() {
+    if (this.data.recognitionIndex === 0) {
+      this.setData({ stage: "catalog", subjectModalOpen: true, message: "" });
+      return;
+    }
+    this.showRecognitionCharacter(this.data.recognitionIndex - 1);
+  },
+
+  finishCharacterRecognition() {
+    try {
+      const summary = estimateCharacterRecognition(this.answers);
+      const analysis = buildCharacterRecognitionAnalysis(summary, this.data.selectedChildName || "孩子");
+      this.setData({
+        stage: "result",
+        resultType: "recognition",
+        recognitionSummary: summary,
+        analysisTitle: analysis.title,
+        analysisParagraphs: analysis.paragraphs,
+        resultSaveState: "saving",
+        resultSaveMessage: "正在保存到我的数据…",
+        savedResultId: "",
+        message: ""
+      });
+      this.persistAssessmentResult();
+    } catch (error) {
+      this.setData({ message: error.message || "请先完成全部汉字" });
+    }
   },
 
   showQuestion(dimensionIndex, questionIndex) {
@@ -515,6 +692,7 @@ Page({
       this.scores = scores;
       this.setData({
         stage: "result",
+        resultType: "talents",
         analysisTitle: analysis.title,
         analysisParagraphs: analysis.paragraphs,
         resultSaveState: "saving",
@@ -543,24 +721,42 @@ Page({
       return Promise.resolve();
     }
     this.setData({ resultSaveState: "saving", resultSaveMessage: "正在保存到我的数据…" });
+    const assessmentId = this.data.selectedTestId || "eight-talents";
     this._resultSavePromise = request({
       method: "POST",
       url: "/api/flash-tests/results",
       data: {
-        assessmentId: "eight-talents",
-        assessmentVersion: ASSESSMENT_VERSION,
+        assessmentId,
+        assessmentVersion: assessmentId === "character-recognition"
+          ? CHARACTER_RECOGNITION_VERSION
+          : EIGHT_TALENTS_VERSION,
         mode: this.data.mode,
         childId: this.data.mode === "child" ? this.data.selectedChildId : "",
-        answers: this.answers.slice()
+        answers: this.answers.slice(),
+        sampleCharacters: assessmentId === "character-recognition" ? this.recognitionSample.slice() : undefined
       }
     })
       .then((payload) => {
         const result = payload && payload.result || {};
-        this.setData({
+        const resultData = {
           resultSaveState: "saved",
           resultSaveMessage: "已保存到我的数据",
           savedResultId: String(result.id || "")
-        });
+        };
+        if (assessmentId === "character-recognition" && result.recognitionSummary) {
+          this.recognitionTestedCharacters = [...new Set([
+            ...(this.recognitionTestedCharacters || []),
+            ...this.recognitionSample
+          ])];
+          resultData.recognitionSummary = result.recognitionSummary;
+          const analysis = buildCharacterRecognitionAnalysis(
+            result.recognitionSummary,
+            this.data.selectedChildName || "孩子"
+          );
+          resultData.analysisTitle = analysis.title;
+          resultData.analysisParagraphs = analysis.paragraphs;
+        }
+        this.setData(resultData);
       })
       .catch((error) => {
         this.setData({
@@ -647,9 +843,20 @@ Page({
     context.draw(false);
   },
 
+  continueRecognitionAssessment() {
+    if (this.data.resultType !== "recognition" || this.data.resultSaveState !== "saved") return;
+    const childId = String(this.data.selectedChildId || "");
+    const childName = String(this.data.selectedChildName || "");
+    if (!childId) {
+      this.setData({ message: "孩子档案信息缺失，请重新选择" });
+      return;
+    }
+    this.startAssessment("child", { id: childId, name: childName });
+  },
+
   restartAssessment() {
     this.forceNewAssessment = true;
-    this.answers = Array(40).fill(null);
+    this.answers = Array(this.data.selectedTestId === "character-recognition" ? CHARACTER_SAMPLE_SIZE : 40).fill(null);
     this.scores = null;
     const questionState = buildQuestionState(0, 0, this.answers);
     this.setData({
@@ -668,6 +875,11 @@ Page({
       progressPercent: 0,
       currentDimension: questionState.currentDimension,
       currentQuestion: questionState.currentQuestion,
+      recognitionIndex: 0,
+      recognitionNumber: 1,
+      recognitionCharacter: "",
+      recognitionProgressPercent: 3,
+      recognitionSummary: null,
       analysisTitle: "",
       analysisParagraphs: [],
       resultSaveState: "idle",

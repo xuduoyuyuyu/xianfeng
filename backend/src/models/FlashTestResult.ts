@@ -8,15 +8,29 @@ export interface FlashTestDimensionScore {
   level: string;
 }
 
+export interface FlashTestRecognitionSummary {
+  recognizedCount: number;
+  sampledCount: number;
+  cumulativeRecognizedCount: number;
+  cumulativeSampledCount: number;
+  completedRounds: number;
+  estimatedMin: number;
+  estimatedMax: number;
+  estimateLabel: string;
+  reference: string;
+}
+
 export interface FlashTestResult extends mongoose.Document {
   userId: mongoose.Types.ObjectId;
-  assessmentId: "eight-talents";
+  assessmentId: "eight-talents" | "character-recognition";
   assessmentVersion: string;
   mode: "self" | "child";
   childId: string;
   childName: string;
   answers: number[];
+  sampleCharacters: string[];
   scores: FlashTestDimensionScore[];
+  recognitionSummary?: FlashTestRecognitionSummary;
   completedAt: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -33,10 +47,25 @@ const dimensionScoreSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const recognitionSummarySchema = new mongoose.Schema(
+  {
+    recognizedCount: { type: Number, required: true, min: 0, max: 30 },
+    sampledCount: { type: Number, required: true, enum: [30] },
+    cumulativeRecognizedCount: { type: Number, required: true, min: 0, max: 90 },
+    cumulativeSampledCount: { type: Number, required: true, min: 30, max: 90 },
+    completedRounds: { type: Number, required: true, min: 1 },
+    estimatedMin: { type: Number, required: true, min: 0, max: 3000 },
+    estimatedMax: { type: Number, required: true, min: 0, max: 3000 },
+    estimateLabel: { type: String, required: true },
+    reference: { type: String, required: true },
+  },
+  { _id: false }
+);
+
 const flashTestResultSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
-    assessmentId: { type: String, enum: ["eight-talents"], required: true, index: true },
+    assessmentId: { type: String, enum: ["eight-talents", "character-recognition"], required: true, index: true },
     assessmentVersion: { type: String, required: true },
     mode: { type: String, enum: ["self", "child"], required: true, index: true },
     childId: { type: String, default: "", index: true },
@@ -47,13 +76,17 @@ const flashTestResultSchema = new mongoose.Schema(
       validate: {
         validator(values: number[]) {
           return Array.isArray(values)
-            && values.length === 40
-            && values.every((value) => Number.isInteger(value) && value >= 1 && value <= 5);
+            && (
+              (values.length === 40 && values.every((value) => Number.isInteger(value) && value >= 1 && value <= 5))
+              || (values.length === 30 && values.every((value) => value === 0 || value === 1))
+            );
         },
-        message: "answers must contain 40 integer values from 1 to 5",
+        message: "answers do not match a supported flash test",
       },
     },
+    sampleCharacters: { type: [String], default: [] },
     scores: { type: [dimensionScoreSchema], required: true },
+    recognitionSummary: { type: recognitionSummarySchema, default: undefined },
     completedAt: { type: Date, required: true, default: Date.now, index: true },
   },
   { timestamps: true }

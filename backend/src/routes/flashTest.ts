@@ -1,11 +1,21 @@
 import { Router, Response } from "express";
-import FlashTestResult, { FlashTestDimensionScore } from "../models/FlashTestResult";
+import FlashTestResult, { FlashTestDimensionScore, FlashTestRecognitionSummary } from "../models/FlashTestResult";
 import UserXiaowanziSync from "../models/UserXiaowanziSync";
 import { authenticate, AuthenticatedRequest } from "../middlewares/auth";
 
 const router = Router();
 
 export const EIGHT_TALENTS_VERSION = "2026-08-11";
+export const CHARACTER_RECOGNITION_VERSION = "2026-08-12-r4";
+const SUPPORTED_ASSESSMENT_IDS = ["eight-talents", "character-recognition"] as const;
+const CHARACTER_BANDS = [
+  ["日", "月", "山", "水", "人", "口", "手", "大", "小", "天", "火", "木", "田", "土", "中"],
+  ["找", "跟", "秋", "纸", "奶", "家", "学", "花", "雨", "车", "门", "看", "吃", "玩", "书"],
+  ["洁", "期", "窗", "短", "乘", "教", "级", "课", "读", "写", "朋", "海", "星", "画", "跑"],
+  ["鼓", "健", "越", "整", "熟", "旅", "醒", "赛", "温", "轻", "影", "感", "助", "部", "题"],
+  ["慕", "谨", "繁", "览", "颠", "默", "察", "解", "尊", "境", "需", "续", "责", "聚", "辨"],
+  ["簇", "瞥", "蕴", "辙", "瀑", "骤", "疆", "耀", "赢", "藏", "霞", "薄", "嚼", "瓣", "鹰"],
+];
 
 const DIMENSIONS = [
   { code: "M", name: "记忆" },
@@ -32,6 +42,55 @@ export function normalizeAnswers(value: unknown): number[] | null {
   return answers;
 }
 
+export function normalizeCharacterRecognitionAnswers(value: unknown): number[] | null {
+  if (!Array.isArray(value) || value.length !== 30) return null;
+  const answers = value.map(Number);
+  if (answers.some((answer) => answer !== 0 && answer !== 1)) return null;
+  return answers;
+}
+
+export function normalizeCharacterRecognitionSample(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length !== 30) return null;
+  const characters = value.map((character) => String(character || ""));
+  if (new Set(characters).size !== 30) return null;
+  const validBands = CHARACTER_BANDS.every((band, bandIndex) => (
+    characters.slice(bandIndex * 5, bandIndex * 5 + 5).every((character) => band.includes(character))
+  ));
+  return validBands ? characters : null;
+}
+
+export function scoreCharacterRecognition(
+  answers: number[],
+  cumulativeAnswers: number[] = answers,
+  completedRounds = 1
+): FlashTestRecognitionSummary {
+  const recognizedCount = answers.reduce((sum, answer) => sum + answer, 0);
+  const cumulativeRecognizedCount = cumulativeAnswers.reduce((sum, answer) => sum + answer, 0);
+  const cumulativeSampledCount = cumulativeAnswers.length;
+  const estimate = Math.round((cumulativeRecognizedCount / cumulativeSampledCount) * 3000 / 50) * 50;
+  const halfWidth = Math.max(50, Math.round((150 * 30 / cumulativeSampledCount) / 50) * 50);
+  const estimatedMin = Math.max(0, estimate - halfWidth);
+  const estimatedMax = Math.min(3000, estimate + halfWidth);
+  const estimateLabel = cumulativeRecognizedCount / cumulativeSampledCount >= 28 / 30
+    ? `${estimatedMin}–3000+`
+    : `${estimatedMin}–${estimatedMax}`;
+  let reference = "仍在积累高频生活用字";
+  if (estimate >= 2500) reference = "达到第二学段累计识字量参考目标";
+  else if (estimate >= 1600) reference = "达到第一学段累计识字量参考目标";
+  else if (estimate >= 750) reference = "正在积累第一学段常用字";
+  return {
+    recognizedCount,
+    sampledCount: 30,
+    cumulativeRecognizedCount,
+    cumulativeSampledCount,
+    completedRounds,
+    estimatedMin,
+    estimatedMax,
+    estimateLabel,
+    reference,
+  };
+}
+
 export function scoreEightTalents(answers: number[]): FlashTestDimensionScore[] {
   return DIMENSIONS.map((dimension, index) => {
     const total = answers.slice(index * 5, index * 5 + 5).reduce((sum, answer) => sum + answer, 0);
@@ -53,6 +112,8 @@ function serializeResult(result: any) {
     childId: result.childId || "",
     childName: result.childName || "",
     scores: result.scores,
+    recognitionSummary: result.recognitionSummary,
+    sampleCharacters: result.assessmentId === "character-recognition" ? result.sampleCharacters : undefined,
     completedAt: result.completedAt,
   };
 }
@@ -64,13 +125,21 @@ router.post("/results", authenticate, async (req: AuthenticatedRequest, res: Res
     const assessmentVersion = String(req.body?.assessmentVersion || "");
     const mode = String(req.body?.mode || "");
     const childId = String(req.body?.childId || "").trim();
-    const answers = normalizeAnswers(req.body?.answers);
+    const answers = assessmentId === "character-recognition"
+      ? normalizeCharacterRecognitionAnswers(req.body?.answers)
+      : normalizeAnswers(req.body?.answers);
+    const sampleCharacters = assessmentId === "character-recognition"
+      ? normalizeCharacterRecognitionSample(req.body?.sampleCharacters)
+      : [];
 
-    if (assessmentId !== "eight-talents") {
+    if (!SUPPORTED_ASSESSMENT_IDS.includes(assessmentId as any)) {
       res.status(400).json({ message: "暂不支持该测试" });
       return;
     }
-    if (assessmentVersion !== EIGHT_TALENTS_VERSION) {
+    const expectedVersion = assessmentId === "character-recognition"
+      ? CHARACTER_RECOGNITION_VERSION
+      : EIGHT_TALENTS_VERSION;
+    if (assessmentVersion !== expectedVersion) {
       res.status(400).json({ message: "测试题目版本已更新，请重新开始" });
       return;
     }
@@ -79,7 +148,15 @@ router.post("/results", authenticate, async (req: AuthenticatedRequest, res: Res
       return;
     }
     if (!answers) {
-      res.status(400).json({ message: "请完成全部 40 道题" });
+      res.status(400).json({ message: assessmentId === "character-recognition" ? "请完成全部 30 个字" : "请完成全部 40 道题" });
+      return;
+    }
+    if (assessmentId === "character-recognition" && !sampleCharacters) {
+      res.status(400).json({ message: "本次识字样本无效，请重新开始" });
+      return;
+    }
+    if (assessmentId === "character-recognition" && mode !== "child") {
+      res.status(400).json({ message: "识字量测试需要选择孩子档案" });
       return;
     }
 
@@ -98,6 +175,30 @@ router.post("/results", authenticate, async (req: AuthenticatedRequest, res: Res
       childName = String((child as any).title || (child as any).name || "").trim();
     }
 
+    let recognitionSummary: FlashTestRecognitionSummary | undefined;
+    if (assessmentId === "character-recognition") {
+      const previousResults = await FlashTestResult.find({
+        userId,
+        assessmentId,
+        mode: "child",
+        childId,
+      }).select("answers sampleCharacters").sort({ completedAt: 1, _id: 1 }).lean();
+      const observations = new Map<string, number>();
+      previousResults.forEach((previous) => {
+        previous.sampleCharacters.forEach((character, index) => {
+          observations.set(character, previous.answers[index]);
+        });
+      });
+      sampleCharacters!.forEach((character, index) => {
+        observations.set(character, answers[index]);
+      });
+      recognitionSummary = scoreCharacterRecognition(
+        answers,
+        [...observations.values()],
+        previousResults.length + 1
+      );
+    }
+
     const result = await FlashTestResult.create({
       userId,
       assessmentId,
@@ -106,7 +207,9 @@ router.post("/results", authenticate, async (req: AuthenticatedRequest, res: Res
       childId: mode === "child" ? childId : "",
       childName,
       answers,
-      scores: scoreEightTalents(answers),
+      sampleCharacters,
+      scores: assessmentId === "eight-talents" ? scoreEightTalents(answers) : [],
+      recognitionSummary,
       completedAt: new Date(),
     });
     res.status(201).json({ result: serializeResult(result) });
@@ -120,7 +223,7 @@ router.get("/results", authenticate, async (req: AuthenticatedRequest, res: Resp
     const assessmentId = String(req.query.assessmentId || "").trim();
     const mode = String(req.query.mode || "").trim();
     const childId = String(req.query.childId || "").trim();
-    if (assessmentId && assessmentId !== "eight-talents") {
+    if (assessmentId && !SUPPORTED_ASSESSMENT_IDS.includes(assessmentId as any)) {
       res.status(400).json({ message: "暂不支持该测试" });
       return;
     }

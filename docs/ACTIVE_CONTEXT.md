@@ -84,6 +84,28 @@ distinguishes saving, saved, and retryable failure states instead of claiming a
 local-only result, and labels all eight radar axes with their server-aligned
 integer score on the shared 1-to-5 scale.
 
+The same native catalog now includes a child-only `识字量`. It reuses the
+existing child archive, authenticated result storage, latest-result restore,
+restart, and privacy-safe share paths. A child reads 30 characters without
+prompts while the parent records recognition. Each new test randomly selects
+five characters from each of six 15-character difficulty pools; that sample
+stays fixed while moving forward or back, and an explicit retest generates a
+different sample. The backend validates and stores the exact sampled characters
+before deriving the broad exploratory estimate. Retests prioritize characters
+not previously covered for that child; the backend combines unique character
+observations across rounds, does not count a repeated character as a new sample,
+and narrows the interval as effective coverage grows. After a result is saved,
+the continue action keeps the same child and opens the next character sample
+directly without repeating archive selection. The result leads with recognized sample count;
+fewer than five recognized samples suppress the numeric interval as insufficient
+for a quantity estimate. Above that threshold, the interval is visually secondary,
+labeled as an auxiliary sample conversion rather than a measurement conclusion,
+and uses a 300-character-wide exploratory range instead of the previous coarse
+500-to-750-character range. It
+explains that a scientifically defensible short estimate would require child
+sample calibration, reliability and validity checks, and norms. It does not
+claim an exact vocabulary count, reading-comprehension level, or diagnosis.
+
 The shared mini-program phone-login profile step only preloads persistent
 avatars. Expired WeChat temporary avatar paths are cleared before display, and
 save-time file expiry asks the user to choose the avatar again instead of

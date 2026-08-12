@@ -10,7 +10,7 @@
     </view>
   </view>
 
-  <scroll-view class="xf-flash-scroll {{stage === 'questions' ? 'is-question-mode' : ''}}" style="height: calc(100vh - {{chromeHeight}}px);" scroll-y="{{stage !== 'questions'}}" enhanced show-scrollbar="false">
+  <scroll-view class="xf-flash-scroll {{stage === 'questions' || stage === 'recognition' ? 'is-question-mode' : ''}}" style="height: calc(100vh - {{chromeHeight}}px);" scroll-y="{{stage !== 'questions' && stage !== 'recognition'}}" enhanced show-scrollbar="false">
     <view wx:if="{{stage === 'catalog'}}" class="xf-flash-catalog" style="min-height: calc(100vh - {{chromeHeight}}px - 80rpx);">
       <view class="xf-flash-catalog-hero">
         <view class="xf-flash-catalog-icon-shell" aria-hidden="true">
@@ -113,22 +113,67 @@
       </view>
     </view>
 
+    <view wx:elif="{{stage === 'recognition'}}" class="xf-flash-recognition">
+      <view class="xf-flash-recognition-stage">
+        <view class="xf-flash-recognition-head">
+          <text class="xf-flash-kicker">{{modeLabel}} · 识字量</text>
+          <text class="xf-flash-recognition-title">请孩子读出这个字</text>
+          <text class="xf-flash-recognition-lead">能独立读出，并说出大致意思或组成常见词，才算认识。</text>
+        </view>
+
+        <view class="xf-flash-recognition-card">
+          <view class="xf-flash-progress-head">
+            <text class="xf-flash-recognition-count">{{recognitionNumber}} / 30</text>
+            <text class="xf-flash-recognition-band">探索性抽样</text>
+          </view>
+          <view class="xf-flash-progress-track">
+            <view class="xf-flash-progress-value" style="width: {{recognitionProgressPercent}}%;"></view>
+          </view>
+          <text class="xf-flash-recognition-character">{{recognitionCharacter}}</text>
+          <text class="xf-flash-recognition-tip">不要提示读音，也不要让孩子猜。</text>
+        </view>
+
+        <view class="xf-flash-recognition-actions">
+          <button class="xf-flash-recognition-answer is-unknown" hover-class="is-pressed" data-value="0" bindtap="answerRecognitionCharacter">暂不认识</button>
+          <button class="xf-flash-recognition-answer is-known" hover-class="is-pressed" data-value="1" bindtap="answerRecognitionCharacter">认识这个字</button>
+        </view>
+        <button class="xf-flash-recognition-back" bindtap="previousRecognitionCharacter">{{recognitionNumber === 1 ? '← 重选孩子' : '← 上一个字'}}</button>
+      </view>
+    </view>
+
     <view wx:else class="xf-flash-result">
       <view class="xf-flash-result-hero">
         <view class="xf-flash-result-head">
           <text class="xf-flash-kicker">{{modeLabel}} · 测评完成</text>
-          <text class="xf-flash-result-display">看见{{mode === 'child' ? selectedChildName : '自己'}}的八项能力</text>
-          <text class="xf-flash-lead">雷达图按 1–5 分展示八项能力。</text>
+          <text wx:if="{{resultType === 'recognition'}}" class="xf-flash-result-display">{{selectedChildName}}的识字范围</text>
+          <text wx:else class="xf-flash-result-display">看见{{mode === 'child' ? selectedChildName : '自己'}}的八项能力</text>
+          <text wx:if="{{resultType === 'recognition'}}" class="xf-flash-lead">本次认出 {{recognitionSummary.recognizedCount}} / {{recognitionSummary.sampledCount}} 个分层抽样字</text>
+          <text wx:else class="xf-flash-lead">雷达图按 1–5 分展示八项能力。</text>
         </view>
         <image class="xf-flash-result-icon" src="/assets/wel-avatar/img-0640.png" mode="aspectFit" aria-label="老虎头小玩子" />
       </view>
 
-      <view class="xf-flash-radar-card">
+      <view wx:if="{{resultType === 'recognition'}}" class="xf-flash-recognition-summary">
+        <text class="xf-flash-recognition-summary-label">30 字分层样本表现</text>
+        <view class="xf-flash-recognition-summary-score">
+          <text class="xf-flash-recognition-summary-value">{{recognitionSummary.recognizedCount}}</text>
+          <text class="xf-flash-recognition-summary-total">/ {{recognitionSummary.sampledCount}}</text>
+        </view>
+        <view wx:if="{{recognitionSummary.cumulativeRecognizedCount >= 5}}" class="xf-flash-recognition-summary-estimate">
+          <text class="xf-flash-recognition-summary-meta">辅助参考区间</text>
+          <text class="xf-flash-recognition-summary-estimate-value">约 {{recognitionSummary.estimateLabel}} 个</text>
+        </view>
+        <text wx:else class="xf-flash-recognition-summary-meta">样本不足，暂不估算识字数量</text>
+        <text class="xf-flash-recognition-summary-progress">累计 {{recognitionSummary.completedRounds}} 轮 · 覆盖 {{recognitionSummary.cumulativeSampledCount}} 个不同样本字</text>
+        <text class="xf-flash-recognition-summary-caveat">{{recognitionSummary.cumulativeRecognizedCount >= 5 ? '不同样本越多，估算通常越稳定；不是实际测得的识字总量' : '建议继续测试不同样本，并以多次表现观察变化'}}</text>
+      </view>
+
+      <view wx:else class="xf-flash-radar-card">
         <canvas canvas-id="talentRadar" class="xf-flash-radar" style="width: {{radarSize}}px; height: {{radarSize}}px;"></canvas>
       </view>
 
       <view class="xf-flash-analysis-card">
-        <text class="xf-flash-analysis-eyebrow">源于沈辛成《超级分数》提出的八项能力</text>
+        <text class="xf-flash-analysis-eyebrow">{{resultType === 'recognition' ? '为什么多测几次会更稳定？' : '源于沈辛成《超级分数》提出的八项能力'}}</text>
         <text class="xf-flash-analysis-title">{{analysisTitle}}</text>
         <text wx:for="{{analysisParagraphs}}" wx:key="*this" class="xf-flash-analysis-paragraph">{{item}}</text>
       </view>
@@ -144,8 +189,14 @@
         >{{isLoggedIn ? '重新保存' : '重新登录并保存'}}</button>
       </view>
 
-      <button class="xf-flash-primary is-full" bindtap="restartAssessment">重新测一次</button>
-      <view class="xf-flash-result-note">{{mode === 'child' ? '代测结果会受家长观察视角与孩子近期状态影响。' : '自测结果会受作答视角与近期状态影响。'}}适合用来开启观察，不适合替代专业评估。</view>
+      <button
+        wx:if="{{resultType === 'recognition'}}"
+        class="xf-flash-primary is-full"
+        bindtap="continueRecognitionAssessment"
+        disabled="{{resultSaveState !== 'saved'}}"
+      >{{resultSaveState === 'saved' ? '继续测试，让估算更稳定' : '保存完成后继续测试'}}</button>
+      <button wx:else class="xf-flash-primary is-full" bindtap="restartAssessment">重新测一次</button>
+      <view class="xf-flash-result-note">{{resultType === 'recognition' ? '识字量不等于阅读理解能力，结果会受孩子状态与家长判断尺度影响。' : (mode === 'child' ? '代测结果会受家长观察视角与孩子近期状态影响。' : '自测结果会受作答视角与近期状态影响。')}}适合用来开启观察，不适合替代专业评估。</view>
     </view>
   </scroll-view>
 
@@ -154,12 +205,12 @@
       <view class="xf-flash-subject-head">
         <view class="xf-flash-subject-heading">
           <text class="xf-flash-subject-kicker">闪测 · {{selectedTestTitle}}</text>
-          <text class="xf-flash-subject-title">这次为谁作答？</text>
+          <text class="xf-flash-subject-title">{{selectedTestChildOnly ? '选择要测试的孩子' : '这次为谁作答？'}}</text>
         </view>
         <button class="xf-flash-subject-close" catchtap="closeSubjectModal" aria-label="关闭">×</button>
       </view>
-      <text class="xf-flash-subject-lead">请根据长期真实表现作答，没有标准答案。</text>
-      <button class="xf-flash-mode-card" hover-class="is-pressed" data-mode="self" open-type="{{isLoggedIn ? '' : 'getPhoneNumber'}}" bindtap="chooseMode" bindgetphonenumber="authorizeAssessment">
+      <text class="xf-flash-subject-lead">{{selectedTestChildOnly ? '每轮从 6 个难度字库各抽取 5 个字，再次测试会优先出现未测过的字，让估算逐步稳定。测试时由孩子读字，家长判断是否真正认识。' : '请根据长期真实表现作答，没有标准答案。'}}</text>
+      <button wx:if="{{!selectedTestChildOnly}}" class="xf-flash-mode-card" hover-class="is-pressed" data-mode="self" open-type="{{isLoggedIn ? '' : 'getPhoneNumber'}}" bindtap="chooseMode" bindgetphonenumber="authorizeAssessment">
         <view class="xf-flash-mode-icon is-self">我</view>
         <view class="xf-flash-mode-copy">
           <text>开始测自己</text>
@@ -170,8 +221,8 @@
       <button class="xf-flash-mode-card" hover-class="is-pressed" data-mode="child" open-type="{{isLoggedIn ? '' : 'getPhoneNumber'}}" bindtap="chooseMode" bindgetphonenumber="authorizeAssessment">
         <view class="xf-flash-mode-icon is-child">孩</view>
         <view class="xf-flash-mode-copy">
-          <text>给孩子代测</text>
-          <text>依据长期观察，不用单次成绩下结论</text>
+          <text>{{selectedTestChildOnly ? '选择孩子并开始' : '给孩子代测'}}</text>
+          <text>{{selectedTestChildOnly ? '复用已有孩子档案保存本次结果' : '依据长期观察，不用单次成绩下结论'}}</text>
         </view>
         <text class="xf-flash-mode-arrow">›</text>
       </button>

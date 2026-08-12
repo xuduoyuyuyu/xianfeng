@@ -168,6 +168,10 @@ page {
   transform: scale(0.985);
 }
 
+.xf-flash-test-card + .xf-flash-test-card {
+  margin-top: 18rpx;
+}
+
 .xf-flash-test-row-head {
   display: grid;
   grid-template-columns: 108rpx minmax(0, 1fr) 30rpx;
@@ -303,6 +307,225 @@ page {
 
 .xf-flash-result-display {
   display: block;
+}
+
+.xf-flash-recognition {
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  background: #f7f3ff;
+}
+
+.xf-flash-recognition-stage {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  padding: 28rpx 26rpx calc(26rpx + env(safe-area-inset-bottom));
+}
+
+.xf-flash-recognition-head,
+.xf-flash-recognition-card,
+.xf-flash-recognition-summary {
+  box-sizing: border-box;
+  border: 2rpx solid rgba(108, 39, 214, 0.1);
+  border-radius: 34rpx;
+  background: #ffffff;
+  box-shadow: 0 14rpx 36rpx rgba(108, 39, 214, 0.08);
+}
+
+.xf-flash-recognition-head {
+  padding: 30rpx;
+}
+
+.xf-flash-recognition-title,
+.xf-flash-recognition-lead,
+.xf-flash-recognition-character,
+.xf-flash-recognition-tip,
+.xf-flash-recognition-summary-label,
+.xf-flash-recognition-summary-value,
+.xf-flash-recognition-summary-meta,
+.xf-flash-recognition-summary-caveat {
+  display: block;
+}
+
+.xf-flash-recognition-title {
+  margin-top: 20rpx;
+  color: #15123f;
+  font-size: 42rpx;
+  font-weight: 950;
+}
+
+.xf-flash-recognition-lead {
+  margin-top: 12rpx;
+  color: #6f6878;
+  font-size: 23rpx;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.xf-flash-recognition-card {
+  flex: 1 1 auto;
+  min-height: 390rpx;
+  margin-top: 22rpx;
+  padding: 28rpx 34rpx;
+}
+
+.xf-flash-recognition-count,
+.xf-flash-recognition-band {
+  color: #6c27d6;
+  font-size: 22rpx;
+  font-weight: 900;
+}
+
+.xf-flash-recognition-band {
+  padding: 8rpx 14rpx;
+  border-radius: 999rpx;
+  background: #f3eaff;
+}
+
+.xf-flash-recognition-character {
+  margin-top: 54rpx;
+  color: #17143d;
+  font-family: "Kaiti SC", "STKaiti", serif;
+  font-size: 520rpx;
+  font-weight: 500;
+  line-height: 1;
+  text-align: center;
+}
+
+.xf-flash-recognition-tip {
+  margin-top: 46rpx;
+  color: #8a8394;
+  font-size: 22rpx;
+  font-weight: 700;
+  text-align: center;
+}
+
+.xf-flash-recognition-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 16rpx;
+  margin-top: 22rpx;
+}
+
+.xf-flash-recognition-answer {
+  height: 88rpx;
+  margin: 0;
+  border-radius: 22rpx;
+  font-size: 26rpx;
+  font-weight: 900;
+  line-height: 86rpx;
+}
+
+.xf-flash-recognition-answer::after {
+  border: 0;
+}
+
+.xf-flash-recognition-answer.is-unknown {
+  border: 2rpx solid #e3dcef;
+  background: #ffffff;
+  color: #736b7d;
+}
+
+.xf-flash-recognition-answer.is-known {
+  border: 2rpx solid #6c27d6;
+  background: #6c27d6;
+  color: #ffffff;
+}
+
+.xf-flash-recognition-answer.is-pressed {
+  transform: scale(0.98);
+}
+
+.xf-flash-recognition-back {
+  height: 66rpx;
+  margin: 12rpx 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #756e82;
+  font-size: 22rpx;
+  font-weight: 800;
+  line-height: 66rpx;
+}
+
+.xf-flash-recognition-back::after {
+  border: 0;
+}
+
+.xf-flash-recognition-summary {
+  margin-top: 26rpx;
+  padding: 42rpx 30rpx;
+  text-align: center;
+}
+
+.xf-flash-recognition-summary-label {
+  color: #756e82;
+  font-size: 22rpx;
+  font-weight: 800;
+}
+
+.xf-flash-recognition-summary-value {
+  color: #6c27d6;
+  font-size: 70rpx;
+  font-weight: 950;
+  line-height: 1.1;
+}
+
+.xf-flash-recognition-summary-score {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 12rpx;
+  margin-top: 14rpx;
+}
+
+.xf-flash-recognition-summary-total {
+  color: #8a8394;
+  font-size: 34rpx;
+  font-weight: 850;
+}
+
+.xf-flash-recognition-summary-meta {
+  margin-top: 18rpx;
+  color: #9891a1;
+  font-size: 19rpx;
+  font-weight: 600;
+}
+
+.xf-flash-recognition-summary-estimate {
+  margin-top: 18rpx;
+}
+
+.xf-flash-recognition-summary-estimate .xf-flash-recognition-summary-meta {
+  margin-top: 0;
+}
+
+.xf-flash-recognition-summary-estimate-value {
+  display: block;
+  margin-top: 6rpx;
+  color: #6c27d6;
+  font-size: 32rpx;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.xf-flash-recognition-summary-progress {
+  display: block;
+  margin-top: 14rpx;
+  color: #756e82;
+  font-size: 19rpx;
+  font-weight: 750;
+}
+
+.xf-flash-recognition-summary-caveat {
+  margin-top: 6rpx;
+  color: #aaa4b0;
+  font-size: 17rpx;
+  font-weight: 600;
+  line-height: 1.45;
 }
 
 .xf-flash-subject-mask {

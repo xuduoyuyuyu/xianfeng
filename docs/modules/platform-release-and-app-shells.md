@@ -53,7 +53,26 @@
   saves the answers and derived eight-dimension result to the authenticated
   account through `/api/flash-tests/results`; child mode also sends the selected
   archive ID. The result screen reports saving, saved, and retryable failure
-  states and displays each radar-axis score on the shared 1-to-5 scale.
+  states and displays each radar-axis score on the shared 1-to-5 scale. The
+  same catalog also includes a child-only `识字量`: it reuses the
+  authenticated account's existing child archive and latest-result return
+  path, presents 30 characters one at a time, and asks the child to read each
+  character without prompts while the parent records recognition. Each new
+  test samples five characters from each of six 15-character difficulty pools;
+  that 30-character sequence stays fixed while moving forward or back, and an
+  explicit retest prioritizes characters not previously covered for that child.
+  Saved rounds are combined by unique character, so repeated characters do not
+  inflate effective sample size and the interval narrows as coverage grows.
+  Once saving completes, the continue action keeps the current child and starts
+  the next sample directly without reopening archive selection. Its
+  result leads with recognized sample count, suppresses the numeric interval
+  below five recognized samples, and otherwise visually de-emphasizes the
+  server-derived 300-character-wide interval as an auxiliary sample conversion
+  rather than a measurement conclusion. The page explains
+  that defensible short-form estimation requires child-sample calibration,
+  reliability and validity checks, and norms; it is not an exact vocabulary
+  count, reading-comprehension score, or diagnosis;
+  shares carry no child identity, answers, progress, or result data.
 - WorthBuy uses dedicated native routes `pages/worthbuy/index` and
   `pages/worthbuy-detail/index`. They reuse `/api/worthbuy` for anonymous
   public reads, owner-scoped history, Pro-gated analysis, deletion, and detail
