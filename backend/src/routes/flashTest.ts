@@ -2,14 +2,18 @@ import { Router, Response } from "express";
 import FlashTestResult, { FlashTestDimensionScore, FlashTestRecognitionSummary } from "../models/FlashTestResult";
 import UserXiaowanziSync from "../models/UserXiaowanziSync";
 import { authenticate, AuthenticatedRequest } from "../middlewares/auth";
-import { CHARACTER_RECOGNITION_BANK } from "./characterRecognitionBank";
+import {
+  ADVANCED_CHARACTER_RECOGNITION_BANK,
+  BASE_CHARACTER_RECOGNITION_BANK,
+  CHARACTER_RECOGNITION_BANK,
+} from "./characterRecognitionBank";
 
 const router = Router();
 
 export const EIGHT_TALENTS_VERSION = "2026-08-11";
 export const BASE_CHARACTER_RECOGNITION_VERSION = "2026-08-13-r1";
-export const CHARACTER_RECOGNITION_VERSION = "2026-08-13-r2";
-export const ADVANCED_RECOGNITION_UNLOCK_COUNT = 720;
+export const LEGACY_CHARACTER_RECOGNITION_VERSION = "2026-08-13-r2";
+export const CHARACTER_RECOGNITION_VERSION = "2026-08-13-r3";
 const SUPPORTED_ASSESSMENT_IDS = ["eight-talents", "character-recognition"] as const;
 
 const DIMENSIONS = [
@@ -44,15 +48,21 @@ export function normalizeCharacterRecognitionAnswers(value: unknown): number[] |
   return answers;
 }
 
-export function normalizeCharacterRecognitionSample(value: unknown): string[] | null {
+export function normalizeCharacterRecognitionSample(value: unknown, recognitionGroup = 1): string[] | null {
   if (!Array.isArray(value) || ![800, CHARACTER_RECOGNITION_BANK.length].includes(value.length)) return null;
   const characters = value.map((character) => String(character || ""));
-  const matchesBank = characters.every((character, index) => character === CHARACTER_RECOGNITION_BANK[index]);
+  const expectedBank = characters.length === CHARACTER_RECOGNITION_BANK.length
+    ? CHARACTER_RECOGNITION_BANK
+    : Number(recognitionGroup) === 2
+      ? ADVANCED_CHARACTER_RECOGNITION_BANK
+      : BASE_CHARACTER_RECOGNITION_BANK;
+  const matchesBank = characters.every((character, index) => character === expectedBank[index]);
   return matchesBank ? characters : null;
 }
 
 export function scoreCharacterRecognition(
-  answers: number[]
+  answers: number[],
+  recognitionGroup = 1
 ): FlashTestRecognitionSummary {
   const recognizedCount = answers.reduce((sum, answer) => sum + answer, 0);
   const sampledCount = answers.length;
@@ -65,7 +75,9 @@ export function scoreCharacterRecognition(
     estimatedMin: recognizedCount,
     estimatedMax: recognizedCount,
     estimateLabel: String(recognizedCount),
-    reference: sampledCount === 800 ? "首批 800 字逐字筛选结果" : "累计 1600 字逐字筛选结果",
+    reference: sampledCount === 1600
+      ? "旧版累计 1600 字逐字筛选结果"
+      : `第 ${Number(recognitionGroup) === 2 ? 2 : 1} 组 800 字逐字筛选结果`,
   };
 }
 
@@ -91,10 +103,38 @@ function serializeResult(result: any) {
     childName: result.childName || "",
     scores: result.scores,
     recognitionSummary: result.recognitionSummary,
+    recognitionGroup: Number(result.recognitionGroup) === 2 || result.sampleCharacters?.length === 1600 ? 2 : 1,
     answers: result.assessmentId === "character-recognition" ? result.answers : undefined,
     sampleCharacters: result.assessmentId === "character-recognition" ? result.sampleCharacters : undefined,
     completedAt: result.completedAt,
   };
+}
+
+function serializeRecognitionGroupMastery(result: any, recognitionGroup: 1 | 2) {
+  if (!result) return null;
+  const answers = Array.isArray(result.answers) ? result.answers.map(Number) : [];
+  const groupAnswers = answers.length === CHARACTER_RECOGNITION_BANK.length
+    ? answers.slice((recognitionGroup - 1) * 800, recognitionGroup * 800)
+    : answers;
+  if (groupAnswers.length !== 800) return null;
+  return {
+    resultId: String(result._id),
+    recognitionGroup,
+    recognizedCount: groupAnswers.reduce((sum: number, answer: number) => sum + answer, 0),
+    sampledCount: 800,
+    completedAt: result.completedAt,
+  };
+}
+
+function latestRecognitionGroupMastery(independentResult: any, legacyResult: any, recognitionGroup: 1 | 2) {
+  if (!independentResult) return serializeRecognitionGroupMastery(legacyResult, recognitionGroup);
+  if (!legacyResult) return serializeRecognitionGroupMastery(independentResult, recognitionGroup);
+  const independentTime = new Date(independentResult.completedAt).getTime();
+  const legacyTime = new Date(legacyResult.completedAt).getTime();
+  return serializeRecognitionGroupMastery(
+    independentTime >= legacyTime ? independentResult : legacyResult,
+    recognitionGroup
+  );
 }
 
 router.post("/results", authenticate, async (req: AuthenticatedRequest, res: Response) => {
@@ -104,11 +144,13 @@ router.post("/results", authenticate, async (req: AuthenticatedRequest, res: Res
     const assessmentVersion = String(req.body?.assessmentVersion || "");
     const mode = String(req.body?.mode || "");
     const childId = String(req.body?.childId || "").trim();
+    const requestedRecognitionGroup = Number(req.body?.recognitionGroup);
+    const recognitionGroup = requestedRecognitionGroup === 2 ? 2 : 1;
     const answers = assessmentId === "character-recognition"
       ? normalizeCharacterRecognitionAnswers(req.body?.answers)
       : normalizeAnswers(req.body?.answers);
     const sampleCharacters = assessmentId === "character-recognition"
-      ? normalizeCharacterRecognitionSample(req.body?.sampleCharacters)
+      ? normalizeCharacterRecognitionSample(req.body?.sampleCharacters, recognitionGroup)
       : [];
 
     if (!SUPPORTED_ASSESSMENT_IDS.includes(assessmentId as any)) {
@@ -116,9 +158,11 @@ router.post("/results", authenticate, async (req: AuthenticatedRequest, res: Res
       return;
     }
     const expectedVersion = assessmentId === "character-recognition"
-      ? (Array.isArray(answers) && answers.length === 800
-        ? BASE_CHARACTER_RECOGNITION_VERSION
-        : CHARACTER_RECOGNITION_VERSION)
+      ? (Array.isArray(answers) && answers.length === 1600
+        ? LEGACY_CHARACTER_RECOGNITION_VERSION
+        : requestedRecognitionGroup === 1 || requestedRecognitionGroup === 2
+          ? CHARACTER_RECOGNITION_VERSION
+          : BASE_CHARACTER_RECOGNITION_VERSION)
       : EIGHT_TALENTS_VERSION;
     if (assessmentVersion !== expectedVersion) {
       res.status(400).json({ message: "测试题目版本已更新，请重新开始" });
@@ -129,7 +173,7 @@ router.post("/results", authenticate, async (req: AuthenticatedRequest, res: Res
       return;
     }
     if (!answers) {
-      res.status(400).json({ message: assessmentId === "character-recognition" ? "请完成首组 800 字或累计 1600 字" : "请完成全部 40 道题" });
+      res.status(400).json({ message: assessmentId === "character-recognition" ? "请完成一组 800 字" : "请完成全部 40 道题" });
       return;
     }
     if (assessmentId === "character-recognition" && !sampleCharacters) {
@@ -140,13 +184,6 @@ router.post("/results", authenticate, async (req: AuthenticatedRequest, res: Res
       res.status(400).json({ message: "识字量测试需要选择孩子档案" });
       return;
     }
-    if (assessmentId === "character-recognition"
-      && answers.length === CHARACTER_RECOGNITION_BANK.length
-      && answers.slice(0, 800).reduce((sum, answer) => sum + answer, 0) < ADVANCED_RECOGNITION_UNLOCK_COUNT) {
-      res.status(400).json({ message: `首组需认识至少 ${ADVANCED_RECOGNITION_UNLOCK_COUNT} / 800 个字，才能提交第 2 组结果` });
-      return;
-    }
-
     let childName = "";
     if (mode === "child") {
       if (!childId) {
@@ -164,7 +201,7 @@ router.post("/results", authenticate, async (req: AuthenticatedRequest, res: Res
 
     let recognitionSummary: FlashTestRecognitionSummary | undefined;
     if (assessmentId === "character-recognition") {
-      recognitionSummary = scoreCharacterRecognition(answers);
+      recognitionSummary = scoreCharacterRecognition(answers, recognitionGroup);
     }
 
     const result = await FlashTestResult.create({
@@ -178,6 +215,7 @@ router.post("/results", authenticate, async (req: AuthenticatedRequest, res: Res
       sampleCharacters,
       scores: assessmentId === "eight-talents" ? scoreEightTalents(answers) : [],
       recognitionSummary,
+      recognitionGroup: assessmentId === "character-recognition" ? recognitionGroup : undefined,
       completedAt: new Date(),
     });
     res.status(201).json({ result: serializeResult(result) });
@@ -212,7 +250,31 @@ router.get("/results", authenticate, async (req: AuthenticatedRequest, res: Resp
       .sort({ completedAt: -1, _id: -1 })
       .limit(limit)
       .lean();
-    res.json({ results: results.map(serializeResult) });
+    let recognitionGroups: Record<string, ReturnType<typeof serializeRecognitionGroupMastery>> | undefined;
+    if (assessmentId === "character-recognition") {
+      const groupFilter = { ...filter, assessmentId: "character-recognition" };
+      const [firstGroup, secondGroup, legacyResult] = await Promise.all([
+        FlashTestResult.findOne({
+          ...groupFilter,
+          "recognitionSummary.sampledCount": 800,
+          recognitionGroup: { $ne: 2 },
+        }).sort({ completedAt: -1, _id: -1 }).lean(),
+        FlashTestResult.findOne({
+          ...groupFilter,
+          "recognitionSummary.sampledCount": 800,
+          recognitionGroup: 2,
+        }).sort({ completedAt: -1, _id: -1 }).lean(),
+        FlashTestResult.findOne({
+          ...groupFilter,
+          "recognitionSummary.sampledCount": 1600,
+        }).sort({ completedAt: -1, _id: -1 }).lean(),
+      ]);
+      recognitionGroups = {
+        1: latestRecognitionGroupMastery(firstGroup, legacyResult, 1),
+        2: latestRecognitionGroupMastery(secondGroup, legacyResult, 2),
+      };
+    }
+    res.json({ results: results.map(serializeResult), recognitionGroups });
   } catch (error: any) {
     res.status(500).json({ message: error?.message || "测试结果读取失败" });
   }

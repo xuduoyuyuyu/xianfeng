@@ -7,25 +7,25 @@ const { getToken } = require("../../utils/session");
 const { createPageShare, enableShareMenu } = require("../../utils/share");
 const { ANSWER_LABELS, buildAnalysis, dimensionsForMode, scoreAssessment } = require("../../utils/talentAssessment");
 const {
-  ADVANCED_RECOGNITION_UNLOCK_COUNT,
+  ADVANCED_CHARACTER_BANK,
   CHARACTER_BANK,
-  CHARACTER_PAGE_COUNT,
   CHARACTER_RECOGNITION_VERSION,
   CHARACTER_SAMPLE_SIZE,
   BASE_CHARACTER_BANK,
   BASE_CHARACTER_RECOGNITION_VERSION,
   BASE_CHARACTER_SAMPLE_SIZE,
+  LEGACY_CHARACTER_RECOGNITION_VERSION,
   buildCharacterRecognitionAnalysis,
   buildCharacterPage,
-  buildCharacterRecognitionSummary,
-  canUnlockAdvancedRecognition
+  buildCharacterRecognitionSummary
 } = require("../../utils/characterRecognition");
 
 const DEFAULT_SLIDER_VALUE = 3;
 const EIGHT_TALENTS_VERSION = "2026-08-11";
 const LAST_CHILD_ID_KEY = "xiaowanzi_last_child_id_v1";
 const LAST_ASSESSMENT_MODE_KEY = "xf_flash_test_last_mode_v1";
-const RECOGNITION_PROGRESS_KEY_PREFIX = "xf_character_recognition_progress_v1_";
+const RECOGNITION_PROGRESS_KEY_PREFIX = "xf_character_recognition_progress_v2_";
+const LEGACY_RECOGNITION_PROGRESS_KEY_PREFIX = "xf_character_recognition_progress_v1_";
 const CATALOG_SHARE_OPTIONS = {
   title: "闪测｜测一测，更懂自己和孩子",
   path: "/pages/flash-test/index"
@@ -123,7 +123,7 @@ const TESTS = [
     subtitle: "每屏选出不认识的字，逐字形成会和不会的清单",
     icon: "/assets/flash-test/character-recognition.png",
     source: "统编教材常用字参考 · 不作诊断",
-    meta: "首批 800 字 · 可进阶至 1600 字",
+    meta: "两组各 800 字 · 可独立检查",
     childOnly: true
   }
 ];
@@ -187,6 +187,45 @@ function buildRecognitionCharacterGroups(sampleCharacters, answers) {
   }, { recognitionKnownCharacters: [], recognitionUnknownCharacters: [] });
 }
 
+function buildRecognitionMasteryFromResult(result, recognitionGroup) {
+  if (!result) return null;
+  const answers = Array.isArray(result.answers) ? result.answers.map(Number) : [];
+  const groupAnswers = answers.length === CHARACTER_SAMPLE_SIZE
+    ? answers.slice((recognitionGroup - 1) * BASE_CHARACTER_SAMPLE_SIZE, recognitionGroup * BASE_CHARACTER_SAMPLE_SIZE)
+    : answers;
+  const matchesGroup = answers.length === CHARACTER_SAMPLE_SIZE
+    || Number(result.recognitionGroup) === recognitionGroup;
+  if (!matchesGroup || groupAnswers.length !== BASE_CHARACTER_SAMPLE_SIZE) return null;
+  return {
+    recognizedCount: groupAnswers.reduce((sum, answer) => sum + answer, 0),
+    sampledCount: BASE_CHARACTER_SAMPLE_SIZE,
+    completedAt: result.completedAt || ""
+  };
+}
+
+function buildRecognitionGroupCard(recognitionGroup, mastery = null, progress = null) {
+  const answers = progress && Array.isArray(progress.answers) ? progress.answers : [];
+  const checkedCount = answers.filter((answer) => answer === 0 || answer === 1).length;
+  const progressRecognizedCount = answers.filter((answer) => answer === 1).length;
+  const recognizedCount = mastery ? Number(mastery.recognizedCount) : progressRecognizedCount;
+  const masteryPercent = Math.round((recognizedCount / BASE_CHARACTER_SAMPLE_SIZE) * 100);
+  const completed = Boolean(mastery);
+  const inProgress = !completed && checkedCount > 0;
+  return {
+    group: recognitionGroup,
+    title: recognitionGroup === 2 ? "进阶 800 字" : "基础 800 字",
+    recognizedDisplay: completed || inProgress ? String(recognizedCount) : "—",
+    masteryPercent,
+    masteryLabel: completed ? `掌握 ${masteryPercent}%` : inProgress ? `当前 ${masteryPercent}%` : "待检查",
+    actionLabel: completed ? "复查" : inProgress ? "继续" : "开始"
+  };
+}
+
+const EMPTY_RECOGNITION_GROUP_CARDS = [
+  buildRecognitionGroupCard(1),
+  buildRecognitionGroupCard(2)
+];
+
 const INITIAL_QUESTION_STATE = buildQuestionState(0, 0, Array(40).fill(null));
 
 Page({
@@ -234,19 +273,19 @@ Page({
     recognitionPage: null,
     recognitionPageCharacters: [],
     recognitionPageNumber: 1,
-    recognitionPageCount: CHARACTER_PAGE_COUNT,
+    recognitionPageCount: BASE_CHARACTER_SAMPLE_SIZE / 20,
     recognitionGroupNumber: 1,
     recognitionGroupPageNumber: 1,
     recognitionGroupPageCount: BASE_CHARACTER_SAMPLE_SIZE / 20,
     recognitionSampleSize: BASE_CHARACTER_SAMPLE_SIZE,
     recognitionIsAdvanced: false,
+    recognitionIsLegacyCumulative: false,
     recognitionCompletedCount: 0,
     recognitionUnknownCount: 0,
     recognitionStageLabel: "第 1 阶",
     recognitionStageAudience: "幼儿园小班参考",
     recognitionSummary: null,
-    recognitionCanAdvance: false,
-    recognitionAdvanceThreshold: ADVANCED_RECOGNITION_UNLOCK_COUNT,
+    recognitionGroupCards: EMPTY_RECOGNITION_GROUP_CARDS,
     recognitionKnownCharacters: [],
     recognitionUnknownCharacters: [],
     recognitionFocusOpen: false,
@@ -522,11 +561,26 @@ Page({
         && (mode !== "child" || String(result.childId || "") === childId);
       if (!matchesSubject) throw new Error("历史结果读取异常，请稍后重试");
       if (assessmentId === "character-recognition"
-        && ![BASE_CHARACTER_RECOGNITION_VERSION, CHARACTER_RECOGNITION_VERSION].includes(result.assessmentVersion)) {
+        && ![
+          BASE_CHARACTER_RECOGNITION_VERSION,
+          LEGACY_CHARACTER_RECOGNITION_VERSION,
+          CHARACTER_RECOGNITION_VERSION
+        ].includes(result.assessmentVersion)) {
         return null;
+      }
+      if (assessmentId === "character-recognition") {
+        result.recognitionGroups = payload && payload.recognitionGroups || {};
       }
       return result;
     });
+  },
+
+  buildRecognitionGroupCards(childId = this.data.selectedChildId) {
+    return [1, 2].map((recognitionGroup) => buildRecognitionGroupCard(
+      recognitionGroup,
+      this.recognitionGroupMasteries && this.recognitionGroupMasteries[recognitionGroup],
+      this.loadRecognitionProgress(childId, recognitionGroup)
+    ));
   },
 
   showSavedResult(result, child = null) {
@@ -552,8 +606,16 @@ Page({
         throw new Error("历史结果数据异常，请稍后重试");
       }
       const analysis = buildCharacterRecognitionAnalysis(summary, selectedChildName || "孩子");
-      const recognitionCanAdvance = savedSample.length === BASE_CHARACTER_SAMPLE_SIZE
-        && canUnlockAdvancedRecognition(summary.recognizedCount);
+      const recognitionGroupNumber = savedSample.length === CHARACTER_SAMPLE_SIZE
+        ? 2
+        : Number(result.recognitionGroup) === 2 ? 2 : 1;
+      const recognitionIsLegacyCumulative = savedSample.length === CHARACTER_SAMPLE_SIZE;
+      const serverMasteries = result && result.recognitionGroups || {};
+      this.recognitionMasteryChildId = selectedChildId;
+      this.recognitionGroupMasteries = {
+        1: serverMasteries[1] || serverMasteries["1"] || buildRecognitionMasteryFromResult(result, 1),
+        2: serverMasteries[2] || serverMasteries["2"] || buildRecognitionMasteryFromResult(result, 2)
+      };
       this.answers = savedAnswers;
       this.recognitionSample = savedSample;
       this.scores = null;
@@ -573,8 +635,10 @@ Page({
         recognitionSummary: summary,
         recognitionSampleSize: savedSample.length,
         recognitionPageCount: savedSample.length / 20,
-        recognitionIsAdvanced: savedSample.length === CHARACTER_SAMPLE_SIZE,
-        recognitionCanAdvance,
+        recognitionIsAdvanced: recognitionGroupNumber === 2,
+        recognitionIsLegacyCumulative,
+        recognitionGroupNumber,
+        recognitionGroupCards: this.buildRecognitionGroupCards(selectedChildId),
         ...characterGroups,
         recognitionCharacterListOpen: false,
         recognitionCharacterListTab: "unknown",
@@ -698,10 +762,10 @@ Page({
     const selectedChildName = mode === "child" && child ? child.name : "";
     if (selectedChildId) wx.setStorageSync(LAST_CHILD_ID_KEY, selectedChildId);
     if (this.data.selectedTestId === "character-recognition") {
-      const progress = this.loadRecognitionProgress(selectedChildId);
-      this.recognitionSample = progress && progress.answers.length === CHARACTER_SAMPLE_SIZE
-        ? CHARACTER_BANK.slice()
-        : BASE_CHARACTER_BANK.slice();
+      if (this.recognitionMasteryChildId !== selectedChildId) this.recognitionGroupMasteries = {};
+      this.recognitionMasteryChildId = selectedChildId;
+      const progress = this.loadRecognitionProgress(selectedChildId, 1);
+      this.recognitionSample = BASE_CHARACTER_BANK.slice();
       this.answers = progress ? progress.answers : Array(BASE_CHARACTER_SAMPLE_SIZE).fill(null);
       this.setData({
         stage: "recognition",
@@ -711,10 +775,11 @@ Page({
         selectedChildId,
         selectedChildName,
         recognitionSummary: null,
-        recognitionCanAdvance: false,
+        recognitionGroupNumber: 1,
         recognitionSampleSize: this.answers.length,
         recognitionPageCount: this.answers.length / 20,
-        recognitionIsAdvanced: this.answers.length === CHARACTER_SAMPLE_SIZE,
+        recognitionIsAdvanced: false,
+        recognitionIsLegacyCumulative: false,
         recognitionKnownCharacters: [],
         recognitionUnknownCharacters: [],
         recognitionFocusOpen: false,
@@ -746,14 +811,24 @@ Page({
     this.showQuestion(0, 0);
   },
 
-  getRecognitionProgressKey(childId = this.data.selectedChildId) {
-    return `${RECOGNITION_PROGRESS_KEY_PREFIX}${String(childId || "")}`;
+  getRecognitionProgressKey(childId = this.data.selectedChildId, recognitionGroup = this.data.recognitionGroupNumber || 1) {
+    return `${RECOGNITION_PROGRESS_KEY_PREFIX}${String(childId || "")}_${Number(recognitionGroup) === 2 ? 2 : 1}`;
   },
 
-  loadRecognitionProgress(childId) {
-    const saved = wx.getStorageSync(this.getRecognitionProgressKey(childId));
-    if (!saved || ![BASE_CHARACTER_RECOGNITION_VERSION, CHARACTER_RECOGNITION_VERSION].includes(saved.version)) return null;
-    if (!Array.isArray(saved.answers) || ![BASE_CHARACTER_SAMPLE_SIZE, CHARACTER_SAMPLE_SIZE].includes(saved.answers.length)) return null;
+  loadRecognitionProgress(childId, recognitionGroup = 1) {
+    if (typeof wx === "undefined" || typeof wx.getStorageSync !== "function") return null;
+    const group = Number(recognitionGroup) === 2 ? 2 : 1;
+    let saved = wx.getStorageSync(this.getRecognitionProgressKey(childId, group));
+    if (!saved && group === 1) {
+      saved = wx.getStorageSync(`${LEGACY_RECOGNITION_PROGRESS_KEY_PREFIX}${String(childId || "")}`);
+      if (saved && Array.isArray(saved.answers) && saved.answers.length === CHARACTER_SAMPLE_SIZE) saved = null;
+    }
+    if (!saved || ![
+      BASE_CHARACTER_RECOGNITION_VERSION,
+      LEGACY_CHARACTER_RECOGNITION_VERSION,
+      CHARACTER_RECOGNITION_VERSION
+    ].includes(saved.version)) return null;
+    if (!Array.isArray(saved.answers) || saved.answers.length !== BASE_CHARACTER_SAMPLE_SIZE) return null;
     if (saved.answers.some((answer) => answer !== null && answer !== 0 && answer !== 1)) return null;
     return {
       answers: saved.answers.slice(),
@@ -764,13 +839,16 @@ Page({
   saveRecognitionProgress(pageIndex) {
     wx.setStorageSync(this.getRecognitionProgressKey(), {
       version: CHARACTER_RECOGNITION_VERSION,
+      recognitionGroup: this.data.recognitionGroupNumber,
       pageIndex,
       answers: this.answers.slice()
     });
   },
 
-  clearRecognitionProgress() {
-    if (typeof wx.removeStorageSync === "function") wx.removeStorageSync(this.getRecognitionProgressKey());
+  clearRecognitionProgress(recognitionGroup = this.data.recognitionGroupNumber || 1) {
+    if (typeof wx.removeStorageSync === "function") {
+      wx.removeStorageSync(this.getRecognitionProgressKey(this.data.selectedChildId, recognitionGroup));
+    }
   },
 
   saveActiveRecognitionProgress() {
@@ -779,12 +857,10 @@ Page({
   },
 
   showRecognitionPage(index) {
-    const page = buildCharacterPage(index, this.answers);
+    const recognitionGroupNumber = Number(this.data.recognitionGroupNumber) === 2 ? 2 : 1;
+    const page = buildCharacterPage(index, this.answers, recognitionGroupNumber);
     const completedCount = this.answers.filter((answer) => answer === 0 || answer === 1).length;
     const unknownCount = this.answers.filter((answer) => answer === 0).length;
-    const isAdvanced = this.answers.length === CHARACTER_SAMPLE_SIZE;
-    const advancedStartPage = BASE_CHARACTER_SAMPLE_SIZE / 20;
-    const groupNumber = isAdvanced && page.pageIndex >= advancedStartPage ? 2 : 1;
     this.setData({
       stage: "recognition",
       recognitionIndex: page.pageIndex,
@@ -792,11 +868,11 @@ Page({
       recognitionPageCharacters: page.characters,
       recognitionPageNumber: page.pageNumber,
       recognitionPageCount: page.pageCount,
-      recognitionGroupNumber: groupNumber,
-      recognitionGroupPageNumber: groupNumber === 2 ? page.pageNumber - advancedStartPage : page.pageNumber,
-      recognitionGroupPageCount: advancedStartPage,
+      recognitionGroupNumber,
+      recognitionGroupPageNumber: page.pageNumber,
+      recognitionGroupPageCount: page.pageCount,
       recognitionSampleSize: this.answers.length,
-      recognitionIsAdvanced: isAdvanced,
+      recognitionIsAdvanced: recognitionGroupNumber === 2,
       recognitionCompletedCount: completedCount,
       recognitionUnknownCount: unknownCount,
       recognitionStageLabel: page.stage.label,
@@ -900,16 +976,14 @@ Page({
 
   finishCharacterRecognition() {
     try {
-      const summary = buildCharacterRecognitionSummary(this.answers);
+      const summary = buildCharacterRecognitionSummary(this.answers, this.data.recognitionGroupNumber);
       const analysis = buildCharacterRecognitionAnalysis(summary, this.data.selectedChildName || "孩子");
       const characterGroups = buildRecognitionCharacterGroups(this.recognitionSample, this.answers);
-      const recognitionCanAdvance = this.answers.length === BASE_CHARACTER_SAMPLE_SIZE
-        && canUnlockAdvancedRecognition(summary.recognizedCount);
       this.setData({
         stage: "result",
         resultType: "recognition",
         recognitionSummary: summary,
-        recognitionCanAdvance,
+        recognitionIsLegacyCumulative: this.answers.length === CHARACTER_SAMPLE_SIZE,
         ...characterGroups,
         recognitionCharacterListOpen: false,
         recognitionCharacterListTab: "unknown",
@@ -1082,12 +1156,13 @@ Page({
       data: {
         assessmentId,
         assessmentVersion: assessmentId === "character-recognition"
-          ? (this.answers.length === BASE_CHARACTER_SAMPLE_SIZE
-            ? BASE_CHARACTER_RECOGNITION_VERSION
+          ? (this.answers.length === CHARACTER_SAMPLE_SIZE
+            ? LEGACY_CHARACTER_RECOGNITION_VERSION
             : CHARACTER_RECOGNITION_VERSION)
           : EIGHT_TALENTS_VERSION,
         mode: this.data.mode,
         childId: this.data.mode === "child" ? this.data.selectedChildId : "",
+        recognitionGroup: assessmentId === "character-recognition" ? this.data.recognitionGroupNumber : undefined,
         answers: this.answers.slice(),
         sampleCharacters: assessmentId === "character-recognition" ? this.recognitionSample.slice() : undefined
       }
@@ -1101,9 +1176,12 @@ Page({
         };
         if (assessmentId === "character-recognition" && result.recognitionSummary) {
           this.clearRecognitionProgress();
+          this.recognitionGroupMasteries = {
+            ...(this.recognitionGroupMasteries || {}),
+            [this.data.recognitionGroupNumber]: buildRecognitionMasteryFromResult(result, this.data.recognitionGroupNumber)
+          };
           resultData.recognitionSummary = result.recognitionSummary;
-          resultData.recognitionCanAdvance = this.answers.length === BASE_CHARACTER_SAMPLE_SIZE
-            && canUnlockAdvancedRecognition(result.recognitionSummary.recognizedCount);
+          resultData.recognitionGroupCards = this.buildRecognitionGroupCards(this.data.selectedChildId);
           Object.assign(resultData, buildRecognitionCharacterGroups(
             Array.isArray(result.sampleCharacters) ? result.sampleCharacters : this.recognitionSample,
             Array.isArray(result.answers) ? result.answers : this.answers
@@ -1202,72 +1280,41 @@ Page({
     context.draw(false);
   },
 
-  continueRecognitionAssessment() {
-    if (this.data.resultType !== "recognition" || this.data.resultSaveState !== "saved") return;
+  openRecognitionGroup(event) {
+    if (this.data.resultType !== "recognition") return;
     const childId = String(this.data.selectedChildId || "");
     const childName = String(this.data.selectedChildName || "");
+    const recognitionGroupNumber = Number(event && event.currentTarget && event.currentTarget.dataset.group) === 2 ? 2 : 1;
     if (!childId) {
       this.setData({ message: "孩子档案信息缺失，请重新选择" });
       return;
     }
-    if (this.data.recognitionIsAdvanced) {
-      this.clearRecognitionProgress();
-      this.startAssessment("child", { id: childId, name: childName });
-      return;
-    }
-    const baseRecognizedCount = this.data.recognitionSummary
-      ? this.data.recognitionSummary.recognizedCount
-      : this.answers.slice(0, BASE_CHARACTER_SAMPLE_SIZE).reduce((sum, answer) => sum + Number(answer === 1), 0);
-    if (!canUnlockAdvancedRecognition(baseRecognizedCount)) {
-      this.clearRecognitionProgress();
-      this.answers = Array(BASE_CHARACTER_SAMPLE_SIZE).fill(null);
-      this.startAssessment("child", { id: childId, name: childName });
-      return;
-    }
-    const advancedProgress = this.loadRecognitionProgress(childId);
-    if (advancedProgress && advancedProgress.answers.length === CHARACTER_SAMPLE_SIZE) {
-      this.recognitionSample = CHARACTER_BANK.slice();
-      this.answers = advancedProgress.answers;
-      this.setData({
-        stage: "recognition",
-        recognitionSummary: null,
-        recognitionSampleSize: CHARACTER_SAMPLE_SIZE,
-        recognitionPageCount: CHARACTER_PAGE_COUNT,
-        recognitionIsAdvanced: true,
-        recognitionKnownCharacters: [],
-        recognitionUnknownCharacters: [],
-        recognitionCharacterListOpen: false,
-        resultSaveState: "idle",
-        resultSaveMessage: "",
-        message: ""
-      });
-      this.showRecognitionPage(advancedProgress.pageIndex);
-      return;
-    }
-    const baseAnswers = this.answers.length >= BASE_CHARACTER_SAMPLE_SIZE
-      ? this.answers.slice(0, BASE_CHARACTER_SAMPLE_SIZE)
-      : [];
-    if (baseAnswers.length !== BASE_CHARACTER_SAMPLE_SIZE || baseAnswers.some((answer) => answer !== 0 && answer !== 1)) {
-      this.setData({ message: "首批 800 字结果缺失，请重新筛选" });
-      return;
-    }
-    this.recognitionSample = CHARACTER_BANK.slice();
-    this.answers = baseAnswers.concat(Array(CHARACTER_SAMPLE_SIZE - BASE_CHARACTER_SAMPLE_SIZE).fill(null));
+    const progress = this.loadRecognitionProgress(childId, recognitionGroupNumber);
+    this.recognitionSample = recognitionGroupNumber === 2
+      ? ADVANCED_CHARACTER_BANK.slice()
+      : BASE_CHARACTER_BANK.slice();
+    this.answers = progress ? progress.answers : Array(BASE_CHARACTER_SAMPLE_SIZE).fill(null);
     this.setData({
       stage: "recognition",
+      mode: "child",
+      modeLabel: `为${childName}测`,
+      selectedChildId: childId,
+      selectedChildName: childName,
       recognitionSummary: null,
-      recognitionSampleSize: CHARACTER_SAMPLE_SIZE,
-      recognitionPageCount: CHARACTER_PAGE_COUNT,
-      recognitionIsAdvanced: true,
+      recognitionGroupNumber,
+      recognitionSampleSize: BASE_CHARACTER_SAMPLE_SIZE,
+      recognitionPageCount: BASE_CHARACTER_SAMPLE_SIZE / 20,
+      recognitionIsAdvanced: recognitionGroupNumber === 2,
+      recognitionIsLegacyCumulative: false,
       recognitionKnownCharacters: [],
       recognitionUnknownCharacters: [],
       recognitionCharacterListOpen: false,
+      recognitionFocusOpen: false,
       resultSaveState: "idle",
       resultSaveMessage: "",
       message: ""
     });
-    this.saveRecognitionProgress(BASE_CHARACTER_SAMPLE_SIZE / 20);
-    this.showRecognitionPage(BASE_CHARACTER_SAMPLE_SIZE / 20);
+    this.showRecognitionPage(progress ? progress.pageIndex : 0);
   },
 
   restartAssessment() {
@@ -1302,6 +1349,7 @@ Page({
       recognitionCompletedCount: 0,
       recognitionUnknownCount: 0,
       recognitionSummary: null,
+      recognitionIsLegacyCumulative: false,
       recognitionKnownCharacters: [],
       recognitionUnknownCharacters: [],
       recognitionFocusOpen: false,

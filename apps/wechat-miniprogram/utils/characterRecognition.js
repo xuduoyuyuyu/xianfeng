@@ -6,25 +6,23 @@ const {
 } = require("./characterRecognitionBank");
 
 const BASE_CHARACTER_RECOGNITION_VERSION = "2026-08-13-r1";
-const CHARACTER_RECOGNITION_VERSION = "2026-08-13-r2";
+const LEGACY_CHARACTER_RECOGNITION_VERSION = "2026-08-13-r2";
+const CHARACTER_RECOGNITION_VERSION = "2026-08-13-r3";
 const CHARACTERS_PER_PAGE = 20;
 const BASE_CHARACTER_SAMPLE_SIZE = BASE_CHARACTER_BANK.length;
 const CHARACTER_SAMPLE_SIZE = CHARACTER_BANK.length;
 const CHARACTER_PAGE_COUNT = CHARACTER_SAMPLE_SIZE / CHARACTERS_PER_PAGE;
-const ADVANCED_RECOGNITION_UNLOCK_COUNT = 720;
 
-function canUnlockAdvancedRecognition(recognizedCount) {
-  return Number(recognizedCount) >= ADVANCED_RECOGNITION_UNLOCK_COUNT;
-}
-
-function buildCharacterPage(pageIndex, answers = []) {
-  const sampleSize = answers.length === BASE_CHARACTER_SAMPLE_SIZE
-    ? BASE_CHARACTER_SAMPLE_SIZE
-    : CHARACTER_SAMPLE_SIZE;
+function buildCharacterPage(pageIndex, answers = [], recognitionGroup = 1) {
+  const isIndependentGroup = answers.length === BASE_CHARACTER_SAMPLE_SIZE;
+  const sampleSize = isIndependentGroup ? BASE_CHARACTER_SAMPLE_SIZE : CHARACTER_SAMPLE_SIZE;
   const pageCount = sampleSize / CHARACTERS_PER_PAGE;
   const boundedPageIndex = Math.max(0, Math.min(pageCount - 1, Number(pageIndex) || 0));
   const start = boundedPageIndex * CHARACTERS_PER_PAGE;
-  const stage = CHARACTER_STAGES.find((item) => start >= item.start && start < item.end) || CHARACTER_STAGES[0];
+  const groupOffset = isIndependentGroup && Number(recognitionGroup) === 2 ? BASE_CHARACTER_SAMPLE_SIZE : 0;
+  const bank = groupOffset ? ADVANCED_CHARACTER_BANK : CHARACTER_BANK;
+  const stageIndex = start + groupOffset;
+  const stage = CHARACTER_STAGES.find((item) => stageIndex >= item.start && stageIndex < item.end) || CHARACTER_STAGES[0];
   return {
     pageIndex: boundedPageIndex,
     pageNumber: boundedPageIndex + 1,
@@ -32,7 +30,7 @@ function buildCharacterPage(pageIndex, answers = []) {
     start,
     end: start + CHARACTERS_PER_PAGE,
     stage,
-    characters: CHARACTER_BANK.slice(start, start + CHARACTERS_PER_PAGE).map((character, offset) => ({
+    characters: bank.slice(start, start + CHARACTERS_PER_PAGE).map((character, offset) => ({
       character,
       index: start + offset,
       unknown: answers[start + offset] === 0
@@ -40,16 +38,22 @@ function buildCharacterPage(pageIndex, answers = []) {
   };
 }
 
-function buildCharacterRecognitionSummary(answers) {
+function buildCharacterRecognitionSummary(answers, recognitionGroup = 1) {
   if (!Array.isArray(answers) || ![BASE_CHARACTER_SAMPLE_SIZE, CHARACTER_SAMPLE_SIZE].includes(answers.length)) {
-    throw new Error("需要完成首批 800 字或累计 1600 字");
+    throw new Error("需要完成一组 800 字或旧版累计 1600 字");
   }
   if (answers.some((answer) => answer !== 0 && answer !== 1)) {
     throw new Error("每个字都需要标记认识或不认识");
   }
   const recognizedCount = answers.reduce((sum, answer) => sum + answer, 0);
-  const stageResults = CHARACTER_STAGES.filter((stage) => stage.start < answers.length).map((stage) => {
-    const stageAnswers = answers.slice(stage.start, Math.min(stage.end, answers.length));
+  const groupOffset = answers.length === BASE_CHARACTER_SAMPLE_SIZE && Number(recognitionGroup) === 2
+    ? BASE_CHARACTER_SAMPLE_SIZE
+    : 0;
+  const groupEnd = groupOffset + answers.length;
+  const stageResults = CHARACTER_STAGES.filter((stage) => stage.start >= groupOffset && stage.start < groupEnd).map((stage) => {
+    const stageStart = stage.start - groupOffset;
+    const stageEnd = Math.min(stage.end, groupEnd) - groupOffset;
+    const stageAnswers = answers.slice(stageStart, stageEnd);
     const stageRecognizedCount = stageAnswers.reduce((sum, answer) => sum + answer, 0);
     return {
       id: stage.id,
@@ -68,9 +72,9 @@ function buildCharacterRecognitionSummary(answers) {
     estimatedMin: recognizedCount,
     estimatedMax: recognizedCount,
     estimateLabel: String(recognizedCount),
-    reference: answers.length === BASE_CHARACTER_SAMPLE_SIZE
-      ? "首批 800 字逐字筛选结果"
-      : "累计 1600 字逐字筛选结果",
+    reference: answers.length === CHARACTER_SAMPLE_SIZE
+      ? "旧版累计 1600 字逐字筛选结果"
+      : `第 ${Number(recognitionGroup) === 2 ? 2 : 1} 组 800 字逐字筛选结果`,
     stageResults
   };
 }
@@ -89,18 +93,17 @@ function buildCharacterRecognitionAnalysis(summary, childName = "孩子") {
 
 module.exports = {
   ADVANCED_CHARACTER_BANK,
-  ADVANCED_RECOGNITION_UNLOCK_COUNT,
   BASE_CHARACTER_RECOGNITION_VERSION,
   BASE_CHARACTER_BANK,
   BASE_CHARACTER_SAMPLE_SIZE,
   CHARACTER_BANK,
   CHARACTER_PAGE_COUNT,
   CHARACTER_RECOGNITION_VERSION,
+  LEGACY_CHARACTER_RECOGNITION_VERSION,
   CHARACTER_SAMPLE_SIZE,
   CHARACTER_STAGES,
   CHARACTERS_PER_PAGE,
   buildCharacterPage,
   buildCharacterRecognitionAnalysis,
-  buildCharacterRecognitionSummary,
-  canUnlockAdvancedRecognition
+  buildCharacterRecognitionSummary
 };

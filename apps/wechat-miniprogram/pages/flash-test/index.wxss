@@ -1095,100 +1095,105 @@ page {
 
 .xf-flash-recognition-next-group {
   box-sizing: border-box;
-  margin-top: 24rpx;
-  padding: 22rpx;
-  border: 2rpx solid #ded4f4;
+  margin: 0;
+  padding: 22rpx 24rpx;
+  overflow: hidden;
+  border: 2rpx solid #e9e3f2;
   border-radius: 24rpx;
-  background: #f7f2ff;
+  background: #ffffff;
+  box-shadow: 0 8rpx 20rpx rgba(74, 39, 126, 0.05);
   text-align: left;
+  transition: transform 120ms ease, box-shadow 120ms ease;
 }
 
-.xf-flash-recognition-next-group.is-locked {
-  border-color: #e6e1ec;
-  background: #f7f6f8;
+.xf-flash-recognition-group-cards {
+  display: grid;
+  gap: 16rpx;
+  margin-top: 4rpx;
+}
+
+.xf-flash-recognition-next-group.is-pressed {
+  transform: scale(0.985);
+  box-shadow: 0 6rpx 18rpx rgba(74, 39, 126, 0.1);
 }
 
 .xf-flash-recognition-next-group-head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 16rpx;
 }
 
 .xf-flash-recognition-next-group-title,
-.xf-flash-recognition-next-group-note,
-.xf-flash-recognition-next-group-gap,
-.xf-flash-recognition-next-group-error {
+.xf-flash-recognition-mastery-value,
+.xf-flash-recognition-mastery-total,
+.xf-flash-recognition-mastery-label {
   display: block;
 }
 
 .xf-flash-recognition-next-group-title {
   color: #201331;
-  font-size: 24rpx;
-  font-weight: 900;
+  font-size: 27rpx;
+  font-weight: 950;
+  line-height: 1.2;
 }
 
-.xf-flash-recognition-next-group-status {
+.xf-flash-recognition-next-group-action {
   flex: 0 0 auto;
-  padding: 7rpx 14rpx;
-  border-radius: 999rpx;
-  background: #eadfff;
   color: #6c27d6;
-  font-size: 18rpx;
-  font-weight: 850;
-}
-
-.xf-flash-recognition-next-group.is-locked .xf-flash-recognition-next-group-status {
-  background: #ebe8ee;
-  color: #817a89;
-}
-
-.xf-flash-recognition-next-group-note,
-.xf-flash-recognition-next-group-gap,
-.xf-flash-recognition-next-group-error {
-  margin-top: 8rpx;
-  color: #756e82;
-  font-size: 18rpx;
-  font-weight: 650;
-  line-height: 1.45;
-}
-
-.xf-flash-recognition-next-group-gap {
-  color: #9b6473;
-  font-weight: 800;
-}
-
-.xf-flash-recognition-next-group-error {
-  color: #c44960;
-  font-weight: 800;
-}
-
-.xf-flash-recognition-next-button {
-  width: 100%;
-  height: 72rpx;
-  margin: 18rpx 0 0;
-  border: 0;
-  border-radius: 18rpx;
-  background: #6c27d6;
-  color: #ffffff;
-  font-size: 23rpx;
+  font-size: 19rpx;
   font-weight: 900;
-  line-height: 72rpx;
 }
 
-.xf-flash-recognition-next-button::after {
-  border: 0;
+.xf-flash-recognition-mastery {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20rpx;
+  margin-top: 14rpx;
 }
 
-.xf-flash-recognition-next-button[disabled] {
-  background: #e9e5ed;
-  color: #8d8594;
-  opacity: 1;
+.xf-flash-recognition-mastery-score {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
 }
 
-.xf-flash-recognition-next-button.is-pressed {
-  transform: scale(0.98);
+.xf-flash-recognition-mastery-value {
+  color: #5f1fc5;
+  font-size: 44rpx;
+  font-weight: 950;
+  line-height: 1;
 }
+
+.xf-flash-recognition-mastery-total {
+  margin-left: 6rpx;
+  color: #746c7d;
+  font-size: 18rpx;
+  font-weight: 800;
+}
+
+.xf-flash-recognition-mastery-label {
+  padding-bottom: 4rpx;
+  color: #6f6877;
+  font-size: 18rpx;
+  font-weight: 800;
+}
+
+.xf-flash-recognition-mastery-track {
+  height: 8rpx;
+  margin-top: 12rpx;
+  overflow: hidden;
+  border-radius: 999rpx;
+  background: #eee9f4;
+}
+
+.xf-flash-recognition-mastery-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: #7b35dc;
+}
+
 
 .xf-flash-subject-mask {
   position: fixed;

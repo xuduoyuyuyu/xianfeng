@@ -31,6 +31,7 @@ export interface FlashTestResult extends mongoose.Document {
   sampleCharacters: string[];
   scores: FlashTestDimensionScore[];
   recognitionSummary?: FlashTestRecognitionSummary;
+  recognitionGroup?: 1 | 2;
   completedAt: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -87,6 +88,7 @@ const flashTestResultSchema = new mongoose.Schema(
     sampleCharacters: { type: [String], default: [] },
     scores: { type: [dimensionScoreSchema], required: true },
     recognitionSummary: { type: recognitionSummarySchema, default: undefined },
+    recognitionGroup: { type: Number, enum: [1, 2], default: 1 },
     completedAt: { type: Date, required: true, default: Date.now, index: true },
   },
   { timestamps: true }

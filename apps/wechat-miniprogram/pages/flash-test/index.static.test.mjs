@@ -9,7 +9,7 @@ const require = createRequire(import.meta.url);
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 const miniProgramRoot = path.resolve(currentDirectory, "../..");
 const { SETTINGS_SECTIONS } = require("../../utils/nativeSettings.js");
-const { BASE_CHARACTER_BANK, CHARACTER_BANK } = require("../../utils/characterRecognitionBank.js");
+const { ADVANCED_CHARACTER_BANK, BASE_CHARACTER_BANK, CHARACTER_BANK } = require("../../utils/characterRecognitionBank.js");
 
 function loadFlashPageDefinition() {
   const pagePath = require.resolve("./index.js");
@@ -803,12 +803,12 @@ test("character recognition reuses the child archive and resumes a 40-page exact
     definition.markFocusedRecognitionCharacter.call(context, { currentTarget: { dataset: { answer: 0 } } });
     assert.equal(context.data.recognitionFocusOpen, false);
     assert.equal(context.answers[0], 0);
-    assert.equal(storage.get("xf_character_recognition_progress_v1_child-1").answers[0], 0);
+    assert.equal(storage.get("xf_character_recognition_progress_v2_child-1_1").answers[0], 0);
     definition.confirmRecognitionPage.call(context);
     assert.equal(context.answers[0], 0);
     assert.ok(context.answers.slice(1, 20).every((answer) => answer === 1));
     assert.equal(context.data.recognitionPageNumber, 2);
-    assert.equal(storage.get("xf_character_recognition_progress_v1_child-1").pageIndex, 1);
+    assert.equal(storage.get("xf_character_recognition_progress_v2_child-1_1").pageIndex, 1);
     definition.goBack.call(context);
     assert.equal(context.data.recognitionExitOpen, true);
     assert.equal(context.data.recognitionPageNumber, 2);
@@ -818,42 +818,13 @@ test("character recognition reuses the child archive and resumes a 40-page exact
     definition.saveRecognitionAndExit.call(context);
     assert.equal(context.data.stage, "catalog");
     assert.equal(context.data.recognitionExitOpen, false);
-    assert.equal(storage.get("xf_character_recognition_progress_v1_child-1").pageIndex, 1);
+    assert.equal(storage.get("xf_character_recognition_progress_v2_child-1_1").pageIndex, 1);
     definition.startAssessment.call(context, "child", { id: "child-1", name: "小读者" });
     assert.equal(context.data.recognitionPageNumber, 2);
     definition.previousRecognitionPage.call(context);
     assert.equal(context.data.recognitionPageNumber, 1);
 
-    context.data = {
-      ...context.data,
-      stage: "result",
-      resultType: "recognition",
-      resultSaveState: "saved",
-      recognitionSummary: {
-        recognizedCount: 782,
-        sampledCount: 800
-      },
-      selectedChildId: "child-1",
-      selectedChildName: "小读者",
-      subjectModalOpen: false
-    };
-    context.answers = [...Array(782).fill(1), ...Array(18).fill(0)];
-    context.recognitionSample = BASE_CHARACTER_BANK.slice();
-    definition.continueRecognitionAssessment.call(context);
-    assert.equal(context.data.selectedChildId, "child-1");
-    assert.equal(context.data.selectedChildName, "小读者");
-    assert.equal(context.data.subjectModalOpen, false);
-    assert.equal(context.data.stage, "recognition");
-    assert.equal(context.data.recognitionPageNumber, 41);
-    assert.equal(context.data.recognitionGroupNumber, 2);
-    assert.equal(context.data.recognitionGroupPageNumber, 1);
-    assert.equal(context.answers.length, 1600);
-    assert.ok(context.answers.slice(0, 800).every((answer) => answer === 0 || answer === 1));
-    assert.ok(context.answers.slice(800).every((answer) => answer === null));
-    assert.equal(context.data.recognitionIsAdvanced, true);
-    assert.equal(storage.has("xf_character_recognition_progress_v1_child-1"), true);
-    definition.previousRecognitionPage.call(context);
-    assert.equal(context.data.recognitionPageNumber, 41);
+    assert.equal(storage.has("xf_character_recognition_progress_v2_child-1_1"), true);
   } finally {
     global.wx = originalWx;
   }
@@ -877,26 +848,36 @@ test("character recognition presents large multi-character selection and an exac
   assert.match(template, /保存进度并退出/);
   assert.match(template, /catchtap="saveRecognitionAndExit"/);
   assert.match(styles, /\.xf-flash-recognition-exit-mask\s*\{[^}]*position:\s*fixed[^}]*inset:\s*0/s);
-  assert.match(template, /首批 800 字已逐字筛选完成/);
+  assert.match(template, /recognitionIsLegacyCumulative \? '旧版累计 1600 字已逐字筛选完成'/);
+  assert.match(template, /第 ' \+ recognitionGroupNumber \+ ' 组 800 字已逐字筛选完成/);
   assert.match(template, /\{\{selectedChildName\}\}认识的字/);
   assert.doesNotMatch(template, /\{\{selectedChildName\}\}会和不会的字/);
-  assert.match(template, /这是\{\{recognitionIsAdvanced \? '累计 1600 字' : '首批 800 字'\}\}的逐字筛选结果/);
-  assert.match(template, /bindtap="continueRecognitionAssessment"/);
-  assert.match(template, /达到 720 \/ 800（90%）后开放第 2 组/);
-  assert.match(template, /进入第 2 组 800 字/);
+  assert.match(template, /这是旧版累计 1600 字的逐字筛选结果/);
+  assert.match(template, /这是第 ' \+ recognitionGroupNumber \+ ' 组 800 字的逐字筛选结果/);
+  assert.match(template, /bindtap="openRecognitionGroup"/);
+  assert.match(template, /wx:for="\{\{recognitionGroupCards\}\}"/);
+  assert.match(template, /\{\{item\.recognizedDisplay\}\}/);
+  assert.match(template, /\{\{item\.masteryLabel\}\}/);
+  assert.match(template, /width: \{\{item\.masteryPercent\}\}%/);
+  assert.match(template, /\{\{item\.actionLabel\}\} ›/);
   assert.match(template, /class="xf-flash-recognition-next-group/);
-  assert.match(template, /wx:if="\{\{resultType === 'recognition' && !recognitionIsAdvanced\}\}" class="xf-flash-recognition-next-group/);
-  assert.match(template, /第 2 组 · 后 800 字/);
-  assert.match(template, /还差 \{\{recognitionAdvanceThreshold - recognitionSummary\.recognizedCount\}\} 个字/);
-  assert.match(template, /保存失败：\{\{resultSaveMessage\}\}/);
-  assert.match(template, /重新保存并开放第 2 组/);
-  assert.match(template, /进入第 2 组 800 字' : '重新检查第 1 组'/);
+  assert.match(template, /wx:if="\{\{resultType === 'recognition'\}\}" class="xf-flash-recognition-group-cards/);
+  assert.match(source, /title: recognitionGroup === 2 \? "进阶 800 字" : "基础 800 字"/);
+  assert.match(source, /masteryLabel: completed \? `掌握 \$\{masteryPercent\}%`/);
+  assert.match(source, /actionLabel: completed \? "复查" : inProgress \? "继续" : "开始"/);
+  assert.doesNotMatch(template, /进入第 1 组|进入第 2 组|第 2 组 · 后 800 字|xf-flash-recognition-next-button/);
+  assert.doesNotMatch(template, /720|重新检查第 1 组|暂未开放|开放第 2 组/);
   assert.ok(
     template.indexOf("xf-flash-recognition-next-group") > template.indexOf("xf-flash-save-status"),
     "second-group entry should be placed in the bottom action area"
   );
   assert.ok(template.indexOf("xf-flash-recognition-next-group") < template.indexOf("xf-flash-result-note"));
-  assert.match(template, /第 1 组共 800 字，按由易到难分成 40 页/);
+  assert.match(styles, /\.xf-flash-recognition-next-group\s*\{[^}]*background:\s*#ffffff[^}]*box-shadow:/s);
+  assert.match(styles, /\.xf-flash-recognition-mastery-track\s*\{/);
+  assert.match(styles, /\.xf-flash-recognition-next-group-action\s*\{/);
+  assert.doesNotMatch(template, /xf-flash-recognition-next-group-index|xf-flash-recognition-next-group-status|xf-flash-recognition-next-group-note/);
+  assert.doesNotMatch(styles, /xf-flash-recognition-next-group::before|xf-flash-recognition-next-group-status|xf-flash-recognition-next-group-foot/);
+  assert.match(template, /两组各 800 字，都可以随时进入/);
   assert.doesNotMatch(template, /分成 40 组/);
   assert.match(template, />上一页<\/button>/);
   assert.match(template, /确认本页，下一页/);
@@ -918,8 +899,10 @@ test("character recognition presents large multi-character selection and an exac
   assert.doesNotMatch(template, /辅助参考区间|估算约/);
 });
 
-test("character recognition keeps advanced locked below 720 known base characters", () => {
+test("character recognition allows either group regardless of the first-group result", () => {
   const definition = loadFlashPageDefinition();
+  const originalWx = global.wx;
+  const storage = new Map();
   const context = {
     ...definition,
     data: {
@@ -929,37 +912,42 @@ test("character recognition keeps advanced locked below 720 known base character
       resultSaveState: "saved",
       selectedChildId: "child-locked",
       selectedChildName: "小读者",
-      recognitionIsAdvanced: false,
-      recognitionCanAdvance: false
+      recognitionGroupNumber: 1
     },
     answers: [...Array(719).fill(1), ...Array(81).fill(0)],
     recognitionSample: BASE_CHARACTER_BANK.slice(),
     setData(payload) {
       this.data = { ...this.data, ...payload };
     },
-    clearRecognitionProgress() {
-      this.progressCleared = true;
-    },
-    startAssessment(mode, child) {
-      this.restarted = { mode, child };
+    showRecognitionPage(index) {
+      this.shownPage = index;
     }
   };
-
-  definition.continueRecognitionAssessment.call(context);
-
-  assert.equal(context.progressCleared, true);
-  assert.deepEqual(context.restarted, { mode: "child", child: { id: "child-locked", name: "小读者" } });
-  assert.equal(context.answers.length, 800);
-  assert.ok(context.answers.every((answer) => answer === null));
+  try {
+    global.wx = {
+      getStorageSync(key) {
+        return storage.get(key) || "";
+      }
+    };
+    definition.openRecognitionGroup.call(context, { currentTarget: { dataset: { group: 2 } } });
+    assert.equal(context.data.stage, "recognition");
+    assert.equal(context.data.recognitionGroupNumber, 2);
+    assert.equal(context.data.recognitionIsAdvanced, true);
+    assert.equal(context.answers.length, 800);
+    assert.deepEqual(context.recognitionSample, ADVANCED_CHARACTER_BANK);
+    assert.equal(context.shownPage, 0);
+  } finally {
+    global.wx = originalWx;
+  }
 });
 
-test("advanced character recognition resumes the saved page for the same child", () => {
+test("second recognition group resumes its own saved page for the same child", () => {
   const definition = loadFlashPageDefinition();
   const originalWx = global.wx;
-  const advancedAnswers = [...Array(900).fill(1), ...Array(700).fill(null)];
+  const advancedAnswers = [...Array(100).fill(1), ...Array(700).fill(null)];
   const storage = new Map([[
-    "xf_character_recognition_progress_v1_child-advanced",
-    { version: "2026-08-13-r2", pageIndex: 45, answers: advancedAnswers }
+    "xf_character_recognition_progress_v2_child-advanced_2",
+    { version: "2026-08-13-r3", recognitionGroup: 2, pageIndex: 5, answers: advancedAnswers }
   ]]);
   const context = {
     ...definition,
@@ -985,12 +973,63 @@ test("advanced character recognition resumes the saved page for the same child",
         return storage.get(key) || "";
       }
     };
-    definition.continueRecognitionAssessment.call(context);
+    definition.openRecognitionGroup.call(context, { currentTarget: { dataset: { group: 2 } } });
     assert.equal(context.data.stage, "recognition");
-    assert.equal(context.data.recognitionPageNumber, 46);
+    assert.equal(context.data.recognitionPageNumber, 6);
     assert.equal(context.data.recognitionIsAdvanced, true);
     assert.deepEqual(context.answers, advancedAnswers);
-    assert.deepEqual(context.recognitionSample, CHARACTER_BANK);
+    assert.deepEqual(context.recognitionSample, ADVANCED_CHARACTER_BANK);
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
+test("recognition group cards show independent local progress before completion", () => {
+  const definition = loadFlashPageDefinition();
+  const originalWx = global.wx;
+  const storage = new Map([[
+    "xf_character_recognition_progress_v2_child-progress_2",
+    {
+      version: "2026-08-13-r3",
+      recognitionGroup: 2,
+      pageIndex: 2,
+      answers: [...Array(45).fill(1), ...Array(15).fill(0), ...Array(740).fill(null)]
+    }
+  ]]);
+  const context = {
+    ...definition,
+    data: { ...definition.data, selectedChildId: "child-progress" },
+    recognitionGroupMasteries: {
+      1: { recognitionGroup: 1, recognizedCount: 700, sampledCount: 800 }
+    }
+  };
+
+  try {
+    global.wx = {
+      getStorageSync(key) {
+        return storage.get(key) || "";
+      }
+    };
+    const cards = definition.buildRecognitionGroupCards.call(context, "child-progress");
+    assert.deepEqual(cards.map((item) => ({
+      title: item.title,
+      recognizedDisplay: item.recognizedDisplay,
+      masteryLabel: item.masteryLabel,
+      actionLabel: item.actionLabel
+    })), [
+      {
+        title: "基础 800 字",
+        recognizedDisplay: "700",
+        masteryLabel: "掌握 88%",
+        actionLabel: "复查"
+      },
+      {
+        title: "进阶 800 字",
+        recognizedDisplay: "45",
+        masteryLabel: "当前 6%",
+        actionLabel: "继续"
+      }
+    ]);
   } finally {
     global.wx = originalWx;
   }
@@ -1068,6 +1107,10 @@ test("character recognition restores and opens all known and unknown characters"
     childName: "小读者",
     answers,
     sampleCharacters,
+    recognitionGroups: {
+      1: { recognitionGroup: 1, recognizedCount: 512, sampledCount: 800 },
+      2: { recognitionGroup: 2, recognizedCount: 600, sampledCount: 800 }
+    },
     recognitionSummary: {
       recognizedCount: 512,
       sampledCount: 800,
@@ -1083,6 +1126,15 @@ test("character recognition restores and opens all known and unknown characters"
 
   assert.deepEqual(context.data.recognitionKnownCharacters, sampleCharacters.slice(0, 512));
   assert.deepEqual(context.data.recognitionUnknownCharacters, sampleCharacters.slice(512));
+  assert.deepEqual(context.data.recognitionGroupCards.map((item) => ({
+    title: item.title,
+    recognizedDisplay: item.recognizedDisplay,
+    masteryPercent: item.masteryPercent,
+    actionLabel: item.actionLabel
+  })), [
+    { title: "基础 800 字", recognizedDisplay: "512", masteryPercent: 64, actionLabel: "复查" },
+    { title: "进阶 800 字", recognizedDisplay: "600", masteryPercent: 75, actionLabel: "复查" }
+  ]);
   definition.openRecognitionCharacterList.call(context);
   assert.equal(context.data.recognitionCharacterListOpen, true);
   assert.equal(context.data.recognitionCharacterListTab, "unknown");
@@ -1133,6 +1185,7 @@ test("character recognition submits the exact bank and clears progress only afte
       mode: "child",
       selectedChildId: "child-1",
       selectedChildName: "小读者",
+      recognitionGroupNumber: 1,
       recognitionIndex: 39
     },
     answers: [...Array(515).fill(1), ...Array(285).fill(0)],
@@ -1158,7 +1211,8 @@ test("character recognition submits the exact bank and clears progress only afte
           data: {
             result: {
               id: "recognition-1",
-              assessmentVersion: "2026-08-13-r1",
+              assessmentVersion: "2026-08-13-r3",
+              recognitionGroup: 1,
               answers: context.answers,
               sampleCharacters: context.recognitionSample,
               recognitionSummary: {
@@ -1170,7 +1224,7 @@ test("character recognition submits the exact bank and clears progress only afte
                 estimatedMin: 515,
                 estimatedMax: 515,
                 estimateLabel: "515",
-                reference: "首批 800 字逐字筛选结果"
+                reference: "第 1 组 800 字逐字筛选结果"
               }
             }
           }
@@ -1183,7 +1237,8 @@ test("character recognition submits the exact bank and clears progress only afte
     completeRequest();
     await context._resultSavePromise;
     assert.equal(requestOptions.data.assessmentId, "character-recognition");
-    assert.equal(requestOptions.data.assessmentVersion, "2026-08-13-r1");
+    assert.equal(requestOptions.data.assessmentVersion, "2026-08-13-r3");
+    assert.equal(requestOptions.data.recognitionGroup, 1);
     assert.equal(requestOptions.data.mode, "child");
     assert.equal(requestOptions.data.answers.length, 800);
     assert.deepEqual(requestOptions.data.sampleCharacters, context.recognitionSample);

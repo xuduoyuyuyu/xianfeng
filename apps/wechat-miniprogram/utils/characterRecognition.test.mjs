@@ -7,7 +7,6 @@ const {
   CHARACTER_BANK,
   BASE_CHARACTER_BANK,
   ADVANCED_CHARACTER_BANK,
-  ADVANCED_RECOGNITION_UNLOCK_COUNT,
   BASE_CHARACTER_RECOGNITION_VERSION,
   CHARACTER_PAGE_COUNT,
   CHARACTER_RECOGNITION_VERSION,
@@ -16,13 +15,12 @@ const {
   CHARACTERS_PER_PAGE,
   buildCharacterPage,
   buildCharacterRecognitionAnalysis,
-  buildCharacterRecognitionSummary,
-  canUnlockAdvancedRecognition
+  buildCharacterRecognitionSummary
 } = require("./characterRecognition.js");
 
 test("character recognition bank preserves the first 800 and adds 800 unique advanced characters", () => {
   assert.equal(BASE_CHARACTER_RECOGNITION_VERSION, "2026-08-13-r1");
-  assert.equal(CHARACTER_RECOGNITION_VERSION, "2026-08-13-r2");
+  assert.equal(CHARACTER_RECOGNITION_VERSION, "2026-08-13-r3");
   assert.equal(CHARACTER_SAMPLE_SIZE, 1600);
   assert.equal(BASE_CHARACTER_BANK.length, 800);
   assert.equal(ADVANCED_CHARACTER_BANK.length, 800);
@@ -43,6 +41,9 @@ test("character recognition presents 20 characters per page from easy to hard", 
   assert.equal(firstPage.stage.id, "preschool-small");
   assert.equal(lastPage.stage.id, "advanced-four");
   assert.equal(lastPage.end, 1600);
+  const secondGroupFirstPage = buildCharacterPage(0, Array(800).fill(1), 2);
+  assert.equal(secondGroupFirstPage.characters.map((item) => item.character).join(""), ADVANCED_CHARACTER_BANK.slice(0, 20).join(""));
+  assert.equal(secondGroupFirstPage.stage.id, "advanced-one");
 });
 
 test("character recognition marks only tapped characters as unknown", () => {
@@ -66,16 +67,18 @@ test("character recognition returns an exact cumulative 1600-character checklist
   assert.deepEqual(summary.stageResults.map((item) => item.recognizedCount), [200, 200, 200, 200, 200, 200, 35, 0]);
 });
 
-test("character recognition keeps the first 800 result separate and unlocks advanced at 90 percent", () => {
-  const belowThreshold = buildCharacterRecognitionSummary([...Array(719).fill(1), ...Array(81).fill(0)]);
-  const atThreshold = buildCharacterRecognitionSummary([...Array(720).fill(1), ...Array(80).fill(0)]);
+test("character recognition keeps both 800-character groups independent", () => {
+  const firstGroup = buildCharacterRecognitionSummary([...Array(719).fill(1), ...Array(81).fill(0)], 1);
+  const secondGroup = buildCharacterRecognitionSummary([...Array(200).fill(1), ...Array(600).fill(0)], 2);
 
-  assert.equal(ADVANCED_RECOGNITION_UNLOCK_COUNT, 720);
-  assert.equal(belowThreshold.sampledCount, 800);
-  assert.equal(belowThreshold.recognizedCount, 719);
-  assert.equal(belowThreshold.completedRounds, 1);
-  assert.equal(canUnlockAdvancedRecognition(belowThreshold.recognizedCount), false);
-  assert.equal(canUnlockAdvancedRecognition(atThreshold.recognizedCount), true);
+  assert.equal(firstGroup.sampledCount, 800);
+  assert.equal(firstGroup.recognizedCount, 719);
+  assert.equal(firstGroup.reference, "第 1 组 800 字逐字筛选结果");
+  assert.equal(secondGroup.sampledCount, 800);
+  assert.equal(secondGroup.recognizedCount, 200);
+  assert.equal(secondGroup.reference, "第 2 组 800 字逐字筛选结果");
+  assert.deepEqual(secondGroup.stageResults.map((item) => item.id), ["advanced-one", "advanced-two", "advanced-three", "advanced-four"]);
+  assert.deepEqual(secondGroup.stageResults.map((item) => item.recognizedCount), [200, 0, 0, 0]);
 });
 
 test("character recognition rejects incomplete or non-binary responses", () => {
