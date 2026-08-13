@@ -9,6 +9,7 @@ const require = createRequire(import.meta.url);
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 const miniProgramRoot = path.resolve(currentDirectory, "../..");
 const { SETTINGS_SECTIONS } = require("../../utils/nativeSettings.js");
+const { BASE_CHARACTER_BANK, CHARACTER_BANK } = require("../../utils/characterRecognitionBank.js");
 
 function loadFlashPageDefinition() {
   const pagePath = require.resolve("./index.js");
@@ -200,6 +201,11 @@ test("flash test opens as a test catalog before choosing the assessment subject"
   assert.match(template, /这次为谁作答/);
   assert.match(template, /data-mode="self"[^>]*open-type="\{\{isLoggedIn \? '' : 'getPhoneNumber'\}\}"[^>]*bindtap="chooseMode"[^>]*bindgetphonenumber="authorizeAssessment"/);
   assert.match(template, /data-mode="child"[^>]*open-type="\{\{isLoggedIn \? '' : 'getPhoneNumber'\}\}"[^>]*bindtap="chooseMode"[^>]*bindgetphonenumber="authorizeAssessment"/);
+  assert.match(template, /wx:if="\{\{questionNumber === 1\}\}"[^>]*class="xf-flash-reselect-subject"[^>]*bindtap="reselectAssessmentSubject"/);
+  assert.match(template, /wx:if="\{\{recognitionPageNumber === 1\}\}"[^>]*class="xf-flash-reselect-subject"[^>]*bindtap="reselectAssessmentSubject"[^>]*>重选孩子<\/view>/);
+  assert.match(template, /class="xf-flash-reselect-subject"[^>]*bindtap="reselectAssessmentSubject"[^>]*>\{\{mode === 'child' \? '重选孩子' : '重选测试对象'\}\}<\/view>/);
+  assert.doesNotMatch(template, /<button[^>]*>重选(?:孩子|测试对象)<\/button>/);
+  assert.match(styles, /\.xf-flash-reselect-subject\s*\{[^}]*display:\s*block[^}]*width:\s*fit-content[^}]*margin:\s*10rpx auto 0[^}]*color:\s*#6c27d6[^}]*font-size:\s*18rpx[^}]*text-align:\s*center/s);
   assert.match(template, /xf-flash-result-hero/);
   assert.match(icon, /<polygon/);
   assert.match(icon, /linearGradient/);
@@ -287,6 +293,7 @@ test("flash test shares the catalog or the exact assessment entry without person
 
 test("assessment card opens subject choice in a modal without intermediate stages", () => {
   const definition = loadFlashPageDefinition();
+  const originalWx = global.wx;
   const context = {
     ...definition,
     data: { ...definition.data },
@@ -294,27 +301,33 @@ test("assessment card opens subject choice in a modal without intermediate stage
       this.data = { ...this.data, ...payload };
     }
   };
+  global.wx = { getStorageSync() { return ""; } };
+  try {
+    definition.openAssessment.call(context, { currentTarget: { dataset: { id: "eight-talents" } } });
+    assert.equal(context.data.stage, "catalog");
+    assert.equal(context.data.selectedTestTitle, "八大能力");
+    assert.equal(context.data.subjectModalOpen, true);
+    assert.equal(definition.startSelectedAssessment, undefined);
 
-  definition.openAssessment.call(context, { currentTarget: { dataset: { id: "eight-talents" } } });
-  assert.equal(context.data.stage, "catalog");
-  assert.equal(context.data.selectedTestTitle, "八大能力");
-  assert.equal(context.data.subjectModalOpen, true);
-  assert.equal(definition.startSelectedAssessment, undefined);
+    definition.closeSubjectModal.call(context);
+    assert.equal(context.data.subjectModalOpen, false);
+    assert.equal(context.data.stage, "catalog");
 
-  definition.closeSubjectModal.call(context);
-  assert.equal(context.data.subjectModalOpen, false);
-  assert.equal(context.data.stage, "catalog");
+    context.data = { ...context.data, stage: "questions", dimensionIndex: 0, currentQuestionIndex: 0 };
+    definition.previousQuestion.call(context);
+    assert.equal(context.data.stage, "questions");
+    assert.equal(context.data.subjectModalOpen, false);
 
-  context.data = { ...context.data, stage: "questions", dimensionIndex: 0, currentQuestionIndex: 0 };
-  definition.previousQuestion.call(context);
-  assert.equal(context.data.stage, "catalog");
-  assert.equal(context.data.subjectModalOpen, true);
-
-  context.answers = Array(40).fill(4);
-  definition.restartAssessment.call(context);
-  assert.equal(context.data.stage, "catalog");
-  assert.equal(context.data.subjectModalOpen, true);
-  assert.equal(context.answers.every((answer) => answer === null), true);
+    context.answers = Array(40).fill(4);
+    context.data.mode = "";
+    return definition.restartAssessment.call(context).then(() => {
+      assert.equal(context.data.stage, "catalog");
+      assert.equal(context.data.subjectModalOpen, true);
+      assert.equal(context.answers.every((answer) => answer === null), true);
+    });
+  } finally {
+    global.wx = originalWx;
+  }
 });
 
 test("flash test requires phone login before entering questions and resumes the chosen mode", async () => {
@@ -371,6 +384,7 @@ test("completed flash test persists all answers to the current user's result his
   const definition = loadFlashPageDefinition();
   const originalWx = global.wx;
   let requestOptions = null;
+  let completeRequest = null;
   const context = {
     ...definition,
     data: { ...definition.data, mode: "child", selectedChildId: "child-1" },
@@ -527,9 +541,8 @@ test("explicit retest starts a fresh assessment instead of reopening saved histo
       }
     };
 
-    definition.restartAssessment.call(context);
-    assert.equal(context.forceNewAssessment, true);
-    await definition.chooseMode.call(context, { currentTarget: { dataset: { mode: "self" } } });
+    await definition.restartAssessment.call(context);
+    assert.equal(context.forceNewAssessment, false);
     assert.equal(context.startedMode, "self");
     assert.equal(requestCount, 0);
   } finally {
@@ -639,9 +652,113 @@ test("young child warning applies only below primary grade three", () => {
   assert.equal(definition.shouldWarnForYoungChild({ grade: "小学四年级" }), false);
 });
 
-test("character recognition uses the existing child archive and a 30-character binary flow", async () => {
+test("all flash tests restore the last-used self or child subject", async () => {
   const definition = loadFlashPageDefinition();
   const originalWx = global.wx;
+  const storage = new Map([
+    ["xf_token", "jwt-token"],
+    ["xf_flash_test_last_mode_v1", "self"],
+    ["xiaowanzi_last_child_id_v1", "child-2"]
+  ]);
+  const children = [
+    { id: "child-1", name: "小圆子" },
+    { id: "child-2", name: "小豆子" }
+  ];
+  const context = {
+    ...definition,
+    data: { ...definition.data },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    },
+    loadChildChoices() {
+      return children;
+    },
+    openSavedResultOrStart(mode, child) {
+      this.openedSubject = { mode, child: child || null };
+      return Promise.resolve(true);
+    }
+  };
+
+  try {
+    global.wx = {
+      getStorageSync(key) {
+        return storage.get(key) || "";
+      }
+    };
+    await definition.openAssessment.call(context, { currentTarget: { dataset: { id: "eight-talents" } } });
+    assert.deepEqual(context.openedSubject, { mode: "self", child: null });
+    assert.equal(context.data.subjectModalOpen, false);
+
+    storage.set("xf_flash_test_last_mode_v1", "child");
+    await definition.openAssessment.call(context, { currentTarget: { dataset: { id: "eight-talents" } } });
+    assert.deepEqual(context.openedSubject, { mode: "child", child: children[1] });
+    assert.equal(context.data.subjectModalOpen, false);
+
+    context.data = { ...context.data, stage: "questions", selectedTestChildOnly: false };
+    definition.reselectAssessmentSubject.call(context);
+    assert.equal(context.data.stage, "catalog");
+    assert.equal(context.data.subjectModalOpen, true);
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
+test("character recognition opens the last-used child directly and keeps reselect explicit", async () => {
+  const definition = loadFlashPageDefinition();
+  const originalWx = global.wx;
+  const storage = new Map([
+    ["xf_token", "jwt-token"],
+    ["xiaowanzi_last_child_id_v1", "child-2"]
+  ]);
+  const children = [
+    { id: "child-1", name: "小圆子" },
+    { id: "child-2", name: "小豆子" }
+  ];
+  const context = {
+    ...definition,
+    data: { ...definition.data },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    },
+    loadChildChoices() {
+      return children;
+    },
+    openSavedResultOrStart(mode, child) {
+      this.openedSubject = { mode, child };
+      return Promise.resolve(true);
+    },
+    prepareChildAssessment() {
+      this.archiveOpened = true;
+    },
+    saveActiveRecognitionProgress() {
+      this.progressSaved = true;
+    }
+  };
+
+  try {
+    global.wx = {
+      getStorageSync(key) {
+        return storage.get(key) || "";
+      }
+    };
+    await definition.openAssessment.call(context, { currentTarget: { dataset: { id: "character-recognition" } } });
+    assert.equal(context.data.subjectModalOpen, false);
+    assert.deepEqual(context.openedSubject, { mode: "child", child: children[1] });
+    assert.equal(context.archiveOpened, undefined);
+
+    context.data.stage = "recognition";
+    definition.reselectAssessmentSubject.call(context);
+    assert.equal(context.progressSaved, true);
+    assert.equal(context.archiveOpened, true);
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
+test("character recognition reuses the child archive and resumes a 40-page exact checklist", async () => {
+  const definition = loadFlashPageDefinition();
+  const originalWx = global.wx;
+  const storage = new Map([["xf_token", "jwt-token"]]);
   const context = {
     ...definition,
     data: { ...definition.data },
@@ -656,9 +773,14 @@ test("character recognition uses the existing child archive and a 30-character b
   try {
     global.wx = {
       getStorageSync(key) {
-        return key === "xf_token" ? "jwt-token" : "";
+        return storage.get(key) || "";
       },
-      setStorageSync() {}
+      setStorageSync(key, value) {
+        storage.set(key, value);
+      },
+      removeStorageSync(key) {
+        storage.delete(key);
+      }
     };
     definition.openAssessment.call(context, { currentTarget: { dataset: { id: "character-recognition" } } });
     assert.equal(context.data.selectedTestTitle, "识字量");
@@ -668,58 +790,309 @@ test("character recognition uses the existing child archive and a 30-character b
 
     definition.startAssessment.call(context, "child", { id: "child-1", name: "小读者" });
     assert.equal(context.data.stage, "recognition");
-    assert.equal(context.recognitionSample.length, 30);
-    assert.equal(new Set(context.recognitionSample).size, 30);
-    assert.equal(context.data.recognitionCharacter, context.recognitionSample[0]);
-    assert.equal(context.answers.length, 30);
+    assert.deepEqual(context.recognitionSample, BASE_CHARACTER_BANK);
+    assert.equal(context.data.recognitionPageCharacters.length, 20);
+    assert.equal(context.data.recognitionPageCount, 40);
+    assert.equal(context.answers.length, 800);
     assert.equal(context.data.mode, "child");
 
-    const firstSample = context.recognitionSample.slice();
-    context.recognitionTestedCharacters = firstSample.slice();
+    definition.openRecognitionCharacterFocus.call(context, { currentTarget: { dataset: { index: 0 } } });
+    assert.equal(context.data.recognitionFocusOpen, true);
+    assert.equal(context.data.recognitionFocusCharacter, CHARACTER_BANK[0]);
+    assert.equal(context.answers[0], null);
+    definition.markFocusedRecognitionCharacter.call(context, { currentTarget: { dataset: { answer: 0 } } });
+    assert.equal(context.data.recognitionFocusOpen, false);
+    assert.equal(context.answers[0], 0);
+    assert.equal(storage.get("xf_character_recognition_progress_v1_child-1").answers[0], 0);
+    definition.confirmRecognitionPage.call(context);
+    assert.equal(context.answers[0], 0);
+    assert.ok(context.answers.slice(1, 20).every((answer) => answer === 1));
+    assert.equal(context.data.recognitionPageNumber, 2);
+    assert.equal(storage.get("xf_character_recognition_progress_v1_child-1").pageIndex, 1);
+    definition.goBack.call(context);
+    assert.equal(context.data.recognitionExitOpen, true);
+    assert.equal(context.data.recognitionPageNumber, 2);
+    definition.continueRecognitionAssessmentFromExit.call(context);
+    assert.equal(context.data.recognitionExitOpen, false);
+    definition.goBack.call(context);
+    definition.saveRecognitionAndExit.call(context);
+    assert.equal(context.data.stage, "catalog");
+    assert.equal(context.data.recognitionExitOpen, false);
+    assert.equal(storage.get("xf_character_recognition_progress_v1_child-1").pageIndex, 1);
+    definition.startAssessment.call(context, "child", { id: "child-1", name: "小读者" });
+    assert.equal(context.data.recognitionPageNumber, 2);
+    definition.previousRecognitionPage.call(context);
+    assert.equal(context.data.recognitionPageNumber, 1);
+
     context.data = {
       ...context.data,
       stage: "result",
       resultType: "recognition",
       resultSaveState: "saved",
+      recognitionSummary: {
+        recognizedCount: 782,
+        sampledCount: 800
+      },
       selectedChildId: "child-1",
       selectedChildName: "小读者",
       subjectModalOpen: false
     };
+    context.answers = [...Array(782).fill(1), ...Array(18).fill(0)];
+    context.recognitionSample = BASE_CHARACTER_BANK.slice();
     definition.continueRecognitionAssessment.call(context);
     assert.equal(context.data.selectedChildId, "child-1");
     assert.equal(context.data.selectedChildName, "小读者");
     assert.equal(context.data.subjectModalOpen, false);
     assert.equal(context.data.stage, "recognition");
-    assert.notDeepEqual(context.recognitionSample, firstSample);
-    assert.ok(context.recognitionSample.every((character) => !firstSample.includes(character)));
-    assert.equal(context.data.recognitionCharacter, context.recognitionSample[0]);
+    assert.equal(context.data.recognitionPageNumber, 41);
+    assert.equal(context.data.recognitionGroupNumber, 2);
+    assert.equal(context.data.recognitionGroupPageNumber, 1);
+    assert.equal(context.answers.length, 1600);
+    assert.ok(context.answers.slice(0, 800).every((answer) => answer === 0 || answer === 1));
+    assert.ok(context.answers.slice(800).every((answer) => answer === null));
+    assert.equal(context.data.recognitionIsAdvanced, true);
+    assert.equal(storage.has("xf_character_recognition_progress_v1_child-1"), true);
+    definition.previousRecognitionPage.call(context);
+    assert.equal(context.data.recognitionPageNumber, 41);
   } finally {
     global.wx = originalWx;
   }
 });
 
-test("character recognition explains the limits of its 30-character sample", () => {
+test("character recognition presents large multi-character selection and an exact 800-character result", () => {
+  const source = fs.readFileSync(path.join(currentDirectory, "index.js"), "utf8");
   const template = fs.readFileSync(path.join(currentDirectory, "index.wxml"), "utf8");
   const styles = fs.readFileSync(path.join(currentDirectory, "index.wxss"), "utf8");
 
-  assert.match(template, /30 字分层样本表现/);
-  assert.match(template, /xf-flash-recognition-summary-meta">辅助参考区间/);
-  assert.match(template, /xf-flash-recognition-summary-estimate-value">约 \{\{recognitionSummary\.estimateLabel\}\} 个/);
-  assert.match(template, /cumulativeRecognizedCount >= 5/);
-  assert.match(template, /样本不足，暂不估算识字数量/);
-  assert.match(template, /覆盖 \{\{recognitionSummary\.cumulativeSampledCount\}\} 个不同样本字/);
-  assert.match(template, /不同样本越多，估算通常越稳定/);
-  assert.match(template, /不是实际测得的识字总量/);
-  assert.match(template, /为什么多测几次会更稳定？/);
-  assert.match(template, /继续测试，让估算更稳定/);
+  assert.match(template, /点字放大后判断/);
+  assert.match(template, /wx:for="\{\{recognitionPageCharacters\}\}"/);
+  assert.match(template, /bindtap="openRecognitionCharacterFocus"/);
+  assert.match(template, /这个字认识吗？/);
+  assert.match(template, /标记为不认识/);
+  assert.match(template, /bindtap="markFocusedRecognitionCharacter"/);
+  assert.match(template, /第 \{\{recognitionGroupNumber\}\} 组/);
+  assert.match(template, /本组第 \{\{recognitionGroupPageNumber\}\} \/ \{\{recognitionGroupPageCount\}\} 页/);
+  assert.match(template, /点字不会直接改变结果/);
+  assert.match(template, /要先保存，下次继续吗？/);
+  assert.match(template, /保存进度并退出/);
+  assert.match(template, /catchtap="saveRecognitionAndExit"/);
+  assert.match(styles, /\.xf-flash-recognition-exit-mask\s*\{[^}]*position:\s*fixed[^}]*inset:\s*0/s);
+  assert.match(template, /首批 800 字已逐字筛选完成/);
+  assert.match(template, /\{\{selectedChildName\}\}认识的字/);
+  assert.doesNotMatch(template, /\{\{selectedChildName\}\}会和不会的字/);
+  assert.match(template, /这是\{\{recognitionIsAdvanced \? '累计 1600 字' : '首批 800 字'\}\}的逐字筛选结果/);
   assert.match(template, /bindtap="continueRecognitionAssessment"/);
-  assert.match(template, /disabled="\{\{resultSaveState !== 'saved'\}\}"/);
-  assert.match(template, /再次测试会优先出现未测过的字/);
-  assert.match(styles, /\.xf-flash-recognition-character\s*\{[^}]*font-size:\s*520rpx;/s);
-  assert.match(styles, /\.xf-flash-recognition-summary-meta\s*\{[^}]*font-size:\s*19rpx;[^}]*font-weight:\s*600;/s);
-  assert.match(styles, /\.xf-flash-recognition-summary-estimate-value\s*\{[^}]*color:\s*#6c27d6;[^}]*font-size:\s*32rpx;[^}]*font-weight:\s*900;/s);
-  assert.match(styles, /\.xf-flash-recognition-summary-caveat\s*\{[^}]*font-size:\s*17rpx;[^}]*font-weight:\s*600;/s);
-  assert.doesNotMatch(template, /本次估算约 \{\{recognitionSummary\.estimateLabel\}\} 个常用汉字/);
+  assert.match(template, /达到 720 \/ 800（90%）后开放第 2 组/);
+  assert.match(template, /进入第 2 组 800 字/);
+  assert.match(template, /class="xf-flash-recognition-next-group/);
+  assert.match(template, /wx:if="\{\{resultType === 'recognition' && !recognitionIsAdvanced\}\}" class="xf-flash-recognition-next-group/);
+  assert.match(template, /第 2 组 · 后 800 字/);
+  assert.match(template, /还差 \{\{recognitionAdvanceThreshold - recognitionSummary\.recognizedCount\}\} 个字/);
+  assert.match(template, /保存失败：\{\{resultSaveMessage\}\}/);
+  assert.match(template, /重新保存并开放第 2 组/);
+  assert.match(template, /进入第 2 组 800 字' : '重新检查第 1 组'/);
+  assert.ok(
+    template.indexOf("xf-flash-recognition-next-group") > template.indexOf("xf-flash-save-status"),
+    "second-group entry should be placed in the bottom action area"
+  );
+  assert.ok(template.indexOf("xf-flash-recognition-next-group") < template.indexOf("xf-flash-result-note"));
+  assert.match(template, /第 1 组共 800 字，按由易到难分成 40 页/);
+  assert.doesNotMatch(template, /分成 40 组/);
+  assert.match(template, />上一页<\/button>/);
+  assert.match(template, /确认本页，下一页/);
+  assert.match(template, />测评结果<\/text>/);
+  assert.match(styles, /\.xf-flash-recognition-list-entry\s*\{[^}]*justify-content:\s*center[^}]*width:\s*fit-content[^}]*margin:\s*20rpx auto 0[^}]*background:\s*transparent/s);
+  assert.match(styles, /\.xf-flash-recognition-list-entry text \+ text\s*\{[^}]*margin-left:\s*6rpx/s);
+  assert.match(template, /还不认识的字（\{\{recognitionUnknownCharacters\.length\}\}）/);
+  assert.match(template, /认识的字（\{\{recognitionKnownCharacters\.length\}\}）/);
+  assert.match(template, /recognitionCharacterListTab === 'unknown'/);
+  assert.match(template, /data-tab="unknown"[\s\S]*data-tab="known"/);
+  assert.match(template, /catchtap="switchRecognitionCharacterListTab"/);
+  assert.match(template, /bindtap="openRecognitionCharacterList"/);
+  assert.match(template, /catchtap="closeRecognitionCharacterList"/);
+  assert.match(source, /buildRecognitionCharacterGroups/);
+  assert.match(styles, /\.xf-flash-recognition-grid\s*\{[^}]*grid-template-columns:\s*repeat\(4, 1fr\)/s);
+  assert.match(styles, /\.xf-flash-recognition-tile\s*\{[^}]*height:\s*118rpx[^}]*font-size:\s*62rpx/s);
+  assert.match(styles, /\.xf-flash-recognition-tile\.is-unknown\s*\{/);
+  assert.match(styles, /\.xf-flash-recognition-focus-character\s*\{[^}]*font-size:\s*320rpx/s);
+  assert.doesNotMatch(template, /辅助参考区间|估算约/);
+});
+
+test("character recognition keeps advanced locked below 720 known base characters", () => {
+  const definition = loadFlashPageDefinition();
+  const context = {
+    ...definition,
+    data: {
+      ...definition.data,
+      stage: "result",
+      resultType: "recognition",
+      resultSaveState: "saved",
+      selectedChildId: "child-locked",
+      selectedChildName: "小读者",
+      recognitionIsAdvanced: false,
+      recognitionCanAdvance: false
+    },
+    answers: [...Array(719).fill(1), ...Array(81).fill(0)],
+    recognitionSample: BASE_CHARACTER_BANK.slice(),
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    },
+    clearRecognitionProgress() {
+      this.progressCleared = true;
+    },
+    startAssessment(mode, child) {
+      this.restarted = { mode, child };
+    }
+  };
+
+  definition.continueRecognitionAssessment.call(context);
+
+  assert.equal(context.progressCleared, true);
+  assert.deepEqual(context.restarted, { mode: "child", child: { id: "child-locked", name: "小读者" } });
+  assert.equal(context.answers.length, 800);
+  assert.ok(context.answers.every((answer) => answer === null));
+});
+
+test("advanced character recognition resumes the saved page for the same child", () => {
+  const definition = loadFlashPageDefinition();
+  const originalWx = global.wx;
+  const advancedAnswers = [...Array(900).fill(1), ...Array(700).fill(null)];
+  const storage = new Map([[
+    "xf_character_recognition_progress_v1_child-advanced",
+    { version: "2026-08-13-r2", pageIndex: 45, answers: advancedAnswers }
+  ]]);
+  const context = {
+    ...definition,
+    data: {
+      ...definition.data,
+      stage: "result",
+      resultType: "recognition",
+      resultSaveState: "saved",
+      selectedChildId: "child-advanced",
+      selectedChildName: "小读者",
+      recognitionIsAdvanced: false
+    },
+    answers: Array(800).fill(1),
+    recognitionSample: BASE_CHARACTER_BANK.slice(),
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+
+  try {
+    global.wx = {
+      getStorageSync(key) {
+        return storage.get(key) || "";
+      }
+    };
+    definition.continueRecognitionAssessment.call(context);
+    assert.equal(context.data.stage, "recognition");
+    assert.equal(context.data.recognitionPageNumber, 46);
+    assert.equal(context.data.recognitionIsAdvanced, true);
+    assert.deepEqual(context.answers, advancedAnswers);
+    assert.deepEqual(context.recognitionSample, CHARACTER_BANK);
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
+test("character recognition presents verifiable design sources without implying official certification", () => {
+  const definition = loadFlashPageDefinition();
+  const source = fs.readFileSync(path.join(currentDirectory, "index.js"), "utf8");
+  const template = fs.readFileSync(path.join(currentDirectory, "index.wxml"), "utf8");
+  const styles = fs.readFileSync(path.join(currentDirectory, "index.wxss"), "utf8");
+  const copied = [];
+  const originalWx = global.wx;
+  const context = {
+    ...definition,
+    data: { ...definition.data, selectedTestId: "character-recognition" },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+
+  try {
+    global.wx = {
+      setClipboardData(options) {
+        copied.push(options.data);
+      }
+    };
+    assert.equal(context.data.recognitionSources.length, 8);
+    assert.match(source, /统编小学语文教材识字写字内容的修订思路/);
+    assert.match(source, /义务教育语文课程标准（2022年版）/);
+    assert.match(source, /3—6岁儿童学习与发展指南/);
+    assert.match(source, /通用规范汉字表/);
+    assert.match(source, /2024 统编语文一年级上册识字表/);
+    assert.match(source, /2024 统编语文一年级下册识字表/);
+    assert.match(source, /2025 统编语文二年级上册识字表/);
+    assert.match(source, /2024 统编语文二年级下册识字表/);
+    assert.match(template, /设计依据与可核对来源/);
+    assert.match(template, /识字工具设计参考/);
+    assert.match(template, /不代表官方对本测试的认证/);
+    assert.match(template, /不代表本工具的 800 或 1600 个具体字是官方统一字表/);
+    assert.match(template, /非官方校对页/);
+    assert.match(template, /catchtap="copyRecognitionSource"/);
+    assert.match(styles, /\.xf-flash-source-summary\s*\{/);
+    assert.match(styles, /\.xf-flash-source-disclaimer\s*\{/);
+    assert.match(styles, /\.xf-flash-source-dialog\s*\{[^}]*display:\s*flex[^}]*height:\s*84vh[^}]*overflow:\s*hidden/s);
+    assert.match(styles, /\.xf-flash-source-scroll\s*\{[^}]*flex:\s*1 1 auto[^}]*min-height:\s*0[^}]*height:\s*0[^}]*max-height:\s*none/s);
+
+    definition.openRecognitionSources.call(context);
+    assert.equal(context.data.recognitionSourcesOpen, true);
+    definition.copyRecognitionSource.call(context, { currentTarget: { dataset: { id: "curriculum-standard" } } });
+    assert.deepEqual(copied, ["https://www.moe.gov.cn/srcsite/A26/s8001/202204/t20220420_619921.html"]);
+    definition.closeRecognitionSources.call(context);
+    assert.equal(context.data.recognitionSourcesOpen, false);
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
+test("character recognition restores and opens all known and unknown characters", () => {
+  const definition = loadFlashPageDefinition();
+  const sampleCharacters = BASE_CHARACTER_BANK.slice();
+  const answers = [...Array(512).fill(1), ...Array(288).fill(0)];
+  const context = {
+    ...definition,
+    data: { ...definition.data },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+
+  definition.showSavedResult.call(context, {
+    id: "recognition-saved",
+    assessmentId: "character-recognition",
+    mode: "child",
+    childId: "child-1",
+    childName: "小读者",
+    answers,
+    sampleCharacters,
+    recognitionSummary: {
+      recognizedCount: 512,
+      sampledCount: 800,
+      cumulativeRecognizedCount: 512,
+      cumulativeSampledCount: 800,
+      completedRounds: 1,
+      estimatedMin: 512,
+      estimatedMax: 512,
+      estimateLabel: "512",
+      reference: "首批 800 字逐字筛选结果"
+    }
+  });
+
+  assert.deepEqual(context.data.recognitionKnownCharacters, sampleCharacters.slice(0, 512));
+  assert.deepEqual(context.data.recognitionUnknownCharacters, sampleCharacters.slice(512));
+  definition.openRecognitionCharacterList.call(context);
+  assert.equal(context.data.recognitionCharacterListOpen, true);
+  assert.equal(context.data.recognitionCharacterListTab, "unknown");
+  definition.switchRecognitionCharacterListTab.call(context, { currentTarget: { dataset: { tab: "known" } } });
+  assert.equal(context.data.recognitionCharacterListTab, "known");
+  definition.closeRecognitionCharacterList.call(context);
+  definition.openRecognitionCharacterList.call(context);
+  assert.equal(context.data.recognitionCharacterListTab, "unknown");
+  definition.closeRecognitionCharacterList.call(context);
+  assert.equal(context.data.recognitionCharacterListOpen, false);
 });
 
 test("character recognition can start before its history endpoint is released", async () => {
@@ -745,10 +1118,11 @@ test("character recognition can start before its history endpoint is released", 
   assert.deepEqual(context.started, { mode: "child", child });
 });
 
-test("character recognition advances, supports back, and submits server-scored answers", async () => {
+test("character recognition submits the exact bank and clears progress only after saving", async () => {
   const definition = loadFlashPageDefinition();
   const originalWx = global.wx;
   let requestOptions = null;
+  let completeRequest = null;
   const context = {
     ...definition,
     data: {
@@ -759,41 +1133,44 @@ test("character recognition advances, supports back, and submits server-scored a
       mode: "child",
       selectedChildId: "child-1",
       selectedChildName: "小读者",
-      recognitionIndex: 0
+      recognitionIndex: 39
     },
-    answers: Array(30).fill(null),
-    recognitionSample: [
-      "日", "月", "山", "水", "人",
-      "找", "跟", "秋", "纸", "奶",
-      "洁", "期", "窗", "短", "乘",
-      "鼓", "健", "越", "整", "熟",
-      "慕", "谨", "繁", "览", "颠",
-      "簇", "瞥", "蕴", "辙", "瀑"
-    ],
+    answers: [...Array(515).fill(1), ...Array(285).fill(0)],
+    recognitionSample: BASE_CHARACTER_BANK.slice(),
     setData(payload) {
       this.data = { ...this.data, ...payload };
     }
   };
 
   try {
+    let progressCleared = false;
     global.wx = {
       getStorageSync(key) {
         return key === "xf_token" ? "jwt-token" : "";
       },
+      removeStorageSync() {
+        progressCleared = true;
+      },
       request(options) {
         requestOptions = options;
-        options.success({
+        completeRequest = () => options.success({
           statusCode: 201,
           data: {
             result: {
               id: "recognition-1",
+              assessmentVersion: "2026-08-13-r1",
+              answers: context.answers,
+              sampleCharacters: context.recognitionSample,
               recognitionSummary: {
-                recognizedCount: 15,
-                sampledCount: 30,
-                estimatedMin: 1000,
-                estimatedMax: 2000,
-                estimateLabel: "1000–2000",
-                reference: "正在接近第一学段常用字目标"
+                recognizedCount: 515,
+                sampledCount: 800,
+                cumulativeRecognizedCount: 515,
+                cumulativeSampledCount: 800,
+                completedRounds: 1,
+                estimatedMin: 515,
+                estimatedMax: 515,
+                estimateLabel: "515",
+                reference: "首批 800 字逐字筛选结果"
               }
             }
           }
@@ -801,24 +1178,20 @@ test("character recognition advances, supports back, and submits server-scored a
       }
     };
 
-    definition.answerRecognitionCharacter.call(context, { currentTarget: { dataset: { value: 1 } } });
-    assert.equal(context.answers[0], 1);
-    assert.equal(context.data.recognitionIndex, 1);
-    assert.equal(context.data.recognitionCharacter, "月");
-    definition.previousRecognitionCharacter.call(context);
-    assert.equal(context.data.recognitionIndex, 0);
-    assert.equal(context.data.recognitionCharacter, "日");
-
-    context.answers = [...Array(15).fill(1), ...Array(15).fill(0)];
-    await definition.finishCharacterRecognition.call(context);
+    definition.finishCharacterRecognition.call(context);
+    assert.equal(progressCleared, false);
+    completeRequest();
     await context._resultSavePromise;
     assert.equal(requestOptions.data.assessmentId, "character-recognition");
-    assert.equal(requestOptions.data.assessmentVersion, "2026-08-12-r4");
+    assert.equal(requestOptions.data.assessmentVersion, "2026-08-13-r1");
     assert.equal(requestOptions.data.mode, "child");
-    assert.equal(requestOptions.data.answers.length, 30);
+    assert.equal(requestOptions.data.answers.length, 800);
     assert.deepEqual(requestOptions.data.sampleCharacters, context.recognitionSample);
     assert.equal(context.data.resultType, "recognition");
     assert.equal(context.data.resultSaveState, "saved");
+    assert.equal(progressCleared, true);
+    assert.deepEqual(context.data.recognitionKnownCharacters, context.recognitionSample.slice(0, 515));
+    assert.deepEqual(context.data.recognitionUnknownCharacters, context.recognitionSample.slice(515));
   } finally {
     global.wx = originalWx;
   }

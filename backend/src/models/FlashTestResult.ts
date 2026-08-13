@@ -49,13 +49,13 @@ const dimensionScoreSchema = new mongoose.Schema(
 
 const recognitionSummarySchema = new mongoose.Schema(
   {
-    recognizedCount: { type: Number, required: true, min: 0, max: 30 },
-    sampledCount: { type: Number, required: true, enum: [30] },
-    cumulativeRecognizedCount: { type: Number, required: true, min: 0, max: 90 },
-    cumulativeSampledCount: { type: Number, required: true, min: 30, max: 90 },
+    recognizedCount: { type: Number, required: true, min: 0, max: 1600 },
+    sampledCount: { type: Number, required: true, enum: [800, 1600] },
+    cumulativeRecognizedCount: { type: Number, required: true, min: 0, max: 1600 },
+    cumulativeSampledCount: { type: Number, required: true, enum: [800, 1600] },
     completedRounds: { type: Number, required: true, min: 1 },
-    estimatedMin: { type: Number, required: true, min: 0, max: 3000 },
-    estimatedMax: { type: Number, required: true, min: 0, max: 3000 },
+    estimatedMin: { type: Number, required: true, min: 0, max: 1600 },
+    estimatedMax: { type: Number, required: true, min: 0, max: 1600 },
     estimateLabel: { type: String, required: true },
     reference: { type: String, required: true },
   },
@@ -78,7 +78,7 @@ const flashTestResultSchema = new mongoose.Schema(
           return Array.isArray(values)
             && (
               (values.length === 40 && values.every((value) => Number.isInteger(value) && value >= 1 && value <= 5))
-              || (values.length === 30 && values.every((value) => value === 0 || value === 1))
+              || ([800, 1600].includes(values.length) && values.every((value) => value === 0 || value === 1))
             );
         },
         message: "answers do not match a supported flash test",

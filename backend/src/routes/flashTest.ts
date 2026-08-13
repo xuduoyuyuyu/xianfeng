@@ -2,20 +2,15 @@ import { Router, Response } from "express";
 import FlashTestResult, { FlashTestDimensionScore, FlashTestRecognitionSummary } from "../models/FlashTestResult";
 import UserXiaowanziSync from "../models/UserXiaowanziSync";
 import { authenticate, AuthenticatedRequest } from "../middlewares/auth";
+import { CHARACTER_RECOGNITION_BANK } from "./characterRecognitionBank";
 
 const router = Router();
 
 export const EIGHT_TALENTS_VERSION = "2026-08-11";
-export const CHARACTER_RECOGNITION_VERSION = "2026-08-12-r4";
+export const BASE_CHARACTER_RECOGNITION_VERSION = "2026-08-13-r1";
+export const CHARACTER_RECOGNITION_VERSION = "2026-08-13-r2";
+export const ADVANCED_RECOGNITION_UNLOCK_COUNT = 720;
 const SUPPORTED_ASSESSMENT_IDS = ["eight-talents", "character-recognition"] as const;
-const CHARACTER_BANDS = [
-  ["日", "月", "山", "水", "人", "口", "手", "大", "小", "天", "火", "木", "田", "土", "中"],
-  ["找", "跟", "秋", "纸", "奶", "家", "学", "花", "雨", "车", "门", "看", "吃", "玩", "书"],
-  ["洁", "期", "窗", "短", "乘", "教", "级", "课", "读", "写", "朋", "海", "星", "画", "跑"],
-  ["鼓", "健", "越", "整", "熟", "旅", "醒", "赛", "温", "轻", "影", "感", "助", "部", "题"],
-  ["慕", "谨", "繁", "览", "颠", "默", "察", "解", "尊", "境", "需", "续", "责", "聚", "辨"],
-  ["簇", "瞥", "蕴", "辙", "瀑", "骤", "疆", "耀", "赢", "藏", "霞", "薄", "嚼", "瓣", "鹰"],
-];
 
 const DIMENSIONS = [
   { code: "M", name: "记忆" },
@@ -43,51 +38,34 @@ export function normalizeAnswers(value: unknown): number[] | null {
 }
 
 export function normalizeCharacterRecognitionAnswers(value: unknown): number[] | null {
-  if (!Array.isArray(value) || value.length !== 30) return null;
+  if (!Array.isArray(value) || ![800, CHARACTER_RECOGNITION_BANK.length].includes(value.length)) return null;
   const answers = value.map(Number);
   if (answers.some((answer) => answer !== 0 && answer !== 1)) return null;
   return answers;
 }
 
 export function normalizeCharacterRecognitionSample(value: unknown): string[] | null {
-  if (!Array.isArray(value) || value.length !== 30) return null;
+  if (!Array.isArray(value) || ![800, CHARACTER_RECOGNITION_BANK.length].includes(value.length)) return null;
   const characters = value.map((character) => String(character || ""));
-  if (new Set(characters).size !== 30) return null;
-  const validBands = CHARACTER_BANDS.every((band, bandIndex) => (
-    characters.slice(bandIndex * 5, bandIndex * 5 + 5).every((character) => band.includes(character))
-  ));
-  return validBands ? characters : null;
+  const matchesBank = characters.every((character, index) => character === CHARACTER_RECOGNITION_BANK[index]);
+  return matchesBank ? characters : null;
 }
 
 export function scoreCharacterRecognition(
-  answers: number[],
-  cumulativeAnswers: number[] = answers,
-  completedRounds = 1
+  answers: number[]
 ): FlashTestRecognitionSummary {
   const recognizedCount = answers.reduce((sum, answer) => sum + answer, 0);
-  const cumulativeRecognizedCount = cumulativeAnswers.reduce((sum, answer) => sum + answer, 0);
-  const cumulativeSampledCount = cumulativeAnswers.length;
-  const estimate = Math.round((cumulativeRecognizedCount / cumulativeSampledCount) * 3000 / 50) * 50;
-  const halfWidth = Math.max(50, Math.round((150 * 30 / cumulativeSampledCount) / 50) * 50);
-  const estimatedMin = Math.max(0, estimate - halfWidth);
-  const estimatedMax = Math.min(3000, estimate + halfWidth);
-  const estimateLabel = cumulativeRecognizedCount / cumulativeSampledCount >= 28 / 30
-    ? `${estimatedMin}–3000+`
-    : `${estimatedMin}–${estimatedMax}`;
-  let reference = "仍在积累高频生活用字";
-  if (estimate >= 2500) reference = "达到第二学段累计识字量参考目标";
-  else if (estimate >= 1600) reference = "达到第一学段累计识字量参考目标";
-  else if (estimate >= 750) reference = "正在积累第一学段常用字";
+  const sampledCount = answers.length;
   return {
     recognizedCount,
-    sampledCount: 30,
-    cumulativeRecognizedCount,
-    cumulativeSampledCount,
-    completedRounds,
-    estimatedMin,
-    estimatedMax,
-    estimateLabel,
-    reference,
+    sampledCount,
+    cumulativeRecognizedCount: recognizedCount,
+    cumulativeSampledCount: sampledCount,
+    completedRounds: sampledCount === CHARACTER_RECOGNITION_BANK.length ? 2 : 1,
+    estimatedMin: recognizedCount,
+    estimatedMax: recognizedCount,
+    estimateLabel: String(recognizedCount),
+    reference: sampledCount === 800 ? "首批 800 字逐字筛选结果" : "累计 1600 字逐字筛选结果",
   };
 }
 
@@ -113,6 +91,7 @@ function serializeResult(result: any) {
     childName: result.childName || "",
     scores: result.scores,
     recognitionSummary: result.recognitionSummary,
+    answers: result.assessmentId === "character-recognition" ? result.answers : undefined,
     sampleCharacters: result.assessmentId === "character-recognition" ? result.sampleCharacters : undefined,
     completedAt: result.completedAt,
   };
@@ -137,7 +116,9 @@ router.post("/results", authenticate, async (req: AuthenticatedRequest, res: Res
       return;
     }
     const expectedVersion = assessmentId === "character-recognition"
-      ? CHARACTER_RECOGNITION_VERSION
+      ? (Array.isArray(answers) && answers.length === 800
+        ? BASE_CHARACTER_RECOGNITION_VERSION
+        : CHARACTER_RECOGNITION_VERSION)
       : EIGHT_TALENTS_VERSION;
     if (assessmentVersion !== expectedVersion) {
       res.status(400).json({ message: "测试题目版本已更新，请重新开始" });
@@ -148,7 +129,7 @@ router.post("/results", authenticate, async (req: AuthenticatedRequest, res: Res
       return;
     }
     if (!answers) {
-      res.status(400).json({ message: assessmentId === "character-recognition" ? "请完成全部 30 个字" : "请完成全部 40 道题" });
+      res.status(400).json({ message: assessmentId === "character-recognition" ? "请完成首组 800 字或累计 1600 字" : "请完成全部 40 道题" });
       return;
     }
     if (assessmentId === "character-recognition" && !sampleCharacters) {
@@ -157,6 +138,12 @@ router.post("/results", authenticate, async (req: AuthenticatedRequest, res: Res
     }
     if (assessmentId === "character-recognition" && mode !== "child") {
       res.status(400).json({ message: "识字量测试需要选择孩子档案" });
+      return;
+    }
+    if (assessmentId === "character-recognition"
+      && answers.length === CHARACTER_RECOGNITION_BANK.length
+      && answers.slice(0, 800).reduce((sum, answer) => sum + answer, 0) < ADVANCED_RECOGNITION_UNLOCK_COUNT) {
+      res.status(400).json({ message: `首组需认识至少 ${ADVANCED_RECOGNITION_UNLOCK_COUNT} / 800 个字，才能提交第 2 组结果` });
       return;
     }
 
@@ -177,26 +164,7 @@ router.post("/results", authenticate, async (req: AuthenticatedRequest, res: Res
 
     let recognitionSummary: FlashTestRecognitionSummary | undefined;
     if (assessmentId === "character-recognition") {
-      const previousResults = await FlashTestResult.find({
-        userId,
-        assessmentId,
-        mode: "child",
-        childId,
-      }).select("answers sampleCharacters").sort({ completedAt: 1, _id: 1 }).lean();
-      const observations = new Map<string, number>();
-      previousResults.forEach((previous) => {
-        previous.sampleCharacters.forEach((character, index) => {
-          observations.set(character, previous.answers[index]);
-        });
-      });
-      sampleCharacters!.forEach((character, index) => {
-        observations.set(character, answers[index]);
-      });
-      recognitionSummary = scoreCharacterRecognition(
-        answers,
-        [...observations.values()],
-        previousResults.length + 1
-      );
+      recognitionSummary = scoreCharacterRecognition(answers);
     }
 
     const result = await FlashTestResult.create({

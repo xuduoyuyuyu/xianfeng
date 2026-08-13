@@ -1,99 +1,106 @@
-const CHARACTER_RECOGNITION_VERSION = "2026-08-12-r4";
-const CHARACTERS_PER_BAND = 5;
-const CHARACTER_BANDS = [
-  ["日", "月", "山", "水", "人", "口", "手", "大", "小", "天", "火", "木", "田", "土", "中"],
-  ["找", "跟", "秋", "纸", "奶", "家", "学", "花", "雨", "车", "门", "看", "吃", "玩", "书"],
-  ["洁", "期", "窗", "短", "乘", "教", "级", "课", "读", "写", "朋", "海", "星", "画", "跑"],
-  ["鼓", "健", "越", "整", "熟", "旅", "醒", "赛", "温", "轻", "影", "感", "助", "部", "题"],
-  ["慕", "谨", "繁", "览", "颠", "默", "察", "解", "尊", "境", "需", "续", "责", "聚", "辨"],
-  ["簇", "瞥", "蕴", "辙", "瀑", "骤", "疆", "耀", "赢", "藏", "霞", "薄", "嚼", "瓣", "鹰"]
-];
-const CHARACTER_SAMPLE_SIZE = CHARACTER_BANDS.length * CHARACTERS_PER_BAND;
+const {
+  ADVANCED_CHARACTER_BANK,
+  BASE_CHARACTER_BANK,
+  CHARACTER_BANK,
+  CHARACTER_STAGES
+} = require("./characterRecognitionBank");
 
-function buildCharacterSample(random = Math.random, previousSample = [], testedCharacters = []) {
-  const testedSet = new Set(testedCharacters);
-  const sample = CHARACTER_BANDS.flatMap((band) => {
-    const unseen = band.filter((character) => !testedSet.has(character));
-    const seen = band.filter((character) => testedSet.has(character));
-    const shuffle = (values) => {
-      const shuffled = [...values];
-      for (let index = 0; index < shuffled.length; index += 1) {
-        const swapIndex = index + Math.floor(random() * (shuffled.length - index));
-        [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
-      }
-      return shuffled;
-    };
-    return [...shuffle(unseen), ...shuffle(seen)].slice(0, CHARACTERS_PER_BAND);
-  });
-  if (sample.every((character, index) => character === previousSample[index])) {
-    const replacement = CHARACTER_BANDS[0].find((character) => !sample.slice(0, CHARACTERS_PER_BAND).includes(character));
-    if (replacement) sample[CHARACTERS_PER_BAND - 1] = replacement;
-  }
-  return sample;
+const BASE_CHARACTER_RECOGNITION_VERSION = "2026-08-13-r1";
+const CHARACTER_RECOGNITION_VERSION = "2026-08-13-r2";
+const CHARACTERS_PER_PAGE = 20;
+const BASE_CHARACTER_SAMPLE_SIZE = BASE_CHARACTER_BANK.length;
+const CHARACTER_SAMPLE_SIZE = CHARACTER_BANK.length;
+const CHARACTER_PAGE_COUNT = CHARACTER_SAMPLE_SIZE / CHARACTERS_PER_PAGE;
+const ADVANCED_RECOGNITION_UNLOCK_COUNT = 720;
+
+function canUnlockAdvancedRecognition(recognizedCount) {
+  return Number(recognizedCount) >= ADVANCED_RECOGNITION_UNLOCK_COUNT;
 }
 
-function estimateCharacterRecognition(answers) {
-  if (!Array.isArray(answers) || answers.length !== CHARACTER_SAMPLE_SIZE) {
-    throw new Error(`需要完成全部 ${CHARACTER_SAMPLE_SIZE} 个字`);
+function buildCharacterPage(pageIndex, answers = []) {
+  const sampleSize = answers.length === BASE_CHARACTER_SAMPLE_SIZE
+    ? BASE_CHARACTER_SAMPLE_SIZE
+    : CHARACTER_SAMPLE_SIZE;
+  const pageCount = sampleSize / CHARACTERS_PER_PAGE;
+  const boundedPageIndex = Math.max(0, Math.min(pageCount - 1, Number(pageIndex) || 0));
+  const start = boundedPageIndex * CHARACTERS_PER_PAGE;
+  const stage = CHARACTER_STAGES.find((item) => start >= item.start && start < item.end) || CHARACTER_STAGES[0];
+  return {
+    pageIndex: boundedPageIndex,
+    pageNumber: boundedPageIndex + 1,
+    pageCount,
+    start,
+    end: start + CHARACTERS_PER_PAGE,
+    stage,
+    characters: CHARACTER_BANK.slice(start, start + CHARACTERS_PER_PAGE).map((character, offset) => ({
+      character,
+      index: start + offset,
+      unknown: answers[start + offset] === 0
+    }))
+  };
+}
+
+function buildCharacterRecognitionSummary(answers) {
+  if (!Array.isArray(answers) || ![BASE_CHARACTER_SAMPLE_SIZE, CHARACTER_SAMPLE_SIZE].includes(answers.length)) {
+    throw new Error("需要完成首批 800 字或累计 1600 字");
   }
   if (answers.some((answer) => answer !== 0 && answer !== 1)) {
     throw new Error("每个字都需要标记认识或不认识");
   }
-
   const recognizedCount = answers.reduce((sum, answer) => sum + answer, 0);
-  const estimate = recognizedCount * 100;
-  const estimatedMin = Math.max(0, estimate - 150);
-  const estimatedMax = Math.min(3000, estimate + 150);
-  const estimateLabel = recognizedCount >= 28
-    ? `${estimatedMin}–3000+`
-    : `${estimatedMin}–${estimatedMax}`;
-
-  let reference = "仍在积累高频生活用字";
-  if (estimate >= 2500) reference = "达到第二学段累计识字量参考目标";
-  else if (estimate >= 1600) reference = "达到第一学段累计识字量参考目标";
-  else if (estimate >= 750) reference = "正在积累第一学段常用字";
-
+  const stageResults = CHARACTER_STAGES.filter((stage) => stage.start < answers.length).map((stage) => {
+    const stageAnswers = answers.slice(stage.start, Math.min(stage.end, answers.length));
+    const stageRecognizedCount = stageAnswers.reduce((sum, answer) => sum + answer, 0);
+    return {
+      id: stage.id,
+      label: stage.label,
+      audience: stage.audience,
+      recognizedCount: stageRecognizedCount,
+      totalCount: stageAnswers.length
+    };
+  });
   return {
     recognizedCount,
-    sampledCount: CHARACTER_SAMPLE_SIZE,
+    sampledCount: answers.length,
     cumulativeRecognizedCount: recognizedCount,
-    cumulativeSampledCount: CHARACTER_SAMPLE_SIZE,
-    completedRounds: 1,
-    estimatedMin,
-    estimatedMax,
-    estimateLabel,
-    reference
+    cumulativeSampledCount: answers.length,
+    completedRounds: answers.length === CHARACTER_SAMPLE_SIZE ? 2 : 1,
+    estimatedMin: recognizedCount,
+    estimatedMax: recognizedCount,
+    estimateLabel: String(recognizedCount),
+    reference: answers.length === BASE_CHARACTER_SAMPLE_SIZE
+      ? "首批 800 字逐字筛选结果"
+      : "累计 1600 字逐字筛选结果",
+    stageResults
   };
 }
 
 function buildCharacterRecognitionAnalysis(summary, childName = "孩子") {
-  const cumulativeRecognizedCount = Number(summary.cumulativeRecognizedCount ?? summary.recognizedCount);
-  const cumulativeSampledCount = Number(summary.cumulativeSampledCount ?? summary.sampledCount);
-  const completedRounds = Number(summary.completedRounds || 1);
-  const estimateExplanation = cumulativeRecognizedCount < 5
-    ? "本次认出的分层样本较少，当前版本不展示识字数量换算。建议在孩子状态稳定时再次测试，并结合多次表现观察变化。"
-    : `只有题库经过足够儿童样本标定、信效度检验并建立常模后，短测才能较可靠地估算识字总量。当前版本尚未完成这些标定，因此“${summary.estimateLabel}”只保留为探索性换算区间，不是实际逐字测得的数量。随着累计有效样本增加，单个答案对结果的影响会降低。`;
-  const cumulativeExplanation = completedRounds > 1
-    ? `目前已完成 ${completedRounds} 轮，累计覆盖 ${cumulativeSampledCount} 个不同样本字。重复出现的字不会增加有效样本数；估算变得更稳定，不代表孩子的识字量因为多测而增加。`
-    : "继续测试时会优先出现尚未测过的字。覆盖的不同样本越多，估算通常越稳定；这不代表识字量会因为多测而增加。";
   return {
-    title: `${childName}本次认出 ${summary.recognizedCount} / ${summary.sampledCount} 个抽样字`,
+    title: `${childName}已确认认识 ${summary.recognizedCount} 个字`,
     paragraphs: [
-      "这 30 个字从 6 个难度字库中各随机抽取 5 个。它观察的是孩子面对由常见到较难汉字时，认读表现如何变化，而不是让一个字固定代表 100 个字。",
-      estimateExplanation,
-      cumulativeExplanation,
-      "判断“认识”时，孩子应能独立读出这个字，并说出大致意思或组成一个常见词；只凭字形眼熟、家长提示后才读出，都应记为暂不认识。",
-      "这个结果适合用于观察和后续复测，不用于诊断阅读困难，也不能替代学校测评或专业评估。孩子状态、方言读音和家长判断尺度都会影响结果。"
+      "这个数字来自本轮逐字筛选，不是用少量样本推算出的识字量。结果同时保留每个认识和不认识的字，方便后续复习与再次核对。",
+      "首批 800 字依据 2024—2025 统编小学语文一年级上册、下册和二年级上册识字表顺序去重整理；进阶字先接续二年级下册识字表，再按《义务教育语文课程标准（2022年版）》附录常用字表补足。阶段只用于由易到难呈现，不是官方达标线。",
+      "判断“认识”时，孩子应能独立读出，并说出大致意思或组成一个常见词；只凭字形眼熟、家长提示后才读出，应改选为不认识。",
+      "识字不等于阅读理解。结果适合用来找出具体会和不会的字，不用于诊断阅读困难，也不能替代学校测评或专业评估。"
     ]
   };
 }
 
 module.exports = {
-  CHARACTER_BANDS,
+  ADVANCED_CHARACTER_BANK,
+  ADVANCED_RECOGNITION_UNLOCK_COUNT,
+  BASE_CHARACTER_RECOGNITION_VERSION,
+  BASE_CHARACTER_BANK,
+  BASE_CHARACTER_SAMPLE_SIZE,
+  CHARACTER_BANK,
+  CHARACTER_PAGE_COUNT,
   CHARACTER_RECOGNITION_VERSION,
   CHARACTER_SAMPLE_SIZE,
-  CHARACTERS_PER_BAND,
+  CHARACTER_STAGES,
+  CHARACTERS_PER_PAGE,
+  buildCharacterPage,
   buildCharacterRecognitionAnalysis,
-  buildCharacterSample,
-  estimateCharacterRecognition
+  buildCharacterRecognitionSummary,
+  canUnlockAdvancedRecognition
 };

@@ -5,6 +5,7 @@ import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import flashTestRoutes, {
+  BASE_CHARACTER_RECOGNITION_VERSION,
   CHARACTER_RECOGNITION_VERSION,
   EIGHT_TALENTS_VERSION,
   normalizeCharacterRecognitionSample,
@@ -14,20 +15,14 @@ import flashTestRoutes, {
 import FlashTestResult from "../models/FlashTestResult";
 import User from "../models/User";
 import UserXiaowanziSync from "../models/UserXiaowanziSync";
+import { CHARACTER_RECOGNITION_BANK } from "./characterRecognitionBank";
 
 function tokenFor(userId: string) {
   return jwt.sign({ id: userId, role: "user" }, process.env.JWT_SECRET || "your-secret-key");
 }
 
 describe("flash test result routes", () => {
-  const characterSample = [
-    "日", "月", "山", "水", "人",
-    "找", "跟", "秋", "纸", "奶",
-    "洁", "期", "窗", "短", "乘",
-    "鼓", "健", "越", "整", "熟",
-    "慕", "谨", "繁", "览", "颠",
-    "簇", "瞥", "蕴", "辙", "瀑",
-  ];
+  const characterSample = CHARACTER_RECOGNITION_BANK.slice();
   let mongo: MongoMemoryServer;
   let server: import("node:http").Server;
   let baseUrl: string;
@@ -106,6 +101,7 @@ describe("flash test result routes", () => {
     assert.equal(body.result.scores.length, 8);
     assert.equal(body.result.scores[0].total, 15);
     assert.equal(body.result.scores[0].radarValue, 3);
+    assert.equal("answers" in body.result, false);
 
     const list = await fetch(`${baseUrl}/results`, {
       headers: { Authorization: `Bearer ${tokenFor(String(user._id))}` },
@@ -191,7 +187,7 @@ describe("flash test result routes", () => {
     assert.equal(savedBody.result.childName, "小圆子");
   });
 
-  it("saves a server-scored character recognition estimate for an owned child", async () => {
+  it("saves a server-scored exact 1600-character checklist for an owned child", async () => {
     const user = await User.create({ username: "flash-characters", password: "hash" });
     await UserXiaowanziSync.create({
       userId: user._id,
@@ -201,7 +197,7 @@ describe("flash test result routes", () => {
       "Content-Type": "application/json",
       Authorization: `Bearer ${tokenFor(String(user._id))}`,
     };
-    const answers = [...Array(16).fill(1), ...Array(14).fill(0)];
+    const answers = [...Array(1216).fill(1), ...Array(384).fill(0)];
     const response = await fetch(`${baseUrl}/results`, {
       method: "POST",
       headers,
@@ -212,7 +208,7 @@ describe("flash test result routes", () => {
         childId: "child-reader",
         answers,
         sampleCharacters: characterSample,
-        recognitionSummary: { recognizedCount: 30, estimateLabel: "伪造结果" },
+        recognitionSummary: { recognizedCount: 800, estimateLabel: "伪造结果" },
       }),
     });
     assert.equal(response.status, 201);
@@ -220,62 +216,76 @@ describe("flash test result routes", () => {
     assert.equal(body.result.assessmentId, "character-recognition");
     assert.equal(body.result.childName, "小读者");
     assert.deepEqual(body.result.scores, []);
+    assert.deepEqual(body.result.answers, answers);
+    assert.deepEqual(body.result.sampleCharacters, characterSample);
     assert.deepEqual(body.result.recognitionSummary, scoreCharacterRecognition(answers));
+    assert.equal(body.result.recognitionSummary.completedRounds, 2);
     const savedResult = await FlashTestResult.findById(body.result.id).lean();
     assert.deepEqual(savedResult?.sampleCharacters, characterSample);
+
+    const list = await fetch(`${baseUrl}/results?assessmentId=character-recognition&mode=child&childId=child-reader&limit=1`, {
+      headers,
+    });
+    assert.equal(list.status, 200);
+    const listBody = await list.json();
+    assert.deepEqual(listBody.results[0].answers, answers);
+    assert.deepEqual(listBody.results[0].sampleCharacters, characterSample);
   });
 
-  it("combines unique characters across rounds and narrows the recognition estimate", async () => {
-    const user = await User.create({ username: "flash-characters-repeat", password: "hash" });
+  it("keeps a completed first group as an exact 800-character result", async () => {
+    const user = await User.create({ username: "flash-characters-base", password: "hash" });
     await UserXiaowanziSync.create({
       userId: user._id,
-      childProfiles: [{ id: "child-reader", title: "小读者", grade: "小学二年级" }],
+      childProfiles: [{ id: "child-base", title: "小圆子", grade: "小学一年级" }],
     });
-    const headers = {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${tokenFor(String(user._id))}`,
-    };
-    const secondSample = [
-      "口", "手", "大", "小", "天",
-      "家", "学", "花", "雨", "车",
-      "教", "级", "课", "读", "写",
-      "旅", "醒", "赛", "温", "轻",
-      "默", "察", "解", "尊", "境",
-      "骤", "疆", "耀", "赢", "藏",
-    ];
-    const save = (sampleCharacters: string[]) => fetch(`${baseUrl}/results`, {
+    const answers = [...Array(782).fill(1), ...Array(18).fill(0)];
+    const response = await fetch(`${baseUrl}/results`, {
       method: "POST",
-      headers,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenFor(String(user._id))}`,
+      },
+      body: JSON.stringify({
+        assessmentId: "character-recognition",
+        assessmentVersion: BASE_CHARACTER_RECOGNITION_VERSION,
+        mode: "child",
+        childId: "child-base",
+        answers,
+        sampleCharacters: characterSample.slice(0, 800),
+      }),
+    });
+
+    assert.equal(response.status, 201);
+    const body = await response.json();
+    assert.equal(body.result.recognitionSummary.recognizedCount, 782);
+    assert.equal(body.result.recognitionSummary.sampledCount, 800);
+    assert.equal(body.result.recognitionSummary.completedRounds, 1);
+  });
+
+  it("requires 720 recognized base characters before accepting the advanced group", async () => {
+    const user = await User.create({ username: "flash-characters-locked", password: "hash" });
+    await UserXiaowanziSync.create({
+      userId: user._id,
+      childProfiles: [{ id: "child-locked", title: "小读者", grade: "小学一年级" }],
+    });
+    const response = await fetch(`${baseUrl}/results`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenFor(String(user._id))}`,
+      },
       body: JSON.stringify({
         assessmentId: "character-recognition",
         assessmentVersion: CHARACTER_RECOGNITION_VERSION,
         mode: "child",
-        childId: "child-reader",
-        answers: [...Array(16).fill(1), ...Array(14).fill(0)],
-        sampleCharacters,
+        childId: "child-locked",
+        answers: [...Array(719).fill(1), ...Array(81).fill(0), ...Array(800).fill(1)],
+        sampleCharacters: characterSample,
       }),
     });
 
-    const first = await save(characterSample);
-    assert.equal(first.status, 201);
-    const firstBody = await first.json();
-    assert.equal(firstBody.result.recognitionSummary.cumulativeSampledCount, 30);
-    assert.equal(firstBody.result.recognitionSummary.completedRounds, 1);
-    assert.equal(firstBody.result.recognitionSummary.estimatedMax - firstBody.result.recognitionSummary.estimatedMin, 300);
-
-    const second = await save(secondSample);
-    assert.equal(second.status, 201);
-    const secondBody = await second.json();
-    assert.equal(secondBody.result.recognitionSummary.cumulativeSampledCount, 60);
-    assert.equal(secondBody.result.recognitionSummary.completedRounds, 2);
-    assert.equal(secondBody.result.recognitionSummary.estimatedMax - secondBody.result.recognitionSummary.estimatedMin, 200);
-
-    const repeated = await save(secondSample);
-    assert.equal(repeated.status, 201);
-    const repeatedBody = await repeated.json();
-    assert.equal(repeatedBody.result.recognitionSummary.cumulativeSampledCount, 60);
-    assert.equal(repeatedBody.result.recognitionSummary.completedRounds, 3);
-    assert.equal(repeatedBody.result.recognitionSummary.estimatedMax - repeatedBody.result.recognitionSummary.estimatedMin, 200);
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).message, /720/);
   });
 
   it("rejects self mode or malformed answers for character recognition", async () => {
@@ -288,7 +298,7 @@ describe("flash test result routes", () => {
       assessmentId: "character-recognition",
       assessmentVersion: CHARACTER_RECOGNITION_VERSION,
       mode: "self",
-      answers: Array(30).fill(1),
+      answers: Array(1600).fill(1),
       sampleCharacters: characterSample,
     };
     const selfMode = await fetch(`${baseUrl}/results`, {
@@ -301,11 +311,13 @@ describe("flash test result routes", () => {
     const malformed = await fetch(`${baseUrl}/results`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ ...common, mode: "child", childId: "missing", answers: Array(29).fill(1) }),
+      body: JSON.stringify({ ...common, mode: "child", childId: "missing", answers: Array(1599).fill(1) }),
     });
     assert.equal(malformed.status, 400);
 
-    assert.equal(normalizeCharacterRecognitionSample([...characterSample.slice(0, 29), "日"]), null);
+    const wrongOrder = characterSample.slice();
+    [wrongOrder[0], wrongOrder[1]] = [wrongOrder[1], wrongOrder[0]];
+    assert.equal(normalizeCharacterRecognitionSample(wrongOrder), null);
   });
 
   it("rejects incomplete or stale test submissions", async () => {
