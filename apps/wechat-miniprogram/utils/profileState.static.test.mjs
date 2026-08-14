@@ -14,6 +14,18 @@ test("all native child archive saves use the shared local and account sync bound
   assert.match(source, /url: "\/api\/users\/me\/xiaowanzi-sync"[\s\S]*data: \{ childProfiles: savedChildren \}/);
 });
 
+test("remote child archive hydration can update compatibility caches without patching the account", () => {
+  assert.match(source, /options\.syncRemote !== false && getToken\(\)/);
+});
+
+test("logged-in child archive saves retain a retry snapshot until account sync succeeds", () => {
+  assert.match(source, /function childProfilesSyncPendingKey\(\)/);
+  assert.match(source, /`\$\{CHILD_PROFILES_SYNC_PENDING_KEY\}:\$\{ownerId\}`/);
+  assert.match(source, /setStorageSync\(pendingKey, savedChildren\)/);
+  assert.match(source, /\.then\(\(\) => \{[\s\S]*removeStorageSync\(pendingKey\)/);
+  assert.match(source, /\.catch\(\(\) => \{\}\)/);
+});
+
 test("child profile merge keeps persisted web children when native only has a draft", () => {
   const nativeChildren = [
     {

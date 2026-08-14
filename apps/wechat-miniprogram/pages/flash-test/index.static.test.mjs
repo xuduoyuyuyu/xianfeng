@@ -31,7 +31,8 @@ test("flash test is registered and exposed as a public sidebar item", () => {
   const appConfig = JSON.parse(fs.readFileSync(path.join(miniProgramRoot, "app.json"), "utf8"));
   const flashItem = SETTINGS_SECTIONS.flatMap((section) => section.items).find((item) => item.key === "flashTest");
 
-  assert.ok(appConfig.pages.includes("pages/flash-test/index"));
+  assert.ok(appConfig.subPackages.some((subPackage) => subPackage.root === "pages/flash-test" && subPackage.pages.includes("index")));
+  assert.equal(appConfig.permission?.["scope.record"], undefined);
   assert.deepEqual(flashItem, {
     key: "flashTest",
     title: "闪测",
@@ -137,7 +138,7 @@ test("flash test presents one focused question at a time with reference-led navi
   assert.match(source, /previousQuestion\(\)/);
   assert.match(source, /nextQuestion\(\)/);
   assert.match(template, /xf-flash-question-stage/);
-  assert.match(template, /scroll-y="\{\{stage !== 'questions' && stage !== 'recognition'\}\}"/);
+  assert.match(template, /scroll-y="\{\{stage !== 'questions' && stage !== 'recognition' && stage !== 'picture-naming'\}\}"/);
   assert.match(template, /is-question-mode/);
   assert.match(template, /xf-flash-question-hero/);
   assert.match(template, /测测你的/);
@@ -191,6 +192,7 @@ test("flash test opens as a test catalog before choosing the assessment subject"
   assert.doesNotMatch(template, /\{\{item\.source\}\}/);
   assert.match(template, /hover-class="is-pressed"/);
   assert.match(template, /bindtap="openAssessment"/);
+  assert.match(template, /data-id="\{\{item\.id\}\}"[^>]*open-type="\{\{!isLoggedIn && item\.childOnly \? 'getPhoneNumber' : ''\}\}"[^>]*bindtap="openAssessment"[^>]*bindgetphonenumber="authorizeChildOnlyAssessment"/);
   assert.doesNotMatch(template, /stage === 'intro'/);
   assert.doesNotMatch(template, /stage === 'choice'/);
   assert.doesNotMatch(template, /bindtap="startSelectedAssessment"/);
@@ -231,6 +233,551 @@ test("flash test opens as a test catalog before choosing the assessment subject"
   assert.doesNotMatch(styles, /\.xf-flash-intro/);
   assert.doesNotMatch(styles, /\.xf-flash-choice/);
   assert.match(styles, /\.xf-flash-result-hero\s*\{[^}]*background:\s*#ffffff/s);
+});
+
+test("English flash test keeps one word-reading task and only offers photo view when audited", () => {
+  const source = fs.readFileSync(path.join(currentDirectory, "index.js"), "utf8");
+  const template = fs.readFileSync(path.join(currentDirectory, "index.wxml"), "utf8");
+  const styles = fs.readFileSync(path.join(currentDirectory, "index.wxss"), "utf8");
+  const photoDirectory = path.join(miniProgramRoot, "pages/flash-test/assets/english-picture-naming");
+  const jpegPhotoNames = ["cat", "dog", "bird", "fish", "duck", "horse", "cow", "sheep", "elephant", "monkey"];
+  const webpPhotoNames = [
+    "apple", "banana-focus", "orange", "egg", "bread", "cake", "carrot", "tomato", "potato", "rice",
+    "book", "pencil", "ruler-focus", "chair", "table-focus", "bed-modern", "door-modern-focus", "window", "clock", "bag",
+    "hand", "foot", "eye", "ear", "nose", "mouth", "hair", "hat", "shoe", "shirt",
+    "car", "bus", "train", "bike", "boat", "plane", "truck", "sun-sky", "tree", "flower"
+  ];
+
+  assert.match(source, /id:\s*"english-picture-naming"/);
+  assert.match(source, /icon:\s*"\/assets\/flash-test\/english-picture-naming\.svg"/);
+  assert.doesNotMatch(source, /icon:\s*"\/pages\/flash-test\/assets\/english-picture-naming\/cat\.jpg"/);
+  assert.match(source, /title:\s*"英文单词"/);
+  assert.doesNotMatch(source, /LAST_ENGLISH_PROMPT_MODE_KEY/);
+  assert.doesNotMatch(source, /wx\.getRecorderManager/);
+  assert.doesNotMatch(source, /\/api\/flash-tests\/english-picture-naming\/recognize/);
+  assert.match(template, /stage === 'picture-naming'/);
+  assert.match(template, /class="xf-picture-naming-photo"[^>]*mode="aspectFill"/);
+  assert.match(template, /同一单词的真实照片 · 不改变本题记录/);
+  assert.match(template, /看见单词，读给家长听/);
+  assert.match(template, /class="xf-picture-naming-word"/);
+  assert.match(template, /catchtap="playEnglishWordPronunciation"/);
+  assert.match(template, /assets\/flash-test\/speaker\.svg/);
+  assert.match(template, /class="xf-picture-naming-ipa">\{\{pictureNamingItem\.ipa\}\}<\/text>[\s\S]*class="xf-picture-naming-word">\{\{pictureNamingItem\.word\}\}<\/text>/);
+  assert.match(template, /wx:if="\{\{englishCardView === 'picture' && pictureNamingItem\.image\}\}" class="xf-picture-naming-photo-shell"[^>]*bindtap="toggleEnglishCardView"/);
+  assert.match(template, /class="xf-picture-naming-word-shell \{\{pictureNamingItem\.image \? '' : 'has-no-photo'\}\}"[^>]*bindtap="toggleEnglishCardView"/);
+  assert.match(template, /class="xf-english-card-flip-hint"><text>切换看词<\/text>/);
+  assert.match(template, /class="xf-english-card-flip-hint"><text>切换看图<\/text>/);
+  assert.doesNotMatch(template, /xf-english-result-mode-link|toggleEnglishPromptMode/);
+  assert.doesNotMatch(template, /xf-english-prompt-modes|chooseEnglishPromptMode|选择英文测试模式/);
+  assert.doesNotMatch(template, /xf-english-mode-switch/);
+  assert.match(template, /open-type="\{\{!isLoggedIn && item\.childOnly \? 'getPhoneNumber' : ''\}\}"/);
+  assert.match(template, /bindtap="markWordReadingUnknown"[^>]*>暂不认识<\/button>[\s\S]*bindtap="markWordReadingKnown">\{\{pictureNamingNumber === pictureNamingTotal \? '认识，完成' : '下一个'\}\}<\/button>/);
+  assert.doesNotMatch(template, /孩子读完后，由家长选择是否认识|修改判断/);
+  assert.match(template, /不推算完整英语词汇量/);
+  assert.match(template, /bindtap="openPictureNamingWordList"[^>]*>\s*<text>测评结果<\/text>/);
+  assert.match(template, /class="xf-picture-naming-interpretation">[\s\S]*怎么理解这次结果？[\s\S]*wx:for="\{\{analysisParagraphs\}\}"/);
+  assert.match(template, /wx:if="\{\{resultType !== 'pictureNaming'\}\}" class="xf-flash-analysis-card"/);
+  assert.equal(template.match(/怎么理解这次结果？/g)?.length, 1);
+  assert.match(styles, /\.xf-picture-naming-interpretation\s*\{[^}]*border-top:\s*2rpx solid #eee8f7[^}]*text-align:\s*left/s);
+  assert.match(template, /wx:if="\{\{pictureNamingWordListOpen\}\}" class="xf-flash-character-list-mask"/);
+  assert.match(template, /暂不认识的单词（\{\{pictureNamingUnknownWords\.length\}\}）/);
+  assert.match(template, /认识的单词（\{\{pictureNamingKnownWords\.length\}\}）/);
+  assert.match(template, /bindtap="openEnglishWordPackDrawer"/);
+  assert.match(template, /wx:if="\{\{englishWordPackOpen\}\}" class="xf-flash-character-list-mask"/);
+  assert.match(template, /50 个已收集词 · 分 5 组完成/);
+  assert.match(template, /每个词都可在单词和对应实拍照片之间点击切换/);
+  assert.match(source, /selectEnglishWordPack\(event\)/);
+  assert.match(source, /englishWordPackId: assessmentId === "english-picture-naming" \? this\.data\.englishWordPackId : undefined/);
+  assert.doesNotMatch(template, /togglePictureNamingRecording|skipPictureNamingWord|开始说英文|ASR 识别校准/);
+  assert.match(template, /class="xf-picture-naming-card \{\{englishCardView === 'picture' \? 'is-photo-view' : ''\}\}"/);
+  assert.match(styles, /\.xf-picture-naming-card\.is-photo-view\s*\{[^}]*padding:\s*0[^}]*overflow:\s*hidden/s);
+  assert.match(styles, /\.xf-picture-naming-photo-shell\s*\{[^}]*height:\s*660rpx[^}]*background:\s*#ffffff/s);
+  assert.match(styles, /\.xf-picture-naming-card\.is-photo-view \.xf-picture-naming-photo-note\s*\{[^}]*padding:\s*18rpx 24rpx 22rpx[^}]*background:\s*#ffffff/s);
+  assert.match(styles, /\.xf-picture-naming-word-shell\s*\{[^}]*height:\s*660rpx[^}]*background:\s*#f3f0f7/s);
+  assert.match(styles, /\.xf-picture-naming-word\s*\{[^}]*font-size:\s*132rpx/s);
+  assert.match(styles, /\.xf-picture-naming-ipa\s*\{[^}]*font-size:\s*34rpx/s);
+  assert.match(styles, /\.xf-flash-pronunciation-button\s*\{[^}]*position:\s*absolute[^}]*border-radius:\s*999rpx/s);
+  assert.match(styles, /\.xf-english-card-flip-hint\s*\{[^}]*position:\s*absolute[^}]*border-radius:\s*999rpx/s);
+  assert.match(styles, /\.xf-english-pack-item\.is-active\s*\{[^}]*border-color:\s*#8d4cf3/s);
+  assert.doesNotMatch(styles, /\.xf-english-result-mode-link|\.xf-picture-naming-record/);
+  assert.match(styles, /\.xf-picture-naming-word-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/s);
+  assert.match(styles, /\.xf-picture-naming-word-chip\s*\{[^}]*min-height:\s*68rpx/s);
+  assert.equal(fs.existsSync(path.join(photoDirectory, "README.md")), true);
+  for (const name of jpegPhotoNames) {
+    const filePath = path.join(photoDirectory, `${name}.jpg`);
+    assert.equal(fs.existsSync(filePath), true, `${name}.jpg should exist`);
+    assert.equal(fs.readFileSync(filePath).subarray(0, 2).toString("hex"), "ffd8", `${name}.jpg should be a JPEG`);
+  }
+  for (const name of webpPhotoNames) {
+    const filePath = path.join(photoDirectory, `${name}.webp`);
+    const header = fs.readFileSync(filePath).subarray(0, 12);
+    assert.equal(fs.existsSync(filePath), true, `${name}.webp should exist`);
+    assert.equal(header.subarray(0, 4).toString("ascii"), "RIFF", `${name}.webp should be a WebP`);
+    assert.equal(header.subarray(8, 12).toString("ascii"), "WEBP", `${name}.webp should be a WebP`);
+  }
+});
+
+test("English words and enlarged Chinese characters can play audio without opening a recorder", async () => {
+  const definition = loadFlashPageDefinition();
+  const originalWx = global.wx;
+  const requests = [];
+  const playedFiles = [];
+  const audio = {
+    src: "",
+    stop() {},
+    play() { playedFiles.push(this.src); },
+    onEnded(callback) { this.ended = callback; },
+    onError(callback) { this.failed = callback; },
+    destroy() {}
+  };
+  const context = {
+    ...definition,
+    data: {
+      ...definition.data,
+      englishPromptMode: "word",
+      recognitionFocusCharacter: "字"
+    },
+    pronunciationAudioPaths: {},
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+
+  try {
+    global.wx = {
+      env: { USER_DATA_PATH: "/tmp" },
+      getStorageSync() { return "jwt-token"; },
+      request(options) {
+        requests.push(options.data);
+        options.success({ statusCode: 200, data: { audioBase64: "bXAz" } });
+      },
+      getFileSystemManager() {
+        return { writeFile(options) { options.success(); } };
+      },
+      createInnerAudioContext() { return audio; },
+      showToast() {}
+    };
+
+    await definition.playEnglishWordPronunciation.call(context);
+    await definition.playRecognitionCharacterPronunciation.call(context);
+    assert.deepEqual(requests, [
+      { kind: "english-word", itemId: "animal-cat" },
+      { kind: "chinese-character", character: "字" }
+    ]);
+    assert.deepEqual(playedFiles, [
+      "/tmp/xf-pronunciation-english-word-63-61-74.mp3",
+      "/tmp/xf-pronunciation-chinese-character-5b57.mp3"
+    ]);
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
+test("word reading records each judgment and resets the next item to its word view", () => {
+  const definition = loadFlashPageDefinition();
+  const context = {
+    ...definition,
+    data: {
+      ...definition.data,
+      englishPromptMode: "word",
+      englishCardView: "picture",
+      pictureNamingIndex: 0,
+      pictureNamingNumber: 1,
+      pictureNamingItem: definition.data.pictureNamingItem
+    },
+    pictureNamingAttempts: [],
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+
+  definition.markWordReadingKnown.call(context);
+  assert.deepEqual(context.pictureNamingAttempts[0], {
+    itemId: "animal-cat",
+    recognizedText: "",
+    status: "matched"
+  });
+  assert.equal(context.data.pictureNamingIndex, 1);
+  assert.equal(context.data.englishCardView, "word");
+
+  context.data.englishCardView = "picture";
+  definition.markWordReadingUnknown.call(context);
+  assert.deepEqual(context.pictureNamingAttempts[1], {
+    itemId: "animal-dog",
+    recognizedText: "",
+    status: "skipped"
+  });
+  assert.equal(context.data.pictureNamingIndex, 2);
+  assert.equal(context.data.englishCardView, "word");
+});
+
+test("collected words are exposed as five packs and every card can switch to its photo", () => {
+  const definition = loadFlashPageDefinition();
+  const template = fs.readFileSync(path.join(currentDirectory, "index.wxml"), "utf8");
+  const styles = fs.readFileSync(path.join(currentDirectory, "index.wxss"), "utf8");
+  const context = {
+    ...definition,
+    data: {
+      ...definition.data,
+      englishWordPackId: "food",
+      englishCardView: "picture"
+    },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+
+  assert.equal(context.data.englishWordPacks.length, 5);
+  assert.equal(context.data.englishWordPacks.reduce((sum, pack) => sum + pack.itemCount, 0), 50);
+  assert.equal(context.data.englishWordPacks.every((pack) => pack.imageCount === 10), true);
+  definition.showPictureNamingItem.call(context, 0);
+  assert.equal(context.data.pictureNamingItem.word, "apple");
+  assert.equal(context.data.pictureNamingItem.image.endsWith("/apple.webp"), true);
+  context.data.englishCardView = "word";
+  definition.toggleEnglishCardView.call(context);
+  assert.equal(context.data.englishCardView, "picture");
+
+  const cardPosition = template.indexOf('class="xf-picture-naming-card"');
+  const packTriggerPosition = template.indexOf('class="xf-english-pack-trigger"');
+  const actionsPosition = template.indexOf('class="xf-picture-naming-actions"');
+  assert.ok(cardPosition < packTriggerPosition && packTriggerPosition < actionsPosition);
+  assert.equal(template.match(/class="xf-english-pack-trigger"/g)?.length, 1);
+  assert.match(styles, /\.xf-english-pack-trigger\s*\{[^}]*margin:\s*18rpx auto 0/s);
+
+  context.englishWordPackMasteries = {
+    animals: { matchedCount: 8, totalCount: 10 },
+    food: { matchedCount: 4, totalCount: 10 }
+  };
+  const packCards = definition.buildEnglishWordPackCards.call(context);
+  assert.deepEqual(packCards.map((item) => ({
+    id: item.id,
+    recognizedDisplay: item.recognizedDisplay,
+    masteryLabel: item.masteryLabel,
+    actionLabel: item.actionLabel
+  })), [
+    { id: "animals", recognizedDisplay: "8", masteryLabel: "认识 8 个 · 暂不认识 2 个", actionLabel: "复查" },
+    { id: "food", recognizedDisplay: "4", masteryLabel: "认识 4 个 · 暂不认识 6 个", actionLabel: "复查" },
+    { id: "home-school", recognizedDisplay: "—", masteryLabel: "待测试", actionLabel: "开始" },
+    { id: "body-clothing", recognizedDisplay: "—", masteryLabel: "待测试", actionLabel: "开始" },
+    { id: "transport-nature", recognizedDisplay: "—", masteryLabel: "待测试", actionLabel: "开始" }
+  ]);
+  assert.match(template, /wx:for="\{\{englishWordPackCards\}\}"/);
+  assert.match(template, /<button[\s\S]*wx:for="\{\{englishWordPackCards\}\}"[\s\S]*class="xf-flash-recognition-next-group xf-english-word-pack-result-card"/);
+  assert.match(template, /catchtap="openEnglishWordPackResult"/);
+  assert.match(template, /第 \{\{item\.order\}\} 组 · \{\{item\.title\}\}/);
+});
+
+test("English result pack cards start or review the selected pack like recognition groups", () => {
+  const definition = loadFlashPageDefinition();
+  let restarted = 0;
+  const context = {
+    ...definition,
+    data: {
+      ...definition.data,
+      resultType: "pictureNaming",
+      selectedTestId: "english-picture-naming",
+      selectedChildId: "child-1",
+      selectedChildName: "小读者",
+      englishWordPackId: "animals"
+    },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    },
+    restartAssessment() {
+      restarted += 1;
+      return Promise.resolve(false);
+    }
+  };
+
+  definition.openEnglishWordPackResult.call(context, { currentTarget: { dataset: { id: "food" } } });
+  assert.equal(context.data.englishWordPackId, "food");
+  assert.equal(context.data.englishWordPackTitle, "食物与饮品");
+  assert.equal(restarted, 1);
+});
+
+test("finishing an English word pack updates its result card before remote save completes", () => {
+  const definition = loadFlashPageDefinition();
+  let saveAttempts = 0;
+  const context = {
+    ...definition,
+    data: {
+      ...definition.data,
+      selectedTestId: "english-picture-naming",
+      englishWordPackId: "animals"
+    },
+    pictureNamingAttempts: definition.getActiveEnglishWordBank.call({
+      ...definition,
+      data: { ...definition.data, englishWordPackId: "animals" }
+    }).map((item, index) => ({
+      itemId: item.id,
+      recognizedText: "",
+      status: index < 7 ? "matched" : "skipped"
+    })),
+    englishWordPackMasteries: {
+      food: { matchedCount: 4, totalCount: 10 }
+    },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    },
+    persistAssessmentResult() {
+      saveAttempts += 1;
+      return Promise.resolve();
+    }
+  };
+
+  definition.finishPictureNaming.call(context);
+
+  assert.equal(saveAttempts, 1);
+  assert.equal(context.data.stage, "result");
+  assert.equal(context.data.englishWordPackCards[0].recognizedDisplay, "7");
+  assert.equal(context.data.englishWordPackCards[0].masteryLabel, "认识 7 个 · 暂不认识 3 个");
+  assert.equal(context.data.englishWordPackCards[0].actionLabel, "复查");
+  assert.equal(context.data.englishWordPackCards[1].recognizedDisplay, "4");
+});
+
+test("switching to a word pack without matching history starts that pack instead of showing stale results", async () => {
+  const definition = loadFlashPageDefinition();
+  const originalWx = global.wx;
+  const context = {
+    ...definition,
+    data: {
+      ...definition.data,
+      selectedTestId: "english-picture-naming",
+      englishWordPackId: "food"
+    },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+
+  try {
+    global.wx = {
+      getStorageSync(key) {
+        return key === "xf_token" ? "jwt-token" : "";
+      },
+      request(options) {
+        options.success({
+          statusCode: 200,
+          data: {
+            englishWordPackResults: {
+              animals: { matchedCount: 7, totalCount: 10 },
+              food: null
+            },
+            results: [{
+              assessmentId: "english-picture-naming",
+              mode: "child",
+              childId: "child-1",
+              englishPromptMode: "word",
+              englishWordPackId: "animals"
+            }]
+          }
+        });
+      }
+    };
+
+    const result = await definition.loadLatestResult.call(context, "child", { id: "child-1" });
+    assert.equal(result, null);
+    assert.equal(context.data.englishWordPackCards[0].masteryLabel, "认识 7 个 · 暂不认识 3 个");
+    assert.equal(context.data.englishWordPackCards[1].masteryLabel, "待测试");
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
+test("word-reading results restore known and unknown words into a two-tab drawer", () => {
+  const definition = loadFlashPageDefinition();
+  const words = ["cat", "dog", "bird", "fish", "duck", "horse", "cow", "sheep", "elephant", "monkey"];
+  const pictureNamingAnswers = words.map((targetWord, index) => ({
+    itemId: `animal-${targetWord}`,
+    targetWord,
+    recognizedText: "",
+    status: index < 4 ? "matched" : "skipped"
+  }));
+  const context = {
+    ...definition,
+    data: { ...definition.data },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+
+  definition.showSavedResult.call(context, {
+    id: "saved-word-reading-result",
+    assessmentId: "english-picture-naming",
+    englishPromptMode: "word",
+    mode: "child",
+    childId: "child-reader",
+    childName: "小读者",
+    pictureNamingSummary: {
+      totalCount: 10,
+      matchedCount: 4,
+      needsPracticeCount: 0,
+      skippedCount: 6
+    },
+    pictureNamingAnswers
+  });
+
+  assert.deepEqual(context.data.pictureNamingKnownWords, []);
+  assert.deepEqual(context.data.pictureNamingUnknownWords, []);
+  assert.equal(context.data.analysisParagraphs.some((item) => item.includes("cat")), false);
+  definition.openPictureNamingWordList.call(context);
+  assert.equal(context.data.pictureNamingWordListOpen, true);
+  assert.equal(context.data.pictureNamingWordListTab, "unknown");
+  assert.deepEqual(context.data.pictureNamingKnownWords, words.slice(0, 4));
+  assert.deepEqual(context.data.pictureNamingUnknownWords, words.slice(4));
+  definition.switchPictureNamingWordListTab.call(context, { currentTarget: { dataset: { tab: "known" } } });
+  assert.equal(context.data.pictureNamingWordListTab, "known");
+  definition.closePictureNamingWordList.call(context);
+  definition.openPictureNamingWordList.call(context);
+  assert.equal(context.data.pictureNamingWordListTab, "unknown");
+  definition.closePictureNamingWordList.call(context);
+  assert.equal(context.data.pictureNamingWordListOpen, false);
+});
+
+test("English results expose education and assessment design references like character recognition", () => {
+  const definition = loadFlashPageDefinition();
+  const source = fs.readFileSync(path.join(currentDirectory, "index.js"), "utf8");
+  const template = fs.readFileSync(path.join(currentDirectory, "index.wxml"), "utf8");
+  const styles = fs.readFileSync(path.join(currentDirectory, "index.wxss"), "utf8");
+  const copied = [];
+  const originalWx = global.wx;
+  const context = {
+    ...definition,
+    data: { ...definition.data, selectedTestId: "english-picture-naming" },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+
+  try {
+    global.wx = {
+      setClipboardData(options) {
+        copied.push(options.data);
+      }
+    };
+    assert.equal(context.data.englishAssessmentReferences.length, 3);
+    assert.match(source, /CEFR Companion Volume/);
+    assert.match(source, /Pre A1 Starters, Movers and Flyers word list/);
+    assert.doesNotMatch(source, /Best Practices for Constructed-Response Scoring|ETS/);
+    assert.match(template, /bindtap="openEnglishAssessmentDesign"/);
+    assert.match(template, /英文工具设计参考/);
+    assert.match(template, /CEFR 活动框架 · Pre A1 词表 · 儿童任务示例/);
+    assert.match(template, /英文单词闪测设计参考/);
+    assert.match(template, /不代表 Council of Europe 或 Cambridge 对本测试的认证/);
+    assert.match(template, /本工具用途：\{\{item\.purpose\}\}/);
+    assert.match(template, /catchtap="copyEnglishAssessmentReference"/);
+    assert.doesNotMatch(template, /工程化六层/);
+    assert.doesNotMatch(template, /火山引擎/);
+    assert.doesNotMatch(styles, /xf-english-design-layer/);
+
+    definition.openEnglishAssessmentDesign.call(context);
+    assert.equal(context.data.englishAssessmentDesignOpen, true);
+    definition.copyEnglishAssessmentReference.call(context, { currentTarget: { dataset: { id: "cefr-2020" } } });
+    assert.deepEqual(copied, ["https://www.coe.int/en/web/common-european-framework-reference-languages/cefr-companion-volume-and-its-language-versions"]);
+    definition.closeEnglishAssessmentDesign.call(context);
+    assert.equal(context.data.englishAssessmentDesignOpen, false);
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
+test("English entry uses one word-reading result while card view changes preserve the same item", async () => {
+  const definition = loadFlashPageDefinition();
+  const source = fs.readFileSync(path.join(currentDirectory, "index.js"), "utf8");
+  const originalWx = global.wx;
+  const context = {
+    ...definition,
+    data: {
+      ...definition.data,
+      selectedTestId: "english-picture-naming",
+      selectedTestChildOnly: true,
+      englishPromptMode: "word",
+      englishCardView: "word",
+      stage: "picture-naming",
+      pictureNamingIndex: 2,
+      mode: "child",
+      selectedChildId: "child-reader"
+    },
+    answers: [],
+    pictureNamingAttempts: [
+      { itemId: "animal-cat", status: "matched" },
+      { itemId: "animal-dog", status: "skipped" }
+    ],
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    },
+    resolveChildOnlyAssessment() {
+      this.childResolutionStarted = true;
+      return Promise.resolve(true);
+    }
+  };
+  try {
+    global.wx = {
+      getStorageSync(key) { return key === "xf_token" ? "jwt-token" : ""; },
+      setStorageSync() {}
+    };
+    await definition.openAssessment.call(context, { currentTarget: { dataset: { id: "english-picture-naming" } } });
+    assert.equal(context.data.subjectModalOpen, false);
+    assert.equal(context.childResolutionStarted, true);
+
+    definition.toggleEnglishCardView.call(context);
+    assert.equal(context.data.englishCardView, "picture");
+    assert.equal(context.data.englishPromptMode, "word");
+    assert.equal(context.data.pictureNamingIndex, 2);
+    assert.deepEqual(context.pictureNamingAttempts, [
+      { itemId: "animal-cat", status: "matched" },
+      { itemId: "animal-dog", status: "skipped" }
+    ]);
+    definition.toggleEnglishCardView.call(context);
+    assert.equal(context.data.englishCardView, "word");
+    assert.equal(context.data.pictureNamingIndex, 2);
+    assert.match(source, /\? "&englishPromptMode=word"/);
+    assert.match(source, /englishPromptMode:\s*assessmentId === "english-picture-naming" \? "word" : undefined/);
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
+test("word reading can complete all ten items when every word is marked unknown", () => {
+  const definition = loadFlashPageDefinition();
+  const originalWx = global.wx;
+  let persisted = false;
+  const context = {
+    ...definition,
+    data: { ...definition.data, selectedTestId: "english-picture-naming" },
+    pictureNamingAttempts: [],
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    },
+    persistAssessmentResult() {
+      persisted = true;
+    }
+  };
+  try {
+    global.wx = { setStorageSync() {} };
+    definition.startAssessment.call(context, "child", { id: "child-1", name: "小圆子" });
+    assert.equal(context.data.stage, "picture-naming");
+    for (let index = 0; index < 10; index += 1) {
+      definition.markWordReadingUnknown.call(context);
+    }
+    assert.equal(context.data.stage, "result");
+    assert.equal(context.data.resultType, "pictureNaming");
+    assert.equal(context.data.pictureNamingSummary.skippedCount, 10);
+    assert.equal(context.data.pictureNamingAnswers.length, 10);
+    assert.equal(persisted, true);
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
+test("English word reading has no mini-program recording permission or ASR interaction", () => {
+  const appConfig = JSON.parse(fs.readFileSync(path.join(miniProgramRoot, "app.json"), "utf8"));
+  const source = fs.readFileSync(path.join(currentDirectory, "index.js"), "utf8");
+  const template = fs.readFileSync(path.join(currentDirectory, "index.wxml"), "utf8");
+
+  assert.equal(appConfig.permission?.["scope.record"], undefined);
+  assert.doesNotMatch(source, /getRecorderManager|wx\.uploadFile|english-picture-naming\/recognize/);
+  assert.doesNotMatch(template, /开始说英文|停止录音|识别中|再说一次/);
 });
 
 test("flash test shares the catalog or the exact assessment entry without personal state", () => {
@@ -703,20 +1250,19 @@ test("all flash tests restore the last-used self or child subject", async () => 
   }
 });
 
-test("character recognition opens the last-used child directly and keeps reselect explicit", async () => {
+test("child-only tests start the sole child directly and otherwise open archive selection", async () => {
   const definition = loadFlashPageDefinition();
   const originalWx = global.wx;
-  const storage = new Map([
-    ["xf_token", "jwt-token"],
-    ["xiaowanzi_last_child_id_v1", "child-2"]
-  ]);
-  const children = [
-    { id: "child-1", name: "小圆子" },
-    { id: "child-2", name: "小豆子" }
-  ];
+  const storage = new Map([["xf_token", "jwt-token"]]);
+  let children = [{ id: "child-1", name: "小圆子" }];
   const context = {
     ...definition,
-    data: { ...definition.data },
+    data: {
+      ...definition.data,
+      youngChildWarningOpen: true,
+      youngChildName: "旧孩子",
+      youngChildGrade: "小学一年级"
+    },
     setData(payload) {
       this.data = { ...this.data, ...payload };
     },
@@ -743,8 +1289,24 @@ test("character recognition opens the last-used child directly and keeps reselec
     };
     await definition.openAssessment.call(context, { currentTarget: { dataset: { id: "character-recognition" } } });
     assert.equal(context.data.subjectModalOpen, false);
-    assert.deepEqual(context.openedSubject, { mode: "child", child: children[1] });
+    assert.equal(context.data.youngChildWarningOpen, false);
+    assert.deepEqual(context.openedSubject, { mode: "child", child: children[0] });
     assert.equal(context.archiveOpened, undefined);
+
+    context.openedSubject = null;
+    children = [
+      { id: "child-1", name: "小圆子" },
+      { id: "child-2", name: "小豆子" }
+    ];
+    await definition.openAssessment.call(context, { currentTarget: { dataset: { id: "character-recognition" } } });
+    assert.equal(context.openedSubject, null);
+    assert.equal(context.archiveOpened, true);
+
+    context.archiveOpened = false;
+    children = [];
+    await definition.openAssessment.call(context, { currentTarget: { dataset: { id: "character-recognition" } } });
+    assert.equal(context.openedSubject, null);
+    assert.equal(context.archiveOpened, true);
 
     context.data.stage = "recognition";
     definition.reselectAssessmentSubject.call(context);
@@ -839,6 +1401,8 @@ test("character recognition presents large multi-character selection and an exac
   assert.match(template, /wx:for="\{\{recognitionPageCharacters\}\}"/);
   assert.match(template, /bindtap="openRecognitionCharacterFocus"/);
   assert.match(template, /这个字认识吗？/);
+  assert.match(template, /catchtap="playRecognitionCharacterPronunciation"/);
+  assert.match(template, /点大字听读音/);
   assert.match(template, /标记为不认识/);
   assert.match(template, /bindtap="markFocusedRecognitionCharacter"/);
   assert.match(template, /第 \{\{recognitionGroupNumber\}\} 组/);
@@ -1074,6 +1638,8 @@ test("character recognition presents verifiable design sources without implying 
     assert.match(styles, /\.xf-flash-source-summary\s*\{/);
     assert.match(styles, /\.xf-flash-source-disclaimer\s*\{/);
     assert.match(styles, /\.xf-flash-source-dialog\s*\{[^}]*display:\s*flex[^}]*height:\s*84vh[^}]*overflow:\s*hidden/s);
+    assert.match(template, /class="xf-flash-character-list-dialog xf-flash-source-dialog xf-english-source-dialog"/);
+    assert.match(styles, /\.xf-english-source-dialog\s*\{[^}]*height:\s*68vh[^}]*max-height:\s*68vh/s);
     assert.match(styles, /\.xf-flash-source-scroll\s*\{[^}]*flex:\s*1 1 auto[^}]*min-height:\s*0[^}]*height:\s*0[^}]*max-height:\s*none/s);
 
     definition.openRecognitionSources.call(context);

@@ -17,6 +17,8 @@ test("shared phone login gate saves the session and emits success", async () => 
   const calls = [];
   const saved = [];
   let resolved = 0;
+  let restoreProfile;
+  let finishRestore;
   let definition;
 
   require.cache[requestPath] = { exports: { request: async (options) => {
@@ -34,7 +36,10 @@ test("shared phone login gate saves the session and emits success", async () => 
   } };
   global.Component = (value) => { definition = value; };
   global.wx = { login: ({ success }) => success({ code: "wx-code" }) };
-  global.getApp = () => ({ setLoginSession() {} });
+  global.getApp = () => ({ setLoginSession() {
+    restoreProfile = new Promise((resolve) => { finishRestore = resolve; });
+    return restoreProfile;
+  } });
 
   try {
     delete require.cache[componentPath];
@@ -51,6 +56,10 @@ test("shared phone login gate saves the session and emits success", async () => 
 
     assert.deepEqual(calls, [{ method: "POST", url: "/api/wechat-mini/login", data: { code: "wx-code", phoneCode: "phone-code" } }]);
     assert.equal(saved[0].token, "token-1");
+    assert.deepEqual(events, []);
+    finishRestore();
+    await restoreProfile;
+    await new Promise((resolve) => setImmediate(resolve));
     assert.equal(resolved, 1);
     assert.deepEqual(events, [{ name: "success", detail: { session: saved[0] } }]);
   } finally {

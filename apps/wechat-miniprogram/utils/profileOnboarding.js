@@ -1,8 +1,10 @@
 const {
   CHILD_PROFILES_KEY,
+  CHILD_PROFILES_SYNC_PENDING_KEY,
   WEB_CHILD_PROFILES_KEY,
   mergeChildProfileRecords,
   saveChildProfileRecords,
+  childProfilesSyncPendingKey,
 } = require("./profileState");
 const { getToken } = require("./session");
 
@@ -143,16 +145,48 @@ function getProfileOnboardingState() {
   };
 }
 
-function saveChildren(children) {
-  saveChildProfileRecords(children, { avatarFallback: CHILD_AVATAR });
+function saveChildren(children, options = {}) {
+  saveChildProfileRecords(children, { avatarFallback: CHILD_AVATAR, ...options });
 }
 
 function cacheProfileOnboardingChildren(children) {
   const list = Array.isArray(children) ? children : [];
-  saveChildren(list);
+  saveChildren(list, { syncRemote: false });
   const selected = activeChild(list);
   if (selected) wx.setStorageSync(LAST_CHILD_ID_KEY, selected.id);
+  else wx.removeStorageSync(LAST_CHILD_ID_KEY);
   return list;
+}
+
+async function restoreProfileOnboardingRemote(options = {}) {
+  if (!getToken()) return false;
+  const { request } = require("./request");
+  try {
+    const pendingKey = childProfilesSyncPendingKey();
+    const pendingValue = pendingKey ? wx.getStorageSync(pendingKey) : undefined;
+    const hasPending = pendingValue !== "" && pendingValue !== undefined && pendingValue !== null;
+    const pending = mergeChildProfileRecords(pendingValue, [], { avatarFallback: CHILD_AVATAR });
+    let remote = hasPending
+      ? await request({ url: "/api/users/me/xiaowanzi-sync", method: "PATCH", data: { childProfiles: pending } })
+      : await request({ url: "/api/users/me/xiaowanzi-sync" });
+    const remoteChildren = mergeChildProfileRecords(remote && remote.childProfiles, [], { avatarFallback: CHILD_AVATAR });
+    const legacyLocalChildren = options.migrateLegacyLocal
+      ? loadChildren()
+      : [];
+    if (!hasPending && !remoteChildren.length && legacyLocalChildren.length) {
+      remote = await request({
+        url: "/api/users/me/xiaowanzi-sync",
+        method: "PATCH",
+        data: { childProfiles: legacyLocalChildren },
+      });
+    }
+    const children = mergeChildProfileRecords(remote && remote.childProfiles, [], { avatarFallback: CHILD_AVATAR });
+    cacheProfileOnboardingChildren(children);
+    if (hasPending) wx.removeStorageSync(pendingKey);
+    return true;
+  } catch (_error) {
+    return false;
+  }
 }
 
 async function syncProfileOnboardingRemote(children, child) {
@@ -254,6 +288,7 @@ module.exports = {
   readPendingProfileOnboarding,
   reconcilePendingProfileOnboarding,
   resetProfileOnboardingSession,
+  restoreProfileOnboardingRemote,
   saveProfileOnboardingDraft,
   syncProfileOnboardingRemote,
 };

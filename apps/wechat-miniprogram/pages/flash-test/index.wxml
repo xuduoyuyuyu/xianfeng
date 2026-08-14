@@ -10,7 +10,7 @@
     </view>
   </view>
 
-  <scroll-view class="xf-flash-scroll {{stage === 'questions' || stage === 'recognition' ? 'is-question-mode' : ''}}" style="height: calc(100vh - {{chromeHeight}}px);" scroll-y="{{stage !== 'questions' && stage !== 'recognition'}}" enhanced show-scrollbar="false">
+  <scroll-view class="xf-flash-scroll {{stage === 'questions' || stage === 'recognition' || stage === 'picture-naming' ? 'is-question-mode' : ''}}" style="height: calc(100vh - {{chromeHeight}}px);" scroll-y="{{stage !== 'questions' && stage !== 'recognition' && stage !== 'picture-naming'}}" enhanced show-scrollbar="false">
     <view wx:if="{{stage === 'catalog'}}" class="xf-flash-catalog" style="min-height: calc(100vh - {{chromeHeight}}px - 80rpx);">
       <view class="xf-flash-catalog-hero">
         <view class="xf-flash-catalog-icon-shell" aria-hidden="true">
@@ -23,7 +23,7 @@
       </view>
 
       <view class="xf-flash-catalog-panel">
-        <button wx:for="{{tests}}" wx:key="id" class="xf-flash-test-card" hover-class="is-pressed" data-id="{{item.id}}" bindtap="openAssessment">
+        <button wx:for="{{tests}}" wx:key="id" class="xf-flash-test-card" hover-class="is-pressed" data-id="{{item.id}}" open-type="{{!isLoggedIn && item.childOnly ? 'getPhoneNumber' : ''}}" bindtap="openAssessment" bindgetphonenumber="authorizeChildOnlyAssessment">
           <view class="xf-flash-test-row-head">
             <view class="xf-flash-test-icon-shell" aria-hidden="true">
               <image class="xf-flash-test-icon" src="{{item.icon}}" mode="aspectFit" />
@@ -162,13 +162,64 @@
       </view>
     </view>
 
+    <view wx:elif="{{stage === 'picture-naming'}}" class="xf-picture-naming">
+      <view class="xf-picture-naming-stage">
+        <view class="xf-picture-naming-head">
+          <view>
+            <text class="xf-flash-kicker">{{modeLabel}} · 见词识读</text>
+            <text class="xf-picture-naming-title">看见单词，读给家长听</text>
+          </view>
+          <text class="xf-picture-naming-count">{{pictureNamingNumber}} / {{pictureNamingTotal}}</text>
+        </view>
+        <view class="xf-flash-progress-track">
+          <view class="xf-flash-progress-value" style="width: {{pictureNamingProgressPercent}}%;"></view>
+        </view>
+
+        <view class="xf-picture-naming-card {{englishCardView === 'picture' ? 'is-photo-view' : ''}}">
+          <view wx:if="{{englishCardView === 'picture' && pictureNamingItem.image}}" class="xf-picture-naming-photo-shell" hover-class="is-flipping" bindtap="toggleEnglishCardView" role="button" aria-label="单词 {{pictureNamingItem.word}} 的对应真实照片，点击展示区域切换为字母形态">
+            <image class="xf-picture-naming-photo" src="{{pictureNamingItem.image}}" mode="aspectFill" aria-label="单词 {{pictureNamingItem.word}} 的对应真实照片" />
+            <view class="xf-english-card-flip-hint"><text>切换看词</text><text aria-hidden="true">↻</text></view>
+          </view>
+          <view wx:else class="xf-picture-naming-word-shell {{pictureNamingItem.image ? '' : 'has-no-photo'}}" hover-class="{{pictureNamingItem.image ? 'is-flipping' : ''}}" bindtap="toggleEnglishCardView" role="button" aria-label="{{pictureNamingItem.image ? '英文单词 ' + pictureNamingItem.word + '，点击展示区域切换为对应真实照片' : '英文单词 ' + pictureNamingItem.word}}">
+            <view wx:if="{{pictureNamingItem.image}}" class="xf-english-card-flip-hint"><text>切换看图</text><text aria-hidden="true">↻</text></view>
+            <view
+              class="xf-flash-pronunciation-button {{pronunciationPlayingKey === 'english-word:' + pictureNamingItem.word ? 'is-playing' : ''}}"
+              catchtap="playEnglishWordPronunciation"
+              hover-class="is-pressed"
+              role="button"
+              aria-label="朗读单词 {{pictureNamingItem.word}}"
+            >
+              <image class="xf-flash-pronunciation-icon" src="/assets/flash-test/speaker.svg" mode="aspectFit" />
+              <text>{{pronunciationLoadingKey === 'english-word:' + pictureNamingItem.word ? '生成中' : '听读音'}}</text>
+            </view>
+            <text class="xf-picture-naming-ipa">{{pictureNamingItem.ipa}}</text>
+            <text class="xf-picture-naming-word">{{pictureNamingItem.word}}</text>
+          </view>
+          <text class="xf-picture-naming-photo-note">{{englishCardView === 'picture' ? '同一单词的真实照片 · 不改变本题记录' : (pictureNamingItem.image ? '请孩子独立读，家长辅助判断' : '本词仅展示单词卡 · 暂无审核通过的真实照片')}}</text>
+        </view>
+
+        <view wx:if="{{message}}" class="xf-flash-message">{{message}}</view>
+        <button class="xf-english-pack-trigger" hover-class="is-pressed" catchtap="openEnglishWordPackDrawer" aria-label="当前是{{englishWordPackTitle}}词包，点击切换词包">
+          <text>{{englishWordPackTitle}}词包</text>
+          <text>{{englishWordPackNumber}} / {{englishWordPacks.length}} · 切换 ›</text>
+        </button>
+        <view class="xf-picture-naming-actions">
+          <button class="xf-picture-naming-skip" hover-class="is-pressed" bindtap="markWordReadingUnknown">暂不认识</button>
+          <button class="xf-picture-naming-primary" hover-class="is-pressed" bindtap="markWordReadingKnown">{{pictureNamingNumber === pictureNamingTotal ? '认识，完成' : '下一个'}}</button>
+        </view>
+        <view wx:if="{{pictureNamingNumber === 1}}" class="xf-flash-reselect-subject" hover-class="is-pressed" bindtap="reselectAssessmentSubject" role="button">重选孩子</view>
+      </view>
+    </view>
+
     <view wx:else class="xf-flash-result">
       <view class="xf-flash-result-hero">
         <view class="xf-flash-result-head">
           <text class="xf-flash-kicker">{{modeLabel}} · 测评完成</text>
           <text wx:if="{{resultType === 'recognition'}}" class="xf-flash-result-display">{{selectedChildName}}认识的字</text>
+          <text wx:elif="{{resultType === 'pictureNaming'}}" class="xf-flash-result-display">{{selectedChildName}}的{{englishWordPackTitle}}词包盘点</text>
           <text wx:else class="xf-flash-result-display">看见{{mode === 'child' ? selectedChildName : '自己'}}的八项能力</text>
           <text wx:if="{{resultType === 'recognition'}}" class="xf-flash-lead">{{recognitionIsLegacyCumulative ? '旧版累计 1600 字已逐字筛选完成' : '第 ' + recognitionGroupNumber + ' 组 800 字已逐字筛选完成'}}</text>
+          <text wx:elif="{{resultType === 'pictureNaming'}}" class="xf-flash-lead">{{englishWordPackTitle}}词包 10 个单词已由家长逐词确认。</text>
           <text wx:else class="xf-flash-lead">雷达图按 1–5 分展示八项能力。</text>
         </view>
         <image class="xf-flash-result-icon" src="/assets/wel-avatar/img-0640.png" mode="aspectFit" aria-label="老虎头小玩子" />
@@ -188,14 +239,44 @@
         </view>
       </view>
 
-      <view wx:else class="xf-flash-radar-card">
+      <view wx:elif="{{resultType === 'pictureNaming'}}" class="xf-picture-naming-summary">
+        <view class="xf-english-result-pack-head">
+          <text class="xf-flash-recognition-summary-label">{{englishWordPackTitle}}词包 · 逐词确认结果</text>
+          <button class="xf-english-result-pack-switch" hover-class="is-pressed" bindtap="openEnglishWordPackDrawer">切换词包 ›</button>
+        </view>
+        <view class="xf-flash-recognition-summary-score">
+          <text class="xf-flash-recognition-summary-value">{{pictureNamingSummary.matchedCount}}</text>
+          <text class="xf-flash-recognition-summary-total">/ {{pictureNamingSummary.totalCount}}</text>
+        </view>
+        <text class="xf-flash-recognition-summary-progress">认识 {{pictureNamingSummary.matchedCount}} 个 · 暂不认识 {{pictureNamingSummary.totalCount - pictureNamingSummary.matchedCount}} 个</text>
+        <text class="xf-flash-recognition-summary-caveat">这是{{englishWordPackTitle}}词包 10 个单词的家长辅助盘点，不推算完整英语词汇量，也不评价口音。</text>
+        <view class="xf-flash-recognition-list-entry" hover-class="is-pressed" bindtap="openPictureNamingWordList" role="button">
+          <text>测评结果</text>
+          <text aria-hidden="true">›</text>
+        </view>
+        <view class="xf-picture-naming-interpretation">
+          <text class="xf-flash-analysis-eyebrow">怎么理解这次结果？</text>
+          <text wx:for="{{analysisParagraphs}}" wx:key="*this" class="xf-flash-analysis-paragraph">{{item}}</text>
+        </view>
+      </view>
+
+      <view wx:if="{{resultType === 'talents'}}" class="xf-flash-radar-card">
         <canvas canvas-id="talentRadar" class="xf-flash-radar" style="width: {{radarSize}}px; height: {{radarSize}}px;"></canvas>
       </view>
 
-      <view class="xf-flash-analysis-card">
+      <view wx:if="{{resultType !== 'pictureNaming'}}" class="xf-flash-analysis-card">
         <text class="xf-flash-analysis-eyebrow">{{resultType === 'recognition' ? '这次记录了具体哪些字？' : '源于沈辛成《超级分数》提出的八项能力'}}</text>
         <text class="xf-flash-analysis-title">{{analysisTitle}}</text>
         <text wx:for="{{analysisParagraphs}}" wx:key="*this" class="xf-flash-analysis-paragraph">{{item}}</text>
+      </view>
+
+      <view wx:if="{{resultType === 'pictureNaming'}}" class="xf-flash-source-summary" hover-class="is-pressed" bindtap="openEnglishAssessmentDesign" role="button">
+        <view class="xf-flash-source-summary-copy">
+          <text class="xf-flash-source-summary-kicker">英文工具设计参考</text>
+          <text class="xf-flash-source-summary-title">CEFR 活动框架 · Pre A1 词表 · 儿童任务示例</text>
+          <text class="xf-flash-source-summary-note">查看来源机构、版本及本工具如何使用</text>
+        </view>
+        <text class="xf-flash-source-summary-arrow" aria-hidden="true">›</text>
       </view>
 
       <view wx:if="{{resultType === 'recognition'}}" class="xf-flash-source-summary" hover-class="is-pressed" bindtap="openRecognitionSources" role="button">
@@ -244,8 +325,37 @@
           </view>
         </view>
       </view>
+      <view wx:elif="{{resultType === 'pictureNaming'}}" class="xf-flash-recognition-group-cards xf-english-word-pack-result-cards">
+        <button
+          wx:for="{{englishWordPackCards}}"
+          wx:key="id"
+          class="xf-flash-recognition-next-group xf-english-word-pack-result-card"
+          hover-class="is-pressed"
+          data-id="{{item.id}}"
+          catchtap="openEnglishWordPackResult"
+          aria-label="{{item.title}}词包，{{item.masteryLabel}}，{{item.actionLabel}}"
+        >
+          <view class="xf-flash-recognition-next-group-head">
+            <view>
+              <text class="xf-flash-recognition-next-group-title">第 {{item.order}} 组 · {{item.title}}</text>
+              <text class="xf-english-word-pack-result-subtitle">{{item.subtitle}}</text>
+            </view>
+            <text class="xf-flash-recognition-next-group-action">{{item.actionLabel}} ›</text>
+          </view>
+          <view class="xf-flash-recognition-mastery">
+            <view class="xf-flash-recognition-mastery-score">
+              <text class="xf-flash-recognition-mastery-value">{{item.recognizedDisplay}}</text>
+              <text class="xf-flash-recognition-mastery-total">/ {{item.totalCount}} 词</text>
+            </view>
+            <text class="xf-flash-recognition-mastery-label">{{item.masteryLabel}}</text>
+          </view>
+          <view class="xf-flash-recognition-mastery-track" aria-hidden="true">
+            <view class="xf-flash-recognition-mastery-fill" style="width: {{item.masteryPercent}}%;"></view>
+          </view>
+        </button>
+      </view>
       <button wx:else class="xf-flash-primary is-full" bindtap="restartAssessment">重新测一次</button>
-      <view class="xf-flash-result-note">{{resultType === 'recognition' ? '识字量不等于阅读理解能力，结果会受孩子状态与家长判断尺度影响。' : (mode === 'child' ? '代测结果会受家长观察视角与孩子近期状态影响。' : '自测结果会受作答视角与近期状态影响。')}}适合用来开启观察，不适合替代专业评估。</view>
+      <view class="xf-flash-result-note">{{resultType === 'recognition' ? '识字量不等于阅读理解能力，结果会受孩子状态与家长判断尺度影响。' : (resultType === 'pictureNaming' ? '见词朗读结果会受孩子状态与家长判断尺度影响。' : (mode === 'child' ? '代测结果会受家长观察视角与孩子近期状态影响。' : '自测结果会受作答视角与近期状态影响。'))}}适合用来开启观察，不适合替代专业评估。</view>
       <view class="xf-flash-reselect-subject" hover-class="is-pressed" bindtap="reselectAssessmentSubject" role="button">{{mode === 'child' ? '重选孩子' : '重选测试对象'}}</view>
     </view>
   </scroll-view>
@@ -259,7 +369,19 @@
         </view>
         <view class="xf-flash-recognition-focus-close" catchtap="closeRecognitionCharacterFocus" role="button" aria-label="关闭">×</view>
       </view>
-      <text class="xf-flash-recognition-focus-character">{{recognitionFocusCharacter}}</text>
+      <view
+        class="xf-flash-recognition-focus-character-card {{pronunciationPlayingKey === 'chinese-character:' + recognitionFocusCharacter ? 'is-playing' : ''}}"
+        catchtap="playRecognitionCharacterPronunciation"
+        hover-class="is-pressed"
+        role="button"
+        aria-label="朗读汉字 {{recognitionFocusCharacter}}"
+      >
+        <text class="xf-flash-recognition-focus-character">{{recognitionFocusCharacter}}</text>
+        <view class="xf-flash-recognition-focus-pronunciation">
+          <image class="xf-flash-pronunciation-icon" src="/assets/flash-test/speaker.svg" mode="aspectFit" />
+          <text>{{pronunciationLoadingKey === 'chinese-character:' + recognitionFocusCharacter ? '生成读音中' : '点大字听读音'}}</text>
+        </view>
+      </view>
       <text class="xf-flash-recognition-focus-hint">能独立读出，并说出大致意思或组成常见词，才算认识。</text>
       <view class="xf-flash-recognition-focus-actions">
         <button
@@ -334,6 +456,108 @@
     </view>
   </view>
 
+  <view wx:if="{{pictureNamingWordListOpen}}" class="xf-flash-character-list-mask" catchtap="closePictureNamingWordList" catchtouchmove="noop">
+    <view class="xf-flash-character-list-dialog" catchtap="noop">
+      <view class="xf-flash-character-list-head">
+        <view>
+          <text class="xf-flash-character-list-kicker">{{englishWordPackTitle}}词包 · 10 个英文单词</text>
+          <text class="xf-flash-character-list-title">认识和暂不认识的单词</text>
+        </view>
+        <view class="xf-flash-character-list-close" catchtap="closePictureNamingWordList" role="button" aria-label="关闭">×</view>
+      </view>
+      <view class="xf-flash-character-list-tabs" role="tablist">
+        <view
+          class="xf-flash-character-list-tab {{pictureNamingWordListTab === 'unknown' ? 'is-active' : ''}}"
+          hover-class="is-pressed"
+          data-tab="unknown"
+          catchtap="switchPictureNamingWordListTab"
+          role="tab"
+          aria-label="暂不认识的单词，共 {{pictureNamingUnknownWords.length}} 个"
+        >暂不认识的单词（{{pictureNamingUnknownWords.length}}）</view>
+        <view
+          class="xf-flash-character-list-tab {{pictureNamingWordListTab === 'known' ? 'is-active' : ''}}"
+          hover-class="is-pressed"
+          data-tab="known"
+          catchtap="switchPictureNamingWordListTab"
+          role="tab"
+          aria-label="认识的单词，共 {{pictureNamingKnownWords.length}} 个"
+        >认识的单词（{{pictureNamingKnownWords.length}}）</view>
+      </view>
+      <scroll-view class="xf-flash-character-list-scroll" scroll-y="true" enhanced show-scrollbar="false">
+        <view wx:if="{{pictureNamingWordListTab === 'unknown'}}" class="xf-flash-character-list-section is-unknown">
+          <view wx:if="{{pictureNamingUnknownWords.length}}" class="xf-picture-naming-word-grid">
+            <text wx:for="{{pictureNamingUnknownWords}}" wx:key="*this" class="xf-picture-naming-word-chip">{{item}}</text>
+          </view>
+          <text wx:else class="xf-flash-character-list-empty">本轮没有暂不认识的单词</text>
+        </view>
+        <view wx:else class="xf-flash-character-list-section is-known">
+          <view wx:if="{{pictureNamingKnownWords.length}}" class="xf-picture-naming-word-grid">
+            <text wx:for="{{pictureNamingKnownWords}}" wx:key="*this" class="xf-picture-naming-word-chip">{{item}}</text>
+          </view>
+          <text wx:else class="xf-flash-character-list-empty">本轮没有认识的单词</text>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+
+  <view wx:if="{{englishWordPackOpen}}" class="xf-flash-character-list-mask" catchtap="closeEnglishWordPackDrawer" catchtouchmove="noop">
+    <view class="xf-flash-character-list-dialog xf-english-pack-dialog" catchtap="noop">
+      <view class="xf-flash-character-list-head">
+        <view>
+          <text class="xf-flash-character-list-kicker">50 个已收集词 · 分 5 组完成</text>
+          <text class="xf-flash-character-list-title">选择英文词包</text>
+        </view>
+        <view class="xf-flash-character-list-close" catchtap="closeEnglishWordPackDrawer" role="button" aria-label="关闭">×</view>
+      </view>
+      <text class="xf-english-pack-disclaimer">每个词包独立记录结果。每个词都可在单词和对应实拍照片之间点击切换。</text>
+      <scroll-view class="xf-english-pack-scroll" scroll-y="true" enhanced show-scrollbar="false">
+        <button
+          wx:for="{{englishWordPacks}}"
+          wx:key="id"
+          class="xf-english-pack-item {{item.id === englishWordPackId ? 'is-active' : ''}}"
+          hover-class="is-pressed"
+          data-id="{{item.id}}"
+          catchtap="selectEnglishWordPack"
+          aria-label="{{item.title}}词包，{{item.itemCount}}个词"
+        >
+          <view class="xf-english-pack-order">{{item.order}}</view>
+          <view class="xf-english-pack-copy">
+            <text class="xf-english-pack-title">{{item.title}}</text>
+            <text class="xf-english-pack-subtitle">{{item.subtitle}} · {{item.itemCount}} 词</text>
+            <text class="xf-english-pack-photo-state">可切换查看 {{item.imageCount}} 张实拍照片</text>
+          </view>
+          <text class="xf-english-pack-state">{{item.id === englishWordPackId ? '当前' : '进入'}} ›</text>
+        </button>
+      </scroll-view>
+    </view>
+  </view>
+
+  <view wx:if="{{englishAssessmentDesignOpen}}" class="xf-flash-character-list-mask xf-flash-source-mask" catchtap="closeEnglishAssessmentDesign" catchtouchmove="noop">
+    <view class="xf-flash-character-list-dialog xf-flash-source-dialog xf-english-source-dialog" catchtap="noop">
+      <view class="xf-flash-character-list-head">
+        <view>
+          <text class="xf-flash-character-list-kicker">可核对的设计来源</text>
+          <text class="xf-flash-character-list-title">英文单词闪测设计参考</text>
+        </view>
+        <view class="xf-flash-character-list-close" catchtap="closeEnglishAssessmentDesign" role="button" aria-label="关闭">×</view>
+      </view>
+      <text class="xf-flash-source-disclaimer">这些来源用于儿童英语活动、入门词汇和作答边界参考，不代表 Council of Europe 或 Cambridge 对本测试的认证，也不代表本工具的 10 个词是官方统一词表。</text>
+      <scroll-view class="xf-flash-source-scroll" scroll-y="true" enhanced show-scrollbar="false">
+        <view wx:for="{{englishAssessmentReferences}}" wx:key="id" class="xf-flash-source-item">
+          <view class="xf-flash-source-item-head">
+            <text class="xf-flash-source-item-number">{{index + 1}}</text>
+            <view class="xf-flash-source-item-heading">
+              <text class="xf-flash-source-item-title">{{item.title}}</text>
+              <text class="xf-flash-source-item-meta">{{item.institution}} · {{item.version}}</text>
+            </view>
+          </view>
+          <text class="xf-flash-source-item-purpose">本工具用途：{{item.purpose}}</text>
+          <view class="xf-flash-source-copy" hover-class="is-pressed" data-id="{{item.id}}" catchtap="copyEnglishAssessmentReference" role="button">复制来源链接</view>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+
   <view wx:if="{{recognitionSourcesOpen}}" class="xf-flash-character-list-mask xf-flash-source-mask" catchtap="closeRecognitionSources" catchtouchmove="noop">
     <view class="xf-flash-character-list-dialog xf-flash-source-dialog" catchtap="noop">
       <view class="xf-flash-character-list-head">
@@ -369,8 +593,8 @@
         </view>
         <button class="xf-flash-subject-close" catchtap="closeSubjectModal" aria-label="关闭">×</button>
       </view>
-      <text class="xf-flash-subject-lead">{{selectedTestChildOnly ? '两组各 800 字，都可以随时进入。每组按由易到难分成 40 页，进度会分别保存在本机，可以分多次完成。' : '请根据长期真实表现作答，没有标准答案。'}}</text>
-      <view wx:if="{{selectedTestChildOnly}}" class="xf-flash-subject-source" hover-class="is-pressed" catchtap="openRecognitionSources" role="button">
+      <text class="xf-flash-subject-lead">{{selectedTestId === 'character-recognition' ? '两组各 800 字，都可以随时进入。每组按由易到难分成 40 页，进度会分别保存在本机，可以分多次完成。' : '请根据长期真实表现作答，没有标准答案。'}}</text>
+      <view wx:if="{{selectedTestId === 'character-recognition'}}" class="xf-flash-subject-source" hover-class="is-pressed" catchtap="openRecognitionSources" role="button">
         <view>
           <text class="xf-flash-subject-source-title">设计依据与可核对来源</text>
           <text class="xf-flash-subject-source-meta">逐册教材字表 · 课程标准 · 学前指南</text>
@@ -385,15 +609,15 @@
         </view>
         <text class="xf-flash-mode-arrow">›</text>
       </button>
-      <button class="xf-flash-mode-card" hover-class="is-pressed" data-mode="child" open-type="{{isLoggedIn ? '' : 'getPhoneNumber'}}" bindtap="chooseMode" bindgetphonenumber="authorizeAssessment">
+      <button wx:if="{{!selectedTestChildOnly}}" class="xf-flash-mode-card" hover-class="is-pressed" data-mode="child" open-type="{{isLoggedIn ? '' : 'getPhoneNumber'}}" bindtap="chooseMode" bindgetphonenumber="authorizeAssessment">
         <view class="xf-flash-mode-icon is-child">孩</view>
         <view class="xf-flash-mode-copy">
-          <text>{{selectedTestChildOnly ? '选择孩子并开始' : '给孩子代测'}}</text>
-          <text>{{selectedTestChildOnly ? '复用已有孩子档案保存本次结果' : '依据长期观察，不用单次成绩下结论'}}</text>
+          <text>给孩子代测</text>
+          <text>依据长期观察，不用单次成绩下结论</text>
         </view>
         <text class="xf-flash-mode-arrow">›</text>
       </button>
-      <text class="xf-flash-subject-note">进入题目前需授权登录，完成后结果会保存到我的数据。</text>
+      <text class="xf-flash-subject-note">{{selectedTestChildOnly ? (isLoggedIn ? '选择模式后，只有一个孩子档案时会直接进入；有多个时再选择。' : '选择模式后需授权登录，结果会保存到孩子档案。') : '进入题目前需授权登录，完成后结果会保存到我的数据。'}}</text>
     </view>
   </view>
 

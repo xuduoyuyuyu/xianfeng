@@ -2,6 +2,7 @@ const { getToken, getUser } = require("./session");
 
 const CHILD_PROFILES_KEY = "xf_child_profiles";
 const WEB_CHILD_PROFILES_KEY = "xiaowanzi_child_profiles_v1";
+const CHILD_PROFILES_SYNC_PENDING_KEY = "xf_child_profiles_sync_pending_v1";
 const LEGACY_CHILD_AVATAR_PATHS = new Set([
   "/assets/xiaowanzi-nohat.png",
   "/assets/xiaowanzi-topbar.png"
@@ -27,6 +28,12 @@ function maskMobile(value) {
 
 function normalizeTags(value) {
   return Array.isArray(value) ? value.map(String).filter(Boolean) : [];
+}
+
+function childProfilesSyncPendingKey() {
+  const user = parseStoredValue(getUser(), {}) || {};
+  const ownerId = String(user._id || user.id || user.userId || "").trim();
+  return ownerId ? `${CHILD_PROFILES_SYNC_PENDING_KEY}:${ownerId}` : "";
 }
 
 function normalizeChildDisplayName(value) {
@@ -88,13 +95,21 @@ function saveChildProfileRecords(children, options = {}) {
   const savedChildren = mergeChildProfileRecords(children, [], options);
   wx.setStorageSync(CHILD_PROFILES_KEY, savedChildren);
   wx.setStorageSync(WEB_CHILD_PROFILES_KEY, JSON.stringify(savedChildren));
-  if (getToken()) {
+  if (options.syncRemote !== false && getToken()) {
     const { request } = require("./request");
+    const pendingKey = childProfilesSyncPendingKey();
+    if (pendingKey) wx.setStorageSync(pendingKey, savedChildren);
     Promise.resolve(request({
       url: "/api/users/me/xiaowanzi-sync",
       method: "PATCH",
       data: { childProfiles: savedChildren }
-    })).catch(() => {});
+    })).then(() => {
+      if (!pendingKey) return;
+      const pending = mergeChildProfileRecords(wx.getStorageSync(pendingKey), []);
+      if (JSON.stringify(pending) === JSON.stringify(savedChildren)) {
+        wx.removeStorageSync(pendingKey);
+      }
+    }).catch(() => {});
   }
   return savedChildren;
 }
@@ -172,8 +187,10 @@ function buildProfileState() {
 
 module.exports = {
   CHILD_PROFILES_KEY,
+  CHILD_PROFILES_SYNC_PENDING_KEY,
   WEB_CHILD_PROFILES_KEY,
   buildProfileState,
+  childProfilesSyncPendingKey,
   hasDuplicateChildDisplayName,
   mergeChildProfileRecords,
   saveChildProfileRecords,

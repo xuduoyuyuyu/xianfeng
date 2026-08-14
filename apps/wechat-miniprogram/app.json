@@ -10,7 +10,6 @@
     "pages/search/index",
     "pages/share/index",
     "pages/welfare/index",
-    "pages/flash-test/index",
     "pages/home/index",
     "pages/pro/index",
     "pages/mama-resource-apply/index",
@@ -21,6 +20,12 @@
     "pages/mine/memory/index",
     "pages/mine/settings/index",
     "pages/webview/index"
+  ],
+  "subPackages": [
+    {
+      "root": "pages/flash-test",
+      "pages": ["index"]
+    }
   ],
   "window": {
     "navigationBarBackgroundColor": "#ffffff",

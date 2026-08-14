@@ -337,6 +337,7 @@ function buildNativeProgramGuestState(guests, activeGuestIndex) {
 function normalizeBookImage(value) {
   const source = String(value || "").trim();
   if (!source) return "";
+  if (source.toLowerCase().includes("placeholder")) return "";
   if (source.indexOf("http://xianfeng.xinzhi.info/") === 0) {
     return `${DEFAULT_WEB_ORIGIN}${source.slice("http://xianfeng.xinzhi.info".length)}`;
   }
@@ -1826,7 +1827,10 @@ function normalizeBookDetail(book, metadata) {
   const title = firstText([item.title, meta.title], "图书详情");
   const author = formatExternalBookValue(firstText([meta.author, item.author], ""));
   const publisher = formatExternalBookValue(firstText([meta.publisher, item.publisher], ""));
-  const coverImage = normalizeBookCoverImage(firstText([meta.cover, item.metadataCover, item.coverImage], ""));
+  const coverImage = firstText(
+    [meta.cover, item.metadataCover, item.coverImage].map(normalizeBookImage),
+    DEFAULT_READING_COVER_IMAGE
+  );
   const intro = firstText([
     meta.description,
     item.description,
@@ -3548,8 +3552,9 @@ Page({
     const dataset = event && event.currentTarget ? event.currentTarget.dataset || {} : {};
     const id = firstText([dataset.id], "");
     if (!id) return;
+    const targetUrl = `${DEFAULT_WEB_ORIGIN}/reading/${encodeURIComponent(id)}`;
     wx.navigateTo({
-      url: `/pages/webview/index?bookId=${encodeURIComponent(id)}&title=${encodeURIComponent("图书详情")}`
+      url: `/pages/webview/index?title=${encodeURIComponent("图书详情")}&url=${encodeURIComponent(targetUrl)}`
     });
   },
 

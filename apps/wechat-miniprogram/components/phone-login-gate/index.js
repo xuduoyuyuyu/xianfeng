@@ -60,21 +60,25 @@ Component({
             .then((payload) => {
               setSession(payload);
               const app = typeof getApp === "function" ? getApp() : null;
-              if (app && typeof app.setLoginSession === "function") app.setLoginSession(payload);
-              resolveAuthExpired();
-              this.setData({ bindingPhone: false, loginMessage: "" });
-              if (needsWechatProfileCompletion(payload && payload.user)) {
-                const user = normalizeWechatProfileUser(payload && payload.user);
-                this._pendingLoginSession = payload;
-                this.setData({
-                  completingProfile: true,
-                  profileName: isPlaceholderName(user.name) ? "" : user.name,
-                  profileAvatar: hasPersistentAvatar(user.avatar) ? user.avatar : "",
-                  profileMessage: ""
-                });
-                return;
-              }
-              finishLogin(this, payload);
+              const profileRestore = app && typeof app.setLoginSession === "function"
+                ? app.setLoginSession(payload)
+                : null;
+              return Promise.resolve(profileRestore).then(() => {
+                resolveAuthExpired();
+                this.setData({ bindingPhone: false, loginMessage: "" });
+                if (needsWechatProfileCompletion(payload && payload.user)) {
+                  const user = normalizeWechatProfileUser(payload && payload.user);
+                  this._pendingLoginSession = payload;
+                  this.setData({
+                    completingProfile: true,
+                    profileName: isPlaceholderName(user.name) ? "" : user.name,
+                    profileAvatar: hasPersistentAvatar(user.avatar) ? user.avatar : "",
+                    profileMessage: ""
+                  });
+                  return;
+                }
+                finishLogin(this, payload);
+              });
             })
             .catch((error) => {
               failLogin(this, String(error && error.message || "登录失败，请重试"), "request-failed");

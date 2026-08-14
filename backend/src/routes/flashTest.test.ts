@@ -7,11 +7,17 @@ import { MongoMemoryServer } from "mongodb-memory-server";
 import flashTestRoutes, {
   BASE_CHARACTER_RECOGNITION_VERSION,
   CHARACTER_RECOGNITION_VERSION,
+  DEFAULT_ENGLISH_WORD_PACK_ID,
   EIGHT_TALENTS_VERSION,
+  ENGLISH_PICTURE_NAMING_VERSION,
+  ENGLISH_WORD_PACKS,
   LEGACY_CHARACTER_RECOGNITION_VERSION,
+  matchesEnglishPictureWord,
   normalizeCharacterRecognitionSample,
+  normalizePictureNamingAnswers,
   scoreCharacterRecognition,
   scoreEightTalents,
+  scorePictureNaming,
 } from "./flashTest";
 import FlashTestResult from "../models/FlashTestResult";
 import User from "../models/User";
@@ -71,6 +77,27 @@ describe("flash test result routes", () => {
       }),
     });
     assert.equal(response.status, 401);
+  });
+
+  it("rejects arbitrary text at the pronunciation boundary", async () => {
+    const user = await User.create({ username: "flash-pronunciation", password: "hash" });
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${tokenFor(String(user._id))}`,
+    };
+    const unknownWord = await fetch(`${baseUrl}/pronunciation`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ kind: "english-word", itemId: "animal-unlisted" }),
+    });
+    const unknownCharacter = await fetch(`${baseUrl}/pronunciation`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ kind: "chinese-character", character: "𠮷" }),
+    });
+
+    assert.equal(unknownWord.status, 400);
+    assert.equal(unknownCharacter.status, 400);
   });
 
   it("saves and returns only the current user's self-test history", async () => {
@@ -189,6 +216,189 @@ describe("flash test result routes", () => {
     const savedBody = await saved.json();
     assert.equal(savedBody.result.childId, "child-1");
     assert.equal(savedBody.result.childName, "小圆子");
+  });
+
+  it("normalizes spoken English without trusting the client match status", () => {
+    assert.equal(matchesEnglishPictureWord("A cat.", "cat"), true);
+    assert.equal(matchesEnglishPictureWord("catch", "cat"), false);
+    const itemIds = ["cat", "dog", "bird", "fish", "duck", "horse", "cow", "sheep", "elephant", "monkey"]
+      .map((word) => `animal-${word}`);
+    const answers = normalizePictureNamingAnswers(itemIds.map((itemId, index) => ({
+      itemId,
+      recognizedText: index === 0 ? "A cat." : "different",
+      status: index === 9 ? "skipped" : "matched",
+    })));
+    assert.ok(answers);
+    assert.equal(answers[0].status, "matched");
+    assert.equal(answers[1].status, "unmatched");
+    assert.equal(answers[9].status, "skipped");
+    assert.deepEqual(scorePictureNaming(answers), {
+      totalCount: 10,
+      matchedCount: 1,
+      needsPracticeCount: 8,
+      skippedCount: 1,
+    });
+  });
+
+  it("accepts parent-confirmed word recognition without ASR text", () => {
+    const words = ["cat", "dog", "bird", "fish", "duck", "horse", "cow", "sheep", "elephant", "monkey"];
+    const answers = normalizePictureNamingAnswers(words.map((word, index) => ({
+      itemId: `animal-${word}`,
+      recognizedText: "",
+      status: index < 6 ? "matched" : "skipped",
+    })), "word");
+
+    assert.ok(answers);
+    assert.deepEqual(scorePictureNaming(answers), {
+      totalCount: 10,
+      matchedCount: 6,
+      needsPracticeCount: 0,
+      skippedCount: 4,
+    });
+  });
+
+  it("validates all five collected word packs independently", () => {
+    assert.equal(DEFAULT_ENGLISH_WORD_PACK_ID, "animals");
+    assert.equal(ENGLISH_WORD_PACKS.length, 5);
+    assert.equal(ENGLISH_WORD_PACKS.flatMap((pack) => pack.items).length, 50);
+    const foodPack = ENGLISH_WORD_PACKS.find((pack) => pack.id === "food");
+    assert.ok(foodPack);
+    const answers = normalizePictureNamingAnswers(foodPack.items.map((item, index) => ({
+      itemId: item.id,
+      recognizedText: "",
+      status: index < 3 ? "matched" : "skipped",
+    })), "word", "food");
+    assert.ok(answers);
+    assert.equal(answers[0].targetWord, "apple");
+    assert.deepEqual(scorePictureNaming(answers), {
+      totalCount: 10,
+      matchedCount: 3,
+      needsPracticeCount: 0,
+      skippedCount: 7,
+    });
+    assert.equal(normalizePictureNamingAnswers(answers, "word", "animals"), null);
+  });
+
+  it("saves and restores a server-calibrated picture naming result for an owned child", async () => {
+    const user = await User.create({ username: "flash-picture-words", password: "hash" });
+    await UserXiaowanziSync.create({
+      userId: user._id,
+      childProfiles: [{ id: "child-speaker", title: "小说家", grade: "小学一年级" }],
+    });
+    const words = ["cat", "dog", "bird", "fish", "duck", "horse", "cow", "sheep", "elephant", "monkey"];
+    const pictureNamingAnswers = words.map((word, index) => ({
+      itemId: `animal-${word}`,
+      recognizedText: index < 7 ? word : index === 9 ? "" : "another word",
+      status: index === 9 ? "skipped" : "matched",
+    }));
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${tokenFor(String(user._id))}`,
+    };
+
+    const response = await fetch(`${baseUrl}/results`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        assessmentId: "english-picture-naming",
+        assessmentVersion: ENGLISH_PICTURE_NAMING_VERSION,
+        englishPromptMode: "picture",
+        mode: "child",
+        childId: "child-speaker",
+        answers: [],
+        pictureNamingAnswers,
+      }),
+    });
+    assert.equal(response.status, 201);
+    const body = await response.json();
+    assert.equal(body.result.childName, "小说家");
+    assert.equal(body.result.englishPromptMode, "picture");
+    assert.equal(body.result.englishWordPackId, "animals");
+    assert.deepEqual(body.result.pictureNamingSummary, {
+      totalCount: 10,
+      matchedCount: 7,
+      needsPracticeCount: 2,
+      skippedCount: 1,
+    });
+    assert.equal(body.result.pictureNamingAnswers[7].status, "unmatched");
+
+    const wordResponse = await fetch(`${baseUrl}/results`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        assessmentId: "english-picture-naming",
+        assessmentVersion: ENGLISH_PICTURE_NAMING_VERSION,
+        englishPromptMode: "word",
+        mode: "child",
+        childId: "child-speaker",
+        answers: [],
+        pictureNamingAnswers,
+      }),
+    });
+    assert.equal(wordResponse.status, 201);
+    const wordBody = await wordResponse.json();
+    assert.equal(wordBody.result.englishPromptMode, "word");
+    assert.equal(wordBody.result.englishWordPackId, "animals");
+
+    const foodPack = ENGLISH_WORD_PACKS.find((pack) => pack.id === "food");
+    assert.ok(foodPack);
+    const foodResponse = await fetch(`${baseUrl}/results`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        assessmentId: "english-picture-naming",
+        assessmentVersion: ENGLISH_PICTURE_NAMING_VERSION,
+        englishPromptMode: "word",
+        englishWordPackId: "food",
+        mode: "child",
+        childId: "child-speaker",
+        answers: [],
+        pictureNamingAnswers: foodPack.items.map((item, index) => ({
+          itemId: item.id,
+          recognizedText: "",
+          status: index < 4 ? "matched" : "skipped",
+        })),
+      }),
+    });
+    assert.equal(foodResponse.status, 201);
+    const foodBody = await foodResponse.json();
+    assert.equal(foodBody.result.englishWordPackId, "food");
+    assert.equal(foodBody.result.pictureNamingAnswers[0].targetWord, "apple");
+
+    const list = await fetch(`${baseUrl}/results?assessmentId=english-picture-naming&englishPromptMode=picture&mode=child&childId=child-speaker&limit=1`, { headers });
+    assert.equal(list.status, 200);
+    const listBody = await list.json();
+    assert.equal(listBody.results[0].id, body.result.id);
+    assert.equal(listBody.results[0].pictureNamingAnswers.length, 10);
+    assert.equal(listBody.results[0].englishPromptMode, "picture");
+
+    const wordList = await fetch(`${baseUrl}/results?assessmentId=english-picture-naming&englishPromptMode=word&englishWordPackId=animals&mode=child&childId=child-speaker&limit=1`, { headers });
+    assert.equal(wordList.status, 200);
+    const wordListBody = await wordList.json();
+    assert.equal(wordListBody.results[0].id, wordBody.result.id);
+    assert.equal(wordListBody.results[0].englishPromptMode, "word");
+    assert.equal(wordListBody.results[0].englishWordPackId, "animals");
+    assert.deepEqual(wordListBody.englishWordPackResults.animals, {
+      resultId: wordBody.result.id,
+      englishWordPackId: "animals",
+      matchedCount: wordBody.result.pictureNamingSummary.matchedCount,
+      totalCount: 10,
+      completedAt: wordBody.result.completedAt,
+    });
+    assert.deepEqual(wordListBody.englishWordPackResults.food, {
+      resultId: foodBody.result.id,
+      englishWordPackId: "food",
+      matchedCount: 4,
+      totalCount: 10,
+      completedAt: foodBody.result.completedAt,
+    });
+    assert.equal(wordListBody.englishWordPackResults["home-school"], null);
+
+    const foodList = await fetch(`${baseUrl}/results?assessmentId=english-picture-naming&englishPromptMode=word&englishWordPackId=food&mode=child&childId=child-speaker&limit=1`, { headers });
+    assert.equal(foodList.status, 200);
+    const foodListBody = await foodList.json();
+    assert.equal(foodListBody.results[0].id, foodBody.result.id);
+    assert.equal(foodListBody.results[0].englishWordPackId, "food");
   });
 
   it("saves a server-scored exact 1600-character checklist for an owned child", async () => {

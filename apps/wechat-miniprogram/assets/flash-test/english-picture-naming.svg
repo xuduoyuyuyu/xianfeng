@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <linearGradient id="shell" x1="20" y1="12" x2="108" y2="118" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FBF8FF" />
+      <stop offset="1" stop-color="#E8DCFF" />
+    </linearGradient>
+    <linearGradient id="photo" x1="40" y1="35" x2="84" y2="88" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" />
+      <stop offset="1" stop-color="#F5EEFF" />
+    </linearGradient>
+    <linearGradient id="scene" x1="43" y1="43" x2="82" y2="80" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#EDE2FF" />
+      <stop offset="1" stop-color="#C8A5FF" />
+    </linearGradient>
+    <linearGradient id="mic" x1="82" y1="65" x2="104" y2="103" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A954FF" />
+      <stop offset="1" stop-color="#6C27D6" />
+    </linearGradient>
+  </defs>
+
+  <rect x="5" y="7" width="118" height="116" rx="31" fill="#D8C4FF" fill-opacity="0.44" />
+  <rect x="5" y="4" width="118" height="116" rx="31" fill="url(#shell)" />
+  <path d="M21 34C28 17 42 11 62 11" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-opacity="0.72" />
+
+  <g transform="rotate(-7 59 63)">
+    <rect x="28" y="29" width="66" height="68" rx="14" fill="#BFA0FA" fill-opacity="0.35" />
+    <rect x="30" y="26" width="66" height="68" rx="14" fill="#DDC9FF" />
+  </g>
+
+  <rect x="35" y="25" width="64" height="70" rx="14" fill="#9B72E8" fill-opacity="0.28" />
+  <rect x="35" y="22" width="64" height="70" rx="14" fill="url(#photo)" stroke="#FFFFFF" stroke-width="3" />
+  <rect x="42" y="37" width="50" height="39" rx="9" fill="url(#scene)" />
+  <circle cx="78" cy="48" r="6" fill="#FFFFFF" fill-opacity="0.9" />
+  <path d="M45 72L57 58L66 67L73 60L90 75H45V72Z" fill="#8B4CE8" fill-opacity="0.72" />
+  <path d="M47 83H74" stroke="#B69BE4" stroke-width="4" stroke-linecap="round" />
+
+  <circle cx="91" cy="88" r="22" fill="#FFFFFF" />
+  <circle cx="91" cy="88" r="19" fill="url(#mic)" />
+  <rect x="87" y="76" width="8" height="17" rx="4" fill="#FFFFFF" />
+  <path d="M82.5 87.5V89C82.5 93.7 86.3 97.5 91 97.5C95.7 97.5 99.5 93.7 99.5 89V87.5M91 97.5V102M86.5 102H95.5" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" />
+  <path d="M79 72C82 68 86 66 90 66" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-opacity="0.72" />
+</svg>

@@ -188,6 +188,15 @@ function loadAppDefinition() {
   return definition;
 }
 
+test("authenticated app entry restores account child archives instead of uploading an empty local cache", () => {
+  const source = fs.readFileSync(new URL("../app.js", import.meta.url), "utf8");
+  assert.match(source, /restoreProfileOnboardingRemote/);
+  assert.match(source, /onLaunch\(\)[\s\S]*restoreProfileOnboardingRemote\(\{ migrateLegacyLocal: true \}\)/);
+  assert.match(source, /setLoginSession\(payload\)[\s\S]*return restoreProfileOnboardingRemote\(\)/);
+  assert.match(source, /refreshMe\(\)[\s\S]*return restoreProfileOnboardingRemote\(\)\.then\(\(\) => user\)/);
+  assert.doesNotMatch(source, /setLoginSession\(payload\)[\s\S]*syncProfileOnboardingRemote\(\)/);
+});
+
 function walkFiles(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const child = new URL(`${entry.name}${entry.isDirectory() ? "/" : ""}`, dir);
@@ -14270,6 +14279,10 @@ test("webview native book detail restores related books from current native cach
         _id: "book-cache-current",
         title: "缓存里的本地图书",
         author: "作者甲",
+        coverImage: "https://img3m1.ddimg.cn/9/8/12539998161-1_b_1783644791.jpg",
+        metadataDetail: {
+          cover: "https://via.placeholder.com/240x320/630ed4/ffffff?text=Book"
+        },
         sourceName: "家庭教育",
         categoryLabel: "教育",
         topic: "亲子关系"
@@ -14325,6 +14338,10 @@ test("webview native book detail restores related books from current native cach
 
     assert.equal(context.data.nativeBook.hasRelatedBooks, true);
     assert.equal(context.data.nativeBook.relatedBooks[0].title, "缓存里的相关图书");
+    assert.equal(
+      context.data.nativeBook.coverImage,
+      `https://xianfeng.xinzhi.info/api/books/proxy-image?url=${encodeURIComponent("https://img3m1.ddimg.cn/9/8/12539998161-1_b_1783644791.jpg")}`
+    );
   } finally {
     global.wx = originalWx;
   }
@@ -15530,6 +15547,8 @@ test("native expert detail renders authored works and copies social links silent
 
   assert.match(js, /const authoredBooks = \(Array\.isArray\(item\.authoredBooks\)/);
   assert.match(js, /openNativeExpertAuthoredBook\(event\)/);
+  assert.match(js, /const targetUrl = `\$\{DEFAULT_WEB_ORIGIN\}\/reading\/\$\{encodeURIComponent\(id\)\}`;/);
+  assert.match(js, /url: `\/pages\/webview\/index\?title=\$\{encodeURIComponent\("图书详情"\)\}&url=\$\{encodeURIComponent\(targetUrl\)\}`/);
   assert.match(js, /copyNativeExpertSocial\(event\)/);
   assert.match(js, /copyTextSilently\(value\)/);
   assert.doesNotMatch(js, /url \? "链接已复制" : "账号名称已复制"/);

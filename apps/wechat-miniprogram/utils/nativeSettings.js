@@ -777,11 +777,15 @@ function createNativeSettingsMethods() {
             .then((payload) => {
               setSession(payload);
               const app = typeof getApp === "function" ? getApp() : null;
-              if (app) {
+              const profileRestore = app && typeof app.setLoginSession === "function"
+                ? app.setLoginSession(payload)
+                : null;
+              if (app && !profileRestore) {
                 app.globalData = app.globalData || {};
                 app.globalData.token = getToken();
                 app.globalData.user = getUser();
               }
+              return Promise.resolve(profileRestore).then(() => {
               this.loadSettingsPanel();
               this.syncAccountEntry();
               if (typeof this.onNativeSettingsLoginSuccess === "function") {
@@ -800,6 +804,7 @@ function createNativeSettingsMethods() {
               if (pendingSettingsLoginDataset && typeof this.openSettingsItem === "function") {
                 this.openSettingsItem({ currentTarget: { dataset: pendingSettingsLoginDataset } });
               }
+              });
             })
             .catch((error) => {
               this.pendingSettingsLoginDataset = null;
@@ -856,11 +861,15 @@ function createNativeSettingsMethods() {
         .then((payload) => {
           setSession(payload);
           const app = typeof getApp === "function" ? getApp() : null;
-          if (app) {
+          const profileRestore = app && typeof app.setLoginSession === "function"
+            ? app.setLoginSession(payload)
+            : null;
+          if (app && !profileRestore) {
             app.globalData = app.globalData || {};
             app.globalData.token = getToken();
             app.globalData.user = getUser();
           }
+          return Promise.resolve(profileRestore).then(() => {
           this.loadSettingsPanel();
           if (typeof this.onNativeSettingsLoginSuccess === "function") {
             this.onNativeSettingsLoginSuccess(payload);
@@ -868,6 +877,7 @@ function createNativeSettingsMethods() {
           if (!openWechatProfileCompletion(this, payload && payload.user)) {
             this.setData({ profilePanelMessage: "手机号已绑定" });
           }
+          });
         })
         .catch((error) => {
           this.setData({ profilePanelMessage: error.message || "绑定手机号失败" });

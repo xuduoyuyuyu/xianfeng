@@ -20,9 +20,23 @@ export interface FlashTestRecognitionSummary {
   reference: string;
 }
 
+export interface FlashTestPictureNamingAnswer {
+  itemId: string;
+  targetWord: string;
+  recognizedText: string;
+  status: "matched" | "unmatched" | "skipped";
+}
+
+export interface FlashTestPictureNamingSummary {
+  totalCount: number;
+  matchedCount: number;
+  needsPracticeCount: number;
+  skippedCount: number;
+}
+
 export interface FlashTestResult extends mongoose.Document {
   userId: mongoose.Types.ObjectId;
-  assessmentId: "eight-talents" | "character-recognition";
+  assessmentId: "eight-talents" | "character-recognition" | "english-picture-naming";
   assessmentVersion: string;
   mode: "self" | "child";
   childId: string;
@@ -32,6 +46,10 @@ export interface FlashTestResult extends mongoose.Document {
   scores: FlashTestDimensionScore[];
   recognitionSummary?: FlashTestRecognitionSummary;
   recognitionGroup?: 1 | 2;
+  pictureNamingAnswers?: FlashTestPictureNamingAnswer[];
+  pictureNamingSummary?: FlashTestPictureNamingSummary;
+  englishPromptMode?: "picture" | "word";
+  englishWordPackId?: "animals" | "food" | "home-school" | "body-clothing" | "transport-nature";
   completedAt: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -63,10 +81,30 @@ const recognitionSummarySchema = new mongoose.Schema(
   { _id: false }
 );
 
+const pictureNamingAnswerSchema = new mongoose.Schema(
+  {
+    itemId: { type: String, required: true },
+    targetWord: { type: String, required: true },
+    recognizedText: { type: String, default: "" },
+    status: { type: String, enum: ["matched", "unmatched", "skipped"], required: true },
+  },
+  { _id: false }
+);
+
+const pictureNamingSummarySchema = new mongoose.Schema(
+  {
+    totalCount: { type: Number, required: true, min: 10, max: 10 },
+    matchedCount: { type: Number, required: true, min: 0, max: 10 },
+    needsPracticeCount: { type: Number, required: true, min: 0, max: 10 },
+    skippedCount: { type: Number, required: true, min: 0, max: 10 },
+  },
+  { _id: false }
+);
+
 const flashTestResultSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
-    assessmentId: { type: String, enum: ["eight-talents", "character-recognition"], required: true, index: true },
+    assessmentId: { type: String, enum: ["eight-talents", "character-recognition", "english-picture-naming"], required: true, index: true },
     assessmentVersion: { type: String, required: true },
     mode: { type: String, enum: ["self", "child"], required: true, index: true },
     childId: { type: String, default: "", index: true },
@@ -75,7 +113,8 @@ const flashTestResultSchema = new mongoose.Schema(
       type: [Number],
       required: true,
       validate: {
-        validator(values: number[]) {
+        validator(this: FlashTestResult, values: number[]) {
+          if (this.assessmentId === "english-picture-naming") return Array.isArray(values) && values.length === 0;
           return Array.isArray(values)
             && (
               (values.length === 40 && values.every((value) => Number.isInteger(value) && value >= 1 && value <= 5))
@@ -89,6 +128,15 @@ const flashTestResultSchema = new mongoose.Schema(
     scores: { type: [dimensionScoreSchema], required: true },
     recognitionSummary: { type: recognitionSummarySchema, default: undefined },
     recognitionGroup: { type: Number, enum: [1, 2], default: 1 },
+    pictureNamingAnswers: { type: [pictureNamingAnswerSchema], default: undefined },
+    pictureNamingSummary: { type: pictureNamingSummarySchema, default: undefined },
+    englishPromptMode: { type: String, enum: ["picture", "word"], default: undefined, index: true },
+    englishWordPackId: {
+      type: String,
+      enum: ["animals", "food", "home-school", "body-clothing", "transport-nature"],
+      default: undefined,
+      index: true,
+    },
     completedAt: { type: Date, required: true, default: Date.now, index: true },
   },
   { timestamps: true }

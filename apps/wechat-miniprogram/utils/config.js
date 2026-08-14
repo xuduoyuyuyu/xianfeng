@@ -1,4 +1,5 @@
 const DEFAULT_WEB_ORIGIN = "https://xianfeng.xinzhi.info";
+const DEFAULT_DEVTOOLS_API_ORIGIN = "http://127.0.0.1:3101";
 
 function normalizeOrigin(value, fallback) {
   const origin = String(value || fallback || "").trim().replace(/\/+$/, "");
@@ -7,7 +8,14 @@ function normalizeOrigin(value, fallback) {
 
 function isDevtoolsRuntime() {
   try {
-    return typeof wx !== "undefined" && wx.getSystemInfoSync && wx.getSystemInfoSync().platform === "devtools";
+    if (typeof wx === "undefined") return false;
+    const deviceInfo = typeof wx.getDeviceInfo === "function"
+      ? wx.getDeviceInfo()
+      : (typeof wx.getSystemInfoSync === "function" ? wx.getSystemInfoSync() : {});
+    const platform = String(deviceInfo.platform || "").toLowerCase();
+    const accountInfo = typeof wx.getAccountInfoSync === "function" ? wx.getAccountInfoSync() : null;
+    const envVersion = String(accountInfo && accountInfo.miniProgram && accountInfo.miniProgram.envVersion || "");
+    return (platform === "devtools" || platform === "mac") && (!envVersion || envVersion === "develop");
   } catch (_error) {
     return false;
   }
@@ -38,7 +46,9 @@ function loadLocalConfig() {
 
 const localConfig = loadLocalConfig();
 const WEB_ORIGIN = resolveRuntimeOrigin(localConfig.WEB_ORIGIN, DEFAULT_WEB_ORIGIN);
-const API_ORIGIN = resolveRuntimeOrigin(localConfig.API_ORIGIN, WEB_ORIGIN);
+const API_ORIGIN = isDevtoolsRuntime()
+  ? normalizeOrigin(localConfig.API_ORIGIN, DEFAULT_DEVTOOLS_API_ORIGIN)
+  : resolveRuntimeOrigin(localConfig.API_ORIGIN, WEB_ORIGIN);
 
 module.exports = {
   DEFAULT_WEB_ORIGIN,

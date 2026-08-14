@@ -19,6 +19,14 @@ const {
   buildCharacterPage,
   buildCharacterRecognitionSummary
 } = require("../../utils/characterRecognition");
+const {
+  DEFAULT_ENGLISH_WORD_PACK_ID,
+  ENGLISH_PICTURE_NAMING_BANK,
+  ENGLISH_PICTURE_NAMING_VERSION,
+  ENGLISH_WORD_PACKS,
+  buildEnglishPictureNamingSummary,
+  getEnglishWordPack
+} = require("../../utils/englishPictureNaming");
 
 const DEFAULT_SLIDER_VALUE = 3;
 const EIGHT_TALENTS_VERSION = "2026-08-11";
@@ -39,6 +47,11 @@ const CHARACTER_RECOGNITION_SHARE_OPTIONS = {
   title: "识字量｜找出孩子具体会和不会的字",
   path: "/pages/flash-test/index",
   query: { test: "character-recognition" }
+};
+const ENGLISH_PICTURE_NAMING_SHARE_OPTIONS = {
+  title: "英文单词｜看见单词，读给家长听",
+  path: "/pages/flash-test/index",
+  query: { test: "english-picture-naming" }
 };
 const RECOGNITION_SOURCES = [
   {
@@ -106,6 +119,32 @@ const RECOGNITION_SOURCES = [
     url: "https://www.ciyu6.com/ernianji-2"
   }
 ];
+const ENGLISH_ASSESSMENT_REFERENCES = [
+  {
+    id: "cefr-2020",
+    title: "CEFR Companion Volume",
+    institution: "Council of Europe",
+    version: "2020",
+    purpose: "参考书面词汇识别与朗读活动的表述边界；本工具不据此评定 CEFR 等级。",
+    url: "https://www.coe.int/en/web/common-european-framework-reference-languages/cefr-companion-volume-and-its-language-versions"
+  },
+  {
+    id: "cambridge-word-list-2025",
+    title: "Pre A1 Starters, Movers and Flyers word list",
+    institution: "Cambridge English",
+    version: "2025",
+    purpose: "核对当前动物词属于儿童英语入门阶段常见词汇；10 个词不代表完整词汇量。",
+    url: "https://www.cambridgeenglish.org/images/506166-starters-movers-flyers-word-list-2025.pdf"
+  },
+  {
+    id: "cambridge-prea1",
+    title: "Pre A1 Starters preparation",
+    institution: "Cambridge English",
+    version: "当前公开版",
+    purpose: "参考面向儿童的简短指令、单项作答和图片辅助方式；本工具不是 Cambridge 模拟题。",
+    url: "https://www.cambridgeenglish.org/exams-and-tests/qualifications/young-learners/paper/starters/preparation/"
+  }
+];
 const TESTS = [
   {
     id: "eight-talents",
@@ -124,6 +163,16 @@ const TESTS = [
     icon: "/assets/flash-test/character-recognition.png",
     source: "统编教材常用字参考 · 不作诊断",
     meta: "两组各 800 字 · 可独立检查",
+    childOnly: true
+  },
+  {
+    id: "english-picture-naming",
+    badge: "英文词汇",
+    title: "英文单词",
+    subtitle: "看见英文单词直接朗读，家长记录认识和暂不认识",
+    icon: "/assets/flash-test/english-picture-naming.svg",
+    source: "见词识读 · 真实照片辅助",
+    meta: "5 个词包 · 每包 10 题",
     childOnly: true
   }
 ];
@@ -226,6 +275,27 @@ const EMPTY_RECOGNITION_GROUP_CARDS = [
   buildRecognitionGroupCard(2)
 ];
 
+function buildEnglishWordPackCards(masteries = {}) {
+  return ENGLISH_WORD_PACKS.map((pack, index) => {
+    const mastery = masteries && masteries[pack.id];
+    const matchedCount = mastery ? Number(mastery.matchedCount) || 0 : 0;
+    const totalCount = pack.items.length;
+    return {
+      id: pack.id,
+      order: index + 1,
+      title: pack.title,
+      subtitle: pack.subtitle,
+      recognizedDisplay: mastery ? String(matchedCount) : "—",
+      totalCount,
+      masteryPercent: mastery ? Math.round((matchedCount / totalCount) * 100) : 0,
+      masteryLabel: mastery ? `认识 ${matchedCount} 个 · 暂不认识 ${totalCount - matchedCount} 个` : "待测试",
+      actionLabel: mastery ? "复查" : "开始"
+    };
+  });
+}
+
+const EMPTY_ENGLISH_WORD_PACK_CARDS = buildEnglishWordPackCards();
+
 const INITIAL_QUESTION_STATE = buildQuestionState(0, 0, Array(40).fill(null));
 
 Page({
@@ -297,6 +367,37 @@ Page({
     recognitionCharacterListTab: "unknown",
     recognitionSources: RECOGNITION_SOURCES,
     recognitionSourcesOpen: false,
+    pictureNamingIndex: 0,
+    pictureNamingNumber: 1,
+    pictureNamingTotal: ENGLISH_PICTURE_NAMING_BANK.length,
+    pictureNamingProgressPercent: 10,
+    pictureNamingItem: ENGLISH_PICTURE_NAMING_BANK[0],
+    pictureNamingSummary: null,
+    pictureNamingAnswers: [],
+    pictureNamingWordListOpen: false,
+    pictureNamingWordListTab: "unknown",
+    pictureNamingKnownWords: [],
+    pictureNamingUnknownWords: [],
+    englishWordPacks: ENGLISH_WORD_PACKS.map((pack, index) => ({
+      id: pack.id,
+      title: pack.title,
+      subtitle: pack.subtitle,
+      order: index + 1,
+      itemCount: pack.items.length,
+      imageCount: pack.items.filter((item) => item.image).length
+    })),
+    englishWordPackCards: EMPTY_ENGLISH_WORD_PACK_CARDS,
+    englishWordPackId: DEFAULT_ENGLISH_WORD_PACK_ID,
+    englishWordPackTitle: getEnglishWordPack(DEFAULT_ENGLISH_WORD_PACK_ID).title,
+    englishWordPackSubtitle: getEnglishWordPack(DEFAULT_ENGLISH_WORD_PACK_ID).subtitle,
+    englishWordPackNumber: 1,
+    englishWordPackOpen: false,
+    englishAssessmentReferences: ENGLISH_ASSESSMENT_REFERENCES,
+    englishAssessmentDesignOpen: false,
+    englishPromptMode: "word",
+    englishCardView: "word",
+    pronunciationLoadingKey: "",
+    pronunciationPlayingKey: "",
     resultType: "talents",
     message: "",
     radarSize: 320,
@@ -310,6 +411,10 @@ Page({
   onLoad(options = {}) {
     this.answers = Array(40).fill(null);
     this.recognitionSample = [];
+    this.pictureNamingAttempts = [];
+    this.englishWordPackMasteries = {};
+    this.englishWordPackMasteryChildId = "";
+    this.pronunciationAudioPaths = {};
     enableShareMenu();
     this.syncTopbarMetrics();
     this.setData({ isLoggedIn: Boolean(getToken()) });
@@ -330,11 +435,13 @@ Page({
 
   onUnload() {
     this.saveActiveRecognitionProgress();
+    if (this.pronunciationAudioContext) this.pronunciationAudioContext.destroy();
   },
 
   getShareOptions() {
     if (this.data.stage === "catalog" && !this.data.subjectModalOpen) return CATALOG_SHARE_OPTIONS;
     if (this.data.selectedTestId === "character-recognition") return CHARACTER_RECOGNITION_SHARE_OPTIONS;
+    if (this.data.selectedTestId === "english-picture-naming") return ENGLISH_PICTURE_NAMING_SHARE_OPTIONS;
     if (this.data.selectedTestId === "eight-talents" || this.data.stage !== "catalog") return EIGHT_TALENTS_SHARE_OPTIONS;
     return CATALOG_SHARE_OPTIONS;
   },
@@ -361,6 +468,221 @@ Page({
       logoTop,
       logoHeight,
       radarSize
+    });
+  },
+
+  playEnglishWordPronunciation() {
+    const item = this.data.pictureNamingItem;
+    if (!item) return;
+    return this.playFlashTestPronunciation({
+      kind: "english-word",
+      itemId: item.id,
+      text: item.word
+    });
+  },
+
+  getActiveEnglishWordPack() {
+    return getEnglishWordPack(this.data.englishWordPackId);
+  },
+
+  getActiveEnglishWordBank() {
+    return this.getActiveEnglishWordPack().items;
+  },
+
+  playRecognitionCharacterPronunciation() {
+    const character = String(this.data.recognitionFocusCharacter || "");
+    if (!character) return;
+    return this.playFlashTestPronunciation({
+      kind: "chinese-character",
+      character,
+      text: character
+    });
+  },
+
+  playFlashTestPronunciation(payload) {
+    if (typeof wx === "undefined" || typeof wx.createInnerAudioContext !== "function") return;
+    const text = String(payload.text || "");
+    const key = `${payload.kind}:${text}`;
+    const cachedPath = this.pronunciationAudioPaths && this.pronunciationAudioPaths[key];
+    if (cachedPath) {
+      this.playPronunciationFile(cachedPath, key);
+      return;
+    }
+    if (this.data.pronunciationLoadingKey === key) return;
+    this.setData({ pronunciationLoadingKey: key });
+    return request({
+      url: "/api/flash-tests/pronunciation",
+      method: "POST",
+      data: payload.kind === "english-word"
+        ? { kind: payload.kind, itemId: payload.itemId }
+        : { kind: payload.kind, character: payload.character }
+    }).then((response) => {
+      const audioBase64 = String(response && response.audioBase64 || "");
+      if (!audioBase64 || !wx.env || !wx.env.USER_DATA_PATH || typeof wx.getFileSystemManager !== "function") {
+        throw new Error("读音音频无效");
+      }
+      const suffix = Array.from(text).map((character) => character.codePointAt(0).toString(16)).join("-");
+      const filePath = `${wx.env.USER_DATA_PATH}/xf-pronunciation-${payload.kind}-${suffix}.mp3`;
+      return new Promise((resolve, reject) => {
+        wx.getFileSystemManager().writeFile({
+          filePath,
+          data: audioBase64,
+          encoding: "base64",
+          success: () => resolve(filePath),
+          fail: reject
+        });
+      });
+    }).then((filePath) => {
+      this.pronunciationAudioPaths = this.pronunciationAudioPaths || {};
+      this.pronunciationAudioPaths[key] = filePath;
+      this.setData({ pronunciationLoadingKey: "" });
+      this.playPronunciationFile(filePath, key);
+    }).catch((error) => {
+      this.setData({ pronunciationLoadingKey: "", pronunciationPlayingKey: "" });
+      const message = String(error && (error.message || error.data && error.data.message) || "");
+      if (typeof wx.showToast === "function") {
+        wx.showToast({
+          title: /尚未开通|未配置|resource not granted/i.test(message)
+            ? "读音服务尚未开通"
+            : "暂时无法读音，请重试",
+          icon: "none"
+        });
+      }
+    });
+  },
+
+  playPronunciationFile(filePath, key) {
+    if (!this.pronunciationAudioContext) {
+      const audio = wx.createInnerAudioContext();
+      audio.onEnded(() => {
+        this.activePronunciationKey = "";
+        this.setData({ pronunciationPlayingKey: "" });
+      });
+      audio.onError(() => {
+        this.activePronunciationKey = "";
+        this.setData({ pronunciationPlayingKey: "" });
+        if (typeof wx.showToast === "function") wx.showToast({ title: "暂时无法播放读音", icon: "none" });
+      });
+      this.pronunciationAudioContext = audio;
+    }
+    this.pronunciationAudioContext.stop();
+    this.activePronunciationKey = key;
+    this.pronunciationAudioContext.src = filePath;
+    this.pronunciationAudioContext.play();
+    this.setData({ pronunciationPlayingKey: key });
+  },
+
+  toggleEnglishCardView() {
+    if (!this.data.pictureNamingItem || !this.data.pictureNamingItem.image) return;
+    this.setData({
+      englishCardView: this.data.englishCardView === "picture" ? "word" : "picture",
+      message: ""
+    });
+  },
+
+  markWordReadingKnown() {
+    const item = this.data.pictureNamingItem;
+    if (!item) return;
+    this.recordPictureNamingAttempt({
+      itemId: item.id,
+      recognizedText: "",
+      status: "matched"
+    });
+  },
+
+  markWordReadingUnknown() {
+    const item = this.data.pictureNamingItem;
+    if (!item) return;
+    this.recordPictureNamingAttempt({
+      itemId: item.id,
+      recognizedText: "",
+      status: "skipped"
+    });
+  },
+
+  recordPictureNamingAttempt(attempt) {
+    const bank = this.getActiveEnglishWordBank();
+    this.pictureNamingAttempts[this.data.pictureNamingIndex] = {
+      itemId: attempt.itemId,
+      recognizedText: attempt.recognizedText,
+      status: attempt.status
+    };
+    const nextIndex = this.data.pictureNamingIndex + 1;
+    if (nextIndex >= bank.length) {
+      this.finishPictureNaming();
+      return;
+    }
+    this.showPictureNamingItem(nextIndex);
+  },
+
+  showPictureNamingItem(index) {
+    const bank = this.getActiveEnglishWordBank();
+    const safeIndex = Math.max(0, Math.min(bank.length - 1, Number(index) || 0));
+    this.setData({
+      stage: "picture-naming",
+      pictureNamingIndex: safeIndex,
+      pictureNamingNumber: safeIndex + 1,
+      pictureNamingTotal: bank.length,
+      pictureNamingProgressPercent: Math.round(((safeIndex + 1) / bank.length) * 100),
+      pictureNamingItem: bank[safeIndex],
+      englishCardView: "word",
+      message: ""
+    });
+  },
+
+  finishPictureNaming() {
+    const pack = this.getActiveEnglishWordPack();
+    const bank = pack.items;
+    const summary = buildEnglishPictureNamingSummary(this.pictureNamingAttempts, bank.length);
+    this.englishWordPackMasteries = {
+      ...(this.englishWordPackMasteries || {}),
+      [pack.id]: {
+        englishWordPackId: pack.id,
+        matchedCount: Number(summary.matchedCount) || 0,
+        totalCount: Number(summary.totalCount) || bank.length
+      }
+    };
+    this.answers = [];
+    this.setData({
+      stage: "result",
+      resultType: "pictureNaming",
+      pictureNamingSummary: summary,
+      pictureNamingAnswers: this.pictureNamingAttempts.map((answer) => {
+        const bankItem = bank.find((item) => item.id === answer.itemId);
+        return { ...answer, targetWord: bankItem ? bankItem.word : "" };
+      }),
+      pictureNamingWordListOpen: false,
+      pictureNamingWordListTab: "unknown",
+      pictureNamingKnownWords: [],
+      pictureNamingUnknownWords: [],
+      englishWordPackCards: this.buildEnglishWordPackCards(),
+      englishAssessmentDesignOpen: false,
+      analysisTitle: `认识 ${summary.matchedCount} 个，暂不认识 ${summary.totalCount - summary.matchedCount} 个`,
+      analysisParagraphs: [
+        `这反映孩子对${pack.title}词包 10 个书面单词的见词朗读情况。`,
+        "可从暂不认识的单词开始复习，之后重新测试。"
+      ],
+      resultSaveState: "saving",
+      resultSaveMessage: "正在保存到我的数据…",
+      savedResultId: "",
+      message: ""
+    });
+    this.persistAssessmentResult();
+  },
+
+  exitPictureNaming() {
+    if (typeof wx === "undefined" || typeof wx.showModal !== "function") {
+      this.setData({ stage: "catalog", message: "" });
+      return;
+    }
+    wx.showModal({
+      title: "退出本次测试？",
+      content: "本轮尚未完成，退出后需要重新开始。",
+      confirmText: "退出",
+      cancelText: "继续测试",
+      success: (result) => {
+        if (result.confirm) this.setData({ stage: "catalog", message: "" });
+      }
     });
   },
 
@@ -393,6 +715,10 @@ Page({
       this.openRecognitionExit();
       return;
     }
+    if (this.data.stage === "picture-naming") {
+      this.exitPictureNaming();
+      return;
+    }
     if (this.data.stage === "result") {
       this.setData({ stage: "catalog", selectedTestId: "", selectedTestTitle: "", message: "" });
       return;
@@ -408,16 +734,27 @@ Page({
       ? wx.getStorageSync(LAST_ASSESSMENT_MODE_KEY) || ""
       : "");
     const defaultMode = test.childOnly ? "child" : (["self", "child"].includes(lastMode) ? lastMode : "");
-    const shouldOpenDefaultSubject = Boolean(getToken()) && Boolean(defaultMode);
+    const isLoggedIn = Boolean(getToken());
+    const shouldOpenDefaultSubject = isLoggedIn && Boolean(defaultMode) && !test.childOnly;
     this.forceNewAssessment = false;
     this.forceSubjectReselect = false;
+    this.pendingChildAssessment = null;
     this.setData({
       selectedTestId: test.id,
       selectedTestTitle: test.title,
       selectedTestChildOnly: Boolean(test.childOnly),
-      subjectModalOpen: !shouldOpenDefaultSubject,
+      englishPromptMode: "word",
+      englishCardView: "word",
+      subjectModalOpen: !test.childOnly && !shouldOpenDefaultSubject,
+      youngChildWarningOpen: false,
+      youngChildName: "",
+      youngChildGrade: "",
       message: ""
     });
+    if (test.childOnly) {
+      if (!isLoggedIn) return;
+      return this.resolveChildOnlyAssessment();
+    }
     if (!shouldOpenDefaultSubject) return;
     if (defaultMode === "child") return this.openDefaultChildAssessment();
     return this.openSavedResultOrStart("self");
@@ -446,10 +783,17 @@ Page({
         this.prepareChildAssessment();
         return Promise.resolve();
       }
+      if (this.data.selectedTestChildOnly) return this.resolveChildOnlyAssessment();
       return this.openDefaultChildAssessment();
     }
     this.forceSubjectReselect = false;
     return this.openSavedResultOrStart("self");
+  },
+
+  authorizeChildOnlyAssessment(event) {
+    const testId = String(event.currentTarget.dataset.id || "");
+    if (this.data.selectedTestId !== testId) this.openAssessment(event);
+    return this.authorizeAssessment(event);
   },
 
   authorizeAssessment(event) {
@@ -506,6 +850,15 @@ Page({
     return this.openSavedResultOrStart("child", child);
   },
 
+  resolveChildOnlyAssessment() {
+    const children = this.loadChildChoices();
+    if (children.length !== 1) {
+      this.prepareChildAssessment();
+      return Promise.resolve(false);
+    }
+    return this.openSavedResultOrStart("child", children[0]);
+  },
+
   ...createNativeSettingsMethods(),
 
   prepareChildAssessment() {
@@ -550,16 +903,34 @@ Page({
     const assessmentId = this.data.selectedTestId || "eight-talents";
     const childId = mode === "child" && child ? String(child.id || "") : "";
     const childQuery = childId ? `&childId=${encodeURIComponent(childId)}` : "";
+    const englishPromptQuery = assessmentId === "english-picture-naming"
+      ? "&englishPromptMode=word"
+      : "";
+    const englishWordPackQuery = assessmentId === "english-picture-naming"
+      ? `&englishWordPackId=${encodeURIComponent(this.data.englishWordPackId || DEFAULT_ENGLISH_WORD_PACK_ID)}`
+      : "";
     return request({
-      url: `/api/flash-tests/results?assessmentId=${assessmentId}&mode=${mode}${childQuery}&limit=1`
+      url: `/api/flash-tests/results?assessmentId=${assessmentId}&mode=${mode}${childQuery}${englishPromptQuery}${englishWordPackQuery}&limit=1`
     }).then((payload) => {
       const results = payload && Array.isArray(payload.results) ? payload.results : [];
+      if (assessmentId === "english-picture-naming") {
+        if (this.englishWordPackMasteryChildId !== childId) this.englishWordPackMasteries = {};
+        this.englishWordPackMasteryChildId = childId;
+        this.englishWordPackMasteries = payload && payload.englishWordPackResults || {};
+        this.setData({ englishWordPackCards: this.buildEnglishWordPackCards() });
+      }
       const result = results[0] || null;
       if (!result) return null;
       const matchesSubject = result.assessmentId === assessmentId
         && result.mode === mode
         && (mode !== "child" || String(result.childId || "") === childId);
       if (!matchesSubject) throw new Error("历史结果读取异常，请稍后重试");
+      if (assessmentId === "english-picture-naming" && (
+        result.englishPromptMode !== "word"
+        || String(result.englishWordPackId || DEFAULT_ENGLISH_WORD_PACK_ID) !== this.data.englishWordPackId
+      )) {
+        return null;
+      }
       if (assessmentId === "character-recognition"
         && ![
           BASE_CHARACTER_RECOGNITION_VERSION,
@@ -583,11 +954,72 @@ Page({
     ));
   },
 
+  buildEnglishWordPackCards() {
+    return buildEnglishWordPackCards(this.englishWordPackMasteries || {});
+  },
+
   showSavedResult(result, child = null) {
     const mode = result && result.mode === "child" ? "child" : "self";
     const assessmentId = String(result && result.assessmentId || "");
     const selectedChildId = mode === "child" ? String(result.childId || (child && child.id) || "") : "";
     const selectedChildName = mode === "child" ? String(result.childName || (child && child.name) || "") : "";
+    if (assessmentId === "english-picture-naming") {
+      const pack = getEnglishWordPack(result.englishWordPackId || DEFAULT_ENGLISH_WORD_PACK_ID);
+      const packNumber = ENGLISH_WORD_PACKS.findIndex((item) => item.id === pack.id) + 1;
+      const pictureNamingAnswers = Array.isArray(result.pictureNamingAnswers) ? result.pictureNamingAnswers : [];
+      const pictureNamingSummary = result.pictureNamingSummary;
+      if (!pictureNamingSummary || pictureNamingAnswers.length !== pack.items.length) {
+        throw new Error("历史结果数据异常，请稍后重试");
+      }
+      this.pictureNamingAttempts = pictureNamingAnswers.map((item) => ({
+        itemId: item.itemId,
+        recognizedText: item.recognizedText,
+        status: item.status
+      }));
+      this.answers = [];
+      this.scores = null;
+      this.forceNewAssessment = false;
+      this.setData({
+        stage: "result",
+        resultType: "pictureNaming",
+        selectedTestId: assessmentId,
+        selectedTestTitle: "英文单词",
+        selectedTestChildOnly: true,
+        subjectModalOpen: false,
+        settingsPanelOpen: false,
+        mode: "child",
+        modeLabel: `为${selectedChildName}测`,
+        selectedChildId,
+        selectedChildName,
+        englishPromptMode: "word",
+        englishCardView: "word",
+        englishWordPackId: pack.id,
+        englishWordPackTitle: pack.title,
+        englishWordPackSubtitle: pack.subtitle,
+        englishWordPackNumber: packNumber,
+        englishWordPackOpen: false,
+        englishWordPackCards: this.buildEnglishWordPackCards(),
+        pictureNamingTotal: pack.items.length,
+        pictureNamingItem: pack.items[0],
+        pictureNamingSummary,
+        pictureNamingAnswers,
+        pictureNamingWordListOpen: false,
+        pictureNamingWordListTab: "unknown",
+        pictureNamingKnownWords: [],
+        pictureNamingUnknownWords: [],
+        englishAssessmentDesignOpen: false,
+        analysisTitle: `认识 ${pictureNamingSummary.matchedCount} 个，暂不认识 ${pictureNamingSummary.totalCount - pictureNamingSummary.matchedCount} 个`,
+        analysisParagraphs: [
+          `这反映孩子对${pack.title}词包 10 个书面单词的见词朗读情况。`,
+          "可从暂不认识的单词开始复习，之后重新测试。"
+        ],
+        resultSaveState: "saved",
+        resultSaveMessage: "已保存到我的数据",
+        savedResultId: String(result.id || ""),
+        message: ""
+      });
+      return;
+    }
     if (assessmentId === "character-recognition") {
       const savedSummary = result && result.recognitionSummary;
       const savedAnswers = result && Array.isArray(result.answers) ? result.answers.map(Number) : [];
@@ -724,7 +1156,7 @@ Page({
   },
 
   shouldWarnForYoungChild(child) {
-    if (this.data.selectedTestId === "character-recognition") return false;
+    if (["character-recognition", "english-picture-naming"].includes(this.data.selectedTestId)) return false;
     const grade = String((child && child.grade) || "").trim();
     return /^(孕产|婴幼儿|学前)/.test(grade) || /^(小学)?(?:一年级|二年级)$/.test(grade);
   },
@@ -761,6 +1193,38 @@ Page({
     const selectedChildId = mode === "child" && child ? child.id : "";
     const selectedChildName = mode === "child" && child ? child.name : "";
     if (selectedChildId) wx.setStorageSync(LAST_CHILD_ID_KEY, selectedChildId);
+    if (this.data.selectedTestId === "english-picture-naming") {
+      const pack = this.getActiveEnglishWordPack();
+      this.answers = [];
+      this.pictureNamingAttempts = [];
+      this.setData({
+        resultType: "pictureNaming",
+        mode: "child",
+        modeLabel: `为${selectedChildName}测`,
+        selectedChildId,
+        selectedChildName,
+        englishPromptMode: "word",
+        englishCardView: "word",
+        englishWordPackTitle: pack.title,
+        englishWordPackSubtitle: pack.subtitle,
+        englishWordPackNumber: ENGLISH_WORD_PACKS.findIndex((item) => item.id === pack.id) + 1,
+        englishWordPackOpen: false,
+        pictureNamingTotal: pack.items.length,
+        pictureNamingItem: pack.items[0],
+        pictureNamingSummary: null,
+        pictureNamingAnswers: [],
+        pictureNamingWordListOpen: false,
+        pictureNamingWordListTab: "unknown",
+        pictureNamingKnownWords: [],
+        pictureNamingUnknownWords: [],
+        englishAssessmentDesignOpen: false,
+        resultSaveState: "idle",
+        resultSaveMessage: "",
+        message: ""
+      });
+      this.showPictureNamingItem(0);
+      return;
+    }
     if (this.data.selectedTestId === "character-recognition") {
       if (this.recognitionMasteryChildId !== selectedChildId) this.recognitionGroupMasteries = {};
       this.recognitionMasteryChildId = selectedChildId;
@@ -963,6 +1427,8 @@ Page({
       recognitionFocusOpen: false,
       recognitionExitOpen: false,
       recognitionCharacterListOpen: false,
+      pictureNamingWordListOpen: false,
+      englishAssessmentDesignOpen: false,
       recognitionSourcesOpen: false,
       message: ""
     });
@@ -1018,6 +1484,133 @@ Page({
     const tab = String(event.currentTarget.dataset.tab || "");
     if (tab !== "unknown" && tab !== "known") return;
     this.setData({ recognitionCharacterListTab: tab });
+  },
+
+  openPictureNamingWordList() {
+    if (this.data.resultType !== "pictureNaming") return;
+    const answers = Array.isArray(this.data.pictureNamingAnswers) ? this.data.pictureNamingAnswers : [];
+    const bank = this.getActiveEnglishWordBank();
+    const wordsForStatus = (isKnown) => answers
+      .filter((item) => (item.status === "matched") === isKnown)
+      .map((item) => {
+        const targetWord = String(item.targetWord || "").trim();
+        if (targetWord) return targetWord;
+        return bank.find((bankItem) => bankItem.id === item.itemId)?.word || "";
+      })
+      .filter(Boolean);
+    const pictureNamingKnownWords = wordsForStatus(true);
+    const pictureNamingUnknownWords = wordsForStatus(false);
+    if (pictureNamingKnownWords.length + pictureNamingUnknownWords.length <= 0) return;
+    this.setData({
+      pictureNamingWordListOpen: true,
+      pictureNamingWordListTab: "unknown",
+      pictureNamingKnownWords,
+      pictureNamingUnknownWords
+    });
+  },
+
+  closePictureNamingWordList() {
+    this.setData({ pictureNamingWordListOpen: false });
+  },
+
+  switchPictureNamingWordListTab(event) {
+    const tab = String(event.currentTarget.dataset.tab || "");
+    if (tab !== "unknown" && tab !== "known") return;
+    this.setData({ pictureNamingWordListTab: tab });
+  },
+
+  openEnglishWordPackDrawer() {
+    if (this.data.selectedTestId !== "english-picture-naming" && this.data.resultType !== "pictureNaming") return;
+    this.setData({ englishWordPackOpen: true });
+  },
+
+  closeEnglishWordPackDrawer() {
+    this.setData({ englishWordPackOpen: false });
+  },
+
+  selectEnglishWordPack(event) {
+    const packId = String(event.currentTarget.dataset.id || "");
+    const pack = ENGLISH_WORD_PACKS.find((item) => item.id === packId);
+    if (!pack) return;
+    if (pack.id === this.data.englishWordPackId) {
+      this.closeEnglishWordPackDrawer();
+      return;
+    }
+    const activatePack = () => {
+      this.pictureNamingAttempts = [];
+      this.forceNewAssessment = false;
+      this.setData({
+        englishWordPackId: pack.id,
+        englishWordPackTitle: pack.title,
+        englishWordPackSubtitle: pack.subtitle,
+        englishWordPackNumber: ENGLISH_WORD_PACKS.findIndex((item) => item.id === pack.id) + 1,
+        englishWordPackOpen: false,
+        englishCardView: "word",
+        pictureNamingIndex: 0,
+        pictureNamingNumber: 1,
+        pictureNamingTotal: pack.items.length,
+        pictureNamingProgressPercent: Math.round(100 / pack.items.length),
+        pictureNamingItem: pack.items[0],
+        pictureNamingSummary: null,
+        pictureNamingAnswers: [],
+        pictureNamingWordListOpen: false,
+        message: ""
+      });
+      const child = this.data.selectedChildId
+        ? { id: this.data.selectedChildId, name: this.data.selectedChildName }
+        : null;
+      if (child) return this.openSavedResultOrStart("child", child);
+      return this.resolveChildOnlyAssessment();
+    };
+    const hasUnfinishedAnswers = this.data.stage === "picture-naming"
+      && this.pictureNamingAttempts.some(Boolean);
+    if (!hasUnfinishedAnswers || typeof wx === "undefined" || typeof wx.showModal !== "function") {
+      return activatePack();
+    }
+    wx.showModal({
+      title: `切换到${pack.title}词包？`,
+      content: "当前未完成的判断不会保存。",
+      confirmText: "切换",
+      cancelText: "继续测试",
+      success: (result) => {
+        if (result.confirm) activatePack();
+      }
+    });
+  },
+
+  openEnglishWordPackResult(event) {
+    if (this.data.resultType !== "pictureNaming") return;
+    const packId = String(event && event.currentTarget && event.currentTarget.dataset.id || "");
+    const pack = ENGLISH_WORD_PACKS.find((item) => item.id === packId);
+    if (!pack) return;
+    if (!this.data.selectedChildId) {
+      this.setData({ message: "孩子档案信息缺失，请重新选择" });
+      return;
+    }
+    this.setData({
+      englishWordPackId: pack.id,
+      englishWordPackTitle: pack.title,
+      englishWordPackSubtitle: pack.subtitle,
+      englishWordPackNumber: ENGLISH_WORD_PACKS.findIndex((item) => item.id === pack.id) + 1,
+      englishWordPackOpen: false
+    });
+    return this.restartAssessment();
+  },
+
+  openEnglishAssessmentDesign() {
+    if (this.data.selectedTestId !== "english-picture-naming" && this.data.resultType !== "pictureNaming") return;
+    this.setData({ englishAssessmentDesignOpen: true });
+  },
+
+  closeEnglishAssessmentDesign() {
+    this.setData({ englishAssessmentDesignOpen: false });
+  },
+
+  copyEnglishAssessmentReference(event) {
+    const referenceId = String(event.currentTarget.dataset.id || "");
+    const reference = ENGLISH_ASSESSMENT_REFERENCES.find((item) => item.id === referenceId);
+    if (!reference || typeof wx === "undefined" || typeof wx.setClipboardData !== "function") return;
+    wx.setClipboardData({ data: reference.url });
   },
 
   openRecognitionSources() {
@@ -1159,12 +1752,17 @@ Page({
           ? (this.answers.length === CHARACTER_SAMPLE_SIZE
             ? LEGACY_CHARACTER_RECOGNITION_VERSION
             : CHARACTER_RECOGNITION_VERSION)
+          : assessmentId === "english-picture-naming"
+            ? ENGLISH_PICTURE_NAMING_VERSION
           : EIGHT_TALENTS_VERSION,
         mode: this.data.mode,
         childId: this.data.mode === "child" ? this.data.selectedChildId : "",
+        englishPromptMode: assessmentId === "english-picture-naming" ? "word" : undefined,
+        englishWordPackId: assessmentId === "english-picture-naming" ? this.data.englishWordPackId : undefined,
         recognitionGroup: assessmentId === "character-recognition" ? this.data.recognitionGroupNumber : undefined,
         answers: this.answers.slice(),
-        sampleCharacters: assessmentId === "character-recognition" ? this.recognitionSample.slice() : undefined
+        sampleCharacters: assessmentId === "character-recognition" ? this.recognitionSample.slice() : undefined,
+        pictureNamingAnswers: assessmentId === "english-picture-naming" ? this.pictureNamingAttempts.slice() : undefined
       }
     })
       .then((payload) => {
@@ -1192,6 +1790,20 @@ Page({
           );
           resultData.analysisTitle = analysis.title;
           resultData.analysisParagraphs = analysis.paragraphs;
+        }
+        if (assessmentId === "english-picture-naming" && result.pictureNamingSummary) {
+          this.englishWordPackMasteries = {
+            ...(this.englishWordPackMasteries || {}),
+            [this.data.englishWordPackId]: {
+              resultId: String(result.id || ""),
+              englishWordPackId: this.data.englishWordPackId,
+              matchedCount: Number(result.pictureNamingSummary.matchedCount) || 0,
+              totalCount: Number(result.pictureNamingSummary.totalCount) || this.getActiveEnglishWordBank().length,
+              completedAt: result.completedAt || ""
+            }
+          };
+          resultData.pictureNamingSummary = result.pictureNamingSummary;
+          resultData.englishWordPackCards = this.buildEnglishWordPackCards();
         }
         this.setData(resultData);
       })
@@ -1323,10 +1935,14 @@ Page({
       ? { id: this.data.selectedChildId, name: this.data.selectedChildName }
       : null;
     this.forceNewAssessment = true;
-    this.answers = Array(this.data.selectedTestId === "character-recognition" ? BASE_CHARACTER_SAMPLE_SIZE : 40).fill(null);
+    this.answers = this.data.selectedTestId === "english-picture-naming"
+      ? []
+      : Array(this.data.selectedTestId === "character-recognition" ? BASE_CHARACTER_SAMPLE_SIZE : 40).fill(null);
+    if (this.data.selectedTestId === "english-picture-naming") this.pictureNamingAttempts = [];
     if (this.data.selectedTestId === "character-recognition") this.clearRecognitionProgress();
     this.scores = null;
     const questionState = buildQuestionState(0, 0, this.answers);
+    const englishWordBank = this.getActiveEnglishWordBank();
     this.setData({
       stage: "catalog",
       subjectModalOpen: false,
@@ -1360,6 +1976,21 @@ Page({
       recognitionCharacterListOpen: false,
       recognitionCharacterListTab: "unknown",
       recognitionSourcesOpen: false,
+      pictureNamingIndex: 0,
+      pictureNamingNumber: 1,
+      pictureNamingProgressPercent: 10,
+      pictureNamingTotal: englishWordBank.length,
+      pictureNamingItem: englishWordBank[0],
+      pictureNamingSummary: null,
+      pictureNamingAnswers: [],
+      pictureNamingWordListOpen: false,
+      pictureNamingWordListTab: "unknown",
+      pictureNamingKnownWords: [],
+      pictureNamingUnknownWords: [],
+      englishAssessmentDesignOpen: false,
+      englishPromptMode: "word",
+      englishCardView: "word",
+      englishWordPackOpen: false,
       analysisTitle: "",
       analysisParagraphs: [],
       resultSaveState: "idle",

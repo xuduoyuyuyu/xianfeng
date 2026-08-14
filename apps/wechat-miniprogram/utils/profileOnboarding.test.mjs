@@ -22,6 +22,14 @@ function loadProfile(seed = {}) {
   return { profile: require(modulePath), storage };
 }
 
+function installRequestHandler(handler) {
+  global.wx.request = (options) => {
+    Promise.resolve(handler(options)).then((response) => {
+      options.success(response);
+    });
+  };
+}
+
 test("selects the last-used child and reports incomplete profile fields", () => {
   const { profile } = loadProfile({
     xiaowanzi_last_child_id_v1: "child-2",
@@ -166,4 +174,126 @@ test("logged-in profile save remains pending before remote reconciliation", asyn
   });
   assert.equal(storage.xf_child_profiles, undefined);
   assert.equal(pendingRequests.length, 0);
+});
+
+test("logged-in account restores remote child profiles after a local cache reset", async () => {
+  const { profile, storage } = loadProfile({ xf_token: "signed-in" });
+  const requests = [];
+  installRequestHandler((options) => {
+    requests.push({ method: options.method, url: options.url });
+    return {
+      statusCode: 200,
+      data: {
+        childProfiles: [
+          { id: "remote-child", displayName: "小圆子", city: "上海", region: "徐汇区", grade: "小学三年级" },
+        ],
+      },
+    };
+  });
+
+  const restored = await profile.restoreProfileOnboardingRemote();
+
+  assert.equal(restored, true);
+  assert.equal(storage.xf_child_profiles[0].id, "remote-child");
+  assert.equal(JSON.parse(storage.xiaowanzi_child_profiles_v1)[0].displayName, "小圆子");
+  assert.deepEqual(requests, [{ method: "GET", url: "https://xianfeng.xinzhi.info/api/users/me/xiaowanzi-sync" }]);
+});
+
+test("remote child profile restore replaces stale account-local children without writing them back", async () => {
+  const { profile, storage } = loadProfile({
+    xf_token: "signed-in",
+    xf_child_profiles: [{ id: "stale-child", displayName: "旧档案" }],
+  });
+  const methods = [];
+  installRequestHandler((options) => {
+    methods.push(options.method);
+    return { statusCode: 200, data: { childProfiles: [] } };
+  });
+
+  const restored = await profile.restoreProfileOnboardingRemote();
+
+  assert.equal(restored, true);
+  assert.deepEqual(storage.xf_child_profiles, []);
+  assert.deepEqual(methods, ["GET"]);
+});
+
+test("an existing signed-in session migrates a legacy local-only archive before cache hydration", async () => {
+  const local = [{ id: "legacy-child", displayName: "升级前档案", city: "上海", region: "徐汇区", grade: "小学三年级" }];
+  const { profile, storage } = loadProfile({
+    xf_token: "signed-in",
+    xf_user: { id: "parent-legacy" },
+    xf_child_profiles: local,
+  });
+  const requests = [];
+  installRequestHandler((options) => {
+    requests.push({ method: options.method, data: options.data });
+    if (options.method === "PATCH") return { statusCode: 200, data: { childProfiles: options.data.childProfiles } };
+    return { statusCode: 200, data: { childProfiles: [] } };
+  });
+
+  const restored = await profile.restoreProfileOnboardingRemote({ migrateLegacyLocal: true });
+
+  assert.equal(restored, true);
+  assert.equal(requests[0].method, "GET");
+  assert.equal(requests[1].method, "PATCH");
+  assert.equal(requests[1].data.childProfiles[0].id, "legacy-child");
+  assert.equal(storage.xf_child_profiles[0].displayName, "升级前档案");
+});
+
+test("failed remote child profile restore preserves the existing local archive", async () => {
+  const localChildren = [{ id: "local-child", displayName: "本机档案" }];
+  const { profile, storage } = loadProfile({ xf_token: "signed-in", xf_child_profiles: localChildren });
+  global.wx.request = (options) => options.fail({ errMsg: "network unavailable" });
+
+  const restored = await profile.restoreProfileOnboardingRemote();
+
+  assert.equal(restored, false);
+  assert.deepEqual(storage.xf_child_profiles, localChildren);
+});
+
+test("login retries a previously failed child archive save before restoring the account cache", async () => {
+  const pending = [{ id: "pending-child", displayName: "待同步孩子", city: "上海", region: "徐汇区", grade: "小学三年级" }];
+  const { profile, storage } = loadProfile({
+    xf_token: "signed-in",
+    xf_user: { id: "parent-1" },
+    xf_child_profiles: pending,
+    "xf_child_profiles_sync_pending_v1:parent-1": pending,
+  });
+  const requests = [];
+  installRequestHandler((options) => {
+    requests.push({ method: options.method, data: options.data });
+    return { statusCode: 200, data: { childProfiles: pending } };
+  });
+
+  const restored = await profile.restoreProfileOnboardingRemote();
+
+  assert.equal(restored, true);
+  assert.equal(requests[0].method, "PATCH");
+  assert.equal(requests[0].data.childProfiles[0].id, "pending-child");
+  assert.equal(requests[0].data.childProfiles[0].displayName, "待同步孩子");
+  assert.equal(storage["xf_child_profiles_sync_pending_v1:parent-1"], undefined);
+  assert.equal(storage.xf_child_profiles[0].id, "pending-child");
+});
+
+test("login retries an explicit empty child list without leaking it across accounts", async () => {
+  const { profile, storage } = loadProfile({
+    xf_token: "signed-in",
+    xf_user: { id: "parent-b" },
+    xf_child_profiles: [{ id: "stale-child", displayName: "旧缓存" }],
+    "xf_child_profiles_sync_pending_v1:parent-a": [{ id: "other-child", displayName: "别的账号" }],
+    "xf_child_profiles_sync_pending_v1:parent-b": [],
+  });
+  const requests = [];
+  installRequestHandler((options) => {
+    requests.push({ method: options.method, data: options.data });
+    return { statusCode: 200, data: { childProfiles: [] } };
+  });
+
+  const restored = await profile.restoreProfileOnboardingRemote();
+
+  assert.equal(restored, true);
+  assert.deepEqual(requests, [{ method: "PATCH", data: { childProfiles: [] } }]);
+  assert.deepEqual(storage.xf_child_profiles, []);
+  assert.equal(storage["xf_child_profiles_sync_pending_v1:parent-b"], undefined);
+  assert.equal(storage["xf_child_profiles_sync_pending_v1:parent-a"][0].id, "other-child");
 });
