@@ -36,7 +36,7 @@ const LAST_CHILD_ID_KEY = "xiaowanzi_last_child_id_v1";
 const LAST_ASSESSMENT_MODE_KEY = "xf_flash_test_last_mode_v1";
 const RECOGNITION_PROGRESS_KEY_PREFIX = "xf_character_recognition_progress_v2_";
 const LEGACY_RECOGNITION_PROGRESS_KEY_PREFIX = "xf_character_recognition_progress_v1_";
-const PRONUNCIATION_CACHE_VERSION = "v2";
+const PRONUNCIATION_CACHE_VERSION = "v4";
 const ENGLISH_WORD_TOTAL = ENGLISH_WORD_PACKS.reduce((sum, pack) => sum + pack.items.length, 0);
 const CATALOG_SHARE_OPTIONS = {
   title: "闪测｜测一测，更懂自己和孩子",
@@ -57,6 +57,25 @@ const ENGLISH_PICTURE_NAMING_SHARE_OPTIONS = {
   path: "/pages/flash-test/index",
   query: { test: "english-picture-naming" }
 };
+
+function normalizePronunciationAudioData(response) {
+  const data = response && response.data;
+  if (!data || !data.byteLength) return null;
+  const bytes = new Uint8Array(data);
+  const firstContentByte = bytes.find((byte) => byte !== 0x20 && byte !== 0x0a && byte !== 0x0d && byte !== 0x09);
+  const headers = response.header || {};
+  const contentTypeKey = Object.keys(headers).find((key) => key.toLowerCase() === "content-type");
+  const contentType = String(contentTypeKey ? headers[contentTypeKey] : "").toLowerCase();
+  if (!contentType.includes("application/json") && firstContentByte !== 0x7b) return data;
+
+  let jsonText = "";
+  for (let index = 0; index < bytes.length; index += 1) {
+    jsonText += String.fromCharCode(bytes[index]);
+  }
+  const audioBase64 = jsonText.match(/"audioBase64"\s*:\s*"([^"]+)"/)?.[1] || "";
+  if (!audioBase64 || typeof wx.base64ToArrayBuffer !== "function") return null;
+  return wx.base64ToArrayBuffer(audioBase64);
+}
 const RECOGNITION_SOURCES = [
   {
     id: "pep-textbook",
@@ -553,11 +572,32 @@ Page({
       const data = payload.kind === "english-word"
         ? { kind: payload.kind, itemId: payload.itemId }
         : { kind: payload.kind, character: payload.character };
-      const loadPronunciation = (url) => request({
-        url,
-        method: "POST",
-        data,
-        auth: false
+      const loadPronunciation = (url) => new Promise((resolve, reject) => {
+        wx.request({
+          url,
+          method: "POST",
+          data,
+          header: {
+            "content-type": "application/json",
+            accept: "audio/mpeg"
+          },
+          responseType: "arraybuffer",
+          success(response) {
+            const audioData = normalizePronunciationAudioData(response);
+            if (response.statusCode >= 200 && response.statusCode < 300 && audioData && audioData.byteLength > 0) {
+              resolve(audioData);
+              return;
+            }
+            reject({
+              statusCode: response.statusCode,
+              message: "读音音频无效",
+              url
+            });
+          },
+          fail(error) {
+            reject({ statusCode: 0, message: error.errMsg || "网络连接失败", url, error });
+          }
+        });
       });
       return loadPronunciation(`${DEFAULT_WEB_ORIGIN}${pronunciationPath}`).catch((error) => {
         const statusCode = Number(error && error.statusCode);
@@ -565,16 +605,14 @@ Page({
           && [0, 401, 502, 503].includes(statusCode);
         if (!canUseLocalFallback) throw error;
         return loadPronunciation(`${API_ORIGIN}${pronunciationPath}`);
-      }).then((response) => {
-        const audioBase64 = String(response && response.audioBase64 || "");
-        if (!audioBase64 || !fileSystem || !filePath) {
+      }).then((audioData) => {
+        if (!audioData || !fileSystem || !filePath) {
           throw new Error("读音音频无效");
         }
         return new Promise((resolve, reject) => {
           fileSystem.writeFile({
             filePath,
-            data: audioBase64,
-            encoding: "base64",
+            data: audioData,
             success: () => resolve(filePath),
             fail: reject
           });

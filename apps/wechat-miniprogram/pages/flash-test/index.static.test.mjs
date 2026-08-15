@@ -358,6 +358,7 @@ test("English words and enlarged Chinese characters persist pronunciation locall
   const definition = loadFlashPageDefinition();
   const originalWx = global.wx;
   const requests = [];
+  const writes = [];
   const playedFiles = [];
   const audio = {
     src: "",
@@ -385,13 +386,37 @@ test("English words and enlarged Chinese characters persist pronunciation locall
       env: { USER_DATA_PATH: "/tmp" },
       getStorageSync() { return "jwt-token"; },
       request(options) {
-        requests.push({ url: options.url, data: options.data });
-        options.success({ statusCode: 200, data: { audioBase64: "bXAz" } });
+        requests.push({
+          url: options.url,
+          data: options.data,
+          accept: options.header.accept,
+          responseType: options.responseType
+        });
+        if (requests.length === 1) {
+          options.success({ statusCode: 200, data: new Uint8Array([0xff, 0xf3, 0x60]).buffer });
+          return;
+        }
+        const legacyJson = JSON.stringify({
+          audioBase64: Buffer.from([0xff, 0xf3, 0x61]).toString("base64")
+        });
+        options.success({
+          statusCode: 200,
+          header: { "Content-Type": "application/json; charset=utf-8" },
+          data: Uint8Array.from(Buffer.from(legacyJson)).buffer
+        });
       },
+      base64ToArrayBuffer(value) { return Uint8Array.from(Buffer.from(value, "base64")).buffer; },
       getFileSystemManager() {
         return {
           access(options) { options.fail(); },
-          writeFile(options) { options.success(); }
+          writeFile(options) {
+            writes.push({
+              filePath: options.filePath,
+              bytes: Array.from(new Uint8Array(options.data)),
+              encoding: options.encoding
+            });
+            options.success();
+          }
         };
       },
       createInnerAudioContext() { return audio; },
@@ -403,16 +428,32 @@ test("English words and enlarged Chinese characters persist pronunciation locall
     assert.deepEqual(requests, [
       {
         url: "https://xianfeng.xinzhi.info/api/flash-tests/pronunciation",
-        data: { kind: "english-word", itemId: "animal-cat" }
+        data: { kind: "english-word", itemId: "animal-cat" },
+        accept: "audio/mpeg",
+        responseType: "arraybuffer"
       },
       {
         url: "https://xianfeng.xinzhi.info/api/flash-tests/pronunciation",
-        data: { kind: "chinese-character", character: "字" }
+        data: { kind: "chinese-character", character: "字" },
+        accept: "audio/mpeg",
+        responseType: "arraybuffer"
       }
     ]);
     assert.deepEqual(playedFiles, [
-      "/tmp/xf-pronunciation-v2-english-word-63-61-74.mp3",
-      "/tmp/xf-pronunciation-v2-chinese-character-5b57.mp3"
+      "/tmp/xf-pronunciation-v4-english-word-63-61-74.mp3",
+      "/tmp/xf-pronunciation-v4-chinese-character-5b57.mp3"
+    ]);
+    assert.deepEqual(writes, [
+      {
+        filePath: "/tmp/xf-pronunciation-v4-english-word-63-61-74.mp3",
+        bytes: [0xff, 0xf3, 0x60],
+        encoding: undefined
+      },
+      {
+        filePath: "/tmp/xf-pronunciation-v4-chinese-character-5b57.mp3",
+        bytes: [0xff, 0xf3, 0x61],
+        encoding: undefined
+      }
     ]);
   } finally {
     global.wx = originalWx;
@@ -505,7 +546,7 @@ test("English words reuse the persistent pronunciation file", async () => {
     await definition.playEnglishWordPronunciation.call(context);
 
     assert.equal(requests.length, 0);
-    assert.deepEqual(playedFiles, ["/tmp/xf-pronunciation-v2-english-word-63-61-74.mp3"]);
+    assert.deepEqual(playedFiles, ["/tmp/xf-pronunciation-v4-english-word-63-61-74.mp3"]);
   } finally {
     global.wx = originalWx;
   }
@@ -546,7 +587,7 @@ test("enlarged Chinese characters reuse the persistent pronunciation file", asyn
     await definition.playRecognitionCharacterPronunciation.call(context);
 
     assert.equal(requests.length, 0);
-    assert.deepEqual(playedFiles, ["/tmp/xf-pronunciation-v2-chinese-character-5b57.mp3"]);
+    assert.deepEqual(playedFiles, ["/tmp/xf-pronunciation-v4-chinese-character-5b57.mp3"]);
   } finally {
     global.wx = originalWx;
   }
@@ -568,7 +609,7 @@ test("pronunciation waits for canplay and removes a failed persistent file", () 
     onError(handler) { errorHandler = handler; },
     destroy() {}
   };
-  const filePath = "/tmp/xf-pronunciation-v2-english-word-63-61-74.mp3";
+  const filePath = "/tmp/xf-pronunciation-v4-english-word-63-61-74.mp3";
   const key = "english-word:cat";
   const context = {
     ...definition,
