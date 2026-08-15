@@ -28,6 +28,11 @@
 
 ### Durable Contracts
 
+- Authenticated flash-test pronunciation reads from versioned static sets under
+  `backend/src/assets/flash-test`: 1,600 pre-generated Chinese-character MP3s and
+  150 RP-calibrated British-English word MP3s. Runtime playback never calls TTS;
+  generation is an explicit offline process and each SHA-256 manifest records the
+  exact asset set shipped with the backend.
 - Program imports update only fields present in the supplied export and preserve
   stored generated content omitted by lightweight public-list payloads, including
   `transcript`, `contentPack`, and `deepDive`. Public program lists project one
@@ -103,14 +108,31 @@
   to an existing account, that mobile account wins: the mini-program openid is
   moved to that account and the response returns that account's JWT.
 - Authenticated flash-test history is stored as user-owned `FlashTestResult`
-  records. `POST /api/flash-tests/results` accepts only the current supported
-  `eight-talents` question version and exactly 40 integer answers from 1 to 5;
-  the backend derives all eight dimension scores instead of trusting client
-  scores. Child-mode writes require an existing child ID in the current user's
-  `UserXiaowanziSync.childProfiles`. `GET /api/flash-tests/results` returns only
-  the authenticated user's newest results, supports assessment, self/child,
-  and child-ID filters for restoring the matching subject's latest result, and
-  never accepts a client-supplied owner ID.
+  records. `POST /api/flash-tests/results` accepts the current supported
+  `eight-talents` version with exactly 40 integer answers from 1 to 5, or the
+  child-only `character-recognition` group version with exactly 800 binary
+  answers. The client identifies group 1 or group 2, and each group may be
+  submitted independently without a score threshold. Legacy cumulative
+  1600-answer submissions remain supported for stored-result compatibility.
+  Recognition submissions also carry the matching fixed character bank in its
+  fixed order; the backend rejects missing, reordered, or substituted
+  characters and stores the complete checklist with its group number.
+  The backend derives the corresponding
+  eight-dimension scores or exact recognition count instead of trusting client
+  scores. Child-mode writes
+  require an existing child ID in the current user's
+  `UserXiaowanziSync.childProfiles`; recognition results cannot be saved in
+  self mode. `GET /api/flash-tests/results` returns only the authenticated
+  user's newest results, supports assessment, self/child, and child-ID filters
+  for restoring the matching subject's latest result, and never accepts a
+  client-supplied owner ID. Character-recognition results include their stored
+  binary answers and sampled characters plus the latest mastery summary for
+  each independent 800-character group so the client can reconstruct that
+  round's recognized and not-yet-recognized character lists; other assessment
+  histories do not expose raw answers through this serializer. Written-word
+  English history responses also include the latest recognized/total summary
+  for each of the five word packs, scoped to the same child, so the result page
+  can show all pack states without mixing children or picture-naming records.
 - Billing exposes `free`, `plus`, and `pro` catalog plans. Free login grants
   are 10 points per day with a hard monthly free-account cap of 30 points,
   including legacy free balances above the cap. `plus` costs ¥19.9 for 200

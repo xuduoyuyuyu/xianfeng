@@ -11,6 +11,7 @@ const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 const miniProgramRoot = path.resolve(currentDirectory, "../..");
 const { SETTINGS_SECTIONS } = require("../../utils/nativeSettings.js");
 const { ADVANCED_CHARACTER_BANK, BASE_CHARACTER_BANK, CHARACTER_BANK } = require("../../utils/characterRecognitionBank.js");
+const { CHARACTER_PINYIN, getCharacterPinyin } = require("../../utils/characterRecognitionPinyin.js");
 const { ENGLISH_WORD_PACKS } = require("../../utils/englishPictureNaming.js");
 
 function loadFlashPageDefinition() {
@@ -83,6 +84,14 @@ test("flash test uses required sliders and renders 1-to-5 scores on the radar", 
   assert.match(source, /context\.fillText\(score\.name, point\.x, nameY\)/);
   assert.match(source, /context\.fillText\(`\$\{score\.radarValue\}分`, point\.x, scoreY\)/);
   assert.doesNotMatch(template, /\{\{item\.total\}\}|\{\{item\.radarValue\}\}/);
+});
+
+test("every fixed-bank character has a tone-marked pinyin label", () => {
+  assert.equal(CHARACTER_PINYIN.length, CHARACTER_BANK.length);
+  assert.equal(CHARACTER_PINYIN.length, 1600);
+  assert.equal(getCharacterPinyin("天"), "tiān");
+  assert.equal(getCharacterPinyin("字"), "zì");
+  assert.equal(getCharacterPinyin(""), "");
 });
 
 test("flash test slider has a thicker track and dock-like drag feedback", () => {
@@ -242,7 +251,10 @@ test("English flash test keeps one word-reading task and only offers photo view 
   const template = fs.readFileSync(path.join(currentDirectory, "index.wxml"), "utf8");
   const styles = fs.readFileSync(path.join(currentDirectory, "index.wxss"), "utf8");
   const photoDirectory = path.join(miniProgramRoot, "pages/flash-test/assets/english-picture-naming");
-  const audioDirectory = path.join(miniProgramRoot, "pages/flash-test/assets/english-pronunciation");
+  const audioDirectory = path.resolve(
+    miniProgramRoot,
+    "../../backend/src/assets/flash-test/english-pronunciation"
+  );
 
   assert.match(source, /id:\s*"english-picture-naming"/);
   assert.match(source, /icon:\s*"\/assets\/flash-test\/english-picture-naming\.svg"/);
@@ -341,7 +353,7 @@ test("English flash test keeps one word-reading task and only offers photo view 
   }
 });
 
-test("English words use packaged audio while enlarged Chinese characters keep the pronunciation API", async () => {
+test("English words and enlarged Chinese characters persist pronunciation locally", async () => {
   const definition = loadFlashPageDefinition();
   const originalWx = global.wx;
   const requests = [];
@@ -376,7 +388,10 @@ test("English words use packaged audio while enlarged Chinese characters keep th
         options.success({ statusCode: 200, data: { audioBase64: "bXAz" } });
       },
       getFileSystemManager() {
-        return { writeFile(options) { options.success(); } };
+        return {
+          access(options) { options.fail(); },
+          writeFile(options) { options.success(); }
+        };
       },
       createInnerAudioContext() { return audio; },
       showToast() {}
@@ -385,12 +400,95 @@ test("English words use packaged audio while enlarged Chinese characters keep th
     await definition.playEnglishWordPronunciation.call(context);
     await definition.playRecognitionCharacterPronunciation.call(context);
     assert.deepEqual(requests, [
+      { kind: "english-word", itemId: "animal-cat" },
       { kind: "chinese-character", character: "字" }
     ]);
     assert.deepEqual(playedFiles, [
-      "/pages/flash-test/assets/english-pronunciation/cat.mp3",
+      "/tmp/xf-pronunciation-english-word-63-61-74.mp3",
       "/tmp/xf-pronunciation-chinese-character-5b57.mp3"
     ]);
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
+test("English words reuse the persistent pronunciation file", async () => {
+  const definition = loadFlashPageDefinition();
+  const originalWx = global.wx;
+  const requests = [];
+  const playedFiles = [];
+  const audio = {
+    src: "",
+    stop() {},
+    play() { playedFiles.push(this.src); },
+    onEnded() {},
+    onError() {},
+    destroy() {}
+  };
+  const context = {
+    ...definition,
+    data: { ...definition.data },
+    pronunciationAudioPaths: {},
+    setData(payload) { this.data = { ...this.data, ...payload }; }
+  };
+
+  try {
+    global.wx = {
+      env: { USER_DATA_PATH: "/tmp" },
+      getStorageSync() { return "jwt-token"; },
+      request(options) { requests.push(options); },
+      getFileSystemManager() {
+        return { access(options) { options.success(); } };
+      },
+      createInnerAudioContext() { return audio; },
+      showToast() {}
+    };
+
+    await definition.playEnglishWordPronunciation.call(context);
+
+    assert.equal(requests.length, 0);
+    assert.deepEqual(playedFiles, ["/tmp/xf-pronunciation-english-word-63-61-74.mp3"]);
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
+test("enlarged Chinese characters reuse the persistent pronunciation file", async () => {
+  const definition = loadFlashPageDefinition();
+  const originalWx = global.wx;
+  const requests = [];
+  const playedFiles = [];
+  const audio = {
+    src: "",
+    stop() {},
+    play() { playedFiles.push(this.src); },
+    onEnded() {},
+    onError() {},
+    destroy() {}
+  };
+  const context = {
+    ...definition,
+    data: { ...definition.data, recognitionFocusCharacter: "字" },
+    pronunciationAudioPaths: {},
+    setData(payload) { this.data = { ...this.data, ...payload }; }
+  };
+
+  try {
+    global.wx = {
+      env: { USER_DATA_PATH: "/tmp" },
+      getStorageSync() { return "jwt-token"; },
+      request(options) { requests.push(options); },
+      getFileSystemManager() {
+        return { access(options) { options.success(); } };
+      },
+      createInnerAudioContext() { return audio; },
+      showToast() {}
+    };
+
+    await definition.playRecognitionCharacterPronunciation.call(context);
+
+    assert.equal(requests.length, 0);
+    assert.deepEqual(playedFiles, ["/tmp/xf-pronunciation-chinese-character-5b57.mp3"]);
   } finally {
     global.wx = originalWx;
   }
@@ -1388,6 +1486,7 @@ test("character recognition reuses the child archive and resumes a 40-page exact
     definition.openRecognitionCharacterFocus.call(context, { currentTarget: { dataset: { index: 0 } } });
     assert.equal(context.data.recognitionFocusOpen, true);
     assert.equal(context.data.recognitionFocusCharacter, CHARACTER_BANK[0]);
+    assert.equal(context.data.recognitionFocusPinyin, getCharacterPinyin(CHARACTER_BANK[0]));
     assert.equal(context.answers[0], null);
     definition.markFocusedRecognitionCharacter.call(context, { currentTarget: { dataset: { answer: 0 } } });
     assert.equal(context.data.recognitionFocusOpen, false);
@@ -1487,6 +1586,8 @@ test("character recognition presents large multi-character selection and an exac
   assert.match(styles, /\.xf-flash-recognition-tile\s*\{[^}]*height:\s*118rpx[^}]*font-size:\s*62rpx/s);
   assert.match(styles, /\.xf-flash-recognition-tile\.is-unknown\s*\{/);
   assert.match(styles, /\.xf-flash-recognition-focus-character\s*\{[^}]*font-size:\s*320rpx/s);
+  assert.match(template, /xf-flash-recognition-focus-pinyin[^>]*>\{\{recognitionFocusPinyin\}\}<\/text>[\s\S]*xf-flash-recognition-focus-character/);
+  assert.match(styles, /\.xf-flash-recognition-focus-pinyin\s*\{[^}]*font-size:\s*34rpx[^}]*font-weight:\s*800/s);
   assert.doesNotMatch(template, /辅助参考区间|估算约/);
 });
 

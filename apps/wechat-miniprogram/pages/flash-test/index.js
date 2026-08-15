@@ -19,6 +19,7 @@ const {
   buildCharacterPage,
   buildCharacterRecognitionSummary
 } = require("../../utils/characterRecognition");
+const { getCharacterPinyin } = require("../../utils/characterRecognitionPinyin");
 const {
   DEFAULT_ENGLISH_WORD_PACK_ID,
   ENGLISH_PICTURE_NAMING_BANK,
@@ -34,7 +35,6 @@ const LAST_CHILD_ID_KEY = "xiaowanzi_last_child_id_v1";
 const LAST_ASSESSMENT_MODE_KEY = "xf_flash_test_last_mode_v1";
 const RECOGNITION_PROGRESS_KEY_PREFIX = "xf_character_recognition_progress_v2_";
 const LEGACY_RECOGNITION_PROGRESS_KEY_PREFIX = "xf_character_recognition_progress_v1_";
-const ENGLISH_PRONUNCIATION_BASE_PATH = "/pages/flash-test/assets/english-pronunciation";
 const ENGLISH_WORD_TOTAL = ENGLISH_WORD_PACKS.reduce((sum, pack) => sum + pack.items.length, 0);
 const CATALOG_SHARE_OPTIONS = {
   title: "闪测｜测一测，更懂自己和孩子",
@@ -363,6 +363,7 @@ Page({
     recognitionFocusOpen: false,
     recognitionFocusIndex: -1,
     recognitionFocusCharacter: "",
+    recognitionFocusPinyin: "",
     recognitionFocusAnswer: null,
     recognitionExitOpen: false,
     recognitionCharacterListOpen: false,
@@ -477,8 +478,11 @@ Page({
   playEnglishWordPronunciation() {
     const item = this.data.pictureNamingItem;
     if (!item || typeof wx === "undefined" || typeof wx.createInnerAudioContext !== "function") return;
-    const key = `english-word:${item.word}`;
-    this.playPronunciationFile(`${ENGLISH_PRONUNCIATION_BASE_PATH}/${item.word}.mp3`, key);
+    return this.playFlashTestPronunciation({
+      kind: "english-word",
+      itemId: item.id,
+      text: item.word
+    });
   },
 
   getActiveEnglishWordPack() {
@@ -510,26 +514,43 @@ Page({
     }
     if (this.data.pronunciationLoadingKey === key) return;
     this.setData({ pronunciationLoadingKey: key });
-    return request({
-      url: "/api/flash-tests/pronunciation",
-      method: "POST",
-      data: payload.kind === "english-word"
-        ? { kind: payload.kind, itemId: payload.itemId }
-        : { kind: payload.kind, character: payload.character }
-    }).then((response) => {
-      const audioBase64 = String(response && response.audioBase64 || "");
-      if (!audioBase64 || !wx.env || !wx.env.USER_DATA_PATH || typeof wx.getFileSystemManager !== "function") {
-        throw new Error("读音音频无效");
-      }
-      const suffix = Array.from(text).map((character) => character.codePointAt(0).toString(16)).join("-");
-      const filePath = `${wx.env.USER_DATA_PATH}/xf-pronunciation-${payload.kind}-${suffix}.mp3`;
-      return new Promise((resolve, reject) => {
-        wx.getFileSystemManager().writeFile({
-          filePath,
-          data: audioBase64,
-          encoding: "base64",
-          success: () => resolve(filePath),
-          fail: reject
+    const suffix = Array.from(text).map((character) => character.codePointAt(0).toString(16)).join("-");
+    const filePath = wx.env && wx.env.USER_DATA_PATH
+      ? `${wx.env.USER_DATA_PATH}/xf-pronunciation-${payload.kind}-${suffix}.mp3`
+      : "";
+    const fileSystem = filePath && typeof wx.getFileSystemManager === "function"
+      ? wx.getFileSystemManager()
+      : null;
+    const existingFile = fileSystem && typeof fileSystem.access === "function"
+      ? new Promise((resolve) => {
+          fileSystem.access({
+            path: filePath,
+            success: () => resolve(filePath),
+            fail: () => resolve("")
+          });
+        })
+      : Promise.resolve("");
+    return existingFile.then((cachedFilePath) => {
+      if (cachedFilePath) return cachedFilePath;
+      return request({
+        url: "/api/flash-tests/pronunciation",
+        method: "POST",
+        data: payload.kind === "english-word"
+          ? { kind: payload.kind, itemId: payload.itemId }
+          : { kind: payload.kind, character: payload.character }
+      }).then((response) => {
+        const audioBase64 = String(response && response.audioBase64 || "");
+        if (!audioBase64 || !fileSystem || !filePath) {
+          throw new Error("读音音频无效");
+        }
+        return new Promise((resolve, reject) => {
+          fileSystem.writeFile({
+            filePath,
+            data: audioBase64,
+            encoding: "base64",
+            success: () => resolve(filePath),
+            fail: reject
+          });
         });
       });
     }).then((filePath) => {
@@ -1259,6 +1280,7 @@ Page({
         recognitionFocusOpen: false,
         recognitionFocusIndex: -1,
         recognitionFocusCharacter: "",
+        recognitionFocusPinyin: "",
         recognitionFocusAnswer: null,
         recognitionExitOpen: false,
         recognitionCharacterListOpen: false,
@@ -1360,10 +1382,12 @@ Page({
     const answerIndex = Number(event.currentTarget.dataset.index);
     const page = this.data.recognitionPage;
     if (!page || !Number.isInteger(answerIndex) || answerIndex < page.start || answerIndex >= page.end) return;
+    const character = this.recognitionSample[answerIndex] || "";
     this.setData({
       recognitionFocusOpen: true,
       recognitionFocusIndex: answerIndex,
-      recognitionFocusCharacter: this.recognitionSample[answerIndex] || "",
+      recognitionFocusCharacter: character,
+      recognitionFocusPinyin: getCharacterPinyin(character),
       recognitionFocusAnswer: this.answers[answerIndex]
     });
   },
@@ -1373,6 +1397,7 @@ Page({
       recognitionFocusOpen: false,
       recognitionFocusIndex: -1,
       recognitionFocusCharacter: "",
+      recognitionFocusPinyin: "",
       recognitionFocusAnswer: null
     });
   },
@@ -1981,6 +2006,7 @@ Page({
       recognitionFocusOpen: false,
       recognitionFocusIndex: -1,
       recognitionFocusCharacter: "",
+      recognitionFocusPinyin: "",
       recognitionFocusAnswer: null,
       recognitionExitOpen: false,
       recognitionCharacterListOpen: false,

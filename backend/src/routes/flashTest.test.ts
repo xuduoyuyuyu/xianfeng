@@ -100,6 +100,48 @@ describe("flash test result routes", () => {
     assert.equal(unknownCharacter.status, 400);
   });
 
+  it("returns a static MP3 for a fixed-bank Chinese character", async () => {
+    const user = await User.create({ username: "flash-static-pronunciation", password: "hash" });
+    const character = CHARACTER_RECOGNITION_BANK[0];
+    const response = await fetch(`${baseUrl}/pronunciation`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenFor(String(user._id))}`,
+      },
+      body: JSON.stringify({ kind: "chinese-character", character }),
+    });
+    const body = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(body.text, character);
+    assert.equal(body.language, "zh-CN");
+    assert.equal(body.mimeType, "audio/mpeg");
+    assert.equal(body.voiceType, "static-zh-cn-r1");
+    assert.ok(Buffer.from(body.audioBase64, "base64").length > 4_000);
+  });
+
+  it("returns a static MP3 for a fixed-bank English word", async () => {
+    const user = await User.create({ username: "flash-static-english", password: "hash" });
+    const item = ENGLISH_WORD_PACKS[0].items[0];
+    const response = await fetch(`${baseUrl}/pronunciation`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenFor(String(user._id))}`,
+      },
+      body: JSON.stringify({ kind: "english-word", itemId: item.id }),
+    });
+    const body = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(body.text, item.word);
+    assert.equal(body.language, "en-US");
+    assert.equal(body.mimeType, "audio/mpeg");
+    assert.equal(body.voiceType, "static-en-gb-r5");
+    assert.ok(Buffer.from(body.audioBase64, "base64").length > 3_000);
+  });
+
   it("saves and returns only the current user's self-test history", async () => {
     const user = await User.create({ username: "flash-self", password: "hash" });
     const other = await User.create({ username: "flash-other", password: "hash" });

@@ -1,6 +1,6 @@
 # Active Context - Xianfeng
 
-Last rewritten: 2026-08-11
+Last rewritten: 2026-08-14
 
 > This file is a SNAPSHOT, not a journal. Rewrite it at every workstream close,
 > keep it around 60 lines, and use git history for older context.
@@ -86,25 +86,93 @@ integer score on the shared 1-to-5 scale.
 
 The same native catalog now includes a child-only `识字量`. It reuses the
 existing child archive, authenticated result storage, latest-result restore,
-restart, and privacy-safe share paths. A child reads 30 characters without
-prompts while the parent records recognition. Each new test randomly selects
-five characters from each of six 15-character difficulty pools; that sample
-stays fixed while moving forward or back, and an explicit retest generates a
-different sample. The backend validates and stores the exact sampled characters
-before deriving the broad exploratory estimate. Retests prioritize characters
-not previously covered for that child; the backend combines unique character
-observations across rounds, does not count a repeated character as a new sample,
-and narrows the interval as effective coverage grows. After a result is saved,
-the continue action keeps the same child and opens the next character sample
-directly without repeating archive selection. The result leads with recognized sample count;
-fewer than five recognized samples suppress the numeric interval as insufficient
-for a quantity estimate. Above that threshold, the interval is visually secondary,
-labeled as an auxiliary sample conversion rather than a measurement conclusion,
-and uses a 300-character-wide exploratory range instead of the previous coarse
-500-to-750-character range. It
-explains that a scientifically defensible short estimate would require child
-sample calibration, reliability and validity checks, and norms. It does not
-claim an exact vocabulary count, reading-comprehension level, or diagnosis.
+restart, and privacy-safe share paths. The base bank contains 800 unique
+characters, ordered from the 2024–2025 unified Chinese textbook recognition
+tables for grade-one upper, grade-one lower, and grade-two upper, then split
+into four 200-character display stages. The result page always shows two
+independent 800-character group cards. Each card shows that group's latest
+recognized count and percentage with a compact action, with the whole
+card acting as the entry instead of a dominant action button. Either group can be opened at any time
+for the same child without a score threshold or reselecting an archive, and
+each group keeps its own progress and saved result. The second group first continues the grade-two lower
+recognition table with duplicates removed, then use the 2022 curriculum
+standard appendix common-character table to reach 1600 unique characters.
+Across the flash-test catalog, authenticated entry defaults to the last-used
+test subject: either self or the last-used child. Child-only tools skip the
+subject-choice prompt: exactly one usable child enters directly, while zero or
+multiple usable children open archive selection. A small,
+centered bottom reselect action appears only on the first test screen and the
+result screen, keeping manual switching available without interrupting an
+assessment in progress.
+The English-word entry is one written-word recognition test with five
+independent thirty-word packs: animals, food and drinks, home and school, body and
+clothing, and transport and nature. Together they include the full 150-word
+content baseline. Each pack has its own latest result and restart path. Every
+item starts with the word and IPA. The result page exposes all five packs as
+independent status cards, matching the two-group literacy result pattern; each
+card shows the latest recognized count or a not-yet-tested state and starts a
+fresh check for that pack. All 150 words offer a tap-to-photo
+representation backed by a locally stored, source-recorded real photograph;
+generated and placeholder pictures remain prohibited. A photo is an auxiliary representation, not a second
+task: it does not change the item number, answer, history, result type, or
+persistence key, and every new item starts on the word view. A parent marks each word as
+independently readable or not yet recognized, mirroring the literacy inventory
+interaction. The primary next action records the current word as recognized and
+advances immediately; `暂不认识` records the exception and also advances,
+without an intermediate confirmation state. The mini-program does not request
+recording permission, record audio, or invoke ASR for this flow. Results remain
+framed as a fixed-bank inventory rather than active vocabulary or pronunciation
+scoring. Recognized and not-yet-recognized words are shown in separate tabs
+inside a result-page bottom drawer, matching the character-recognition result
+pattern. The result page also exposes a design-reference drawer listing the
+educational sources, institutions, versions, and their limited use in this tool
+without presenting engineering layers, speech vendors, or certification claims.
+The 150-word expansion uses assessment version `2026-08-14-prea1-packs-r4`;
+earlier 10- and 15-word pack results remain historical and do not satisfy current
+30-word pack completion. The 2026-08-15 manual review replaces 29 ambiguous,
+multi-subject, text-heavy, or low-quality photos in the versioned asset bank.
+The ten body-word images use different real-photo sources; identity-visible
+examples prioritize Chinese or East Asian subjects or a clearly Chinese context,
+while anatomical close-ups may not reveal identity. New clothing/accessory items
+use person-free object photos.
+The pronunciation control is playback-only. English words use 150 backend-static,
+offline-generated MP3 files from one RP-calibrated British-English voice, with
+word-level hashes and six explicit phoneme overrides recorded beside the assets.
+The mini program downloads a word's fixed file on first playback, persists it in
+the user-data directory, and reuses it across later sessions; tapping a word does
+not call online TTS. The same listen control remains available in both the
+written-word and real-photo views without changing the current item.
+English entry waits at most three seconds for
+the latest saved result; a temporary network or server failure starts a new
+test with a non-blocking notice instead of leaving the catalog unresponsive.
+The enlarged Chinese character card sends the fixed character to the
+authenticated backend, which reads one of 1,600 pre-generated MP3 assets instead
+of calling online TTS. The mini program reuses an existing file from its local
+user-data directory or writes the returned MP3 there on first playback, so later
+taps and later sessions play from the device cache without opening the recorder,
+ASR, or a TTS request.
+Those display stages are not official
+age or grade thresholds. The child sees 20 characters per page; tapping one
+opens a single-character large view without changing the answer, and the parent
+then explicitly marks it recognized or not recognized. The single-character
+view also shows the static tone-marked pinyin above the large glyph, matching
+the English card's pronunciation-label hierarchy; the 20-character selection
+grid remains character-only. Every untouched
+character is confirmed as recognized when advancing. The top back action offers
+to save and exit, while page hide or unload also preserves the active page.
+Progress is saved locally per child and group across 40 pages and is cleared
+only after that group's authenticated result save succeeds. The backend accepts
+either fixed 800-character group in its fixed order, recomputes the binary
+result, and stores every known and unknown character. Legacy fixed
+1600-character results remain readable. Current-version history can restore the exact group result; an old
+30-character result starts the new checklist instead of being treated as the
+same assessment. The result leads with the exact `recognized / 800` checklist
+count and opens the complete character lists as two tabs, defaulting to the
+not-yet-recognized list before the recognized list; it explicitly
+does not extrapolate that count to all Chinese characters or diagnose reading
+ability. An eight-item source sheet distinguishes four official design
+references from four non-official per-book character-table checking pages and
+disclaims official certification or an official fixed 800/1600-character list.
 
 The shared mini-program phone-login profile step only preloads persistent
 avatars. Expired WeChat temporary avatar paths are cleared before display, and

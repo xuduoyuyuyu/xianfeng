@@ -56,23 +56,64 @@
   states and displays each radar-axis score on the shared 1-to-5 scale. The
   same catalog also includes a child-only `识字量`: it reuses the
   authenticated account's existing child archive and latest-result return
-  path, presents 30 characters one at a time, and asks the child to read each
-  character without prompts while the parent records recognition. Each new
-  test samples five characters from each of six 15-character difficulty pools;
-  that 30-character sequence stays fixed while moving forward or back, and an
-  explicit retest prioritizes characters not previously covered for that child.
-  Saved rounds are combined by unique character, so repeated characters do not
-  inflate effective sample size and the interval narrows as coverage grows.
-  Once saving completes, the continue action keeps the current child and starts
-  the next sample directly without reopening archive selection. Its
-  result leads with recognized sample count, suppresses the numeric interval
-  below five recognized samples, and otherwise visually de-emphasizes the
-  server-derived 300-character-wide interval as an auxiliary sample conversion
-  rather than a measurement conclusion. The page explains
-  that defensible short-form estimation requires child-sample calibration,
-  reliability and validity checks, and norms; it is not an exact vocabulary
+  path, and presents a fixed base bank of 800 unique characters in 40 pages of 20.
+  The bank follows the 2024–2025 unified Chinese textbook recognition tables
+  for grade-one upper, grade-one lower, and grade-two upper in appearance order
+  with duplicates removed. Four 200-character display stages help pacing but
+  are not official age or grade thresholds. Tapping a character opens a
+  single-character large view without changing its answer; the parent then
+  explicitly marks it recognized or not recognized. Advancing confirms every
+  untouched character as recognized. The top back action offers save-and-exit;
+  page hide or unload also preserves the active page. Per-child progress is
+  saved locally and is removed only after
+  the final authenticated server save succeeds. The backend validates the
+  complete bank and its order, derives the binary summary server-side, and
+  stores the exact known and unknown lists. Current-version history restores
+  that result; old 30-character results begin the new checklist. The result
+  leads with the exact `recognized / 800` count. Its character-list sheet uses
+  two tabs and defaults to not-yet-recognized characters before recognized
+  characters. It explicitly avoids
+  extrapolation to all Chinese characters. Eight auditable references separate
+  official curriculum, preschool, and character-form sources from non-official
+  per-book character-table checking pages. The result page always exposes two
+  independent cards for the base and advanced 800-character groups. Each card
+  leads with its latest recognized count, percentage, a compact progress bar,
+  and a light action; the whole card remains the entry. Either group
+  can be entered at any time without a recognition threshold, and each group
+  keeps its own 40-page local progress and saved result. The second bank continues the grade-two lower recognition table
+  with duplicates removed, then fills the remaining unique characters from the
+  2022 curriculum standard appendix common-character table. The UI disclaims
+  official certification and an official fixed 800/1600-character list; it is not an exact vocabulary
   count, reading-comprehension score, or diagnosis;
   shares carry no child identity, answers, progress, or result data.
+- The child-only English-word flash test is one parent-assisted written-word
+  recognition task over five independent thirty-word packs. It stores and restores
+  results by child and pack, and the result page lists all five packs with their
+  latest recognized counts and start/recheck actions. Every word can switch the same item between its
+  written form and a locally stored, source-recorded real-photo candidate. No
+  generated or placeholder image is substituted, and card-view changes never
+  create a second assessment mode or persistence key. All 150 English words also
+  use MP3 files generated offline from one British-English voice and stored with
+  the backend;
+  the same listen control appears in both word and photo views without changing
+  the item. The first playback downloads and persists the fixed file in the mini
+  program user-data directory; later sessions reuse it locally. Playback does not
+  depend on an online TTS or ASR request. The static
+  set uses an RP-calibrated British voice, explicit phoneme overrides for dictionary
+  conflicts, and a 150-file SHA-256 manifest beside the audio files.
+  Person/body examples use source-identified Chinese subjects, while newly added
+  clothing and accessory cards avoid unidentified people. The
+  `2026-08-14-prea1-packs-r4` version bump keeps older 10- and 15-word results as
+  historical records rather than current 30-word pack mastery.
+  Entry waits at most three seconds for the latest saved result; a temporary
+  network or server failure starts a new test with a non-blocking notice instead
+  of trapping the user on the catalog.
+  Chinese-character pronunciation uses the same backend-static and device-cache
+  path as English pronunciation. The mini program persists each pre-generated
+  MP3 in its user-data directory and reuses it across later page sessions; no
+  playback-time TTS request is required. Opening a character's large view
+  also shows its bundled tone-marked pinyin above the glyph, while the 20-item
+  assessment grid remains character-only.
 - WorthBuy uses dedicated native routes `pages/worthbuy/index` and
   `pages/worthbuy-detail/index`. They reuse `/api/worthbuy` for anonymous
   public reads, owner-scoped history, Pro-gated analysis, deletion, and detail

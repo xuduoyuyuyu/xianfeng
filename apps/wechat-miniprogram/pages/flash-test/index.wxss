@@ -1207,6 +1207,16 @@ page {
   text-align: center;
 }
 
+.xf-flash-recognition-focus-pinyin {
+  display: block;
+  margin-bottom: 10rpx;
+  color: #736b7d;
+  font-size: 34rpx;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+}
+
 .xf-flash-recognition-focus-character-card {
   margin: 30rpx 0 24rpx;
   padding: 28rpx 20rpx 20rpx;

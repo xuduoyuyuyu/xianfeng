@@ -384,8 +384,9 @@
         catchtap="playRecognitionCharacterPronunciation"
         hover-class="is-pressed"
         role="button"
-        aria-label="朗读汉字 {{recognitionFocusCharacter}}"
+        aria-label="朗读汉字 {{recognitionFocusCharacter}}，拼音 {{recognitionFocusPinyin}}"
       >
+        <text class="xf-flash-recognition-focus-pinyin">{{recognitionFocusPinyin}}</text>
         <text class="xf-flash-recognition-focus-character">{{recognitionFocusCharacter}}</text>
         <view class="xf-flash-recognition-focus-pronunciation">
           <image class="xf-flash-pronunciation-icon" src="/assets/flash-test/speaker.svg" mode="aspectFit" />
