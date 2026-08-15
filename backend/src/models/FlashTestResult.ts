@@ -93,10 +93,10 @@ const pictureNamingAnswerSchema = new mongoose.Schema(
 
 const pictureNamingSummarySchema = new mongoose.Schema(
   {
-    totalCount: { type: Number, required: true, min: 10, max: 10 },
-    matchedCount: { type: Number, required: true, min: 0, max: 10 },
-    needsPracticeCount: { type: Number, required: true, min: 0, max: 10 },
-    skippedCount: { type: Number, required: true, min: 0, max: 10 },
+    totalCount: { type: Number, required: true, enum: [10, 15, 30] },
+    matchedCount: { type: Number, required: true, min: 0, max: 30 },
+    needsPracticeCount: { type: Number, required: true, min: 0, max: 30 },
+    skippedCount: { type: Number, required: true, min: 0, max: 30 },
   },
   { _id: false }
 );

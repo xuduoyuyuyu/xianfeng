@@ -34,6 +34,8 @@ const LAST_CHILD_ID_KEY = "xiaowanzi_last_child_id_v1";
 const LAST_ASSESSMENT_MODE_KEY = "xf_flash_test_last_mode_v1";
 const RECOGNITION_PROGRESS_KEY_PREFIX = "xf_character_recognition_progress_v2_";
 const LEGACY_RECOGNITION_PROGRESS_KEY_PREFIX = "xf_character_recognition_progress_v1_";
+const ENGLISH_PRONUNCIATION_BASE_PATH = "/pages/flash-test/assets/english-pronunciation";
+const ENGLISH_WORD_TOTAL = ENGLISH_WORD_PACKS.reduce((sum, pack) => sum + pack.items.length, 0);
 const CATALOG_SHARE_OPTIONS = {
   title: "闪测｜测一测，更懂自己和孩子",
   path: "/pages/flash-test/index"
@@ -133,7 +135,7 @@ const ENGLISH_ASSESSMENT_REFERENCES = [
     title: "Pre A1 Starters, Movers and Flyers word list",
     institution: "Cambridge English",
     version: "2025",
-    purpose: "核对当前动物词属于儿童英语入门阶段常见词汇；10 个词不代表完整词汇量。",
+    purpose: `核对各词包属于儿童英语入门阶段常见词汇；${ENGLISH_WORD_TOTAL} 个词不代表完整词汇量。`,
     url: "https://www.cambridgeenglish.org/images/506166-starters-movers-flyers-word-list-2025.pdf"
   },
   {
@@ -172,7 +174,7 @@ const TESTS = [
     subtitle: "看见英文单词直接朗读，家长记录认识和暂不认识",
     icon: "/assets/flash-test/english-picture-naming.svg",
     source: "见词识读 · 真实照片辅助",
-    meta: "5 个词包 · 每包 10 题",
+    meta: `${ENGLISH_WORD_PACKS.length} 个词包 · 共 ${ENGLISH_WORD_TOTAL} 题`,
     childOnly: true
   }
 ];
@@ -378,6 +380,7 @@ Page({
     pictureNamingWordListTab: "unknown",
     pictureNamingKnownWords: [],
     pictureNamingUnknownWords: [],
+    englishWordTotal: ENGLISH_WORD_TOTAL,
     englishWordPacks: ENGLISH_WORD_PACKS.map((pack, index) => ({
       id: pack.id,
       title: pack.title,
@@ -473,12 +476,9 @@ Page({
 
   playEnglishWordPronunciation() {
     const item = this.data.pictureNamingItem;
-    if (!item) return;
-    return this.playFlashTestPronunciation({
-      kind: "english-word",
-      itemId: item.id,
-      text: item.word
-    });
+    if (!item || typeof wx === "undefined" || typeof wx.createInnerAudioContext !== "function") return;
+    const key = `english-word:${item.word}`;
+    this.playPronunciationFile(`${ENGLISH_PRONUNCIATION_BASE_PATH}/${item.word}.mp3`, key);
   },
 
   getActiveEnglishWordPack() {
@@ -910,7 +910,8 @@ Page({
       ? `&englishWordPackId=${encodeURIComponent(this.data.englishWordPackId || DEFAULT_ENGLISH_WORD_PACK_ID)}`
       : "";
     return request({
-      url: `/api/flash-tests/results?assessmentId=${assessmentId}&mode=${mode}${childQuery}${englishPromptQuery}${englishWordPackQuery}&limit=1`
+      url: `/api/flash-tests/results?assessmentId=${assessmentId}&mode=${mode}${childQuery}${englishPromptQuery}${englishWordPackQuery}&limit=1`,
+      timeout: assessmentId === "english-picture-naming" ? 3000 : undefined
     }).then((payload) => {
       const results = payload && Array.isArray(payload.results) ? payload.results : [];
       if (assessmentId === "english-picture-naming") {
@@ -1134,11 +1135,20 @@ Page({
         return false;
       })
       .catch((error) => {
+        const historyStatusCode = Number(error && error.statusCode) || 0;
         const unsupportedRecognitionHistory = this.data.selectedTestId === "character-recognition"
-          && Number(error && error.statusCode) === 400
+          && historyStatusCode === 400
           && String(error && error.message || "") === "暂不支持该测试";
-        if (unsupportedRecognitionHistory) {
+        const unavailableEnglishHistory = this.data.selectedTestId === "english-picture-naming"
+          && (historyStatusCode === 0 || historyStatusCode >= 500);
+        if (unsupportedRecognitionHistory || unavailableEnglishHistory) {
           this.beginNewAssessment(mode, child);
+          if (unavailableEnglishHistory) {
+            wx.showToast({
+              title: "上次结果暂时无法读取，已开始新测试",
+              icon: "none"
+            });
+          }
           return false;
         }
         this.setData({

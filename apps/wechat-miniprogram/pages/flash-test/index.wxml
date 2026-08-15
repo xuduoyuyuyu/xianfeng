@@ -179,6 +179,16 @@
           <view wx:if="{{englishCardView === 'picture' && pictureNamingItem.image}}" class="xf-picture-naming-photo-shell" hover-class="is-flipping" bindtap="toggleEnglishCardView" role="button" aria-label="单词 {{pictureNamingItem.word}} 的对应真实照片，点击展示区域切换为字母形态">
             <image class="xf-picture-naming-photo" src="{{pictureNamingItem.image}}" mode="aspectFill" aria-label="单词 {{pictureNamingItem.word}} 的对应真实照片" />
             <view class="xf-english-card-flip-hint"><text>切换看词</text><text aria-hidden="true">↻</text></view>
+            <view
+              class="xf-flash-pronunciation-button {{pronunciationPlayingKey === 'english-word:' + pictureNamingItem.word ? 'is-playing' : ''}}"
+              catchtap="playEnglishWordPronunciation"
+              hover-class="is-pressed"
+              role="button"
+              aria-label="朗读单词 {{pictureNamingItem.word}}"
+            >
+              <image class="xf-flash-pronunciation-icon" src="/assets/flash-test/speaker.svg" mode="aspectFit" />
+              <text>{{pronunciationLoadingKey === 'english-word:' + pictureNamingItem.word ? '生成中' : '听读音'}}</text>
+            </view>
           </view>
           <view wx:else class="xf-picture-naming-word-shell {{pictureNamingItem.image ? '' : 'has-no-photo'}}" hover-class="{{pictureNamingItem.image ? 'is-flipping' : ''}}" bindtap="toggleEnglishCardView" role="button" aria-label="{{pictureNamingItem.image ? '英文单词 ' + pictureNamingItem.word + '，点击展示区域切换为对应真实照片' : '英文单词 ' + pictureNamingItem.word}}">
             <view wx:if="{{pictureNamingItem.image}}" class="xf-english-card-flip-hint"><text>切换看图</text><text aria-hidden="true">↻</text></view>
@@ -219,7 +229,7 @@
           <text wx:elif="{{resultType === 'pictureNaming'}}" class="xf-flash-result-display">{{selectedChildName}}的{{englishWordPackTitle}}词包盘点</text>
           <text wx:else class="xf-flash-result-display">看见{{mode === 'child' ? selectedChildName : '自己'}}的八项能力</text>
           <text wx:if="{{resultType === 'recognition'}}" class="xf-flash-lead">{{recognitionIsLegacyCumulative ? '旧版累计 1600 字已逐字筛选完成' : '第 ' + recognitionGroupNumber + ' 组 800 字已逐字筛选完成'}}</text>
-          <text wx:elif="{{resultType === 'pictureNaming'}}" class="xf-flash-lead">{{englishWordPackTitle}}词包 10 个单词已由家长逐词确认。</text>
+          <text wx:elif="{{resultType === 'pictureNaming'}}" class="xf-flash-lead">{{englishWordPackTitle}}词包 {{pictureNamingTotal}} 个单词已由家长逐词确认。</text>
           <text wx:else class="xf-flash-lead">雷达图按 1–5 分展示八项能力。</text>
         </view>
         <image class="xf-flash-result-icon" src="/assets/wel-avatar/img-0640.png" mode="aspectFit" aria-label="老虎头小玩子" />
@@ -249,7 +259,7 @@
           <text class="xf-flash-recognition-summary-total">/ {{pictureNamingSummary.totalCount}}</text>
         </view>
         <text class="xf-flash-recognition-summary-progress">认识 {{pictureNamingSummary.matchedCount}} 个 · 暂不认识 {{pictureNamingSummary.totalCount - pictureNamingSummary.matchedCount}} 个</text>
-        <text class="xf-flash-recognition-summary-caveat">这是{{englishWordPackTitle}}词包 10 个单词的家长辅助盘点，不推算完整英语词汇量，也不评价口音。</text>
+        <text class="xf-flash-recognition-summary-caveat">这是{{englishWordPackTitle}}词包 {{pictureNamingTotal}} 个单词的家长辅助盘点，不推算完整英语词汇量，也不评价口音。</text>
         <view class="xf-flash-recognition-list-entry" hover-class="is-pressed" bindtap="openPictureNamingWordList" role="button">
           <text>测评结果</text>
           <text aria-hidden="true">›</text>
@@ -504,7 +514,7 @@
     <view class="xf-flash-character-list-dialog xf-english-pack-dialog" catchtap="noop">
       <view class="xf-flash-character-list-head">
         <view>
-          <text class="xf-flash-character-list-kicker">50 个已收集词 · 分 5 组完成</text>
+          <text class="xf-flash-character-list-kicker">{{englishWordTotal}} 个已收集词 · 分 {{englishWordPacks.length}} 组完成</text>
           <text class="xf-flash-character-list-title">选择英文词包</text>
         </view>
         <view class="xf-flash-character-list-close" catchtap="closeEnglishWordPackDrawer" role="button" aria-label="关闭">×</view>

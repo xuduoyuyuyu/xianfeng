@@ -221,27 +221,26 @@ describe("flash test result routes", () => {
   it("normalizes spoken English without trusting the client match status", () => {
     assert.equal(matchesEnglishPictureWord("A cat.", "cat"), true);
     assert.equal(matchesEnglishPictureWord("catch", "cat"), false);
-    const itemIds = ["cat", "dog", "bird", "fish", "duck", "horse", "cow", "sheep", "elephant", "monkey"]
-      .map((word) => `animal-${word}`);
+    const itemIds = ENGLISH_WORD_PACKS[0].items.map((item) => item.id);
     const answers = normalizePictureNamingAnswers(itemIds.map((itemId, index) => ({
       itemId,
       recognizedText: index === 0 ? "A cat." : "different",
-      status: index === 9 ? "skipped" : "matched",
+      status: index === 29 ? "skipped" : "matched",
     })));
     assert.ok(answers);
     assert.equal(answers[0].status, "matched");
     assert.equal(answers[1].status, "unmatched");
-    assert.equal(answers[9].status, "skipped");
+    assert.equal(answers[29].status, "skipped");
     assert.deepEqual(scorePictureNaming(answers), {
-      totalCount: 10,
+      totalCount: 30,
       matchedCount: 1,
-      needsPracticeCount: 8,
+      needsPracticeCount: 28,
       skippedCount: 1,
     });
   });
 
   it("accepts parent-confirmed word recognition without ASR text", () => {
-    const words = ["cat", "dog", "bird", "fish", "duck", "horse", "cow", "sheep", "elephant", "monkey"];
+    const words = ENGLISH_WORD_PACKS[0].items.map((item) => item.word);
     const answers = normalizePictureNamingAnswers(words.map((word, index) => ({
       itemId: `animal-${word}`,
       recognizedText: "",
@@ -250,17 +249,25 @@ describe("flash test result routes", () => {
 
     assert.ok(answers);
     assert.deepEqual(scorePictureNaming(answers), {
-      totalCount: 10,
+      totalCount: 30,
       matchedCount: 6,
       needsPracticeCount: 0,
-      skippedCount: 4,
+      skippedCount: 24,
     });
   });
 
   it("validates all five collected word packs independently", () => {
     assert.equal(DEFAULT_ENGLISH_WORD_PACK_ID, "animals");
     assert.equal(ENGLISH_WORD_PACKS.length, 5);
-    assert.equal(ENGLISH_WORD_PACKS.flatMap((pack) => pack.items).length, 50);
+    assert.equal(ENGLISH_WORD_PACKS.every((pack) => pack.items.length === 30), true);
+    assert.equal(ENGLISH_WORD_PACKS.flatMap((pack) => pack.items).length, 150);
+    assert.deepEqual(ENGLISH_WORD_PACKS.map((pack) => pack.items.slice(-5).map((item) => item.word)), [
+      ["bee", "butterfly", "ant", "crab", "dolphin"],
+      ["soup", "cookie", "candy", "pizza", "hamburger"],
+      ["fork", "plate", "bowl", "key", "umbrella"],
+      ["belt", "comb", "watch", "ring", "pendant"],
+      ["grass", "forest", "snow", "rainbow", "rock"],
+    ]);
     const foodPack = ENGLISH_WORD_PACKS.find((pack) => pack.id === "food");
     assert.ok(foodPack);
     const answers = normalizePictureNamingAnswers(foodPack.items.map((item, index) => ({
@@ -271,10 +278,10 @@ describe("flash test result routes", () => {
     assert.ok(answers);
     assert.equal(answers[0].targetWord, "apple");
     assert.deepEqual(scorePictureNaming(answers), {
-      totalCount: 10,
+      totalCount: 30,
       matchedCount: 3,
       needsPracticeCount: 0,
-      skippedCount: 7,
+      skippedCount: 27,
     });
     assert.equal(normalizePictureNamingAnswers(answers, "word", "animals"), null);
   });
@@ -285,11 +292,11 @@ describe("flash test result routes", () => {
       userId: user._id,
       childProfiles: [{ id: "child-speaker", title: "小说家", grade: "小学一年级" }],
     });
-    const words = ["cat", "dog", "bird", "fish", "duck", "horse", "cow", "sheep", "elephant", "monkey"];
+    const words = ENGLISH_WORD_PACKS[0].items.map((item) => item.word);
     const pictureNamingAnswers = words.map((word, index) => ({
       itemId: `animal-${word}`,
-      recognizedText: index < 7 ? word : index === 9 ? "" : "another word",
-      status: index === 9 ? "skipped" : "matched",
+      recognizedText: index < 7 ? word : index === 29 ? "" : "another word",
+      status: index === 29 ? "skipped" : "matched",
     }));
     const headers = {
       "Content-Type": "application/json",
@@ -315,9 +322,9 @@ describe("flash test result routes", () => {
     assert.equal(body.result.englishPromptMode, "picture");
     assert.equal(body.result.englishWordPackId, "animals");
     assert.deepEqual(body.result.pictureNamingSummary, {
-      totalCount: 10,
+      totalCount: 30,
       matchedCount: 7,
-      needsPracticeCount: 2,
+      needsPracticeCount: 22,
       skippedCount: 1,
     });
     assert.equal(body.result.pictureNamingAnswers[7].status, "unmatched");
@@ -369,7 +376,7 @@ describe("flash test result routes", () => {
     assert.equal(list.status, 200);
     const listBody = await list.json();
     assert.equal(listBody.results[0].id, body.result.id);
-    assert.equal(listBody.results[0].pictureNamingAnswers.length, 10);
+    assert.equal(listBody.results[0].pictureNamingAnswers.length, 30);
     assert.equal(listBody.results[0].englishPromptMode, "picture");
 
     const wordList = await fetch(`${baseUrl}/results?assessmentId=english-picture-naming&englishPromptMode=word&englishWordPackId=animals&mode=child&childId=child-speaker&limit=1`, { headers });
@@ -382,14 +389,14 @@ describe("flash test result routes", () => {
       resultId: wordBody.result.id,
       englishWordPackId: "animals",
       matchedCount: wordBody.result.pictureNamingSummary.matchedCount,
-      totalCount: 10,
+      totalCount: 30,
       completedAt: wordBody.result.completedAt,
     });
     assert.deepEqual(wordListBody.englishWordPackResults.food, {
       resultId: foodBody.result.id,
       englishWordPackId: "food",
       matchedCount: 4,
-      totalCount: 10,
+      totalCount: 30,
       completedAt: foodBody.result.completedAt,
     });
     assert.equal(wordListBody.englishWordPackResults["home-school"], null);

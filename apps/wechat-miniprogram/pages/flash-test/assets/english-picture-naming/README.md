@@ -1,6 +1,6 @@
 # English picture naming photo manifest
 
-All 50 assessment images are resized and compressed derivatives of camera photographs. No image-generation model, synthetic fill, subject removal, or background replacement was used. The assessment displays each file as a full-bleed `aspectFill` card so the real photo becomes the card surface; the stored source derivative remains unchanged and auditable. The ten animal files use JPEG; the other 40 use WebP to keep the WeChat subpackage within its size budget.
+All 150 assessment images are resized and compressed derivatives of camera photographs. No image-generation model, synthetic fill, subject removal, or background replacement was used. The assessment displays each file as a full-bleed `aspectFill` card so the real photo becomes the card surface; the stored source derivative remains unchanged and auditable. The original ten animal files use JPEG; the remaining 140 use WebP to keep the WeChat subpackage within its size budget.
 
 ## Photo quality policy
 
@@ -24,7 +24,7 @@ All 50 assessment images are resized and compressed derivatives of camera photog
 | `elephant.jpg` | Elephant | https://unsplash.com/photos/XiOQhhXWX6Y | Unsplash photo / Unsplash License |
 | `monkey.jpg` | Long-tailed macaque | https://commons.wikimedia.org/wiki/File:Long-tailed_Macaque_357899609.jpg | Wikimedia Commons file; see source page for author and license |
 
-## Other four packs
+## Original four non-animal packs
 
 These are local manual-flow candidates, not production-cleared assessment assets. Each source page must still receive a frozen license snapshot and the final image must pass the naming pretest before release.
 
@@ -71,4 +71,48 @@ These are local manual-flow candidates, not production-cleared assessment assets
 | `tree.webp` | https://commons.wikimedia.org/wiki/File:Usamljeni_jasen_-_panoramio_(cropped).jpg | menergo | CC BY-SA 3.0 |
 | `flower.webp` | https://commons.wikimedia.org/wiki/File:Magnolia_grandiflora_-_flower_1.jpg | Ianaré Sévi | CC BY-SA 3.0 |
 
+## Expanded pack assets
+
+These 25 photos extend every pack from 10 to 15 words. Each source derivative was center-cropped and resized to a 960 × 960 WebP without generative editing or background replacement. `pen.webp` was fitted to a square using the source photo's existing neutral background so the full pen remains visible.
+
+| File | Source | Creator | License on source page |
+| --- | --- | --- | --- |
+| `rabbit.webp` | https://commons.wikimedia.org/wiki/File:Rabbit_(Oryctolagus_cuniculus)_Skomer.jpg | Charles J. Sharp | CC BY-SA 4.0 |
+| `pig.webp` | https://commons.wikimedia.org/wiki/File:Pig_in_mud_in_Berkshire_-_geograph.org.uk_-_981002.jpg | Graham Horn | CC BY-SA 2.0 |
+| `lion.webp` | https://commons.wikimedia.org/wiki/File:Lion_male.jpg | Byrdyak | CC BY-SA 4.0 |
+| `tiger.webp` | https://commons.wikimedia.org/wiki/File:Tiger_(India)_3.jpg | Davidvraju | CC BY-SA 4.0 |
+| `bear.webp` | https://commons.wikimedia.org/wiki/File:Brown-bear.jpg | Paolo Neo | CC0 |
+| `milk.webp` | https://commons.wikimedia.org/wiki/File:Glass_of_Milk_(33657535532).jpg | NIAID | CC BY 2.0 |
+| `water.webp` | https://commons.wikimedia.org/wiki/File:Glass-of-water.jpg | Derek Jensen (Tysto) | Public domain |
+| `juice.webp` | https://commons.wikimedia.org/wiki/File:Orange_juice_1_edit1.jpg | USDA; edited by Arad | Public domain |
+| `cheese.webp` | https://commons.wikimedia.org/wiki/File:White_cheddar_cheese.jpg | Jon Sullivan | Public domain |
+| `chicken.webp` | https://commons.wikimedia.org/wiki/File:Roast_Chicken_Hot_Plate.jpg | safaritravelplus | CC0 |
+| `pen.webp` | https://commons.wikimedia.org/wiki/File:Jinhao_182_twist_action_ballpoint_pen.jpg | Francis Flinch | CC BY-SA 4.0 |
+| `desk.webp` | https://commons.wikimedia.org/wiki/File:Student_Desk.jpg | Rap17 | CC BY-SA 4.0 |
+| `cup.webp` | https://commons.wikimedia.org/wiki/File:Coffee_cup_(1).jpg | Jon Sullivan | Public domain |
+| `lamp.webp` | https://commons.wikimedia.org/wiki/File:A_desk_lamp.jpg | AirbusA330772673 | CC BY-SA 4.0 |
+| `box.webp` | https://commons.wikimedia.org/wiki/File:Cardboard_box.jpg | MrBeastRapper | CC BY-SA 4.0 |
+| `arm.webp` | https://commons.wikimedia.org/wiki/File:Arm.agr.jpg | ArnoldReinhold | CC BY-SA 3.0 |
+| `leg.webp` | https://commons.wikimedia.org/wiki/File:Photo_of_my_legs.jpg | Punker1999 | CC BY-SA 4.0 |
+| `face.webp` | https://commons.wikimedia.org/wiki/File:Face_portrait_(Unsplash).jpg | William Stitt | CC0 |
+| `coat.webp` | https://commons.wikimedia.org/wiki/File:Duffell_coat_(2210293264).jpg | cherryred | CC BY 2.0 |
+| `dress.webp` | https://commons.wikimedia.org/wiki/File:Black_dress_by_Coco_Chanel.jpg | Danielle Jansen | CC BY-SA 4.0 |
+| `taxi.webp` | https://commons.wikimedia.org/wiki/File:Yellow_Ford_taxi_car_on_a_sunny_avenue_(Unsplash).jpg | Jace Grandinetti | CC0 |
+| `ship.webp` | https://commons.wikimedia.org/wiki/File:The_cargo_ship_%27Min%27_on_sea_trials_(22789733671).jpg | Tyne & Wear Archives & Museums | No known restrictions |
+| `moon.webp` | https://commons.wikimedia.org/wiki/File:Full_Moon_Luc_Viatour.jpg | Luc Viatour | CC BY-SA 3.0 |
+| `cloud.webp` | https://commons.wikimedia.org/wiki/File:Single_cloud_in_blue_sky.jpg | Rosmarie Voegtli | CC BY 4.0 |
+| `rain.webp` | https://commons.wikimedia.org/wiki/File:Rain_drops_on_window_02_ies.jpg | Frank Vincentz | CC BY-SA 3.0 |
+
 The detailed candidate review and original-file hashes are in `docs/superpowers/specs/2026-08-13-english-picture-naming-real-photo-candidate-audit.md`.
+
+## 30-word pack expansion
+
+The r4 expansion adds another 75 real-photo derivatives, bringing every pack to 30 words and the full inventory to 150. The per-file source, creator, and license records are frozen in [`SOURCES-r4.md`](./SOURCES-r4.md). Candidates carrying NC or ND restrictions were removed from the final bank.
+
+## Manual-review replacements
+
+The 2026-08-15 manual review replaced 29 ambiguous, multi-subject, text-heavy, or low-quality assets. [`REPLACEMENTS-2026-08-15.md`](./REPLACEMENTS-2026-08-15.md) records the general replacements, while [`BODY-CHINESE-REPLACEMENTS-2026-08-15.md`](./BODY-CHINESE-REPLACEMENTS-2026-08-15.md) records the final ten body-word images. For matching filenames, these two manifests supersede earlier rows in this README and `SOURCES-r4.md`.
+
+## China-localized people and body photos
+
+The final ten body-word derivatives use ten different source photographs. Identity-visible faces and facial close-ups prioritize Chinese or East Asian subjects or a clearly Chinese context; anatomical close-ups that do not reveal identity remain separate real-photo sources. `hair.webp` and `arm.webp` use the two user-selected pages recorded in the final body manifest. Each derivative uses only crop, resize, EXIF orientation correction, and WebP compression.

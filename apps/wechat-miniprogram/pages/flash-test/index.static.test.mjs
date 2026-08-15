@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
@@ -10,6 +11,7 @@ const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 const miniProgramRoot = path.resolve(currentDirectory, "../..");
 const { SETTINGS_SECTIONS } = require("../../utils/nativeSettings.js");
 const { ADVANCED_CHARACTER_BANK, BASE_CHARACTER_BANK, CHARACTER_BANK } = require("../../utils/characterRecognitionBank.js");
+const { ENGLISH_WORD_PACKS } = require("../../utils/englishPictureNaming.js");
 
 function loadFlashPageDefinition() {
   const pagePath = require.resolve("./index.js");
@@ -240,13 +242,7 @@ test("English flash test keeps one word-reading task and only offers photo view 
   const template = fs.readFileSync(path.join(currentDirectory, "index.wxml"), "utf8");
   const styles = fs.readFileSync(path.join(currentDirectory, "index.wxss"), "utf8");
   const photoDirectory = path.join(miniProgramRoot, "pages/flash-test/assets/english-picture-naming");
-  const jpegPhotoNames = ["cat", "dog", "bird", "fish", "duck", "horse", "cow", "sheep", "elephant", "monkey"];
-  const webpPhotoNames = [
-    "apple", "banana-focus", "orange", "egg", "bread", "cake", "carrot", "tomato", "potato", "rice",
-    "book", "pencil", "ruler-focus", "chair", "table-focus", "bed-modern", "door-modern-focus", "window", "clock", "bag",
-    "hand", "foot", "eye", "ear", "nose", "mouth", "hair", "hat", "shoe", "shirt",
-    "car", "bus", "train", "bike", "boat", "plane", "truck", "sun-sky", "tree", "flower"
-  ];
+  const audioDirectory = path.join(miniProgramRoot, "pages/flash-test/assets/english-pronunciation");
 
   assert.match(source, /id:\s*"english-picture-naming"/);
   assert.match(source, /icon:\s*"\/assets\/flash-test\/english-picture-naming\.svg"/);
@@ -261,6 +257,7 @@ test("English flash test keeps one word-reading task and only offers photo view 
   assert.match(template, /看见单词，读给家长听/);
   assert.match(template, /class="xf-picture-naming-word"/);
   assert.match(template, /catchtap="playEnglishWordPronunciation"/);
+  assert.equal(template.match(/catchtap="playEnglishWordPronunciation"/g)?.length, 2);
   assert.match(template, /assets\/flash-test\/speaker\.svg/);
   assert.match(template, /class="xf-picture-naming-ipa">\{\{pictureNamingItem\.ipa\}\}<\/text>[\s\S]*class="xf-picture-naming-word">\{\{pictureNamingItem\.word\}\}<\/text>/);
   assert.match(template, /wx:if="\{\{englishCardView === 'picture' && pictureNamingItem\.image\}\}" class="xf-picture-naming-photo-shell"[^>]*bindtap="toggleEnglishCardView"/);
@@ -284,7 +281,7 @@ test("English flash test keeps one word-reading task and only offers photo view 
   assert.match(template, /认识的单词（\{\{pictureNamingKnownWords\.length\}\}）/);
   assert.match(template, /bindtap="openEnglishWordPackDrawer"/);
   assert.match(template, /wx:if="\{\{englishWordPackOpen\}\}" class="xf-flash-character-list-mask"/);
-  assert.match(template, /50 个已收集词 · 分 5 组完成/);
+  assert.match(template, /\{\{englishWordTotal\}\} 个已收集词 · 分 \{\{englishWordPacks\.length\}\} 组完成/);
   assert.match(template, /每个词都可在单词和对应实拍照片之间点击切换/);
   assert.match(source, /selectEnglishWordPack\(event\)/);
   assert.match(source, /englishWordPackId: assessmentId === "english-picture-naming" \? this\.data\.englishWordPackId : undefined/);
@@ -292,7 +289,7 @@ test("English flash test keeps one word-reading task and only offers photo view 
   assert.match(template, /class="xf-picture-naming-card \{\{englishCardView === 'picture' \? 'is-photo-view' : ''\}\}"/);
   assert.match(styles, /\.xf-picture-naming-card\.is-photo-view\s*\{[^}]*padding:\s*0[^}]*overflow:\s*hidden/s);
   assert.match(styles, /\.xf-picture-naming-photo-shell\s*\{[^}]*height:\s*660rpx[^}]*background:\s*#ffffff/s);
-  assert.match(styles, /\.xf-picture-naming-card\.is-photo-view \.xf-picture-naming-photo-note\s*\{[^}]*padding:\s*18rpx 24rpx 22rpx[^}]*background:\s*#ffffff/s);
+  assert.match(styles, /\.xf-picture-naming-photo-note\s*\{[^}]*height:\s*64rpx[^}]*margin-top:\s*0[^}]*background:\s*#ffffff/s);
   assert.match(styles, /\.xf-picture-naming-word-shell\s*\{[^}]*height:\s*660rpx[^}]*background:\s*#f3f0f7/s);
   assert.match(styles, /\.xf-picture-naming-word\s*\{[^}]*font-size:\s*132rpx/s);
   assert.match(styles, /\.xf-picture-naming-ipa\s*\{[^}]*font-size:\s*34rpx/s);
@@ -303,21 +300,48 @@ test("English flash test keeps one word-reading task and only offers photo view 
   assert.match(styles, /\.xf-picture-naming-word-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/s);
   assert.match(styles, /\.xf-picture-naming-word-chip\s*\{[^}]*min-height:\s*68rpx/s);
   assert.equal(fs.existsSync(path.join(photoDirectory, "README.md")), true);
-  for (const name of jpegPhotoNames) {
-    const filePath = path.join(photoDirectory, `${name}.jpg`);
-    assert.equal(fs.existsSync(filePath), true, `${name}.jpg should exist`);
-    assert.equal(fs.readFileSync(filePath).subarray(0, 2).toString("hex"), "ffd8", `${name}.jpg should be a JPEG`);
+  assert.equal(fs.existsSync(path.join(audioDirectory, "README.md")), true);
+  const pronunciationHashes = new Map(
+    fs.readFileSync(path.join(audioDirectory, "SHA256-r5.txt"), "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => {
+        const [hash, filename] = line.trim().split(/\s+/, 2);
+        return [filename, hash];
+      })
+  );
+  const englishWords = ENGLISH_WORD_PACKS.flatMap((pack) => pack.items.map((item) => item.word));
+  assert.equal(englishWords.length, 150);
+  assert.equal(new Set(englishWords).size, 150);
+  assert.equal(pronunciationHashes.size, 150);
+  for (const word of englishWords) {
+    const filename = `${word}.mp3`;
+    const filePath = path.join(audioDirectory, filename);
+    assert.equal(fs.existsSync(filePath), true, `${word}.mp3 should exist`);
+    const audio = fs.readFileSync(filePath);
+    const header = audio.subarray(0, 3);
+    assert.equal(header[0] === 0xff || header.toString("ascii") === "ID3", true, `${word}.mp3 should be an MP3`);
+    assert.equal(
+      createHash("sha256").update(audio).digest("hex"),
+      pronunciationHashes.get(filename),
+      `${word}.mp3 should match the calibrated pronunciation manifest`
+    );
   }
-  for (const name of webpPhotoNames) {
-    const filePath = path.join(photoDirectory, `${name}.webp`);
+  for (const item of ENGLISH_WORD_PACKS.flatMap((pack) => pack.items)) {
+    const filename = path.basename(item.image);
+    const filePath = path.join(photoDirectory, filename);
+    assert.equal(fs.existsSync(filePath), true, `${filename} should exist`);
     const header = fs.readFileSync(filePath).subarray(0, 12);
-    assert.equal(fs.existsSync(filePath), true, `${name}.webp should exist`);
-    assert.equal(header.subarray(0, 4).toString("ascii"), "RIFF", `${name}.webp should be a WebP`);
-    assert.equal(header.subarray(8, 12).toString("ascii"), "WEBP", `${name}.webp should be a WebP`);
+    if (filename.endsWith(".jpg")) {
+      assert.equal(header.subarray(0, 2).toString("hex"), "ffd8", `${filename} should be a JPEG`);
+    } else {
+      assert.equal(header.subarray(0, 4).toString("ascii"), "RIFF", `${filename} should be a WebP`);
+      assert.equal(header.subarray(8, 12).toString("ascii"), "WEBP", `${filename} should be a WebP`);
+    }
   }
 });
 
-test("English words and enlarged Chinese characters can play audio without opening a recorder", async () => {
+test("English words use packaged audio while enlarged Chinese characters keep the pronunciation API", async () => {
   const definition = loadFlashPageDefinition();
   const originalWx = global.wx;
   const requests = [];
@@ -361,11 +385,10 @@ test("English words and enlarged Chinese characters can play audio without openi
     await definition.playEnglishWordPronunciation.call(context);
     await definition.playRecognitionCharacterPronunciation.call(context);
     assert.deepEqual(requests, [
-      { kind: "english-word", itemId: "animal-cat" },
       { kind: "chinese-character", character: "字" }
     ]);
     assert.deepEqual(playedFiles, [
-      "/tmp/xf-pronunciation-english-word-63-61-74.mp3",
+      "/pages/flash-test/assets/english-pronunciation/cat.mp3",
       "/tmp/xf-pronunciation-chinese-character-5b57.mp3"
     ]);
   } finally {
@@ -428,8 +451,9 @@ test("collected words are exposed as five packs and every card can switch to its
   };
 
   assert.equal(context.data.englishWordPacks.length, 5);
-  assert.equal(context.data.englishWordPacks.reduce((sum, pack) => sum + pack.itemCount, 0), 50);
-  assert.equal(context.data.englishWordPacks.every((pack) => pack.imageCount === 10), true);
+  assert.equal(context.data.englishWordTotal, 150);
+  assert.equal(context.data.englishWordPacks.reduce((sum, pack) => sum + pack.itemCount, 0), 150);
+  assert.equal(context.data.englishWordPacks.every((pack) => pack.imageCount === 30), true);
   definition.showPictureNamingItem.call(context, 0);
   assert.equal(context.data.pictureNamingItem.word, "apple");
   assert.equal(context.data.pictureNamingItem.image.endsWith("/apple.webp"), true);
@@ -445,8 +469,8 @@ test("collected words are exposed as five packs and every card can switch to its
   assert.match(styles, /\.xf-english-pack-trigger\s*\{[^}]*margin:\s*18rpx auto 0/s);
 
   context.englishWordPackMasteries = {
-    animals: { matchedCount: 8, totalCount: 10 },
-    food: { matchedCount: 4, totalCount: 10 }
+    animals: { matchedCount: 8, totalCount: 30 },
+    food: { matchedCount: 4, totalCount: 30 }
   };
   const packCards = definition.buildEnglishWordPackCards.call(context);
   assert.deepEqual(packCards.map((item) => ({
@@ -455,8 +479,8 @@ test("collected words are exposed as five packs and every card can switch to its
     masteryLabel: item.masteryLabel,
     actionLabel: item.actionLabel
   })), [
-    { id: "animals", recognizedDisplay: "8", masteryLabel: "认识 8 个 · 暂不认识 2 个", actionLabel: "复查" },
-    { id: "food", recognizedDisplay: "4", masteryLabel: "认识 4 个 · 暂不认识 6 个", actionLabel: "复查" },
+    { id: "animals", recognizedDisplay: "8", masteryLabel: "认识 8 个 · 暂不认识 22 个", actionLabel: "复查" },
+    { id: "food", recognizedDisplay: "4", masteryLabel: "认识 4 个 · 暂不认识 26 个", actionLabel: "复查" },
     { id: "home-school", recognizedDisplay: "—", masteryLabel: "待测试", actionLabel: "开始" },
     { id: "body-clothing", recognizedDisplay: "—", masteryLabel: "待测试", actionLabel: "开始" },
     { id: "transport-nature", recognizedDisplay: "—", masteryLabel: "待测试", actionLabel: "开始" }
@@ -514,7 +538,7 @@ test("finishing an English word pack updates its result card before remote save 
       status: index < 7 ? "matched" : "skipped"
     })),
     englishWordPackMasteries: {
-      food: { matchedCount: 4, totalCount: 10 }
+      food: { matchedCount: 4, totalCount: 30 }
     },
     setData(payload) {
       this.data = { ...this.data, ...payload };
@@ -530,7 +554,7 @@ test("finishing an English word pack updates its result card before remote save 
   assert.equal(saveAttempts, 1);
   assert.equal(context.data.stage, "result");
   assert.equal(context.data.englishWordPackCards[0].recognizedDisplay, "7");
-  assert.equal(context.data.englishWordPackCards[0].masteryLabel, "认识 7 个 · 暂不认识 3 个");
+  assert.equal(context.data.englishWordPackCards[0].masteryLabel, "认识 7 个 · 暂不认识 23 个");
   assert.equal(context.data.englishWordPackCards[0].actionLabel, "复查");
   assert.equal(context.data.englishWordPackCards[1].recognizedDisplay, "4");
 });
@@ -538,6 +562,7 @@ test("finishing an English word pack updates its result card before remote save 
 test("switching to a word pack without matching history starts that pack instead of showing stale results", async () => {
   const definition = loadFlashPageDefinition();
   const originalWx = global.wx;
+  let requestTimeout;
   const context = {
     ...definition,
     data: {
@@ -556,11 +581,12 @@ test("switching to a word pack without matching history starts that pack instead
         return key === "xf_token" ? "jwt-token" : "";
       },
       request(options) {
+        requestTimeout = options.timeout;
         options.success({
           statusCode: 200,
           data: {
             englishWordPackResults: {
-              animals: { matchedCount: 7, totalCount: 10 },
+              animals: { matchedCount: 7, totalCount: 30 },
               food: null
             },
             results: [{
@@ -577,7 +603,8 @@ test("switching to a word pack without matching history starts that pack instead
 
     const result = await definition.loadLatestResult.call(context, "child", { id: "child-1" });
     assert.equal(result, null);
-    assert.equal(context.data.englishWordPackCards[0].masteryLabel, "认识 7 个 · 暂不认识 3 个");
+    assert.equal(requestTimeout, 3000);
+    assert.equal(context.data.englishWordPackCards[0].masteryLabel, "认识 7 个 · 暂不认识 23 个");
     assert.equal(context.data.englishWordPackCards[1].masteryLabel, "待测试");
   } finally {
     global.wx = originalWx;
@@ -586,7 +613,7 @@ test("switching to a word pack without matching history starts that pack instead
 
 test("word-reading results restore known and unknown words into a two-tab drawer", () => {
   const definition = loadFlashPageDefinition();
-  const words = ["cat", "dog", "bird", "fish", "duck", "horse", "cow", "sheep", "elephant", "monkey"];
+  const words = ENGLISH_WORD_PACKS[0].items.map((item) => item.word);
   const pictureNamingAnswers = words.map((targetWord, index) => ({
     itemId: `animal-${targetWord}`,
     targetWord,
@@ -609,10 +636,10 @@ test("word-reading results restore known and unknown words into a two-tab drawer
     childId: "child-reader",
     childName: "小读者",
     pictureNamingSummary: {
-      totalCount: 10,
+      totalCount: 30,
       matchedCount: 4,
       needsPracticeCount: 0,
-      skippedCount: 6
+      skippedCount: 26
     },
     pictureNamingAnswers
   });
@@ -738,7 +765,7 @@ test("English entry uses one word-reading result while card view changes preserv
   }
 });
 
-test("word reading can complete all ten items when every word is marked unknown", () => {
+test("word reading can complete all thirty items when every word is marked unknown", () => {
   const definition = loadFlashPageDefinition();
   const originalWx = global.wx;
   let persisted = false;
@@ -757,13 +784,13 @@ test("word reading can complete all ten items when every word is marked unknown"
     global.wx = { setStorageSync() {} };
     definition.startAssessment.call(context, "child", { id: "child-1", name: "小圆子" });
     assert.equal(context.data.stage, "picture-naming");
-    for (let index = 0; index < 10; index += 1) {
+    for (let index = 0; index < 30; index += 1) {
       definition.markWordReadingUnknown.call(context);
     }
     assert.equal(context.data.stage, "result");
     assert.equal(context.data.resultType, "pictureNaming");
-    assert.equal(context.data.pictureNamingSummary.skippedCount, 10);
-    assert.equal(context.data.pictureNamingAnswers.length, 10);
+    assert.equal(context.data.pictureNamingSummary.skippedCount, 30);
+    assert.equal(context.data.pictureNamingAnswers.length, 30);
     assert.equal(persisted, true);
   } finally {
     global.wx = originalWx;
@@ -1734,6 +1761,40 @@ test("character recognition can start before its history endpoint is released", 
 
   assert.equal(restored, false);
   assert.deepEqual(context.started, { mode: "child", child });
+});
+
+test("English word reading starts when latest-result history is temporarily unavailable", async () => {
+  const definition = loadFlashPageDefinition();
+  const originalWx = global.wx;
+  const child = { id: "child-1", name: "小读者" };
+  const toasts = [];
+  const context = {
+    ...definition,
+    data: { ...definition.data, selectedTestId: "english-picture-naming" },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    },
+    loadLatestResult() {
+      return Promise.reject({ statusCode: 500, message: "timeout" });
+    },
+    beginNewAssessment(mode, selectedChild) {
+      this.started = { mode, child: selectedChild };
+    }
+  };
+
+  try {
+    global.wx = {
+      getStorageSync() { return "jwt-token"; },
+      showToast(options) { toasts.push(options); }
+    };
+    const restored = await definition.openSavedResultOrStart.call(context, "child", child);
+
+    assert.equal(restored, false);
+    assert.deepEqual(context.started, { mode: "child", child });
+    assert.deepEqual(toasts, [{ title: "上次结果暂时无法读取，已开始新测试", icon: "none" }]);
+  } finally {
+    global.wx = originalWx;
+  }
 });
 
 test("character recognition submits the exact bank and clears progress only after saving", async () => {

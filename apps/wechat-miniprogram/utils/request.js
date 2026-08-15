@@ -24,6 +24,7 @@ function request(options) {
       url,
       data: options.data || {},
       header: headers,
+      timeout: options.timeout,
       success(res) {
         if (res.statusCode >= 200 && res.statusCode < 300) {
           resolve(res.data);
