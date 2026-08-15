@@ -130,6 +130,25 @@ describe("flash test result routes", () => {
     assert.ok(Buffer.from(body.audioBase64, "base64").length > 3_000);
   });
 
+  it("returns binary MP3 bytes for mini-program local playback", async () => {
+    const item = ENGLISH_WORD_PACKS[0].items[0];
+    const response = await fetch(`${baseUrl}/pronunciation`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "audio/mpeg",
+      },
+      body: JSON.stringify({ kind: "english-word", itemId: item.id }),
+    });
+    const audio = Buffer.from(await response.arrayBuffer());
+
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("content-type"), "audio/mpeg");
+    assert.match(response.headers.get("cache-control") || "", /immutable/);
+    assert.ok(audio.length > 3_000);
+    assert.equal(audio[0] === 0xff || audio.subarray(0, 3).toString("ascii") === "ID3", true);
+  });
+
   it("saves and returns only the current user's self-test history", async () => {
     const user = await User.create({ username: "flash-self", password: "hash" });
     const other = await User.create({ username: "flash-other", password: "hash" });

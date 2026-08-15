@@ -502,6 +502,11 @@ router.post("/pronunciation", async (req: Request, res: Response) => {
     const audio = kind === "chinese-character"
       ? await readStaticChinesePronunciation(text)
       : await readStaticEnglishPronunciation(text);
+    if (String(req.headers.accept || "").includes("audio/mpeg")) {
+      res.set("Cache-Control", "public, max-age=31536000, immutable");
+      res.type("audio/mpeg").send(Buffer.from(audio.audioBase64, "base64"));
+      return;
+    }
     res.json({ text, language, ...audio });
   } catch (error: any) {
     const message = String(error?.message || "读音生成失败，请重试");
