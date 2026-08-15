@@ -154,6 +154,11 @@
           <text class="xf-flash-recognition-tip">点字不会直接改变结果；放大看清后再判断。</text>
         </view>
 
+        <view wx:if="{{recognitionPageNumber === 1}}" class="xf-flash-pronunciation-help" catchtap="showPronunciationTroubleshooting" hover-class="is-pressed" role="button">
+          <image class="xf-flash-pronunciation-help-icon" src="/assets/flash-test/speaker.svg" mode="aspectFit" />
+          <text>没声音点这里</text>
+        </view>
+
         <view class="xf-flash-recognition-actions">
           <button class="xf-flash-recognition-back" hover-class="is-pressed" bindtap="previousRecognitionPage" disabled="{{recognitionGroupPageNumber === 1}}">上一页</button>
           <button class="xf-flash-recognition-confirm" hover-class="is-pressed" bindtap="confirmRecognitionPage">{{recognitionPageNumber === recognitionPageCount ? '完成并看结果' : '确认本页，下一页'}}</button>
@@ -187,7 +192,7 @@
               aria-label="朗读单词 {{pictureNamingItem.word}}"
             >
               <image class="xf-flash-pronunciation-icon" src="/assets/flash-test/speaker.svg" mode="aspectFit" />
-              <text>{{pronunciationLoadingKey === 'english-word:' + pictureNamingItem.word ? '生成中' : '听读音'}}</text>
+              <text>{{pronunciationLoadingKey === 'english-word:' + pictureNamingItem.word ? '生成中' : (pronunciationPlayingKey === 'english-word:' + pictureNamingItem.word ? '正在播放' : '听读音')}}</text>
             </view>
           </view>
           <view wx:else class="xf-picture-naming-word-shell {{pictureNamingItem.image ? '' : 'has-no-photo'}}" hover-class="{{pictureNamingItem.image ? 'is-flipping' : ''}}" bindtap="toggleEnglishCardView" role="button" aria-label="{{pictureNamingItem.image ? '英文单词 ' + pictureNamingItem.word + '，点击展示区域切换为对应真实照片' : '英文单词 ' + pictureNamingItem.word}}">
@@ -200,12 +205,16 @@
               aria-label="朗读单词 {{pictureNamingItem.word}}"
             >
               <image class="xf-flash-pronunciation-icon" src="/assets/flash-test/speaker.svg" mode="aspectFit" />
-              <text>{{pronunciationLoadingKey === 'english-word:' + pictureNamingItem.word ? '生成中' : '听读音'}}</text>
+              <text>{{pronunciationLoadingKey === 'english-word:' + pictureNamingItem.word ? '生成中' : (pronunciationPlayingKey === 'english-word:' + pictureNamingItem.word ? '正在播放' : '听读音')}}</text>
             </view>
             <text class="xf-picture-naming-ipa">{{pictureNamingItem.ipa}}</text>
             <text class="xf-picture-naming-word">{{pictureNamingItem.word}}</text>
           </view>
           <text class="xf-picture-naming-photo-note">{{englishCardView === 'picture' ? '同一单词的真实照片 · 不改变本题记录' : (pictureNamingItem.image ? '请孩子独立读，家长辅助判断' : '本词仅展示单词卡 · 暂无审核通过的真实照片')}}</text>
+        </view>
+        <view wx:if="{{pictureNamingNumber === 1}}" class="xf-flash-pronunciation-help" catchtap="showPronunciationTroubleshooting" hover-class="is-pressed" role="button">
+          <image class="xf-flash-pronunciation-help-icon" src="/assets/flash-test/speaker.svg" mode="aspectFit" />
+          <text>没声音点这里</text>
         </view>
 
         <view wx:if="{{message}}" class="xf-flash-message">{{message}}</view>
@@ -390,7 +399,7 @@
         <text class="xf-flash-recognition-focus-character">{{recognitionFocusCharacter}}</text>
         <view class="xf-flash-recognition-focus-pronunciation">
           <image class="xf-flash-pronunciation-icon" src="/assets/flash-test/speaker.svg" mode="aspectFit" />
-          <text>{{pronunciationLoadingKey === 'chinese-character:' + recognitionFocusCharacter ? '生成读音中' : '点大字听读音'}}</text>
+          <text>{{pronunciationLoadingKey === 'chinese-character:' + recognitionFocusCharacter ? '生成读音中' : (pronunciationPlayingKey === 'chinese-character:' + recognitionFocusCharacter ? '正在播放' : '点大字听读音')}}</text>
         </view>
       </view>
       <text class="xf-flash-recognition-focus-hint">能独立读出，并说出大致意思或组成常见词，才算认识。</text>
@@ -455,7 +464,7 @@
           aria-label="听单词 {{pictureNamingFocusItem.word}} 的读音"
         >
           <image class="xf-flash-pronunciation-icon" src="/assets/flash-test/speaker.svg" mode="aspectFit" />
-          <text>{{pronunciationLoadingKey === 'english-word:' + pictureNamingFocusItem.word ? '生成读音中' : '点单词听读音'}}</text>
+          <text>{{pronunciationLoadingKey === 'english-word:' + pictureNamingFocusItem.word ? '生成读音中' : (pronunciationPlayingKey === 'english-word:' + pictureNamingFocusItem.word ? '正在播放' : '点单词听读音')}}</text>
         </view>
       </view>
       <text class="xf-flash-recognition-focus-hint">能独立读出，并知道大致意思，才算认识。</text>

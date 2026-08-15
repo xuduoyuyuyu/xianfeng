@@ -191,6 +191,27 @@ page {
   height: 30rpx;
 }
 
+.xf-flash-pronunciation-help {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6rpx;
+  box-sizing: border-box;
+  width: 166rpx;
+  margin: 14rpx auto 0;
+  padding: 5rpx 8rpx;
+  color: #766d80;
+  font-size: 18rpx;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.xf-flash-pronunciation-help-icon {
+  width: 22rpx;
+  height: 22rpx;
+  opacity: 0.72;
+}
+
 .xf-picture-naming-word {
   color: #17133f;
   font-size: 132rpx;
