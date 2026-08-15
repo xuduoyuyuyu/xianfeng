@@ -1,4 +1,4 @@
-import { Router, Response } from "express";
+import { Router, Request, Response } from "express";
 import fs from "fs";
 import path from "path";
 import multer from "multer";
@@ -11,7 +11,10 @@ import FlashTestResult, {
 import UserXiaowanziSync from "../models/UserXiaowanziSync";
 import { authenticate, AuthenticatedRequest } from "../middlewares/auth";
 import { resolveProgramAiProvider } from "../services/programAi";
-import { synthesizeFlashTestPronunciation } from "../services/flashTestPronunciation";
+import {
+  readStaticChinesePronunciation,
+  readStaticEnglishPronunciation,
+} from "../services/flashTestPronunciation";
 import {
   ADVANCED_CHARACTER_RECOGNITION_BANK,
   BASE_CHARACTER_RECOGNITION_BANK,
@@ -469,7 +472,7 @@ router.post("/english-picture-naming/recognize", authenticate, (req, res, next) 
   }
 });
 
-router.post("/pronunciation", authenticate, async (req: AuthenticatedRequest, res: Response) => {
+router.post("/pronunciation", async (req: Request, res: Response) => {
   try {
     const kind = String(req.body?.kind || "");
     let text = "";
@@ -496,11 +499,13 @@ router.post("/pronunciation", authenticate, async (req: AuthenticatedRequest, re
       return;
     }
 
-    const audio = await synthesizeFlashTestPronunciation(text, language, String(req.user?.id || ""));
+    const audio = kind === "chinese-character"
+      ? await readStaticChinesePronunciation(text)
+      : await readStaticEnglishPronunciation(text);
     res.json({ text, language, ...audio });
   } catch (error: any) {
     const message = String(error?.message || "读音生成失败，请重试");
-    res.status(/尚未开通|未配置/.test(message) ? 503 : 502).json({ message });
+    res.status(/尚未开通|未配置|尚未生成/.test(message) ? 503 : 502).json({ message });
   }
 });
 

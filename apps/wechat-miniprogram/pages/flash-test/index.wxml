@@ -384,8 +384,9 @@
         catchtap="playRecognitionCharacterPronunciation"
         hover-class="is-pressed"
         role="button"
-        aria-label="朗读汉字 {{recognitionFocusCharacter}}"
+        aria-label="朗读汉字 {{recognitionFocusCharacter}}，拼音 {{recognitionFocusPinyin}}"
       >
+        <text class="xf-flash-recognition-focus-pinyin">{{recognitionFocusPinyin}}</text>
         <text class="xf-flash-recognition-focus-character">{{recognitionFocusCharacter}}</text>
         <view class="xf-flash-recognition-focus-pronunciation">
           <image class="xf-flash-pronunciation-icon" src="/assets/flash-test/speaker.svg" mode="aspectFit" />
@@ -406,6 +407,71 @@
           data-answer="0"
           bindtap="markFocusedRecognitionCharacter"
         >标记为不认识</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{pictureNamingFocusOpen}}" class="xf-flash-recognition-focus-mask" catchtap="closePictureNamingResultWord" catchtouchmove="noop">
+    <view class="xf-flash-recognition-focus-dialog" catchtap="noop">
+      <view class="xf-flash-recognition-focus-head">
+        <view>
+          <text class="xf-flash-recognition-focus-kicker">请孩子看清后再读</text>
+          <text class="xf-flash-recognition-focus-title">这个单词认识吗？</text>
+        </view>
+        <view class="xf-flash-recognition-focus-close" catchtap="closePictureNamingResultWord" role="button" aria-label="关闭">×</view>
+      </view>
+      <view class="xf-flash-result-word-card {{pictureNamingFocusView === 'picture' ? 'is-picture' : ''}}">
+        <view
+          wx:if="{{pictureNamingFocusItem.image}}"
+          class="xf-flash-result-word-switch"
+          catchtap="togglePictureNamingFocusView"
+          hover-class="is-pressed"
+          role="button"
+          aria-label="{{pictureNamingFocusView === 'picture' ? '切换看词' : '切换看图'}}"
+        >{{pictureNamingFocusView === 'picture' ? '切换看词' : '切换看图'}} ↻</view>
+        <image
+          wx:if="{{pictureNamingFocusView === 'picture' && pictureNamingFocusItem.image}}"
+          class="xf-flash-result-word-photo"
+          src="{{pictureNamingFocusItem.image}}"
+          mode="aspectFill"
+          aria-label="{{pictureNamingFocusItem.word}} 对应的真实照片"
+        />
+        <view
+          wx:else
+          class="xf-flash-result-word-copy {{pronunciationPlayingKey === 'english-word:' + pictureNamingFocusItem.word ? 'is-playing' : ''}}"
+          catchtap="playPictureNamingFocusPronunciation"
+          hover-class="is-pressed"
+          role="button"
+          aria-label="朗读单词 {{pictureNamingFocusItem.word}}，音标 {{pictureNamingFocusItem.ipa}}"
+        >
+          <text class="xf-flash-result-word-ipa">{{pictureNamingFocusItem.ipa}}</text>
+          <text class="xf-flash-result-word-text">{{pictureNamingFocusItem.word}}</text>
+        </view>
+        <view
+          class="xf-flash-recognition-focus-pronunciation"
+          catchtap="playPictureNamingFocusPronunciation"
+          hover-class="is-pressed"
+          role="button"
+          aria-label="听单词 {{pictureNamingFocusItem.word}} 的读音"
+        >
+          <image class="xf-flash-pronunciation-icon" src="/assets/flash-test/speaker.svg" mode="aspectFit" />
+          <text>{{pronunciationLoadingKey === 'english-word:' + pictureNamingFocusItem.word ? '生成读音中' : '点单词听读音'}}</text>
+        </view>
+      </view>
+      <text class="xf-flash-recognition-focus-hint">能独立读出，并知道大致意思，才算认识。</text>
+      <view class="xf-flash-recognition-focus-actions">
+        <button
+          class="xf-flash-recognition-focus-action is-known {{pictureNamingFocusAnswer === 1 ? 'is-selected' : ''}}"
+          hover-class="is-pressed"
+          data-answer="1"
+          bindtap="markFocusedPictureNamingWord"
+        >认识这个词</button>
+        <button
+          class="xf-flash-recognition-focus-action is-unknown {{pictureNamingFocusAnswer === 0 ? 'is-selected' : ''}}"
+          hover-class="is-pressed"
+          data-answer="0"
+          bindtap="markFocusedPictureNamingWord"
+        >标记为暂不认识</button>
       </view>
     </view>
   </view>
@@ -452,13 +518,13 @@
       <scroll-view class="xf-flash-character-list-scroll" scroll-y="true" enhanced show-scrollbar="false">
         <view wx:if="{{recognitionCharacterListTab === 'unknown'}}" class="xf-flash-character-list-section is-unknown">
           <view wx:if="{{recognitionUnknownCharacters.length}}" class="xf-flash-character-grid">
-            <text wx:for="{{recognitionUnknownCharacters}}" wx:key="*this" class="xf-flash-character-chip">{{item}}</text>
+            <button wx:for="{{recognitionUnknownCharacters}}" wx:key="*this" class="xf-flash-character-chip" data-character="{{item}}" catchtap="openResultRecognitionCharacter" hover-class="is-pressed" aria-label="查看并校准汉字 {{item}}">{{item}}</button>
           </view>
           <text wx:else class="xf-flash-character-list-empty">本轮没有还不认识的字</text>
         </view>
         <view wx:else class="xf-flash-character-list-section is-known">
           <view wx:if="{{recognitionKnownCharacters.length}}" class="xf-flash-character-grid">
-            <text wx:for="{{recognitionKnownCharacters}}" wx:key="*this" class="xf-flash-character-chip">{{item}}</text>
+            <button wx:for="{{recognitionKnownCharacters}}" wx:key="*this" class="xf-flash-character-chip" data-character="{{item}}" catchtap="openResultRecognitionCharacter" hover-class="is-pressed" aria-label="查看并校准汉字 {{item}}">{{item}}</button>
           </view>
           <text wx:else class="xf-flash-character-list-empty">本轮没有认识的字</text>
         </view>
@@ -470,7 +536,7 @@
     <view class="xf-flash-character-list-dialog" catchtap="noop">
       <view class="xf-flash-character-list-head">
         <view>
-          <text class="xf-flash-character-list-kicker">{{englishWordPackTitle}}词包 · 10 个英文单词</text>
+          <text class="xf-flash-character-list-kicker">{{englishWordPackTitle}}词包 · {{pictureNamingTotal}} 个英文单词</text>
           <text class="xf-flash-character-list-title">认识和暂不认识的单词</text>
         </view>
         <view class="xf-flash-character-list-close" catchtap="closePictureNamingWordList" role="button" aria-label="关闭">×</view>
@@ -496,13 +562,13 @@
       <scroll-view class="xf-flash-character-list-scroll" scroll-y="true" enhanced show-scrollbar="false">
         <view wx:if="{{pictureNamingWordListTab === 'unknown'}}" class="xf-flash-character-list-section is-unknown">
           <view wx:if="{{pictureNamingUnknownWords.length}}" class="xf-picture-naming-word-grid">
-            <text wx:for="{{pictureNamingUnknownWords}}" wx:key="*this" class="xf-picture-naming-word-chip">{{item}}</text>
+            <button wx:for="{{pictureNamingUnknownWords}}" wx:key="*this" class="xf-picture-naming-word-chip" data-word="{{item}}" catchtap="openPictureNamingResultWord" hover-class="is-pressed" aria-label="查看并校准单词 {{item}}">{{item}}</button>
           </view>
           <text wx:else class="xf-flash-character-list-empty">本轮没有暂不认识的单词</text>
         </view>
         <view wx:else class="xf-flash-character-list-section is-known">
           <view wx:if="{{pictureNamingKnownWords.length}}" class="xf-picture-naming-word-grid">
-            <text wx:for="{{pictureNamingKnownWords}}" wx:key="*this" class="xf-picture-naming-word-chip">{{item}}</text>
+            <button wx:for="{{pictureNamingKnownWords}}" wx:key="*this" class="xf-picture-naming-word-chip" data-word="{{item}}" catchtap="openPictureNamingResultWord" hover-class="is-pressed" aria-label="查看并校准单词 {{item}}">{{item}}</button>
           </view>
           <text wx:else class="xf-flash-character-list-empty">本轮没有认识的单词</text>
         </view>

@@ -2,6 +2,7 @@ const { getNativeTopbarMetrics } = require("../../utils/nativeChrome");
 const { smartBackHome } = require("../../utils/nativePageNav");
 const { createNativeSettingsMethods, getSettingsPanelHeight } = require("../../utils/nativeSettings");
 const { buildProfileState } = require("../../utils/profileState");
+const { API_ORIGIN, DEFAULT_WEB_ORIGIN } = require("../../utils/config");
 const { request } = require("../../utils/request");
 const { getToken } = require("../../utils/session");
 const { createPageShare, enableShareMenu } = require("../../utils/share");
@@ -19,6 +20,7 @@ const {
   buildCharacterPage,
   buildCharacterRecognitionSummary
 } = require("../../utils/characterRecognition");
+const { getCharacterPinyin } = require("../../utils/characterRecognitionPinyin");
 const {
   DEFAULT_ENGLISH_WORD_PACK_ID,
   ENGLISH_PICTURE_NAMING_BANK,
@@ -34,7 +36,7 @@ const LAST_CHILD_ID_KEY = "xiaowanzi_last_child_id_v1";
 const LAST_ASSESSMENT_MODE_KEY = "xf_flash_test_last_mode_v1";
 const RECOGNITION_PROGRESS_KEY_PREFIX = "xf_character_recognition_progress_v2_";
 const LEGACY_RECOGNITION_PROGRESS_KEY_PREFIX = "xf_character_recognition_progress_v1_";
-const ENGLISH_PRONUNCIATION_BASE_PATH = "/pages/flash-test/assets/english-pronunciation";
+const PRONUNCIATION_CACHE_VERSION = "v2";
 const ENGLISH_WORD_TOTAL = ENGLISH_WORD_PACKS.reduce((sum, pack) => sum + pack.items.length, 0);
 const CATALOG_SHARE_OPTIONS = {
   title: "闪测｜测一测，更懂自己和孩子",
@@ -363,7 +365,9 @@ Page({
     recognitionFocusOpen: false,
     recognitionFocusIndex: -1,
     recognitionFocusCharacter: "",
+    recognitionFocusPinyin: "",
     recognitionFocusAnswer: null,
+    recognitionFocusFromResult: false,
     recognitionExitOpen: false,
     recognitionCharacterListOpen: false,
     recognitionCharacterListTab: "unknown",
@@ -380,6 +384,10 @@ Page({
     pictureNamingWordListTab: "unknown",
     pictureNamingKnownWords: [],
     pictureNamingUnknownWords: [],
+    pictureNamingFocusOpen: false,
+    pictureNamingFocusItem: null,
+    pictureNamingFocusAnswer: null,
+    pictureNamingFocusView: "word",
     englishWordTotal: ENGLISH_WORD_TOTAL,
     englishWordPacks: ENGLISH_WORD_PACKS.map((pack, index) => ({
       id: pack.id,
@@ -477,8 +485,21 @@ Page({
   playEnglishWordPronunciation() {
     const item = this.data.pictureNamingItem;
     if (!item || typeof wx === "undefined" || typeof wx.createInnerAudioContext !== "function") return;
-    const key = `english-word:${item.word}`;
-    this.playPronunciationFile(`${ENGLISH_PRONUNCIATION_BASE_PATH}/${item.word}.mp3`, key);
+    return this.playFlashTestPronunciation({
+      kind: "english-word",
+      itemId: item.id,
+      text: item.word
+    });
+  },
+
+  playPictureNamingFocusPronunciation() {
+    const item = this.data.pictureNamingFocusItem;
+    if (!item || typeof wx === "undefined" || typeof wx.createInnerAudioContext !== "function") return;
+    return this.playFlashTestPronunciation({
+      kind: "english-word",
+      itemId: item.id,
+      text: item.word
+    });
   },
 
   getActiveEnglishWordPack() {
@@ -510,26 +531,53 @@ Page({
     }
     if (this.data.pronunciationLoadingKey === key) return;
     this.setData({ pronunciationLoadingKey: key });
-    return request({
-      url: "/api/flash-tests/pronunciation",
-      method: "POST",
-      data: payload.kind === "english-word"
+    const suffix = Array.from(text).map((character) => character.codePointAt(0).toString(16)).join("-");
+    const filePath = wx.env && wx.env.USER_DATA_PATH
+      ? `${wx.env.USER_DATA_PATH}/xf-pronunciation-${PRONUNCIATION_CACHE_VERSION}-${payload.kind}-${suffix}.mp3`
+      : "";
+    const fileSystem = filePath && typeof wx.getFileSystemManager === "function"
+      ? wx.getFileSystemManager()
+      : null;
+    const existingFile = fileSystem && typeof fileSystem.access === "function"
+      ? new Promise((resolve) => {
+          fileSystem.access({
+            path: filePath,
+            success: () => resolve(filePath),
+            fail: () => resolve("")
+          });
+        })
+      : Promise.resolve("");
+    return existingFile.then((cachedFilePath) => {
+      if (cachedFilePath) return cachedFilePath;
+      const pronunciationPath = "/api/flash-tests/pronunciation";
+      const data = payload.kind === "english-word"
         ? { kind: payload.kind, itemId: payload.itemId }
-        : { kind: payload.kind, character: payload.character }
-    }).then((response) => {
-      const audioBase64 = String(response && response.audioBase64 || "");
-      if (!audioBase64 || !wx.env || !wx.env.USER_DATA_PATH || typeof wx.getFileSystemManager !== "function") {
-        throw new Error("读音音频无效");
-      }
-      const suffix = Array.from(text).map((character) => character.codePointAt(0).toString(16)).join("-");
-      const filePath = `${wx.env.USER_DATA_PATH}/xf-pronunciation-${payload.kind}-${suffix}.mp3`;
-      return new Promise((resolve, reject) => {
-        wx.getFileSystemManager().writeFile({
-          filePath,
-          data: audioBase64,
-          encoding: "base64",
-          success: () => resolve(filePath),
-          fail: reject
+        : { kind: payload.kind, character: payload.character };
+      const loadPronunciation = (url) => request({
+        url,
+        method: "POST",
+        data,
+        auth: false
+      });
+      return loadPronunciation(`${DEFAULT_WEB_ORIGIN}${pronunciationPath}`).catch((error) => {
+        const statusCode = Number(error && error.statusCode);
+        const canUseLocalFallback = API_ORIGIN !== DEFAULT_WEB_ORIGIN
+          && [0, 401, 502, 503].includes(statusCode);
+        if (!canUseLocalFallback) throw error;
+        return loadPronunciation(`${API_ORIGIN}${pronunciationPath}`);
+      }).then((response) => {
+        const audioBase64 = String(response && response.audioBase64 || "");
+        if (!audioBase64 || !fileSystem || !filePath) {
+          throw new Error("读音音频无效");
+        }
+        return new Promise((resolve, reject) => {
+          fileSystem.writeFile({
+            filePath,
+            data: audioBase64,
+            encoding: "base64",
+            success: () => resolve(filePath),
+            fail: reject
+          });
         });
       });
     }).then((filePath) => {
@@ -540,6 +588,11 @@ Page({
     }).catch((error) => {
       this.setData({ pronunciationLoadingKey: "", pronunciationPlayingKey: "" });
       const message = String(error && (error.message || error.data && error.data.message) || "");
+      console.warn("[flash-test] pronunciation load failed", {
+        statusCode: Number(error && error.statusCode) || 0,
+        message,
+        url: String(error && error.url || "")
+      });
       if (typeof wx.showToast === "function") {
         wx.showToast({
           title: /尚未开通|未配置|resource not granted/i.test(message)
@@ -552,23 +605,43 @@ Page({
   },
 
   playPronunciationFile(filePath, key) {
-    if (!this.pronunciationAudioContext) {
-      const audio = wx.createInnerAudioContext();
-      audio.onEnded(() => {
-        this.activePronunciationKey = "";
-        this.setData({ pronunciationPlayingKey: "" });
-      });
-      audio.onError(() => {
-        this.activePronunciationKey = "";
-        this.setData({ pronunciationPlayingKey: "" });
-        if (typeof wx.showToast === "function") wx.showToast({ title: "暂时无法播放读音", icon: "none" });
-      });
-      this.pronunciationAudioContext = audio;
-    }
-    this.pronunciationAudioContext.stop();
+    const previousAudio = this.pronunciationAudioContext;
+    this.pronunciationAudioContext = null;
+    if (previousAudio) previousAudio.destroy();
+    const audio = wx.createInnerAudioContext();
+    let playbackStarted = false;
+    const beginPlayback = () => {
+      if (playbackStarted || this.pronunciationAudioContext !== audio) return;
+      playbackStarted = true;
+      audio.play();
+    };
+    audio.obeyMuteSwitch = false;
+    if (typeof audio.onCanplay === "function") audio.onCanplay(beginPlayback);
+    audio.onEnded(() => {
+      if (this.pronunciationAudioContext !== audio) return;
+      this.activePronunciationKey = "";
+      this.setData({ pronunciationPlayingKey: "" });
+    });
+    audio.onError((error) => {
+      if (this.pronunciationAudioContext !== audio) return;
+      console.warn("[flash-test] pronunciation playback failed", error);
+      this.activePronunciationKey = "";
+      if (this.pronunciationAudioPaths && this.pronunciationAudioPaths[key] === filePath) {
+        delete this.pronunciationAudioPaths[key];
+      }
+      if (typeof wx.getFileSystemManager === "function") {
+        const fileSystem = wx.getFileSystemManager();
+        if (fileSystem && typeof fileSystem.unlink === "function") {
+          fileSystem.unlink({ filePath, fail() {} });
+        }
+      }
+      this.setData({ pronunciationPlayingKey: "" });
+      if (typeof wx.showToast === "function") wx.showToast({ title: "暂时无法播放读音", icon: "none" });
+    });
+    this.pronunciationAudioContext = audio;
     this.activePronunciationKey = key;
-    this.pronunciationAudioContext.src = filePath;
-    this.pronunciationAudioContext.play();
+    audio.src = filePath;
+    if (typeof audio.onCanplay !== "function") beginPlayback();
     this.setData({ pronunciationPlayingKey: key });
   },
 
@@ -625,7 +698,6 @@ Page({
       pictureNamingTotal: bank.length,
       pictureNamingProgressPercent: Math.round(((safeIndex + 1) / bank.length) * 100),
       pictureNamingItem: bank[safeIndex],
-      englishCardView: "word",
       message: ""
     });
   },
@@ -655,11 +727,15 @@ Page({
       pictureNamingWordListTab: "unknown",
       pictureNamingKnownWords: [],
       pictureNamingUnknownWords: [],
+      pictureNamingFocusOpen: false,
+      pictureNamingFocusItem: null,
+      pictureNamingFocusAnswer: null,
+      pictureNamingFocusView: "word",
       englishWordPackCards: this.buildEnglishWordPackCards(),
       englishAssessmentDesignOpen: false,
       analysisTitle: `认识 ${summary.matchedCount} 个，暂不认识 ${summary.totalCount - summary.matchedCount} 个`,
       analysisParagraphs: [
-        `这反映孩子对${pack.title}词包 10 个书面单词的见词朗读情况。`,
+        `这反映孩子对${pack.title}词包 ${bank.length} 个书面单词的见词朗读情况。`,
         "可从暂不认识的单词开始复习，之后重新测试。"
       ],
       resultSaveState: "saving",
@@ -687,6 +763,10 @@ Page({
   },
 
   goBack() {
+    if (this.data.pictureNamingFocusOpen) {
+      this.closePictureNamingResultWord();
+      return;
+    }
     if (this.data.recognitionFocusOpen) {
       this.closeRecognitionCharacterFocus();
       return;
@@ -1008,10 +1088,14 @@ Page({
         pictureNamingWordListTab: "unknown",
         pictureNamingKnownWords: [],
         pictureNamingUnknownWords: [],
+        pictureNamingFocusOpen: false,
+        pictureNamingFocusItem: null,
+        pictureNamingFocusAnswer: null,
+        pictureNamingFocusView: "word",
         englishAssessmentDesignOpen: false,
         analysisTitle: `认识 ${pictureNamingSummary.matchedCount} 个，暂不认识 ${pictureNamingSummary.totalCount - pictureNamingSummary.matchedCount} 个`,
         analysisParagraphs: [
-          `这反映孩子对${pack.title}词包 10 个书面单词的见词朗读情况。`,
+          `这反映孩子对${pack.title}词包 ${pack.items.length} 个书面单词的见词朗读情况。`,
           "可从暂不认识的单词开始复习，之后重新测试。"
         ],
         resultSaveState: "saved",
@@ -1075,6 +1159,8 @@ Page({
         ...characterGroups,
         recognitionCharacterListOpen: false,
         recognitionCharacterListTab: "unknown",
+        recognitionFocusOpen: false,
+        recognitionFocusFromResult: false,
         analysisTitle: analysis.title,
         analysisParagraphs: analysis.paragraphs,
         resultSaveState: "saved",
@@ -1227,6 +1313,10 @@ Page({
         pictureNamingWordListTab: "unknown",
         pictureNamingKnownWords: [],
         pictureNamingUnknownWords: [],
+        pictureNamingFocusOpen: false,
+        pictureNamingFocusItem: null,
+        pictureNamingFocusAnswer: null,
+        pictureNamingFocusView: "word",
         englishAssessmentDesignOpen: false,
         resultSaveState: "idle",
         resultSaveMessage: "",
@@ -1259,7 +1349,9 @@ Page({
         recognitionFocusOpen: false,
         recognitionFocusIndex: -1,
         recognitionFocusCharacter: "",
+        recognitionFocusPinyin: "",
         recognitionFocusAnswer: null,
+        recognitionFocusFromResult: false,
         recognitionExitOpen: false,
         recognitionCharacterListOpen: false,
         recognitionCharacterListTab: "unknown",
@@ -1360,11 +1452,29 @@ Page({
     const answerIndex = Number(event.currentTarget.dataset.index);
     const page = this.data.recognitionPage;
     if (!page || !Number.isInteger(answerIndex) || answerIndex < page.start || answerIndex >= page.end) return;
+    const character = this.recognitionSample[answerIndex] || "";
     this.setData({
       recognitionFocusOpen: true,
       recognitionFocusIndex: answerIndex,
-      recognitionFocusCharacter: this.recognitionSample[answerIndex] || "",
-      recognitionFocusAnswer: this.answers[answerIndex]
+      recognitionFocusCharacter: character,
+      recognitionFocusPinyin: getCharacterPinyin(character),
+      recognitionFocusAnswer: this.answers[answerIndex],
+      recognitionFocusFromResult: false
+    });
+  },
+
+  openResultRecognitionCharacter(event) {
+    if (this.data.resultType !== "recognition") return;
+    const character = String(event.currentTarget.dataset.character || "");
+    const answerIndex = this.recognitionSample.indexOf(character);
+    if (!character || answerIndex < 0 || ![0, 1].includes(this.answers[answerIndex])) return;
+    this.setData({
+      recognitionFocusOpen: true,
+      recognitionFocusIndex: answerIndex,
+      recognitionFocusCharacter: character,
+      recognitionFocusPinyin: getCharacterPinyin(character),
+      recognitionFocusAnswer: this.answers[answerIndex],
+      recognitionFocusFromResult: true
     });
   },
 
@@ -1373,7 +1483,9 @@ Page({
       recognitionFocusOpen: false,
       recognitionFocusIndex: -1,
       recognitionFocusCharacter: "",
-      recognitionFocusAnswer: null
+      recognitionFocusPinyin: "",
+      recognitionFocusAnswer: null,
+      recognitionFocusFromResult: false
     });
   },
 
@@ -1400,8 +1512,25 @@ Page({
     const answerIndex = Number(this.data.recognitionFocusIndex);
     const answer = Number(event.currentTarget.dataset.answer);
     const page = this.data.recognitionPage;
-    if (!page || !Number.isInteger(answerIndex) || answerIndex < page.start || answerIndex >= page.end) return;
     if (answer !== 0 && answer !== 1) return;
+    if (this.data.recognitionFocusFromResult) {
+      if (!Number.isInteger(answerIndex) || answerIndex < 0 || answerIndex >= this.answers.length) return;
+      this.answers[answerIndex] = answer;
+      const summary = buildCharacterRecognitionSummary(this.answers, this.data.recognitionGroupNumber);
+      const analysis = buildCharacterRecognitionAnalysis(summary, this.data.selectedChildName || "孩子");
+      this.setData({
+        recognitionSummary: summary,
+        ...buildRecognitionCharacterGroups(this.recognitionSample, this.answers),
+        analysisTitle: analysis.title,
+        analysisParagraphs: analysis.paragraphs,
+        resultSaveState: "saving",
+        resultSaveMessage: "正在保存校准结果…"
+      });
+      this.closeRecognitionCharacterFocus();
+      this.persistAssessmentResult();
+      return;
+    }
+    if (!page || !Number.isInteger(answerIndex) || answerIndex < page.start || answerIndex >= page.end) return;
     this.answers[answerIndex] = answer;
     this.saveRecognitionProgress(page.pageIndex);
     this.closeRecognitionCharacterFocus();
@@ -1435,9 +1564,11 @@ Page({
     if (this.data.stage === "recognition") this.saveActiveRecognitionProgress();
     this.setData({
       recognitionFocusOpen: false,
+      recognitionFocusFromResult: false,
       recognitionExitOpen: false,
       recognitionCharacterListOpen: false,
       pictureNamingWordListOpen: false,
+      pictureNamingFocusOpen: false,
       englishAssessmentDesignOpen: false,
       recognitionSourcesOpen: false,
       message: ""
@@ -1527,6 +1658,84 @@ Page({
     const tab = String(event.currentTarget.dataset.tab || "");
     if (tab !== "unknown" && tab !== "known") return;
     this.setData({ pictureNamingWordListTab: tab });
+  },
+
+  openPictureNamingResultWord(event) {
+    if (this.data.resultType !== "pictureNaming") return;
+    const word = String(event.currentTarget.dataset.word || "");
+    const item = this.getActiveEnglishWordBank().find((bankItem) => bankItem.word === word);
+    const attempt = item && this.pictureNamingAttempts.find((answer) => answer.itemId === item.id);
+    if (!item || !attempt) return;
+    this.setData({
+      pictureNamingFocusOpen: true,
+      pictureNamingFocusItem: item,
+      pictureNamingFocusAnswer: attempt.status === "matched" ? 1 : 0,
+      pictureNamingFocusView: "word"
+    });
+  },
+
+  closePictureNamingResultWord() {
+    this.setData({
+      pictureNamingFocusOpen: false,
+      pictureNamingFocusItem: null,
+      pictureNamingFocusAnswer: null,
+      pictureNamingFocusView: "word"
+    });
+  },
+
+  togglePictureNamingFocusView() {
+    const item = this.data.pictureNamingFocusItem;
+    if (!item || !item.image) return;
+    this.setData({
+      pictureNamingFocusView: this.data.pictureNamingFocusView === "picture" ? "word" : "picture"
+    });
+  },
+
+  markFocusedPictureNamingWord(event) {
+    const item = this.data.pictureNamingFocusItem;
+    const answer = Number(event.currentTarget.dataset.answer);
+    const bank = this.getActiveEnglishWordBank();
+    const attemptIndex = item && this.pictureNamingAttempts.findIndex((attempt) => attempt.itemId === item.id);
+    if (!item || attemptIndex < 0 || (answer !== 0 && answer !== 1)) return;
+    this.pictureNamingAttempts[attemptIndex] = {
+      ...this.pictureNamingAttempts[attemptIndex],
+      status: answer === 1 ? "matched" : "skipped"
+    };
+    const summary = buildEnglishPictureNamingSummary(this.pictureNamingAttempts, bank.length);
+    const pictureNamingAnswers = this.pictureNamingAttempts.map((attempt) => ({
+      ...attempt,
+      targetWord: bank.find((bankItem) => bankItem.id === attempt.itemId)?.word || ""
+    }));
+    const pictureNamingKnownWords = pictureNamingAnswers
+      .filter((attempt) => attempt.status === "matched")
+      .map((attempt) => attempt.targetWord);
+    const pictureNamingUnknownWords = pictureNamingAnswers
+      .filter((attempt) => attempt.status !== "matched")
+      .map((attempt) => attempt.targetWord);
+    this.englishWordPackMasteries = {
+      ...(this.englishWordPackMasteries || {}),
+      [this.data.englishWordPackId]: {
+        englishWordPackId: this.data.englishWordPackId,
+        matchedCount: Number(summary.matchedCount) || 0,
+        totalCount: Number(summary.totalCount) || bank.length
+      }
+    };
+    this.setData({
+      pictureNamingSummary: summary,
+      pictureNamingAnswers,
+      pictureNamingKnownWords,
+      pictureNamingUnknownWords,
+      englishWordPackCards: this.buildEnglishWordPackCards(),
+      analysisTitle: `认识 ${summary.matchedCount} 个，暂不认识 ${summary.totalCount - summary.matchedCount} 个`,
+      analysisParagraphs: [
+        `这反映孩子对${this.data.englishWordPackTitle}词包 ${bank.length} 个书面单词的见词朗读情况。`,
+        "可从暂不认识的单词开始复习，之后重新测试。"
+      ],
+      resultSaveState: "saving",
+      resultSaveMessage: "正在保存校准结果…"
+    });
+    this.closePictureNamingResultWord();
+    this.persistAssessmentResult();
   },
 
   openEnglishWordPackDrawer() {
@@ -1742,7 +1951,10 @@ Page({
   },
 
   persistAssessmentResult() {
-    if (this._resultSavePromise) return this._resultSavePromise;
+    if (this._resultSavePromise) {
+      this._resultSaveQueued = true;
+      return this._resultSavePromise;
+    }
     if (!getToken()) {
       this.setData({
         isLoggedIn: false,
@@ -1826,6 +2038,10 @@ Page({
       })
       .finally(() => {
         this._resultSavePromise = null;
+        if (this._resultSaveQueued) {
+          this._resultSaveQueued = false;
+          this.persistAssessmentResult();
+        }
       });
     return this._resultSavePromise;
   },
@@ -1981,7 +2197,9 @@ Page({
       recognitionFocusOpen: false,
       recognitionFocusIndex: -1,
       recognitionFocusCharacter: "",
+      recognitionFocusPinyin: "",
       recognitionFocusAnswer: null,
+      recognitionFocusFromResult: false,
       recognitionExitOpen: false,
       recognitionCharacterListOpen: false,
       recognitionCharacterListTab: "unknown",
@@ -1997,6 +2215,10 @@ Page({
       pictureNamingWordListTab: "unknown",
       pictureNamingKnownWords: [],
       pictureNamingUnknownWords: [],
+      pictureNamingFocusOpen: false,
+      pictureNamingFocusItem: null,
+      pictureNamingFocusAnswer: null,
+      pictureNamingFocusView: "word",
       englishAssessmentDesignOpen: false,
       englishPromptMode: "word",
       englishCardView: "word",

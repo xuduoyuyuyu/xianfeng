@@ -9,6 +9,8 @@
     "start": "node dist/index.js",
     "test": "node --test --import tsx src/**/*.test.ts",
     "billing:reset-free-grants": "tsx scripts/reset-free-account-point-grants.ts",
+    "flash-test:generate-character-pinyin": "tsx scripts/generate-flash-test-character-pinyin.ts",
+    "flash-test:generate-character-pronunciation": "tsx scripts/generate-flash-test-character-pronunciation.ts",
     "migrate:dictionary": "tsx scripts/migrate-education-dictionary.ts"
   },
   "keywords": [],

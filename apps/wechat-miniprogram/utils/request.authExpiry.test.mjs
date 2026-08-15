@@ -58,6 +58,36 @@ test("native request clears the session and notifies listeners on 401", async ()
   }
 });
 
+test("public requests neither attach a token nor clear the session on 401", async () => {
+  const originalWx = global.wx;
+  const removed = [];
+  let authorization;
+  global.wx = {
+    getStorageSync() {
+      return "local-dev-token";
+    },
+    removeStorageSync(key) {
+      removed.push(key);
+    },
+    request(options) {
+      authorization = options.header.Authorization;
+      options.success({ statusCode: 401, data: { message: "未登录" } });
+    }
+  };
+
+  const { request } = require("./request.js");
+  try {
+    await assert.rejects(
+      request({ url: "https://xianfeng.xinzhi.info/api/flash-tests/pronunciation", auth: false }),
+      (error) => error.statusCode === 401
+    );
+    assert.equal(authorization, undefined);
+    assert.deepEqual(removed, []);
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
 test("a listener subscribing after auth expiry receives the pending login request", () => {
   const { notifyAuthExpired, resolveAuthExpired, subscribeAuthExpired } = require("./authExpiry.js");
   resolveAuthExpired();
