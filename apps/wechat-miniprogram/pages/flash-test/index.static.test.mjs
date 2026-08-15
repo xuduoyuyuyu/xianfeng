@@ -307,6 +307,13 @@ test("English flash test keeps one word-reading task and only offers photo view 
   assert.match(styles, /\.xf-picture-naming-ipa\s*\{[^}]*font-size:\s*34rpx/s);
   assert.match(styles, /\.xf-flash-pronunciation-button\s*\{[^}]*position:\s*absolute[^}]*bottom:\s*24rpx[^}]*right:\s*24rpx[^}]*border-radius:\s*999rpx/s);
   assert.doesNotMatch(styles, /\.xf-flash-pronunciation-button\s*\{[^}]*top:/s);
+  assert.equal(template.match(/catchtap="showPronunciationTroubleshooting"/g)?.length, 2);
+  assert.match(template, /wx:if="\{\{recognitionPageNumber === 1\}\}" class="xf-flash-pronunciation-help"/);
+  assert.match(template, /wx:if="\{\{pictureNamingNumber === 1\}\}" class="xf-flash-pronunciation-help"/);
+  assert.equal(template.match(/<text>没声音点这里<\/text>/g)?.length, 2);
+  assert.match(template, /正在播放/);
+  assert.match(styles, /\.xf-flash-pronunciation-help\s*\{[^}]*width:\s*166rpx/s);
+  assert.match(styles, /\.xf-flash-pronunciation-help-icon\s*\{[^}]*width:\s*22rpx/s);
   assert.match(styles, /\.xf-english-card-flip-hint\s*\{[^}]*position:\s*absolute[^}]*border-radius:\s*999rpx/s);
   assert.match(styles, /\.xf-english-pack-item\.is-active\s*\{[^}]*border-color:\s*#8d4cf3/s);
   assert.doesNotMatch(styles, /\.xf-english-result-mode-link|\.xf-picture-naming-record/);
@@ -593,18 +600,20 @@ test("enlarged Chinese characters reuse the persistent pronunciation file", asyn
   }
 });
 
-test("pronunciation waits for canplay and removes a failed persistent file", () => {
+test("pronunciation starts without a canplay event and removes a failed persistent file", () => {
   const definition = loadFlashPageDefinition();
   const originalWx = global.wx;
   const removedFiles = [];
   const toasts = [];
   let canPlayHandler = () => {};
+  let playHandler = () => {};
   let errorHandler = () => {};
   const audio = {
     src: "",
     playCalls: 0,
     play() { this.playCalls += 1; },
     onCanplay(handler) { canPlayHandler = handler; },
+    onPlay(handler) { playHandler = handler; },
     onEnded() {},
     onError(handler) { errorHandler = handler; },
     destroy() {}
@@ -628,13 +637,35 @@ test("pronunciation waits for canplay and removes a failed persistent file", () 
     };
 
     definition.playPronunciationFile.call(context, filePath, key);
-    assert.equal(audio.playCalls, 0);
+    assert.equal(audio.playCalls, 1);
+    assert.equal(context.data.pronunciationPlayingKey, "");
+    playHandler();
+    assert.equal(context.data.pronunciationPlayingKey, key);
     canPlayHandler();
     assert.equal(audio.playCalls, 1);
     errorHandler({ errCode: 10003, errMsg: "file error" });
     assert.equal(context.pronunciationAudioPaths[key], undefined);
     assert.deepEqual(removedFiles, [filePath]);
-    assert.equal(toasts.at(-1).title, "暂时无法播放读音");
+    assert.equal(toasts.at(-1).title, "播放失败，请检查静音和音量");
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
+test("pronunciation troubleshooting explains silent phone output", () => {
+  const definition = loadFlashPageDefinition();
+  const originalWx = global.wx;
+  let modal;
+
+  try {
+    global.wx = { showModal(options) { modal = options; } };
+    definition.showPronunciationTroubleshooting();
+
+    assert.equal(modal.title, "没听到读音？");
+    assert.match(modal.content, /媒体音量/);
+    assert.match(modal.content, /静音和勿扰模式/);
+    assert.match(modal.content, /蓝牙耳机/);
+    assert.equal(modal.showCancel, false);
   } finally {
     global.wx = originalWx;
   }

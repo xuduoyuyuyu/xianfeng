@@ -642,6 +642,17 @@ Page({
     });
   },
 
+  showPronunciationTroubleshooting() {
+    if (typeof wx === "undefined" || typeof wx.showModal !== "function") return;
+    wx.showModal({
+      title: "没听到读音？",
+      content: "如果页面显示“正在播放”但没有声音：\n1. 调高手机媒体音量\n2. 关闭静音和勿扰模式\n3. 检查声音是否连到蓝牙耳机\n4. 确认网络正常后再点一次听读音",
+      showCancel: false,
+      confirmText: "知道了",
+      confirmColor: "#6c27d6"
+    });
+  },
+
   playPronunciationFile(filePath, key) {
     const previousAudio = this.pronunciationAudioContext;
     this.pronunciationAudioContext = null;
@@ -655,6 +666,11 @@ Page({
     };
     audio.obeyMuteSwitch = false;
     if (typeof audio.onCanplay === "function") audio.onCanplay(beginPlayback);
+    const markPlaybackStarted = () => {
+      if (this.pronunciationAudioContext !== audio) return;
+      this.setData({ pronunciationPlayingKey: key });
+    };
+    if (typeof audio.onPlay === "function") audio.onPlay(markPlaybackStarted);
     audio.onEnded(() => {
       if (this.pronunciationAudioContext !== audio) return;
       this.activePronunciationKey = "";
@@ -674,13 +690,13 @@ Page({
         }
       }
       this.setData({ pronunciationPlayingKey: "" });
-      if (typeof wx.showToast === "function") wx.showToast({ title: "暂时无法播放读音", icon: "none" });
+      if (typeof wx.showToast === "function") wx.showToast({ title: "播放失败，请检查静音和音量", icon: "none" });
     });
     this.pronunciationAudioContext = audio;
     this.activePronunciationKey = key;
     audio.src = filePath;
-    if (typeof audio.onCanplay !== "function") beginPlayback();
-    this.setData({ pronunciationPlayingKey: key });
+    beginPlayback();
+    if (typeof audio.onPlay !== "function") markPlaybackStarted();
   },
 
   toggleEnglishCardView() {
