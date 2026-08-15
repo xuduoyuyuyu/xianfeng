@@ -8,7 +8,8 @@ function buildUrl(path) {
 }
 
 function request(options) {
-  const token = getToken();
+  const authenticated = options.auth !== false;
+  const token = authenticated ? getToken() : "";
   const url = buildUrl(options.url);
   const headers = Object.assign(
     {
@@ -30,7 +31,7 @@ function request(options) {
           resolve(res.data);
           return;
         }
-        if (res.statusCode === 401) {
+        if (res.statusCode === 401 && authenticated) {
           clearSession();
           notifyAuthExpired();
         }

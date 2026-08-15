@@ -1,4 +1,4 @@
-import { Router, Response } from "express";
+import { Router, Request, Response } from "express";
 import fs from "fs";
 import path from "path";
 import multer from "multer";
@@ -472,7 +472,7 @@ router.post("/english-picture-naming/recognize", authenticate, (req, res, next) 
   }
 });
 
-router.post("/pronunciation", authenticate, async (req: AuthenticatedRequest, res: Response) => {
+router.post("/pronunciation", async (req: Request, res: Response) => {
   try {
     const kind = String(req.body?.kind || "");
     let text = "";

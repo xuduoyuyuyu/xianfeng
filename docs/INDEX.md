@@ -24,6 +24,12 @@ This index maps the repository source of truth for AI-assisted development.
 - [Active Context](ACTIVE_CONTEXT.md)
 - [Agent Rules](../AGENTS.md)
 
+## Product Designs
+
+- [Structured Language Assessment Toolkit](superpowers/specs/2026-08-13-structured-language-assessment-toolkit-design.md)
+- [English Picture Naming Pilot Bank](superpowers/specs/2026-08-13-english-picture-naming-pilot-bank.md)
+- [English Picture Naming Real-photo Candidate Audit](superpowers/specs/2026-08-13-english-picture-naming-real-photo-candidate-audit.md)
+
 ## Operational Docs
 
 - [Release Guide](../RELEASE_GUIDE.md)
@@ -39,3 +45,4 @@ This index maps the repository source of truth for AI-assisted development.
 | API, auth, billing, AI, uploads | `backend/` | ADR-001 | XF-001 |
 | Release, deployment, and app shells | `scripts/`, `deploy/`, `apps/`, `.github/` | ADR-001 | XF-002 |
 | Shared WeKnora retrieval context | `backend/src/services/`, `backend/src/routes/` | ADR-001 | XF-003 |
+| Structured Chinese and English assessment tools | `apps/wechat-miniprogram/pages/flash-test/`, `backend/src/routes/flashTest.ts` | ADR-001 | XF-005 |

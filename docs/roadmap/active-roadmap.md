@@ -83,3 +83,34 @@ Acceptance Criteria:
 - Adjacent grades stay inside the selected school stage.
 - Zero-score, equal-quality Reading, and no-profile list order remains stable.
 - Local save refreshes the visible list without waiting for remote profile sync.
+
+## XF-005: Structured Language Assessment Toolkit
+
+Status: active
+
+Capability: Versioned, source-linked Chinese and English learning inventories
+
+Components:
+- `docs/superpowers/specs/2026-08-13-structured-language-assessment-toolkit-design.md`
+- `docs/superpowers/specs/2026-08-13-english-picture-naming-pilot-bank.md`
+- `docs/superpowers/specs/2026-08-13-english-picture-naming-real-photo-candidate-audit.md`
+- `apps/wechat-miniprogram/pages/flash-test/`
+- `apps/wechat-miniprogram/utils/characterRecognition.js`
+- `backend/src/routes/flashTest.ts`
+- Future spoken-response and reference-link components defined by the design
+
+Acceptance Criteria:
+- Every assessment states its input, response, measured construct, and mapped
+  language activity modes.
+- Framework, curriculum, content, measurement, and vendor references are stored
+  as typed sources linked to the exact rules they support.
+- Results lock their item-bank, task-protocol, scoring-rule, and reference
+  versions without rewriting historical snapshots.
+- The first new vertical slice, English picture naming, distinguishes independent
+  recall, pronunciation review, prompted reading, not-yet-known, and invalid
+  recording states.
+- Structured evidence, per-child mastery, delayed review, and result-to-practice
+  rules follow the six-layer product design without granting AI authority over
+  formal scores or mastery state.
+- Current login, child archive, progress, history, and privacy-safe sharing paths
+  are reused instead of creating a parallel identity or assessment system.
