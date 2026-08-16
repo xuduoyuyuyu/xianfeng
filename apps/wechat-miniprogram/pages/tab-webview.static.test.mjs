@@ -2139,6 +2139,7 @@ test("Xiaowanzi user question bubbles do not render bottom highlight lines", () 
 
 test("Xiaowanzi tab page renders the native chat core with child context and memory contracts", () => {
   const { js, json, wxml, wxss } = readPage("xiaowanzi");
+  const knowledgePillStyle = wxss.match(/\.xf-xiaowanzi-knowledge-pill \{[\s\S]*?\n\}/)?.[0] || "";
   const appJson = JSON.parse(
     fs.readFileSync(new URL("../app.json", import.meta.url), "utf8")
   );
@@ -2181,7 +2182,7 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     global.wx.switchTab = (options) => {
       switchCalls.push(options);
     };
-    global.wx.getWindowInfo = () => ({ windowWidth: 430, statusBarHeight: 47 });
+    global.wx.getWindowInfo = () => ({ windowWidth: 430, statusBarHeight: 59 });
     global.wx.getMenuButtonBoundingClientRect = () => ({ top: 59, left: 314, height: 32 });
     global.wx.getStorageSync = (key) => storage.get(key) || "";
     global.wx.setStorageSync = (key, value) => {
@@ -2197,7 +2198,7 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.match(wxml, /class="xf-xiaowanzi-chat-list \{\{homeMode \? 'is-home' : 'is-chat'\}\} \{\{attachmentMenuOpen \? 'has-attachment-menu' : ''\}\} \{\{shareSelectionMode \? 'has-share-selection' : ''\}\}"[\s\S]*scroll-y="\{\{true\}\}"[\s\S]*enhanced="\{\{true\}\}"[\s\S]*show-scrollbar="\{\{false\}\}"[\s\S]*bindscroll="handleKnowledgePillScroll"/);
     assert.match(wxml, /scroll-into-view="\{\{scrollIntoView\}\}"/);
     assert.match(wxml, /wx:if="\{\{homeMode\}}" class="xf-xiaowanzi-home"/);
-    assert.match(wxml, /class="xf-xiaowanzi-hero-bot" src="\/assets\/wel-avatar\/no-hat\.png"/);
+    assert.match(wxml, /class="xf-xiaowanzi-hero-bot" src="\{\{topbarAvatarSrc\}\}" mode="aspectFit" catchtap="refreshXiaowanziAvatar" aria-label="刷新小玩子并开始新话题"/);
     assert.match(wxml, /class="xf-xiaowanzi-hello"[\s\S]*哈喽/);
     assert.match(wxml, /class="xf-xiaowanzi-spark"><\/text>/);
     assert.doesNotMatch(wxml, /✦/);
@@ -2263,10 +2264,11 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.match(wxss, /\.xf-xiaowanzi-page \{[\s\S]*background:[\s\S]*radial-gradient\(circle at 74% 2%, rgba\(255, 228, 236, 0\.9\) 0, rgba\(255, 228, 236, 0\) 34%\),[\s\S]*radial-gradient\(circle at 16% 10%, rgba\(211, 218, 255, 0\.92\) 0, rgba\(211, 218, 255, 0\) 40%\),[\s\S]*linear-gradient\(180deg, #f2f1ff 0%, #e9edff 100%\);/);
     assert.match(wxml, /<view class="xf-xiaowanzi-topbar" style="height: \{\{topbarHeight\}\}px;">/);
     assert.doesNotMatch(wxml, /xf-xiaowanzi-return-entry|xf-xiaowanzi-return-mark|aria-label="返回上一页"/);
-    assert.match(wxml, /class="xf-xiaowanzi-menu-entry"[\s\S]*catchtap="openHistoryDrawer"[\s\S]*aria-label="历史会话"/);
-    assert.match(wxml, /class="xf-xiaowanzi-menu-mark" src="\/assets\/xiaowanzi-icons\/menu-dark\.png" mode="aspectFit"/);
-    assert.match(wxml, /class="xf-xiaowanzi-top-bot"[\s\S]*top: \{\{shellAvatarTop\}\}px; height: \{\{shellAvatarHeight\}\}px;[\s\S]*src="\{\{topbarAvatarSrc\}\}"[\s\S]*catchtap="startNewConversation"[\s\S]*aria-label="新话题"/);
-    assertPngSize("../assets/xiaowanzi-icons/menu-dark.png", 126, 84);
+    assert.match(wxml, /class="xf-xiaowanzi-home-entry"[\s\S]*catchtap="returnToHome"[\s\S]*aria-label="返回首页"[\s\S]*class="xf-xiaowanzi-back-mark" aria-hidden="true"><\/view>/);
+    assert.doesNotMatch(wxml, /<text>首页<\/text>/);
+    assert.match(wxml, /class="xf-xiaowanzi-menu-entry"[\s\S]*hover-class="is-pressed"[\s\S]*catchtap="openHistoryDrawer"[\s\S]*aria-label="历史会话"[\s\S]*<view class="xf-xiaowanzi-menu-mark" aria-hidden="true"><\/view>/);
+    assert.doesNotMatch(wxml, /home-dark\.png/);
+    assert.doesNotMatch(wxml, /xf-xiaowanzi-top-bot/);
     assertPngSize("../assets/xiaowanzi-icons/voice-dark.png", 154, 130);
     assertPngSize("../assets/xiaowanzi-icons/voice-white.png", 154, 130);
     assertPngSize("../assets/xiaowanzi-icons/wave-white.png", 132, 146);
@@ -2297,9 +2299,19 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.match(wxml, /class="xf-xiaowanzi-knowledge-pill \{\{knowledgePillCollapsed \? 'is-collapsed' : ''\}\}"[\s\S]*top: \{\{shellKnowledgeTop\}\}px; right: \{\{shellKnowledgeRight\}\}px; width: \{\{knowledgePillCollapsed \? shellKnowledgeHeight : shellKnowledgeWidth\}\}px; height: \{\{shellKnowledgeHeight\}\}px;[\s\S]*catchtap="openKnowledgeHub"/);
     assert.match(wxml, /class="xf-xiaowanzi-knowledge-logo"[^>]*src="\/assets\/xiaowanzi-icons\/knowledge-round-logo\.png"/);
     assert.match(wxml, /class="xf-xiaowanzi-knowledge-title" src="\/assets\/xiaowanzi-icons\/knowledge-title\.png" mode="aspectFit"/);
-    assert.match(wxss, /\.xf-xiaowanzi-menu-entry \{[\s\S]*left: 24rpx;[\s\S]*width: 76rpx;/);
-    assert.match(wxss, /\.xf-xiaowanzi-top-bot \{[\s\S]*left: 104rpx;[\s\S]*width: 39\.6px;[\s\S]*transform: translate\(-8rpx, -4rpx\);/);
+    assert.match(wxss, /\.xf-xiaowanzi-home-entry \{[\s\S]*left: 16rpx;[\s\S]*width: 64rpx;[\s\S]*background: transparent;[\s\S]*pointer-events: auto;/);
+    assert.match(wxss, /\.xf-xiaowanzi-back-mark \{[\s\S]*position: relative;[\s\S]*width: 16rpx;[\s\S]*height: 20rpx;[\s\S]*translate\(3rpx, 2rpx\);/);
+    assert.match(wxss, /\.xf-xiaowanzi-back-mark::before,[\s\S]*\.xf-xiaowanzi-back-mark::after \{[\s\S]*width: 14rpx;[\s\S]*height: 3rpx;[\s\S]*border-radius: 999rpx;[\s\S]*background: #1d2f42;[\s\S]*transform-origin: left center;/);
+    assert.match(wxss, /\.xf-xiaowanzi-back-mark::before \{[\s\S]*rotate\(-45deg\);/);
+    assert.match(wxss, /\.xf-xiaowanzi-back-mark::after \{[\s\S]*rotate\(45deg\);/);
+    assert.doesNotMatch(wxml, /home-outline\.svg/);
+    assert.match(wxss, /\.xf-xiaowanzi-menu-mark,[\s\S]*\.xf-xiaowanzi-menu-mark::before \{[\s\S]*width: 26rpx;[\s\S]*height: 3rpx;[\s\S]*background: #334155;/);
+    assert.match(wxss, /\.xf-xiaowanzi-menu-mark \{[\s\S]*transform: translateY\(-5rpx\);/);
+    assert.match(wxss, /\.xf-xiaowanzi-menu-mark::before \{[\s\S]*top: 10rpx;[\s\S]*left: 0;[\s\S]*width: 18rpx;/);
+    assert.match(wxss, /\.xf-xiaowanzi-menu-entry \{[\s\S]*left: 64rpx;[\s\S]*width: 64rpx;/);
+    assert.doesNotMatch(wxss, /\.xf-xiaowanzi-top-bot \{/);
     assert.match(wxss, /\.xf-xiaowanzi-knowledge-pill \{[\s\S]*gap: 3\.5px;[\s\S]*width: 86px;[\s\S]*padding: 0 5px 0 1\.5px;[\s\S]*font-size: 12\.6px;[\s\S]*transition: width 180ms ease, padding 180ms ease, background 180ms ease;/);
+    assert.doesNotMatch(knowledgePillStyle, /transform:/);
     assert.match(wxss, /\.xf-xiaowanzi-knowledge-title \{[\s\S]*width: 43\.2px;[\s\S]*height: 13\.7px;[\s\S]*opacity: 1;/);
     assert.match(wxss, /\.xf-xiaowanzi-knowledge-pill\.is-collapsed \{[\s\S]*width: 34px;[\s\S]*padding: 0;[\s\S]*gap: 0;[\s\S]*aspect-ratio: 1 \/ 1;/);
     assert.match(wxss, /\.xf-xiaowanzi-knowledge-pill\.is-collapsed \.xf-xiaowanzi-knowledge-title \{[\s\S]*width: 0;[\s\S]*opacity: 0;/);
@@ -2437,10 +2449,13 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.equal(wxml.includes("xf-xiaowanzi-bridge"), false);
     assert.match(wxss, /radial-gradient\(circle at 74% 2%, rgba\(255, 228, 236, 0\.9\) 0, rgba\(255, 228, 236, 0\) 34%\)/);
     assert.doesNotMatch(wxss, /xf-xiaowanzi-return-entry|xf-xiaowanzi-return-mark/);
-    assert.match(wxss, /\.xf-xiaowanzi-menu-entry \{[\s\S]*left: 24rpx;[\s\S]*display: flex;[\s\S]*justify-content: center;[\s\S]*width: 76rpx;/);
-    assert.match(wxss, /\.xf-xiaowanzi-menu-mark \{[\s\S]*width: 32rpx;[\s\S]*height: 32rpx;/);
-    assert.doesNotMatch(wxss, /\.xf-xiaowanzi-menu-mark::before|\.xf-xiaowanzi-menu-mark::after/);
-    assert.match(wxss, /\.xf-xiaowanzi-top-bot \{[\s\S]*left: 104rpx;[\s\S]*width: 39\.6px;[\s\S]*transform: translate\(-8rpx, -4rpx\);[\s\S]*pointer-events: auto;/);
+    assert.match(wxss, /\.xf-xiaowanzi-home-entry \{[\s\S]*left: 16rpx;[\s\S]*display: flex;[\s\S]*justify-content: center;[\s\S]*width: 64rpx;/);
+    assert.doesNotMatch(wxml, /<text>首页<\/text>/);
+    assert.match(wxss, /\.xf-xiaowanzi-menu-entry \{[\s\S]*left: 64rpx;[\s\S]*display: flex;[\s\S]*justify-content: center;[\s\S]*width: 64rpx;/);
+    assert.match(wxss, /\.xf-xiaowanzi-back-mark::before,[\s\S]*\.xf-xiaowanzi-back-mark::after \{[\s\S]*height: 3rpx;[\s\S]*background: #1d2f42;/);
+    assert.match(wxss, /\.xf-xiaowanzi-menu-mark::before \{[\s\S]*width: 18rpx;/);
+    assert.doesNotMatch(wxss, /\.xf-xiaowanzi-menu-mark::after/);
+    assert.doesNotMatch(wxss, /\.xf-xiaowanzi-top-bot \{/);
     assert.match(wxss, /\.xf-xiaowanzi-knowledge-pill \{[\s\S]*gap: 3\.5px;[\s\S]*width: 86px;[\s\S]*padding: 0 5px 0 1\.5px;/);
     assert.match(wxss, /\.xf-xiaowanzi-knowledge-pill \{[\s\S]*border: 1px solid rgba\(124, 77, 255, 0\.22\);[\s\S]*background: rgba\(91, 72, 255, 0\.06\);[\s\S]*box-shadow: none;/);
     assert.match(wxss, /\.xf-xiaowanzi-knowledge-logo \{[\s\S]*filter: drop-shadow/);
@@ -2460,7 +2475,7 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.match(wxss, /\.xf-xiaowanzi-chat-list\.has-attachment-menu \.xf-xiaowanzi-home \{[\s\S]*padding-top: 60rpx;/);
     assert.match(wxss, /\.xf-xiaowanzi-chat-list\.has-attachment-menu \.xf-xiaowanzi-hero \{[\s\S]*min-height: 132px;[\s\S]*padding-bottom: 12rpx;/);
     assert.match(wxss, /\.xf-xiaowanzi-hero \{[\s\S]*min-height: 132px;[\s\S]*padding: 0 8px 8rpx 4px;/);
-    assert.match(wxss, /\.xf-xiaowanzi-hero-bot \{[\s\S]*width: 132px;[\s\S]*height: 132px;[\s\S]*margin-right: 20px;/);
+    assert.match(wxss, /\.xf-xiaowanzi-hero-bot \{[\s\S]*width: 105\.6px;[\s\S]*height: 105\.6px;[\s\S]*margin-right: 20px;/);
     assert.match(wxss, /\.xf-xiaowanzi-hello-row \{[\s\S]*gap: 8px;[\s\S]*margin-bottom: 8px;/);
     assert.match(wxss, /\.xf-xiaowanzi-hello \{[\s\S]*font-size: 24px;[\s\S]*animation: xfXiaowanziHomeHelloIn 0\.38s 0\.58s cubic-bezier\(0\.2, 0\.9, 0\.22, 1\) both;/);
     assert.match(wxss, /\.xf-xiaowanzi-spark \{[\s\S]*position: relative;[\s\S]*width: 28px;[\s\S]*height: 28px;[\s\S]*xfXiaowanziHomeSparkPop 0\.48s 0\.74s cubic-bezier\(0\.18, 0\.92, 0\.2, 1\) both,[\s\S]*xfXiaowanziHomeSparkBreathe 1\.8s 1\.35s ease-in-out infinite;/);
@@ -2650,10 +2665,10 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.match(js, /function buildNativeShellData\(\)/);
     assert.match(js, /const knowledgeHeight = 34;/);
     assert.match(js, /const knowledgeWidth = 86;/);
-    assert.match(js, /const statusBarHeight = Math\.max\(0, Math\.round\(Number\(metrics\.statusBarHeight \|\| 0\)\)\);/);
-    assert.match(js, /const shellSafeTop = statusBarHeight > 0 \? statusBarHeight \+ 8 : 0;/);
-    assert.match(js, /const shellControlTop = Math\.max\(0, searchButtonTop, shellSafeTop\);/);
-    assert.match(js, /const shellKnowledgeTop = Math\.max\(shellSafeTop, Math\.round\(shellControlTop \+ \(capsuleHeight - knowledgeHeight\) \/ 2\)\);/);
+    assert.doesNotMatch(js, /const statusBarHeight =/);
+    assert.doesNotMatch(js, /shellSafeTop/);
+    assert.match(js, /const shellControlTop = Math\.max\(0, searchButtonTop\);/);
+    assert.match(js, /const shellKnowledgeTop = Math\.max\(0, Math\.round\(shellControlTop \+ \(capsuleHeight - knowledgeHeight\) \/ 2\)\);/);
     assert.match(js, /shellKnowledgeHeight: knowledgeHeight/);
     assert.match(js, /shellKnowledgeWidth: knowledgeWidth/);
     assert.match(js, /shellKnowledgeRight: Math\.max\(8, Math\.round\(Number\(metrics\.capsuleRight \|\| 96\) \+ 2\)\)/);
@@ -2865,6 +2880,8 @@ test("Xiaowanzi tab page renders the native chat core with child context and mem
     assert.equal(context.data.settingsPanelOpen, false);
     definition.closeHistoryDrawer.call(context);
     assert.equal(context.data.historyDrawerOpen, false);
+    definition.returnToHome.call(context);
+    assert.deepEqual(switchCalls.at(-1), { url: "/pages/programs/index" });
     storage.set("xf_xiaowanzi_return_target_v1", { type: "tab", url: "/pages/topics/index" });
     context.data.historyDrawerOpen = true;
     context.data.attachmentMenuOpen = true;
@@ -2983,13 +3000,13 @@ test("Xiaowanzi page keeps public content visible until a protected action", () 
     assert.equal(context.data.xiaowanziLoginRequired, false);
     assert.equal(context.data.isLoggedIn, false);
     assert.equal(context.data.shellLogoTop, 67);
-    assert.equal(context.data.shellAvatarTop, 64);
-    assert.equal(context.data.shellKnowledgeTop, 67);
+    assert.equal(context.data.shellAvatarTop, 63);
+    assert.equal(context.data.shellKnowledgeTop, 66);
     assert.equal(
       context.data.shellAvatarTop + context.data.shellAvatarHeight - 3,
       context.data.shellKnowledgeTop + context.data.shellKnowledgeHeight
     );
-    assert.equal(context.data.topbarHeight, 106);
+    assert.equal(context.data.topbarHeight, 105);
     assert.equal(context.data.statusText, "准备就绪");
     assert.equal(context.data.errorText, "");
     assert.equal(context.data.actionLabel, "");
@@ -3077,11 +3094,11 @@ test("Xiaowanzi super-mode design doc maps mobile assets to native mini-program 
   assert.doesNotMatch(designDoc, /apps\/wechat-miniprogram\/assets\/xiaowanzi-nohat\.png/);
   assert.doesNotMatch(designDoc, /apps\/wechat-miniprogram\/assets\/xiaowanzi-topbar\.png/);
   assert.doesNotMatch(designDoc, /compact pirate-hat decorated avatar/);
-  assert.match(designDoc, /native shell does not introduce generated avatar variants/);
+  assert.match(designDoc, /there is no duplicate avatar in the topbar/);
   assert.match(designDoc, /wel_avatar_index/);
   assert.match(designDoc, /wel_avatar_click_count/);
   assert.match(designDoc, /explicit Xiaowanzi entry marker/);
-  assert.match(designDoc, /topbar avatar itself is tapped/);
+  assert.match(designDoc, /large home hero avatar itself is tapped/);
   assert.match(designDoc, /only after 5 triggers/);
   assert.match(designDoc, /apps\/wechat-miniprogram\/assets\/xiaowanzi-icons\/knowledge-round-logo\.png/);
   assert.match(designDoc, /apps\/wechat-miniprogram\/assets\/xiaowanzi-icons\/knowledge-title\.png/);
@@ -3089,7 +3106,8 @@ test("Xiaowanzi super-mode design doc maps mobile assets to native mini-program 
   assert.match(designDoc, /apps\/wechat-miniprogram\/assets\/xiaowanzi-icons\/share-logo\.png/);
   assert.match(designDoc, /generated canvas/);
   assert.match(designDoc, /provided transparent Xiaowanzi wordmark/);
-  assert.match(designDoc, /Hamburger, voice, send, plus\/close, attachment, assistant-card share, and history-exit icons use packaged mini-program image assets exported from the same mobile icon source/);
+  assert.match(designDoc, /Vertically center every custom top-shell control against the actual WeChat capsule bounds/);
+  assert.match(designDoc, /home control uses a simple left chevron[\s\S]*direct return to the programs home tab[\s\S]*same `3rpx` rounded-bar construction[\s\S]*`#1d2f42`[\s\S]*optical source color[\s\S]*matches the rendered `#334155` hamburger[\s\S]*`2rpx` optical vertical offset[\s\S]*visible gap is `18rpx`[\s\S]*40% smaller than the previous `30rpx`[\s\S]*same `64rpx` control slot[\s\S]*same pressed state/);
   assert.doesNotMatch(designDoc, /history-exit icon directly uses the mobile Material Symbols Rounded `logout` glyph codepoint `E9BA`|supplied through page data as `\\uE9BA`/);
   assert.match(designDoc, /History drawer geometry:[\s\S]*covers the native Xiaowanzi top shell[\s\S]*about 72% of viewport width/);
   assert.doesNotMatch(designDoc, /about 84% of viewport width/);
@@ -3212,20 +3230,20 @@ test("Xiaowanzi shell controls stay below the phone safe area when capsule metri
     definition.onLoad.call(context);
 
     assert.equal(context.data.shellLogoTop, 67);
-    assert.equal(context.data.shellAvatarTop, 64);
-    assert.equal(context.data.shellKnowledgeTop, 67);
+    assert.equal(context.data.shellAvatarTop, 63);
+    assert.equal(context.data.shellKnowledgeTop, 66);
     assert.equal(
       context.data.shellAvatarTop + context.data.shellAvatarHeight - 3,
       context.data.shellKnowledgeTop + context.data.shellKnowledgeHeight
     );
-    assert.equal(context.data.topbarHeight, 106);
+    assert.equal(context.data.topbarHeight, 105);
     assert.equal(context.data.childBoundaryTop, context.data.topbarHeight + 12);
   } finally {
     global.wx = originalWx;
   }
 });
 
-test("Xiaowanzi topbar avatar follows the mobile five-open rotation rule", () => {
+test("Xiaowanzi hero avatar follows the mobile five-trigger rotation rule", () => {
   const definition = loadPageDefinition("xiaowanzi");
   const originalGetStorageSync = global.wx.getStorageSync;
   const originalSetStorageSync = global.wx.setStorageSync;
@@ -3267,13 +3285,22 @@ test("Xiaowanzi topbar avatar follows the mobile five-open rotation rule", () =>
     assert.equal(context.data.topbarAvatarSrc, "/assets/wel-avatar/wizard.png");
     assert.equal(storage.get("wel_avatar_index"), 2);
     assert.equal(storage.get("wel_avatar_click_count"), 0);
+
+    definition.refreshXiaowanziAvatar.call(context);
+
+    assert.equal(context.data.topbarAvatarIndex, 2);
+    assert.equal(context.data.topbarAvatarClickCount, 1);
+    assert.equal(context.data.topbarAvatarSrc, "/assets/wel-avatar/wizard.png");
+    assert.equal(context.data.homeMode, true);
+    assert.equal(storage.get("wel_avatar_index"), 2);
+    assert.equal(storage.get("wel_avatar_click_count"), 1);
   } finally {
     global.wx.getStorageSync = originalGetStorageSync;
     global.wx.setStorageSync = originalSetStorageSync;
   }
 });
 
-test("Xiaowanzi authenticated page show clears explicit entry mode and advances the topbar avatar", () => {
+test("Xiaowanzi authenticated page show clears explicit entry mode and advances the hero avatar", () => {
   const definition = loadPageDefinition("xiaowanzi");
   const originalGetStorageSync = global.wx.getStorageSync;
   const originalSetStorageSync = global.wx.setStorageSync;
@@ -6489,7 +6516,7 @@ test("native first-level content tabs fetch API data and open detail wrapper rou
   assert.doesNotMatch(xiaowanzi.wxml, /xf-xiaowanzi-welfare-entry|xf-xiaowanzi-logo/);
   assert.doesNotMatch(xiaowanzi.wxml, /xf-xiaowanzi-return-entry|xf-xiaowanzi-return-mark|aria-label="返回上一页"/);
   assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-menu-entry"[\s\S]*catchtap="openHistoryDrawer"/);
-  assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-menu-mark" src="\/assets\/xiaowanzi-icons\/menu-dark\.png" mode="aspectFit"/);
+  assert.match(xiaowanzi.wxml, /<view class="xf-xiaowanzi-menu-mark" aria-hidden="true"><\/view>/);
   assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-user-bubble"/);
   assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-assistant-panel \{\{item\.pending \? 'is-thinking' : ''\}\}"/);
   assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-assistant-card"/);
@@ -6519,7 +6546,8 @@ test("native first-level content tabs fetch API data and open detail wrapper rou
   assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-knowledge-pill \{\{knowledgePillCollapsed \? 'is-collapsed' : ''\}\}"[\s\S]*top: \{\{shellKnowledgeTop\}\}px; right: \{\{shellKnowledgeRight\}\}px; width: \{\{knowledgePillCollapsed \? shellKnowledgeHeight : shellKnowledgeWidth\}\}px; height: \{\{shellKnowledgeHeight\}\}px;[\s\S]*catchtap="openKnowledgeHub"/);
   assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-knowledge-logo"[^>]*src="\/assets\/xiaowanzi-icons\/knowledge-round-logo\.png"/);
   assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-knowledge-title" src="\/assets\/xiaowanzi-icons\/knowledge-title\.png" mode="aspectFit"/);
-  assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-top-bot"[\s\S]*top: \{\{shellAvatarTop\}\}px; height: \{\{shellAvatarHeight\}\}px;[\s\S]*src="\{\{topbarAvatarSrc\}\}"[\s\S]*catchtap="startNewConversation"[\s\S]*aria-label="新话题"/);
+  assert.doesNotMatch(xiaowanzi.wxml, /xf-xiaowanzi-top-bot/);
+  assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-hero-bot" src="\{\{topbarAvatarSrc\}\}" mode="aspectFit" catchtap="refreshXiaowanziAvatar" aria-label="刷新小玩子并开始新话题"/);
   assert.doesNotMatch(xiaowanzi.wxml, /xf-xiaowanzi-top-more|openTopbarMore|shellMoreRight/);
   assert.doesNotMatch(xiaowanzi.wxml, /xf-xiaowanzi-welfare-entry|xf-xiaowanzi-welfare-icon/);
   assert.doesNotMatch(xiaowanzi.wxml, /catchtap="openNativeSharePanel"/);
@@ -6538,7 +6566,8 @@ test("native first-level content tabs fetch API data and open detail wrapper rou
   assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-archive-scrim"/);
   assert.match(xiaowanzi.wxss, /\.xf-xiaowanzi-native-shell \{/);
   assert.doesNotMatch(xiaowanzi.wxss, /xf-xiaowanzi-welfare-entry|xf-xiaowanzi-welfare-icon|xf-xiaowanzi-share-entry|xf-xiaowanzi-logo|xf-xiaowanzi-return-entry|xf-xiaowanzi-return-mark/);
-  assert.match(xiaowanzi.wxss, /\.xf-xiaowanzi-menu-mark \{[\s\S]*width: 32rpx;[\s\S]*height: 32rpx;/);
+  assert.match(xiaowanzi.wxss, /\.xf-xiaowanzi-back-mark::before,[\s\S]*\.xf-xiaowanzi-back-mark::after \{[\s\S]*height: 3rpx;[\s\S]*background: #1d2f42;/);
+  assert.match(xiaowanzi.wxss, /\.xf-xiaowanzi-menu-mark,[\s\S]*\.xf-xiaowanzi-menu-mark::before \{[\s\S]*width: 26rpx;[\s\S]*height: 3rpx;/);
   assert.match(xiaowanzi.wxss, /\.xf-xiaowanzi-user-bubble \{/);
   assert.match(xiaowanzi.wxss, /\.xf-xiaowanzi-assistant-panel \{/);
   assert.match(xiaowanzi.wxss, /\.xf-xiaowanzi-assistant-card \{/);
@@ -12656,7 +12685,7 @@ test("native pages keep view topbars while Xiaowanzi owns a native shell", () =>
   assert.equal(xiaowanzi.wxml.includes("<native-page-nav"), false);
   assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-native-shell"/);
   assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-menu-entry"/);
-  assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-menu-mark" src="\/assets\/xiaowanzi-icons\/menu-dark\.png" mode="aspectFit"/);
+  assert.match(xiaowanzi.wxml, /<view class="xf-xiaowanzi-menu-mark" aria-hidden="true"><\/view>/);
   assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-child-hint"/);
   assert.equal(xiaowanzi.wxml.includes("<web-view"), false);
   assert.match(xiaowanzi.wxml, /class="xf-xiaowanzi-chat-list \{\{homeMode \? 'is-home' : 'is-chat'\}\} \{\{attachmentMenuOpen \? 'has-attachment-menu' : ''\}\} \{\{shareSelectionMode \? 'has-share-selection' : ''\}\}"/);

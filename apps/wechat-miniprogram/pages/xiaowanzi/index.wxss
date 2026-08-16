@@ -51,6 +51,7 @@ page {
   background: transparent;
 }
 
+.xf-xiaowanzi-home-entry,
 .xf-xiaowanzi-menu-entry,
 .xf-xiaowanzi-knowledge-pill,
 .xf-xiaowanzi-login-gate,
@@ -78,6 +79,7 @@ page {
   line-height: 1;
 }
 
+.xf-xiaowanzi-home-entry::after,
 .xf-xiaowanzi-menu-entry::after,
 .xf-xiaowanzi-knowledge-pill::after,
 .xf-xiaowanzi-login-gate::after,
@@ -101,23 +103,83 @@ page {
   border: 0;
 }
 
-.xf-xiaowanzi-menu-entry {
+.xf-xiaowanzi-home-entry {
   position: absolute;
-  left: 24rpx;
+  left: 16rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 76rpx;
-  color: #38405f;
+  width: 64rpx;
+  border-radius: 50%;
+  background: transparent;
+  color: #4f5878;
   pointer-events: auto;
 }
 
-.xf-xiaowanzi-top-bot {
+.xf-xiaowanzi-home-entry.is-pressed,
+.xf-xiaowanzi-menu-entry.is-pressed {
+  opacity: 0.55;
+}
+
+.xf-xiaowanzi-back-mark {
+  position: relative;
+  display: block;
+  width: 16rpx;
+  height: 20rpx;
+  transform: translate(3rpx, 2rpx);
+}
+
+.xf-xiaowanzi-back-mark::before,
+.xf-xiaowanzi-back-mark::after {
   position: absolute;
-  left: 104rpx;
-  width: 39.6px;
-  filter: drop-shadow(0 10rpx 20rpx rgba(92, 75, 190, 0.14));
-  transform: translate(-8rpx, -4rpx);
+  top: 8.5rpx;
+  left: 0;
+  width: 14rpx;
+  height: 3rpx;
+  border-radius: 999rpx;
+  background: #1d2f42;
+  transform-origin: left center;
+  content: "";
+}
+
+.xf-xiaowanzi-back-mark::before {
+  transform: rotate(-45deg);
+}
+
+.xf-xiaowanzi-back-mark::after {
+  transform: rotate(45deg);
+}
+
+.xf-xiaowanzi-menu-mark,
+.xf-xiaowanzi-menu-mark::before {
+  display: block;
+  width: 26rpx;
+  height: 3rpx;
+  border-radius: 999rpx;
+  background: #334155;
+  content: "";
+}
+
+.xf-xiaowanzi-menu-mark {
+  position: relative;
+  transform: translateY(-5rpx);
+}
+
+.xf-xiaowanzi-menu-mark::before {
+  position: absolute;
+  top: 10rpx;
+  left: 0;
+  width: 18rpx;
+}
+
+.xf-xiaowanzi-menu-entry {
+  position: absolute;
+  left: 64rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64rpx;
+  color: #38405f;
   pointer-events: auto;
 }
 
@@ -202,12 +264,6 @@ page {
   opacity: 0;
 }
 
-.xf-xiaowanzi-menu-mark {
-  display: block;
-  width: 32rpx;
-  height: 32rpx;
-}
-
 .xf-xiaowanzi-child-boundary {
   position: absolute;
   left: 52rpx;
@@ -279,8 +335,8 @@ page {
 
 .xf-xiaowanzi-hero-bot {
   flex: 0 0 auto;
-  width: 132px;
-  height: 132px;
+  width: 105.6px;
+  height: 105.6px;
   margin-right: 20px;
 }
 
