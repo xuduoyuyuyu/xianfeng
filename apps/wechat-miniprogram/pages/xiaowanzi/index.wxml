@@ -3,10 +3,12 @@
 <view class="xf-xiaowanzi-page">
   <view class="xf-xiaowanzi-native-shell">
     <view class="xf-xiaowanzi-topbar" style="height: {{topbarHeight}}px;">
-      <button class="xf-xiaowanzi-menu-entry" style="top: {{shellLogoTop}}px; height: {{shellLogoHeight}}px;" catchtap="openHistoryDrawer" aria-label="历史会话">
-        <image class="xf-xiaowanzi-menu-mark" src="/assets/xiaowanzi-icons/menu-dark.png" mode="aspectFit" />
+      <button class="xf-xiaowanzi-home-entry" style="top: {{shellLogoTop}}px; height: {{shellLogoHeight}}px;" hover-class="is-pressed" catchtap="returnToHome" aria-label="返回首页">
+        <view class="xf-xiaowanzi-back-mark" aria-hidden="true"></view>
       </button>
-      <image class="xf-xiaowanzi-top-bot" style="top: {{shellAvatarTop}}px; height: {{shellAvatarHeight}}px;" src="{{topbarAvatarSrc}}" mode="aspectFit" catchtap="startNewConversation" aria-label="新话题" />
+      <button class="xf-xiaowanzi-menu-entry" style="top: {{shellLogoTop}}px; height: {{shellLogoHeight}}px;" hover-class="is-pressed" catchtap="openHistoryDrawer" aria-label="历史会话">
+        <view class="xf-xiaowanzi-menu-mark" aria-hidden="true"></view>
+      </button>
       <button class="xf-xiaowanzi-knowledge-pill {{knowledgePillCollapsed ? 'is-collapsed' : ''}}" style="top: {{shellKnowledgeTop}}px; right: {{shellKnowledgeRight}}px; width: {{knowledgePillCollapsed ? shellKnowledgeHeight : shellKnowledgeWidth}}px; height: {{shellKnowledgeHeight}}px;" catchtap="openKnowledgeHub" aria-label="打开先疯智库">
         <image class="xf-xiaowanzi-knowledge-logo" src="/assets/xiaowanzi-icons/knowledge-round-logo.png" mode="aspectFit" />
         <image class="xf-xiaowanzi-knowledge-title" src="/assets/xiaowanzi-icons/knowledge-title.png" mode="aspectFit" aria-hidden="true" />
@@ -20,7 +22,7 @@
   <scroll-view class="xf-xiaowanzi-chat-list {{homeMode ? 'is-home' : 'is-chat'}} {{attachmentMenuOpen ? 'has-attachment-menu' : ''}} {{shareSelectionMode ? 'has-share-selection' : ''}}" scroll-y="{{true}}" enhanced="{{true}}" show-scrollbar="{{false}}" scroll-into-view="{{scrollIntoView}}" bindscroll="handleKnowledgePillScroll" style="top: {{chatTop}}px;">
     <view wx:if="{{homeMode}}" class="xf-xiaowanzi-home">
       <view class="xf-xiaowanzi-hero">
-        <image class="xf-xiaowanzi-hero-bot" src="/assets/wel-avatar/no-hat.png" mode="aspectFit" />
+        <image class="xf-xiaowanzi-hero-bot" src="{{topbarAvatarSrc}}" mode="aspectFit" catchtap="refreshXiaowanziAvatar" aria-label="刷新小玩子并开始新话题" />
         <view class="xf-xiaowanzi-hero-copy">
           <view class="xf-xiaowanzi-hello-row">
             <text class="xf-xiaowanzi-hello">哈喽</text>

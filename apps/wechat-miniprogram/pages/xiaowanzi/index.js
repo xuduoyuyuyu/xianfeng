@@ -662,11 +662,9 @@ function buildNativeShellData() {
   const knowledgeHeight = 34;
   const knowledgeWidth = 86;
   const avatarHeight = 40;
-  const statusBarHeight = Math.max(0, Math.round(Number(metrics.statusBarHeight || 0)));
   const searchButtonTop = Math.round(Number(metrics.searchButtonTop || 0));
-  const shellSafeTop = statusBarHeight > 0 ? statusBarHeight + 8 : 0;
-  const shellControlTop = Math.max(0, searchButtonTop, shellSafeTop);
-  const shellKnowledgeTop = Math.max(shellSafeTop, Math.round(shellControlTop + (capsuleHeight - knowledgeHeight) / 2));
+  const shellControlTop = Math.max(0, searchButtonTop);
+  const shellKnowledgeTop = Math.max(0, Math.round(shellControlTop + (capsuleHeight - knowledgeHeight) / 2));
   const avatarVisualBottomOffset = 3;
   const shellChromeBottomPadding = 2;
   const sharePreviewChromeOffset = 20;
@@ -3145,6 +3143,10 @@ Page({
     this.setData({ historyDrawerOpen: false, historyDeleteCardId: "" });
   },
 
+  returnToHome() {
+    wx.switchTab({ url: "/pages/programs/index" });
+  },
+
   returnToExternalPage() {
     this.clearShareRevealTimer();
     this.setData({
@@ -3197,6 +3199,11 @@ Page({
     if (this.data.knowledgePillCollapsed !== knowledgePillCollapsed) payload.knowledgePillCollapsed = knowledgePillCollapsed;
     if (shouldFoldAttachmentMenu) payload.attachmentMenuOpen = false;
     if (Object.keys(payload).length) this.setData(payload);
+  },
+
+  refreshXiaowanziAvatar() {
+    this.restoreTopbarAvatar({ advance: true });
+    this.startNewConversation();
   },
 
   startNewConversation() {
