@@ -1,6 +1,6 @@
 # English picture naming photo manifest
 
-All 150 assessment images are resized and compressed derivatives of camera photographs. No image-generation model, synthetic fill, subject removal, or background replacement was used. The assessment displays each file as a full-bleed `aspectFill` card so the real photo becomes the card surface; the stored source derivative remains unchanged and auditable. The original ten animal files use JPEG; the remaining 140 use WebP to keep the WeChat subpackage within its size budget.
+All 150 assessment images are resized and compressed derivatives of camera photographs. No image-generation model, synthetic fill, subject removal, or background replacement was used. The assessment displays each file as a full-bleed `aspectFill` card so the real photo becomes the card surface; the stored source derivative remains unchanged and auditable. The original ten animal files use JPEG; the remaining 140 primary files use WebP. The backend also stores a JPEG fallback for every item so devices that cannot render a primary WebP can retry without changing the assessment content.
 
 ## Photo quality policy
 

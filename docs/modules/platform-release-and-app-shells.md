@@ -90,9 +90,12 @@
   recognition task over five independent thirty-word packs. It stores and restores
   results by child and pack, and the result page lists all five packs with their
   latest recognized counts and start/recheck actions. Every word can switch the same item between its
-  written form and a locally stored, source-recorded real-photo candidate. No
-  generated or placeholder image is substituted, and card-view changes never
-  create a second assessment mode or persistence key. All 150 English words also
+  written form and a source-recorded real-photo candidate served by the backend.
+  The mini program requests the reviewed primary JPEG or WebP and retries the
+  same item with its JPEG fallback when WebP rendering fails, keeping the roughly
+  12 MB photo bank outside the mini-program package. No generated or placeholder
+  image is substituted, and card-view changes never create a second assessment
+  mode or persistence key. All 150 English words also
   use MP3 files generated offline from one British-English voice and stored with
   the backend;
   the same listen control appears in both word and photo views without changing

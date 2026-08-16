@@ -250,7 +250,10 @@ test("English flash test keeps one word-reading task and only offers photo view 
   const source = fs.readFileSync(path.join(currentDirectory, "index.js"), "utf8");
   const template = fs.readFileSync(path.join(currentDirectory, "index.wxml"), "utf8");
   const styles = fs.readFileSync(path.join(currentDirectory, "index.wxss"), "utf8");
-  const photoDirectory = path.join(miniProgramRoot, "pages/flash-test/assets/english-picture-naming");
+  const photoDirectory = path.resolve(
+    miniProgramRoot,
+    "../../backend/src/assets/flash-test/english-picture-naming"
+  );
   const audioDirectory = path.resolve(
     miniProgramRoot,
     "../../backend/src/assets/flash-test/english-pronunciation"
@@ -265,6 +268,8 @@ test("English flash test keeps one word-reading task and only offers photo view 
   assert.doesNotMatch(source, /\/api\/flash-tests\/english-picture-naming\/recognize/);
   assert.match(template, /stage === 'picture-naming'/);
   assert.match(template, /class="xf-picture-naming-photo"[^>]*mode="aspectFill"/);
+  assert.match(template, /class="xf-picture-naming-photo"[^>]*webp="\{\{true\}\}"[^>]*binderror="handleEnglishPictureError"[^>]*data-target="card"/);
+  assert.match(template, /class="xf-flash-result-word-photo"[\s\S]*webp="\{\{true\}\}"[\s\S]*binderror="handleEnglishPictureError"[\s\S]*data-target="focus"/);
   assert.match(template, /同一单词的真实照片 · 不改变本题记录/);
   assert.match(template, /看见单词，读给家长听/);
   assert.match(template, /class="xf-picture-naming-word"/);
@@ -348,7 +353,9 @@ test("English flash test keeps one word-reading task and only offers photo view 
     );
   }
   for (const item of ENGLISH_WORD_PACKS.flatMap((pack) => pack.items)) {
-    const filename = path.basename(item.image);
+    assert.match(item.image, /^https:\/\/xianfeng\.xinzhi\.info\/api\/flash-tests\/english-picture-naming\/assets\//);
+    assert.match(item.fallbackImage, /^https:\/\/xianfeng\.xinzhi\.info\/api\/flash-tests\/english-picture-naming\/assets\/.+\.jpg\?v=/);
+    const filename = path.basename(new URL(item.image).pathname);
     const filePath = path.join(photoDirectory, filename);
     assert.equal(fs.existsSync(filePath), true, `${filename} should exist`);
     const header = fs.readFileSync(filePath).subarray(0, 12);
@@ -358,6 +365,10 @@ test("English flash test keeps one word-reading task and only offers photo view 
       assert.equal(header.subarray(0, 4).toString("ascii"), "RIFF", `${filename} should be a WebP`);
       assert.equal(header.subarray(8, 12).toString("ascii"), "WEBP", `${filename} should be a WebP`);
     }
+    const fallbackFilename = path.basename(new URL(item.fallbackImage).pathname);
+    const fallbackPath = path.join(photoDirectory, fallbackFilename);
+    assert.equal(fs.existsSync(fallbackPath), true, `${fallbackFilename} should exist`);
+    assert.equal(fs.readFileSync(fallbackPath).subarray(0, 2).toString("hex"), "ffd8", `${fallbackFilename} should be a JPEG`);
   }
 });
 
@@ -732,7 +743,8 @@ test("collected words are exposed as five packs and every card can switch to its
   assert.equal(context.data.englishWordPacks.every((pack) => pack.imageCount === 30), true);
   definition.showPictureNamingItem.call(context, 0);
   assert.equal(context.data.pictureNamingItem.word, "apple");
-  assert.equal(context.data.pictureNamingItem.image.endsWith("/apple.webp"), true);
+  assert.equal(new URL(context.data.pictureNamingItem.image).pathname.endsWith("/apple.webp"), true);
+  assert.equal(new URL(context.data.pictureNamingItem.fallbackImage).pathname.endsWith("/apple.jpg"), true);
   context.data.englishCardView = "word";
   definition.toggleEnglishCardView.call(context);
   assert.equal(context.data.englishCardView, "picture");
@@ -765,6 +777,36 @@ test("collected words are exposed as five packs and every card can switch to its
   assert.match(template, /<button[\s\S]*wx:for="\{\{englishWordPackCards\}\}"[\s\S]*class="xf-flash-recognition-next-group xf-english-word-pack-result-card"/);
   assert.match(template, /catchtap="openEnglishWordPackResult"/);
   assert.match(template, /第 \{\{item\.order\}\} 组 · \{\{item\.title\}\}/);
+});
+
+test("failed English WebP photos switch to their JPEG fallback", () => {
+  const definition = loadFlashPageDefinition();
+  const writes = [];
+  const context = {
+    ...definition,
+    data: {
+      ...definition.data,
+      pictureNamingItem: {
+        image: "https://xianfeng.xinzhi.info/apple.webp",
+        fallbackImage: "https://xianfeng.xinzhi.info/apple.jpg"
+      },
+      pictureNamingFocusItem: {
+        image: "https://xianfeng.xinzhi.info/book.webp",
+        fallbackImage: "https://xianfeng.xinzhi.info/book.jpg"
+      }
+    },
+    setData(payload) {
+      writes.push(payload);
+    }
+  };
+
+  definition.handleEnglishPictureError.call(context, { currentTarget: { dataset: { target: "card" } } });
+  definition.handleEnglishPictureError.call(context, { currentTarget: { dataset: { target: "focus" } } });
+
+  assert.deepEqual(writes, [
+    { "pictureNamingItem.image": "https://xianfeng.xinzhi.info/apple.jpg" },
+    { "pictureNamingFocusItem.image": "https://xianfeng.xinzhi.info/book.jpg" }
+  ]);
 });
 
 test("English result pack cards start or review the selected pack like recognition groups", () => {

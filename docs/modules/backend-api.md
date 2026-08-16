@@ -33,6 +33,12 @@
   150 RP-calibrated British-English word MP3s. Runtime playback never calls TTS;
   generation is an explicit offline process and each SHA-256 manifest records the
   exact asset set shipped with the backend.
+- English picture-naming photos are reviewed static assets under
+  `backend/src/assets/flash-test/english-picture-naming` and are served with
+  immutable caching from
+  `/api/flash-tests/english-picture-naming/assets/:filename`. Each of the 150
+  items has a JPEG fallback; the endpoint accepts only fixed `.jpg` and `.webp`
+  filenames and does not expose arbitrary backend files.
 - Program imports update only fields present in the supplied export and preserve
   stored generated content omitted by lightweight public-list payloads, including
   `transcript`, `contentPack`, and `deepDive`. Public program lists project one

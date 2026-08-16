@@ -149,6 +149,21 @@ describe("flash test result routes", () => {
     assert.equal(audio[0] === 0xff || audio.subarray(0, 3).toString("ascii") === "ID3", true);
   });
 
+  it("serves immutable English word photos with a JPEG fallback", async () => {
+    const webpResponse = await fetch(`${baseUrl}/english-picture-naming/assets/apple.webp`);
+    const jpegResponse = await fetch(`${baseUrl}/english-picture-naming/assets/apple.jpg`);
+    const webp = Buffer.from(await webpResponse.arrayBuffer());
+    const jpeg = Buffer.from(await jpegResponse.arrayBuffer());
+
+    assert.equal(webpResponse.status, 200);
+    assert.equal(webpResponse.headers.get("content-type"), "image/webp");
+    assert.match(webpResponse.headers.get("cache-control") || "", /immutable/);
+    assert.equal(webp.subarray(0, 4).toString("ascii"), "RIFF");
+    assert.equal(jpegResponse.status, 200);
+    assert.equal(jpegResponse.headers.get("content-type"), "image/jpeg");
+    assert.equal(jpeg.subarray(0, 2).toString("hex"), "ffd8");
+  });
+
   it("saves and returns only the current user's self-test history", async () => {
     const user = await User.create({ username: "flash-self", password: "hash" });
     const other = await User.create({ username: "flash-other", password: "hash" });

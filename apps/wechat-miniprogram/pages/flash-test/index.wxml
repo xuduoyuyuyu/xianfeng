@@ -182,7 +182,7 @@
 
         <view class="xf-picture-naming-card {{englishCardView === 'picture' ? 'is-photo-view' : ''}}">
           <view wx:if="{{englishCardView === 'picture' && pictureNamingItem.image}}" class="xf-picture-naming-photo-shell" hover-class="is-flipping" bindtap="toggleEnglishCardView" role="button" aria-label="单词 {{pictureNamingItem.word}} 的对应真实照片，点击展示区域切换为字母形态">
-            <image class="xf-picture-naming-photo" src="{{pictureNamingItem.image}}" mode="aspectFill" aria-label="单词 {{pictureNamingItem.word}} 的对应真实照片" />
+            <image class="xf-picture-naming-photo" src="{{pictureNamingItem.image}}" mode="aspectFill" webp="{{true}}" binderror="handleEnglishPictureError" data-target="card" aria-label="单词 {{pictureNamingItem.word}} 的对应真实照片" />
             <view class="xf-english-card-flip-hint"><text>切换看词</text><text aria-hidden="true">↻</text></view>
             <view
               class="xf-flash-pronunciation-button {{pronunciationPlayingKey === 'english-word:' + pictureNamingItem.word ? 'is-playing' : ''}}"
@@ -443,6 +443,9 @@
           class="xf-flash-result-word-photo"
           src="{{pictureNamingFocusItem.image}}"
           mode="aspectFill"
+          webp="{{true}}"
+          binderror="handleEnglishPictureError"
+          data-target="focus"
           aria-label="{{pictureNamingFocusItem.word}} 对应的真实照片"
         />
         <view

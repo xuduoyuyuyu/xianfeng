@@ -22,6 +22,11 @@ import {
 } from "./characterRecognitionBank";
 
 const router = Router();
+const ENGLISH_PICTURE_ASSET_DIRECTORY = path.resolve(
+  __dirname,
+  "../assets/flash-test/english-picture-naming"
+);
+const ENGLISH_PICTURE_ASSET_FILENAME = /^[a-z0-9-]+\.(?:jpg|webp)$/;
 
 export const EIGHT_TALENTS_VERSION = "2026-08-11";
 export const BASE_CHARACTER_RECOGNITION_VERSION = "2026-08-13-r1";
@@ -470,6 +475,22 @@ router.post("/english-picture-naming/recognize", authenticate, (req, res, next) 
   } finally {
     if (file?.path) fs.promises.unlink(file.path).catch(() => {});
   }
+});
+
+router.get("/english-picture-naming/assets/:filename", (req: Request, res: Response) => {
+  const filename = String(req.params.filename || "").toLowerCase();
+  if (!ENGLISH_PICTURE_ASSET_FILENAME.test(filename)) {
+    res.status(404).end();
+    return;
+  }
+  const assetPath = path.join(ENGLISH_PICTURE_ASSET_DIRECTORY, filename);
+  if (!fs.existsSync(assetPath)) {
+    res.status(404).end();
+    return;
+  }
+  res.set("Cache-Control", "public, max-age=31536000, immutable");
+  res.set("X-Content-Type-Options", "nosniff");
+  res.sendFile(assetPath);
 });
 
 router.post("/pronunciation", async (req: Request, res: Response) => {

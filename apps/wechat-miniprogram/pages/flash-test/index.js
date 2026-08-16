@@ -707,6 +707,20 @@ Page({
     });
   },
 
+  handleEnglishPictureError(event) {
+    const target = String(event.currentTarget.dataset.target || "card");
+    const dataKey = target === "focus" ? "pictureNamingFocusItem" : "pictureNamingItem";
+    const item = this.data[dataKey];
+    const fallbackImage = String(item && item.fallbackImage || "");
+    if (fallbackImage && item.image !== fallbackImage) {
+      this.setData({ [`${dataKey}.image`]: fallbackImage });
+      return;
+    }
+    if (typeof wx !== "undefined" && typeof wx.showToast === "function") {
+      wx.showToast({ title: "图片加载失败，请检查网络", icon: "none" });
+    }
+  },
+
   markWordReadingKnown() {
     const item = this.data.pictureNamingItem;
     if (!item) return;
