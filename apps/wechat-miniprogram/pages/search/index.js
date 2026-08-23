@@ -8,6 +8,8 @@ const { SETTINGS_SECTIONS, createNativeSettingsMethods } = require("../../utils/
 const { DEFAULT_SEARCH_PROMPTS, getInitialSearchPrompt, startSearchPromptRotation, stopSearchPromptRotation } = require("../../utils/searchPrompts");
 
 const SEARCH_HISTORY_KEY = "xf_native_search_history";
+const SEARCH_ANALYTICS_SESSION_KEY = "xf_search_analytics_session_v1";
+const SEARCH_ANALYTICS_IDLE_MS = 800;
 const READING_PENDING_FILTER_KEY = "xf_reading_pending_filter_v1";
 const SEARCH_PAGE_SIZE = 80;
 const LOGO_HEIGHT_RPX = 56;
@@ -440,6 +442,32 @@ function clearHistory() {
   return [];
 }
 
+function createSearchAnalyticsId(prefix) {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
+}
+
+function getSearchAnalyticsSessionId() {
+  try {
+    const existing = String(wx.getStorageSync(SEARCH_ANALYTICS_SESSION_KEY) || "").trim();
+    if (existing) return existing;
+    const next = createSearchAnalyticsId("session");
+    wx.setStorageSync(SEARCH_ANALYTICS_SESSION_KEY, next);
+    return next;
+  } catch (_error) {
+    return createSearchAnalyticsId("session");
+  }
+}
+
+function searchResultCounts(results) {
+  const counts = { programs: 0, books: 0, materials: 0, topics: 0, experts: 0 };
+  (Array.isArray(results) ? results : []).forEach((item) => {
+    if (Object.prototype.hasOwnProperty.call(counts, item && item.type)) {
+      counts[item.type] += 1;
+    }
+  });
+  return counts;
+}
+
 function saveReadingKeyword(keyword) {
   const query = String(keyword || "").trim();
   if (!query) return;
@@ -504,6 +532,7 @@ Page({
     const requestedTab = normalizeSearchOption(options && options.tab);
     const activeTab = BASE_TABS.some((tab) => tab.key === requestedTab) ? requestedTab : "all";
     this.pendingSharedMaterialId = normalizeSearchOption(options && options.materialId);
+    this.resetSearchAnalyticsIntent(query);
     const readingSource = normalizeSearchOption(options && options.readingSource) === "external"
       ? "external"
       : "native";
@@ -535,6 +564,7 @@ Page({
 
   onUnload() {
     clearTimeout(this._searchInputTimer);
+    clearTimeout(this._searchAnalyticsTimer);
     stopSearchPromptRotation(this);
   },
 
@@ -581,6 +611,7 @@ Page({
             .concat(normalizeGuests({ guests: data.experts || [] }));
           this.setData({ allResults, loading: false, searchProgress: 100, error: "" });
           this.applySearch(query);
+          this.scheduleSearchAnalytics(query, allResults.filter((item) => resultMatches(item, query)));
         })
         .catch((error) => {
           if (this._searchLoadGeneration !== loadGeneration) return;
@@ -600,6 +631,7 @@ Page({
           error: allResults.length ? "" : "搜索内容加载失败，请稍后重试"
         });
         if (this.data.submittedQuery) this.applySearch(this.data.submittedQuery);
+        this.scheduleSearchAnalytics(query, allResults.filter((item) => resultMatches(item, query)));
       }).catch((error) => {
         if (this._searchLoadGeneration !== loadGeneration) return;
         this.setData({
@@ -625,6 +657,7 @@ Page({
       const allResults = [].concat(resultGroups[0], resultGroups[1], resultGroups[2], resultGroups[3], resultGroups[4]);
       this.setData({ allResults, searchProgress: Math.round((completedGroups / resultGroups.length) * 100), error: "" });
       if (this.data.submittedQuery) this.applySearch(this.data.submittedQuery);
+      this.scheduleSearchAnalytics(query, allResults.filter((item) => resultMatches(item, query)));
       return results;
     };
     const requests = [
@@ -678,11 +711,14 @@ Page({
       visibleResults: [],
       tabs: buildTabs([])
     });
+    this.resetSearchAnalyticsIntent("");
   },
 
   onSearchInput(event) {
     const value = String(event && event.detail && event.detail.value || "");
     const query = value.trim();
+    const previousQuery = String(this.data.searchInput || "").trim();
+    if (query !== previousQuery) this.resetSearchAnalyticsIntent(query);
     this.setData({ searchInput: value, activeTab: "all" });
     if (!query) {
       clearTimeout(this._searchInputTimer);
@@ -710,6 +746,7 @@ Page({
       this.resetSearchResults();
       return;
     }
+    this.resetSearchAnalyticsIntent(query);
     const recentKeywords = saveHistory(query);
     this.setData({
       activeTab: "all",
@@ -730,6 +767,7 @@ Page({
   pickKeyword(event) {
     const keyword = String(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.keyword || "").trim();
     if (!keyword) return;
+    this.resetSearchAnalyticsIntent(keyword);
     const recentKeywords = saveHistory(keyword);
     this.setData({
       searchInput: keyword,
@@ -769,10 +807,80 @@ Page({
     });
   },
 
+  resetSearchAnalyticsIntent(query) {
+    clearTimeout(this._searchAnalyticsTimer);
+    this._searchAnalyticsQuery = String(query || "").trim();
+    this._searchAnalyticsClientEventId = this._searchAnalyticsQuery ? createSearchAnalyticsId("search") : "";
+    this._searchAnalyticsServerEventId = "";
+    this._searchAnalyticsPromise = null;
+  },
+
+  scheduleSearchAnalytics(query, results) {
+    const normalizedQuery = String(query || "").trim();
+    if (!normalizedQuery || !this._searchAnalyticsClientEventId || this._searchAnalyticsQuery !== normalizedQuery) return;
+    clearTimeout(this._searchAnalyticsTimer);
+    const clientEventId = this._searchAnalyticsClientEventId;
+    this._searchAnalyticsTimer = setTimeout(() => {
+      const currentQuery = String(this.data.searchInput || this.data.submittedQuery || "").trim();
+      if (currentQuery !== normalizedQuery || this._searchAnalyticsClientEventId !== clientEventId) return;
+      this.recordSearchAnalytics(normalizedQuery, results);
+    }, SEARCH_ANALYTICS_IDLE_MS);
+    if (this._searchAnalyticsTimer && typeof this._searchAnalyticsTimer.unref === "function") {
+      this._searchAnalyticsTimer.unref();
+    }
+  },
+
+  recordSearchAnalytics(query, results) {
+    const normalizedQuery = String(query || "").trim();
+    const clientEventId = this._searchAnalyticsClientEventId;
+    if (!normalizedQuery || !clientEventId || this._searchAnalyticsQuery !== normalizedQuery) return Promise.resolve("");
+    if (this._searchAnalyticsServerEventId) return Promise.resolve(this._searchAnalyticsServerEventId);
+    if (this._searchAnalyticsPromise) return this._searchAnalyticsPromise;
+    const sessionId = getSearchAnalyticsSessionId();
+    this._searchAnalyticsPromise = request({
+      url: "/api/search/events",
+      method: "POST",
+      auth: false,
+      data: {
+        clientEventId,
+        sessionId,
+        query: normalizedQuery,
+        resultCounts: searchResultCounts(results)
+      }
+    }).then((response) => {
+      const eventId = String(response && response.eventId || "").trim();
+      if (this._searchAnalyticsClientEventId === clientEventId) {
+        this._searchAnalyticsServerEventId = eventId;
+      }
+      return eventId;
+    }).catch(() => "");
+    return this._searchAnalyticsPromise;
+  },
+
+  trackSearchResultClick(result) {
+    const query = String(this.data.submittedQuery || this.data.searchInput || "").trim();
+    if (!query || !result || !result.type || !result.id) return;
+    const sessionId = getSearchAnalyticsSessionId();
+    this.recordSearchAnalytics(query, this.data.filteredResults).then((eventId) => {
+      if (!eventId) return;
+      return request({
+        url: `/api/search/events/${encodeURIComponent(eventId)}/click`,
+        method: "POST",
+        auth: false,
+        data: {
+          sessionId,
+          resultType: result.type,
+          resultId: result.id
+        }
+      }).catch(() => undefined);
+    });
+  },
+
   openResult(event) {
     const index = Number(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.index);
     const result = this.data.visibleResults[index];
     if (!result) return;
+    this.trackSearchResultClick(result);
     if (openMiniProgramShortLink(result.miniProgramShortLink)) return;
     if (result.page) {
       if (result.type === "books" && result.page === "/pages/reading/index") {

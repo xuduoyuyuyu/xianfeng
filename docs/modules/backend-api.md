@@ -87,6 +87,14 @@
   truncates long body text, and returns at most 80 matches per content type. Mini
   program search must use this endpoint instead of downloading complete public
   lists before filtering on-device.
+- Mini-program search analytics are stored as anonymous `SearchAnalyticsEvent`
+  records through `/api/search/events`. One client event id is idempotent, the
+  anonymous session id is SHA-256 hashed before persistence, phone/email-like
+  queries are replaced before storage, and records expire after 180 days. Only
+  the first result click is retained. `/api/admin/search-analytics` is
+  administrator-only and returns aggregate 7/30/90-day demand, no-result,
+  click-through, trend, and content-type summaries; it never exposes session
+  hashes or one-off query terms.
 
 - Mobile invite gating is enforced in the backend before new-user creation.
   Admin `SystemSetting` config now controls the active code, activation limit,

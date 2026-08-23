@@ -46,6 +46,11 @@
   refresh event, and stops the chat send if image recognition fails.
 - Admin worthbuy management defaults to non-deleted records and provides an
   explicit deleted-record view for restoring logically deleted submissions.
+- Admin `/admin/search-analytics` is the aggregate search-demand surface under
+  the User navigation group. It compares 7/30/90-day stable searches, anonymous
+  sessions, repeated popular/rising/no-result terms, click-through, and result
+  type distribution. It starts from formal mini-program events after rollout;
+  historical Nginx estimates are not mixed into the dashboard.
 - The `/library/:externalId` detail page exposes description translation as a
   user-triggered action. It renders the saved translation returned by the
   backend cache endpoint and does not translate automatically on page load.

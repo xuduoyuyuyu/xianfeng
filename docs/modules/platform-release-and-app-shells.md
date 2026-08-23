@@ -126,6 +126,11 @@
   Reading, Materials, Topics, and Guest lists for on-device filtering. Its thin
   progress indicator shares the active-tab baseline; skeletons are reserved for
   the interval before the first matching result arrives.
+  Search analytics use a separate idle timer after the latest successful result
+  response so intermediate input prefixes are not recorded. Explicit searches
+  reuse the same idempotent event contract, and opening a result attaches only
+  the first clicked content type and id. Analytics failures remain silent and
+  never block search or navigation.
   Haozhuan (`好赚`) profile overview places task preferences before personal data
   and exposes a bottom action that opens the existing media-account editor with
   one new unselected platform account draft. Its personal editor also persists

@@ -14,6 +14,7 @@ import AdminBooksPage from "./pages/admin/AdminBooksPage";
 import AdminMaterialsPage from "./pages/admin/AdminMaterialsPage";
 import AdminUsersPage from "./pages/admin/AdminUsersPage";
 import AdminUserPortraitPage from "./pages/admin/AdminUserPortraitPage";
+import AdminSearchAnalyticsPage from "./pages/admin/AdminSearchAnalyticsPage";
 import AdminSystemPage from "./pages/admin/AdminSystemPage";
 import AdminMultiAgentsPage from "./pages/admin/AdminMultiAgentsPage";
 import AdminTopicsPage from "./pages/admin/AdminTopicsPage";
@@ -353,6 +354,7 @@ const App: React.FC = () => {
             <Route path="materials" element={<AdminMaterialsPage />} />
             <Route path="users" element={<AdminUsersPage />} />
             <Route path="user-portrait" element={<AdminUserPortraitPage />} />
+            <Route path="search-analytics" element={<AdminSearchAnalyticsPage />} />
             <Route path="system" element={<AdminSystemPage />} />
             <Route path="agents" element={<AdminAgentsPage />} />
             <Route path="agents/:botId/chat" element={<AdminAgentsChatPage />} />
