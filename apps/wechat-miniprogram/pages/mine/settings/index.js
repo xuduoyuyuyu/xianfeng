@@ -4,6 +4,7 @@ const { getToken, getUser, clearSession } = require("../../../utils/session");
 const { maskMobile, parseStoredValue } = require("../../../utils/profileState");
 const { applyFontSizeSetting, buildFontOptions, clearAppCache, deleteAccountFromSettings, readFontSizeSetting } = require("../../../utils/nativeSettings");
 const { ensureBackStackForBackButtonPage } = require("../../../utils/nativePageNav");
+const { decisionForCurrentUser, requestSearchIdentityConsent, revokeSearchIdentityConsent } = require("../../../utils/searchAnalyticsIdentity");
 
 function loadUser() {
   return parseStoredValue(getUser(), {}) || {};
@@ -19,6 +20,7 @@ Page({
     fontSize: "standard",
     fontSizeClass: "xf-font-standard",
     fontOptions: buildFontOptions("standard"),
+    searchIdentityConsent: "",
     message: ""
   },
 
@@ -42,6 +44,7 @@ Page({
       hasMobile: Boolean(token && user.mobile),
       maskedMobile: token ? maskMobile(user.mobile) : "未绑定",
       ...fontState,
+      searchIdentityConsent: token ? decisionForCurrentUser() : "",
       message: "",
       bindingPhone: false
     });
@@ -56,6 +59,35 @@ Page({
   clearCache() {
     clearAppCache();
     this.setData({ message: "缓存已清理" });
+  },
+
+  manageSearchIdentityConsent() {
+    if (!getToken()) {
+      this.goLogin();
+      return;
+    }
+    if (this.data.searchIdentityConsent === "accepted") {
+      wx.showModal({
+        title: "撤回搜索记录关联",
+        content: "撤回后，本设备已关联的搜索记录会解除账号关系，后续搜索保持匿名。",
+        confirmText: "确认撤回",
+        confirmColor: "#dc2626",
+        success: (result) => {
+          if (!result || !result.confirm) return;
+          revokeSearchIdentityConsent()
+            .then(() => {
+              this.refresh();
+              this.setData({ message: "已撤回搜索记录关联" });
+            })
+            .catch((error) => this.setData({ message: error.message || "撤回失败，请重试" }));
+        }
+      });
+      return;
+    }
+    requestSearchIdentityConsent({ prompt: true, force: true }).then((accepted) => {
+      this.refresh();
+      this.setData({ message: accepted ? "已允许关联搜索记录" : "搜索记录仍保持匿名" });
+    });
   },
 
   loginWithPhone(event) {

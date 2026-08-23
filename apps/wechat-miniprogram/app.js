@@ -3,6 +3,7 @@ const { request } = require("./utils/request");
 const { preloadReadingLandingData } = require("./utils/readingPreload");
 const { resetProfileOnboardingSession, restoreProfileOnboardingRemote } = require("./utils/profileOnboarding");
 const { API_ORIGIN } = require("./utils/config");
+const { requestSearchIdentityConsent, rotateSearchAnalyticsSessionId } = require("./utils/searchAnalyticsIdentity");
 
 function isLocalDevtoolsApi() {
   return /^http:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?$/.test(String(API_ORIGIN || ""));
@@ -24,6 +25,7 @@ App({
         .catch(() => {});
     } else if (this.globalData.token) {
       restoreProfileOnboardingRemote({ migrateLegacyLocal: true });
+      requestSearchIdentityConsent({ prompt: false });
     }
   },
 
@@ -35,13 +37,16 @@ App({
     setSession(payload);
     this.globalData.token = getToken();
     this.globalData.user = getUser();
-    return restoreProfileOnboardingRemote();
+    const restore = restoreProfileOnboardingRemote();
+    Promise.resolve(restore).then(() => requestSearchIdentityConsent({ prompt: true }));
+    return restore;
   },
 
   clearLoginSession() {
     clearSession();
     this.globalData.token = "";
     this.globalData.user = null;
+    rotateSearchAnalyticsSessionId();
   },
 
   refreshMe() {

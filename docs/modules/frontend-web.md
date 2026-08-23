@@ -46,11 +46,17 @@
   refresh event, and stops the chat send if image recognition fails.
 - Admin worthbuy management defaults to non-deleted records and provides an
   explicit deleted-record view for restoring logically deleted submissions.
-- Admin `/admin/search-analytics` is the aggregate search-demand surface under
-  the User navigation group. It compares 7/30/90-day stable searches, anonymous
-  sessions, repeated popular/rising/no-result terms, click-through, and result
-  type distribution. It starts from formal mini-program events after rollout;
-  historical Nginx estimates are not mixed into the dashboard.
+- Admin `/admin/search-analytics` is the operator search-demand surface under
+  the User navigation group. Its default `搜索流水` view lists every formal
+  mini-program search, including one-off terms, time, identified account or
+  anonymous installation alias, result count, and first click. `趋势总览`
+  provides 7/30/90-day word cloud, daily trend, popular/rising/no-result terms,
+  click-through, identity rate, and result-type distribution. `用户行为` joins
+  current whitelisted account and child-profile fields to factual behavior
+  indicators and a complete per-user query timeline. The UI states that search
+  is anonymous by default, account linkage requires explicit mini-program
+  consent and is revocable, and raw events retain for 180 days. Historical
+  Nginx estimates are not mixed into these views.
 - The `/library/:externalId` detail page exposes description translation as a
   user-triggered action. It renders the saved translation returned by the
   backend cache endpoint and does not translate automatically on page load.

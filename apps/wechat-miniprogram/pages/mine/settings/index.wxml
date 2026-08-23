@@ -32,6 +32,13 @@
         <text>应用管理</text>
         <text class="xf-setting-value">清理缓存 ›</text>
       </button>
+      <button wx:if="{{isLoggedIn}}" class="xf-setting-row xf-setting-button" bindtap="manageSearchIdentityConsent">
+        <view class="xf-setting-copy">
+          <text>搜索记录关联</text>
+          <text class="xf-setting-description">用于搜索洞察与行为分析，可随时撤回</text>
+        </view>
+        <text class="xf-setting-value">{{searchIdentityConsent === 'accepted' ? '已允许 ›' : '未允许 ›'}}</text>
+      </button>
     </view>
 
     <button wx:if="{{isLoggedIn}}" class="xf-profile-secondary xf-settings-logout" bindtap="logout">退出登录</button>

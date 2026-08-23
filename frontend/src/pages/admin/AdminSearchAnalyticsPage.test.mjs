@@ -14,11 +14,15 @@ test("admin search analytics is routed from the user navigation and reads the ag
   assert.match(apiSource, /getSearchAnalytics:[\s\S]*\/admin\/search-analytics/);
 });
 
-test("admin search analytics exposes demand, quality, trend, and privacy views", () => {
-  for (const label of ["搜索次数", "搜索会话", "独立关键词", "无结果率", "结果点击率", "热门搜索词", "上升关键词", "无结果关键词", "内容命中分布"]) {
+test("admin search analytics exposes aggregate, word-cloud, user behavior, and consent views", () => {
+  for (const label of ["搜索流水", "全量搜索流水", "搜索次数", "搜索会话", "独立关键词", "已识别用户", "无结果率", "结果点击率", "关键词词云", "热门搜索词", "上升关键词", "无结果关键词", "内容命中分布", "用户行为", "完整搜索时间线"]) {
     assert.match(pageSource, new RegExp(label));
   }
-  assert.match(pageSource, /不保存 IP、OpenID 或用户账号/);
+  assert.match(pageSource, /用户明确同意后/);
+  assert.match(pageSource, /可在小程序设置中撤回/);
   assert.match(pageSource, /历史访问日志不会混入正式口径/);
   assert.match(pageSource, /books: "书籍"/);
+  assert.match(apiSource, /getSearchAnalyticsUsers:[\s\S]*\/admin\/search-analytics\/users/);
+  assert.match(apiSource, /getSearchAnalyticsUser:[\s\S]*search-analytics\/users/);
+  assert.match(apiSource, /getSearchAnalyticsEvents:[\s\S]*\/admin\/search-analytics\/events/);
 });

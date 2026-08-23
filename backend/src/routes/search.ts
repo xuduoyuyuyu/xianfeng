@@ -6,6 +6,8 @@ import LearningMaterial from "../models/LearningMaterial";
 import GuestModel from "../models/Guest";
 import Topic from "../models/Topic";
 import SearchAnalyticsEventModel, { SEARCH_RESULT_TYPES, SearchResultCounts } from "../models/SearchAnalyticsEvent";
+import SearchIdentityConsentModel, { SEARCH_IDENTITY_NOTICE_VERSION } from "../models/SearchIdentityConsent";
+import { authenticate, AuthenticatedRequest, optionalAuthenticate } from "../middlewares/auth";
 
 const router = express.Router();
 const MAX_RESULTS_PER_TYPE = 80;
@@ -60,6 +62,15 @@ function parseResultCounts(value: unknown): SearchResultCounts {
 
 function hashSessionId(sessionId: string): string {
   return createHash("sha256").update(sessionId).digest("hex");
+}
+
+async function hasRecordedIdentityConsent(userId: string, sessionHash: string): Promise<boolean> {
+  return Boolean(await SearchIdentityConsentModel.exists({
+    userId,
+    sessionHash,
+    noticeVersion: SEARCH_IDENTITY_NOTICE_VERSION,
+    status: "accepted",
+  }));
 }
 
 router.get("/", async (req, res) => {
@@ -127,7 +138,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.post("/events", async (req, res) => {
+router.post("/events", optionalAuthenticate, async (req: AuthenticatedRequest, res) => {
   const clientEventId = asIdentifier(req.body?.clientEventId);
   const sessionId = asIdentifier(req.body?.sessionId);
   const query = storedAnalyticsQuery(req.body?.query);
@@ -139,12 +150,13 @@ router.post("/events", async (req, res) => {
   try {
     const resultCounts = parseResultCounts(req.body?.resultCounts);
     const totalResults = SEARCH_RESULT_TYPES.reduce((total, type) => total + resultCounts[type], 0);
+    const sessionHash = hashSessionId(sessionId);
     const event = await SearchAnalyticsEventModel.findOneAndUpdate(
       { clientEventId },
       {
         $setOnInsert: {
           clientEventId,
-          sessionHash: hashSessionId(sessionId),
+          sessionHash,
           query,
           normalizedQuery: query.toLocaleLowerCase("zh-CN"),
           source: "mini-program",
@@ -155,13 +167,79 @@ router.post("/events", async (req, res) => {
       },
       { upsert: true, returnDocument: "after", setDefaultsOnInsert: true, runValidators: true }
     ).select("_id").lean();
+    if (event?._id && req.user?.id && await hasRecordedIdentityConsent(req.user.id, sessionHash)) {
+      await SearchAnalyticsEventModel.updateOne(
+        { _id: event._id, sessionHash, userId: null },
+        { $set: { userId: req.user.id, identifiedAt: new Date(), identitySource: "authenticated-event" } }
+      );
+    }
     res.status(200).json({ eventId: String(event?._id || "") });
   } catch (_error) {
     res.status(500).json({ message: "记录搜索统计失败" });
   }
 });
 
-router.post("/events/:id/click", async (req, res) => {
+router.post("/identity-consent", authenticate, async (req: AuthenticatedRequest, res) => {
+  const sessionId = asIdentifier(req.body?.sessionId);
+  const accepted = req.body?.accepted === true;
+  const noticeVersion = asText(req.body?.noticeVersion);
+  const userId = asText(req.user?.id);
+  if (!sessionId || !userId || !accepted || noticeVersion !== SEARCH_IDENTITY_NOTICE_VERSION) {
+    res.status(400).json({ message: "需要明确同意当前告知后才能关联搜索记录" });
+    return;
+  }
+
+  try {
+    const now = new Date();
+    const sessionHash = hashSessionId(sessionId);
+    await SearchIdentityConsentModel.findOneAndUpdate(
+      { userId, sessionHash, noticeVersion: SEARCH_IDENTITY_NOTICE_VERSION },
+      {
+        $set: {
+          status: "accepted",
+          source: "mini-program-account-link-dialog",
+          consentedAt: now,
+          revokedAt: null,
+        },
+      },
+      { upsert: true, setDefaultsOnInsert: true, runValidators: true }
+    );
+    const result = await SearchAnalyticsEventModel.updateMany(
+      { sessionHash, userId: null },
+      { $set: { userId, identifiedAt: now, identitySource: "consented-backfill" } }
+    );
+    res.status(200).json({ ok: true, linkedCount: Number(result.modifiedCount || 0) });
+  } catch (_error) {
+    res.status(500).json({ message: "关联搜索记录失败" });
+  }
+});
+
+router.delete("/identity-consent", authenticate, async (req: AuthenticatedRequest, res) => {
+  const sessionId = asIdentifier(req.body?.sessionId);
+  const userId = asText(req.user?.id);
+  if (!sessionId || !userId) {
+    res.status(400).json({ message: "撤回搜索记录关联参数不完整" });
+    return;
+  }
+
+  try {
+    const sessionHash = hashSessionId(sessionId);
+    const revokedAt = new Date();
+    await SearchIdentityConsentModel.updateMany(
+      { userId, sessionHash, status: "accepted" },
+      { $set: { status: "revoked", revokedAt } }
+    );
+    const result = await SearchAnalyticsEventModel.updateMany(
+      { userId, sessionHash },
+      { $set: { userId: null, identifiedAt: null, identitySource: "" } }
+    );
+    res.status(200).json({ ok: true, unlinkedCount: Number(result.modifiedCount || 0) });
+  } catch (_error) {
+    res.status(500).json({ message: "撤回搜索记录关联失败" });
+  }
+});
+
+router.post("/events/:id/click", optionalAuthenticate, async (req: AuthenticatedRequest, res) => {
   const sessionId = asIdentifier(req.body?.sessionId);
   const resultType = asText(req.body?.resultType);
   const resultId = asText(req.body?.resultId).slice(0, 180);
@@ -171,21 +249,30 @@ router.post("/events/:id/click", async (req, res) => {
   }
 
   try {
-    if (!/^[a-f\d]{24}$/i.test(req.params.id)) {
+    const eventId = asText(req.params.id);
+    if (!/^[a-f\d]{24}$/i.test(eventId)) {
       res.status(400).json({ message: "搜索事件编号无效" });
       return;
     }
+    const sessionHash = hashSessionId(sessionId);
+    const canIdentify = Boolean(req.user?.id && await hasRecordedIdentityConsent(req.user.id, sessionHash));
     await SearchAnalyticsEventModel.updateOne(
       {
-        _id: req.params.id,
-        sessionHash: hashSessionId(sessionId),
+        _id: eventId,
+        sessionHash,
         clickedAt: null,
+        ...(canIdentify ? { userId: { $in: [null, req.user?.id] } } : {}),
       },
       {
         $set: {
           clickedType: resultType,
           clickedResultId: resultId,
           clickedAt: new Date(),
+          ...(canIdentify ? {
+            userId: req.user?.id,
+            identifiedAt: new Date(),
+            identitySource: "authenticated-event",
+          } : {}),
         },
       }
     );

@@ -174,7 +174,13 @@
   response so intermediate input prefixes are not recorded. Explicit searches
   reuse the same idempotent event contract, and opening a result attaches only
   the first clicked content type and id. Analytics failures remain silent and
-  never block search or navigation.
+  never block search or navigation. Search is anonymous by default. After
+  phone login the shell presents a versioned, optional account-link notice;
+  accepting creates a server-side consent record and links this installation's
+  unowned search history plus future events, while declining does not affect
+  search. Native settings show the current choice and can revoke it; revocation
+  unlinks that installation's events, and logout rotates the local anonymous
+  installation id to reduce cross-account attribution on shared devices.
   Haozhuan (`好赚`) profile overview places task preferences before personal data
   and exposes a bottom action that opens the existing media-account editor with
   one new unselected platform account draft. Its personal editor also persists

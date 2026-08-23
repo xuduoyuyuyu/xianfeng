@@ -1175,6 +1175,9 @@ export interface SearchAnalyticsResponse {
     zeroResultRate: number;
     clickedSearches: number;
     clickThroughRate: number;
+    identifiedSearches: number;
+    identifiedUsers: number;
+    identifiedRate: number;
   };
   dailyTrend: Array<{ date: string; searches: number; zeroResults: number; clicks: number }>;
   topQueries: Array<{ query: string; count: number; clicks: number; zeroResults: number }>;
@@ -1182,11 +1185,111 @@ export interface SearchAnalyticsResponse {
   zeroResultQueries: Array<{ query: string; count: number }>;
   resultTypeDistribution: Array<{ type: string; count: number }>;
   clickedTypeDistribution: Array<{ type: string; count: number }>;
+  wordCloud: Array<{ query: string; count: number }>;
+  dailyKeywords: Array<{ date: string; searches: number; keywords: Array<{ query: string; count: number }> }>;
   privacy: {
     minimumQueryCount: number;
     retentionDays: number;
     identitiesStored: boolean;
+    identityRequiresRecordedConsent: boolean;
   };
+}
+
+export interface SearchAnalyticsUser {
+  id: string;
+  publicUid: string;
+  username: string;
+  mobile: string;
+  name: string;
+  grade: string;
+  gender: string;
+  parentRole: string;
+  role: string;
+  proStatus: string;
+  proPlan: string;
+  city: string;
+  region: string;
+  childGrade: string;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface SearchAnalyticsChild {
+  id: string;
+  name: string;
+  age: string;
+  grade: string;
+  city: string;
+  region: string;
+}
+
+export interface SearchAnalyticsUserListResponse {
+  days: number;
+  page: number;
+  pageSize: number;
+  total: number;
+  items: Array<{
+    user: SearchAnalyticsUser | null;
+    children: SearchAnalyticsChild[];
+    behavior: {
+      totalSearches: number;
+      activeDays: number;
+      firstSearchedAt: string;
+      lastSearchedAt: string;
+      clickThroughRate: number;
+      zeroResultRate: number;
+      topQueries: Array<{ query: string; count: number }>;
+      preferredResultTypes: Array<{ type: string; count: number }>;
+    };
+  }>;
+}
+
+export interface SearchAnalyticsEventListResponse {
+  days: number;
+  page: number;
+  pageSize: number;
+  total: number;
+  items: Array<{
+    id: string;
+    query: string;
+    searchedAt: string;
+    totalResults: number;
+    resultCounts: Record<string, number>;
+    clickedType: string;
+    clickedResultId: string;
+    clickedAt: string | null;
+    identified: boolean;
+    identitySource: string;
+    anonymousKey: string;
+    user: SearchAnalyticsUser | null;
+  }>;
+}
+
+export interface SearchAnalyticsUserDetailResponse {
+  days: number;
+  page: number;
+  pageSize: number;
+  total: number;
+  user: SearchAnalyticsUser;
+  children: SearchAnalyticsChild[];
+  behaviorProfile: {
+    totalSearches: number;
+    clickThroughRate: number;
+    zeroResultRate: number;
+    topQueries: Array<{ query: string; count: number; lastSearchedAt: string }>;
+    preferredResultTypes: Array<{ type: string; count: number }>;
+  };
+  events: Array<{
+    id: string;
+    query: string;
+    resultCounts: Record<string, number>;
+    totalResults: number;
+    clickedType: string;
+    clickedResultId: string;
+    clickedAt: string | null;
+    searchedAt: string;
+    identitySource: string;
+  }>;
 }
 
 export interface ModelRegistryItem {
@@ -1635,6 +1738,12 @@ export const adminApi = {
   getSystemInfo: () => api.get<SystemInfo>('/admin/system-info'),
   getSearchAnalytics: (days: 7 | 30 | 90) =>
     api.get<SearchAnalyticsResponse>('/admin/search-analytics', { params: { days } }),
+  getSearchAnalyticsEvents: (params: { days: 7 | 30 | 90; page?: number; pageSize?: number; query?: string; identity?: 'all' | 'identified' | 'anonymous' }) =>
+    api.get<SearchAnalyticsEventListResponse>('/admin/search-analytics/events', { params }),
+  getSearchAnalyticsUsers: (params: { days: 7 | 30 | 90; page?: number; pageSize?: number; search?: string }) =>
+    api.get<SearchAnalyticsUserListResponse>('/admin/search-analytics/users', { params }),
+  getSearchAnalyticsUser: (userId: string, params: { days: 7 | 30 | 90; page?: number; pageSize?: number }) =>
+    api.get<SearchAnalyticsUserDetailResponse>(`/admin/search-analytics/users/${encodeURIComponent(userId)}`, { params }),
   getModelRegistry: () => api.get<{ items: ModelRegistryItem[] }>("/admin/mgmt/model-registry"),
   createModelRegistryItem: (data: Partial<ModelRegistryItem> & { api_key?: string }) =>
     api.post<{ ok: boolean; item: ModelRegistryItem }>("/admin/mgmt/model-registry", data),

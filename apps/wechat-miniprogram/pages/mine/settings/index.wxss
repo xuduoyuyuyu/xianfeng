@@ -21,3 +21,16 @@
   padding-top: 120rpx;
   padding-bottom: 86rpx;
 }
+
+.xf-setting-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6rpx;
+}
+
+.xf-setting-description {
+  color: #8b8ba3;
+  font-size: 22rpx;
+  font-weight: 400;
+}

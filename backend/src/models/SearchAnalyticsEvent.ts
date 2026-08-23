@@ -14,6 +14,9 @@ export interface SearchResultCounts {
 export interface SearchAnalyticsEvent extends mongoose.Document {
   clientEventId: string;
   sessionHash: string;
+  userId?: mongoose.Types.ObjectId | null;
+  identifiedAt?: Date | null;
+  identitySource?: "" | "authenticated-event" | "consented-backfill";
   query: string;
   normalizedQuery: string;
   source: "mini-program";
@@ -42,6 +45,13 @@ const searchAnalyticsEventSchema = new mongoose.Schema(
   {
     clientEventId: { type: String, required: true, trim: true, maxlength: 120, unique: true },
     sessionHash: { type: String, required: true, trim: true, maxlength: 64, index: true },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, index: true },
+    identifiedAt: { type: Date, default: null },
+    identitySource: {
+      type: String,
+      enum: ["", "authenticated-event", "consented-backfill"],
+      default: "",
+    },
     query: { type: String, required: true, trim: true, maxlength: 120 },
     normalizedQuery: { type: String, required: true, trim: true, maxlength: 120, index: true },
     source: { type: String, enum: ["mini-program"], default: "mini-program", index: true },
@@ -56,6 +66,7 @@ const searchAnalyticsEventSchema = new mongoose.Schema(
 );
 
 searchAnalyticsEventSchema.index({ normalizedQuery: 1, searchedAt: -1 });
+searchAnalyticsEventSchema.index({ userId: 1, searchedAt: -1 });
 searchAnalyticsEventSchema.index({ searchedAt: 1 }, { expireAfterSeconds: 180 * 24 * 60 * 60 });
 
 const SearchAnalyticsEventModel = mongoose.model<SearchAnalyticsEvent>(

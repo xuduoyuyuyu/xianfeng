@@ -98,14 +98,26 @@
   truncates long body text, and returns at most 80 matches per content type. Mini
   program search must use this endpoint instead of downloading complete public
   lists before filtering on-device.
-- Mini-program search analytics are stored as anonymous `SearchAnalyticsEvent`
-  records through `/api/search/events`. One client event id is idempotent, the
-  anonymous session id is SHA-256 hashed before persistence, phone/email-like
-  queries are replaced before storage, and records expire after 180 days. Only
-  the first result click is retained. `/api/admin/search-analytics` is
-  administrator-only and returns aggregate 7/30/90-day demand, no-result,
-  click-through, trend, and content-type summaries; it never exposes session
-  hashes or one-off query terms.
+- Mini-program search analytics are stored through `/api/search/events`. One
+  client event id is idempotent, the anonymous installation id is SHA-256
+  hashed before persistence, phone/email/long-number queries are replaced
+  before storage, records expire after 180 days, and only the first result
+  click is retained. Search remains usable without login or analytics identity
+  consent. Account linkage requires a current, authenticated
+  `SearchIdentityConsent` record created by the versioned mini-program notice;
+  neither a JWT nor a client-supplied consent string is sufficient. Acceptance
+  backfills only unowned events for that installation. Revocation removes the
+  link and future requests stay anonymous; logout rotates the client
+  installation id to reduce shared-device misattribution.
+  Administrator-only `/api/admin/search-analytics/events` is the primary raw
+  ledger: it exposes every stored query, including one-off terms, with result
+  and first-click outcome and either a current whitelisted user projection or
+  a truncated anonymous alias. `/api/admin/search-analytics` supplies
+  7/30/90-day daily and word-cloud aggregates, while
+  `/api/admin/search-analytics/users` and its user detail route join current
+  account and child-profile fields to auditable behavior metrics and the full
+  query timeline. Passwords, tokens, OpenID, UnionID, and full session hashes
+  are never returned.
 
 - Mobile invite gating is enforced in the backend before new-user creation.
   Admin `SystemSetting` config now controls the active code, activation limit,

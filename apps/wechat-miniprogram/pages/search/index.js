@@ -6,9 +6,9 @@ const { createPageShare, enableShareMenu } = require("../../utils/share");
 const { goProgramsHome: navigateProgramsHome, smartBackHome } = require("../../utils/nativePageNav");
 const { SETTINGS_SECTIONS, createNativeSettingsMethods } = require("../../utils/nativeSettings");
 const { DEFAULT_SEARCH_PROMPTS, getInitialSearchPrompt, startSearchPromptRotation, stopSearchPromptRotation } = require("../../utils/searchPrompts");
+const { getSearchAnalyticsSessionId } = require("../../utils/searchAnalyticsIdentity");
 
 const SEARCH_HISTORY_KEY = "xf_native_search_history";
-const SEARCH_ANALYTICS_SESSION_KEY = "xf_search_analytics_session_v1";
 const SEARCH_ANALYTICS_IDLE_MS = 800;
 const READING_PENDING_FILTER_KEY = "xf_reading_pending_filter_v1";
 const SEARCH_PAGE_SIZE = 80;
@@ -446,18 +446,6 @@ function createSearchAnalyticsId(prefix) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
 }
 
-function getSearchAnalyticsSessionId() {
-  try {
-    const existing = String(wx.getStorageSync(SEARCH_ANALYTICS_SESSION_KEY) || "").trim();
-    if (existing) return existing;
-    const next = createSearchAnalyticsId("session");
-    wx.setStorageSync(SEARCH_ANALYTICS_SESSION_KEY, next);
-    return next;
-  } catch (_error) {
-    return createSearchAnalyticsId("session");
-  }
-}
-
 function searchResultCounts(results) {
   const counts = { programs: 0, books: 0, materials: 0, topics: 0, experts: 0 };
   (Array.isArray(results) ? results : []).forEach((item) => {
@@ -840,7 +828,6 @@ Page({
     this._searchAnalyticsPromise = request({
       url: "/api/search/events",
       method: "POST",
-      auth: false,
       data: {
         clientEventId,
         sessionId,
@@ -866,7 +853,6 @@ Page({
       return request({
         url: `/api/search/events/${encodeURIComponent(eventId)}/click`,
         method: "POST",
-        auth: false,
         data: {
           sessionId,
           resultType: result.type,
