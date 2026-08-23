@@ -46,3 +46,4 @@ This index maps the repository source of truth for AI-assisted development.
 | Release, deployment, and app shells | `scripts/`, `deploy/`, `apps/`, `.github/` | ADR-001 | XF-002 |
 | Shared WeKnora retrieval context | `backend/src/services/`, `backend/src/routes/` | ADR-001 | XF-003 |
 | Structured Chinese and English assessment tools | `apps/wechat-miniprogram/pages/flash-test/`, `backend/src/routes/flashTest.ts` | ADR-001 | XF-005 |
+| Mini-program search insights | `apps/wechat-miniprogram/pages/search/`, `backend/src/routes/adminSearchAnalytics.ts`, `frontend/src/pages/admin/AdminSearchAnalyticsPage.tsx` | ADR-001 | XF-006 |

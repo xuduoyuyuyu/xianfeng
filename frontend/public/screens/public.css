@@ -2532,6 +2532,12 @@
   .min-w-0 {
     min-width: calc(var(--spacing) * 0);
   }
+  .min-w-5 {
+    min-width: calc(var(--spacing) * 5);
+  }
+  .min-w-8 {
+    min-width: calc(var(--spacing) * 8);
+  }
   .min-w-36 {
     min-width: calc(var(--spacing) * 36);
   }
@@ -3928,6 +3934,9 @@
   .border-\[\#cfc0ee\] {
     border-color: #cfc0ee;
   }
+  .border-\[\#cfc1f2\] {
+    border-color: #cfc1f2;
+  }
   .border-\[\#cfc2ee\] {
     border-color: #cfc2ee;
   }
@@ -3990,6 +3999,9 @@
   }
   .border-\[\#ddd7e8\] {
     border-color: #ddd7e8;
+  }
+  .border-\[\#ded4f4\] {
+    border-color: #ded4f4;
   }
   .border-\[\#ded7f3\] {
     border-color: #ded7f3;
@@ -4420,6 +4432,9 @@
   .bg-\[\#7C3AED\] {
     background-color: #7C3AED;
   }
+  .bg-\[\#7b48ed\] {
+    background-color: #7b48ed;
+  }
   .bg-\[\#120e25\]\/35 {
     background-color: color-mix(in oklab, #120e25 35%, transparent);
   }
@@ -4434,6 +4449,9 @@
   }
   .bg-\[\#c7bbff\] {
     background-color: #c7bbff;
+  }
+  .bg-\[\#c9b5f7\] {
+    background-color: #c9b5f7;
   }
   .bg-\[\#e8e8f9\] {
     background-color: #e8e8f9;
@@ -6738,6 +6756,9 @@
   .text-\[\#6e4de7\] {
     color: #6e4de7;
   }
+  .text-\[\#6f3bd9\] {
+    color: #6f3bd9;
+  }
   .text-\[\#6f4fe9\] {
     color: #6f4fe9;
   }
@@ -6788,6 +6809,9 @@
   }
   .text-\[\#7c5c35\] {
     color: #7c5c35;
+  }
+  .text-\[\#7c5fd2\] {
+    color: #7c5fd2;
   }
   .text-\[\#7c70af\] {
     color: #7c70af;
@@ -6947,6 +6971,9 @@
   }
   .text-\[\#53433f\]\/75 {
     color: color-mix(in oklab, #53433f 75%, transparent);
+  }
+  .text-\[\#62567c\] {
+    color: #62567c;
   }
   .text-\[\#64748b\] {
     color: #64748b;
@@ -9433,6 +9460,13 @@
       }
     }
   }
+  .hover\:bg-\[\#f5f1ff\] {
+    &:hover {
+      @media (hover: hover) {
+        background-color: #f5f1ff;
+      }
+    }
+  }
   .hover\:bg-\[\#f6f0ff\] {
     &:hover {
       @media (hover: hover) {
@@ -11351,6 +11385,11 @@
   .xl\:grid-cols-6 {
     @media (width >= 80rem) {
       grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+  }
+  .xl\:grid-cols-\[1\.45fr_0\.9fr\] {
+    @media (width >= 80rem) {
+      grid-template-columns: 1.45fr 0.9fr;
     }
   }
   .xl\:grid-cols-\[320px_1fr\] {

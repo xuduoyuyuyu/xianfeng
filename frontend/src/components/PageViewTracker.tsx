@@ -41,6 +41,7 @@ function resolvePageTitle(pathname: string): string {
     "/admin/materials": "资料管理",
     "/admin/users": "用户管理",
     "/admin/user-portrait": "用户画像",
+    "/admin/search-analytics": "搜索洞察",
     "/admin/system": "系统信息",
     "/admin/agents": "Agents",
     "/admin/multi-agents": "Multi Agents",

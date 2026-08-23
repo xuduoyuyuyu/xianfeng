@@ -114,3 +114,25 @@ Acceptance Criteria:
   formal scores or mastery state.
 - Current login, child archive, progress, history, and privacy-safe sharing paths
   are reused instead of creating a parallel identity or assessment system.
+
+## XF-006: Mini-program Search Insights
+
+Status: active
+
+Capability: Aggregate search demand and result-quality analysis
+
+Components:
+- `apps/wechat-miniprogram/pages/search/`
+- `backend/src/models/SearchAnalyticsEvent.ts`
+- `backend/src/routes/search.ts`
+- `backend/src/routes/adminSearchAnalytics.ts`
+- `frontend/src/pages/admin/AdminSearchAnalyticsPage.tsx`
+
+Acceptance Criteria:
+- Intermediate input prefixes are not recorded as separate searches.
+- Search records contain result counts and at most the first clicked result.
+- Stored sessions are anonymous hashes and sensitive-looking queries are hidden.
+- Admins can compare 7/30/90-day volume, repeated keywords, no-result demand,
+  click-through, and content-type distribution.
+- One-off terms and session identifiers never appear in the admin response.
+- Search and navigation continue normally when analytics recording fails.

@@ -84,6 +84,7 @@ const AdminLayout: React.FC = () => {
               <div className="space-y-1">
                 {renderNavItem("/admin/users", "group", "用户管理")}
                 {renderNavItem("/admin/user-portrait", "monitoring", "用户画像")}
+                {renderNavItem("/admin/search-analytics", "search_insights", "搜索洞察")}
               </div>
             </section>
 

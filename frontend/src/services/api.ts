@@ -1164,6 +1164,31 @@ export interface SystemInfo {
   };
 }
 
+export interface SearchAnalyticsResponse {
+  days: number;
+  generatedAt: string;
+  summary: {
+    totalSearches: number;
+    uniqueSessions: number;
+    uniqueQueries: number;
+    zeroResultSearches: number;
+    zeroResultRate: number;
+    clickedSearches: number;
+    clickThroughRate: number;
+  };
+  dailyTrend: Array<{ date: string; searches: number; zeroResults: number; clicks: number }>;
+  topQueries: Array<{ query: string; count: number; clicks: number; zeroResults: number }>;
+  risingQueries: Array<{ query: string; recentCount: number; previousCount: number; change: number }>;
+  zeroResultQueries: Array<{ query: string; count: number }>;
+  resultTypeDistribution: Array<{ type: string; count: number }>;
+  clickedTypeDistribution: Array<{ type: string; count: number }>;
+  privacy: {
+    minimumQueryCount: number;
+    retentionDays: number;
+    identitiesStored: boolean;
+  };
+}
+
 export interface ModelRegistryItem {
   id: string;
   name: string;
@@ -1608,6 +1633,8 @@ export const adminApi = {
   deleteUser: (id: string) => api.delete(`/users/${id}`),
 
   getSystemInfo: () => api.get<SystemInfo>('/admin/system-info'),
+  getSearchAnalytics: (days: 7 | 30 | 90) =>
+    api.get<SearchAnalyticsResponse>('/admin/search-analytics', { params: { days } }),
   getModelRegistry: () => api.get<{ items: ModelRegistryItem[] }>("/admin/mgmt/model-registry"),
   createModelRegistryItem: (data: Partial<ModelRegistryItem> & { api_key?: string }) =>
     api.post<{ ok: boolean; item: ModelRegistryItem }>("/admin/mgmt/model-registry", data),

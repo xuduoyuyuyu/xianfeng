@@ -1877,6 +1877,103 @@ test("native search requests matched summaries instead of downloading every cont
   }
 });
 
+test("native search analytics records only the stable query and links the first result click", async () => {
+  const definition = loadPageDefinition("search");
+  const originalRequest = global.wx.request;
+  const originalGetStorageSync = global.wx.getStorageSync;
+  const originalSetStorageSync = global.wx.setStorageSync;
+  const originalSetTimeout = global.setTimeout;
+  const originalClearTimeout = global.clearTimeout;
+  const requests = [];
+  const storage = new Map();
+  const timers = new Map();
+  let nextTimerId = 1;
+  const context = {
+    ...definition,
+    data: { ...definition.data },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+
+  const runLatestTimer = async () => {
+    const entry = Array.from(timers.entries()).pop();
+    assert.ok(entry);
+    timers.delete(entry[0]);
+    await entry[1]();
+    await Promise.resolve();
+    await Promise.resolve();
+  };
+
+  try {
+    global.setTimeout = (callback) => {
+      const id = nextTimerId;
+      nextTimerId += 1;
+      timers.set(id, callback);
+      return id;
+    };
+    global.clearTimeout = (id) => {
+      timers.delete(id);
+    };
+    global.wx.getStorageSync = (key) => storage.get(key) || "";
+    global.wx.setStorageSync = (key, value) => storage.set(key, value);
+    global.wx.request = (options) => {
+      requests.push(options);
+      if (String(options.url).includes("/api/search/events/") && String(options.url).endsWith("/click")) {
+        options.success({ statusCode: 200, data: { ok: true } });
+        return;
+      }
+      if (String(options.url).endsWith("/api/search/events")) {
+        options.success({ statusCode: 200, data: { eventId: "66b306f289a25b723392e4b5" } });
+        return;
+      }
+      options.success({
+        statusCode: 200,
+        data: {
+          programs: [{ _id: "program-english", programCode: "english", title: "英语启蒙" }],
+          books: [],
+          materials: [],
+          topics: [],
+          experts: []
+        }
+      });
+    };
+
+    definition.onSearchInput.call(context, { detail: { value: "英" } });
+    await runLatestTimer();
+    assert.equal(Array.from(timers.values()).length, 1, "the prefix should only have a pending analytics timer");
+
+    definition.onSearchInput.call(context, { detail: { value: "英语" } });
+    await runLatestTimer();
+    await runLatestTimer();
+
+    const eventRequests = requests.filter((item) => String(item.url).endsWith("/api/search/events"));
+    assert.equal(eventRequests.length, 1);
+    assert.equal(eventRequests[0].data.query, "英语");
+    assert.deepEqual(eventRequests[0].data.resultCounts, {
+      programs: 1,
+      books: 0,
+      materials: 0,
+      topics: 0,
+      experts: 0
+    });
+
+    definition.trackSearchResultClick.call(context, context.data.visibleResults[0]);
+    await Promise.resolve();
+    await Promise.resolve();
+    const clickRequests = requests.filter((item) => String(item.url).endsWith("/click"));
+    assert.equal(clickRequests.length, 1);
+    assert.equal(clickRequests[0].data.resultType, "programs");
+    assert.equal(clickRequests[0].data.resultId, "programs-english");
+  } finally {
+    global.wx.request = originalRequest;
+    global.wx.getStorageSync = originalGetStorageSync;
+    global.wx.setStorageSync = originalSetStorageSync;
+    global.setTimeout = originalSetTimeout;
+    global.clearTimeout = originalClearTimeout;
+  }
+});
+
 test("native search falls back to existing content endpoints when the summary endpoint is unavailable", async () => {
   const definition = loadPageDefinition("search");
   const originalRequest = global.wx.request;
