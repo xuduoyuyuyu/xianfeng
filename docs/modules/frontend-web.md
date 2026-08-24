@@ -100,6 +100,8 @@
   timeline, including registration, profile changes, recorded page visits,
   child-memory updates, and task lifecycle events.
   Its keyword search covers UID, site nickname, and linked Haozhuan nicknames.
+  The list can also filter registration time by an inclusive local-date range;
+  this remains a client-side filter over the already loaded admin user list.
   Bound profiles on `/admin/mama-resources/review` link to `/admin/users` and
   automatically open that existing User 360 detail.
 - The Haozhuan personal profile exposes `能拍`, `能剪`, and `能写` as optional

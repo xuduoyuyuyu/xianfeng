@@ -105,6 +105,8 @@ const AdminUsersPage: React.FC = () => {
   const [regionFilter, setRegionFilter] = useState("");
   const [childStageFilter, setChildStageFilter] = useState("");
   const [gradeFilter, setGradeFilter] = useState("");
+  const [registrationFrom, setRegistrationFrom] = useState("");
+  const [registrationTo, setRegistrationTo] = useState("");
   const [modalMode, setModalMode] = useState<UserModalMode>(null);
   const [editingUser, setEditingUser] = useState<EditableUser | null>(null);
   const [form, setForm] = useState<UserFormState>(EMPTY_USER_FORM);
@@ -135,6 +137,8 @@ const AdminUsersPage: React.FC = () => {
 
   const filteredItems = useMemo(() => {
     const key = keyword.trim().toLowerCase();
+    const registrationFromTime = registrationFrom ? new Date(`${registrationFrom}T00:00:00`).getTime() : null;
+    const registrationToTime = registrationTo ? new Date(`${registrationTo}T23:59:59.999`).getTime() : null;
     return items.filter((row) => {
       if (key && !`${row.publicUid || ""} ${row.username} ${row.name || ""} ${(row.mamaResourceNicknames || []).join(" ")} ${resolveMobile(row)} ${row.role} ${row.city || ""} ${row.region || ""} ${row.childGrade || ""} ${row.grade || ""} ${(row.childStages || []).join(" ")} ${(row.childGrades || []).join(" ")} ${row.memoryPreview || ""}`.toLowerCase().includes(key)) return false;
       if (mamaFilter && String(row.hasMamaResource) !== mamaFilter) return false;
@@ -143,9 +147,15 @@ const AdminUsersPage: React.FC = () => {
       if (regionFilter && row.region !== regionFilter) return false;
       if (childStageFilter && !(row.childStages || []).includes(childStageFilter)) return false;
       if (gradeFilter && ![row.grade, row.childGrade, ...(row.childGrades || [])].filter(Boolean).includes(gradeFilter)) return false;
+      if (registrationFromTime !== null || registrationToTime !== null) {
+        const createdAt = new Date(row.createdAt || "").getTime();
+        if (!Number.isFinite(createdAt)) return false;
+        if (registrationFromTime !== null && createdAt < registrationFromTime) return false;
+        if (registrationToTime !== null && createdAt > registrationToTime) return false;
+      }
       return true;
     });
-  }, [items, keyword, mamaFilter, membershipFilter, cityFilter, regionFilter, childStageFilter, gradeFilter]);
+  }, [items, keyword, mamaFilter, membershipFilter, cityFilter, regionFilter, childStageFilter, gradeFilter, registrationFrom, registrationTo]);
 
   const filterOptions = useMemo(() => ({
     cities: Array.from(new Set(items.map((row) => row.city).filter(Boolean))).sort(),
@@ -164,7 +174,7 @@ const AdminUsersPage: React.FC = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [keyword, mamaFilter, membershipFilter, cityFilter, regionFilter, childStageFilter, gradeFilter]);
+  }, [keyword, mamaFilter, membershipFilter, cityFilter, regionFilter, childStageFilter, gradeFilter, registrationFrom, registrationTo]);
 
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
@@ -414,6 +424,38 @@ const AdminUsersPage: React.FC = () => {
             <select className={inputClass} value={regionFilter} disabled={!cityFilter} onChange={(event) => setRegionFilter(event.target.value)}><option value="">{cityFilter ? "全部区域" : "请先选择城市"}</option>{filterOptions.regions.map((value) => <option key={value} value={value}>{value}</option>)}</select>
             <select className={inputClass} value={childStageFilter} onChange={(event) => setChildStageFilter(event.target.value)}><option value="">全部孩子年龄段</option>{filterOptions.childStages.map((value) => <option key={value} value={value}>{value}</option>)}</select>
             <select className={inputClass} value={gradeFilter} onChange={(event) => setGradeFilter(event.target.value)}><option value="">全部年级</option>{filterOptions.grades.map((value) => <option key={value} value={value}>{value}</option>)}</select>
+          </div>
+          <div className="mt-3 flex min-w-[1280px] items-center justify-end gap-2">
+            <span className="flex items-center gap-1 text-xs font-bold text-stone-500">
+              <span className="material-symbols-outlined text-base">calendar_month</span>
+              注册日期
+            </span>
+            <input
+              aria-label="注册开始日期"
+              className={inputClass}
+              max={registrationTo || undefined}
+              type="date"
+              value={registrationFrom}
+              onChange={(event) => setRegistrationFrom(event.target.value)}
+            />
+            <span className="text-xs font-bold text-stone-400">至</span>
+            <input
+              aria-label="注册结束日期"
+              className={inputClass}
+              min={registrationFrom || undefined}
+              type="date"
+              value={registrationTo}
+              onChange={(event) => setRegistrationTo(event.target.value)}
+            />
+            {registrationFrom || registrationTo ? (
+              <button
+                className="rounded-xl px-3 py-2 text-xs font-bold text-[#5e17eb] hover:bg-[#f7f3ff]"
+                type="button"
+                onClick={() => { setRegistrationFrom(""); setRegistrationTo(""); }}
+              >
+                清除日期
+              </button>
+            ) : null}
           </div>
           </div>
         </div>

@@ -42,6 +42,17 @@ test("admin users page filters by profile tags", () => {
   assert.match(source, /grid-cols-\[minmax\(280px,2fr\)_repeat\(6,minmax\(140px,1fr\)\)\]/);
 });
 
+test("admin users page filters by an inclusive registration date range", () => {
+  assert.equal((source.match(/type="date"/g) || []).length, 2);
+  assert.match(source, /aria-label="注册开始日期"/);
+  assert.match(source, /aria-label="注册结束日期"/);
+  assert.match(source, /new Date\(`\$\{registrationFrom\}T00:00:00`\)/);
+  assert.match(source, /new Date\(`\$\{registrationTo\}T23:59:59\.999`\)/);
+  assert.match(source, /createdAt < registrationFromTime/);
+  assert.match(source, /createdAt > registrationToTime/);
+  assert.match(source, /清除日期/);
+});
+
 test("admin users page searches UID and Haozhuan nicknames and opens linked users", () => {
   assert.match(source, /row\.publicUid/);
   assert.match(source, /row\.mamaResourceNicknames/);
