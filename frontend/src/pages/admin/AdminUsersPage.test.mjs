@@ -6,6 +6,7 @@ import { dirname, resolve } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(resolve(__dirname, "AdminUsersPage.tsx"), "utf8");
+const datePickerSource = readFileSync(resolve(__dirname, "AdminDateRangePicker.tsx"), "utf8");
 const staticSource = readFileSync(resolve(__dirname, "../../../public/screens/admin-users.html"), "utf8");
 
 test("admin users page surfaces frontend child memories", () => {
@@ -39,18 +40,26 @@ test("admin users page filters by profile tags", () => {
   assert.match(source, /row\.membershipTier !== membershipFilter/);
   assert.match(source, /row\.childStages/);
   assert.match(source, /row\.childGrades/);
-  assert.match(source, /grid-cols-\[minmax\(280px,2fr\)_repeat\(6,minmax\(140px,1fr\)\)\]/);
+  assert.match(source, /grid min-w-\[960px\] grid-cols-6 gap-2/);
 });
 
 test("admin users page filters by an inclusive registration date range", () => {
-  assert.equal((source.match(/type="date"/g) || []).length, 2);
-  assert.match(source, /aria-label="注册开始日期"/);
-  assert.match(source, /aria-label="注册结束日期"/);
+  assert.match(source, /AdminDateRangePicker/);
+  assert.doesNotMatch(source, /type="date"/);
+  assert.ok(source.indexOf("placeholder=\"搜索UID") < source.indexOf("<AdminDateRangePicker"));
+  assert.ok(source.indexOf("<AdminDateRangePicker") < source.indexOf('className="overflow-x-auto pb-1"'));
   assert.match(source, /new Date\(`\$\{registrationFrom\}T00:00:00`\)/);
   assert.match(source, /new Date\(`\$\{registrationTo\}T23:59:59\.999`\)/);
   assert.match(source, /createdAt < registrationFromTime/);
   assert.match(source, /createdAt > registrationToTime/);
-  assert.match(source, /清除日期/);
+  assert.match(datePickerSource, /aria-label="注册日期范围"/);
+  assert.match(datePickerSource, /今天/);
+  assert.match(datePickerSource, /近 7 天/);
+  assert.match(datePickerSource, /近 30 天/);
+  assert.match(datePickerSource, /本月/);
+  assert.match(datePickerSource, /Array\.from\(\{ length: 42 \}/);
+  assert.match(datePickerSource, /先选开始日期，再选结束日期/);
+  assert.match(datePickerSource, /onChange\("", ""\)/);
 });
 
 test("admin users page searches UID and Haozhuan nicknames and opens linked users", () => {

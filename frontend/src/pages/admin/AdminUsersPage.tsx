@@ -5,6 +5,7 @@ import { useSearchParams } from "react-router-dom";
 import { adminApi, AdminUserOverview, User } from "../../services/api";
 import TopAlert from "../../components/TopAlert";
 import { RootState } from "../../store";
+import AdminDateRangePicker from "./AdminDateRangePicker";
 
 type EditableUser = Pick<User, "_id" | "publicUid" | "username" | "mobile" | "role" | "city" | "region" | "childGrade" | "grade" | "name" | "membershipTier" | "hasMamaResource" | "mamaResourceId" | "mamaResourceNicknames" | "childStages" | "childGrades" | "proPointBalance" | "changeHistory" | "childMemories" | "memoryItemCount" | "memoryPreview" | "latestMemoryAt" | "createdAt">;
 type UserModalMode = "create" | "edit" | null;
@@ -404,58 +405,39 @@ const AdminUsersPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-stone-100 overflow-hidden">
-        <div className="flex flex-col gap-4 border-b border-stone-100 px-6 py-5">
+      <div className="relative z-10 rounded-2xl border border-stone-100 bg-white">
+        <div className="flex flex-col gap-3 border-b border-stone-100 px-6 py-4">
           <div className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500">用户列表</div>
-          <div className="overflow-x-auto pb-1">
-          <div className="grid min-w-[1280px] grid-cols-[minmax(280px,2fr)_repeat(6,minmax(140px,1fr))] gap-2">
-            <div className="relative">
-            <input
-              className="w-full rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-stone-900 caret-[#5e17eb] placeholder:text-stone-400 transition-all focus:border-[#5e17eb] focus:ring-4 focus:ring-[#5e17eb]/5"
-              placeholder="搜索UID / 用户昵称 / 好赚昵称 / 手机号 / 角色 / 城市 / 区域 / 年级"
-              value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
-            />
-            <span className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 text-base">search</span>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+            <div className="min-w-0 flex-1">
+              <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-stone-500">搜索用户</div>
+              <div className="relative">
+                <input
+                  className="w-full rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-stone-900 caret-[#5e17eb] placeholder:text-stone-400 transition-all focus:border-[#5e17eb] focus:ring-4 focus:ring-[#5e17eb]/5"
+                  placeholder="搜索UID / 用户昵称 / 好赚昵称 / 手机号 / 角色 / 城市 / 区域 / 年级"
+                  value={keyword}
+                  onChange={(event) => setKeyword(event.target.value)}
+                />
+                <span className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 text-base">search</span>
+              </div>
             </div>
+            <AdminDateRangePicker
+              start={registrationFrom}
+              end={registrationTo}
+              onChange={(nextStart, nextEnd) => {
+                setRegistrationFrom(nextStart);
+                setRegistrationTo(nextEnd);
+              }}
+            />
+          </div>
+          <div className="overflow-x-auto pb-1">
+          <div className="grid min-w-[960px] grid-cols-6 gap-2">
             <select className={inputClass} value={mamaFilter} onChange={(event) => setMamaFilter(event.target.value)}><option value="">全部</option><option value="true">好赚</option></select>
             <select className={inputClass} value={membershipFilter} onChange={(event) => setMembershipFilter(event.target.value)}><option value="">全部会员</option><option value="free">免费用户</option><option value="plus">Plus</option><option value="pro">Pro</option></select>
             <select className={inputClass} value={cityFilter} onChange={(event) => { setCityFilter(event.target.value); setRegionFilter(""); }}><option value="">全部城市</option>{filterOptions.cities.map((value) => <option key={value} value={value}>{value}</option>)}</select>
             <select className={inputClass} value={regionFilter} disabled={!cityFilter} onChange={(event) => setRegionFilter(event.target.value)}><option value="">{cityFilter ? "全部区域" : "请先选择城市"}</option>{filterOptions.regions.map((value) => <option key={value} value={value}>{value}</option>)}</select>
             <select className={inputClass} value={childStageFilter} onChange={(event) => setChildStageFilter(event.target.value)}><option value="">全部孩子年龄段</option>{filterOptions.childStages.map((value) => <option key={value} value={value}>{value}</option>)}</select>
             <select className={inputClass} value={gradeFilter} onChange={(event) => setGradeFilter(event.target.value)}><option value="">全部年级</option>{filterOptions.grades.map((value) => <option key={value} value={value}>{value}</option>)}</select>
-          </div>
-          <div className="mt-3 flex min-w-[1280px] items-center justify-end gap-2">
-            <span className="flex items-center gap-1 text-xs font-bold text-stone-500">
-              <span className="material-symbols-outlined text-base">calendar_month</span>
-              注册日期
-            </span>
-            <input
-              aria-label="注册开始日期"
-              className={inputClass}
-              max={registrationTo || undefined}
-              type="date"
-              value={registrationFrom}
-              onChange={(event) => setRegistrationFrom(event.target.value)}
-            />
-            <span className="text-xs font-bold text-stone-400">至</span>
-            <input
-              aria-label="注册结束日期"
-              className={inputClass}
-              min={registrationFrom || undefined}
-              type="date"
-              value={registrationTo}
-              onChange={(event) => setRegistrationTo(event.target.value)}
-            />
-            {registrationFrom || registrationTo ? (
-              <button
-                className="rounded-xl px-3 py-2 text-xs font-bold text-[#5e17eb] hover:bg-[#f7f3ff]"
-                type="button"
-                onClick={() => { setRegistrationFrom(""); setRegistrationTo(""); }}
-              >
-                清除日期
-              </button>
-            ) : null}
           </div>
           </div>
         </div>

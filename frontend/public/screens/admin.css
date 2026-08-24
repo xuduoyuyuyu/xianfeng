@@ -2508,6 +2508,9 @@
   .max-w-\[1600px\] {
     max-width: 1600px;
   }
+  .max-w-\[calc\(100vw-3rem\)\] {
+    max-width: calc(100vw - 3rem);
+  }
   .max-w-\[min\(96vw\,1440px\)\] {
     max-width: min(96vw, 1440px);
   }
@@ -2600,6 +2603,9 @@
   }
   .min-w-\[920px\] {
     min-width: 920px;
+  }
+  .min-w-\[960px\] {
+    min-width: 960px;
   }
   .min-w-\[980px\] {
     min-width: 980px;
@@ -3017,9 +3023,6 @@
   }
   .grid-cols-\[minmax\(0\,1fr\)_120px_120px_auto_auto\] {
     grid-template-columns: minmax(0,1fr) 120px 120px auto auto;
-  }
-  .grid-cols-\[minmax\(280px\,2fr\)_repeat\(6\,minmax\(140px\,1fr\)\)\] {
-    grid-template-columns: minmax(280px,2fr) repeat(6,minmax(140px,1fr));
   }
   .grid-rows-3 {
     grid-template-rows: repeat(3, minmax(0, 1fr));
@@ -8113,6 +8116,10 @@
     --tw-shadow: 0 20px 60px var(--tw-shadow-color, rgba(63,38,112,0.06));
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
+  .shadow-\[0_24px_64px_rgba\(42\,25\,74\,0\.18\)\] {
+    --tw-shadow: 0 24px 64px var(--tw-shadow-color, rgba(42,25,74,0.18));
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
   .shadow-\[0_24px_80px_rgba\(15\,23\,42\,0\.24\)\] {
     --tw-shadow: 0 24px 80px var(--tw-shadow-color, rgba(15,23,42,0.24));
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
@@ -8244,6 +8251,9 @@
   }
   .ring-\[\#5e17eb\]\/10 {
     --tw-ring-color: color-mix(in oklab, #5e17eb 10%, transparent);
+  }
+  .ring-\[\#5e17eb\]\/60 {
+    --tw-ring-color: color-mix(in oklab, #5e17eb 60%, transparent);
   }
   .ring-blue-400 {
     --tw-ring-color: var(--color-blue-400);
@@ -9235,6 +9245,20 @@
       }
     }
   }
+  .hover\:border-\[\#5e17eb\]\/40 {
+    &:hover {
+      @media (hover: hover) {
+        border-color: color-mix(in oklab, #5e17eb 40%, transparent);
+      }
+    }
+  }
+  .hover\:border-\[\#5e17eb\]\/50 {
+    &:hover {
+      @media (hover: hover) {
+        border-color: color-mix(in oklab, #5e17eb 50%, transparent);
+      }
+    }
+  }
   .hover\:border-\[\#6c27d6\] {
     &:hover {
       @media (hover: hover) {
@@ -9903,6 +9927,13 @@
     &:hover {
       @media (hover: hover) {
         color: #5e17eb;
+      }
+    }
+  }
+  .hover\:text-\[\#4610b4\] {
+    &:hover {
+      @media (hover: hover) {
+        color: #4610b4;
       }
     }
   }
