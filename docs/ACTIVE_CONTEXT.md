@@ -183,8 +183,9 @@ Mama Haozhuan content dispatch now uses existing task claims as its only account
 source: task creation, manual selection, and Excel import no longer create
 assignments for unclaimed accounts. Operators can fill private links
 individually, import an Excel file after preflight, or paste an ordered
-task-level link pool. Pooled links bind to claims in order; exhaustion pauses
-the task as waiting for content, and replenishment resumes it. Assigned users
+task-level link pool. Pooled links bind to claims in order; pool exhaustion
+leaves the task claimable, and new claims wait until replenishment assigns them
+content in claim order. Assigned users
 copy the selectable link from the mini-program or mobile Web task-management
 dialog and open it externally. The mobile Web flow mirrors account-state
 routing, assigned/claimable tasks, detail, and proof submission. The admin 3:7

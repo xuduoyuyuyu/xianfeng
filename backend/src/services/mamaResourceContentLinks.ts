@@ -76,17 +76,8 @@ export async function getMamaResourceContentLinkStats(taskIds: any[]) {
 export async function syncMamaResourceTaskContentState(taskId: any) {
   const task = await MamaResourceTask.findById(taskId).select("status contentLinkPoolEnabled pausedForContent");
   if (!task || !task.contentLinkPoolEnabled || task.status === "archived") return task;
-  const remaining = await MamaResourceTaskContentLink.countDocuments({ taskId: task._id, assignmentId: null });
-  if (remaining === 0) {
-    if (task.status !== "paused" || !task.pausedForContent) {
-      task.status = "paused";
-      task.pausedForContent = true;
-      await task.save();
-    }
-    return task;
-  }
   if (task.pausedForContent) {
-    task.status = "listed";
+    if (task.status === "paused") task.status = "listed";
     task.pausedForContent = false;
     await task.save();
   }
