@@ -1,5 +1,5 @@
 const { getNativeTopbarMetrics } = require("../../utils/nativeChrome");
-const { smartBackHome } = require("../../utils/nativePageNav");
+const { ensureBackStackForBackButtonPage, smartBackHome } = require("../../utils/nativePageNav");
 const { createNativeSettingsMethods, getSettingsPanelHeight } = require("../../utils/nativeSettings");
 const { buildProfileState } = require("../../utils/profileState");
 const { API_ORIGIN, DEFAULT_WEB_ORIGIN } = require("../../utils/config");
@@ -439,6 +439,7 @@ Page({
   },
 
   onLoad(options = {}) {
+    if (ensureBackStackForBackButtonPage(options)) return;
     this.answers = Array(40).fill(null);
     this.recognitionSample = [];
     this.pictureNamingAttempts = [];
