@@ -459,15 +459,28 @@ router.get("/tasks", async (_req: Request, res: Response) => {
   }
 });
 
+router.patch("/tasks/:taskId/feishu-backfill/url", async (req: Request, res: Response) => {
+  try {
+    const url = asText(req.body?.url);
+    if (!url) return res.status(400).json({ message: "请填写飞书电子表格链接" });
+    const task = await MamaResourceTask.findOne(idQuery(asText(req.params.taskId)));
+    if (!task) return res.status(404).json({ message: "任务不存在" });
+    task.feishuBackfillUrl = url;
+    await task.save();
+    res.json({ url });
+  } catch (error: any) {
+    res.status(400).json({ message: error?.message || "保存飞书表格链接失败" });
+  }
+});
+
 router.post("/tasks/:taskId/feishu-backfill/preview", async (req: Request, res: Response) => {
   try {
     const url = asText(req.body?.url);
     if (!url) return res.status(400).json({ message: "请填写飞书电子表格链接" });
     const task = await MamaResourceTask.findOne(idQuery(asText(req.params.taskId)));
     if (!task) return res.status(404).json({ message: "任务不存在" });
+    if (asText(task.feishuBackfillUrl) !== url) return res.status(409).json({ message: "请先保存当前表格链接" });
     const result = await buildCurrentFeishuBackfill(url, task._id);
-    task.feishuBackfillUrl = url;
-    await task.save();
     res.json(result.preview);
   } catch (error: any) {
     res.status(/未配置/.test(error?.message || "") ? 503 : 400).json({ message: error?.message || "飞书回填预览失败" });

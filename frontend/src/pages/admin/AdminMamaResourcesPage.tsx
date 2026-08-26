@@ -293,6 +293,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
   const [manualAlipayVerifiedName, setManualAlipayVerifiedName] = useState("");
   const [feishuBackfillOpen, setFeishuBackfillOpen] = useState(false);
   const [feishuBackfillUrl, setFeishuBackfillUrl] = useState("");
+  const [feishuBackfillSavedUrl, setFeishuBackfillSavedUrl] = useState("");
   const [feishuBackfillPreview, setFeishuBackfillPreview] = useState<MamaResourceFeishuBackfillPreview | null>(null);
   const [feishuBackfillLoading, setFeishuBackfillLoading] = useState(false);
   const [feishuBackfillError, setFeishuBackfillError] = useState("");
@@ -307,6 +308,16 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
     return Array.from(categories);
   }, [items, assignments]);
 
+  const feishuBackfillPreviewRows = useMemo(() => {
+    const rows = new Map<number, { uid: string; changes: MamaResourceFeishuBackfillPreview["changes"] }>();
+    for (const change of feishuBackfillPreview?.changes || []) {
+      const current = rows.get(change.rowNumber) || { uid: change.uid, changes: [] };
+      current.changes.push(change);
+      rows.set(change.rowNumber, current);
+    }
+    return Array.from(rows.entries()).map(([rowNumber, value]) => ({ rowNumber, ...value }));
+  }, [feishuBackfillPreview]);
+
   const previewFeishuBackfill = async () => {
     if (!selectedTask) return;
     setFeishuBackfillLoading(true);
@@ -317,6 +328,25 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
       setFeishuBackfillPreview(response.data);
     } catch (previewError: any) {
       const message = requestErrorMessage(previewError, "扫描飞书表格失败");
+      setFeishuBackfillError(message);
+      setToast(message);
+    } finally {
+      setFeishuBackfillLoading(false);
+    }
+  };
+
+  const saveFeishuBackfillUrl = async () => {
+    if (!selectedTask) return;
+    setFeishuBackfillLoading(true);
+    setFeishuBackfillError("");
+    try {
+      const url = feishuBackfillUrl.trim();
+      const response = await adminApi.saveMamaResourceFeishuBackfillUrl(selectedTask._id, url);
+      setFeishuBackfillSavedUrl(response.data.url);
+      setFeishuBackfillPreview(null);
+      setToast("飞书表格链接已保存");
+    } catch (saveError: any) {
+      const message = requestErrorMessage(saveError, "保存飞书表格链接失败");
       setFeishuBackfillError(message);
       setToast(message);
     } finally {
@@ -464,6 +494,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
       const nextSelected = task || selectedTask || nextTasks[0] || null;
       setSelectedTask(nextSelected);
       setFeishuBackfillUrl(nextSelected?.feishuBackfillUrl || "");
+      setFeishuBackfillSavedUrl(nextSelected?.feishuBackfillUrl || "");
       setFeishuBackfillPreview(null);
       if (nextSelected) await loadTaskWorkspace(nextSelected._id, "all");
     } catch (loadError: any) {
@@ -1421,6 +1452,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
             <label className="mt-4 text-sm font-black text-stone-700">飞书电子表格链接
               <input value={feishuBackfillUrl} onChange={(event) => { setFeishuBackfillUrl(event.target.value); setFeishuBackfillPreview(null); setFeishuBackfillError(""); }} className="mt-2 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" />
             </label>
+            {feishuBackfillUrl.trim() && feishuBackfillUrl.trim() !== feishuBackfillSavedUrl ? <div className="mt-2 text-xs font-bold text-amber-700">链接有修改，请先保存</div> : null}
             {feishuBackfillError ? (
               <div role="alert" className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
                 {feishuBackfillError}
@@ -1434,9 +1466,12 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                   <div className="rounded-xl bg-stone-50 p-3 text-stone-700">表头第 {feishuBackfillPreview.headerRowNumber} 行</div>
                 </div>
                 <div className="mt-3 space-y-2">
-                  {feishuBackfillPreview.changes.map((change) => (
-                    <div key={change.cell} className="grid grid-cols-[80px_120px_1fr] gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold">
-                      <span>{change.cell}</span><span>{change.field}</span><span className="break-all">{String(change.value)}</span>
+                  {feishuBackfillPreviewRows.map((row) => (
+                    <div key={row.rowNumber} className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold">
+                      <div className="font-black text-stone-900">第 {row.rowNumber} 行 · UID {row.uid}</div>
+                      <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2">
+                        {row.changes.map((change) => <span key={change.cell} className="break-all"><b>{change.field}</b> {String(change.value)}</span>)}
+                      </div>
                     </div>
                   ))}
                   {feishuBackfillPreview.issues.map((issue) => (
@@ -1446,8 +1481,9 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                 </div>
               </div>
             ) : null}
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <button type="button" onClick={previewFeishuBackfill} disabled={feishuBackfillLoading || !selectedTask || !feishuBackfillUrl.trim()} className="rounded-xl border border-[#6c27d6] px-4 py-3 text-sm font-black text-[#6c27d6] disabled:border-stone-300 disabled:text-stone-400">{feishuBackfillLoading ? "处理中…" : "保存表格并预览"}</button>
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              <button type="button" onClick={saveFeishuBackfillUrl} disabled={feishuBackfillLoading || !selectedTask || !feishuBackfillUrl.trim() || feishuBackfillUrl.trim() === feishuBackfillSavedUrl} className="rounded-xl border border-stone-300 px-4 py-3 text-sm font-black text-stone-700 disabled:text-stone-400">保存表格链接</button>
+              <button type="button" onClick={previewFeishuBackfill} disabled={feishuBackfillLoading || !selectedTask || !feishuBackfillSavedUrl || feishuBackfillUrl.trim() !== feishuBackfillSavedUrl} className="rounded-xl border border-[#6c27d6] px-4 py-3 text-sm font-black text-[#6c27d6] disabled:border-stone-300 disabled:text-stone-400">{feishuBackfillLoading ? "处理中…" : "识别当前填入工作"}</button>
               <button type="button" onClick={commitFeishuBackfill} disabled={feishuBackfillLoading || !feishuBackfillPreview?.changes.length} className="rounded-xl bg-[#6c27d6] px-4 py-3 text-sm font-black text-white disabled:bg-stone-300">确认写入空白项</button>
             </div>
           </div>

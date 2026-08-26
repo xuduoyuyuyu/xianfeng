@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildFeishuBackfillPreview } from "./mamaResourceFeishuBackfill";
+import { buildFeishuBackfillPreview, firstHttpUrl } from "./mamaResourceFeishuBackfill";
 
 test("preview fills blank personal fields and matching publication fields only", () => {
   const values = [
@@ -24,4 +24,15 @@ test("preview rejects profile links as publication proof", () => {
   }]]));
   assert.equal(preview.changes.some((item) => item.field === "发布链接"), false);
   assert.equal(preview.issues[0]?.reason, "回传内容不是有效发布链接，已跳过");
+});
+
+test("profile URL keeps only the URL from shared text", () => {
+  const sharedText = "我在小红书收获了509次赞与收藏，点击链接或复制口令来看我的主页>> https://xhslink.cn/o/3UIWwSA19pH";
+  assert.equal(firstHttpUrl(sharedText), "https://xhslink.cn/o/3UIWwSA19pH");
+  const values = [["UID", "达人名称", "主页链接"], ["123", "", ""]];
+  const preview = buildFeishuBackfillPreview(values, new Map([["123", {
+    publicUid: "123", displayName: "张三", accountName: "", profileUrl: sharedText, followerCount: null,
+    alipayAccount: "", alipayVerifiedName: "", publications: [],
+  }]]));
+  assert.equal(preview.changes.find((item) => item.field === "主页链接")?.value, "https://xhslink.cn/o/3UIWwSA19pH");
 });

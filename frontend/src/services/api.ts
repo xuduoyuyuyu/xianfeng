@@ -1724,6 +1724,8 @@ export const adminApi = {
   },
   commitMamaResourceContentImport: (id: string, rows: MamaResourceContentImportRow[]) =>
     api.post<{ summary: { created: number; updated: number; unchanged: number } }>(`/admin/mama-resources/tasks/${id}/content-import/commit`, { rows }),
+  saveMamaResourceFeishuBackfillUrl: (taskId: string, url: string) =>
+    api.patch<{ url: string }>(`/admin/mama-resources/tasks/${taskId}/feishu-backfill/url`, { url }),
   previewMamaResourceFeishuBackfill: (taskId: string, url: string) =>
     api.post<MamaResourceFeishuBackfillPreview>(`/admin/mama-resources/tasks/${taskId}/feishu-backfill/preview`, { url }),
   commitMamaResourceFeishuBackfill: (taskId: string, url: string, fingerprint: string) =>

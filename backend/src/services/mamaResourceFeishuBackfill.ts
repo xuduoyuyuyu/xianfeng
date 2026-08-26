@@ -105,6 +105,12 @@ function comparableUrl(value: string): string {
   }
 }
 
+export function firstHttpUrl(value: string): string {
+  const match = value.match(/https?:\/\/[^\s<>]+/i);
+  if (!match) return "";
+  return match[0].replace(/[，。；、！？,.!?;:）)】\]}]+$/u, "");
+}
+
 export function buildFeishuBackfillPreview(
   values: FeishuBackfillValue[][],
   sourcesByUid: Map<string, FeishuBackfillSource>,
@@ -131,7 +137,8 @@ export function buildFeishuBackfillPreview(
     }
     for (const [sourceKey, label] of fieldValues) {
       const columnIndex = columns[sourceKey];
-      const value = source[sourceKey];
+      const rawValue = source[sourceKey];
+      const value = sourceKey === "profileUrl" ? firstHttpUrl(String(rawValue || "")) : rawValue;
       if (columnIndex === undefined || cellText(row[columnIndex]) || value === "" || value === null) continue;
       changes.push({ rowNumber: rowIndex + 1, uid, field: label, cell: `${columnName(columnIndex)}${rowIndex + 1}`, value: value as string | number });
     }

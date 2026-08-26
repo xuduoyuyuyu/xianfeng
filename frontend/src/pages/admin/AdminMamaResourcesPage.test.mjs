@@ -370,7 +370,9 @@ test("admin task assignments show proof return status without a 24-hour badge", 
 
 test("admin task workspace exposes a task-scoped manual Feishu UID backfill", () => {
   assert.match(source, /UID 回填助手/);
-  assert.match(source, /保存表格并预览/);
+  assert.match(source, /保存表格链接/);
+  assert.match(source, /识别当前填入工作/);
+  assert.match(source, /第 \{row\.rowNumber\} 行 · UID \{row\.uid\}/);
   assert.match(source, /表格链接按任务保存/);
   assert.match(source, /role="alert"/);
   assert.match(source, /setFeishuBackfillError\(message\)/);
@@ -378,6 +380,7 @@ test("admin task workspace exposes a task-scoped manual Feishu UID backfill", ()
   assert.match(source, /previewMamaResourceFeishuBackfill/);
   assert.match(source, /commitMamaResourceFeishuBackfill/);
   assert.match(apiSource, /tasks\/\$\{taskId\}\/feishu-backfill\/preview/);
+  assert.match(apiSource, /tasks\/\$\{taskId\}\/feishu-backfill\/url/);
   assert.match(apiSource, /tasks\/\$\{taskId\}\/feishu-backfill\/commit/);
   assert.match(backendSource, /current\.preview\.fingerprint !== fingerprint/);
   assert.match(backendSource, /飞书回读校验失败/);

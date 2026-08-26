@@ -3018,9 +3018,6 @@
   .grid-cols-\[42px_1fr_auto\] {
     grid-template-columns: 42px 1fr auto;
   }
-  .grid-cols-\[80px_120px_1fr\] {
-    grid-template-columns: 80px 120px 1fr;
-  }
   .grid-cols-\[minmax\(0\,1fr\)_120px_120px_auto_auto\] {
     grid-template-columns: minmax(0,1fr) 120px 120px auto auto;
   }
