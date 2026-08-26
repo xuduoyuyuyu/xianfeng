@@ -35,6 +35,16 @@ test("topic qrcode route generates a current mini-program code for the share lan
   assert.match(source, /res\.setHeader\("content-type", "image\/png"\)/);
 });
 
+test("program qrcode resolves only a visible program and lands on its native detail", () => {
+  assert.match(source, /import Program from "\.\.\/models\/Program"/);
+  assert.match(source, /router\.get\("\/program-qrcode"/);
+  assert.match(source, /Program\.findOne\(\{[\s\S]*status: \{ \$in: \["published", "group-only"\] \}/);
+  assert.match(source, /scene: `p=\$\{String\(\(program as any\)\._id\)\}`/);
+  assert.match(source, /router\.get\("\/program-qrcode"[\s\S]*page: "pages\/webview\/index"/);
+  assert.match(source, /checkPath: shouldCheckMiniPagePath\(envVersion\)/);
+  assert.match(source, /code\[0\] === 0xff && code\[1\] === 0xd8 \? "image\/jpeg" : "image\/png"/);
+});
+
 test("xiaowanzi conversation shares can be saved and opened through a mini-program code", () => {
   assert.match(source, /import XiaowanziShare from "\.\.\/models\/XiaowanziShare"/);
   assert.match(source, /import \{ makeQrPngWhitePixelsTransparent \} from "\.\.\/services\/pngTransparency"/);

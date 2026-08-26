@@ -245,6 +245,14 @@
   guest API.
 - Native program detail pages mirror the public same-guest relationship at the
   bottom as a horizontal program shelf and omit it when there are no matches.
+- The native program-detail share action renders a 750 x 1520 fixed-template
+  Canvas poster. Its compact hero contains only the current title; the summary
+  headline, body, and tags are followed by every bound guest's avatar, name,
+  title, and short bio, then the official code from
+  `/api/wechat-mini/program-qrcode`. Decorative summary branding and highlight
+  callout are excluded. The preview supports long-press or album saving;
+  new codes enter `pages/webview/index` and restore the exact program directly.
+  `pages/share/index` keeps `p=` parsing only for previously generated codes.
 - `pages/mama-resource-apply/index` is a native mini-program form for the
   Haozhuan supply intake. It mirrors the public web form and uses
   `wx.chooseMedia`/`wx.uploadFile` for Xiaohongshu profile screenshots.

@@ -16514,7 +16514,8 @@ test("webview native program detail page keeps program, book, and topic details 
     assert.match(js, /quickView\.length \? \{ key: "quickview", label: "速览" \} : null,[\s\S]*mindMap && mindMap\.root \? \{ key: "mindmap", label: "脉络" \} : null,[\s\S]*transcript\.length \? \{ key: "transcript", label: "逐字稿" \} : null/);
     assert.match(js, /mindMap && mindMap\.root \? \{ key: "mindmap", label: "脉络" \} : null/);
     assert.match(wxml, /class="xf-program-detail-action-icon" src="\{\{nativeProgram\.bookmarked \? '\/assets\/program-detail\/program-book-purple\.png' : '\/assets\/program-detail\/program-book-white\.png'\}\}"/);
-    assert.match(wxml, /open-type="share" class="xf-program-detail-hero-icon is-share[\s\S]*src="\/assets\/program-detail\/program-share-white\.png"/);
+    assert.match(wxml, /class="xf-program-detail-hero-icon is-share" catchtap="generateNativeProgramSharePoster"[\s\S]*src="\/assets\/program-detail\/program-share-white\.png"/);
+    assert.doesNotMatch(wxml, /open-type="share" class="xf-program-detail-hero-icon is-share/);
     assert.match(wxml, /class="xf-program-detail-play" bindtap="toggleNativeAudio"[\s\S]*src="\{\{isAudioPlaying \? '\/assets\/program-detail\/program-pause-purple\.png' : '\/assets\/program-detail\/program-play-purple\.png'\}\}"/);
     assert.match(wxml, /class="xf-program-detail-summary-corner"/);
     assert.match(wxml, /class="xf-program-detail-content-shell"[\s\S]*class="xf-program-detail-tabs"/);

@@ -30,8 +30,9 @@
           <button class="xf-program-detail-hero-icon is-bookmark {{nativeProgram.bookmarked ? 'is-active' : ''}}" catchtap="toggleNativeProgramBookmark" aria-label="收藏节目">
             <image class="xf-program-detail-action-icon" src="{{nativeProgram.bookmarked ? '/assets/program-detail/program-book-purple.png' : '/assets/program-detail/program-book-white.png'}}" mode="aspectFit" />
           </button>
-          <button open-type="share" class="xf-program-detail-hero-icon is-share" aria-label="分享节目">
-            <image class="xf-program-detail-action-icon" src="/assets/program-detail/program-share-white.png" mode="aspectFit" />
+          <button class="xf-program-detail-hero-icon is-share" catchtap="generateNativeProgramSharePoster" aria-label="生成节目分享图">
+            <image wx:if="{{!nativeProgramShareGenerating}}" class="xf-program-detail-action-icon" src="/assets/program-detail/program-share-white.png" mode="aspectFit" />
+            <text wx:else class="xf-program-share-generating">…</text>
           </button>
           <button class="xf-program-detail-play" bindtap="toggleNativeAudio">
             <image class="xf-program-detail-play-icon" src="{{isAudioPlaying ? '/assets/program-detail/program-pause-purple.png' : '/assets/program-detail/program-play-purple.png'}}" mode="aspectFit" />
@@ -238,6 +239,25 @@
     <button class="xf-program-detail-rail-button is-speed" aria-label="切换播放倍速" catchtap="toggleNativeAudioSpeed">{{audioSpeedLabel}}</button>
   </view>
   <button wx:if="{{nativeProgram.audioUrl}}" class="xf-program-detail-player-fab {{isAudioPlaying ? 'is-playing' : ''}}" catchtap="toggleNativeAudio" aria-label="{{isAudioPlaying ? '暂停节目' : '播放节目'}}"><image class="xf-program-detail-player-fab-icon" src="{{isAudioPlaying ? '/assets/program-detail/program-pause-white.png' : '/assets/program-detail/program-play-white.png'}}" mode="aspectFit" /></button>
+
+  <canvas wx:if="{{nativeProgramShareCanvasMounted}}" canvas-id="xf-program-share-canvas" class="xf-program-share-canvas" width="750" height="1520" style="width: 750px; height: 1520px;"></canvas>
+  <view wx:if="{{nativeProgramSharePreviewOpen}}" class="xf-program-share-preview-mask" catchtap="closeNativeProgramSharePoster" catchtouchmove="stopNativeEvent"></view>
+  <view wx:if="{{nativeProgramSharePreviewOpen}}" class="xf-program-share-preview-panel" catchtouchmove="stopNativeEvent" role="dialog" aria-label="节目分享图预览">
+    <button class="xf-program-share-preview-close" catchtap="closeNativeProgramSharePoster" aria-label="关闭分享图预览">×</button>
+    <view class="xf-program-share-preview-head">
+      <view>
+        <text class="xf-program-share-preview-title">节目分享图</text>
+        <text class="xf-program-share-preview-subtitle">扫码可直达当前节目</text>
+      </view>
+    </view>
+    <scroll-view class="xf-program-share-preview-scroll" scroll-y enhanced enable-flex>
+      <image class="xf-program-share-preview-image" src="{{nativeProgramShareImagePath}}" mode="widthFix" show-menu-by-longpress />
+    </scroll-view>
+    <view class="xf-program-share-preview-actions">
+      <text class="xf-program-share-preview-guide">长按图片转发，或保存到相册用于外部推广</text>
+      <button class="xf-program-share-preview-save" catchtap="saveNativeProgramSharePoster">保存到相册</button>
+    </view>
+  </view>
 
   <view wx:if="{{selectedProgramDictionaryEntry}}" class="xf-program-dictionary-overlay" catchtap="closeProgramDictionaryEntry">
     <view class="xf-program-dictionary-sheet" catchtap="stopNativeEvent" role="dialog" aria-label="{{selectedProgramDictionaryEntry.term}}释义">

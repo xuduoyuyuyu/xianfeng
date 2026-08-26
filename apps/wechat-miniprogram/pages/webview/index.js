@@ -8,6 +8,15 @@ const { getToken } = require("../../utils/session");
 const { createPageShare, createWebviewShare, enableShareMenu } = require("../../utils/share");
 const { TOPIC_DETAIL_WEBVIEW_VERSION, WELFARE_WEBVIEW_VERSION, buildNativeProUrl, inferWebPageTitle, openWeb, webUrl: buildWebUrl } = require("../../utils/webview");
 const { readNativeTopicDetailCache, saveNativeTopicDetailCache } = require("../../utils/nativeTopicDetailCache");
+const {
+  PROGRAM_SHARE_CANVAS_ID,
+  PROGRAM_SHARE_POSTER_WIDTH,
+  PROGRAM_SHARE_POSTER_HEIGHT,
+  downloadProgramShareQr,
+  resolveProgramShareCover,
+  resolveProgramShareGuestAvatars,
+  drawProgramSharePoster
+} = require("./programSharePoster");
 
 const LOGO_HEIGHT_RPX = 56;
 const BOOK_DETAIL_CACHE_PREFIX = "xf_native_book_detail:";
@@ -411,6 +420,12 @@ function extractProgramId(src) {
   } catch (_error) {
     return "";
   }
+}
+
+function extractProgramIdFromScene(scene) {
+  const decodedScene = safeDecode(String(scene || "").trim());
+  const match = decodedScene.match(/(?:^|&)p=([^&]+)/);
+  return match ? safeDecode(match[1]).trim() : "";
 }
 
 function extractMaterialId(src) {
@@ -1933,6 +1948,10 @@ Page({
     nativeProgramLoading: false,
     nativeProgramError: "",
     nativeProgram: null,
+    nativeProgramShareGenerating: false,
+    nativeProgramShareCanvasMounted: false,
+    nativeProgramSharePreviewOpen: false,
+    nativeProgramShareImagePath: "",
     selectedProgramDictionaryEntry: null,
     nativeProgramMindMapCollapsedBranches: [],
     nativeProgramMindMapOutline: { root: { title: "", summary: "" }, branches: [] },
@@ -2021,7 +2040,10 @@ Page({
     enableShareMenu();
     this.syncTopbarMetrics();
     this.syncNativeFontSizeSetting();
-    const rawSrc = decodeURIComponent(options.url || "");
+    const sceneProgramId = extractProgramIdFromScene(options.scene);
+    const rawSrc = sceneProgramId
+      ? `/programs/${encodeURIComponent(sceneProgramId)}`
+      : decodeURIComponent(options.url || "");
     const title = resolveWebviewTitle(rawSrc, decodeURIComponent(options.title || ""));
     const src = withNativeWebviewParams(rawSrc);
     this.shareSrc = src;
@@ -2988,6 +3010,72 @@ Page({
           nativeProgramError: (error && error.message) || "节目加载失败，请稍后重试"
         });
       });
+  },
+
+  generateNativeProgramSharePoster() {
+    const program = this.data.nativeProgram;
+    if (!program || !program.id || this.data.nativeProgramShareGenerating) return;
+    if (!wx.createCanvasContext || !wx.canvasToTempFilePath) {
+      wx.showToast({ title: "当前环境暂不支持生成图片", icon: "none" });
+      return;
+    }
+    this.setData({
+      nativeProgramShareGenerating: true,
+      nativeProgramShareCanvasMounted: true,
+      nativeProgramSharePreviewOpen: false
+    }, () => {
+      Promise.all([
+        downloadProgramShareQr(program.id),
+        resolveProgramShareCover(program.coverImage),
+        resolveProgramShareGuestAvatars(program.guests)
+      ]).then(([qrImagePath, coverImagePath, guestAvatarImages]) => {
+        const ctx = wx.createCanvasContext(PROGRAM_SHARE_CANVAS_ID, this);
+        drawProgramSharePoster(ctx, program, qrImagePath, coverImagePath, guestAvatarImages);
+        ctx.draw(false, () => {
+          wx.canvasToTempFilePath({
+            canvasId: PROGRAM_SHARE_CANVAS_ID,
+            width: PROGRAM_SHARE_POSTER_WIDTH,
+            height: PROGRAM_SHARE_POSTER_HEIGHT,
+            destWidth: PROGRAM_SHARE_POSTER_WIDTH,
+            destHeight: PROGRAM_SHARE_POSTER_HEIGHT,
+            success: (res) => {
+              const imagePath = String(res && res.tempFilePath || "");
+              this.setData({
+                nativeProgramShareGenerating: false,
+                nativeProgramShareCanvasMounted: false,
+                nativeProgramSharePreviewOpen: !!imagePath,
+                nativeProgramShareImagePath: imagePath
+              });
+              if (!imagePath) wx.showToast({ title: "生成图片失败，请重试", icon: "none" });
+            },
+            fail: () => {
+              this.setData({ nativeProgramShareGenerating: false, nativeProgramShareCanvasMounted: false });
+              wx.showToast({ title: "生成图片失败，请重试", icon: "none" });
+            }
+          }, this);
+        });
+      }).catch((error) => {
+        this.setData({ nativeProgramShareGenerating: false, nativeProgramShareCanvasMounted: false });
+        wx.showToast({ title: error && error.message || "小程序码生成失败，请重试", icon: "none" });
+      });
+    });
+  },
+
+  closeNativeProgramSharePoster() {
+    this.setData({ nativeProgramSharePreviewOpen: false });
+  },
+
+  saveNativeProgramSharePoster() {
+    const filePath = String(this.data.nativeProgramShareImagePath || "");
+    if (!filePath || !wx.saveImageToPhotosAlbum) {
+      wx.showToast({ title: "当前环境暂不支持保存图片", icon: "none" });
+      return;
+    }
+    wx.saveImageToPhotosAlbum({
+      filePath,
+      success: () => wx.showToast({ title: "已保存到相册", icon: "success" }),
+      fail: () => wx.showToast({ title: "保存失败，请开启相册权限后重试", icon: "none" })
+    });
   },
 
   loadNativeExpert(expertId) {
