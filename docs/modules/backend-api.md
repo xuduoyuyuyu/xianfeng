@@ -28,6 +28,10 @@
 
 ### Durable Contracts
 
+- Admin Mama Haozhuan profile updates derive each media account's canonical
+  profile URL from the submitted direct URL instead of trusting a stale client
+  normalization field. Updating the primary Xiaohongshu account keeps both the
+  legacy `socialAccount` fields and the multi-account collection synchronized.
 - Authenticated flash-test pronunciation reads from versioned static sets under
   `backend/src/assets/flash-test`: 1,600 pre-generated Chinese-character MP3s and
   150 RP-calibrated British-English word MP3s. Runtime playback never calls TTS;

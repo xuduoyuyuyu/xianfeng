@@ -735,14 +735,14 @@ describe("mama resource pool routes", () => {
         mediaAccounts: [
           {
             platform: "xiaohongshu",
-            profileUrl: "https://www.xiaohongshu.com/user/profile/main",
+            profileUrl: "https://www.xiaohongshu.com/user/profile/revised?xsec_token=stale",
             normalizedProfileUrl: "xiaohongshu:user/profile/main",
             nickname: "新小红书昵称",
             followerCount: 12000,
           },
           {
             platform: "douyin",
-            profileUrl: "https://www.douyin.com/user/second",
+            profileUrl: "https://www.douyin.com/user/revised",
             normalizedProfileUrl: "douyin:https://www.douyin.com/user/second",
             nickname: "新抖音昵称",
             followerCount: 8000,
@@ -754,11 +754,17 @@ describe("mama resource pool routes", () => {
     assert.equal(response.status, 200);
     const data = await response.json();
     assert.equal(data.profile.mediaAccounts.length, 2);
+    assert.equal(data.profile.mediaAccounts[0].profileUrl, "https://www.xiaohongshu.com/user/profile/revised");
+    assert.equal(data.profile.mediaAccounts[0].normalizedProfileUrl, "xiaohongshu:user/profile/revised");
     assert.equal(data.profile.mediaAccounts[1].platform, "douyin");
+    assert.equal(data.profile.mediaAccounts[1].profileUrl, "https://www.douyin.com/user/revised");
+    assert.equal(data.profile.mediaAccounts[1].normalizedProfileUrl, "douyin:https://www.douyin.com/user/revised");
     assert.equal(data.profile.mediaAccounts[1].nickname, "新抖音昵称");
     assert.equal(data.profile.mediaAccounts[1].followerCount, 8000);
     assert.equal(data.profile.socialAccount.nickname, "新小红书昵称");
     assert.equal(data.profile.socialAccount.followerCount, 12000);
+    assert.equal(data.profile.socialAccount.profileUrl, "https://www.xiaohongshu.com/user/profile/revised");
+    assert.equal(data.profile.socialAccount.normalizedProfileUrl, "xiaohongshu:user/profile/revised");
   });
 
   it("lets operators shelf a task, select matching accounts, and collect submitted proof", async () => {

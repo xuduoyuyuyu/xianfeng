@@ -374,6 +374,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
     const mediaAccounts = profile.mediaAccounts?.length ? profile.mediaAccounts : [profile.socialAccount];
     setManualMediaAccounts(mediaAccounts.map((account) => ({
       ...account,
+      profileUrl: extractProfileUrl(account.profileUrl) || account.profileUrl,
       followerCount: account.followerCount === undefined || account.followerCount === null ? "" : String(account.followerCount),
     })));
     setManualAlipayAccount(profile.alipayAccount || "");
@@ -385,7 +386,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
     setEditing(null);
   };
 
-  const updateManualMediaAccount = (index: number, key: "nickname" | "followerCount", value: string) => {
+  const updateManualMediaAccount = (index: number, key: "profileUrl" | "nickname" | "followerCount", value: string) => {
     setManualMediaAccounts((current) => current.map((account, accountIndex) => (
       accountIndex === index ? { ...account, [key]: value } : account
     )));
@@ -432,6 +433,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
     try {
       const mediaAccounts = manualMediaAccounts.map((account) => ({
         ...account,
+        profileUrl: account.profileUrl.trim(),
         nickname: account.nickname?.trim() || "",
         followerCount: account.followerCount ? Number(account.followerCount) : null,
         dataSource: "manual" as const,
@@ -1003,9 +1005,10 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                     <div key={`${account.normalizedProfileUrl || account.profileUrl}-${index}`} className="rounded-xl border border-stone-200 bg-stone-50 p-3">
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-sm font-black text-stone-900">账号 {index + 1} · {mediaPlatformLabel[account.platform] || account.platform}</span>
-                        {extractProfileUrl(account.profileUrl) ? <a href={extractProfileUrl(account.profileUrl)} target="_blank" rel="noreferrer" className="text-xs font-bold text-[#6c27d6]">查看主页</a> : <span className="text-xs font-semibold text-stone-400">未识别主页链接</span>}
+                        {extractProfileUrl(account.profileUrl) ? <a href={extractProfileUrl(account.profileUrl)} target="_blank" rel="noreferrer" className="text-xs font-bold text-[#6c27d6]">打开主页</a> : <span className="text-xs font-semibold text-stone-400">未识别主页链接</span>}
                       </div>
                       <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        <label className="text-sm font-bold text-stone-700 sm:col-span-2">主页链接<input value={account.profileUrl || ""} onChange={(event) => updateManualMediaAccount(index, "profileUrl", event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm" placeholder="https://..." /></label>
                         <label className="text-sm font-bold text-stone-700">账号昵称<input value={account.nickname || ""} onChange={(event) => updateManualMediaAccount(index, "nickname", event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm" /></label>
                         <label className="text-sm font-bold text-stone-700">粉丝数<input value={account.followerCount} onChange={(event) => updateManualMediaAccount(index, "followerCount", event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm" placeholder="人工补录" /></label>
                       </div>

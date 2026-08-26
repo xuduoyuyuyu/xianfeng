@@ -54,6 +54,32 @@ function asOptionalDate(value: unknown): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function normalizeManualProfileUrl(platform: string, value: unknown) {
+  const raw = asText(value);
+  const directUrl = raw.match(/https?:\/\/[^\s<>"']+/i)?.[0]?.replace(/[，。；！？、）)\]}>]+$/, "") || "";
+  if (!directUrl) return { profileUrl: "", normalizedProfileUrl: "" };
+  let url: URL;
+  try {
+    url = new URL(directUrl);
+  } catch (_error) {
+    return { profileUrl: "", normalizedProfileUrl: "" };
+  }
+  if (platform === "xiaohongshu") {
+    const host = url.hostname.replace(/^www\./, "").toLowerCase();
+    const pathname = url.pathname.replace(/\/+$/, "");
+    if (host.includes("xiaohongshu.com") && pathname) {
+      return {
+        profileUrl: `https://www.xiaohongshu.com${pathname}`,
+        normalizedProfileUrl: `xiaohongshu:${pathname.replace(/^\/+/, "").toLowerCase()}`,
+      };
+    }
+  }
+  return {
+    profileUrl: directUrl,
+    normalizedProfileUrl: `${platform}:${directUrl.toLowerCase()}`,
+  };
+}
+
 function normalizePhoneDigits(value: unknown): string {
   return asText(value).replace(/\D/g, "");
 }
@@ -63,8 +89,7 @@ function manualMediaAccounts(value: unknown) {
   return value.map((item) => {
     const source = item && typeof item === "object" ? item as Record<string, unknown> : {};
     const platform = asText(source.platform);
-    const profileUrl = asText(source.profileUrl);
-    const normalizedProfileUrl = asText(source.normalizedProfileUrl);
+    const { profileUrl, normalizedProfileUrl } = normalizeManualProfileUrl(platform, source.profileUrl);
     if (!MEDIA_PLATFORMS.has(platform) || !profileUrl || !normalizedProfileUrl) {
       throw new Error("社交媒体账号的平台或主页链接不完整");
     }
@@ -818,6 +843,8 @@ router.put("/:id", async (req: Request, res: Response) => {
       update.mediaAccounts = mediaAccounts;
       const primaryXiaohongshuAccount = mediaAccounts.find((account) => account.platform === "xiaohongshu");
       if (primaryXiaohongshuAccount) {
+        update["socialAccount.profileUrl"] = primaryXiaohongshuAccount.profileUrl;
+        update["socialAccount.normalizedProfileUrl"] = primaryXiaohongshuAccount.normalizedProfileUrl;
         update["socialAccount.nickname"] = primaryXiaohongshuAccount.nickname;
         update["socialAccount.followerCount"] = primaryXiaohongshuAccount.followerCount;
         update["socialAccount.dataSource"] = "manual";

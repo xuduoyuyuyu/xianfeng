@@ -74,7 +74,9 @@
   `/admin/mama-resources` is the operator account-data screen. Its account list
   defaults to all profiles and filters by child stage, child gender, linked-user
   gender, and submitted media platform; verified real-name status is shown as a
-  green badge. The admin task workflow is task-first: operators list a task, open the
+  green badge. The profile detail exposes every submitted media homepage as an
+  editable direct URL; the existing `保存资料` action persists URL, nickname,
+  follower count, payout details, and review state together. The admin task workflow is task-first: operators list a task, open the
   task workspace, then filter only the accounts that already claimed that task.
   Claimant rows expose the matched site user ID, mobile, station profile,
   platform account, and claim time so operators can distinguish similar users.

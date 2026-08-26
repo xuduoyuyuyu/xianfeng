@@ -250,6 +250,11 @@ test("admin mama resource review edits and saves every submitted media account",
   assert.match(source, /账号 \{index \+ 1\}/);
   assert.match(source, /account\.platform/);
   assert.match(source, /account\.profileUrl/);
+  assert.match(source, /profileUrl: extractProfileUrl\(account\.profileUrl\) \|\| account\.profileUrl/);
+  assert.match(source, /updateManualMediaAccount\(index, "profileUrl"/);
+  assert.match(source, />主页链接<input value=\{account\.profileUrl \|\| ""\}/);
+  assert.match(source, />打开主页<\/a>/);
+  assert.match(source, /profileUrl: account\.profileUrl\.trim\(\)/);
   assert.match(source, /updateManualMediaAccount\(index, "nickname"/);
   assert.match(source, /updateManualMediaAccount\(index, "followerCount"/);
   assert.match(source, /const mediaAccounts = manualMediaAccounts\.map/);
