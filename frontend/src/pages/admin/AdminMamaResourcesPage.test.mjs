@@ -62,6 +62,13 @@ test("admin mama resources page defaults to all profiles and exposes profile fil
   assert.doesNotMatch(source, /审核\/补录|账号审核和补录|保存审核和人工补录/);
 });
 
+test("admin mama resource review supports direct profile links", () => {
+  assert.match(source, /useSearchParams/);
+  assert.match(source, /searchParams\.get\("profileId"\)/);
+  assert.match(source, /adminApi\.getMamaResource\(linkedProfileId\)/);
+  assert.match(source, /openEdit\(response\.data\.profile\)/);
+});
+
 test("admin mama resources page shows account cards without removed offer and case sync fields", () => {
   assert.match(source, />平台账号</);
   assert.doesNotMatch(source, /<span>粉丝数<\/span>/);
@@ -250,6 +257,11 @@ test("admin mama resource review edits and saves every submitted media account",
   assert.match(source, /账号 \{index \+ 1\}/);
   assert.match(source, /account\.platform/);
   assert.match(source, /account\.profileUrl/);
+  assert.match(source, /profileUrl: extractProfileUrl\(account\.profileUrl\) \|\| account\.profileUrl/);
+  assert.match(source, /updateManualMediaAccount\(index, "profileUrl"/);
+  assert.match(source, />主页链接<input value=\{account\.profileUrl \|\| ""\}/);
+  assert.match(source, />打开主页<\/a>/);
+  assert.match(source, /profileUrl: account\.profileUrl\.trim\(\)/);
   assert.match(source, /updateManualMediaAccount\(index, "nickname"/);
   assert.match(source, /updateManualMediaAccount\(index, "followerCount"/);
   assert.match(source, /const mediaAccounts = manualMediaAccounts\.map/);
@@ -354,4 +366,19 @@ test("admin task assignments show proof return status without a 24-hour badge", 
   assert.match(backendSource, /filter\.contentUpdatedAt = \{ \$lte:/);
   assert.match(backendSource, /asText\(source\?\.contentUrl\)/);
   assert.doesNotMatch(backendSource, /filter\.createdAt = \{ \$lte:/);
+});
+
+test("admin task workspace exposes a task-scoped manual Feishu UID backfill", () => {
+  assert.match(source, /UID 回填助手/);
+  assert.match(source, /保存表格并预览/);
+  assert.match(source, /表格链接按任务保存/);
+  assert.match(source, /role="alert"/);
+  assert.match(source, /setFeishuBackfillError\(message\)/);
+  assert.match(source, /确认写入空白项/);
+  assert.match(source, /previewMamaResourceFeishuBackfill/);
+  assert.match(source, /commitMamaResourceFeishuBackfill/);
+  assert.match(apiSource, /tasks\/\$\{taskId\}\/feishu-backfill\/preview/);
+  assert.match(apiSource, /tasks\/\$\{taskId\}\/feishu-backfill\/commit/);
+  assert.match(backendSource, /current\.preview\.fingerprint !== fingerprint/);
+  assert.match(backendSource, /飞书回读校验失败/);
 });

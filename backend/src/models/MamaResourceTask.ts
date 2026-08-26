@@ -22,6 +22,7 @@ export interface MamaResourceTask extends mongoose.Document {
   settlementStandard?: string;
   requirement?: string;
   externalUrl?: string;
+  feishuBackfillUrl?: string;
   exampleImageUrls: string[];
   status: MamaResourceTaskStatus;
   contentLinkPoolEnabled: boolean;
@@ -51,6 +52,7 @@ const mamaResourceTaskSchema = new mongoose.Schema(
     settlementStandard: { type: String, default: "", trim: true },
     requirement: { type: String, default: "", trim: true },
     externalUrl: { type: String, default: "", trim: true },
+    feishuBackfillUrl: { type: String, default: "", trim: true },
     exampleImageUrls: { type: [String], default: [] },
     status: {
       type: String,

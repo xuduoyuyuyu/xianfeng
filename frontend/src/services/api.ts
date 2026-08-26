@@ -675,6 +675,13 @@ export interface MamaResourceProfile {
   updatedAt: string;
 }
 
+export interface MamaResourceFeishuBackfillPreview {
+  headerRowNumber: number;
+  fingerprint: string;
+  changes: Array<{ rowNumber: number; uid: string; field: string; cell: string; value: string | number }>;
+  issues: Array<{ rowNumber: number; uid: string; reason: string }>;
+}
+
 export interface MamaResourceApplicationInput {
   displayName: string;
   contactPhone?: string;
@@ -755,6 +762,7 @@ export interface MamaResourceTask {
   settlementStandard?: string;
   requirement?: string;
   externalUrl?: string;
+  feishuBackfillUrl?: string;
   exampleImageUrls?: string[];
   contentUrl?: string;
   contentLinkPoolEnabled?: boolean;
@@ -1220,6 +1228,15 @@ export interface LoginInviteConfig {
   source: "setting" | "env";
 }
 
+export interface FeishuIntegrationConfig {
+  appId: string;
+  appIdSet: boolean;
+  appSecretSet: boolean;
+  appSecretPreview: string;
+  configured: boolean;
+  source: "setting" | "env";
+}
+
 export interface ProgramParseTask {
   programId: string;
   parseStatus: "idle" | "parsing" | "success" | "failed";
@@ -1604,6 +1621,12 @@ export const adminApi = {
   },
   commitMamaResourceContentImport: (id: string, rows: MamaResourceContentImportRow[]) =>
     api.post<{ summary: { created: number; updated: number; unchanged: number } }>(`/admin/mama-resources/tasks/${id}/content-import/commit`, { rows }),
+  previewMamaResourceFeishuBackfill: (taskId: string, url: string) =>
+    api.post<MamaResourceFeishuBackfillPreview>(`/admin/mama-resources/tasks/${taskId}/feishu-backfill/preview`, { url }),
+  commitMamaResourceFeishuBackfill: (taskId: string, url: string, fingerprint: string) =>
+    api.post<{ written: number; verified: number; issues: MamaResourceFeishuBackfillPreview['issues'] }>(
+      `/admin/mama-resources/tasks/${taskId}/feishu-backfill/commit`, { url, fingerprint },
+    ),
   importMamaResourceContentLinks: (id: string, data: { linksText?: string; links?: string[] }) =>
     api.post<{
       importedCount: number;
@@ -1652,6 +1675,9 @@ export const adminApi = {
     expiresAt: string | null;
   }) => api.put<LoginInviteConfig>("/admin/login-invite", data),
   resetLoginInviteUsage: () => api.put<LoginInviteConfig>("/admin/login-invite", { resetUsage: true }),
+  getFeishuConfig: () => api.get<FeishuIntegrationConfig>("/admin/feishu-config"),
+  updateFeishuConfig: (data: { appId: string; appSecret?: string }) =>
+    api.put<FeishuIntegrationConfig>("/admin/feishu-config", data),
 };
 
 // 用户 API

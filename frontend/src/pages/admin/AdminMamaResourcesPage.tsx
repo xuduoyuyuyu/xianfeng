@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   adminApi,
   MamaResourceMediaAccount,
+  MamaResourceFeishuBackfillPreview,
   MamaResourceProfile,
   MamaResourceProofStatus,
   MamaResourceStatus,
@@ -239,6 +240,7 @@ function proofStatusBadge(status?: MamaResourceProofStatus) {
 }
 
 const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState<MamaResourceProfile[]>([]);
   const [tasks, setTasks] = useState<MamaResourceTask[]>([]);
   const [assignments, setAssignments] = useState<MamaResourceTaskAssignment[]>([]);
@@ -289,6 +291,11 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
   const [manualMediaAccounts, setManualMediaAccounts] = useState<ManualMediaAccount[]>([]);
   const [manualAlipayAccount, setManualAlipayAccount] = useState("");
   const [manualAlipayVerifiedName, setManualAlipayVerifiedName] = useState("");
+  const [feishuBackfillOpen, setFeishuBackfillOpen] = useState(false);
+  const [feishuBackfillUrl, setFeishuBackfillUrl] = useState("");
+  const [feishuBackfillPreview, setFeishuBackfillPreview] = useState<MamaResourceFeishuBackfillPreview | null>(null);
+  const [feishuBackfillLoading, setFeishuBackfillLoading] = useState(false);
+  const [feishuBackfillError, setFeishuBackfillError] = useState("");
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const isReviewMode = mode === "review";
@@ -299,6 +306,43 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
     assignments.forEach((assignment) => assignment.profile?.categories?.forEach((category) => categories.add(category)));
     return Array.from(categories);
   }, [items, assignments]);
+
+  const previewFeishuBackfill = async () => {
+    if (!selectedTask) return;
+    setFeishuBackfillLoading(true);
+    setFeishuBackfillPreview(null);
+    setFeishuBackfillError("");
+    try {
+      const response = await adminApi.previewMamaResourceFeishuBackfill(selectedTask._id, feishuBackfillUrl.trim());
+      setFeishuBackfillPreview(response.data);
+    } catch (previewError: any) {
+      const message = requestErrorMessage(previewError, "扫描飞书表格失败");
+      setFeishuBackfillError(message);
+      setToast(message);
+    } finally {
+      setFeishuBackfillLoading(false);
+    }
+  };
+
+  const commitFeishuBackfill = async () => {
+    if (!selectedTask || !feishuBackfillPreview) return;
+    setFeishuBackfillLoading(true);
+    setFeishuBackfillError("");
+    try {
+      const response = await adminApi.commitMamaResourceFeishuBackfill(selectedTask._id, feishuBackfillUrl.trim(), feishuBackfillPreview.fingerprint);
+      setToast(`已写入并校验 ${response.data.verified} 个单元格`);
+      setFeishuBackfillOpen(false);
+      setFeishuBackfillPreview(null);
+    } catch (commitError: any) {
+      const nextPreview = commitError?.response?.data?.preview;
+      if (nextPreview) setFeishuBackfillPreview(nextPreview);
+      const message = requestErrorMessage(commitError, "飞书回填失败");
+      setFeishuBackfillError(message);
+      setToast(message);
+    } finally {
+      setFeishuBackfillLoading(false);
+    }
+  };
 
   const loadItems = async (nextPage = page) => {
     setLoading(true);
@@ -374,6 +418,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
     const mediaAccounts = profile.mediaAccounts?.length ? profile.mediaAccounts : [profile.socialAccount];
     setManualMediaAccounts(mediaAccounts.map((account) => ({
       ...account,
+      profileUrl: extractProfileUrl(account.profileUrl) || account.profileUrl,
       followerCount: account.followerCount === undefined || account.followerCount === null ? "" : String(account.followerCount),
     })));
     setManualAlipayAccount(profile.alipayAccount || "");
@@ -385,7 +430,24 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
     setEditing(null);
   };
 
-  const updateManualMediaAccount = (index: number, key: "nickname" | "followerCount", value: string) => {
+  useEffect(() => {
+    if (!isReviewMode) return;
+    const linkedProfileId = searchParams.get("profileId");
+    if (!linkedProfileId) return;
+    let cancelled = false;
+    adminApi.getMamaResource(linkedProfileId).then((response) => {
+      if (cancelled) return;
+      openEdit(response.data.profile);
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete("profileId");
+      setSearchParams(nextParams, { replace: true });
+    }).catch((loadError: any) => {
+      if (!cancelled) setToast(loadError?.response?.data?.message || loadError?.message || "用户资料加载失败");
+    });
+    return () => { cancelled = true; };
+  }, [isReviewMode, searchParams, setSearchParams]);
+
+  const updateManualMediaAccount = (index: number, key: "profileUrl" | "nickname" | "followerCount", value: string) => {
     setManualMediaAccounts((current) => current.map((account, accountIndex) => (
       accountIndex === index ? { ...account, [key]: value } : account
     )));
@@ -401,6 +463,8 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
       const nextTasks = await loadTasks();
       const nextSelected = task || selectedTask || nextTasks[0] || null;
       setSelectedTask(nextSelected);
+      setFeishuBackfillUrl(nextSelected?.feishuBackfillUrl || "");
+      setFeishuBackfillPreview(null);
       if (nextSelected) await loadTaskWorkspace(nextSelected._id, "all");
     } catch (loadError: any) {
       setToast(loadError?.response?.data?.message || loadError?.message || "任务加载失败");
@@ -432,6 +496,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
     try {
       const mediaAccounts = manualMediaAccounts.map((account) => ({
         ...account,
+        profileUrl: account.profileUrl.trim(),
         nickname: account.nickname?.trim() || "",
         followerCount: account.followerCount ? Number(account.followerCount) : null,
         dataSource: "manual" as const,
@@ -1003,9 +1068,10 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                     <div key={`${account.normalizedProfileUrl || account.profileUrl}-${index}`} className="rounded-xl border border-stone-200 bg-stone-50 p-3">
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-sm font-black text-stone-900">账号 {index + 1} · {mediaPlatformLabel[account.platform] || account.platform}</span>
-                        {extractProfileUrl(account.profileUrl) ? <a href={extractProfileUrl(account.profileUrl)} target="_blank" rel="noreferrer" className="text-xs font-bold text-[#6c27d6]">查看主页</a> : <span className="text-xs font-semibold text-stone-400">未识别主页链接</span>}
+                        {extractProfileUrl(account.profileUrl) ? <a href={extractProfileUrl(account.profileUrl)} target="_blank" rel="noreferrer" className="text-xs font-bold text-[#6c27d6]">打开主页</a> : <span className="text-xs font-semibold text-stone-400">未识别主页链接</span>}
                       </div>
                       <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        <label className="text-sm font-bold text-stone-700 sm:col-span-2">主页链接<input value={account.profileUrl || ""} onChange={(event) => updateManualMediaAccount(index, "profileUrl", event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm" placeholder="https://..." /></label>
                         <label className="text-sm font-bold text-stone-700">账号昵称<input value={account.nickname || ""} onChange={(event) => updateManualMediaAccount(index, "nickname", event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm" /></label>
                         <label className="text-sm font-bold text-stone-700">粉丝数<input value={account.followerCount} onChange={(event) => updateManualMediaAccount(index, "followerCount", event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm" placeholder="人工补录" /></label>
                       </div>
@@ -1109,6 +1175,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                 <div className="mt-1 text-sm font-semibold text-stone-500">只展示已经领取当前任务的账号，并管理专属内容与运营状态。</div>
               </div>
               <div className="flex items-center gap-2">
+                <button type="button" onClick={() => { setFeishuBackfillError(""); setFeishuBackfillOpen(true); }} disabled={!selectedTask || taskLoading} className="rounded-full border border-[#6c27d6] bg-[#f7f2ff] px-4 py-2 text-sm font-black text-[#5e17eb] disabled:opacity-50">UID 回填助手</button>
                 <button type="button" onClick={() => setContentLinkImportOpen(true)} disabled={!selectedTask || taskLoading} className="rounded-full bg-[#6c27d6] px-4 py-2 text-sm font-black text-white hover:bg-[#5e17eb] disabled:bg-stone-300">导入链接</button>
                 <button type="button" onClick={closeTaskManager} disabled={taskLoading} className="rounded-full border border-stone-200 px-4 py-2 text-sm font-bold text-stone-600 hover:bg-stone-50 disabled:opacity-50">关闭</button>
               </div>
@@ -1337,6 +1404,51 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
             <div className="mt-4 grid grid-cols-2 gap-3">
               <button type="button" onClick={() => setContentImportOpen(false)} className="rounded-xl border border-stone-300 px-4 py-3 text-sm font-black text-stone-700">取消</button>
               <button type="button" onClick={commitContentImport} disabled={taskLoading || contentImportPreview.summary.invalid > 0} className="rounded-xl bg-[#6c27d6] px-4 py-3 text-sm font-black text-white disabled:bg-stone-300">确认导入</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {feishuBackfillOpen ? (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/45 p-4" role="dialog" aria-modal="true">
+          <div className="flex max-h-[86vh] w-full max-w-4xl flex-col rounded-2xl bg-white p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-lg font-black text-stone-900">{selectedTask?.title || "当前任务"} · UID 回填助手</div>
+                <div className="mt-1 text-sm font-semibold text-stone-500">表格链接按任务保存；只使用当前任务的领取与下发记录，只填写空白单元格。</div>
+              </div>
+              <button type="button" onClick={() => setFeishuBackfillOpen(false)} className="text-xl font-black text-stone-400">×</button>
+            </div>
+            <label className="mt-4 text-sm font-black text-stone-700">飞书电子表格链接
+              <input value={feishuBackfillUrl} onChange={(event) => { setFeishuBackfillUrl(event.target.value); setFeishuBackfillPreview(null); setFeishuBackfillError(""); }} className="mt-2 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" />
+            </label>
+            {feishuBackfillError ? (
+              <div role="alert" className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
+                {feishuBackfillError}
+              </div>
+            ) : null}
+            {feishuBackfillPreview ? (
+              <div className="mt-4 min-h-0 flex-1 overflow-y-auto">
+                <div className="grid grid-cols-3 gap-3 text-center text-sm font-black">
+                  <div className="rounded-xl bg-violet-50 p-3 text-violet-700">待写 {feishuBackfillPreview.changes.length}</div>
+                  <div className="rounded-xl bg-amber-50 p-3 text-amber-700">需核对 {feishuBackfillPreview.issues.length}</div>
+                  <div className="rounded-xl bg-stone-50 p-3 text-stone-700">表头第 {feishuBackfillPreview.headerRowNumber} 行</div>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {feishuBackfillPreview.changes.map((change) => (
+                    <div key={change.cell} className="grid grid-cols-[80px_120px_1fr] gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold">
+                      <span>{change.cell}</span><span>{change.field}</span><span className="break-all">{String(change.value)}</span>
+                    </div>
+                  ))}
+                  {feishuBackfillPreview.issues.map((issue) => (
+                    <div key={`${issue.rowNumber}-${issue.uid}-${issue.reason}`} className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800">第 {issue.rowNumber} 行 · UID {issue.uid} · {issue.reason}</div>
+                  ))}
+                  {!feishuBackfillPreview.changes.length && !feishuBackfillPreview.issues.length ? <div className="rounded-xl bg-stone-50 p-6 text-center text-sm font-semibold text-stone-500">没有需要回填的空白数据</div> : null}
+                </div>
+              </div>
+            ) : null}
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <button type="button" onClick={previewFeishuBackfill} disabled={feishuBackfillLoading || !selectedTask || !feishuBackfillUrl.trim()} className="rounded-xl border border-[#6c27d6] px-4 py-3 text-sm font-black text-[#6c27d6] disabled:border-stone-300 disabled:text-stone-400">{feishuBackfillLoading ? "处理中…" : "保存表格并预览"}</button>
+              <button type="button" onClick={commitFeishuBackfill} disabled={feishuBackfillLoading || !feishuBackfillPreview?.changes.length} className="rounded-xl bg-[#6c27d6] px-4 py-3 text-sm font-black text-white disabled:bg-stone-300">确认写入空白项</button>
             </div>
           </div>
         </div>

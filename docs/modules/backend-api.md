@@ -28,6 +28,13 @@
 
 ### Durable Contracts
 
+- Public fixed-bank flash-test pronunciation reads from versioned static sets under
+  `backend/src/assets/flash-test`: 1,600 pre-generated Chinese-character MP3s and
+  150 RP-calibrated British-English word MP3s. Runtime playback never calls TTS;
+  generation is an explicit offline process and each SHA-256 manifest records the
+  exact asset set shipped with the backend. The route accepts only identifiers
+  from those two fixed banks and carries no user data; flash-test result history
+  and writes remain authenticated.
 - Program imports update only fields present in the supplied export and preserve
   stored generated content omitted by lightweight public-list payloads, including
   `transcript`, `contentPack`, and `deepDive`. Public program lists project one
@@ -56,6 +63,9 @@
   program detail: both `published` and `group-only` programs contribute to
   related-program cards, program counts, and content tags; drafts remain
   excluded.
+- `GET /api/wechat-mini/program-qrcode` accepts a visible program ObjectId or
+  program code and returns an official mini-program code whose `p=<ObjectId>`
+  scene opens that exact native program detail. Draft programs remain excluded.
 - `/api/programs/:id/related` returns only other visible programs that share at
   least one bound guest with the current program. Programs without a bound
   guest return an empty recommendation list; dictionary terms and tags rank
@@ -111,14 +121,31 @@
   to an existing account, that mobile account wins: the mini-program openid is
   moved to that account and the response returns that account's JWT.
 - Authenticated flash-test history is stored as user-owned `FlashTestResult`
-  records. `POST /api/flash-tests/results` accepts only the current supported
-  `eight-talents` question version and exactly 40 integer answers from 1 to 5;
-  the backend derives all eight dimension scores instead of trusting client
-  scores. Child-mode writes require an existing child ID in the current user's
-  `UserXiaowanziSync.childProfiles`. `GET /api/flash-tests/results` returns only
-  the authenticated user's newest results, supports assessment, self/child,
-  and child-ID filters for restoring the matching subject's latest result, and
-  never accepts a client-supplied owner ID.
+  records. `POST /api/flash-tests/results` accepts the current supported
+  `eight-talents` version with exactly 40 integer answers from 1 to 5, or the
+  child-only `character-recognition` group version with exactly 800 binary
+  answers. The client identifies group 1 or group 2, and each group may be
+  submitted independently without a score threshold. Legacy cumulative
+  1600-answer submissions remain supported for stored-result compatibility.
+  Recognition submissions also carry the matching fixed character bank in its
+  fixed order; the backend rejects missing, reordered, or substituted
+  characters and stores the complete checklist with its group number.
+  The backend derives the corresponding
+  eight-dimension scores or exact recognition count instead of trusting client
+  scores. Child-mode writes
+  require an existing child ID in the current user's
+  `UserXiaowanziSync.childProfiles`; recognition results cannot be saved in
+  self mode. `GET /api/flash-tests/results` returns only the authenticated
+  user's newest results, supports assessment, self/child, and child-ID filters
+  for restoring the matching subject's latest result, and never accepts a
+  client-supplied owner ID. Character-recognition results include their stored
+  binary answers and sampled characters plus the latest mastery summary for
+  each independent 800-character group so the client can reconstruct that
+  round's recognized and not-yet-recognized character lists; other assessment
+  histories do not expose raw answers through this serializer. Written-word
+  English history responses also include the latest recognized/total summary
+  for each of the five word packs, scoped to the same child, so the result page
+  can show all pack states without mixing children or picture-naming records.
 - Billing exposes `free`, `plus`, and `pro` catalog plans. Free login grants
   are 10 points per day with a hard monthly free-account cap of 30 points,
   including legacy free balances above the cap. `plus` costs ¥19.9 for 200
@@ -277,6 +304,14 @@
   `MamaResourceProfile.operatorTags` stores deduplicated operator labels and
   `orderBlocked` prevents new claims while preserving access to existing
   assignments, proof submission, and settlement records.
+  Token-authenticated `/api/integrations/seesea/mama-resources` exposes active
+  Haozhuan tasks and their existing claimants to SEESEA. A finalized SEESEA
+  snapshot can enter the ordered task content pool or bind directly to selected
+  existing assignments. Pool delivery follows claim creation order; direct
+  delivery and previously configured content are never overwritten. The
+  integration cannot create assignments for unclaimed profiles, and every
+  delivered assignment retains its SEESEA project, document, revision, mode,
+  and idempotency key as source metadata.
   The same `/me/tasks` endpoint returns pending/needs-info/rejected profile
   status with an empty task list so clients can show a review-status page
   instead of the intake form. Public task submission stores proof link plus
@@ -302,6 +337,17 @@
   available. When a campaign has imported activation codes, the backend owns
   ordered code assignment, stores the bound code on `WelfareClaim`, and exposes
   CSV claim export for reconciliation.
+- Admin-only, task-scoped Mama Haozhuan Feishu backfill endpoints scan each
+  task's configured online spreadsheet through a tenant self-built Feishu app.
+  Preview only considers claimants of that task and matches personal
+  fields by public UID and publishing fields by both UID and assigned
+  `contentUrl`; commit requires the unchanged preview fingerprint, writes blank
+  cells only, rejects profile/draft URLs as publication proof, and reads every
+  written cell back for verification. The integration is manually triggered per task
+  and requires `FEISHU_APP_ID` plus `FEISHU_APP_SECRET`.
+  Admin system settings may instead persist the same application credentials;
+  the App Secret is AES-GCM encrypted with a key derived from `JWT_SECRET`, is
+  never returned in plaintext, and takes precedence over environment fallback.
 
 ### Active
 

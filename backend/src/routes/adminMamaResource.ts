@@ -16,6 +16,13 @@ import {
   parseMamaResourceContentLinks,
   syncMamaResourceTaskContentState,
 } from "../services/mamaResourceContentLinks";
+import { readFeishuSheet, writeFeishuCells } from "../services/feishuSheets";
+import {
+  buildFeishuBackfillPreview,
+  cellText,
+  FeishuBackfillSource,
+  FeishuBackfillValue,
+} from "../services/mamaResourceFeishuBackfill";
 
 const router = Router();
 const STATUSES: MamaResourceStatus[] = ["pending", "approved", "needs_info", "rejected"];
@@ -54,6 +61,32 @@ function asOptionalDate(value: unknown): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function normalizeManualProfileUrl(platform: string, value: unknown) {
+  const raw = asText(value);
+  const directUrl = raw.match(/https?:\/\/[^\s<>"']+/i)?.[0]?.replace(/[，。；！？、）)\]}>]+$/, "") || "";
+  if (!directUrl) return { profileUrl: "", normalizedProfileUrl: "" };
+  let url: URL;
+  try {
+    url = new URL(directUrl);
+  } catch (_error) {
+    return { profileUrl: "", normalizedProfileUrl: "" };
+  }
+  if (platform === "xiaohongshu") {
+    const host = url.hostname.replace(/^www\./, "").toLowerCase();
+    const pathname = url.pathname.replace(/\/+$/, "");
+    if (host.includes("xiaohongshu.com") && pathname) {
+      return {
+        profileUrl: `https://www.xiaohongshu.com${pathname}`,
+        normalizedProfileUrl: `xiaohongshu:${pathname.replace(/^\/+/, "").toLowerCase()}`,
+      };
+    }
+  }
+  return {
+    profileUrl: directUrl,
+    normalizedProfileUrl: `${platform}:${directUrl.toLowerCase()}`,
+  };
+}
+
 function normalizePhoneDigits(value: unknown): string {
   return asText(value).replace(/\D/g, "");
 }
@@ -63,8 +96,7 @@ function manualMediaAccounts(value: unknown) {
   return value.map((item) => {
     const source = item && typeof item === "object" ? item as Record<string, unknown> : {};
     const platform = asText(source.platform);
-    const profileUrl = asText(source.profileUrl);
-    const normalizedProfileUrl = asText(source.normalizedProfileUrl);
+    const { profileUrl, normalizedProfileUrl } = normalizeManualProfileUrl(platform, source.profileUrl);
     if (!MEDIA_PLATFORMS.has(platform) || !profileUrl || !normalizedProfileUrl) {
       throw new Error("社交媒体账号的平台或主页链接不完整");
     }
@@ -89,6 +121,66 @@ function escapeRegex(value: string): string {
 function idQuery(id: string) {
   if (mongoose.Types.ObjectId.isValid(id)) return { _id: id };
   return { _id: null };
+}
+
+function backfillDate(value: unknown): string {
+  if (!value) return "";
+  const date = new Date(value as string | number | Date);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  }).format(date).replace(/\//g, "-");
+}
+
+function cellAt(values: FeishuBackfillValue[][], cell: string): string {
+  const match = /^([A-Z]+)(\d+)$/.exec(cell);
+  if (!match) return "";
+  let column = 0;
+  for (const char of match[1]) column = column * 26 + char.charCodeAt(0) - 64;
+  return cellText(values[Number(match[2]) - 1]?.[column - 1]);
+}
+
+async function buildCurrentFeishuBackfill(rawUrl: string, taskId: mongoose.Types.ObjectId) {
+  const sheet = await readFeishuSheet(rawUrl);
+  const uidValues = new Set(sheet.values.flat().map(cellText).filter((value) => /^\d{6,12}$/.test(value)));
+  const users = await User.find({ publicUid: { $in: [...uidValues] } }).select("_id publicUid").lean();
+  const profiles = await MamaResourceProfile.find({ userId: { $in: users.map((user) => user._id) } }).lean();
+  const assignments = await MamaResourceTaskAssignment.find({ taskId, profileId: { $in: profiles.map((profile) => profile._id) } }).lean();
+  const profilesByUserId = new Map(profiles.map((profile) => [String(profile.userId), profile]));
+  const assignmentsByProfileId = new Map<string, any[]>();
+  assignments.forEach((assignment) => {
+    const key = String(assignment.profileId);
+    assignmentsByProfileId.set(key, [...(assignmentsByProfileId.get(key) || []), assignment]);
+  });
+  const sources = new Map<string, FeishuBackfillSource>();
+  users.forEach((user: any) => {
+    const profile: any = profilesByUserId.get(String(user._id));
+    if (!profile || !assignmentsByProfileId.has(String(profile._id))) return;
+    const accounts = Array.isArray(profile.mediaAccounts) && profile.mediaAccounts.length
+      ? profile.mediaAccounts
+      : [profile.socialAccount];
+    const account = accounts.find((item: any) => item?.platform === "xiaohongshu" && item?.profileUrl)
+      || accounts.find((item: any) => item?.profileUrl)
+      || {};
+    sources.set(asText(user.publicUid), {
+      publicUid: asText(user.publicUid),
+      displayName: asText(profile.displayName),
+      accountName: asText(account.nickname),
+      profileUrl: asText(account.profileUrl),
+      followerCount: account.followerCount !== undefined && account.followerCount !== null && Number.isFinite(Number(account.followerCount))
+        ? Number(account.followerCount)
+        : null,
+      alipayAccount: asText(profile.alipayAccount),
+      alipayVerifiedName: asText(profile.alipayVerifiedName),
+      publications: (assignmentsByProfileId.get(String(profile._id)) || []).map((assignment: any) => ({
+        contentUrl: asText(assignment.contentUrl),
+        publishedAt: backfillDate(assignment.submittedAt),
+        proofLink: asText(assignment.proofLink),
+      })),
+    });
+  });
+  return { ...sheet, preview: buildFeishuBackfillPreview(sheet.values, sources) };
 }
 
 type ContentImportSourceRow = {
@@ -364,6 +456,45 @@ router.get("/tasks", async (_req: Request, res: Response) => {
     res.json({ tasks: tasks.map((task) => serializeTask(task, stats)) });
   } catch (error: any) {
     res.status(500).json({ message: error?.message || "获取任务失败" });
+  }
+});
+
+router.post("/tasks/:taskId/feishu-backfill/preview", async (req: Request, res: Response) => {
+  try {
+    const url = asText(req.body?.url);
+    if (!url) return res.status(400).json({ message: "请填写飞书电子表格链接" });
+    const task = await MamaResourceTask.findOne(idQuery(asText(req.params.taskId)));
+    if (!task) return res.status(404).json({ message: "任务不存在" });
+    const result = await buildCurrentFeishuBackfill(url, task._id);
+    task.feishuBackfillUrl = url;
+    await task.save();
+    res.json(result.preview);
+  } catch (error: any) {
+    res.status(/未配置/.test(error?.message || "") ? 503 : 400).json({ message: error?.message || "飞书回填预览失败" });
+  }
+});
+
+router.post("/tasks/:taskId/feishu-backfill/commit", async (req: Request, res: Response) => {
+  try {
+    const url = asText(req.body?.url);
+    const fingerprint = asText(req.body?.fingerprint);
+    if (!url || !fingerprint) return res.status(400).json({ message: "缺少飞书链接或预览校验值" });
+    const task = await MamaResourceTask.findOne(idQuery(asText(req.params.taskId)));
+    if (!task) return res.status(404).json({ message: "任务不存在" });
+    if (asText(task.feishuBackfillUrl) !== url) return res.status(409).json({ message: "任务绑定的表格链接已变化，请重新扫描" });
+    const current = await buildCurrentFeishuBackfill(url, task._id);
+    if (current.preview.fingerprint !== fingerprint) {
+      return res.status(409).json({ message: "表格或后台数据已变化，请重新扫描后再写入", preview: current.preview });
+    }
+    await writeFeishuCells(url, current.preview.changes.map(({ cell, value }) => ({ cell, value })));
+    const readback = await readFeishuSheet(url);
+    const failedCells = current.preview.changes
+      .filter((change) => cellAt(readback.values, change.cell) !== String(change.value))
+      .map((change) => change.cell);
+    if (failedCells.length) return res.status(502).json({ message: "飞书回读校验失败", failedCells });
+    res.json({ written: current.preview.changes.length, verified: current.preview.changes.length, issues: current.preview.issues });
+  } catch (error: any) {
+    res.status(/未配置/.test(error?.message || "") ? 503 : 400).json({ message: error?.message || "飞书回填失败" });
   }
 });
 
@@ -818,6 +949,8 @@ router.put("/:id", async (req: Request, res: Response) => {
       update.mediaAccounts = mediaAccounts;
       const primaryXiaohongshuAccount = mediaAccounts.find((account) => account.platform === "xiaohongshu");
       if (primaryXiaohongshuAccount) {
+        update["socialAccount.profileUrl"] = primaryXiaohongshuAccount.profileUrl;
+        update["socialAccount.normalizedProfileUrl"] = primaryXiaohongshuAccount.normalizedProfileUrl;
         update["socialAccount.nickname"] = primaryXiaohongshuAccount.nickname;
         update["socialAccount.followerCount"] = primaryXiaohongshuAccount.followerCount;
         update["socialAccount.dataSource"] = "manual";
