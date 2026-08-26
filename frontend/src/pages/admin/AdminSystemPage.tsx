@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { adminApi, LoginInviteConfig, ModelRegistryItem, SystemInfo } from "../../services/api";
+import { adminApi, FeishuIntegrationConfig, LoginInviteConfig, ModelRegistryItem, SystemInfo } from "../../services/api";
 import TopAlert from "../../components/TopAlert";
 
 function formatUptime(sec: number): string {
@@ -81,20 +81,28 @@ const AdminSystemPage: React.FC = () => {
   const [inviteConfig, setInviteConfig] = useState<LoginInviteConfig | null>(null);
   const [inviteForm, setInviteForm] = useState<LoginInviteForm>(buildInviteForm(null));
   const [savingInvite, setSavingInvite] = useState(false);
+  const [feishuConfig, setFeishuConfig] = useState<FeishuIntegrationConfig | null>(null);
+  const [feishuAppId, setFeishuAppId] = useState("");
+  const [feishuAppSecret, setFeishuAppSecret] = useState("");
+  const [savingFeishu, setSavingFeishu] = useState(false);
 
   const load = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [infoResp, modelResp, inviteResp] = await Promise.all([
+      const [infoResp, modelResp, inviteResp, feishuResp] = await Promise.all([
         adminApi.getSystemInfo(),
         adminApi.getModelRegistry(),
         adminApi.getLoginInviteConfig(),
+        adminApi.getFeishuConfig(),
       ]);
       setInfo(infoResp.data);
       setModels(Array.isArray(modelResp.data?.items) ? modelResp.data.items : []);
       setInviteConfig(inviteResp.data);
       setInviteForm(buildInviteForm(inviteResp.data));
+      setFeishuConfig(feishuResp.data);
+      setFeishuAppId(feishuResp.data.appId || "");
+      setFeishuAppSecret("");
     } catch (loadError: any) {
       setError(loadError?.response?.data?.message || loadError?.message || "获取系统信息失败");
     } finally {
@@ -255,6 +263,32 @@ const AdminSystemPage: React.FC = () => {
     }
   }
 
+  async function saveFeishu() {
+    if (!feishuAppId.trim()) {
+      setError("请填写飞书 App ID");
+      return;
+    }
+    if (!feishuConfig?.appSecretSet && !feishuAppSecret.trim()) {
+      setError("请填写飞书 App Secret");
+      return;
+    }
+    setSavingFeishu(true);
+    setError(null);
+    try {
+      const response = await adminApi.updateFeishuConfig({
+        appId: feishuAppId.trim(),
+        appSecret: feishuAppSecret.trim() || undefined,
+      });
+      setFeishuConfig(response.data);
+      setFeishuAppId(response.data.appId || "");
+      setFeishuAppSecret("");
+    } catch (e: any) {
+      setError(e?.response?.data?.message || e?.message || "保存飞书配置失败");
+    } finally {
+      setSavingFeishu(false);
+    }
+  }
+
   return (
     <div className="space-y-8">
       <TopAlert message={error} onClose={() => setError(null)} />
@@ -315,6 +349,26 @@ const AdminSystemPage: React.FC = () => {
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="rounded-2xl border border-stone-100 bg-white p-5"><div className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500">ALLOW_PUBLIC_REGISTER</div><div className="mt-2 text-sm font-bold text-stone-900">{String(info.env.allowPublicRegister)}</div></div>
                 <div className="rounded-2xl border border-stone-100 bg-white p-5"><div className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-500">CORS_ORIGIN</div><div className="mt-2 text-sm font-bold text-stone-900">{info.env.corsOrigin || "-"}</div></div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-stone-100 bg-white p-8 space-y-6">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-2xl font-black text-stone-900">飞书项目配置</h2>
+                  <div className="mt-1 text-xs text-stone-500">用于好赚任务 UID 回填；App Secret 加密保存且不回显明文。</div>
+                </div>
+                <span className={`rounded-full px-3 py-1 text-[10px] font-black ${feishuConfig?.configured ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                  {feishuConfig?.configured ? "已配置" : "未配置"}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="text-xs font-bold text-stone-500">App ID<input value={feishuAppId} onChange={(event) => setFeishuAppId(event.target.value)} className={inputClass} placeholder="cli_..." autoComplete="off" /></label>
+                <label className="text-xs font-bold text-stone-500">App Secret（留空表示不修改）<input type="password" value={feishuAppSecret} onChange={(event) => setFeishuAppSecret(event.target.value)} className={inputClass} placeholder={feishuConfig?.appSecretSet ? `已设置 ${feishuConfig.appSecretPreview}` : "请输入 App Secret"} autoComplete="new-password" /></label>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-xs font-semibold text-stone-500">来源：{feishuConfig?.source === "setting" ? "后台配置" : "环境变量"}</div>
+                <button type="button" onClick={() => void saveFeishu()} disabled={savingFeishu} className="rounded-full bg-[#5e17eb] px-5 py-2 text-sm font-bold text-white hover:bg-[#5112d1] disabled:opacity-50">{savingFeishu ? "保存中..." : "保存飞书配置"}</button>
               </div>
             </div>
 

@@ -9,6 +9,7 @@ import User from "../models/User";
 import { getDefaultShowNotesTemplate, getShowNotesDefaultTemplate, saveShowNotesDefaultTemplate } from "../services/showNotes";
 import { ensureStore } from "../services/agentModelRegistry";
 import { getLoginInviteConfig, resetLoginInviteUsage, saveLoginInviteConfig } from "../services/loginInvite";
+import { getFeishuConfigStatus, saveFeishuConfig } from "../services/feishuConfig";
 
 const router = express.Router();
 
@@ -159,6 +160,22 @@ router.put("/login-invite", authenticate, requireAdmin, async (req, res) => {
     res.status(200).json(saved);
   } catch (error) {
     res.status(500).json({ message: "保存邀请码配置失败", error });
+  }
+});
+
+router.get("/feishu-config", authenticate, requireAdmin, async (_req, res) => {
+  try {
+    res.status(200).json(await getFeishuConfigStatus());
+  } catch (error: any) {
+    res.status(500).json({ message: error?.message || "获取飞书配置失败" });
+  }
+});
+
+router.put("/feishu-config", authenticate, requireAdmin, async (req, res) => {
+  try {
+    res.status(200).json(await saveFeishuConfig({ appId: req.body?.appId, appSecret: req.body?.appSecret }));
+  } catch (error: any) {
+    res.status(400).json({ message: error?.message || "保存飞书配置失败" });
   }
 });
 

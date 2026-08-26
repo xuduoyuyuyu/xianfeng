@@ -100,8 +100,17 @@
   timeline, including registration, profile changes, recorded page visits,
   child-memory updates, and task lifecycle events.
   Its keyword search covers UID, site nickname, and linked Haozhuan nicknames.
+  The list can also filter registration time by an inclusive local-date range;
+  this remains a client-side filter over the already loaded admin user list.
   Bound profiles on `/admin/mama-resources/review` link to `/admin/users` and
   automatically open that existing User 360 detail.
+- Each task's content-dispatch workspace includes its own manual UID backfill
+  assistant and saved Feishu spreadsheet link. It presents cell-level changes and exceptions
+  before enabling confirmation; it has no automatic schedule and never offers
+  overwrite mode.
+- `/admin/system` provides the administrator-only Feishu project credential
+  form. It shows configuration status and a masked secret preview; leaving the
+  secret input blank preserves the stored value.
 - The Haozhuan personal profile exposes `能拍`, `能剪`, and `能写` as optional
   multi-select capabilities. The admin account list exposes the same values in
   a multi-select popover and sends them to the backend as an all-selected match.

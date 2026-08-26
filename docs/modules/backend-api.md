@@ -343,6 +343,17 @@
   ordered code assignment, stores the bound code on `WelfareClaim`, and exposes
   CSV claim export for reconciliation.
 
+- Admin-only, task-scoped Mama Haozhuan Feishu backfill endpoints scan each
+  task's configured online spreadsheet through a tenant self-built Feishu app.
+  Preview only considers claimants of that task and matches personal fields by
+  public UID and publishing fields by both UID and assigned `contentUrl`;
+  commit requires the unchanged preview fingerprint, writes blank cells only,
+  rejects profile/draft URLs as publication proof, and reads every written cell
+  back for verification. The integration is manually triggered per task and
+  requires Feishu credentials from admin system settings or environment
+  fallback. Admin-stored App Secrets are AES-GCM encrypted with a key derived
+  from `JWT_SECRET` and are never returned in plaintext.
+
 ### Active
 
 - XF-003 - Decide whether the WeKnora global RAG plan is still active and, if
