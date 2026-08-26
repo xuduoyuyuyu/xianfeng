@@ -3,6 +3,7 @@ import bcryptjs from "bcryptjs";
 import mongoose from "mongoose";
 import User from "../models/User";
 import Topic from "../models/Topic";
+import Program from "../models/Program";
 import XiaowanziShare from "../models/XiaowanziShare";
 import MamaResourceTask from "../models/MamaResourceTask";
 import { authenticate, AuthenticatedRequest } from "../middlewares/auth";
@@ -73,6 +74,13 @@ function topicIdentityFilter(value: string) {
   if (!id) return null;
   if (mongoose.Types.ObjectId.isValid(id)) return { $or: [{ _id: id }, { slug: id }] };
   return { slug: id };
+}
+
+function programIdentityFilter(value: string) {
+  const id = String(value || "").trim();
+  if (!id) return null;
+  if (mongoose.Types.ObjectId.isValid(id)) return { $or: [{ _id: id }, { programCode: id }] };
+  return { programCode: id };
 }
 
 function normalizeShareText(value: unknown, limit: number) {
@@ -269,6 +277,39 @@ router.get("/topic-qrcode", async (req, res) => {
       checkPath: shouldCheckMiniPagePath(envVersion),
     });
     res.setHeader("content-type", "image/png");
+    res.setHeader("cache-control", "public, max-age=3600");
+    res.send(code);
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "生成小程序码失败" });
+  }
+});
+
+router.get("/program-qrcode", async (req, res) => {
+  try {
+    const filter = programIdentityFilter(String(req.query.programId || req.query.programCode || ""));
+    if (!filter) {
+      res.status(400).json({ error: "缺少节目 ID" });
+      return;
+    }
+    const program = await Program.findOne({
+      ...filter,
+      status: { $in: ["published", "group-only"] },
+    }).select("_id").lean();
+    if (!program) {
+      res.status(404).json({ error: "节目不存在或暂不可分享" });
+      return;
+    }
+
+    const envVersion = requestedMiniEnvVersion(req.query.envVersion);
+    const code = await fetchWechatMiniUnlimitedQRCode({
+      scene: `p=${String((program as any)._id)}`,
+      page: "pages/share/index",
+      width: 280,
+      envVersion,
+      checkPath: shouldCheckMiniPagePath(envVersion),
+    });
+    const contentType = code[0] === 0xff && code[1] === 0xd8 ? "image/jpeg" : "image/png";
+    res.setHeader("content-type", contentType);
     res.setHeader("cache-control", "public, max-age=3600");
     res.send(code);
   } catch (error: any) {

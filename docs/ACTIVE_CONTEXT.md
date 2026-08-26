@@ -1,6 +1,6 @@
 # Active Context - Xianfeng
 
-Last rewritten: 2026-08-14
+Last rewritten: 2026-08-26
 
 > This file is a SNAPSHOT, not a journal. Rewrite it at every workstream close,
 > keep it around 60 lines, and use git history for older context.
@@ -26,6 +26,10 @@ metadata. Commits `7e47238b` and `a7394a2a` are deployed to production.
 Native mini-program program details now prepare their audio context as soon as
 detail data arrives; early taps show an explicit loading state while external
 audio sources buffer, and playback failures remain retryable.
+The same detail page generates a fixed 750 x 1520 share poster with the program
+title, concise summary, tags, every guest's avatar and short introduction, and
+a direct mini-program code. A single guest is followed immediately by the code;
+the generated image excludes page action buttons and keeps symmetric margins.
 
 Guest detail pages split legacy semicolon-delimited book source strings into
 real list names, remove exact normalized duplicates in first-seen order, and

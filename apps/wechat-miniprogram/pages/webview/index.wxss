@@ -164,6 +164,134 @@ page {
   color: #5e17eb;
 }
 
+.xf-program-share-generating {
+  color: #ffffff;
+  font-size: 32rpx;
+  line-height: 1;
+}
+
+.xf-program-share-canvas {
+  position: fixed;
+  top: -9999px;
+  left: -9999px;
+  width: 750px;
+  height: 1520px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.xf-program-share-preview-mask {
+  position: fixed;
+  z-index: 90;
+  inset: 0;
+  background: rgba(17, 8, 31, 0.72);
+}
+
+.xf-program-share-preview-panel {
+  position: fixed;
+  z-index: 91;
+  right: 24rpx;
+  bottom: calc(24rpx + env(safe-area-inset-bottom));
+  left: 24rpx;
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  overflow: hidden;
+  border-radius: 32rpx;
+  background: #ffffff;
+  box-shadow: 0 28rpx 80rpx rgba(27, 8, 58, 0.28);
+}
+
+.xf-program-share-preview-head {
+  display: flex;
+  align-items: center;
+  padding: 28rpx 30rpx 22rpx 112rpx;
+  border-bottom: 1rpx solid #eee8f7;
+}
+
+.xf-program-share-preview-title,
+.xf-program-share-preview-subtitle {
+  display: block;
+}
+
+.xf-program-share-preview-title {
+  color: #211a18;
+  font-size: 32rpx;
+  font-weight: 900;
+}
+
+.xf-program-share-preview-subtitle {
+  margin-top: 6rpx;
+  color: #817a8d;
+  font-size: 22rpx;
+}
+
+.xf-program-share-preview-close {
+  position: absolute;
+  z-index: 2;
+  top: 24rpx;
+  left: 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60rpx;
+  min-width: 60rpx;
+  height: 60rpx;
+  margin: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: #f4f0fa;
+  color: #5e17eb;
+  font-size: 38rpx;
+  line-height: 1;
+}
+
+.xf-program-share-preview-scroll {
+  box-sizing: border-box;
+  flex: 1;
+  min-height: 0;
+  padding: 24rpx 34rpx;
+  background: #f4f1f8;
+}
+
+.xf-program-share-preview-image {
+  display: block;
+  width: 100%;
+  border-radius: 22rpx;
+  box-shadow: 0 12rpx 34rpx rgba(45, 20, 83, 0.18);
+}
+
+.xf-program-share-preview-actions {
+  padding: 22rpx 30rpx 28rpx;
+  background: #ffffff;
+}
+
+.xf-program-share-preview-guide {
+  display: block;
+  margin-bottom: 18rpx;
+  color: #817a8d;
+  font-size: 22rpx;
+  text-align: center;
+}
+
+.xf-program-share-preview-save {
+  width: 100%;
+  height: 88rpx;
+  margin: 0;
+  padding: 0;
+  border-radius: 22rpx;
+  background: #5e17eb;
+  color: #ffffff;
+  font-size: 28rpx;
+  font-weight: 800;
+  line-height: 88rpx;
+}
+
+.xf-program-share-preview-close::after,
+.xf-program-share-preview-save::after {
+  border: 0;
+}
+
 .xf-program-detail-action-icon,
 .xf-program-detail-play-icon {
   display: block;

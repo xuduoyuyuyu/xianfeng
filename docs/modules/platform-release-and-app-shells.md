@@ -253,6 +253,10 @@
   conversation round through `/api/wechat-mini/xiaowanzi-shares`, then request
   `/api/wechat-mini/xiaowanzi-share-qrcode` so the generated mini-program code
   lands on `pages/share/index` and loads that conversation directly.
+  Native program details generate a fixed share poster from the current title,
+  summary, tags, and bound guest introductions. The poster requests
+  `/api/wechat-mini/program-qrcode`; its `p=` scene lands on
+  `pages/share/index` and restores the exact native program detail.
 - Native mini-program login uses WeChat phone-number authorization in place.
   Native settings, first-level menu account cards, every sidebar menu item,
   and the Mine login entry expose `open-type="getPhoneNumber"` directly when
