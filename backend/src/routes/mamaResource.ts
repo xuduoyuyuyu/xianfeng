@@ -8,7 +8,7 @@ import MamaResourceTask from "../models/MamaResourceTask";
 import MamaResourceTaskAssignment from "../models/MamaResourceTaskAssignment";
 import User from "../models/User";
 import { authenticate, AuthenticatedRequest } from "../middlewares/auth";
-import { assignNextMamaResourceContentLink } from "../services/mamaResourceContentLinks";
+import { assignNextMamaResourceContentLink, recoverLegacyContentPausedTasks } from "../services/mamaResourceContentLinks";
 import { ensurePublicUid } from "../services/publicUid";
 
 const router = Router();
@@ -297,6 +297,7 @@ async function findApprovedProfileForUser(userId: string) {
 
 router.get("/me/tasks", authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    await recoverLegacyContentPausedTasks();
     const userId = asText(req.user?.id);
     const [profile, publicUid] = await Promise.all([
       findProfileForUser(userId),
@@ -341,6 +342,7 @@ router.get("/me/tasks", authenticate, async (req: AuthenticatedRequest, res: Res
 
 router.post("/tasks/:taskId/claims", authenticate, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    await recoverLegacyContentPausedTasks();
     const profile = await findApprovedProfileForUser(asText(req.user?.id));
     if (!profile) {
       res.status(404).json({ message: "还没有可派单的好赚账号" });
@@ -381,12 +383,7 @@ router.post("/tasks/:taskId/claims", authenticate, async (req: AuthenticatedRequ
     });
     if (task.contentLinkPoolEnabled) {
       const assignmentWithContent = await assignNextMamaResourceContentLink(task._id, assignment._id);
-      if (!assignmentWithContent) {
-        await MamaResourceTaskAssignment.deleteOne({ _id: assignment._id, contentUrl: { $in: ["", null] } });
-        res.status(409).json({ message: "专属内容链接已分配完，任务等待内容分配" });
-        return;
-      }
-      assignment = assignmentWithContent;
+      if (assignmentWithContent) assignment = assignmentWithContent;
     }
     const populatedAssignment = await MamaResourceTaskAssignment.findById(assignment._id).populate("taskId");
     const activePromotionCounts = await getActivePromotionCounts(populatedAssignment ? [populatedAssignment] : []);

@@ -1275,7 +1275,7 @@ describe("mama resource pool routes", () => {
     assert.equal(duplicateData.rows.every((row: any) => row.errors.includes("账号ID重复")), true);
   });
 
-  it("assigns imported content links in order, pauses when exhausted, and resumes after replenishment", async () => {
+  it("assigns imported content links in order and lets new claims wait when the pool is exhausted", async () => {
     const user = await User.create({ username: "u13800138103", password: "hash", mobile: "13800138103", role: "user" });
     const token = jwt.sign({ id: String(user._id), role: "user" }, process.env.JWT_SECRET || "your-secret-key");
     const [manualProfile, firstProfile, secondProfile, claimProfile] = await MamaResourceProfile.create([
@@ -1347,8 +1347,8 @@ describe("mama resource pool routes", () => {
     assert.equal(importData.task.contentLinkCount, 2);
     assert.equal(importData.task.contentLinkAssignedCount, 2);
     assert.equal(importData.task.contentLinkRemainingCount, 0);
-    assert.equal(importData.task.status, "paused");
-    assert.equal(importData.task.pausedForContent, true);
+    assert.equal(importData.task.status, "listed");
+    assert.equal(importData.task.pausedForContent, false);
 
     assert.equal((await MamaResourceTaskAssignment.findById(firstAssignment._id).lean())?.contentUrl, "https://my.feishu.cn/wiki/pool-one");
     assert.equal((await MamaResourceTaskAssignment.findById(secondAssignment._id).lean())?.contentUrl, "https://my.feishu.cn/wiki/pool-two");
@@ -1369,15 +1369,34 @@ describe("mama resource pool routes", () => {
     });
     assert.equal(editPausedTaskResponse.status, 200);
     const editPausedTaskData = await editPausedTaskResponse.json();
-    assert.equal(editPausedTaskData.task.status, "paused");
-    assert.equal(editPausedTaskData.task.pausedForContent, true);
+    assert.equal(editPausedTaskData.task.status, "listed");
+    assert.equal(editPausedTaskData.task.pausedForContent, false);
     assert.equal(editPausedTaskData.task.contentLinkRemainingCount, 0);
 
-    const pausedTasksResponse = await fetch(`${server.publicUrl}/me/tasks`, {
+    await MamaResourceTask.updateOne(
+      { _id: task._id },
+      { $set: { status: "paused", pausedForContent: true } },
+    );
+
+    const availableTasksResponse = await fetch(`${server.publicUrl}/me/tasks`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    assert.equal(pausedTasksResponse.status, 200);
-    assert.equal((await pausedTasksResponse.json()).availableTasks.length, 0);
+    assert.equal(availableTasksResponse.status, 200);
+    assert.equal((await availableTasksResponse.json()).availableTasks.length, 1);
+    const recoveredTask = await MamaResourceTask.findById(task._id).lean();
+    assert.equal(recoveredTask?.status, "listed");
+    assert.equal(recoveredTask?.pausedForContent, false);
+
+    const claimResponse = await fetch(`${server.publicUrl}/tasks/${task._id}/claims`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(claimResponse.status, 201);
+    const claimData = await claimResponse.json();
+    assert.equal(claimData.task.profileId, String(claimProfile._id));
+    assert.equal(claimData.task.contentUrl, "");
+    assert.equal((await MamaResourceTask.findById(task._id).lean())?.status, "listed");
+    assert.equal((await MamaResourceTask.findById(task._id).lean())?.pausedForContent, false);
 
     const replenishResponse = await fetch(`${server.adminUrl}/tasks/${task._id}/content-links`, {
       method: "POST",
@@ -1388,18 +1407,12 @@ describe("mama resource pool routes", () => {
     const replenishData = await replenishResponse.json();
     assert.equal(replenishData.task.status, "listed");
     assert.equal(replenishData.task.pausedForContent, false);
-    assert.equal(replenishData.task.contentLinkRemainingCount, 1);
-
-    const claimResponse = await fetch(`${server.publicUrl}/tasks/${task._id}/claims`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    assert.equal(claimResponse.status, 201);
-    const claimData = await claimResponse.json();
-    assert.equal(claimData.task.profileId, String(claimProfile._id));
-    assert.equal(claimData.task.contentUrl, "https://my.feishu.cn/wiki/pool-three");
-    assert.equal((await MamaResourceTask.findById(task._id).lean())?.status, "paused");
-    assert.equal((await MamaResourceTask.findById(task._id).lean())?.pausedForContent, true);
+    assert.equal(replenishData.task.contentLinkRemainingCount, 0);
+    assert.equal(replenishData.assignedCount, 1);
+    assert.equal(
+      (await MamaResourceTaskAssignment.findOne({ taskId: task._id, profileId: claimProfile._id }).lean())?.contentUrl,
+      "https://my.feishu.cn/wiki/pool-three"
+    );
   });
 
   it("starts proof return timing only after the content link is configured", async () => {

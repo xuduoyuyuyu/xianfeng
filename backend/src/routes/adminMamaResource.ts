@@ -14,6 +14,7 @@ import {
   MamaResourceContentLinkStats,
   normalizeMamaResourceContentUrl as normalizeContentUrl,
   parseMamaResourceContentLinks,
+  recoverLegacyContentPausedTasks,
   syncMamaResourceTaskContentState,
 } from "../services/mamaResourceContentLinks";
 import { readFeishuSheet, writeFeishuCells } from "../services/feishuSheets";
@@ -451,6 +452,7 @@ router.get("/", async (req: Request, res: Response) => {
 
 router.get("/tasks", async (_req: Request, res: Response) => {
   try {
+    await recoverLegacyContentPausedTasks();
     const tasks = await MamaResourceTask.find({}).sort({ updatedAt: -1 }).lean();
     const stats = await getMamaResourceContentLinkStats(tasks.map((task) => task._id));
     res.json({ tasks: tasks.map((task) => serializeTask(task, stats)) });
