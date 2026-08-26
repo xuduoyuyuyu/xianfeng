@@ -58,6 +58,12 @@ function buildTopicTargetFromScene(scene) {
   return `/pages/webview/index?url=${encodeURIComponent(`/topics/${encodeURIComponent(topicId)}`)}&title=${encodeURIComponent("请教详情")}&topicId=${encodeURIComponent(topicId)}`;
 }
 
+function buildProgramTargetFromScene(scene) {
+  const programId = parseSceneParam(scene, "p");
+  if (!programId) return "";
+  return `/pages/webview/index?url=${encodeURIComponent(`/programs/${encodeURIComponent(programId)}`)}&title=${encodeURIComponent("节目详情")}`;
+}
+
 function extractConversationShareIdFromScene(scene) {
   return parseSceneParam(scene, "s");
 }
@@ -264,7 +270,7 @@ Page({
       this.loadConversationShare(shareId);
       return;
     }
-    const sceneTarget = buildTopicTargetFromScene(scene);
+    const sceneTarget = buildProgramTargetFromScene(scene) || buildTopicTargetFromScene(scene);
     const target = sceneTarget || decodeOption(options.target, DEFAULT_TARGET);
     const title = decodeOption(options.title, "");
     this.setData({
