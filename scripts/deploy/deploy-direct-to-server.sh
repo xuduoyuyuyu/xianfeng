@@ -40,8 +40,24 @@ if [[ "${PUSH_FIRST}" == "true" ]]; then
 fi
 
 echo "同步当前代码到服务器: ${SERVER_HOST}:${SERVER_PATH}"
-git archive --format=tar HEAD -- . ':(exclude)exports' ':(exclude)releases' | ssh "${SERVER_HOST}" "mkdir -p '${SERVER_PATH}/.release' && tar -xf - -C '${SERVER_PATH}'"
-scp .release/current.lock "${SERVER_HOST}:${SERVER_PATH}/.release/current.lock"
+tar -cf - \
+  --exclude="./.git" \
+  --exclude="./._*" \
+  --exclude="./node_modules" \
+  --exclude="./backend/node_modules" \
+  --exclude="./frontend/node_modules" \
+  --exclude="./backend/uploads" \
+  --exclude="./backend/secrets" \
+  --exclude="./.env" \
+  --exclude="./.env.production" \
+  --exclude="./backend/.env" \
+  --exclude="./backups" \
+  --exclude="./data" \
+  --exclude="./releases" \
+  --exclude="./exports" \
+  --exclude="./frontend/dist" \
+  --exclude="./frontend/.vite" \
+  . | ssh "${SERVER_HOST}" "mkdir -p '${SERVER_PATH}' && tar -xf - -C '${SERVER_PATH}'"
 
 echo "在服务器上重建并启动容器（生产配置）"
 ssh "${SERVER_HOST}" "cd '${SERVER_PATH}' && docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.production up -d --build --remove-orphans"
