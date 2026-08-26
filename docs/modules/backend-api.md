@@ -67,6 +67,9 @@
   program detail: both `published` and `group-only` programs contribute to
   related-program cards, program counts, and content tags; drafts remain
   excluded.
+- `GET /api/wechat-mini/program-qrcode` accepts a visible program ObjectId or
+  program code and returns an official mini-program code whose `p=<ObjectId>`
+  scene opens that exact native program detail. Draft programs remain excluded.
 - `/api/programs/:id/related` returns only other visible programs that share at
   least one bound guest with the current program. Programs without a bound
   guest return an empty recommendation list; dictionary terms and tags rank
