@@ -40,7 +40,7 @@ if [[ "${PUSH_FIRST}" == "true" ]]; then
 fi
 
 echo "同步当前代码到服务器: ${SERVER_HOST}:${SERVER_PATH}"
-tar -cf - \
+tar --no-xattrs -czf - \
   --exclude="./.git" \
   --exclude="./._*" \
   --exclude="./node_modules" \
@@ -57,7 +57,7 @@ tar -cf - \
   --exclude="./exports" \
   --exclude="./frontend/dist" \
   --exclude="./frontend/.vite" \
-  . | ssh "${SERVER_HOST}" "mkdir -p '${SERVER_PATH}' && tar -xf - -C '${SERVER_PATH}'"
+  . | ssh "${SERVER_HOST}" "mkdir -p '${SERVER_PATH}' && tar -xzf - -C '${SERVER_PATH}'"
 
 echo "在服务器上重建并启动容器（生产配置）"
 ssh "${SERVER_HOST}" "cd '${SERVER_PATH}' && docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.production up -d --build --remove-orphans"
