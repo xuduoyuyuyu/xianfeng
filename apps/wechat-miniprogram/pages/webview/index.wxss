@@ -182,14 +182,14 @@ page {
 
 .xf-program-share-preview-mask {
   position: fixed;
-  z-index: 90;
+  z-index: 110;
   inset: 0;
   background: rgba(17, 8, 31, 0.72);
 }
 
 .xf-program-share-preview-panel {
   position: fixed;
-  z-index: 91;
+  z-index: 111;
   right: 24rpx;
   bottom: calc(24rpx + env(safe-area-inset-bottom));
   left: 24rpx;

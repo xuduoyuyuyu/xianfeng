@@ -48,6 +48,13 @@ test("flash test is registered and exposed as a public sidebar item", () => {
   assert.equal(askItems.findIndex((item) => item.key === "flashTest") + 1, askItems.findIndex((item) => item.key === "worthbuy"));
 });
 
+test("shared direct entry builds a home-backed page stack before opening the assessment", () => {
+  const source = fs.readFileSync(path.join(currentDirectory, "index.js"), "utf8");
+
+  assert.match(source, /const \{ ensureBackStackForBackButtonPage, smartBackHome \} = require\("\.\.\/\.\.\/utils\/nativePageNav"\);/);
+  assert.match(source, /onLoad\(options = \{\}\) \{[\s\S]*if \(ensureBackStackForBackButtonPage\(options\)\) return;[\s\S]*const sharedTestId = String\(options\.test \|\| ""\);/);
+});
+
 test("every shared sidebar leaves public items outside the phone login overlay", () => {
   const sidebarFiles = [
     "pages/programs/index.wxml",

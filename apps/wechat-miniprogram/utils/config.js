@@ -1,5 +1,5 @@
 const DEFAULT_WEB_ORIGIN = "https://xianfeng.xinzhi.info";
-const DEFAULT_DEVTOOLS_API_ORIGIN = "http://127.0.0.1:3101";
+const DEFAULT_DEVTOOLS_API_ORIGIN = DEFAULT_WEB_ORIGIN;
 
 function normalizeOrigin(value, fallback) {
   const origin = String(value || fallback || "").trim().replace(/\/+$/, "");

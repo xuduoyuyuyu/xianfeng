@@ -428,6 +428,17 @@ function extractProgramIdFromScene(scene) {
   return match ? safeDecode(match[1]).trim() : "";
 }
 
+function extractBookTargetFromScene(scene) {
+  const decodedScene = safeDecode(String(scene || "").trim());
+  const match = decodedScene.match(/(?:^|&)(b|e)=([^&]+)/);
+  if (!match) return "";
+  const bookId = safeDecode(match[2]).trim();
+  if (!bookId) return "";
+  return match[1] === "e"
+    ? `/library?xf_external_book_id=${encodeURIComponent(bookId)}`
+    : `/reading/${encodeURIComponent(bookId)}`;
+}
+
 function extractMaterialId(src) {
   try {
     const pathname = getUrlPathname(src);
@@ -2040,10 +2051,11 @@ Page({
     enableShareMenu();
     this.syncTopbarMetrics();
     this.syncNativeFontSizeSetting();
+    const sceneBookTarget = extractBookTargetFromScene(options.scene);
     const sceneProgramId = extractProgramIdFromScene(options.scene);
-    const rawSrc = sceneProgramId
+    const rawSrc = sceneBookTarget || (sceneProgramId
       ? `/programs/${encodeURIComponent(sceneProgramId)}`
-      : decodeURIComponent(options.url || "");
+      : decodeURIComponent(options.url || ""));
     const title = resolveWebviewTitle(rawSrc, decodeURIComponent(options.title || ""));
     const src = withNativeWebviewParams(rawSrc);
     this.shareSrc = src;

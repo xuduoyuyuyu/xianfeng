@@ -186,20 +186,14 @@ function drawAspectFill(ctx, image, x, y, width, height) {
   ctx.drawImage(path, sourceX, sourceY, sourceWidth, sourceHeight, x, y, width, height);
 }
 
-function drawCircularImage(ctx, image, x, y, size) {
+function drawRoundedImage(ctx, image, x, y, size, radius) {
   if (!image || !image.path) return;
   ctx.save();
-  ctx.beginPath();
-  ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2);
-  ctx.closePath();
+  ctx.setFillStyle("#ffffff");
+  roundedRect(ctx, x, y, size, size, radius);
   ctx.clip();
   drawAspectFill(ctx, image, x, y, size, size);
   ctx.restore();
-  ctx.setStrokeStyle("rgba(255,255,255,0.94)");
-  ctx.setLineWidth(3);
-  ctx.beginPath();
-  ctx.arc(x + size / 2, y + size / 2, size / 2 - 1.5, 0, Math.PI * 2);
-  ctx.stroke();
 }
 
 function drawLines(ctx, lines, x, y, lineHeight) {
@@ -272,50 +266,66 @@ function drawProgramSharePoster(ctx, program, qrImagePath, coverImagePath, guest
 
   const guestPanelY = 800;
   const guests = Array.isArray(item.guests) ? item.guests : [];
-  const guestPanelHeight = guests.length === 1 ? 230 : 500;
+  const guestPanelHeight = guests.length === 1 ? 388 : 448;
   ctx.setFillStyle("#ffffff");
   roundedRect(ctx, 28, guestPanelY, 694, guestPanelHeight, 30);
-  ctx.setFillStyle("#5e17eb");
-  setFont(ctx, 30, "bold");
-  ctx.fillText("本期嘉宾", 54, guestPanelY + 56);
-  ctx.setFillStyle("#938d99");
-  setFont(ctx, 18, "bold");
-  ctx.fillText("G U E S T S", 190, guestPanelY + 54);
 
   const avatars = Array.isArray(guestAvatarImages) ? guestAvatarImages : [];
-  const columns = guests.length > 3 ? 2 : 1;
+  const columns = guests.length === 1 ? 1 : Math.min(3, guests.length);
   const rows = Math.max(1, Math.ceil(guests.length / columns));
-  const gap = 12;
-  const cardWidth = columns === 1 ? 642 : 315;
-  const availableHeight = 400;
-  const cardHeight = Math.min(126, (availableHeight - gap * (rows - 1)) / rows);
+  const gap = 14;
+  const slotWidth = (642 - gap * (columns - 1)) / columns;
+  const slotHeight = (guestPanelHeight - 48 - gap * (rows - 1)) / rows;
+  setTextAlign(ctx, "center");
   guests.forEach((guest, index) => {
     const column = index % columns;
     const row = Math.floor(index / columns);
-    const x = 54 + column * (cardWidth + gap);
-    const y = guestPanelY + 78 + row * (cardHeight + gap);
-    ctx.setFillStyle("#faf8fd");
-    roundedRect(ctx, x, y, cardWidth, cardHeight, 18);
+    const x = 54 + column * (slotWidth + gap);
+    const y = guestPanelY + 26 + row * (slotHeight + gap);
+    const centerX = x + slotWidth / 2;
+    const avatarWrapSize = columns === 1
+      ? 188
+      : Math.min(columns === 2 ? 116 : 96, Math.max(60, slotHeight - 106));
+    const avatarPadding = columns === 1 ? 12 : 8;
+    const avatarSize = avatarWrapSize - avatarPadding * 2;
+    const avatarWrapX = centerX - avatarWrapSize / 2;
+    ctx.setFillStyle("#f4f0ff");
+    roundedRect(ctx, avatarWrapX, y, avatarWrapSize, avatarWrapSize, columns === 1 ? 40 : 26);
+    ctx.setStrokeStyle("#eee8ff");
+    ctx.setLineWidth(2);
+    ctx.stroke();
+    drawRoundedImage(
+      ctx,
+      avatars[index],
+      avatarWrapX + avatarPadding,
+      y + avatarPadding,
+      avatarSize,
+      columns === 1 ? 32 : 20
+    );
 
-    const avatarSize = Math.min(columns === 1 ? 72 : 56, Math.max(42, cardHeight - 28));
-    drawCircularImage(ctx, avatars[index], x + 16, y + 14, avatarSize);
-    const textX = x + avatarSize + 34;
+    const nameY = y + avatarWrapSize + (columns === 1 ? 38 : 27);
     ctx.setFillStyle("#211a18");
-    setFont(ctx, columns === 1 ? 25 : 22, "bold");
-    ctx.fillText(String(guest && guest.name || "节目特邀嘉宾"), textX, y + 38);
-    ctx.setFillStyle("#746d7f");
-    setFont(ctx, columns === 1 ? 19 : 17, "normal");
-    const titleLines = wrapPosterText(ctx, guest && guest.title, cardWidth - avatarSize - 50, columns === 1 ? 19 : 17, 1);
-    drawLines(ctx, titleLines, textX, y + 66, 24);
+    setFont(ctx, columns === 1 ? 29 : 22, "bold");
+    ctx.fillText(String(guest && guest.name || "节目特邀嘉宾"), centerX, nameY);
+    ctx.setFillStyle("#5e17eb");
+    setFont(ctx, columns === 1 ? 22 : 18, "bold");
+    const titleY = nameY + (columns === 1 ? 34 : 27);
+    const titleLines = wrapPosterText(ctx, guest && guest.title, slotWidth - 20, columns === 1 ? 22 : 18, 1);
+    drawLines(ctx, titleLines, centerX, titleY, 24);
 
     ctx.setFillStyle("#4b4557");
-    setFont(ctx, columns === 1 ? 20 : 17, "normal");
-    const bioWidth = columns === 1 ? cardWidth - avatarSize - 50 : cardWidth - 32;
-    const bioX = columns === 1 ? textX : x + 16;
-    const bioY = columns === 1 ? y + 98 : y + cardHeight - 20;
-    const bioLines = wrapPosterText(ctx, guest && guest.bio, bioWidth, columns === 1 ? 20 : 17, 1);
-    drawLines(ctx, bioLines, bioX, bioY, 24);
+    setFont(ctx, columns === 1 ? 22 : 17, "normal");
+    const bioY = titleY + (columns === 1 ? 41 : 32);
+    const bioLines = wrapPosterText(
+      ctx,
+      guest && guest.bio,
+      columns === 1 ? 560 : slotWidth - 20,
+      columns === 1 ? 22 : 17,
+      columns === 1 || rows === 1 ? 2 : 1
+    );
+    drawLines(ctx, bioLines, centerX, bioY, columns === 1 ? 32 : 24);
   });
+  setTextAlign(ctx, "left");
 
   const qrPanelY = guests.length === 1 ? guestPanelY + guestPanelHeight + 20 : 1320;
   ctx.setFillStyle("#ffffff");

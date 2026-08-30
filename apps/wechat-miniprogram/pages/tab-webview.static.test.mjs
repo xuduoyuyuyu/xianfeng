@@ -13958,13 +13958,15 @@ test("mama haozhuan opens a native mini program form instead of program detail w
     assert.match(page.wxml, /wx:for="\{\{settingsSections\}\}"/);
     assert.doesNotMatch(page.wxml, /xf-mama-back/);
     assert.match(page.wxml, /wx:if="\{\{!isLoggedIn\}\}"[\s\S]*登录后进入好赚[\s\S]*open-type="getPhoneNumber"[\s\S]*bindgetphonenumber="authorizeMamaResourceAction"[\s\S]*wx:elif="\{\{mamaResourceView === 'apply'\}\}"/);
-    assert.match(page.wxml, /xf-mama-intro-card[\s\S]*好赚[\s\S]*<view class="xf-mama-card xf-mama-profile-manager">[\s\S]*资料管理[\s\S]*保存资料/);
+    assert.match(page.wxml, /mamaResourceView === 'apply'[\s\S]*<view class="xf-mama-card xf-mama-profile-manager">[\s\S]*资料管理[\s\S]*保存资料/);
+    assert.doesNotMatch(page.wxml, /xf-mama-intro-card/);
     assert.doesNotMatch(page.wxml, /<view class="xf-mama-card">[\s\S]*<form class="xf-mama-form" bindsubmit="submit">\s*<view class="xf-mama-head">\s*<image class="xf-mama-icon"/);
-    assert.match(page.wxml, /运营会按备注联系你。/);
+    assert.doesNotMatch(page.wxml, /用自己的社交媒体账号接亲子、教育、家庭消费类发稿/);
+    assert.doesNotMatch(page.wxml, /只收主页链接 · 无需账号密码 · 资料可随时更新/);
     assert.doesNotMatch(page.wxml, /我同意家和万事团队为发稿资源匹配和运营联系使用以上资料/);
     assert.doesNotMatch(page.wxml, /我同意家长先疯为发稿资源匹配/);
     assert.match(page.wxml, /<input name="displayName"[\s\S]*placeholder-class="xf-mama-placeholder"/);
-    assert.match(page.wxml, /账号定位[\s\S]*<textarea name="accountPositioning"[\s\S]*placeholder-class="xf-mama-textarea-placeholder"/);
+    assert.doesNotMatch(page.wxml, /openPreferenceEditor|savePreferences|name="accountPositioning"|data-category=/);
     assert.match(page.wxml, /微信号[\s\S]*name="contactWechat"[\s\S]*优先通过微信添加[\s\S]*手机号[\s\S]*name="contactPhone"[\s\S]*备用联系电话/);
     assert.match(page.wxml, /孩子档案[\s\S]*wx:if="\{\{hasArchiveChildren\}\}"[\s\S]*openChildArchive[\s\S]*\{\{archiveChildrenText\}\}[\s\S]*wx:else[\s\S]*openChildCreate">添加孩子/);
     assert.doesNotMatch(page.wxml, /孩子阶段|孩子性别/);
@@ -13973,16 +13975,17 @@ test("mama haozhuan opens a native mini program form instead of program detail w
     assert.doesNotMatch(page.wxml, /bindchange="selectChildGender"|请选择孩子性别/);
     assert.doesNotMatch(page.wxml, /报价区间|可接频率|历史案例链接/);
     assert.doesNotMatch(page.wxml, /rateRange|availability|caseLinksText/);
-    assert.match(page.wxml, /资料管理[\s\S]*catchtap="openPreferenceEditor"[\s\S]*catchtap="openPersonalInfoEditor"[\s\S]*catchtap="openMediaAccountsManager"[\s\S]*catchtap="submitProfileDraft"/);
-    assert.match(page.wxml, /bindsubmit="savePersonalInfo"[\s\S]*bindsubmit="savePreferences"/);
+    assert.match(page.wxml, /资料管理[\s\S]*catchtap="openPersonalInfoEditor"[\s\S]*catchtap="openNewMediaAccount"[\s\S]*catchtap="submitProfileDraft"/);
+    assert.match(page.wxml, /wx:if="\{\{personalInfoModalOpen\}\}"[\s\S]*bindsubmit="savePersonalInfo"/);
+    assert.doesNotMatch(page.wxml, /openPreferenceEditor|savePreferences/);
     assert.doesNotMatch(page.wxml, /bindsubmit="submit"/);
-    assert.match(page.wxml, /可发品类[\s\S]*class="xf-mama-chip \{\{item\.selected \? 'is-active' : ''\}\}"/);
-    assert.match(page.wxml, /data-category="\{\{item\.label\}\}"[\s\S]*catchtap="toggleCategory"/);
+    assert.match(page.wxml, /创作能力[\s\S]*class="xf-mama-chip \{\{item\.selected \? 'is-active' : ''\}\}"/);
+    assert.match(page.wxml, /data-value="\{\{item\.label\}\}"[\s\S]*catchtap="togglePersonalContentCapability"/);
     assert.doesNotMatch(page.wxml, /<checkbox-group name="categories"/);
     assert.match(page.js, /getNativeTopbarMetrics/);
     assert.match(page.js, /function buildCategoryOptions\(selectedCategories\)/);
     assert.match(page.js, /selectedCategories: \[\]/);
-    assert.match(page.js, /toggleCategory\(event\)/);
+    assert.doesNotMatch(page.js, /toggleCategory\(event\)/);
     assert.match(page.js, /categories: this\.data\.selectedCategories/);
     assert.doesNotMatch(page.js, /rateRange|availability|caseLinksText/);
     assert.match(page.js, /SETTINGS_SECTIONS/);
@@ -13993,14 +13996,12 @@ test("mama haozhuan opens a native mini program form instead of program detail w
     assert.match(page.wxss, /\.xf-mama-content \{[\s\S]*box-sizing: border-box;[\s\S]*width: 100%;[\s\S]*padding: 24rpx 28rpx 52rpx;/);
     assert.doesNotMatch(page.wxss, /\.xf-mama-topbar/);
     assert.doesNotMatch(page.wxss, /\.xf-mama-back/);
-    assert.match(page.wxss, /\.xf-mama-intro-card,\s*\.xf-mama-card \{[\s\S]*box-sizing: border-box;[\s\S]*width: 100%;/);
+    assert.match(page.wxss, /\.xf-mama-card \{[\s\S]*box-sizing: border-box;[\s\S]*width: 100%;/);
     assert.match(page.wxss, /\.xf-mama-card \{[\s\S]*margin-top: 48rpx;/);
-    assert.match(page.wxss, /\.xf-mama-form \{[\s\S]*display: block;/);
-    assert.match(page.wxss, /\.xf-mama-notes \{[\s\S]*gap: 24rpx;[\s\S]*margin-top: 32rpx;/);
-    assert.match(page.wxss, /\.xf-mama-notes text \{[\s\S]*min-height: 104rpx;[\s\S]*padding: 0 28rpx;[\s\S]*border-radius: 32rpx;[\s\S]*display: flex;[\s\S]*align-items: center;/);
+    assert.match(page.wxss, /\.xf-mama-profile-manager \{[\s\S]*margin-top: 0;/);
+    assert.doesNotMatch(page.wxss, /\.xf-mama-intro-(card|icon|body|title|text|meta)/);
+    assert.doesNotMatch(page.wxml, /class="xf-mama-notes"/);
     assert.match(page.wxss, /\.xf-mama-field input,\s*\.xf-mama-picker \{[\s\S]*height: 78rpx;[\s\S]*min-height: 78rpx;[\s\S]*line-height: 78rpx;[\s\S]*padding: 0 22rpx;/);
-    assert.match(page.wxss, /\.xf-mama-field textarea \{[\s\S]*height: 80rpx;[\s\S]*min-height: 80rpx;[\s\S]*line-height: 1\.5;[\s\S]*padding: 20rpx 22rpx;/);
-    assert.match(page.wxss, /\.xf-mama-textarea-placeholder \{[\s\S]*font-size: 26rpx;[\s\S]*font-weight: 600;[\s\S]*line-height: 40rpx;/);
     assert.match(page.wxss, /\.xf-mama-chip \{[\s\S]*min-height: 62rpx;[\s\S]*border-radius: 999rpx;[\s\S]*background: #ffffff;[\s\S]*font-size: 27rpx;/);
     assert.match(page.wxss, /\.xf-mama-chip\.is-active \{[\s\S]*border-color: #6c27d6;[\s\S]*background: #6c27d6;[\s\S]*color: #ffffff;/);
     assert.doesNotMatch(page.wxss, /\.xf-mama-card \{[\s\S]*margin: 26rpx;/);
@@ -14079,19 +14080,19 @@ test("mama haozhuan does not expose an unscoped private draft while logged out",
   }
 });
 
-test("mama haozhuan category chips toggle without checkbox controls", async () => {
+test("mama haozhuan hides preference controls while preserving existing preference payload fields", async () => {
   const definition = loadPageDefinition("mama-resource-apply");
   const page = readPage("mama-resource-apply");
   const requests = [];
   const originalWx = global.wx;
 
-  assert.match(page.wxml, /暂不接的品类[\s\S]*name="blockedCategories"/);
+  assert.doesNotMatch(page.wxml, /name="accountPositioning"|name="blockedCategories"|data-category=|openPreferenceEditor|savePreferences/);
   assert.doesNotMatch(page.wxml, /name="consentAccepted"|我同意家和万事团队/);
-  assert.match(page.wxml, /name="xiaohongshuProfileUrl"[\s\S]*disabled="\{\{formDraft\.originalXiaohongshuProfileUrl\}\}"/);
-  assert.match(page.wxml, /主页链接已锁定，保存时只更新昵称等资料。/);
+  assert.doesNotMatch(page.wxml, /data-field="profileUrl"[\s\S]*disabled="\{\{mediaAccountModalSource === 'primary' && formDraft\.originalXiaohongshuProfileUrl\}\}"/);
+  assert.doesNotMatch(page.wxml, /主页链接已锁定/);
   assert.doesNotMatch(page.wxml, /acceptsGiftExchange|可以接受产品置换|低预算试单/);
   assert.doesNotMatch(page.js, /acceptsGiftExchange/);
-  assert.match(page.wxss, /\.xf-mama-field input\.is-locked \{/);
+  assert.doesNotMatch(page.wxss, /\.xf-mama-field input\.is-locked \{/);
 
   try {
     global.wx = {
@@ -14106,28 +14107,18 @@ test("mama haozhuan category chips toggle without checkbox controls", async () =
       }
     };
     const context = {
-      data: { ...definition.data, childStage: "小学", childGender: "男孩" },
+      data: { ...definition.data, childStage: "小学", childGender: "男孩", selectedCategories: ["学习用品"] },
       setData(payload) {
         this.data = { ...this.data, ...payload };
       },
       submitMamaResourcePayload: definition.submitMamaResourcePayload
     };
 
-    definition.toggleCategory.call(context, { currentTarget: { dataset: { category: "亲子阅读" } } });
-    definition.toggleCategory.call(context, { currentTarget: { dataset: { category: "学习用品" } } });
-    assert.deepEqual(context.data.selectedCategories, ["亲子阅读", "学习用品"]);
-    assert.equal(context.data.categories.find((item) => item.label === "亲子阅读").selected, true);
-    assert.equal(context.data.categories.find((item) => item.label === "母婴").selected, false);
-
     definition.toggleChildGender.call(context, { currentTarget: { dataset: { value: "女孩" } } });
     assert.equal(context.data.childGender, "女孩");
     definition.toggleRealNameVerified.call(context, { currentTarget: { dataset: { value: "yes" } } });
     assert.equal(context.data.realNameVerified, true);
     context.setData({ xiaohongshuScreenshotUrl: "/uploads/images/profile.png" });
-
-    definition.toggleCategory.call(context, { currentTarget: { dataset: { category: "亲子阅读" } } });
-    assert.deepEqual(context.data.selectedCategories, ["学习用品"]);
-    assert.equal(context.data.categories.find((item) => item.label === "亲子阅读").selected, false);
 
     await definition.submit.call(context, {
       detail: {
@@ -14161,6 +14152,194 @@ test("mama haozhuan category chips toggle without checkbox controls", async () =
     assert.equal("availability" in requests[0].data, false);
     assert.equal("caseLinksText" in requests[0].data, false);
     assert.equal("acceptsGiftExchange" in requests[0].data, false);
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
+test("mama haozhuan changes personal information only after the personal dialog is saved", () => {
+  const definition = loadPageDefinition("mama-resource-apply");
+  const originalWx = global.wx;
+
+  try {
+    global.wx = {
+      getStorageSync(key) {
+        if (key === "xf_token") return "token-1";
+        if (key === "xf_user") return { _id: "user-1" };
+        return "";
+      },
+      setStorageSync() {}
+    };
+    const context = {
+      data: {
+        ...definition.data,
+        formDraft: {
+          ...definition.data.formDraft,
+          displayName: "原昵称",
+          contactWechat: "old-wechat",
+          alipayAccount: "old@example.com",
+          alipayVerifiedName: "原姓名",
+          contentCapabilities: []
+        },
+        contentCapabilities: []
+      },
+      setData(payload) {
+        this.data = { ...this.data, ...payload };
+      }
+    };
+
+    definition.openPersonalInfoEditor.call(context);
+    definition.updatePersonalInfoDraftField.call(context, { currentTarget: { dataset: { field: "displayName" } }, detail: { value: "未保存昵称" } });
+    definition.closePersonalInfoModal.call(context);
+    assert.equal(context.data.formDraft.displayName, "原昵称");
+
+    definition.openPersonalInfoEditor.call(context);
+    definition.togglePersonalContentCapability.call(context, { currentTarget: { dataset: { value: "能拍" } } });
+    definition.savePersonalInfo.call(context, {
+      detail: {
+        value: {
+          displayName: "新昵称",
+          contactWechat: "new-wechat",
+          contactPhone: "13800000000",
+          alipayAccount: "new@example.com",
+          alipayVerifiedName: "新姓名"
+        }
+      }
+    });
+
+    assert.equal(context.data.personalInfoModalOpen, false);
+    assert.equal(context.data.formDraft.displayName, "新昵称");
+    assert.equal(context.data.formDraft.contactWechat, "new-wechat");
+    assert.deepEqual(context.data.contentCapabilities, ["能拍"]);
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
+test("mama haozhuan adds social accounts only after the account dialog is saved", () => {
+  const definition = loadPageDefinition("mama-resource-apply");
+  const originalWx = global.wx;
+
+  try {
+    global.wx = {
+      getStorageSync(key) {
+        if (key === "xf_token") return "token-1";
+        if (key === "xf_user") return { _id: "user-1" };
+        return "";
+      },
+      setStorageSync() {}
+    };
+    const context = {
+      data: {
+        ...definition.data,
+        formDraft: {
+          ...definition.data.formDraft,
+          xiaohongshuNickname: "安安妈",
+          xiaohongshuProfileUrl: "https://xhslink.com/profile",
+          originalXiaohongshuProfileUrl: "https://xhslink.com/profile"
+        },
+        profileOverview: { ...definition.data.profileOverview, hasPrimaryMediaAccount: true },
+        mediaAccounts: []
+      },
+      setData(payload) {
+        this.data = { ...this.data, ...payload };
+      }
+    };
+
+    definition.openNewMediaAccount.call(context);
+    assert.equal(context.data.mediaAccountModalOpen, true);
+    assert.equal(context.data.mediaAccounts.length, 0);
+
+    definition.closeMediaAccountModal.call(context);
+    assert.equal(context.data.mediaAccountModalOpen, false);
+    assert.equal(context.data.mediaAccounts.length, 0);
+
+    definition.openNewMediaAccount.call(context);
+    definition.selectMediaAccountDraftPlatform.call(context, { detail: { value: "1" } });
+    definition.updateMediaAccountDraftField.call(context, { currentTarget: { dataset: { field: "nickname" } }, detail: { value: "安安的抖音" } });
+    definition.updateMediaAccountDraftField.call(context, { currentTarget: { dataset: { field: "profileUrl" } }, detail: { value: "https://v.douyin.com/demo" } });
+    definition.toggleMediaAccountDraftRealName.call(context, { currentTarget: { dataset: { value: "yes" } } });
+    definition.saveMediaAccountDraft.call(context);
+
+    assert.equal(context.data.mediaAccountModalOpen, false);
+    assert.equal(context.data.mediaAccounts.length, 1);
+    assert.equal(context.data.mediaAccounts[0].platform, "douyin");
+    assert.equal(context.data.mediaAccounts[0].nickname, "安安的抖音");
+    assert.equal(context.data.mediaAccounts[0].realNameVerified, true);
+
+    definition.openNewMediaAccount.call(context);
+    definition.selectMediaAccountDraftPlatform.call(context, { detail: { value: "2" } });
+    definition.updateMediaAccountDraftField.call(context, { currentTarget: { dataset: { field: "nickname" } }, detail: { value: "安安的视频号" } });
+    definition.updateMediaAccountDraftField.call(context, { currentTarget: { dataset: { field: "profileUrl" } }, detail: { value: "https://channels.weixin.qq.com/example" } });
+    definition.saveMediaAccountDraft.call(context);
+
+    assert.equal(context.data.mediaAccountModalOpen, false);
+    assert.equal(context.data.mediaAccounts.length, 2);
+    assert.equal(context.data.mediaAccounts[1].platform, "shipinhao");
+    assert.equal(context.data.mediaAccounts[1].platformLabel, "视频号");
+    assert.equal(context.data.mediaAccounts[1].nickname, "安安的视频号");
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
+test("mama haozhuan updates and deletes the primary media account from its dialog", async () => {
+  const definition = loadPageDefinition("mama-resource-apply");
+  const originalWx = global.wx;
+  const requests = [];
+
+  try {
+    global.wx = {
+      getStorageSync(key) {
+        if (key === "xf_token") return "token-1";
+        if (key === "xf_user") return { _id: "user-1" };
+        return "";
+      },
+      setStorageSync() {},
+      removeStorageSync() {},
+      request(options) {
+        requests.push(options);
+        options.success({ statusCode: 200, data: { profile: { ...options.data, status: "approved" } } });
+      }
+    };
+    const context = {
+      data: {
+        ...definition.data,
+        formDraft: {
+          ...definition.data.formDraft,
+          displayName: "安安妈妈",
+          contactWechat: "anan-mom",
+          alipayAccount: "anan@example.com",
+          alipayVerifiedName: "安安妈妈",
+          xiaohongshuNickname: "安安妈",
+          xiaohongshuProfileUrl: "https://xhslink.com/old-profile",
+          originalXiaohongshuProfileUrl: "https://xhslink.com/old-profile"
+        },
+        profileOverview: { ...definition.data.profileOverview, hasPrimaryMediaAccount: true },
+        mediaAccounts: []
+      },
+      setData(payload) {
+        this.data = { ...this.data, ...payload };
+      }
+    };
+
+    definition.openMediaAccountEditor.call(context, { currentTarget: { dataset: { source: "primary", index: -1 } } });
+    definition.updateMediaAccountDraftField.call(context, { currentTarget: { dataset: { field: "profileUrl" } }, detail: { value: "https://xhslink.com/new-profile" } });
+    definition.saveMediaAccountDraft.call(context);
+
+    assert.equal(context.data.formDraft.xiaohongshuProfileUrl, "https://xhslink.com/new-profile");
+    assert.equal(context.data.formDraft.originalXiaohongshuProfileUrl, "https://xhslink.com/new-profile");
+
+    definition.openMediaAccountEditor.call(context, { currentTarget: { dataset: { source: "primary", index: -1 } } });
+    definition.removeMediaAccountFromModal.call(context);
+
+    assert.equal(context.data.mediaAccountModalOpen, false);
+    assert.equal(context.data.formDraft.xiaohongshuNickname, "");
+    assert.equal(context.data.formDraft.xiaohongshuProfileUrl, "");
+    assert.equal(context.data.formDraft.originalXiaohongshuProfileUrl, "");
+
+    await definition.submitMamaResourcePayload.call(context, context.data.formDraft, { stayInApply: true });
+    assert.deepEqual(requests[0].data.mediaAccounts, []);
   } finally {
     global.wx = originalWx;
   }
@@ -16600,6 +16779,10 @@ test("webview native program detail page keeps program, book, and topic details 
     assert.match(js, /function extractProgramId\(src\)/);
     assert.match(js, /function extractBookId\(src\)/);
     assert.match(js, /function extractExternalBookId\(src\)/);
+    assert.match(js, /function extractBookTargetFromScene\(scene\)/);
+    assert.match(js, /\/library\?xf_external_book_id=\$\{encodeURIComponent\(bookId\)\}/);
+    assert.match(js, /\/reading\/\$\{encodeURIComponent\(bookId\)\}/);
+    assert.match(js, /const rawSrc = sceneBookTarget \|\| \(sceneProgramId/);
     assert.match(js, /function readExternalBookDetailCache\(bookId\)/);
     assert.match(js, /function getExternalBookFallback\(src, bookId\)/);
     assert.match(js, /function extractMaterialId\(src\)/);

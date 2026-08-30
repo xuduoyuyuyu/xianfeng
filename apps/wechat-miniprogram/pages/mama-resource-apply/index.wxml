@@ -24,21 +24,6 @@
     </block>
 
     <block wx:elif="{{mamaResourceView === 'apply'}}">
-      <view class="xf-mama-intro-card">
-        <view class="xf-mama-head">
-          <image class="xf-mama-icon" src="/assets/menu/mama-hao-zhuan-icon.png" mode="aspectFit" />
-          <view>
-            <text class="xf-mama-title">好赚</text>
-          </view>
-        </view>
-        <text class="xf-mama-intro-text">如果你愿意用自己的社交媒体账号接亲子、教育、家庭消费相关发稿，可以先把基础资料提交给我们，运营会按备注联系你。</text>
-        <view class="xf-mama-notes">
-          <text>小红书、抖音账号优先，收主页链接</text>
-          <text>不需要账号密码，不要求代登录</text>
-          <text>数据用于任务匹配和运营联系，可随时回来更新</text>
-        </view>
-      </view>
-
       <view class="xf-mama-card xf-mama-profile-manager">
         <view class="xf-mama-head">
           <view>
@@ -47,146 +32,131 @@
           </view>
         </view>
 
-        <block wx:if="{{profileManagerMode === 'overview'}}">
-          <view class="xf-mama-info-list">
-            <view class="xf-mama-info-row is-preference" catchtap="openPreferenceEditor">
-              <view>
-                <text class="xf-mama-info-title">接单偏好</text>
-                <text class="xf-mama-info-copy">{{profileOverview.preferenceSummary}}</text>
-                <text class="xf-mama-info-copy">{{profileOverview.consentSummary}}</text>
-              </view>
-              <text class="xf-mama-info-action">编辑</text>
+        <view class="xf-mama-info-list">
+          <view class="xf-mama-info-row is-personal" catchtap="openPersonalInfoEditor">
+            <view>
+              <text class="xf-mama-info-kicker">第一步</text>
+              <text class="xf-mama-info-title">个人资料</text>
+              <text class="xf-mama-info-copy">{{profileOverview.personalSummary}}</text>
             </view>
-            <view class="xf-mama-info-row is-personal" catchtap="openPersonalInfoEditor">
+            <text class="xf-mama-info-action">编辑</text>
+          </view>
+
+          <view class="xf-mama-account-section">
+            <view class="xf-mama-account-section-head">
               <view>
-                <text class="xf-mama-info-title">个人资料</text>
-                <text class="xf-mama-info-copy">{{profileOverview.personalSummary}}</text>
-              </view>
-              <text class="xf-mama-info-action">编辑</text>
-            </view>
-            <view class="xf-mama-info-row is-media" catchtap="openMediaAccountsManager">
-              <view>
+                <text class="xf-mama-info-kicker">第二步</text>
                 <text class="xf-mama-info-title">社交媒体账号</text>
                 <text class="xf-mama-info-copy">{{profileOverview.mediaSummary}}</text>
               </view>
-              <text class="xf-mama-info-action">管理</text>
+              <button type="button" class="xf-mama-account-add-compact" catchtap="openNewMediaAccount">＋ 添加</button>
             </view>
-            <view wx:for="{{profileOverview.accounts}}" wx:key="profileUrl" class="xf-mama-info-account">
+            <view wx:if="{{!profileOverview.accounts.length}}" class="xf-mama-account-empty">
+              <text class="xf-mama-account-empty-title">还没有账号</text>
+              <text class="xf-mama-account-empty-copy">先添加常用的小红书账号，之后可继续添加抖音或视频号账号。</text>
+            </view>
+            <view wx:for="{{profileOverview.accounts}}" wx:key="accountKey" class="xf-mama-info-account" data-source="{{item.sourceType}}" data-index="{{item.sourceIndex}}" catchtap="openMediaAccountEditor" role="button" aria-label="编辑账号 {{item.title}}">
               <view class="xf-mama-info-account-head">
                 <view class="xf-mama-platform-logo {{item.platformLogoClass}}">
                   <image wx:if="{{item.platformLogoUrl}}" class="xf-mama-platform-logo-image" src="{{item.platformLogoUrl}}" mode="aspectFill" />
                   <text wx:else>{{item.platformLogoText}}</text>
                 </view>
-                <text class="xf-mama-info-account-title">{{item.title}}</text>
-              </view>
-              <text wx:if="{{item.summary}}" class="xf-mama-info-account-summary">{{item.summary}}</text>
-            </view>
-            <view class="xf-mama-add-account-row">
-              <button type="button" class="xf-mama-add-account" catchtap="openNewMediaAccount">添加新平台账号</button>
-            </view>
-          </view>
-          <view wx:if="{{message}}" class="xf-mama-message {{messageType}}">{{message}}</view>
-          <button class="xf-mama-submit" data-action="save" open-type="{{isLoggedIn ? '' : 'getPhoneNumber'}}" bindgetphonenumber="authorizeMamaResourceAction" disabled="{{submitting}}" catchtap="submitProfileDraft">{{submitting ? "保存中..." : "保存资料"}}</button>
-        </block>
-
-        <form wx:elif="{{profileManagerMode === 'personal'}}" class="xf-mama-form" bindsubmit="savePersonalInfo">
-          <view class="xf-mama-editor-head">
-            <text class="xf-mama-section-heading">个人信息</text>
-            <view class="xf-mama-editor-back" catchtap="saveCurrentProfileSectionAndBack" role="button">保存并返回</view>
-          </view>
-          <view class="xf-mama-grid">
-            <label class="xf-mama-field">姓名/昵称<text class="xf-mama-required">*</text><input name="displayName" value="{{formDraft.displayName}}" data-field="displayName" bindinput="updateDraftField" placeholder="例如：安安妈妈" placeholder-class="xf-mama-placeholder" /></label>
-            <label class="xf-mama-field">微信号<text class="xf-mama-required">*</text><input name="contactWechat" value="{{formDraft.contactWechat}}" data-field="contactWechat" bindinput="updateDraftField" placeholder="优先通过微信添加" placeholder-class="xf-mama-placeholder" /></label>
-            <label class="xf-mama-field">手机号<input name="contactPhone" value="{{formDraft.contactPhone}}" data-field="contactPhone" bindinput="updateDraftField" placeholder="备用联系电话" placeholder-class="xf-mama-placeholder" /></label>
-            <label class="xf-mama-field">支付宝账号<text class="xf-mama-required">*</text><input name="alipayAccount" value="{{formDraft.alipayAccount}}" data-field="alipayAccount" bindinput="updateDraftField" placeholder="用于任务结算转账" placeholder-class="xf-mama-placeholder" /></label>
-            <label class="xf-mama-field">支付宝验证姓名<text class="xf-mama-required">*</text><input name="alipayVerifiedName" value="{{formDraft.alipayVerifiedName}}" data-field="alipayVerifiedName" bindinput="updateDraftField" placeholder="支付宝实名认证姓名" placeholder-class="xf-mama-placeholder" /></label>
-          </view>
-          <view class="xf-mama-field">
-            孩子档案
-            <view wx:if="{{hasArchiveChildren}}" class="xf-mama-archive-link" catchtap="openChildArchive"><text class="xf-mama-archive-value">{{archiveChildrenText}}</text><text>›</text></view>
-            <view wx:else class="xf-mama-archive-link" catchtap="openChildCreate">添加孩子 <text>›</text></view>
-          </view>
-          <view class="xf-mama-field">
-            <text>创作能力</text>
-            <view class="xf-mama-chips">
-              <button wx:for="{{contentCapabilityOptions}}" wx:key="label" class="xf-mama-chip {{item.selected ? 'is-active' : ''}}" data-value="{{item.label}}" catchtap="toggleContentCapability" aria-label="选择创作能力 {{item.label}}">{{item.label}}</button>
-            </view>
-          </view>
-          <view wx:if="{{message}}" class="xf-mama-message {{messageType}}">{{message}}</view>
-          <button form-type="submit" class="xf-mama-submit">保存个人信息</button>
-        </form>
-
-        <view wx:elif="{{profileManagerMode === 'media'}}">
-          <view class="xf-mama-editor-head">
-            <text class="xf-mama-section-heading">{{addingMediaAccountOnly ? "添加平台账号" : "社交媒体账号"}}</text>
-            <view class="xf-mama-editor-back" catchtap="saveCurrentProfileSectionAndBack" role="button">保存并返回</view>
-          </view>
-          <block wx:if="{{!addingMediaAccountOnly}}">
-          <label class="xf-mama-field">账号昵称<text class="xf-mama-required">*</text><input name="xiaohongshuNickname" value="{{formDraft.xiaohongshuNickname}}" data-field="xiaohongshuNickname" bindinput="updateDraftField" placeholder="必填" placeholder-class="xf-mama-placeholder" /></label>
-          <label class="xf-mama-field">小红书主页链接<text class="xf-mama-required">*</text><input class="{{formDraft.originalXiaohongshuProfileUrl ? 'is-locked' : ''}}" name="xiaohongshuProfileUrl" value="{{formDraft.xiaohongshuProfileUrl}}" data-field="xiaohongshuProfileUrl" bindinput="updateDraftField" disabled="{{formDraft.originalXiaohongshuProfileUrl}}" placeholder="可粘贴整段口令或主页短链接" placeholder-class="xf-mama-placeholder" /></label>
-          <text wx:if="{{formDraft.originalXiaohongshuProfileUrl}}" class="xf-mama-upload-hint">主页链接已锁定，保存时只更新昵称等资料。</text>
-          <view class="xf-mama-field">
-            <text>小红书页面截图</text>
-            <button class="xf-mama-upload-button" type="button" loading="{{xiaohongshuScreenshotUploading}}" disabled="{{xiaohongshuScreenshotUploading}}" catchtap="chooseXiaohongshuScreenshot">
-              {{xiaohongshuScreenshotUrl ? "已上传，重新选择" : "上传小红书主页截图"}}
-            </button>
-            <text class="xf-mama-upload-hint">{{xiaohongshuScreenshotUploading ? "截图上传中..." : (xiaohongshuScreenshotUrl ? "已上传，可继续提交" : "调用手机相册或相机上传截图")}}</text>
-          </view>
-          <label class="xf-mama-field">粉丝数<input name="followerCount" type="number" value="{{formDraft.followerCount}}" data-field="followerCount" bindinput="updateDraftField" placeholder="例如：12800" placeholder-class="xf-mama-placeholder" /></label>
-          <label class="xf-mama-field">
-            是否实名认证
-            <view class="xf-mama-gender-options">
-              <button wx:for="{{realNameVerifiedOptions}}" wx:key="value" class="xf-mama-gender-chip {{(item.value === 'yes' && realNameVerified === true) || (item.value === 'no' && realNameVerified === false) ? 'is-active' : ''}}" data-value="{{item.value}}" catchtap="toggleRealNameVerified" aria-label="选择实名认证状态 {{item.label}}">{{item.label}}</button>
-            </view>
-          </label>
-          </block>
-          <view wx:for="{{mediaAccounts}}" wx:key="index" hidden="{{addingMediaAccountOnly && index !== mediaAccounts.length - 1}}" class="xf-mama-media-account">
-            <view class="xf-mama-media-head">
-              <view class="xf-mama-media-title">
-                <view class="xf-mama-platform-logo {{item.platformLogoClass}}">
-                  <image wx:if="{{item.platformLogoUrl}}" class="xf-mama-platform-logo-image" src="{{item.platformLogoUrl}}" mode="aspectFill" />
-                  <text wx:else>{{item.platformLogoText}}</text>
+                <view class="xf-mama-info-account-body">
+                  <text class="xf-mama-info-account-title">{{item.title}}</text>
+                  <text class="xf-mama-info-account-summary">{{item.summary}}</text>
                 </view>
-                <text>{{item.nickname || item.platformLabel + "账号"}}</text>
+                <text class="xf-mama-info-account-edit">编辑</text>
               </view>
-              <button type="button" class="xf-mama-media-remove" data-index="{{index}}" catchtap="removeMediaAccount">删除</button>
             </view>
-            <label class="xf-mama-field">
-              平台
-              <picker mode="selector" range="{{mediaPlatformOptions}}" range-key="label" value="{{item.platformIndex}}" data-index="{{index}}" bindchange="selectMediaAccountPlatform">
-                <view class="xf-mama-picker">{{item.platformLabel}}</view>
-              </picker>
-            </label>
-            <label class="xf-mama-field">主页链接<input value="{{item.profileUrl}}" data-index="{{index}}" data-field="profileUrl" bindinput="updateMediaAccountField" placeholder="可粘贴整段口令或主页链接" placeholder-class="xf-mama-placeholder" /></label>
-            <label class="xf-mama-field">账号昵称<text class="xf-mama-required">*</text><input value="{{item.nickname}}" data-index="{{index}}" data-field="nickname" bindinput="updateMediaAccountField" placeholder="必填" placeholder-class="xf-mama-placeholder" /></label>
-            <label class="xf-mama-field">粉丝数<input type="number" value="{{item.followerCount}}" data-index="{{index}}" data-field="followerCount" bindinput="updateMediaAccountField" placeholder="例如：3600" placeholder-class="xf-mama-placeholder" /></label>
           </view>
-          <view wx:if="{{!addingMediaAccountOnly}}" class="xf-mama-add-account-row">
-            <button type="button" class="xf-mama-add-account" catchtap="addMediaAccount">添加新账号</button>
-          </view>
-          <view wx:if="{{message}}" class="xf-mama-message {{messageType}}">{{message}}</view>
-          <button class="xf-mama-submit" catchtap="saveMediaAccounts">保存社交媒体账号</button>
         </view>
+        <view wx:if="{{message}}" class="xf-mama-message {{messageType}}">{{message}}</view>
+        <button class="xf-mama-submit" data-action="save" open-type="{{isLoggedIn ? '' : 'getPhoneNumber'}}" bindgetphonenumber="authorizeMamaResourceAction" disabled="{{submitting}}" catchtap="submitProfileDraft">{{submitting ? "保存中..." : "保存资料"}}</button>
+      </view>
 
-        <form wx:else class="xf-mama-form" bindsubmit="savePreferences">
-          <view class="xf-mama-editor-head">
-            <text class="xf-mama-section-heading">接单偏好</text>
-            <view class="xf-mama-editor-back" catchtap="saveCurrentProfileSectionAndBack" role="button">保存并返回</view>
+      <view wx:if="{{personalInfoModalOpen}}" class="xf-mama-account-mask" catchtap="closePersonalInfoModal">
+        <scroll-view class="xf-mama-account-dialog" scroll-y catchtap="keepMediaAccountModalOpen">
+          <form bindsubmit="savePersonalInfo">
+            <view class="xf-mama-account-dialog-head">
+              <view>
+                <text class="xf-mama-account-dialog-kicker">个人资料</text>
+                <text class="xf-mama-account-dialog-title">编辑个人信息</text>
+              </view>
+              <view class="xf-mama-account-dialog-close" catchtap="closePersonalInfoModal" role="button" aria-label="关闭">×</view>
+            </view>
+
+            <view class="xf-mama-grid">
+              <label class="xf-mama-field">姓名/昵称<text class="xf-mama-required">*</text><input name="displayName" value="{{personalInfoDraft.displayName}}" data-field="displayName" bindinput="updatePersonalInfoDraftField" placeholder="例如：安安妈妈" placeholder-class="xf-mama-placeholder" /></label>
+              <label class="xf-mama-field">微信号<text class="xf-mama-required">*</text><input name="contactWechat" value="{{personalInfoDraft.contactWechat}}" data-field="contactWechat" bindinput="updatePersonalInfoDraftField" placeholder="优先通过微信添加" placeholder-class="xf-mama-placeholder" /></label>
+              <label class="xf-mama-field">手机号<input name="contactPhone" value="{{personalInfoDraft.contactPhone}}" data-field="contactPhone" bindinput="updatePersonalInfoDraftField" placeholder="备用联系电话" placeholder-class="xf-mama-placeholder" /></label>
+              <label class="xf-mama-field">支付宝账号<text class="xf-mama-required">*</text><input name="alipayAccount" value="{{personalInfoDraft.alipayAccount}}" data-field="alipayAccount" bindinput="updatePersonalInfoDraftField" placeholder="用于任务结算转账" placeholder-class="xf-mama-placeholder" /></label>
+              <label class="xf-mama-field">支付宝验证姓名<text class="xf-mama-required">*</text><input name="alipayVerifiedName" value="{{personalInfoDraft.alipayVerifiedName}}" data-field="alipayVerifiedName" bindinput="updatePersonalInfoDraftField" placeholder="支付宝实名认证姓名" placeholder-class="xf-mama-placeholder" /></label>
+            </view>
+            <view class="xf-mama-field">
+              孩子档案
+              <view wx:if="{{hasArchiveChildren}}" class="xf-mama-archive-link" catchtap="openChildArchive"><text class="xf-mama-archive-value">{{archiveChildrenText}}</text><text>›</text></view>
+              <view wx:else class="xf-mama-archive-link" catchtap="openChildCreate">添加孩子 <text>›</text></view>
+            </view>
+            <view class="xf-mama-field">
+              <text>创作能力</text>
+              <view class="xf-mama-chips">
+                <button wx:for="{{personalInfoCapabilityOptions}}" wx:key="label" class="xf-mama-chip {{item.selected ? 'is-active' : ''}}" data-value="{{item.label}}" catchtap="togglePersonalContentCapability" aria-label="选择创作能力 {{item.label}}">{{item.label}}</button>
+              </view>
+            </view>
+
+            <text wx:if="{{personalInfoMessage}}" class="xf-mama-account-dialog-error">{{personalInfoMessage}}</text>
+            <view class="xf-mama-account-dialog-actions">
+              <button type="button" class="xf-mama-account-dialog-cancel" catchtap="closePersonalInfoModal">取消</button>
+              <button form-type="submit" class="xf-mama-account-dialog-save">保存个人信息</button>
+            </view>
+          </form>
+        </scroll-view>
+      </view>
+
+      <view wx:if="{{mediaAccountModalOpen}}" class="xf-mama-account-mask" catchtap="closeMediaAccountModal">
+        <scroll-view class="xf-mama-account-dialog" scroll-y catchtap="keepMediaAccountModalOpen">
+          <view class="xf-mama-account-dialog-head">
+            <view>
+              <text class="xf-mama-account-dialog-kicker">社交媒体账号</text>
+              <text class="xf-mama-account-dialog-title">{{mediaAccountModalMode === 'edit' ? '编辑账号' : (mediaAccountModalSource === 'primary' ? '添加小红书账号' : '添加账号')}}</text>
+            </view>
+            <view class="xf-mama-account-dialog-close" catchtap="closeMediaAccountModal" role="button" aria-label="关闭">×</view>
           </view>
-          <label class="xf-mama-field">账号定位<textarea name="accountPositioning" value="{{formDraft.accountPositioning}}" data-field="accountPositioning" bindinput="updateDraftField" placeholder="例如：亲子阅读、学习规划、家居收纳、母婴好物" placeholder-class="xf-mama-textarea-placeholder"></textarea></label>
+
+          <label class="xf-mama-field">
+            平台
+            <view wx:if="{{mediaAccountModalSource === 'primary'}}" class="xf-mama-picker is-locked">小红书</view>
+            <picker wx:else mode="selector" range="{{mediaPlatformOptions}}" range-key="label" value="{{mediaAccountDraft.platformIndex}}" bindchange="selectMediaAccountDraftPlatform">
+              <view class="xf-mama-picker">{{mediaAccountDraft.platformLabel}}</view>
+            </picker>
+          </label>
+          <label class="xf-mama-field">账号昵称<text class="xf-mama-required">*</text><input value="{{mediaAccountDraft.nickname}}" data-field="nickname" bindinput="updateMediaAccountDraftField" placeholder="填写账号昵称" placeholder-class="xf-mama-placeholder" /></label>
+          <label class="xf-mama-field">{{mediaAccountModalSource === 'primary' ? '小红书主页链接' : '主页链接'}}<text wx:if="{{mediaAccountModalSource === 'primary'}}" class="xf-mama-required">*</text><input value="{{mediaAccountDraft.profileUrl}}" data-field="profileUrl" bindinput="updateMediaAccountDraftField" placeholder="可粘贴整段口令或主页链接" placeholder-class="xf-mama-placeholder" /></label>
+          <label class="xf-mama-field">粉丝数<input type="number" value="{{mediaAccountDraft.followerCount}}" data-field="followerCount" bindinput="updateMediaAccountDraftField" placeholder="例如：12800" placeholder-class="xf-mama-placeholder" /></label>
+
+          <block wx:if="{{mediaAccountModalSource === 'primary'}}">
+            <view class="xf-mama-field">
+              <text>小红书页面截图</text>
+              <button class="xf-mama-upload-button" type="button" loading="{{xiaohongshuScreenshotUploading}}" disabled="{{xiaohongshuScreenshotUploading}}" catchtap="chooseXiaohongshuScreenshot">
+                {{mediaAccountDraft.screenshotUrl ? "已上传，重新选择" : "上传小红书主页截图"}}
+              </button>
+              <text class="xf-mama-upload-hint">{{xiaohongshuScreenshotUploading ? "截图上传中..." : (mediaAccountDraft.screenshotUrl ? "已上传，可继续保存" : "调用手机相册或相机上传截图")}}</text>
+            </view>
+          </block>
           <view class="xf-mama-field">
-            <text>可发品类</text>
-            <view class="xf-mama-chips">
-              <button wx:for="{{categories}}" wx:key="label" class="xf-mama-chip {{item.selected ? 'is-active' : ''}}" data-category="{{item.label}}" catchtap="toggleCategory" aria-label="选择可发品类 {{item.label}}">{{item.label}}</button>
+            <text>是否实名认证</text>
+            <view class="xf-mama-gender-options">
+              <button wx:for="{{realNameVerifiedOptions}}" wx:key="value" class="xf-mama-gender-chip {{(item.value === 'yes' && mediaAccountDraft.realNameVerified === true) || (item.value === 'no' && mediaAccountDraft.realNameVerified === false) ? 'is-active' : ''}}" data-value="{{item.value}}" catchtap="toggleMediaAccountDraftRealName" aria-label="选择实名认证状态 {{item.label}}">{{item.label}}</button>
             </view>
           </view>
-          <view class="xf-mama-panel">
-            <label class="xf-mama-field is-nested">暂不接的品类<input name="blockedCategories" value="{{formDraft.blockedCategories}}" data-field="blockedCategories" bindinput="updateDraftField" placeholder="例如：医美、金融、成人用品" placeholder-class="xf-mama-placeholder" /></label>
-            <text class="xf-mama-check"><text class="xf-mama-required">*</text>资料会用于任务匹配和运营联系，可联系运营停用或更新。</text>
+
+          <text wx:if="{{mediaAccountMessage}}" class="xf-mama-account-dialog-error">{{mediaAccountMessage}}</text>
+          <view class="xf-mama-account-dialog-actions">
+            <button type="button" class="xf-mama-account-dialog-cancel" catchtap="closeMediaAccountModal">取消</button>
+            <button type="button" class="xf-mama-account-dialog-save" catchtap="saveMediaAccountDraft">保存账号</button>
           </view>
-          <view wx:if="{{message}}" class="xf-mama-message {{messageType}}">{{message}}</view>
-          <button form-type="submit" class="xf-mama-submit">保存接单偏好</button>
-        </form>
+          <button wx:if="{{mediaAccountModalMode === 'edit'}}" type="button" class="xf-mama-account-dialog-delete" catchtap="removeMediaAccountFromModal">删除这个账号</button>
+        </scroll-view>
       </view>
     </block>
 
@@ -235,7 +205,7 @@
         <view class="xf-mama-task-identity">
           <view class="xf-mama-task-hero-copy">
             <text class="xf-mama-task-title">好赚</text>
-            <text class="xf-mama-task-subtitle">{{mamaResourceProfile.displayName || "已审核账号"}} · 可接：{{mamaResourceProfile.categoriesText || "亲子阅读、学习用品"}}</text>
+            <text class="xf-mama-task-subtitle">{{mamaResourceProfile.displayName || "已审核账号"}}</text>
           </view>
         </view>
         <button class="xf-mama-task-manage" catchtap="openProfileManager">资料管理</button>

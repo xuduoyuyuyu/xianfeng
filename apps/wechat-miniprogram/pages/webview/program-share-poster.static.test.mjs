@@ -22,6 +22,11 @@ test("program detail share button opens a generated poster preview", () => {
   assert.match(wxss, /\.xf-program-share-preview-panel/);
   assert.match(wxss, /\.xf-program-share-preview-close\s*\{[\s\S]*position:\s*absolute;[\s\S]*left:\s*24rpx;/);
   assert.match(wxss, /\.xf-program-share-preview-scroll\s*\{[\s\S]*box-sizing:\s*border-box;/);
+  const playerZIndex = Number(wxss.match(/\.xf-program-detail-player-fab\s*\{[\s\S]*?z-index:\s*(\d+);/)[1]);
+  const maskZIndex = Number(wxss.match(/\.xf-program-share-preview-mask\s*\{[\s\S]*?z-index:\s*(\d+);/)[1]);
+  const panelZIndex = Number(wxss.match(/\.xf-program-share-preview-panel\s*\{[\s\S]*?z-index:\s*(\d+);/)[1]);
+  assert.ok(maskZIndex > playerZIndex);
+  assert.ok(panelZIndex > playerZIndex);
 });
 
 test("program poster requests a mini-program code for the current environment", () => {
@@ -42,6 +47,34 @@ test("program poster requests a mini-program code for the current environment", 
   assert.equal(poster.programShareQrFilePath("abc/123"), "/tmp/xf-program-share-qr-abc_123.jpg");
   delete require.cache[modulePath];
   global.wx = previousWx;
+});
+
+test("program poster uses a real guest avatar and falls back when it cannot load", async () => {
+  const poster = require("./programSharePoster.js");
+  const previousWx = global.wx;
+  try {
+    global.wx = {
+      getImageInfo({ src, success, fail }) {
+        if (src.includes("real.png")) {
+          success({ path: "/tmp/real-guest.png", width: 715, height: 688 });
+          return;
+        }
+        fail();
+      }
+    };
+    assert.deepEqual(
+      await poster.resolveProgramShareGuestAvatars([
+        { avatar: "https://xianfeng.xinzhi.info/uploads/images/real.png" },
+        { avatar: "https://xianfeng.xinzhi.info/uploads/images/unavailable.png" }
+      ]),
+      [
+        { path: "/tmp/real-guest.png", width: 715, height: 688 },
+        { path: "/assets/wel-avatar/no-hat.png", width: 0, height: 0 }
+      ]
+    );
+  } finally {
+    global.wx = previousWx;
+  }
 });
 
 test("program poster draws current content and the direct mini-program code", () => {
@@ -105,7 +138,8 @@ test("program poster draws current content and the direct mini-program code", ()
   assert.ok(!texts.join("").includes("稳妥的选项"));
   assert.ok(!texts.join("").includes("确定性很高"));
   assert.ok(texts.some((text) => text.includes("微信扫码")));
-  assert.ok(texts.some((text) => text.includes("本期嘉宾")));
+  assert.ok(!texts.some((text) => text.includes("本期嘉宾")));
+  assert.ok(!texts.some((text) => text.includes("G U E S T S")));
   assert.ok(texts.some((text) => text.includes("嘉宾甲")));
   assert.ok(texts.some((text) => text.includes("升学规划顾问")));
   assert.ok(texts.join("").includes("跨校保研申请经验"));
@@ -131,12 +165,14 @@ test("program poster draws current content and the direct mini-program code", ()
 test("program poster places the QR panel directly after a single guest", () => {
   const poster = require("./programSharePoster.js");
   const images = [];
+  const texts = [];
+  let textAlign = "left";
   const ctx = {
     setFillStyle() {},
     fillRect() {},
     createLinearGradient() { return { addColorStop() {} }; },
     setFontSize() {},
-    setTextAlign() {},
+    setTextAlign(value) { textAlign = value; },
     setGlobalAlpha() {},
     setStrokeStyle() {},
     setLineWidth() {},
@@ -152,7 +188,7 @@ test("program poster places the QR panel directly after a single guest", () => {
     arc() {},
     clip() {},
     measureText(value) { return { width: String(value).length * 30 }; },
-    fillText() {},
+    fillText(value, x, y) { texts.push({ value: String(value), x, y, textAlign }); },
     drawImage(...args) { images.push(args); }
   };
 
@@ -165,8 +201,16 @@ test("program poster places the QR panel directly after a single guest", () => {
     { path: "/tmp/single-guest.jpg", width: 300, height: 300 }
   ]);
 
+  const guestImage = images.find((args) => args[0] === "/tmp/single-guest.jpg");
+  const guestName = texts.find((item) => item.value === "嘉宾甲");
+  const guestTitle = texts.find((item) => item.value === "教师");
+  const guestBio = texts.find((item) => item.value === "嘉宾介绍");
   const qrImage = images.find((args) => args[0] === "/tmp/single-guest-program-qr.png");
-  assert.deepEqual(qrImage, ["/tmp/single-guest-program-qr.png", 52, 1064, 144, 144]);
+  assert.deepEqual(guestImage.slice(5), [293, 838, 164, 164]);
+  assert.deepEqual(guestName, { value: "嘉宾甲", x: 375, y: 1052, textAlign: "center" });
+  assert.deepEqual(guestTitle, { value: "教师", x: 375, y: 1086, textAlign: "center" });
+  assert.deepEqual(guestBio, { value: "嘉宾介绍", x: 375, y: 1127, textAlign: "center" });
+  assert.deepEqual(qrImage, ["/tmp/single-guest-program-qr.png", 52, 1222, 144, 144]);
 });
 
 test("program poster keeps Chinese punctuation off the start of wrapped lines", () => {
@@ -178,7 +222,7 @@ test("program poster keeps Chinese punctuation off the start of wrapped lines", 
 test("program code lands directly on the native detail while legacy scenes remain compatible", () => {
   assert.match(pageSource, /function extractProgramIdFromScene\(scene\)/);
   assert.match(pageSource, /const sceneProgramId = extractProgramIdFromScene\(options\.scene\)/);
-  assert.match(pageSource, /const rawSrc = sceneProgramId[\s\S]*?\? `\/programs\/\$\{encodeURIComponent\(sceneProgramId\)\}`/);
+  assert.match(pageSource, /const rawSrc = sceneBookTarget \|\| \(sceneProgramId[\s\S]*?\? `\/programs\/\$\{encodeURIComponent\(sceneProgramId\)\}`/);
   assert.match(sharePageSource, /function buildProgramTargetFromScene\(scene\)/);
   assert.match(sharePageSource, /parseSceneParam\(scene, "p"\)/);
   assert.match(sharePageSource, /`\/programs\/\$\{encodeURIComponent\(programId\)\}`/);

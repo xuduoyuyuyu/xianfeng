@@ -20,7 +20,8 @@ const REAL_NAME_VERIFIED_OPTIONS = [
 ];
 const MEDIA_PLATFORM_OPTIONS = [
   { value: "xiaohongshu", label: "小红书" },
-  { value: "douyin", label: "抖音" }
+  { value: "douyin", label: "抖音" },
+  { value: "shipinhao", label: "视频号" }
 ];
 const LOGO_HEIGHT_RPX = 56;
 const MAMA_RESOURCE_APPLY_DRAFT_KEY = "xf_mama_resource_apply_draft_v1";
@@ -102,6 +103,9 @@ function mediaPlatformLogoFor(platform) {
   if (value === "xiaohongshu") {
     return { text: "", className: "is-xiaohongshu", url: "/assets/platform/xiaohongshu-logo.png" };
   }
+  if (value === "shipinhao") {
+    return { text: "视", className: "is-shipinhao", url: "" };
+  }
   return { text: "+", className: "is-unselected", url: "" };
 }
 
@@ -157,26 +161,45 @@ function buildProfileOverview(formDraft) {
     draft.alipayVerifiedName ? `验证姓名 ${draft.alipayVerifiedName}` : "",
     draft.contentCapabilities.length ? `创作能力 ${draft.contentCapabilities.join("、")}` : ""
   ].filter(Boolean);
-  const allAccounts = [normalizeMediaAccount({
-    platform: "xiaohongshu",
-    nickname: draft.xiaohongshuNickname,
-    profileUrl: draft.xiaohongshuProfileUrl,
-    screenshotUrl: draft.xiaohongshuScreenshotUrl,
-    followerCount: draft.followerCount,
-    realNameVerified: draft.realNameVerified
-  })].concat(draft.mediaAccounts);
+  const allAccounts = [{
+    ...normalizeMediaAccount({
+      platform: "xiaohongshu",
+      nickname: draft.xiaohongshuNickname,
+      profileUrl: draft.xiaohongshuProfileUrl,
+      screenshotUrl: draft.xiaohongshuScreenshotUrl,
+      followerCount: draft.followerCount,
+      realNameVerified: draft.realNameVerified
+    }),
+    sourceType: "primary",
+    sourceIndex: -1
+  }].concat(draft.mediaAccounts.map((account, sourceIndex) => ({
+    ...account,
+    sourceType: "extra",
+    sourceIndex
+  })));
   const filledAccounts = allAccounts.filter((account) => account.profileUrl || account.nickname || account.followerCount);
-  const selectedCategories = draft.selectedCategories.length ? draft.selectedCategories.join("、") : "未选择可发品类";
   return {
     personalSummary: personalItems.join(" · "),
     mediaSummary: filledAccounts.length ? `${filledAccounts.length} 个媒体账号` : "未添加媒体账号",
-    preferenceSummary: `${selectedCategories}${draft.blockedCategories ? ` · 暂不接：${draft.blockedCategories}` : ""}`,
-    consentSummary: "资料提交后将用于任务匹配和运营联系",
+    hasPrimaryMediaAccount: Boolean(draft.xiaohongshuProfileUrl || draft.xiaohongshuNickname || draft.followerCount),
     accounts: filledAccounts.map((account, index) => ({
       ...account,
+      accountKey: `${account.sourceType}-${account.sourceIndex}`,
       title: account.nickname || `${account.platformLabel || "媒体"}账号 ${index + 1}`,
-      summary: account.platform === "xiaohongshu" ? "" : [account.nickname, account.followerCount ? `粉丝 ${account.followerCount}` : "", account.realNameVerified === true ? "已实名" : account.realNameVerified === false ? "未实名" : ""].filter(Boolean).join(" · ") || account.profileUrl || "待补充"
+      summary: [account.platformLabel, account.followerCount ? `粉丝 ${account.followerCount}` : "", account.realNameVerified === true ? "已实名" : account.realNameVerified === false ? "未实名" : ""].filter(Boolean).join(" · ") || "待补充"
     }))
+  };
+}
+
+function buildPersonalInfoDraft(value) {
+  const source = value && typeof value === "object" ? value : {};
+  return {
+    displayName: asText(source.displayName).trim(),
+    contactWechat: asText(source.contactWechat).trim(),
+    contactPhone: asText(source.contactPhone).trim(),
+    alipayAccount: asText(source.alipayAccount).trim(),
+    alipayVerifiedName: asText(source.alipayVerifiedName).trim(),
+    contentCapabilities: Array.isArray(source.contentCapabilities) ? source.contentCapabilities.map(asText).filter(Boolean) : []
   };
 }
 
@@ -332,7 +355,16 @@ function buildLoggedOutMamaResourceState() {
     ...buildApplyDraftState(cloneEmptyApplyDraft()),
     mamaResourceView: "apply",
     profileManagerMode: "overview",
-    addingMediaAccountOnly: false,
+    personalInfoModalOpen: false,
+    personalInfoDraft: buildPersonalInfoDraft(cloneEmptyApplyDraft()),
+    personalInfoCapabilityOptions: buildContentCapabilityOptions([]),
+    personalInfoMessage: "",
+    mediaAccountModalOpen: false,
+    mediaAccountModalMode: "create",
+    mediaAccountModalSource: "primary",
+    mediaAccountModalIndex: -1,
+    mediaAccountDraft: blankMediaAccount("xiaohongshu"),
+    mediaAccountMessage: "",
     isLoggedIn: false,
     mamaResourceProfile: null,
     mamaTasks: [],
@@ -589,8 +621,8 @@ function buildProfileDraftPatch(profile) {
     ? source.mediaAccounts.map(normalizeMediaAccount)
     : [normalizeMediaAccount(source.socialAccount || {}, "xiaohongshu")];
   const primaryIndex = accounts.findIndex((account) => account.platform === "xiaohongshu");
-  const primary = accounts[primaryIndex >= 0 ? primaryIndex : 0] || blankMediaAccount("xiaohongshu");
-  const extraAccounts = accounts.filter((_account, index) => index !== (primaryIndex >= 0 ? primaryIndex : 0));
+  const primary = primaryIndex >= 0 ? accounts[primaryIndex] : blankMediaAccount("xiaohongshu");
+  const extraAccounts = primaryIndex >= 0 ? accounts.filter((_account, index) => index !== primaryIndex) : accounts;
   return {
     displayName: source.displayName || "",
     contactWechat: source.contactWechat || "",
@@ -671,6 +703,16 @@ Page({
     mediaPlatformOptions: MEDIA_PLATFORM_OPTIONS,
     profileOverview: buildProfileOverview(cloneEmptyApplyDraft()),
     profileManagerMode: "overview",
+    personalInfoModalOpen: false,
+    personalInfoDraft: buildPersonalInfoDraft(cloneEmptyApplyDraft()),
+    personalInfoCapabilityOptions: buildContentCapabilityOptions([]),
+    personalInfoMessage: "",
+    mediaAccountModalOpen: false,
+    mediaAccountModalMode: "create",
+    mediaAccountModalSource: "primary",
+    mediaAccountModalIndex: -1,
+    mediaAccountDraft: blankMediaAccount("xiaohongshu"),
+    mediaAccountMessage: "",
     childStages: CHILD_STAGE_OPTIONS,
     childGenderOptions: CHILD_GENDER_OPTIONS,
     contentCapabilityOptions: buildContentCapabilityOptions([]),
@@ -784,16 +826,20 @@ Page({
   },
 
   goBack() {
+    if (this.data.personalInfoModalOpen) {
+      this.closePersonalInfoModal();
+      return;
+    }
+    if (this.data.mediaAccountModalOpen) {
+      this.closeMediaAccountModal();
+      return;
+    }
     if (this.data.mamaResourceView === "detail") {
       this.backToMamaTasks();
       return;
     }
     const profile = this.data.mamaResourceProfile || {};
     if (this.data.mamaResourceView === "apply" && profile.status === "approved") {
-      if (this.data.profileManagerMode !== "overview") {
-        this.backToProfileOverview();
-        return;
-      }
       this.setData({ mamaResourceView: "tasks", message: "", messageType: "" });
       return;
     }
@@ -1254,7 +1300,7 @@ Page({
   showApplyForm() {
     const profile = this.data.mamaResourceProfile || {};
     updatePageApplyDraft(this, buildProfileDraftPatch(profile));
-    this.setData({ mamaResourceView: "apply", profileManagerMode: "overview", message: "", messageType: "" });
+    this.setData({ mamaResourceView: "apply", profileManagerMode: "overview", personalInfoModalOpen: false, mediaAccountModalOpen: false, message: "", messageType: "" });
   },
 
   openProfileManager() {
@@ -1262,24 +1308,46 @@ Page({
   },
 
   openPersonalInfoEditor() {
-    this.setData({ profileManagerMode: "personal", message: "", messageType: "" });
+    const personalInfoDraft = buildPersonalInfoDraft(this.data.formDraft);
+    this.setData({
+      personalInfoModalOpen: true,
+      personalInfoDraft,
+      personalInfoCapabilityOptions: buildContentCapabilityOptions(personalInfoDraft.contentCapabilities),
+      personalInfoMessage: "",
+      mediaAccountModalOpen: false,
+      message: "",
+      messageType: ""
+    });
   },
 
-  openMediaAccountsManager() {
-    this.setData({ profileManagerMode: "media", addingMediaAccountOnly: false, message: "", messageType: "" });
+  closePersonalInfoModal() {
+    this.setData({ personalInfoModalOpen: false, personalInfoMessage: "" });
   },
 
-  openPreferenceEditor() {
-    this.setData({ profileManagerMode: "preference", message: "", messageType: "" });
+  updatePersonalInfoDraftField(event) {
+    const field = String(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.field || "").trim();
+    if (!field) return;
+    this.setData({
+      personalInfoDraft: {
+        ...(this.data.personalInfoDraft || {}),
+        [field]: event && event.detail ? event.detail.value : ""
+      },
+      personalInfoMessage: ""
+    });
   },
 
-  backToProfileOverview() {
-    this.setData({ profileManagerMode: "overview", message: "", messageType: "" });
-  },
-
-  saveCurrentProfileSectionAndBack() {
-    if (this.data.submitting) return;
-    this.backToProfileOverview();
+  togglePersonalContentCapability(event) {
+    const value = String(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.value || "").trim();
+    if (!value) return;
+    const draft = buildPersonalInfoDraft(this.data.personalInfoDraft);
+    const contentCapabilities = draft.contentCapabilities.includes(value)
+      ? draft.contentCapabilities.filter((item) => item !== value)
+      : draft.contentCapabilities.concat(value);
+    this.setData({
+      personalInfoDraft: { ...draft, contentCapabilities },
+      personalInfoCapabilityOptions: buildContentCapabilityOptions(contentCapabilities),
+      personalInfoMessage: ""
+    });
   },
 
   updateTaskProofLink(event) {
@@ -1396,109 +1464,173 @@ Page({
       });
   },
 
-  updateDraftField(event) {
-    const field = String(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.field || "").trim();
-    if (!field) return;
-    updatePageApplyDraft(this, {
-      [field]: event && event.detail ? event.detail.value : ""
+  openNewMediaAccount() {
+    const source = this.data.profileOverview && this.data.profileOverview.hasPrimaryMediaAccount ? "extra" : "primary";
+    this.setData({
+      personalInfoModalOpen: false,
+      mediaAccountModalOpen: true,
+      mediaAccountModalMode: "create",
+      mediaAccountModalSource: source,
+      mediaAccountModalIndex: -1,
+      mediaAccountDraft: blankMediaAccount(source === "primary" ? "xiaohongshu" : ""),
+      mediaAccountMessage: "",
+      message: "",
+      messageType: ""
     });
   },
 
-  addMediaAccount() {
-    const mediaAccounts = normalizeExtraMediaAccounts(this.data.mediaAccounts).concat(blankMediaAccount());
-    updatePageApplyDraft(this, { mediaAccounts });
+  openMediaAccountEditor(event) {
+    const dataset = event && event.currentTarget && event.currentTarget.dataset || {};
+    const source = String(dataset.source || "").trim();
+    const index = Number(dataset.index);
+    let mediaAccountDraft = null;
+    if (source === "primary") {
+      const draft = this.data.formDraft || {};
+      mediaAccountDraft = normalizeMediaAccount({
+        platform: "xiaohongshu",
+        nickname: draft.xiaohongshuNickname,
+        profileUrl: draft.xiaohongshuProfileUrl,
+        screenshotUrl: draft.xiaohongshuScreenshotUrl,
+        followerCount: draft.followerCount,
+        realNameVerified: draft.realNameVerified
+      });
+    } else if (source === "extra" && Number.isFinite(index) && index >= 0) {
+      mediaAccountDraft = normalizeExtraMediaAccounts(this.data.mediaAccounts)[index];
+    }
+    if (!mediaAccountDraft) return;
+    this.setData({
+      personalInfoModalOpen: false,
+      mediaAccountModalOpen: true,
+      mediaAccountModalMode: "edit",
+      mediaAccountModalSource: source,
+      mediaAccountModalIndex: source === "extra" ? index : -1,
+      mediaAccountDraft,
+      mediaAccountMessage: "",
+      message: "",
+      messageType: ""
+    });
   },
 
-  openNewMediaAccount() {
-    const mediaAccounts = normalizeExtraMediaAccounts(this.data.mediaAccounts).concat(blankMediaAccount());
-    updatePageApplyDraft(this, { mediaAccounts });
-    this.setData({ profileManagerMode: "media", addingMediaAccountOnly: true, message: "", messageType: "" });
+  closeMediaAccountModal() {
+    if (this.data.xiaohongshuScreenshotUploading) return;
+    this.setData({ mediaAccountModalOpen: false, mediaAccountMessage: "" });
+  },
+
+  keepMediaAccountModalOpen() {},
+
+  updateMediaAccountDraftField(event) {
+    const field = String(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.field || "").trim();
+    if (!field) return;
+    this.setData({
+      mediaAccountDraft: normalizeMediaAccount({
+        ...(this.data.mediaAccountDraft || {}),
+        [field]: event && event.detail ? event.detail.value : ""
+      }),
+      mediaAccountMessage: ""
+    });
+  },
+
+  selectMediaAccountDraftPlatform(event) {
+    if (this.data.mediaAccountModalSource === "primary") return;
+    const platformIndex = Number(event && event.detail && event.detail.value);
+    const platform = MEDIA_PLATFORM_OPTIONS[Number.isFinite(platformIndex) ? platformIndex : 0]?.value || "xiaohongshu";
+    this.setData({
+      mediaAccountDraft: normalizeMediaAccount({ ...(this.data.mediaAccountDraft || {}), platform }),
+      mediaAccountMessage: ""
+    });
+  },
+
+  toggleMediaAccountDraftRealName(event) {
+    const value = String(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.value || "").trim();
+    const nextValue = value === "yes" ? true : value === "no" ? false : null;
+    const draft = this.data.mediaAccountDraft || {};
+    this.setData({
+      mediaAccountDraft: normalizeMediaAccount({ ...draft, realNameVerified: draft.realNameVerified === nextValue ? null : nextValue }),
+      mediaAccountMessage: ""
+    });
+  },
+
+  saveMediaAccountDraft() {
+    const account = normalizeMediaAccount(this.data.mediaAccountDraft);
+    if (!account.platform) {
+      this.setData({ mediaAccountMessage: "请选择账号平台" });
+      return;
+    }
+    if (!account.nickname) {
+      this.setData({ mediaAccountMessage: "请填写账号昵称" });
+      return;
+    }
+    if (this.data.mediaAccountModalSource === "primary") {
+      const profileUrl = asText(account.profileUrl).trim();
+      if (!profileUrl) {
+        this.setData({ mediaAccountMessage: "请填写小红书主页链接" });
+        return;
+      }
+      updatePageApplyDraft(this, {
+        xiaohongshuNickname: account.nickname,
+        xiaohongshuProfileUrl: profileUrl,
+        originalXiaohongshuProfileUrl: profileUrl,
+        xiaohongshuScreenshotUrl: account.screenshotUrl,
+        followerCount: account.followerCount,
+        realNameVerified: account.realNameVerified
+      });
+    } else {
+      const mediaAccounts = normalizeExtraMediaAccounts(this.data.mediaAccounts);
+      const index = Number(this.data.mediaAccountModalIndex);
+      if (this.data.mediaAccountModalMode === "edit" && Number.isFinite(index) && index >= 0) {
+        mediaAccounts[index] = account;
+      } else {
+        mediaAccounts.push(account);
+      }
+      updatePageApplyDraft(this, { mediaAccounts });
+    }
+    this.setData({ mediaAccountModalOpen: false, mediaAccountMessage: "" });
+  },
+
+  removeMediaAccountFromModal() {
+    if (this.data.mediaAccountModalSource === "primary") {
+      updatePageApplyDraft(this, {
+        xiaohongshuNickname: "",
+        xiaohongshuProfileUrl: "",
+        originalXiaohongshuProfileUrl: "",
+        xiaohongshuScreenshotUrl: "",
+        followerCount: "",
+        realNameVerified: null
+      });
+    } else {
+      const index = Number(this.data.mediaAccountModalIndex);
+      if (!Number.isFinite(index) || index < 0) return;
+      const mediaAccounts = normalizeExtraMediaAccounts(this.data.mediaAccounts).filter((_item, itemIndex) => itemIndex !== index);
+      updatePageApplyDraft(this, { mediaAccounts });
+    }
+    this.setData({ mediaAccountModalOpen: false, mediaAccountMessage: "" });
   },
 
   savePersonalInfo(event) {
     const values = (event && event.detail && event.detail.value) || {};
-    const draft = updatePageApplyDraft(this, {
+    const draft = buildPersonalInfoDraft({
+      ...(this.data.personalInfoDraft || {}),
       displayName: String(values.displayName || "").trim(),
       contactPhone: String(values.contactPhone || "").trim(),
       contactWechat: String(values.contactWechat || "").trim(),
       alipayAccount: String(values.alipayAccount || "").trim(),
       alipayVerifiedName: String(values.alipayVerifiedName || "").trim(),
-      city: String(values.city || "").trim(),
-      childStage: this.data.childStage,
-      childGender: this.data.childGender,
-      contentCapabilities: this.data.contentCapabilities
+      contentCapabilities: this.data.personalInfoDraft && this.data.personalInfoDraft.contentCapabilities
     });
     if (!draft.displayName || !draft.contactWechat) {
-      this.setData({ message: "请填写姓名/昵称和微信号", messageType: "error" });
+      this.setData({ personalInfoMessage: "请填写姓名/昵称和微信号" });
       return;
     }
     if (!draft.alipayAccount || !draft.alipayVerifiedName) {
-      this.setData({ message: "请填写支付宝账号和验证姓名", messageType: "error" });
+      this.setData({ personalInfoMessage: "请填写支付宝账号和验证姓名" });
       return;
     }
-    this.backToProfileOverview();
-  },
-
-  saveMediaAccounts() {
-    const draft = this.data.formDraft || {};
-    const xiaohongshuProfileUrl = asText(draft.originalXiaohongshuProfileUrl || draft.xiaohongshuProfileUrl).trim();
-    if (!asText(draft.xiaohongshuNickname).trim()) {
-      this.setData({ message: "请填写小红书账号昵称", messageType: "error" });
-      return;
-    }
-    if (!xiaohongshuProfileUrl) {
-      this.setData({ message: "请填写小红书主页链接", messageType: "error" });
-      return;
-    }
-    const missingNicknameIndex = normalizeExtraMediaAccounts(this.data.mediaAccounts).findIndex((account) => !account.nickname);
-    if (missingNicknameIndex >= 0) {
-      this.setData({ message: `请填写第${missingNicknameIndex + 2}个账号的账号昵称`, messageType: "error" });
-      return;
-    }
-    this.backToProfileOverview();
-  },
-
-  savePreferences(event) {
-    const values = (event && event.detail && event.detail.value) || {};
     updatePageApplyDraft(this, {
-      accountPositioning: String(values.accountPositioning || "").trim(),
-      categories: this.data.selectedCategories,
-      selectedCategories: this.data.selectedCategories,
-      blockedCategories: String(values.blockedCategories || "").trim(),
-      consentAccepted: true
+      ...draft,
+      childStage: this.data.childStage,
+      childGender: this.data.childGender
     });
-    this.backToProfileOverview();
-  },
-
-  updateMediaAccountField(event) {
-    const index = Number(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.index);
-    const field = String(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.field || "").trim();
-    if (!Number.isFinite(index) || index < 0 || !field) return;
-    const mediaAccounts = normalizeExtraMediaAccounts(this.data.mediaAccounts);
-    const current = mediaAccounts[index] || blankMediaAccount();
-    mediaAccounts[index] = normalizeMediaAccount({
-      ...current,
-      [field]: event && event.detail ? event.detail.value : ""
-    });
-    updatePageApplyDraft(this, { mediaAccounts });
-  },
-
-  selectMediaAccountPlatform(event) {
-    const index = Number(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.index);
-    const platformIndex = Number(event && event.detail && event.detail.value);
-    if (!Number.isFinite(index) || index < 0) return;
-    const platform = MEDIA_PLATFORM_OPTIONS[Number.isFinite(platformIndex) ? platformIndex : 0]?.value || "xiaohongshu";
-    const mediaAccounts = normalizeExtraMediaAccounts(this.data.mediaAccounts);
-    const current = mediaAccounts[index] || blankMediaAccount(platform);
-    mediaAccounts[index] = normalizeMediaAccount({ ...current, platform });
-    updatePageApplyDraft(this, { mediaAccounts });
-  },
-
-  removeMediaAccount(event) {
-    const index = Number(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.index);
-    if (!Number.isFinite(index) || index < 0) return;
-    const mediaAccounts = normalizeExtraMediaAccounts(this.data.mediaAccounts).filter((_item, itemIndex) => itemIndex !== index);
-    updatePageApplyDraft(this, { mediaAccounts });
+    this.setData({ personalInfoModalOpen: false, personalInfoMessage: "" });
   },
 
   selectChildStage(event) {
@@ -1509,16 +1641,6 @@ Page({
   toggleChildGender(event) {
     const value = String(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.value || "").trim();
     updatePageApplyDraft(this, { childGender: value === this.data.childGender ? "" : value });
-  },
-
-  toggleContentCapability(event) {
-    const value = String(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.value || "").trim();
-    if (!value) return;
-    const current = Array.isArray(this.data.contentCapabilities) ? this.data.contentCapabilities : [];
-    const contentCapabilities = current.includes(value)
-      ? current.filter((item) => item !== value)
-      : current.concat(value);
-    updatePageApplyDraft(this, { contentCapabilities });
   },
 
   toggleRealNameVerified(event) {
@@ -1534,7 +1656,10 @@ Page({
 
   chooseXiaohongshuScreenshot() {
     if (this.data.xiaohongshuScreenshotUploading) return Promise.resolve();
-    const previousScreenshotUrl = String(this.data.xiaohongshuScreenshotUrl || "");
+    const editingPrimaryAccount = this.data.mediaAccountModalOpen && this.data.mediaAccountModalSource === "primary";
+    const previousScreenshotUrl = String(editingPrimaryAccount
+      ? this.data.mediaAccountDraft && this.data.mediaAccountDraft.screenshotUrl
+      : this.data.xiaohongshuScreenshotUrl || "");
     const chooseMedia = () => new Promise((resolve, reject) => {
       if (wx.chooseMedia) {
         wx.chooseMedia({
@@ -1588,20 +1713,43 @@ Page({
         });
       }))
       .then((url) => {
-        updatePageApplyDraft(this, { xiaohongshuScreenshotUrl: String(url || "") });
-        this.setData({
-          xiaohongshuScreenshotUploading: false,
-          message: "",
-          messageType: ""
-        });
+        if (editingPrimaryAccount) {
+          this.setData({
+            mediaAccountDraft: normalizeMediaAccount({ ...(this.data.mediaAccountDraft || {}), screenshotUrl: String(url || "") }),
+            xiaohongshuScreenshotUploading: false,
+            mediaAccountMessage: ""
+          });
+        } else {
+          updatePageApplyDraft(this, { xiaohongshuScreenshotUrl: String(url || "") });
+          this.setData({
+            xiaohongshuScreenshotUploading: false,
+            message: "",
+            messageType: ""
+          });
+        }
       })
       .catch((error) => {
         if (previousScreenshotUrl) {
+          if (editingPrimaryAccount) {
+            this.setData({
+              mediaAccountDraft: normalizeMediaAccount({ ...(this.data.mediaAccountDraft || {}), screenshotUrl: previousScreenshotUrl }),
+              xiaohongshuScreenshotUploading: false,
+              mediaAccountMessage: ""
+            });
+            return;
+          }
           this.setData({
             xiaohongshuScreenshotUploading: false,
             xiaohongshuScreenshotUrl: previousScreenshotUrl,
             message: "",
             messageType: ""
+          });
+          return;
+        }
+        if (editingPrimaryAccount) {
+          this.setData({
+            xiaohongshuScreenshotUploading: false,
+            mediaAccountMessage: (error && error.message) || "截图上传失败，请稍后重试"
           });
           return;
         }
@@ -1613,18 +1761,8 @@ Page({
       });
   },
 
-  toggleCategory(event) {
-    const category = String(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.category || "").trim();
-    if (!category) return;
-    const selectedCategories = this.data.selectedCategories.indexOf(category) >= 0
-      ? this.data.selectedCategories.filter((item) => item !== category)
-      : this.data.selectedCategories.concat(category);
-    updatePageApplyDraft(this, { selectedCategories });
-  },
-
   submit(event) {
     const values = (event && event.detail && event.detail.value) || {};
-    const lockedXiaohongshuProfileUrl = asText(this.data.formDraft && this.data.formDraft.originalXiaohongshuProfileUrl).trim();
     const payload = updatePageApplyDraft(this, {
       displayName: String(values.displayName || "").trim(),
       contactPhone: String(values.contactPhone || "").trim(),
@@ -1636,7 +1774,7 @@ Page({
       childGender: this.data.childGender,
       contentCapabilities: this.data.contentCapabilities,
       xiaohongshuNickname: String(values.xiaohongshuNickname || "").trim(),
-      xiaohongshuProfileUrl: lockedXiaohongshuProfileUrl || String(values.xiaohongshuProfileUrl || "").trim(),
+      xiaohongshuProfileUrl: String(values.xiaohongshuProfileUrl || "").trim(),
       xiaohongshuScreenshotUrl: this.data.xiaohongshuScreenshotUrl,
       followerCount: String(values.followerCount || "").trim(),
       realNameVerified: this.data.realNameVerified,
@@ -1654,10 +1792,9 @@ Page({
   submitProfileDraft(options = {}) {
     if (!getToken()) return;
     const draft = this.data.formDraft || {};
-    const lockedXiaohongshuProfileUrl = asText(draft.originalXiaohongshuProfileUrl).trim();
     const payload = updatePageApplyDraft(this, {
       ...draft,
-      xiaohongshuProfileUrl: lockedXiaohongshuProfileUrl || draft.xiaohongshuProfileUrl,
+      xiaohongshuProfileUrl: draft.xiaohongshuProfileUrl,
       childStage: this.data.childStage,
       childGender: this.data.childGender,
       contentCapabilities: this.data.contentCapabilities,
@@ -1678,8 +1815,8 @@ Page({
       mediaAccounts: buildSubmitMediaAccounts(payload)
     };
 
-    if (!payload.displayName || !payload.contactWechat || !payload.xiaohongshuProfileUrl) {
-      this.setData({ message: "请先填写姓名/昵称、微信号和小红书主页链接", messageType: "error" });
+    if (!payload.displayName || !payload.contactWechat) {
+      this.setData({ message: "请先填写姓名/昵称和微信号", messageType: "error" });
       return;
     }
     if (!payload.alipayAccount) {
@@ -1690,7 +1827,7 @@ Page({
       this.setData({ message: "请填写支付宝验证姓名", messageType: "error" });
       return;
     }
-    if (!payload.xiaohongshuNickname) {
+    if (payload.xiaohongshuProfileUrl && !payload.xiaohongshuNickname) {
       this.setData({ message: "请填写小红书账号昵称", messageType: "error" });
       return;
     }
