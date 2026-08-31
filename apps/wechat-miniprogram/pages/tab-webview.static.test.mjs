@@ -17360,6 +17360,30 @@ test("webview native program detail page keeps program, book, and topic details 
     definition.onNativeBookCoverLoad.call(externalBookContext, { detail: { width: 800, height: 500 } });
     assert.equal(externalBookContext.data.nativeBookCoverFrameStyle, "width: 430rpx;");
 
+    storage.set("xf_native_books_source_v1", "native");
+    const externalSceneContext = {
+      ...definition,
+      data: { ...definition.data },
+      setData(payload) {
+        this.data = { ...this.data, ...payload };
+      }
+    };
+    await definition.onLoad.call(externalSceneContext, { scene: encodeURIComponent("e=external-book-1") });
+    assert.equal(externalSceneContext.data.nativeBook.id, "external-book-1");
+    assert.equal(externalSceneContext.data.nativeBook.isExternal, true);
+
+    storage.set("xf_native_books_source_v1", "external");
+    const nativeSceneContext = {
+      ...definition,
+      data: { ...definition.data },
+      setData(payload) {
+        this.data = { ...this.data, ...payload };
+      }
+    };
+    await definition.onLoad.call(nativeSceneContext, { scene: encodeURIComponent("b=book-1") });
+    assert.equal(nativeSceneContext.data.nativeBook.id, "book-1");
+    assert.equal(nativeSceneContext.data.nativeBook.isExternal, false);
+
     await definition.toggleNativeBookIntroTranslation.call(externalBookContext);
     assert.equal(requests.some((url) => url.endsWith("/api/books/external/external-book-1/description-translation")), true);
     assert.equal(externalBookContext.data.nativeBookIntroTranslated, true);

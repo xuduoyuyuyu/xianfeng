@@ -45,6 +45,15 @@ test("program qrcode resolves only a visible program and lands on its native det
   assert.match(source, /code\[0\] === 0xff && code\[1\] === 0xd8 \? "image\/jpeg" : "image\/png"/);
 });
 
+test("book qrcode distinguishes Chinese and Readly books and lands on native book detail", () => {
+  assert.match(source, /import Book from "\.\.\/models\/Book"/);
+  assert.match(source, /router\.get\("\/book-qrcode"/);
+  assert.match(source, /source !== "xianfeng_zh" && source !== "readly_en"/);
+  assert.match(source, /Book\.findOne\(\{ _id: bookId, status: "published" \}\)/);
+  assert.match(source, /source === "readly_en" \? "e" : "b"/);
+  assert.match(source, /router\.get\("\/book-qrcode"[\s\S]*page: "pages\/webview\/index"/);
+});
+
 test("xiaowanzi conversation shares can be saved and opened through a mini-program code", () => {
   assert.match(source, /import XiaowanziShare from "\.\.\/models\/XiaowanziShare"/);
   assert.match(source, /import \{ makeQrPngWhitePixelsTransparent \} from "\.\.\/services\/pngTransparency"/);

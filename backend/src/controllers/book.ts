@@ -56,6 +56,7 @@ const BOOK_COVER_PROXY_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const BOOK_COVER_PROXY_CACHE_MAX_BYTES = 80 * 1024 * 1024;
 const BOOK_COVER_BROWSER_CACHE_HEADER = "public, max-age=604800, stale-while-revalidate=86400";
 const READLY_BOOK_PAGE_URL = "https://api.shuyu.xin/readly/api/ma/book/page";
+const READLY_BOOK_DETAIL_URL = "https://api.shuyu.xin/readly/api/ma/book";
 const EXTERNAL_BOOK_LIBRARY_SCAN_PAGE_SIZE = 100;
 const EXTERNAL_BOOK_LIBRARY_SCAN_CONCURRENCY = 4;
 const EXTERNAL_BOOK_LIBRARY_FILTER_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
@@ -481,17 +482,24 @@ async function findExternalBookLibraryRecordById(externalBookId: string): Promis
   const targetId = String(externalBookId || "").trim();
   if (!targetId) return null;
 
-  const firstPage = await fetchExternalBookLibraryPage(1, 60);
-  const firstMatch = firstPage.records.find((record: any) => pick(record, ["id"]) === targetId);
-  if (firstMatch) return normalizeExternalBookLibraryRecord(firstMatch);
-
-  const totalPages = Math.max(1, Math.min(Number(firstPage.pages || 1), 300));
-  for (let current = 2; current <= totalPages; current += 1) {
-    const page = await fetchExternalBookLibraryPage(current, 60);
-    const match = page.records.find((record: any) => pick(record, ["id"]) === targetId);
-    if (match) return normalizeExternalBookLibraryRecord(match);
+  const upstreamUrl = `${READLY_BOOK_DETAIL_URL}/${encodeURIComponent(targetId)}`;
+  const response = await fetch(upstreamUrl, {
+    headers: {
+      "Accept": "application/json",
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    },
+    signal: AbortSignal.timeout(10000),
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    const error = new Error(`外部书库返回 ${response.status}`) as Error & { statusCode?: number };
+    error.statusCode = 502;
+    throw error;
   }
-  return null;
+  const payload = await response.json();
+  const record = payload && typeof payload === "object" ? payload.data : null;
+  if (!record || pick(record, ["id"]) !== targetId) return null;
+  return normalizeExternalBookLibraryRecord(record);
 }
 
 /** 构造 _id 查询条件，兼容 string 和 ObjectId 类型 */

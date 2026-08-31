@@ -216,6 +216,10 @@
   records with descriptions rank within that cover bucket. Placeholder cover
   URLs are treated as no-cover records. Full-corpus cache work remains reserved
   for filter counts and complex local filtering paths that need global matches.
+- External `/api/books/external/:id` resolves the requested Readly book through
+  the upstream detail-by-id endpoint. QR-code and deep-link detail visits never
+  depend on the currently selected library and do not scan paginated catalog
+  records before returning the book.
 - Public `/api/books` reading-list responses use a derived 100-point quality
   score before pagination. Content completeness contributes 75 points and
   source confidence contributes 25; the score is calculated from the current

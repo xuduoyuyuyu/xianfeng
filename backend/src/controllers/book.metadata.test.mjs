@@ -160,6 +160,16 @@ test("public books expose a read-only external library proxy before dynamic rout
   assert.ok(externalDetailIndex < idIndex, "external detail route must be registered before /:id");
 });
 
+test("external book detail uses the direct Readly id endpoint instead of scanning library pages", () => {
+  assert.match(controllerSource, /const READLY_BOOK_DETAIL_URL = "https:\/\/api\.shuyu\.xin\/readly\/api\/ma\/book";/);
+  const lookupStart = controllerSource.indexOf("async function findExternalBookLibraryRecordById");
+  const lookupEnd = controllerSource.indexOf("/**", lookupStart);
+  const lookupSource = controllerSource.slice(lookupStart, lookupEnd);
+  assert.match(lookupSource, /const upstreamUrl = `\$\{READLY_BOOK_DETAIL_URL\}\/\$\{encodeURIComponent\(targetId\)\}`;/);
+  assert.match(lookupSource, /const response = await fetch\(upstreamUrl,/);
+  assert.doesNotMatch(lookupSource, /fetchExternalBookLibraryPage|for \(let current/);
+});
+
 test("public external book translation route is cached before dynamic routes", () => {
   assert.match(controllerSource, /getExternalBookDescriptionTranslationPublic/, "controller should expose a public translation handler");
   assert.match(controllerSource, /getOrCreateExternalBookDescriptionTranslation/, "controller should persist and reuse translated descriptions");
