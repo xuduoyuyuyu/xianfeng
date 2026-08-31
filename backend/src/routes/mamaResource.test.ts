@@ -125,6 +125,26 @@ describe("mama resource pool routes", () => {
     assert.equal(await MamaResourceProfile.countDocuments(), 0);
   });
 
+  it("lists available tasks before the user creates a Haozhuan profile", async () => {
+    const task = await MamaResourceTask.create({
+      title: "新用户可先看的任务",
+      category: "小红书发图",
+      unitPriceCents: 3000,
+      status: "listed",
+    });
+
+    const response = await fetch(`${server.publicUrl}/me/tasks`, {
+      headers: { Authorization: `Bearer ${applicationToken}` },
+    });
+
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.profile, null);
+    assert.deepEqual(data.tasks, []);
+    assert.equal(data.availableTasks.length, 1);
+    assert.equal(data.availableTasks[0].taskId, String(task._id));
+  });
+
   it("accepts a signed-in application without sensitive credentials", async () => {
     const response = await fetch(`${server.publicUrl}/applications`, {
       method: "POST",
