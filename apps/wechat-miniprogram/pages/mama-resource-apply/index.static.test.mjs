@@ -199,9 +199,9 @@ test("mama resource profile management uses separate personal and media dialogs 
   assert.match(jsSource, /title: account\.nickname \|\| `\$\{account\.platformLabel \|\| "媒体"\}账号 \$\{index \+ 1\}`/);
   assert.match(jsSource, /summary: \[account\.platformLabel/);
   assert.match(wxmlSource, /<text class="xf-mama-info-account-summary">\{\{item\.summary\}\}<\/text>/);
-  assert.match(jsSource, /if \(payload\.xiaohongshuProfileUrl && !payload\.xiaohongshuNickname\)[\s\S]*请填写小红书账号昵称/);
-  assert.match(jsSource, /findIndex\(\(account\) => !account\.nickname\)/);
-  assert.match(jsSource, /请填写第\$\{missingNicknameIndex \+ 2\}个账号的账号昵称/);
+  assert.doesNotMatch(jsSource, /if \(payload\.xiaohongshuProfileUrl && !payload\.xiaohongshuNickname\)[\s\S]*请填写小红书账号昵称/);
+  assert.doesNotMatch(jsSource, /请填写第\$\{missingNicknameIndex \+ 2\}个账号的账号昵称/);
+  assert.match(jsSource, /saveMediaAccountDraft\(\)[\s\S]*请填写账号昵称/);
 });
 
 test("approved mama resource account can view assigned tasks and submit proof", () => {

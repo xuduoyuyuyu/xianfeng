@@ -14283,6 +14283,54 @@ test("mama haozhuan adds social accounts only after the account dialog is saved"
   }
 });
 
+test("mama haozhuan profile save does not validate unfinished media-account drafts", async () => {
+  const definition = loadPageDefinition("mama-resource-apply");
+  const originalWx = global.wx;
+  const requests = [];
+
+  try {
+    global.wx = {
+      getStorageSync(key) {
+        if (key === "xf_token") return "token-1";
+        if (key === "xf_user") return { _id: "user-1" };
+        return "";
+      },
+      setStorageSync() {},
+      removeStorageSync() {},
+      request(options) {
+        requests.push(options);
+        options.success({ statusCode: 200, data: { profile: { ...options.data, status: "approved" } } });
+      }
+    };
+    const context = {
+      data: { ...definition.data },
+      setData(payload) {
+        this.data = { ...this.data, ...payload };
+      }
+    };
+    const payload = {
+      ...definition.data.formDraft,
+      displayName: "安安妈妈",
+      contactWechat: "anan-mom",
+      alipayAccount: "anan@example.com",
+      alipayVerifiedName: "安安妈妈",
+      mediaAccounts: [
+        { platform: "", nickname: "", profileUrl: "" },
+        { platform: "douyin", nickname: "", profileUrl: "https://v.douyin.com/legacy-draft" }
+      ]
+    };
+
+    await definition.submitMamaResourcePayload.call(context, payload, { stayInApply: true });
+
+    assert.equal(requests.length, 1);
+    assert.equal(context.data.messageType, "success");
+    assert.equal(requests[0].data.mediaAccounts.length, 1);
+    assert.equal(requests[0].data.mediaAccounts[0].profileUrl, "https://v.douyin.com/legacy-draft");
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
 test("mama haozhuan updates and deletes the primary media account from its dialog", async () => {
   const definition = loadPageDefinition("mama-resource-apply");
   const originalWx = global.wx;
