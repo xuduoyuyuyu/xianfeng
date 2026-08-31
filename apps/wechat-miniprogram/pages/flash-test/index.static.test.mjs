@@ -48,11 +48,51 @@ test("flash test is registered and exposed as a public sidebar item", () => {
   assert.equal(askItems.findIndex((item) => item.key === "flashTest") + 1, askItems.findIndex((item) => item.key === "worthbuy"));
 });
 
-test("shared direct entry builds a home-backed page stack before opening the assessment", () => {
-  const source = fs.readFileSync(path.join(currentDirectory, "index.js"), "utf8");
+test("shared catalog and assessment entries stay on flash test during a cold launch", () => {
+  const definition = loadFlashPageDefinition();
+  const originalWx = global.wx;
+  const originalGetCurrentPages = global.getCurrentPages;
+  const switchCalls = [];
 
-  assert.match(source, /const \{ ensureBackStackForBackButtonPage, smartBackHome \} = require\("\.\.\/\.\.\/utils\/nativePageNav"\);/);
-  assert.match(source, /onLoad\(options = \{\}\) \{[\s\S]*if \(ensureBackStackForBackButtonPage\(options\)\) return;[\s\S]*const sharedTestId = String\(options\.test \|\| ""\);/);
+  try {
+    global.wx = {
+      getStorageSync() {
+        return "";
+      },
+      showShareMenu() {},
+      switchTab(options) {
+        switchCalls.push(options);
+      }
+    };
+
+    const cases = [
+      { options: {}, selectedTestId: "", subjectModalOpen: false },
+      { options: { test: "eight-talents" }, selectedTestId: "eight-talents", subjectModalOpen: true },
+      { options: { test: "character-recognition" }, selectedTestId: "character-recognition", subjectModalOpen: false },
+      { options: { test: "english-picture-naming" }, selectedTestId: "english-picture-naming", subjectModalOpen: false }
+    ];
+
+    for (const { options, selectedTestId, subjectModalOpen } of cases) {
+      const context = {
+        ...definition,
+        data: { ...definition.data },
+        syncTopbarMetrics() {},
+        setData(payload) {
+          this.data = { ...this.data, ...payload };
+        }
+      };
+      global.getCurrentPages = () => [{ route: "pages/flash-test/index", options }];
+
+      definition.onLoad.call(context, options);
+
+      assert.deepEqual(switchCalls, []);
+      assert.equal(context.data.subjectModalOpen, subjectModalOpen);
+      assert.equal(context.data.selectedTestId, selectedTestId);
+    }
+  } finally {
+    global.wx = originalWx;
+    global.getCurrentPages = originalGetCurrentPages;
+  }
 });
 
 test("every shared sidebar leaves public items outside the phone login overlay", () => {

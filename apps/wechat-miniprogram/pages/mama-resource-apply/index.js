@@ -370,6 +370,8 @@ function buildLoggedOutMamaResourceState() {
     mamaTasks: [],
     currentMamaTask: null,
     mamaTasksLoading: false,
+    pendingProfileAction: "",
+    profileOnboardingStep: "personal",
     taskProofLink: "",
     taskProofScreenshotUrl: "",
     taskContentLinkOpen: false,
@@ -747,6 +749,8 @@ Page({
     mamaTasks: [],
     mamaTasksLoading: false,
     pendingMamaTaskId: "",
+    pendingProfileAction: "",
+    profileOnboardingStep: "personal",
     currentMamaTask: null,
     taskProofLink: "",
     taskProofScreenshotUrl: "",
@@ -832,6 +836,10 @@ Page({
     }
     if (this.data.mediaAccountModalOpen) {
       this.closeMediaAccountModal();
+      return;
+    }
+    if (this.data.profileManagerMode === "onboarding") {
+      this.cancelProfileOnboarding();
       return;
     }
     if (this.data.mamaResourceView === "detail") {
@@ -942,32 +950,23 @@ Page({
         const assignedTasks = buildTaskList(data && data.tasks);
         const availableTasks = buildTaskList(data && data.availableTasks);
         const tasks = assignedTasks.concat(availableTasks);
-        if (data && data.profile) {
-          const profile = buildProfileView(data.profile);
-          const pendingTaskId = asText(this.data.pendingMamaTaskId).trim();
-          const currentId = this.data.currentMamaTask && this.data.currentMamaTask._id;
-          const currentMamaTask = pendingTaskId
-            ? tasks.find((task) => taskMatchesId(task, pendingTaskId)) || null
-            : (currentId ? tasks.find((task) => taskMatchesId(task, currentId)) || this.data.currentMamaTask : null);
-          this.setData({
-            mamaResourceView: currentMamaTask ? "detail" : "tasks",
-            mamaResourceProfile: profile,
-            mamaTasks: tasks,
-            currentMamaTask,
-            pendingMamaTaskId: currentMamaTask ? "" : pendingTaskId,
-            taskProofLink: currentMamaTask ? currentMamaTask.proofLink || this.data.taskProofLink : this.data.taskProofLink,
-            taskProofScreenshotUrl: currentMamaTask ? currentMamaTask.proofScreenshotUrl || this.data.taskProofScreenshotUrl : this.data.taskProofScreenshotUrl,
-            mamaTasksLoading: false,
-            message: "",
-            messageType: ""
-          });
-          return;
-        }
+        const profile = data && data.profile ? buildProfileView(data.profile) : null;
+        const pendingTaskId = asText(this.data.pendingMamaTaskId).trim();
+        const currentId = this.data.currentMamaTask && (this.data.currentMamaTask.taskId || this.data.currentMamaTask._id);
+        const currentMamaTask = pendingTaskId
+          ? tasks.find((task) => taskMatchesId(task, pendingTaskId)) || null
+          : (currentId ? tasks.find((task) => taskMatchesId(task, currentId)) || this.data.currentMamaTask : null);
         this.setData({
-          mamaResourceView: "apply",
-          mamaResourceProfile: null,
-          mamaTasks: [],
-          mamaTasksLoading: false
+          mamaResourceView: currentMamaTask ? "detail" : "tasks",
+          mamaResourceProfile: profile,
+          mamaTasks: tasks,
+          currentMamaTask,
+          pendingMamaTaskId: currentMamaTask ? "" : pendingTaskId,
+          taskProofLink: currentMamaTask ? currentMamaTask.proofLink || this.data.taskProofLink : this.data.taskProofLink,
+          taskProofScreenshotUrl: currentMamaTask ? currentMamaTask.proofScreenshotUrl || this.data.taskProofScreenshotUrl : this.data.taskProofScreenshotUrl,
+          mamaTasksLoading: false,
+          message: "",
+          messageType: ""
         });
       })
       .catch((error) => {
@@ -984,26 +983,31 @@ Page({
   },
 
   openMamaTask(event) {
-    const profile = this.data.mamaResourceProfile || {};
-    if (profile.status !== "approved") {
-      this.setData({ mamaResourceView: "apply", currentMamaTask: null, mamaTasks: [] });
-      return;
-    }
     const taskId = String(event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.id || "");
     const task = this.data.mamaTasks.find((item) => taskMatchesId(item, taskId));
     if (!task) return;
+    const profile = this.data.mamaResourceProfile || {};
     this.setData({
-      mamaResourceView: "detail",
       currentMamaTask: task,
       taskProofLink: task.proofLink || "",
       taskProofScreenshotUrl: task.proofScreenshotUrl || "",
       taskMessage: "",
       taskMessageType: ""
     });
+    if (profile.status !== "approved") {
+      this.startProfileOnboarding("open-task");
+      return;
+    }
+    this.setData({ mamaResourceView: "detail" });
   },
 
   claimMamaTask() {
     if (!getToken()) return;
+    const profile = this.data.mamaResourceProfile || {};
+    if (profile.status !== "approved") {
+      this.startProfileOnboarding("claim");
+      return;
+    }
     const task = this.data.currentMamaTask || {};
     const taskId = asText(task.taskId || task._id).trim();
     if (!taskId || this.data.taskClaiming || !task.isClaimable) return;
@@ -1263,9 +1267,8 @@ Page({
   },
 
   backToMamaTasks() {
-    const profile = this.data.mamaResourceProfile || {};
     this.setData({
-      mamaResourceView: profile.status === "approved" ? "tasks" : "apply",
+      mamaResourceView: "tasks",
       currentMamaTask: null,
       taskMessage: "",
       taskMessageType: ""
@@ -1304,7 +1307,47 @@ Page({
   },
 
   openProfileManager() {
+    const profile = this.data.mamaResourceProfile || {};
+    if (profile.status !== "approved") {
+      this.startProfileOnboarding("");
+      return;
+    }
     this.showApplyForm();
+  },
+
+  startProfileOnboarding(action = "") {
+    const profile = this.data.mamaResourceProfile || {};
+    if (profile && profile._id) updatePageApplyDraft(this, buildProfileDraftPatch(profile));
+    this.setData({
+      mamaResourceView: "apply",
+      profileManagerMode: "onboarding",
+      profileOnboardingStep: "personal",
+      pendingProfileAction: action,
+      personalInfoModalOpen: false,
+      mediaAccountModalOpen: false,
+      message: "",
+      messageType: ""
+    });
+  },
+
+  cancelProfileOnboarding() {
+    const openedFromTaskList = this.data.pendingProfileAction === "open-task";
+    this.setData({
+      mamaResourceView: !openedFromTaskList && this.data.currentMamaTask ? "detail" : "tasks",
+      profileManagerMode: "overview",
+      profileOnboardingStep: "personal",
+      pendingProfileAction: "",
+      currentMamaTask: openedFromTaskList ? null : this.data.currentMamaTask,
+      personalInfoModalOpen: false,
+      mediaAccountModalOpen: false,
+      message: "",
+      messageType: ""
+    });
+  },
+
+  completeProfileOnboarding() {
+    const resumeAction = asText(this.data.pendingProfileAction).trim();
+    return this.submitProfileDraft({ resumeAction });
   },
 
   openPersonalInfoEditor() {
@@ -1431,6 +1474,11 @@ Page({
 
   submitTaskProof() {
     if (!getToken()) return;
+    const profile = this.data.mamaResourceProfile || {};
+    if (profile.status !== "approved") {
+      this.startProfileOnboarding("proof");
+      return;
+    }
     const taskId = this.data.currentMamaTask && this.data.currentMamaTask._id;
     const proofLink = String(this.data.taskProofLink || "").trim();
     const proofScreenshotUrl = String(this.data.taskProofScreenshotUrl || "").trim();
@@ -1630,7 +1678,11 @@ Page({
       childStage: this.data.childStage,
       childGender: this.data.childGender
     });
-    this.setData({ personalInfoModalOpen: false, personalInfoMessage: "" });
+    this.setData({
+      personalInfoModalOpen: false,
+      personalInfoMessage: "",
+      profileOnboardingStep: this.data.profileManagerMode === "onboarding" ? "media" : this.data.profileOnboardingStep
+    });
   },
 
   selectChildStage(event) {
@@ -1827,15 +1879,6 @@ Page({
       this.setData({ message: "请填写支付宝验证姓名", messageType: "error" });
       return;
     }
-    if (payload.xiaohongshuProfileUrl && !payload.xiaohongshuNickname) {
-      this.setData({ message: "请填写小红书账号昵称", messageType: "error" });
-      return;
-    }
-    const missingNicknameIndex = normalizeExtraMediaAccounts(payload.mediaAccounts).findIndex((account) => !account.nickname);
-    if (missingNicknameIndex >= 0) {
-      this.setData({ message: `请填写第${missingNicknameIndex + 2}个账号的账号昵称`, messageType: "error" });
-      return;
-    }
     this.setData({ submitting: true, message: "", messageType: "" });
     return request({
       url: "/api/mama-resources/applications",
@@ -1845,6 +1888,7 @@ Page({
       .then((data) => {
         const profile = data && data.profile ? data.profile : { ...submitPayload, status: "approved", createdAt: new Date().toISOString() };
         const nextDraft = buildProfileDraftPatch(profile);
+        const resumeAction = asText(options.resumeAction).trim();
         clearApplyDraft();
         if (options.stayInApply) {
           this.setData({
@@ -1860,14 +1904,20 @@ Page({
         }
         this.setData({
           ...buildApplyDraftState(nextDraft),
-          mamaResourceView: "tasks",
+          mamaResourceView: resumeAction && this.data.currentMamaTask ? "detail" : "tasks",
           profileManagerMode: "overview",
+          profileOnboardingStep: "personal",
+          pendingProfileAction: "",
           mamaResourceProfile: buildProfileView(profile),
           submitting: false,
           message: "资料已保存，运营会按备注跟进",
           messageType: "success"
         });
-        this.loadMamaTasks();
+        return this.loadMamaTasks().then(() => {
+          if (resumeAction === "claim") return this.claimMamaTask();
+          if (resumeAction === "proof") return this.submitTaskProof();
+          return undefined;
+        });
       })
       .catch((error) => {
         this.setData({

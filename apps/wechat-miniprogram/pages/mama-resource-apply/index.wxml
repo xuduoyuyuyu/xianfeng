@@ -16,15 +16,69 @@
   <view class="xf-mama-content">
     <block wx:if="{{!isLoggedIn}}">
       <view class="xf-mama-card xf-mama-login-card">
-        <image class="xf-mama-login-icon" src="/assets/menu/mama-hao-zhuan-icon.png" mode="aspectFit" />
-        <text class="xf-mama-login-title">登录后进入好赚</text>
-        <text class="xf-mama-login-copy">好赚资料、媒体账号和任务信息仅对当前账号展示，请先授权微信手机号登录。</text>
-        <button class="xf-mama-submit" data-action="enter" open-type="getPhoneNumber" bindgetphonenumber="authorizeMamaResourceAction">授权登录</button>
+        <image class="xf-mama-login-icon" src="/assets/menu/mama-hao-zhuan-icon.png" mode="aspectFit" aria-hidden="true" />
+        <text class="xf-mama-info-kicker">进入好赚</text>
+        <text class="xf-mama-login-title">手机号授权后查看任务</text>
+        <text class="xf-mama-login-copy">授权成功后会直接展示任务，并使用你在家长先疯已有的信息预填资料。</text>
+        <button class="xf-mama-submit" data-action="enter" open-type="getPhoneNumber" bindgetphonenumber="authorizeMamaResourceAction">授权手机号并查看任务</button>
       </view>
     </block>
 
     <block wx:elif="{{mamaResourceView === 'apply'}}">
-      <view class="xf-mama-card xf-mama-profile-manager">
+      <view wx:if="{{profileManagerMode === 'onboarding'}}" class="xf-mama-card xf-mama-profile-onboarding">
+        <view class="xf-mama-onboarding-head">
+          <text class="xf-mama-info-kicker">只需完成一次</text>
+          <text class="xf-mama-title">先完善资料，再继续任务</text>
+          <text class="xf-mama-subtitle">任务不会丢失。完成后会自动回到刚才的任务继续操作。</text>
+        </view>
+
+        <view class="xf-mama-onboarding-progress">
+          <view class="xf-mama-onboarding-progress-item is-active">
+            <text class="xf-mama-onboarding-progress-number">1</text>
+            <text>个人资料</text>
+          </view>
+          <view class="xf-mama-onboarding-progress-line {{profileOnboardingStep === 'media' ? 'is-active' : ''}}"></view>
+          <view class="xf-mama-onboarding-progress-item {{profileOnboardingStep === 'media' ? 'is-active' : ''}}">
+            <text class="xf-mama-onboarding-progress-number">2</text>
+            <text>媒体账号</text>
+          </view>
+        </view>
+
+        <view wx:if="{{profileOnboardingStep === 'personal'}}" class="xf-mama-onboarding-step">
+          <text class="xf-mama-onboarding-step-kicker">第 1 步 · 完善个人资料</text>
+          <text class="xf-mama-onboarding-step-title">用于联系和任务结算</text>
+          <text class="xf-mama-onboarding-step-copy">填写姓名、微信和支付宝信息，保存后才会进入下一步。</text>
+          <button class="xf-mama-submit" catchtap="openPersonalInfoEditor">填写个人资料</button>
+        </view>
+
+        <view wx:else class="xf-mama-onboarding-step">
+          <text class="xf-mama-onboarding-step-kicker">第 2 步 · 添加社交媒体账号（选填）</text>
+          <text class="xf-mama-onboarding-step-title">让运营更快匹配合适任务</text>
+          <text class="xf-mama-onboarding-step-copy">可以添加小红书、抖音或视频号；暂时没有也可以先完成资料。</text>
+          <view wx:if="{{profileOverview.accounts.length}}" class="xf-mama-onboarding-account-list">
+            <view wx:for="{{profileOverview.accounts}}" wx:key="accountKey" class="xf-mama-info-account" data-source="{{item.sourceType}}" data-index="{{item.sourceIndex}}" catchtap="openMediaAccountEditor" role="button" aria-label="编辑账号 {{item.title}}">
+              <view class="xf-mama-info-account-head">
+                <view class="xf-mama-platform-logo {{item.platformLogoClass}}">
+                  <image wx:if="{{item.platformLogoUrl}}" class="xf-mama-platform-logo-image" src="{{item.platformLogoUrl}}" mode="aspectFill" />
+                  <text wx:else>{{item.platformLogoText}}</text>
+                </view>
+                <view class="xf-mama-info-account-body">
+                  <text class="xf-mama-info-account-title">{{item.title}}</text>
+                  <text class="xf-mama-info-account-summary">{{item.summary}}</text>
+                </view>
+                <text class="xf-mama-info-account-edit">编辑</text>
+              </view>
+            </view>
+          </view>
+          <button type="button" class="xf-mama-onboarding-add" catchtap="openNewMediaAccount">{{profileOverview.accounts.length ? "继续添加账号" : "添加媒体账号"}}</button>
+          <view wx:if="{{message}}" class="xf-mama-message {{messageType}}">{{message}}</view>
+          <button class="xf-mama-submit" disabled="{{submitting}}" catchtap="completeProfileOnboarding">{{submitting ? "保存中..." : (pendingProfileAction === "open-task" ? "保存资料并查看任务" : (pendingProfileAction === "claim" ? "保存资料并继续领取" : (pendingProfileAction === "proof" ? "保存资料并继续提交" : "保存资料并返回任务")))}}</button>
+        </view>
+
+        <button type="button" class="xf-mama-onboarding-back" catchtap="cancelProfileOnboarding">返回任务</button>
+      </view>
+
+      <view wx:else class="xf-mama-card xf-mama-profile-manager">
         <view class="xf-mama-head">
           <view>
             <text class="xf-mama-title">资料管理</text>
@@ -205,11 +259,11 @@
         <view class="xf-mama-task-identity">
           <view class="xf-mama-task-hero-copy">
             <text class="xf-mama-task-title">好赚</text>
-            <text class="xf-mama-task-subtitle">{{mamaResourceProfile.displayName || "已审核账号"}}</text>
+            <text class="xf-mama-task-subtitle">{{mamaResourceProfile ? (mamaResourceProfile.displayName || "已完善资料") : "先选任务，打开后完善资料"}}</text>
           </view>
         </view>
-        <button class="xf-mama-task-manage" catchtap="openProfileManager">资料管理</button>
-        <view wx:if="{{mamaResourceProfile.publicUid}}" class="xf-mama-task-uid-row" catchtap="copyMamaUid" role="button" aria-label="复制UID {{mamaResourceProfile.publicUid}}">
+        <button wx:if="{{mamaResourceProfile}}" class="xf-mama-task-manage" catchtap="openProfileManager">资料管理</button>
+        <view wx:if="{{mamaResourceProfile && mamaResourceProfile.publicUid}}" class="xf-mama-task-uid-row" catchtap="copyMamaUid" role="button" aria-label="复制UID {{mamaResourceProfile.publicUid}}">
           <text class="xf-mama-task-uid-label">UID {{mamaResourceProfile.publicUid}}</text>
           <view class="xf-mama-task-uid-copy" aria-hidden="true">
             <view class="xf-mama-task-copy-icon" aria-hidden="true"></view>

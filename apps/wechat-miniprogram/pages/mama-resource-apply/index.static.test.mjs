@@ -132,7 +132,7 @@ test("mama resource profile management uses separate personal and media dialogs 
   assert.doesNotMatch(wxmlSource, /xf-mama-intro-card|用自己的社交媒体账号接亲子、教育、家庭消费类发稿/);
   assert.match(wxmlSource, /mamaResourceView === 'apply'[\s\S]*xf-mama-profile-manager[\s\S]*资料管理/);
   assert.match(wxmlSource, /xf-mama-profile-manager/);
-  assert.doesNotMatch(wxmlSource, /profileManagerMode ===/);
+  assert.match(wxmlSource, /profileManagerMode === 'onboarding'[\s\S]*wx:else class="xf-mama-card xf-mama-profile-manager"/);
   assert.match(wxmlSource, /class="xf-mama-info-list"/);
   assert.match(wxmlSource, /class="xf-mama-info-row is-personal"[\s\S]*个人资料/);
   assert.match(wxmlSource, /class="xf-mama-account-section"[\s\S]*社交媒体账号/);
@@ -199,9 +199,9 @@ test("mama resource profile management uses separate personal and media dialogs 
   assert.match(jsSource, /title: account\.nickname \|\| `\$\{account\.platformLabel \|\| "媒体"\}账号 \$\{index \+ 1\}`/);
   assert.match(jsSource, /summary: \[account\.platformLabel/);
   assert.match(wxmlSource, /<text class="xf-mama-info-account-summary">\{\{item\.summary\}\}<\/text>/);
-  assert.match(jsSource, /if \(payload\.xiaohongshuProfileUrl && !payload\.xiaohongshuNickname\)[\s\S]*请填写小红书账号昵称/);
-  assert.match(jsSource, /findIndex\(\(account\) => !account\.nickname\)/);
-  assert.match(jsSource, /请填写第\$\{missingNicknameIndex \+ 2\}个账号的账号昵称/);
+  assert.doesNotMatch(jsSource, /if \(payload\.xiaohongshuProfileUrl && !payload\.xiaohongshuNickname\)[\s\S]*请填写小红书账号昵称/);
+  assert.doesNotMatch(jsSource, /请填写第\$\{missingNicknameIndex \+ 2\}个账号的账号昵称/);
+  assert.match(jsSource, /saveMediaAccountDraft\(\)[\s\S]*请填写账号昵称/);
 });
 
 test("approved mama resource account can view assigned tasks and submit proof", () => {
@@ -227,7 +227,7 @@ test("approved mama resource account can view assigned tasks and submit proof", 
   assert.match(wxmlSource, /mamaResourceView === 'detail'/);
   assert.match(wxmlSource, /xf-mama-task-title[\s\S]*好赚/);
   assert.match(wxmlSource, /xf-mama-task-mascot[\s\S]*\/assets\/menu\/mama-hao-zhuan-icon\.png[\s\S]*mode="aspectFit"/);
-  assert.match(wxmlSource, /class="xf-mama-task-subtitle">\{\{mamaResourceProfile\.displayName \|\| "已审核账号"\}\}<\/text>/);
+  assert.match(wxmlSource, /class="xf-mama-task-subtitle">\{\{mamaResourceProfile \? \(mamaResourceProfile\.displayName \|\| "已完善资料"\) : "先选任务，打开后完善资料"\}\}<\/text>/);
   assert.doesNotMatch(wxmlSource, /可接：\{\{mamaResourceProfile\.categoriesText/);
   assert.doesNotMatch(wxmlSource, /任务列表|可领取与进行中的任务/);
   assert.match(wxmlSource, /资料管理[\s\S]*xf-mama-task-uid-row" catchtap="copyMamaUid"[\s\S]*UID \{\{mamaResourceProfile\.publicUid\}\}[\s\S]*xf-mama-task-copy-icon/);
@@ -302,14 +302,50 @@ test("assigned users can preview a read-only transfer credential", () => {
   assert.doesNotMatch(wxmlSource, /class="xf-mama-transfer-card"[\s\S]*转账凭证[\s\S]*class="xf-mama-proof-card"/);
 });
 
-test("logged-out mama resource users see the apply form and authorize on protected actions", () => {
+test("Haozhuan enters tasks directly after phone authorization", () => {
   assert.match(jsSource, /const \{ getToken, getUser \} = require\("\.\.\/\.\.\/utils\/session"\)/);
   assert.match(jsSource, /function isUnauthorizedError\(error\)/);
-  assert.match(jsSource, /mamaResourceView: "apply"/);
+  assert.match(jsSource, /handleLoginSuccess\(event\)[\s\S]*onNativeSettingsLoginSuccess\(payload\)/);
+  assert.match(jsSource, /onNativeSettingsLoginSuccess\(payload\)[\s\S]*return this\.loadMamaTasks\(\)/);
+  assert.doesNotMatch(jsSource, /mamaResourceView: "identity"/);
+  assert.doesNotMatch(jsSource, /buildMamaIdentityView|maskMamaIdentityMobile|confirmMamaIdentity|identityNextView/);
+  assert.match(wxmlSource, /手机号授权后查看任务/);
+  assert.match(wxmlSource, /授权成功后会直接展示任务/);
+  assert.match(wxmlSource, /授权手机号并查看任务/);
+  assert.doesNotMatch(wxmlSource, /mamaResourceView === 'identity'|请确认这是你的账号|确认是我/);
+});
+
+test("Haozhuan shows tasks before profile setup and gates task entry with a guided flow", () => {
+  assert.match(jsSource, /pendingProfileAction: ""/);
+  assert.match(jsSource, /profileOnboardingStep: "personal"/);
   assert.match(jsSource, /if \(!getToken\(\)\) \{/);
   assert.match(jsSource, /isUnauthorizedError\(error\)/);
   assert.match(jsSource, /mamaResourceView: "apply"[\s\S]*isLoggedIn: false/);
+  assert.match(jsSource, /const profile = data && data\.profile \? buildProfileView\(data\.profile\) : null;/);
+  assert.match(jsSource, /mamaResourceView: currentMamaTask \? "detail" : "tasks"/);
+  assert.match(jsSource, /mamaResourceProfile: profile/);
+  assert.match(jsSource, /mamaTasks: tasks/);
+  const openTaskHandler = jsSource.match(/openMamaTask\(event\) \{([\s\S]*?)\n  \},\n\n  claimMamaTask/);
+  assert.ok(openTaskHandler);
+  assert.match(openTaskHandler[1], /profile\.status !== "approved"[\s\S]*startProfileOnboarding\("open-task"\)/);
+  assert.match(openTaskHandler[1], /mamaResourceView: "detail"/);
+  assert.match(jsSource, /startProfileOnboarding\(action = ""\)/);
+  assert.match(jsSource, /profileManagerMode: "onboarding"/);
+  assert.match(jsSource, /pendingProfileAction: action/);
+  assert.match(jsSource, /claimMamaTask\(\)[\s\S]*profile\.status !== "approved"[\s\S]*startProfileOnboarding\("claim"\)/);
+  assert.match(jsSource, /submitTaskProof\(\)[\s\S]*profile\.status !== "approved"[\s\S]*startProfileOnboarding\("proof"\)/);
+  assert.match(jsSource, /completeProfileOnboarding\(\)[\s\S]*submitProfileDraft\(\{ resumeAction \}\)/);
+  assert.match(jsSource, /options\.resumeAction[\s\S]*this\.loadMamaTasks\(\)[\s\S]*this\.claimMamaTask\(\)/);
   assert.doesNotMatch(wxmlSource, /mamaResourceView === 'login'/);
+  assert.match(wxmlSource, /profileManagerMode === 'onboarding'/);
+  assert.match(wxmlSource, /<button wx:if="\{\{mamaResourceProfile\}\}" class="xf-mama-task-manage"[^>]*>资料管理<\/button>/);
+  assert.doesNotMatch(wxmlSource, /xf-mama-task-manage[^\n]*完善资料/);
+  assert.match(wxmlSource, /第 1 步 · 完善个人资料/);
+  assert.match(wxmlSource, /第 2 步 · 添加社交媒体账号（选填）/);
+  assert.match(wxmlSource, /保存资料并查看任务/);
+  assert.match(wxmlSource, /保存资料并继续领取/);
+  assert.match(wxmlSource, /保存资料并继续提交/);
+  assert.match(wxmlSource, /返回任务/);
   assert.match(wxmlSource, /<phone-login-gate[^>]*visible="\{\{false\}\}"[^>]*bind:success="handleLoginSuccess"/);
   assert.match(wxmlSource, /open-type="\{\{isLoggedIn \? '' : 'getPhoneNumber'\}\}"/);
 });

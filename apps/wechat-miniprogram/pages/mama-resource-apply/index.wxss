@@ -37,6 +37,127 @@ page {
   margin-top: 0;
 }
 
+.xf-mama-profile-onboarding {
+  margin-top: 0;
+  padding: 36rpx 30rpx 30rpx;
+}
+
+.xf-mama-onboarding-head {
+  text-align: left;
+}
+
+.xf-mama-onboarding-progress {
+  display: grid;
+  grid-template-columns: auto minmax(48rpx, 1fr) auto;
+  align-items: center;
+  gap: 14rpx;
+  margin: 30rpx 0 24rpx;
+}
+
+.xf-mama-onboarding-progress-item {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  color: #9b94a5;
+  font-size: 22rpx;
+  font-weight: 800;
+}
+
+.xf-mama-onboarding-progress-item.is-active {
+  color: #6c27d6;
+}
+
+.xf-mama-onboarding-progress-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42rpx;
+  height: 42rpx;
+  border-radius: 50%;
+  background: #eee8f6;
+  color: #81798d;
+  line-height: 42rpx;
+}
+
+.xf-mama-onboarding-progress-item.is-active .xf-mama-onboarding-progress-number {
+  background: #6c27d6;
+  color: #ffffff;
+}
+
+.xf-mama-onboarding-progress-line {
+  height: 4rpx;
+  border-radius: 999rpx;
+  background: #e7e0ef;
+}
+
+.xf-mama-onboarding-progress-line.is-active {
+  background: #8f4dff;
+}
+
+.xf-mama-onboarding-step {
+  padding: 28rpx 26rpx;
+  border: 2rpx solid #e7dcfb;
+  border-radius: 28rpx;
+  background: #fbf8ff;
+}
+
+.xf-mama-onboarding-step-kicker,
+.xf-mama-onboarding-step-title,
+.xf-mama-onboarding-step-copy {
+  display: block;
+}
+
+.xf-mama-onboarding-step-kicker {
+  color: #6c27d6;
+  font-size: 22rpx;
+  font-weight: 900;
+}
+
+.xf-mama-onboarding-step-title {
+  margin-top: 10rpx;
+  color: #171321;
+  font-size: 30rpx;
+  font-weight: 900;
+}
+
+.xf-mama-onboarding-step-copy {
+  margin-top: 10rpx;
+  color: #6b6474;
+  font-size: 23rpx;
+  font-weight: 650;
+  line-height: 1.6;
+}
+
+.xf-mama-onboarding-account-list {
+  margin-top: 20rpx;
+}
+
+.xf-mama-onboarding-add,
+.xf-mama-onboarding-back {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 22rpx 0 0;
+  border: 2rpx solid #cbb7f4;
+  border-radius: 24rpx;
+  background: #ffffff;
+  color: #6c27d6;
+  font-size: 26rpx;
+  font-weight: 850;
+  line-height: 76rpx;
+}
+
+.xf-mama-onboarding-back {
+  border: 0;
+  background: transparent;
+  color: #777080;
+  line-height: 64rpx;
+}
+
+.xf-mama-onboarding-add::after,
+.xf-mama-onboarding-back::after {
+  border: 0;
+}
+
 .xf-mama-login-card {
   margin-top: 0;
   padding: 64rpx 36rpx 40rpx;

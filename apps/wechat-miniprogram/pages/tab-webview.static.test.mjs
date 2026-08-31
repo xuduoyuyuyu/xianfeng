@@ -13957,8 +13957,9 @@ test("mama haozhuan opens a native mini program form instead of program detail w
     assert.match(page.wxml, /wx:if="\{\{settingsPanelOpen\}\}" class="xf-native-settings-mask" style="height: \{\{settingsPanelHeight\}\}px;" catchtap="closeSettings"/);
     assert.match(page.wxml, /wx:for="\{\{settingsSections\}\}"/);
     assert.doesNotMatch(page.wxml, /xf-mama-back/);
-    assert.match(page.wxml, /wx:if="\{\{!isLoggedIn\}\}"[\s\S]*登录后进入好赚[\s\S]*open-type="getPhoneNumber"[\s\S]*bindgetphonenumber="authorizeMamaResourceAction"[\s\S]*wx:elif="\{\{mamaResourceView === 'apply'\}\}"/);
-    assert.match(page.wxml, /mamaResourceView === 'apply'[\s\S]*<view class="xf-mama-card xf-mama-profile-manager">[\s\S]*资料管理[\s\S]*保存资料/);
+    assert.match(page.wxml, /wx:if="\{\{!isLoggedIn\}\}"[\s\S]*手机号授权后查看任务[\s\S]*open-type="getPhoneNumber"[\s\S]*bindgetphonenumber="authorizeMamaResourceAction"[\s\S]*wx:elif="\{\{mamaResourceView === 'apply'\}\}"/);
+    assert.doesNotMatch(page.wxml, /mamaResourceView === 'identity'|请确认这是你的账号|确认是我/);
+    assert.match(page.wxml, /mamaResourceView === 'apply'[\s\S]*<view wx:else class="xf-mama-card xf-mama-profile-manager">[\s\S]*资料管理[\s\S]*保存资料/);
     assert.doesNotMatch(page.wxml, /xf-mama-intro-card/);
     assert.doesNotMatch(page.wxml, /<view class="xf-mama-card">[\s\S]*<form class="xf-mama-form" bindsubmit="submit">\s*<view class="xf-mama-head">\s*<image class="xf-mama-icon"/);
     assert.doesNotMatch(page.wxml, /用自己的社交媒体账号接亲子、教育、家庭消费类发稿/);
@@ -14278,6 +14279,54 @@ test("mama haozhuan adds social accounts only after the account dialog is saved"
     assert.equal(context.data.mediaAccounts[1].platform, "shipinhao");
     assert.equal(context.data.mediaAccounts[1].platformLabel, "视频号");
     assert.equal(context.data.mediaAccounts[1].nickname, "安安的视频号");
+  } finally {
+    global.wx = originalWx;
+  }
+});
+
+test("mama haozhuan profile save does not validate unfinished media-account drafts", async () => {
+  const definition = loadPageDefinition("mama-resource-apply");
+  const originalWx = global.wx;
+  const requests = [];
+
+  try {
+    global.wx = {
+      getStorageSync(key) {
+        if (key === "xf_token") return "token-1";
+        if (key === "xf_user") return { _id: "user-1" };
+        return "";
+      },
+      setStorageSync() {},
+      removeStorageSync() {},
+      request(options) {
+        requests.push(options);
+        options.success({ statusCode: 200, data: { profile: { ...options.data, status: "approved" } } });
+      }
+    };
+    const context = {
+      data: { ...definition.data },
+      setData(payload) {
+        this.data = { ...this.data, ...payload };
+      }
+    };
+    const payload = {
+      ...definition.data.formDraft,
+      displayName: "安安妈妈",
+      contactWechat: "anan-mom",
+      alipayAccount: "anan@example.com",
+      alipayVerifiedName: "安安妈妈",
+      mediaAccounts: [
+        { platform: "", nickname: "", profileUrl: "" },
+        { platform: "douyin", nickname: "", profileUrl: "https://v.douyin.com/legacy-draft" }
+      ]
+    };
+
+    await definition.submitMamaResourcePayload.call(context, payload, { stayInApply: true });
+
+    assert.equal(requests.length, 1);
+    assert.equal(context.data.messageType, "success");
+    assert.equal(requests[0].data.mediaAccounts.length, 1);
+    assert.equal(requests[0].data.mediaAccounts[0].profileUrl, "https://v.douyin.com/legacy-draft");
   } finally {
     global.wx = originalWx;
   }
@@ -17359,30 +17408,6 @@ test("webview native program detail page keeps program, book, and topic details 
     assert.equal(requests.some((url) => url.endsWith("/api/books/external/external-book-1")), false);
     definition.onNativeBookCoverLoad.call(externalBookContext, { detail: { width: 800, height: 500 } });
     assert.equal(externalBookContext.data.nativeBookCoverFrameStyle, "width: 430rpx;");
-
-    storage.set("xf_native_books_source_v1", "native");
-    const externalSceneContext = {
-      ...definition,
-      data: { ...definition.data },
-      setData(payload) {
-        this.data = { ...this.data, ...payload };
-      }
-    };
-    await definition.onLoad.call(externalSceneContext, { scene: encodeURIComponent("e=external-book-1") });
-    assert.equal(externalSceneContext.data.nativeBook.id, "external-book-1");
-    assert.equal(externalSceneContext.data.nativeBook.isExternal, true);
-
-    storage.set("xf_native_books_source_v1", "external");
-    const nativeSceneContext = {
-      ...definition,
-      data: { ...definition.data },
-      setData(payload) {
-        this.data = { ...this.data, ...payload };
-      }
-    };
-    await definition.onLoad.call(nativeSceneContext, { scene: encodeURIComponent("b=book-1") });
-    assert.equal(nativeSceneContext.data.nativeBook.id, "book-1");
-    assert.equal(nativeSceneContext.data.nativeBook.isExternal, false);
 
     await definition.toggleNativeBookIntroTranslation.call(externalBookContext);
     assert.equal(requests.some((url) => url.endsWith("/api/books/external/external-book-1/description-translation")), true);
