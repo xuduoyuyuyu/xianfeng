@@ -1827,15 +1827,6 @@ Page({
       this.setData({ message: "请填写支付宝验证姓名", messageType: "error" });
       return;
     }
-    if (payload.xiaohongshuProfileUrl && !payload.xiaohongshuNickname) {
-      this.setData({ message: "请填写小红书账号昵称", messageType: "error" });
-      return;
-    }
-    const missingNicknameIndex = normalizeExtraMediaAccounts(payload.mediaAccounts).findIndex((account) => !account.nickname);
-    if (missingNicknameIndex >= 0) {
-      this.setData({ message: `请填写第${missingNicknameIndex + 2}个账号的账号昵称`, messageType: "error" });
-      return;
-    }
     this.setData({ submitting: true, message: "", messageType: "" });
     return request({
       url: "/api/mama-resources/applications",
