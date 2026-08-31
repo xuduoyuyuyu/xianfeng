@@ -149,11 +149,11 @@ function normalizeMediaAccount(value: unknown) {
 }
 
 function mediaAccountsFromBody(body: any) {
-  const bodyAccounts = Array.isArray(body?.mediaAccounts) ? body.mediaAccounts : [];
-  const accounts = bodyAccounts
-    .map(normalizeMediaAccount)
-    .filter((account) => account.profileUrl && account.normalizedProfileUrl);
-  if (accounts.length) return accounts;
+  if (Array.isArray(body?.mediaAccounts)) {
+    return body.mediaAccounts
+      .map(normalizeMediaAccount)
+      .filter((account) => account.profileUrl && account.normalizedProfileUrl);
+  }
   const legacyAccount = normalizeMediaAccount({
     platform: "xiaohongshu",
     profileUrl: body?.xiaohongshuProfileUrl || body?.profileUrl,
@@ -508,10 +508,6 @@ router.post("/applications", authenticate, async (req: AuthenticatedRequest, res
       res.status(400).json({ message: "请填写支付宝验证姓名" });
       return;
     }
-    if (!primaryXiaohongshuAccount) {
-      res.status(400).json({ message: "请填写小红书主页链接或分享口令" });
-      return;
-    }
     const normalizedProfileUrls = mediaAccounts.map((account) => account.normalizedProfileUrl).filter(Boolean);
     if (new Set(normalizedProfileUrls).size !== normalizedProfileUrls.length) {
       res.status(400).json({ message: "同一个主页链接不能重复提交" });
@@ -524,31 +520,16 @@ router.post("/applications", authenticate, async (req: AuthenticatedRequest, res
     const existingByContact = contactMatchClauses.length
       ? await MamaResourceProfile.findOne({ $or: contactMatchClauses }).sort({ updatedAt: -1 }).lean()
       : null;
-    const existingByProfileUrl = await MamaResourceProfile.findOne({
+    const existingByProfileUrl = normalizedProfileUrls.length ? await MamaResourceProfile.findOne({
       $or: [
         { "socialAccount.normalizedProfileUrl": { $in: normalizedProfileUrls } },
         { "mediaAccounts.normalizedProfileUrl": { $in: normalizedProfileUrls } },
       ],
-    }).lean();
+    }).lean() : null;
     const existingByContactPrimaryXiaohongshuAccount = primaryXiaohongshuAccountForProfile(existingByContact);
     const existing = existingByContactPrimaryXiaohongshuAccount || !existingByProfileUrl
       ? existingByContact
       : existingByProfileUrl;
-    const existingPrimaryXiaohongshuAccount = primaryXiaohongshuAccountForProfile(existing);
-    const resolvedPrimaryXiaohongshuAccount = existingPrimaryXiaohongshuAccount
-      ? {
-        ...primaryXiaohongshuAccount,
-        profileUrl: existingPrimaryXiaohongshuAccount.profileUrl,
-        normalizedProfileUrl: existingPrimaryXiaohongshuAccount.normalizedProfileUrl,
-      }
-      : primaryXiaohongshuAccount;
-    let primaryAccountReplaced = false;
-    const resolvedMediaAccounts = mediaAccounts.map((account) => {
-      if (primaryAccountReplaced || account.platform !== "xiaohongshu") return account;
-      primaryAccountReplaced = true;
-      return resolvedPrimaryXiaohongshuAccount;
-    });
-    if (!primaryAccountReplaced) resolvedMediaAccounts.unshift(resolvedPrimaryXiaohongshuAccount);
     const profilePayload = {
       userId: req.user?.id,
       displayName,
@@ -564,17 +545,17 @@ router.post("/applications", authenticate, async (req: AuthenticatedRequest, res
       status: "approved",
       accountPositioning: asText(req.body?.accountPositioning),
       consentAccepted,
-      socialAccount: {
+      ...(primaryXiaohongshuAccount ? { socialAccount: {
         platform: "xiaohongshu",
-        profileUrl: resolvedPrimaryXiaohongshuAccount.profileUrl,
-        normalizedProfileUrl: resolvedPrimaryXiaohongshuAccount.normalizedProfileUrl,
-        nickname: resolvedPrimaryXiaohongshuAccount.nickname,
-        followerCount: resolvedPrimaryXiaohongshuAccount.followerCount,
-        screenshotUrl: resolvedPrimaryXiaohongshuAccount.screenshotUrl,
-        realNameVerified: resolvedPrimaryXiaohongshuAccount.realNameVerified,
-        dataSource: resolvedPrimaryXiaohongshuAccount.dataSource,
-      },
-      mediaAccounts: resolvedMediaAccounts,
+        profileUrl: primaryXiaohongshuAccount.profileUrl,
+        normalizedProfileUrl: primaryXiaohongshuAccount.normalizedProfileUrl,
+        nickname: primaryXiaohongshuAccount.nickname,
+        followerCount: primaryXiaohongshuAccount.followerCount,
+        screenshotUrl: primaryXiaohongshuAccount.screenshotUrl,
+        realNameVerified: primaryXiaohongshuAccount.realNameVerified,
+        dataSource: primaryXiaohongshuAccount.dataSource,
+      } } : {}),
+      mediaAccounts,
       rateCard: {
         acceptsGiftExchange: req.body?.acceptsGiftExchange === true,
         blockedCategories: asTextArray(req.body?.blockedCategories),
@@ -588,7 +569,10 @@ router.post("/applications", authenticate, async (req: AuthenticatedRequest, res
     };
 
     if (existing) {
-      const profile = await MamaResourceProfile.findByIdAndUpdate(existing._id, profilePayload, {
+      const update = primaryXiaohongshuAccount
+        ? profilePayload
+        : { $set: profilePayload, $unset: { socialAccount: 1 } };
+      const profile = await MamaResourceProfile.findByIdAndUpdate(existing._id, update, {
         returnDocument: "after",
         runValidators: true,
       });

@@ -145,6 +145,28 @@ describe("mama resource pool routes", () => {
     assert.equal(data.availableTasks[0].taskId, String(task._id));
   });
 
+  it("accepts a signed-in Haozhuan profile without a media account", async () => {
+    const response = await fetch(`${server.publicUrl}/applications`, {
+      method: "POST",
+      headers: applicationHeaders(applicationToken),
+      body: JSON.stringify({
+        displayName: "选填媒体账号",
+        contactWechat: "optional-media-user",
+        alipayAccount: "optional-media@example.com",
+        alipayVerifiedName: "选填媒体账号",
+        mediaAccounts: [],
+        consentAccepted: true,
+      }),
+    });
+
+    assert.equal(response.status, 201);
+    const data = await response.json();
+    assert.equal(data.profile.status, "approved");
+    assert.deepEqual(data.profile.mediaAccounts, []);
+    assert.equal(data.profile.socialAccount, undefined);
+    assert.equal(await MamaResourceProfile.countDocuments(), 1);
+  });
+
   it("accepts a signed-in application without sensitive credentials", async () => {
     const response = await fetch(`${server.publicUrl}/applications`, {
       method: "POST",

@@ -46,7 +46,7 @@ export interface MamaResourceProfile extends mongoose.Document {
   status: MamaResourceStatus;
   accountPositioning?: string;
   consentAccepted: boolean;
-  socialAccount: MamaResourceMediaAccount & { platform: "xiaohongshu" };
+  socialAccount?: MamaResourceMediaAccount & { platform: "xiaohongshu" };
   mediaAccounts: MamaResourceMediaAccount[];
   contentCases: MamaResourceContentCase[];
   rateCard: {
@@ -108,6 +108,25 @@ const mediaAccountSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const primarySocialAccountSchema = new mongoose.Schema(
+  {
+    platform: { type: String, enum: ["xiaohongshu"], default: "xiaohongshu" },
+    profileUrl: { type: String, required: true, trim: true },
+    normalizedProfileUrl: { type: String, required: true, trim: true, unique: true, sparse: true, index: true },
+    nickname: { type: String, default: "", trim: true },
+    followerCount: { type: Number, default: null },
+    screenshotUrl: { type: String, default: "", trim: true },
+    realNameVerified: { type: Boolean, default: null },
+    dataSource: {
+      type: String,
+      enum: ["pending", "auto", "manual", "screenshot"],
+      default: "pending",
+    },
+    lastCapturedAt: { type: Date, default: null },
+  },
+  { _id: false }
+);
+
 const mamaResourceProfileSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, index: true },
@@ -131,21 +150,7 @@ const mamaResourceProfileSchema = new mongoose.Schema(
     },
     accountPositioning: { type: String, default: "", trim: true },
     consentAccepted: { type: Boolean, required: true },
-    socialAccount: {
-      platform: { type: String, enum: ["xiaohongshu"], default: "xiaohongshu" },
-      profileUrl: { type: String, required: true, trim: true },
-      normalizedProfileUrl: { type: String, required: true, trim: true, unique: true, index: true },
-      nickname: { type: String, default: "", trim: true },
-      followerCount: { type: Number, default: null },
-      screenshotUrl: { type: String, default: "", trim: true },
-      realNameVerified: { type: Boolean, default: null },
-      dataSource: {
-        type: String,
-        enum: ["pending", "auto", "manual", "screenshot"],
-        default: "pending",
-      },
-      lastCapturedAt: { type: Date, default: null },
-    },
+    socialAccount: { type: primarySocialAccountSchema, default: undefined },
     mediaAccounts: { type: [mediaAccountSchema], default: [] },
     contentCases: { type: [contentCaseSchema], default: [] },
     rateCard: {
