@@ -14,7 +14,7 @@ const modelSource = readFileSync(resolve(__dirname, "../models/Book.ts"), "utf8"
 
 test("public book metadata reads the formal metadata table", () => {
   assert.match(controllerSource, /findApprovedBookMetadataByBookId/, "public metadata endpoint should read approved BookMetadata rows");
-  assert.match(controllerSource, /listApprovedBookMetadataByBookIds/, "public book list should derive hasMetadataDetail from approved BookMetadata rows");
+  assert.match(controllerSource, /listPublicBookMetadataByBookIds/, "public book list should derive hasMetadataDetail from compact BookMetadata rows");
   assert.match(controllerSource, /function pickPublicBookCover\(bookCover: unknown, metadataCover: unknown\): string/, "public book list should use one cover picker for base and metadata covers");
   assert.doesNotMatch(controllerSource, /value\.includes\("\/uploads\/images\/"\)/, "admin-uploaded covers should remain visible on the public list");
   assert.match(controllerSource, /normalized\.includes\("placeholder"\)/, "placeholder covers should not block metadata covers on the public list");
@@ -29,9 +29,12 @@ test("public book metadata reads the formal metadata table", () => {
   assert.match(controllerSource, /calculateBookQualityScore\(plain, metadata\)/, "paged public books should calculate the 100-point quality score before slicing");
   assert.match(controllerSource, /compareBookQualityScores\(left\.qualityScore, right\.qualityScore\)/, "quality tiers and scores should own public ordering");
   assert.match(controllerSource, /async function findPagedPublicBooksPrioritizingDescriptions\(current: number, size: number, slicePage = true, profile: ContentProfile \| null = null\)/, "public books should keep backend-owned priority ordering with optional profile priority");
-  assert.match(controllerSource, /const allBooks = await Book\.find\(publishedFilter\)[\s\S]*\.sort\(\{ publishedAt: -1, _id: -1 \}\);/, "public pagination should collect the published set before global health sorting");
-  assert.match(controllerSource, /const metadataRows = await listApprovedBookMetadataByBookIds\(allBooks\.map/, "public pagination should include metadata when scoring every published book");
-  assert.match(controllerSource, /qualityScore: calculateBookQualityScore\(plain, metadata\)/, "public pagination should score each published book before slicing a page");
+  assert.match(controllerSource, /const PUBLIC_BOOK_RANKING_CACHE_TTL_MS = 1000 \* 60 \* 5;/, "public pagination should reuse the expensive ranking source for five minutes");
+  assert.match(controllerSource, /async function loadPublicBookRankingSource\(\)/, "public pagination should centralize ranking-source cache ownership");
+  assert.match(controllerSource, /const allBooks = await Book\.find\(publishedFilter\)[\s\S]*\.sort\(\{ publishedAt: -1, _id: -1 \}\)[\s\S]*\.lean\(\);/, "public pagination should load lean published records before global health sorting");
+  assert.match(controllerSource, /const metadataRows = await listPublicBookMetadataByBookIds\(allBooks\.map/, "public pagination should load only list metadata when scoring every published book");
+  assert.match(controllerSource, /qualityScore: calculateBookQualityScore\(book, metadataByBookId\.get\(String\(book\?\._id \|\| ""\)\)\)/, "public pagination should score each published book once per cached source");
+  assert.match(controllerSource, /function invalidatePublicBookRankingCache\(\)/, "book mutations should be able to invalidate the ranking source");
   assert.match(controllerSource, /scorePersonalizedContent/, "public books should score field-aware profile relevance before quality");
   assert.match(controllerSource, /\.slice\(offset, offset \+ size\)/, "public pagination should slice only after global health sorting");
   assert.doesNotMatch(controllerSource, /const describedTake = Math\.min/, "public pagination should not page described and undescribed buckets separately");
@@ -50,6 +53,8 @@ test("public book metadata reads the formal metadata table", () => {
   assert.match(controllerSource, /await Program\.findById\(String\(metadata\.sourceId\), \{ title: 1 \}\)\.lean\(\)/, "public metadata endpoint should load the source program title");
   assert.match(controllerSource, /sourceTitle = String\(\(sourceProgram as any\)\?\.title \|\| ""\);/, "public metadata endpoint should expose the resolved program title");
   assert.doesNotMatch(controllerSource, /findHighConfidenceBookMetadataForBook|loadHighConfidenceBookMetadata/, "public endpoints should not read tmp high confidence files");
+  assert.match(metadataServiceSource, /export async function listPublicBookMetadataByBookIds\(bookIds: string\[\]\)/, "public lists should use a list-only metadata projection");
+  assert.match(metadataServiceSource, /\.select\(\{ bookId: 1, cover: 1, description: 1, source: 1, sourceId: 1, matchScore: 1, reviewedAt: 1 \}\)/, "public list metadata should exclude large review payload fields");
 });
 
 test("admin book routes expose metadata upsert before dynamic book id routes", () => {

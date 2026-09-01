@@ -251,6 +251,10 @@
   cap (10 when the description is also empty). The public response exposes a
   compact score summary, while the admin response includes score components
   and deduction reasons for content repair.
+- The public Reading ranking source reuses a five-minute in-process cache of
+  lean `Book` rows and list-only metadata fields. Profile relevance is still
+  recalculated for every request, and book/import/metadata mutations invalidate
+  the cache immediately so cached work cannot change personalization semantics.
 - Admin book editing can create or update the public detail metadata through
   `PUT /api/admin/books/:id/metadata`. The endpoint upserts by `bookId`, so a
   book without a metadata row becomes editable without creating duplicate

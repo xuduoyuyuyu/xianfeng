@@ -5,8 +5,8 @@ import GuestModel from "../models/Guest";
 import Program from "../models/Program";
 import {
   findApprovedBookMetadataByBookId,
-  listApprovedBookMetadataByBookIds,
   listBookMetadataByBookIds,
+  listPublicBookMetadataByBookIds,
   upsertBookMetadataManually,
 } from "../services/bookMetadataService";
 import { getOrCreateExternalBookDescriptionTranslation } from "../services/externalBookDescriptionTranslation";
@@ -61,6 +61,18 @@ type ExternalBookLibraryPage = {
   pages: number;
 };
 
+type PublicBookRankingItem = {
+  book: any;
+  index: number;
+  qualityScore: BookQualityScore;
+};
+
+type PublicBookRankingSource = {
+  items: PublicBookRankingItem[];
+  total: number;
+  expiresAt: number;
+};
+
 const BOOK_COVER_PROXY_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const BOOK_COVER_PROXY_CACHE_MAX_BYTES = 80 * 1024 * 1024;
 const BOOK_COVER_BROWSER_CACHE_HEADER = "public, max-age=604800, stale-while-revalidate=86400";
@@ -70,6 +82,7 @@ const EXTERNAL_BOOK_LIBRARY_SCAN_CONCURRENCY = 4;
 const EXTERNAL_BOOK_LIBRARY_FILTER_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const EXTERNAL_BOOK_LIBRARY_SEARCH_CACHE_TTL_MS = 1000 * 60 * 10;
 const EXTERNAL_BOOK_LIBRARY_SEARCH_CACHE_MAX_ENTRIES = 100;
+const PUBLIC_BOOK_RANKING_CACHE_TTL_MS = 1000 * 60 * 5;
 const bookCoverProxyCache = new Map<string, BookCoverProxyCacheEntry>();
 let bookCoverProxyCacheBytes = 0;
 let externalBookLibraryFilterCache: { records: any[]; expiresAt: number } | null = null;
@@ -78,6 +91,9 @@ const externalBookLibraryCategoryCache = new Map<string, { records: any[]; total
 const externalBookLibraryCategoryCachePromises = new Map<string, Promise<{ records: any[]; total: number }>>();
 const externalBookLibrarySearchCache = new Map<string, { page: ExternalBookLibraryPage; expiresAt: number }>();
 const externalBookLibrarySearchCachePromises = new Map<string, Promise<ExternalBookLibraryPage>>();
+let publicBookRankingCache: PublicBookRankingSource | null = null;
+let publicBookRankingCachePromise: Promise<PublicBookRankingSource> | null = null;
+let publicBookRankingCacheGeneration = 0;
 
 function setBookCoverProxyCacheHeaders(res: Response, contentType: string, hit: boolean) {
   res.setHeader("Content-Type", contentType);
@@ -691,29 +707,57 @@ function formatAdminBookMetadata(metadata: any) {
   };
 }
 
-async function findPagedPublicBooksPrioritizingDescriptions(current: number, size: number, slicePage = true, profile: ContentProfile | null = null) {
-  const publishedFilter = { status: "published" };
-  const offset = (current - 1) * size;
-  const allBooks = await Book.find(publishedFilter).sort({ publishedAt: -1, _id: -1 });
-  const metadataRows = await listApprovedBookMetadataByBookIds(allBooks.map((book: any) => String(book?._id || "")));
-  const metadataByBookId = new Map(metadataRows.map((item: any) => [String(item?.bookId || ""), item]));
-  const rankedBooks = allBooks
-    .map((book: any, index: number) => {
-      const plain = typeof book.toObject === "function" ? book.toObject() : book;
-      const metadata = metadataByBookId.get(String(plain?._id || ""));
-      return {
+function invalidatePublicBookRankingCache() {
+  publicBookRankingCache = null;
+  publicBookRankingCachePromise = null;
+  publicBookRankingCacheGeneration += 1;
+}
+
+async function loadPublicBookRankingSource(): Promise<PublicBookRankingSource> {
+  if (publicBookRankingCache && publicBookRankingCache.expiresAt > Date.now()) return publicBookRankingCache;
+  if (publicBookRankingCachePromise) return publicBookRankingCachePromise;
+  const generation = publicBookRankingCacheGeneration;
+  const requestPromise = (async () => {
+    const publishedFilter = { status: "published" };
+    const allBooks = await Book.find(publishedFilter)
+      .sort({ publishedAt: -1, _id: -1 })
+      .lean();
+    const metadataRows = await listPublicBookMetadataByBookIds(allBooks.map((book: any) => String(book?._id || "")));
+    const metadataByBookId = new Map(metadataRows.map((item: any) => [String(item?.bookId || ""), item]));
+    const source = {
+      items: allBooks.map((book: any, index: number) => ({
         book,
         index,
-        qualityScore: calculateBookQualityScore(plain, metadata),
-        profileScore: profile ? scorePersonalizedContent({
-          structured: [plain?.grade],
-          tags: [plain?.categoryLabel, plain?.topic, plain?.sourceName],
-          title: [plain?.title],
-          body: [plain?.description],
-          publishedAt: plain?.publishedAt || plain?.createdAt,
-        }, profile) : 0,
-      };
-    })
+        qualityScore: calculateBookQualityScore(book, metadataByBookId.get(String(book?._id || ""))),
+      })),
+      total: allBooks.length,
+      expiresAt: Date.now() + PUBLIC_BOOK_RANKING_CACHE_TTL_MS,
+    };
+    if (generation === publicBookRankingCacheGeneration) publicBookRankingCache = source;
+    return source;
+  })();
+  publicBookRankingCachePromise = requestPromise;
+  try {
+    return await requestPromise;
+  } finally {
+    if (publicBookRankingCachePromise === requestPromise) publicBookRankingCachePromise = null;
+  }
+}
+
+async function findPagedPublicBooksPrioritizingDescriptions(current: number, size: number, slicePage = true, profile: ContentProfile | null = null) {
+  const offset = (current - 1) * size;
+  const source = await loadPublicBookRankingSource();
+  const rankedBooks = source.items
+    .map((item) => ({
+      ...item,
+      profileScore: profile ? scorePersonalizedContent({
+        structured: [item.book?.grade],
+        tags: [item.book?.categoryLabel, item.book?.topic, item.book?.sourceName],
+        title: [item.book?.title],
+        body: [item.book?.description],
+        publishedAt: item.book?.publishedAt || item.book?.createdAt,
+      }, profile) : 0,
+    }))
     .sort((left, right) => {
       const profileDiff = right.profileScore - left.profileScore;
       if (profileDiff !== 0) return profileDiff;
@@ -723,7 +767,7 @@ async function findPagedPublicBooksPrioritizingDescriptions(current: number, siz
   const selectedBooks = slicePage ? rankedBooks.slice(offset, offset + size) : rankedBooks;
   const books = selectedBooks.map((item) => item.book);
 
-  return { books, total: allBooks.length };
+  return { books, total: source.total };
 }
 
 export class BookController {
@@ -928,6 +972,8 @@ export class BookController {
         created += 1;
       }
 
+      if (created || updated) invalidatePublicBookRankingCache();
+
       res.status(200).json({
         created,
         updated,
@@ -948,7 +994,7 @@ export class BookController {
       const profile = parseContentProfile(req.query as Record<string, unknown>);
       const page = await findPagedPublicBooksPrioritizingDescriptions(current, size, paged, profile);
       const books = page.books;
-      const metadataRows = await listApprovedBookMetadataByBookIds(books.map((book: any) => String(book?._id || "")));
+      const metadataRows = await listPublicBookMetadataByBookIds(books.map((book: any) => String(book?._id || "")));
       const metadataByBookId = new Map(metadataRows.map((item: any) => [String(item?.bookId || ""), item]));
       const enrichedBooks = books.map((book: any) => {
         const plain = typeof book.toObject === "function" ? book.toObject() : book;
@@ -1073,6 +1119,7 @@ export class BookController {
         cover: String(req.body?.cover || (existing as any).coverImage || ""),
       };
       const metadata = await upsertBookMetadataManually(String(existing._id), metadataPayload);
+      if (metadata) invalidatePublicBookRankingCache();
       res.status(200).json(metadata);
     } catch (error) {
       res.status(400).json({ message: "保存图书详情失败", error });
@@ -1113,6 +1160,7 @@ export class BookController {
       }
       const book = new Book(normalized as any);
       await book.save();
+      invalidatePublicBookRankingCache();
       res.status(201).json(book);
     } catch (error) {
       res.status(400).json({ message: "创建书籍失败", error });
@@ -1149,6 +1197,7 @@ export class BookController {
         (normalized as any).publishedAt = null;
       }
       const book = await Book.findOneAndUpdate(idQuery(id), normalized as any, { new: true });
+      if (book) invalidatePublicBookRankingCache();
       res.status(200).json(book);
     } catch (error) {
       res.status(400).json({ message: "更新书籍失败", error });
@@ -1170,6 +1219,7 @@ export class BookController {
         res.status(404).json({ message: "书籍不存在" });
         return;
       }
+      invalidatePublicBookRankingCache();
       res.status(200).json(book);
     } catch (error) {
       res.status(400).json({ message: "更新书籍状态失败", error });
@@ -1184,6 +1234,7 @@ export class BookController {
         res.status(404).json({ message: "书籍不存在" });
         return;
       }
+      invalidatePublicBookRankingCache();
       res.status(200).json({ message: "书籍删除成功" });
     } catch (error) {
       res.status(500).json({ message: "删除书籍失败", error });

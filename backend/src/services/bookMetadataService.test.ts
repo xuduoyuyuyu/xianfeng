@@ -8,6 +8,7 @@ import {
   getMetadataStatusForScore,
   listApprovedBookMetadataBookIds,
   listApprovedBookMetadataByBookIds,
+  listPublicBookMetadataByBookIds,
   shouldProtectExistingBookMetadata,
   upsertBookMetadataManually,
 } from "./bookMetadataService";
@@ -134,7 +135,7 @@ test("approved metadata readers include legacy review statuses", { timeout: 30_0
     const pendingBookId = new mongoose.Types.ObjectId();
     const rejectedBookId = new mongoose.Types.ObjectId();
     await BookMetadata.insertMany([
-      { bookId: approvedBookId, title: "已采纳", description: "已采纳简介", status: "auto_approved" },
+      { bookId: approvedBookId, title: "已采纳", description: "已采纳简介", status: "auto_approved", rawCandidate: { unused: "large review payload" } },
       { bookId: pendingBookId, title: "待审", description: "待审简介", status: "needs_review" },
       { bookId: rejectedBookId, title: "忽略", description: "忽略简介", status: "rejected" },
     ]);
@@ -144,6 +145,7 @@ test("approved metadata readers include legacy review statuses", { timeout: 30_0
       String(pendingBookId),
       String(rejectedBookId),
     ]);
+    const publicMetadataRows = await listPublicBookMetadataByBookIds([String(approvedBookId)]);
     const metadataBookIds = await listApprovedBookMetadataBookIds();
 
     assert.equal(metadataRows.length, 3);
@@ -151,6 +153,9 @@ test("approved metadata readers include legacy review statuses", { timeout: 30_0
       metadataRows.map((row) => String(row.bookId)).sort(),
       [String(approvedBookId), String(pendingBookId), String(rejectedBookId)].sort()
     );
+    assert.equal(publicMetadataRows[0].description, "已采纳简介");
+    assert.equal("rawCandidate" in publicMetadataRows[0], false);
+    assert.equal("title" in publicMetadataRows[0], false);
     assert.deepEqual(
       metadataBookIds.sort(),
       [String(approvedBookId), String(pendingBookId), String(rejectedBookId)].sort()

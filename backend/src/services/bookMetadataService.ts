@@ -109,6 +109,14 @@ export async function listApprovedBookMetadataByBookIds(bookIds: string[]) {
   return BookMetadataModel.find({ bookId: { $in: validIds } }).lean();
 }
 
+export async function listPublicBookMetadataByBookIds(bookIds: string[]) {
+  const validIds = bookIds.filter((id) => mongoose.Types.ObjectId.isValid(id));
+  if (!validIds.length) return [];
+  return BookMetadataModel.find({ bookId: { $in: validIds } })
+    .select({ bookId: 1, cover: 1, description: 1, source: 1, sourceId: 1, matchScore: 1, reviewedAt: 1 })
+    .lean();
+}
+
 export async function listApprovedBookMetadataBookIds() {
   const bookIds = await BookMetadataModel.distinct("bookId", { description: { $regex: /\S/ } });
   return bookIds
