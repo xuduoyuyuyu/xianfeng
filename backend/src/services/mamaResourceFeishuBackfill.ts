@@ -35,9 +35,9 @@ const HEADER_ALIASES: Record<string, string[]> = {
   followerCount: ["粉丝数", "粉丝数量"],
   alipayAccount: ["支付宝账号", "支付宝账户"],
   alipayVerifiedName: ["支付宝姓名", "实名姓名", "支付宝实名姓名", "姓名"],
-  contentUrl: ["稿件的链接", "稿件链接", "下发链接", "专属内容链接"],
+  contentUrl: ["稿件", "稿件的链接", "稿件链接", "下发链接", "专属内容链接"],
   publishedAt: ["发布时间", "发布日期"],
-  proofLink: ["发布链接", "回传链接", "作品链接"],
+  proofLink: ["发布链接", "发布连接", "回传链接", "作品链接"],
 };
 
 function normalizedHeader(value: unknown): string {
