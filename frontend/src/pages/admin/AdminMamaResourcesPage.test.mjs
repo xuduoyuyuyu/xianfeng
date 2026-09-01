@@ -382,6 +382,7 @@ test("admin task workspace exposes a task-scoped manual Feishu UID backfill", ()
   assert.match(apiSource, /tasks\/\$\{taskId\}\/feishu-backfill\/preview/);
   assert.match(apiSource, /tasks\/\$\{taskId\}\/feishu-backfill\/url/);
   assert.match(apiSource, /tasks\/\$\{taskId\}\/feishu-backfill\/commit/);
+  assert.match(apiSource, /feishu-backfill\/commit[\s\S]*timeout: 180000/);
   assert.match(backendSource, /current\.preview\.fingerprint !== fingerprint/);
   assert.match(backendSource, /飞书回读校验失败/);
 });
