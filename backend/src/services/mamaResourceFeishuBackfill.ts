@@ -159,7 +159,8 @@ export function buildFeishuBackfillPreview(
       if (validPublicationUrl(proofLink)) {
         changes.push({ rowNumber: rowIndex + 1, uid, field: "发布链接", cell: `${columnName(columns.proofLink)}${rowIndex + 1}`, value: proofLink });
       } else {
-        issues.push({ rowNumber: rowIndex + 1, uid, reason: "回传内容不是有效发布链接，已跳过" });
+        changes.push({ rowNumber: rowIndex + 1, uid, field: "发布链接", cell: `${columnName(columns.proofLink)}${rowIndex + 1}`, value: publication.proofLink });
+        issues.push({ rowNumber: rowIndex + 1, uid, reason: "回传内容不是有效发布链接，已原样填写，请人工拆分" });
       }
     }
   }
