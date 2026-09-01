@@ -65,3 +65,16 @@ test("publication proof keeps only the URL from shared text", () => {
   }]]));
   assert.equal(preview.changes.find((item) => item.field === "发布链接")?.value, "https://xhslink.cn/o/published-note");
 });
+
+test("preview recognizes the production sheet manuscript and publication headers", () => {
+  const values = [["UID", "达人名称", "稿件", "发布时间", "发布连接"], ["123", "", "https://my.feishu.cn/wiki/manuscript", "", ""]];
+  const preview = buildFeishuBackfillPreview(values, new Map([["123", {
+    publicUid: "123", displayName: "张三", accountName: "", profileUrl: "", followerCount: null,
+    alipayAccount: "", alipayVerifiedName: "", publications: [{
+      contentUrl: "https://my.feishu.cn/wiki/manuscript",
+      publishedAt: "2026-08-26 10:00",
+      proofLink: "https://xhslink.cn/o/published-note",
+    }],
+  }]]));
+  assert.deepEqual(preview.changes.filter((item) => ["发布时间", "发布链接"].includes(item.field)).map((item) => item.cell), ["D2", "E2"]);
+});
