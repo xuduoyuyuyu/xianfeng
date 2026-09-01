@@ -229,6 +229,19 @@
   records with descriptions rank within that cover bucket. Placeholder cover
   URLs are treated as no-cover records. Full-corpus cache work remains reserved
   for filter counts and complex local filtering paths that need global matches.
+- External keyword search may use the persisted Mongo
+  `ExternalBookSearchDocument` text index after a complete mirror sync. The
+  explicit `npm run books:sync-external-search-index` operation reads Readly in
+  100-record pages with four-page batches, stores its checkpoint in
+  the `SystemSetting` key `external_book_search_index_v1`, and resumes an
+  interrupted initial sync without exposing the partial index to public requests. A
+  completed refresh removes derived rows that were not seen in that sync.
+  Single-token searches use the text index while multi-token searches retain
+  contiguous-phrase semantics. Keyword requests prefer the ready local index
+  only when it has matches; incomplete, unavailable, or zero-match indexes
+  retain the existing upstream title-search fallback. The sync command is
+  operationally explicit and must not run automatically merely because the API
+  process starts.
 - Public `/api/books` reading-list responses use a derived 100-point quality
   score before pagination. Content completeness contributes 75 points and
   source confidence contributes 25; the score is calculated from the current

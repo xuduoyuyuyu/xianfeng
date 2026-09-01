@@ -10,6 +10,7 @@ import {
   upsertBookMetadataManually,
 } from "../services/bookMetadataService";
 import { getOrCreateExternalBookDescriptionTranslation } from "../services/externalBookDescriptionTranslation";
+import { READLY_BOOK_PAGE_URL, searchExternalBookIndex } from "../services/externalBookSearchIndex";
 import {
   calculateBookQualityScore,
   compareBookQualityScores,
@@ -52,19 +53,30 @@ type ExternalBookLibraryFilterGroup = {
 
 type ExternalBookFilterMatchMode = "all" | "any";
 
+type ExternalBookLibraryPage = {
+  records: any[];
+  total: number;
+  size: number;
+  current: number;
+  pages: number;
+};
+
 const BOOK_COVER_PROXY_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const BOOK_COVER_PROXY_CACHE_MAX_BYTES = 80 * 1024 * 1024;
 const BOOK_COVER_BROWSER_CACHE_HEADER = "public, max-age=604800, stale-while-revalidate=86400";
-const READLY_BOOK_PAGE_URL = "https://api.shuyu.xin/readly/api/ma/book/page";
 const EXTERNAL_BOOK_LIBRARY_SCAN_PAGE_SIZE = 100;
 const EXTERNAL_BOOK_LIBRARY_SCAN_CONCURRENCY = 4;
 const EXTERNAL_BOOK_LIBRARY_FILTER_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
+const EXTERNAL_BOOK_LIBRARY_SEARCH_CACHE_TTL_MS = 1000 * 60 * 10;
+const EXTERNAL_BOOK_LIBRARY_SEARCH_CACHE_MAX_ENTRIES = 100;
 const bookCoverProxyCache = new Map<string, BookCoverProxyCacheEntry>();
 let bookCoverProxyCacheBytes = 0;
 let externalBookLibraryFilterCache: { records: any[]; expiresAt: number } | null = null;
 let externalBookLibraryFilterCachePromise: Promise<any[]> | null = null;
 const externalBookLibraryCategoryCache = new Map<string, { records: any[]; total: number; expiresAt: number }>();
 const externalBookLibraryCategoryCachePromises = new Map<string, Promise<{ records: any[]; total: number }>>();
+const externalBookLibrarySearchCache = new Map<string, { page: ExternalBookLibraryPage; expiresAt: number }>();
+const externalBookLibrarySearchCachePromises = new Map<string, Promise<ExternalBookLibraryPage>>();
 
 function setBookCoverProxyCacheHeaders(res: Response, contentType: string, hit: boolean) {
   res.setHeader("Content-Type", contentType);
@@ -296,7 +308,7 @@ function sortExternalBookLibraryRecordsForDisplay(records: any[]): any[] {
     .map((item) => item.record);
 }
 
-async function fetchExternalBookLibraryPage(current: number, size: number, filters?: { category?: string; tags?: string; title?: string }) {
+async function fetchExternalBookLibraryPage(current: number, size: number, filters?: { category?: string; tags?: string; title?: string }): Promise<ExternalBookLibraryPage> {
   const query = {
     current: String(current),
     size: String(size),
@@ -334,6 +346,41 @@ async function fetchExternalBookLibraryPage(current: number, size: number, filte
     current: Number(data?.current || current),
     pages: Number(data?.pages || 0),
   };
+}
+
+async function fetchExternalBookLibraryKeywordPage(current: number, size: number, keyword: string): Promise<ExternalBookLibraryPage> {
+  const indexedPage = await searchExternalBookIndex(current, size, keyword);
+  if (indexedPage && indexedPage.total > 0) return indexedPage;
+  const cacheKey = `${current}:${size}:${normalizeExternalBookSearchText(keyword)}`;
+  const cached = externalBookLibrarySearchCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    externalBookLibrarySearchCache.delete(cacheKey);
+    externalBookLibrarySearchCache.set(cacheKey, cached);
+    return cached.page;
+  }
+  if (cached) externalBookLibrarySearchCache.delete(cacheKey);
+
+  const inFlight = externalBookLibrarySearchCachePromises.get(cacheKey);
+  if (inFlight) return inFlight;
+
+  const request = fetchExternalBookLibraryPage(current, size, { title: keyword }).then((page) => {
+    externalBookLibrarySearchCache.set(cacheKey, {
+      page,
+      expiresAt: Date.now() + EXTERNAL_BOOK_LIBRARY_SEARCH_CACHE_TTL_MS,
+    });
+    while (externalBookLibrarySearchCache.size > EXTERNAL_BOOK_LIBRARY_SEARCH_CACHE_MAX_ENTRIES) {
+      const oldestKey = externalBookLibrarySearchCache.keys().next().value;
+      if (!oldestKey) break;
+      externalBookLibrarySearchCache.delete(oldestKey);
+    }
+    return page;
+  });
+  externalBookLibrarySearchCachePromises.set(cacheKey, request);
+  try {
+    return await request;
+  } finally {
+    externalBookLibrarySearchCachePromises.delete(cacheKey);
+  }
 }
 
 async function fetchExternalBookLibraryCategoryPage(current: number, size: number, category: string) {
@@ -449,7 +496,7 @@ async function fetchExternalBookLibraryFilteredPage(current: number, size: numbe
       pages: Number(page.pages || 0),
     };
   }
-  if (!tags.length && normalizedKeyword) return fetchExternalBookLibraryPage(current, size, { title: normalizedKeyword });
+  if (!tags.length && normalizedKeyword) return fetchExternalBookLibraryKeywordPage(current, size, normalizedKeyword);
 
   if (tags.length === 1 && !normalizedKeyword) {
     const categoryPage = await fetchExternalBookLibraryCategoryPage(current, size, tags[0]);

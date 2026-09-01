@@ -7,6 +7,7 @@ import { dirname, resolve } from "node:path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const controllerSource = readFileSync(resolve(__dirname, "book.ts"), "utf8");
 const metadataServiceSource = readFileSync(resolve(__dirname, "../services/bookMetadataService.ts"), "utf8");
+const externalBookSearchIndexSource = readFileSync(resolve(__dirname, "../services/externalBookSearchIndex.ts"), "utf8");
 const routeSource = readFileSync(resolve(__dirname, "../routes/adminBook.ts"), "utf8");
 const publicRouteSource = readFileSync(resolve(__dirname, "../routes/book.ts"), "utf8");
 const modelSource = readFileSync(resolve(__dirname, "../models/Book.ts"), "utf8");
@@ -84,6 +85,17 @@ test("external book library default pages avoid full-cache blocking and only sor
   assert.doesNotMatch(defaultBranchSource, /fetchExternalBookLibraryFilterRecords\(\)/, "default external pages must not wait for the full external cache before first paint");
 });
 
+test("external book keyword pages reuse a bounded short cache and in-flight request", () => {
+  assert.match(controllerSource, /const EXTERNAL_BOOK_LIBRARY_SEARCH_CACHE_TTL_MS = 1000 \* 60 \* 10;/);
+  assert.match(controllerSource, /const EXTERNAL_BOOK_LIBRARY_SEARCH_CACHE_MAX_ENTRIES = 100;/);
+  assert.match(controllerSource, /const externalBookLibrarySearchCache = new Map/);
+  assert.match(controllerSource, /const externalBookLibrarySearchCachePromises = new Map/);
+  assert.match(controllerSource, /async function fetchExternalBookLibraryKeywordPage\(/);
+  assert.match(controllerSource, /if \(!tags\.length && normalizedKeyword\) return fetchExternalBookLibraryKeywordPage\(current, size, normalizedKeyword\);/);
+  assert.match(controllerSource, /searchExternalBookIndex\(current, size, keyword\)/);
+  assert.match(controllerSource, /if \(indexedPage && indexedPage\.total > 0\) return indexedPage;/);
+});
+
 test("admin can manually create metadata for a book without an existing detail row", () => {
   assert.match(metadataServiceSource, /export async function upsertBookMetadataManually\(/, "metadata service should expose a manual upsert path");
   assert.match(metadataServiceSource, /BookMetadataModel\.findOneAndUpdate\([\s\S]*\{ bookId: new mongoose\.Types\.ObjectId\(bookId\) \}[\s\S]*upsert: true/, "manual metadata should upsert by book id");
@@ -116,7 +128,7 @@ test("book cover proxy keeps fetched covers cached for repeated reading visits",
 });
 
 test("public books expose a read-only external library proxy before dynamic routes", () => {
-  assert.match(controllerSource, /const READLY_BOOK_PAGE_URL = "https:\/\/api\.shuyu\.xin\/readly\/api\/ma\/book\/page";/, "controller should keep the upstream readly page URL in one constant");
+  assert.match(externalBookSearchIndexSource, /const READLY_BOOK_PAGE_URL = "https:\/\/api\.shuyu\.xin\/readly\/api\/ma\/book\/page";/, "external book services should keep the upstream readly page URL in one constant");
   assert.match(controllerSource, /type ExternalBookLibraryRecord =/, "controller should define the external book record shape");
   assert.match(controllerSource, /function normalizeExternalBookLibraryRecord\(record: any\): ExternalBookLibraryRecord/, "controller should normalize upstream records before returning them");
   assert.match(controllerSource, /async getExternalLibraryPublic\(req: Request, res: Response\): Promise<void>/, "controller should expose a public external library handler");
