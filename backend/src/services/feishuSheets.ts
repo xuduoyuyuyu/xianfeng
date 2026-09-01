@@ -78,13 +78,16 @@ export async function readFeishuSheet(rawUrl: string) {
 export async function writeFeishuCells(rawUrl: string, cells: Array<{ cell: string; value: string | number }>) {
   const token = await tenantToken();
   const sheet = await resolveSheet(rawUrl, token);
-  for (const item of cells) {
-    const range = `${sheet.sheetId}!${item.cell}:${item.cell}`;
-    await feishuRequest(
-      `/sheets/v2/spreadsheets/${encodeURIComponent(sheet.spreadsheetToken)}/values`,
-      { method: "PUT", body: JSON.stringify({ valueRange: { range, values: [[item.value]] } }) },
-      token,
-      `写入飞书单元格 ${item.cell}`,
-    );
+  const batchSize = 8;
+  for (let index = 0; index < cells.length; index += batchSize) {
+    await Promise.all(cells.slice(index, index + batchSize).map(async (item) => {
+      const range = `${sheet.sheetId}!${item.cell}:${item.cell}`;
+      await feishuRequest(
+        `/sheets/v2/spreadsheets/${encodeURIComponent(sheet.spreadsheetToken)}/values`,
+        { method: "PUT", body: JSON.stringify({ valueRange: { range, values: [[item.value]] } }) },
+        token,
+        `写入飞书单元格 ${item.cell}`,
+      );
+    }));
   }
 }

@@ -1731,6 +1731,7 @@ export const adminApi = {
   commitMamaResourceFeishuBackfill: (taskId: string, url: string, fingerprint: string) =>
     api.post<{ written: number; verified: number; issues: MamaResourceFeishuBackfillPreview['issues'] }>(
       `/admin/mama-resources/tasks/${taskId}/feishu-backfill/commit`, { url, fingerprint },
+      { timeout: 180000 },
     ),
   importMamaResourceContentLinks: (id: string, data: { linksText?: string; links?: string[] }) =>
     api.post<{
