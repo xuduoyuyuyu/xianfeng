@@ -170,6 +170,11 @@
   Reading, Materials, Topics, and Guest lists for on-device filtering. Its thin
   progress indicator shares the active-tab baseline; skeletons are reserved for
   the interval before the first matching result arrives.
+  External-library search queries the indexed English-book endpoint in parallel
+  with the site summary, renders either successful partial response immediately,
+  and hides the Chinese-only popular-keyword panel. Reading startup and an
+  external-to-native source switch render the profile-matched native first-page
+  cache before refreshing it in the background.
   Search analytics use a separate idle timer after the latest successful result
   response so intermediate input prefixes are not recorded. Explicit searches
   reuse the same idempotent event contract, and opening a result attaches only

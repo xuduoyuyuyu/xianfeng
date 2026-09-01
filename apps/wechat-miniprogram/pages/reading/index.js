@@ -970,10 +970,14 @@ Page({
     this.syncTopbarMetrics();
     startSearchPromptRotation(this);
     this.syncAccountEntry();
+    let renderedCache = false;
     if (this.data.useExternalLibrarySource) {
-      if (!this.renderExternalLibraryFirstPageFromCache()) this.prefetchExternalLibraryFirstPage();
+      renderedCache = this.renderExternalLibraryFirstPageFromCache();
+      if (!renderedCache) this.prefetchExternalLibraryFirstPage();
+    } else {
+      renderedCache = this.renderNativeBooksFirstPageFromCache() || this.loadCachedBooks();
     }
-    this.loadBooks();
+    this.loadBooks({ showRefreshing: renderedCache });
     if (!this.data.useExternalLibrarySource) this.prefetchExternalLibraryFirstPage();
   },
 
@@ -1575,7 +1579,7 @@ Page({
     this._externalLibraryKeyword = "";
     const hasTargetCache = useExternalLibrarySource
       ? !!(this._externalLibraryFirstPageCache || this.hydrateExternalLibraryFirstPageCacheFromStorage())
-      : false;
+      : this.hasNativeBooksCache();
     this._readingSourceRequestId = (this._readingSourceRequestId || 0) + 1;
     this._externalLibraryCurrentPage = 1;
     this._externalLibraryPages = 1;
@@ -1603,6 +1607,10 @@ Page({
       });
     }
     this.setData(nextData);
+    if (!useExternalLibrarySource) {
+      const renderedNativeCache = this.renderNativeBooksFirstPageFromCache() || this.loadCachedBooks();
+      return this.loadBooks({ showRefreshing: renderedNativeCache });
+    }
     if (useExternalLibrarySource) {
       if (this.renderExternalLibraryFirstPageFromCache()) {
         this.loadBooks({ showRefreshing: false });
@@ -1627,7 +1635,7 @@ Page({
 
   openSearch() {
     openNativeSearch("", {
-      readingSource: "native"
+      readingSource: this.data.useExternalLibrarySource ? "external" : "native"
     });
   },
 

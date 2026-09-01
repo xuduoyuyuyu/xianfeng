@@ -1223,6 +1223,7 @@ test("native search page replaces the webview global search entry", () => {
   assert.match(wxml, /wx:if="\{\{searchInput\}\}" class="xf-native-search-close" catchtap="closeSearchInput" aria-label="退出搜索框"/);
   assert.doesNotMatch(wxml, /class="xf-native-search-submit"/);
   assert.match(wxml, /wx:if="\{\{!submittedQuery\}\}"/);
+  assert.match(wxml, /wx:if="\{\{readingSource === 'native'\}\}" class="xf-native-search-card">\s*<text class="xf-native-search-card-title">大家都在搜<\/text>/);
   assert.match(wxml, /wx:for="\{\{suggestions\}\}"/);
   assert.match(wxml, /wx:for="\{\{recentKeywords\}\}"/);
   assert.match(wxml, /wx:if="\{\{settingsPanelOpen\}\}" class="xf-native-settings-mask" style="height: \{\{settingsPanelHeight\}\}px;" catchtap="closeSettings"/);
@@ -1261,7 +1262,9 @@ test("native search page replaces the webview global search entry", () => {
   assert.match(js, /readingSource,\s*inputFocus: true/);
   assert.match(js, /onReady\(\) \{[\s\S]*this\.setData\(\{ inputFocus: false \}, \(\) => \{[\s\S]*this\.setData\(\{ inputFocus: true \}\);/);
   assert.match(js, /request\(\{ url: `\/api\/search\?q=\$\{encodeURIComponent\(query\)\}` \}\)/);
-  assert.match(js, /this\._searchInputTimer = setTimeout\(\(\) => this\.loadData\(\), 220\)/);
+  assert.match(js, /const EXTERNAL_SEARCH_PAGE_SIZE = 20/);
+  assert.match(js, /const SEARCH_INPUT_DEBOUNCE_MS = 450/);
+  assert.match(js, /this\._searchInputTimer = setTimeout\(\(\) => this\.loadData\(\), SEARCH_INPUT_DEBOUNCE_MS\)/);
   assert.doesNotMatch(js, /clearHistoryConfirming/);
   assert.match(js, /startSearchPromptRotation\(this\)/);
   assert.match(js, /stopSearchPromptRotation\(this\)/);
@@ -1766,6 +1769,7 @@ test("native search page keeps all-site results while following the current read
   const definition = loadPageDefinition("search");
   const originalRequest = global.wx.request;
   const requests = [];
+  let pendingSummaryRequest = null;
   const context = {
     ...definition,
     data: { ...definition.data },
@@ -1777,20 +1781,8 @@ test("native search page keeps all-site results while following the current read
   try {
     global.wx.request = (options) => {
       requests.push(options.url);
-      if (String(options.url).includes("/api/programs")) {
-        options.success({
-          statusCode: 200,
-          data: {
-            data: [
-              {
-                _id: "program-1",
-                title: "Magic workshop",
-                category: "活动",
-                detail: "program detail"
-              }
-            ]
-          }
-        });
+      if (String(options.url).includes("/api/search?")) {
+        pendingSummaryRequest = options;
         return;
       }
       if (String(options.url).includes("/api/books/external")) {
@@ -1827,13 +1819,125 @@ test("native search page keeps all-site results while following the current read
 
     assert.equal(context.data.searchSource, "");
     assert.equal(context.data.readingSource, "external");
-    assert.equal(requests.some((url) => String(url).includes("/api/books/external")), true);
+    assert.equal(context.data.loading, true);
+    assert.equal(context.data.searchProgress, 50);
+    assert.deepEqual(context.data.visibleResults.map((item) => item.title), ["Mirrorscape"]);
+
+    pendingSummaryRequest.success({
+      statusCode: 200,
+      data: {
+        programs: [
+          {
+            _id: "program-1",
+            title: "Magic workshop",
+            category: "活动",
+            detail: "program detail"
+          }
+        ]
+      }
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    assert.equal(requests.some((url) => String(url).includes("/api/search?q=Magic")), true);
+    assert.equal(requests.some((url) => String(url).includes("/api/books/external?current=1&size=20&q=Magic")), true);
+    assert.equal(requests.some((url) => String(url).includes("/api/programs?")), false);
     assert.equal(requests.some((url) => String(url).endsWith("/api/books")), false);
     assert.deepEqual(context.data.visibleResults.map((item) => item.title), ["Magic workshop", "Mirrorscape"]);
     assert.equal(context.data.visibleResults[1].path, "/library?xf_external_book_id=external-magic-1");
     assert.equal(context.data.tabs.find((item) => item.key === "books").count, 1);
     assert.equal(context.data.tabs.find((item) => item.key === "programs").count, 1);
     assert.equal(context.data.tabs.find((item) => item.key === "all").count, 2);
+  } finally {
+    global.wx.request = originalRequest;
+  }
+});
+
+test("native external-library search finishes with book results when the site summary fails", async () => {
+  const definition = loadPageDefinition("search");
+  const originalRequest = global.wx.request;
+  const context = {
+    ...definition,
+    data: {
+      ...definition.data,
+      searchInput: "Monkey",
+      submittedQuery: "Monkey",
+      readingSource: "external"
+    },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+
+  try {
+    global.wx.request = (options) => {
+      if (String(options.url).includes("/api/search?")) {
+        options.fail({ errMsg: "request:fail timeout" });
+        return;
+      }
+      options.success({
+        statusCode: 200,
+        data: {
+          records: [{ id: "monkey-island", title: "Monkey Island", author: "Paula Fox" }],
+          total: 1
+        }
+      });
+    };
+
+    await definition.loadData.call(context);
+
+    assert.equal(context.data.loading, false);
+    assert.equal(context.data.searchProgress, 100);
+    assert.equal(context.data.error, "");
+    assert.deepEqual(context.data.visibleResults.map((item) => item.title), ["Monkey Island"]);
+  } finally {
+    global.wx.request = originalRequest;
+  }
+});
+
+test("native external-library search distinguishes empty results from request failures", async () => {
+  const definition = loadPageDefinition("search");
+  const originalRequest = global.wx.request;
+  const context = {
+    ...definition,
+    data: {
+      ...definition.data,
+      searchInput: "Monkey King: Uproar in Heaven",
+      submittedQuery: "Monkey King: Uproar in Heaven",
+      readingSource: "external"
+    },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+
+  try {
+    global.wx.request = (options) => {
+      options.success({
+        statusCode: 200,
+        data: String(options.url).includes("/api/books/external")
+          ? { records: [], total: 0 }
+          : { books: [], experts: [], materials: [], programs: [], topics: [] }
+      });
+    };
+
+    await definition.loadData.call(context);
+
+    assert.equal(context.data.loading, false);
+    assert.equal(context.data.error, "");
+    assert.deepEqual(context.data.visibleResults, []);
+
+    context.data.searchSource = "reading";
+    await definition.loadData.call(context);
+    assert.equal(context.data.error, "");
+
+    context.data.searchSource = "";
+    global.wx.request = (options) => options.fail({ errMsg: "request:fail timeout" });
+    await definition.loadData.call(context);
+
+    assert.equal(context.data.loading, false);
+    assert.equal(context.data.error, "搜索内容加载失败，请稍后重试");
   } finally {
     global.wx.request = originalRequest;
   }
@@ -7195,7 +7299,7 @@ test("reading search opens with the current reading library source", () => {
       url: "/pages/search/index?readingSource=native"
     });
     assert.deepEqual(navigateCalls[1], {
-      url: "/pages/search/index?readingSource=native"
+      url: "/pages/search/index?readingSource=external"
     });
   } finally {
     global.wx.navigateTo = originalNavigateTo;
@@ -7275,25 +7379,29 @@ test("reading tab renders app-preloaded native first-page cache before full refr
   }
 });
 
-test("reading tab skips native first-page cache on local startup", async () => {
+test("reading tab renders the cached native first page before its startup refresh finishes", async () => {
   const definition = loadPageDefinition("reading");
   const originalGetStorageSync = global.wx.getStorageSync;
   const originalSetStorageSync = global.wx.setStorageSync;
   const originalRequest = global.wx.request;
   const originalShowShareMenu = global.wx.showShareMenu;
   const requests = [];
+  let finishNativeRefresh = null;
   const storage = new Map([
     ["xf_native_books_source_v1", "native"],
     [
       "xf_native_books_first_page_v3",
       {
+        profile: "",
         records: [
           {
             _id: "raw-preloaded",
-            title: "不该先显示的旧首屏书",
+            title: "缓存中文首屏书",
             author: "作者",
+            description: "先显示缓存内容，再等待后台刷新。",
             grade: "一年级",
             categoryLabel: "阅读指南",
+            hasListDescription: true,
             hasMetadataDetail: true
           }
         ],
@@ -7329,7 +7437,7 @@ test("reading tab skips native first-page cache on local startup", async () => {
     global.wx.request = (options) => {
       requests.push(options.url);
       if (String(options.url).includes("/api/books?") && String(options.url).includes("current=1")) {
-        options.success({
+        finishNativeRefresh = () => options.success({
           statusCode: 200,
           data: {
             records: [
@@ -7358,9 +7466,16 @@ test("reading tab skips native first-page cache on local startup", async () => {
     };
 
     definition.onLoad.call(context);
-    await new Promise((resolve) => setImmediate(resolve));
 
     assert.equal(context.data.useExternalLibrarySource, false);
+    assert.equal(context.data.loading, false);
+    assert.equal(context.data.refreshing, true);
+    assert.equal(context.data.books[0].id, "raw-preloaded");
+    assert.equal(typeof finishNativeRefresh, "function");
+
+    finishNativeRefresh();
+    await new Promise((resolve) => setImmediate(resolve));
+
     assert.equal(context.data.books[0].id, "target-local");
     assert.equal(context.data.books.some((book) => book.id === "raw-preloaded"), false);
     assert.equal(requests.some((url) => String(url).endsWith("/api/books/raw-preloaded/metadata")), false);
@@ -8225,6 +8340,79 @@ test("reading tab preloads the live library first page and switches from cache i
 
     const externalRequests = requests.filter((url) => String(url).includes("/api/books/external"));
     assert.equal(externalRequests.filter((url) => String(url).match(/[?&]size=24/)).length, 2);
+  } finally {
+    global.wx.request = originalRequest;
+    global.wx.getStorageSync = originalGetStorageSync;
+    global.wx.setStorageSync = originalSetStorageSync;
+  }
+});
+
+test("reading tab restores the cached native first page immediately when switching back from the external library", async () => {
+  const definition = loadPageDefinition("reading");
+  const originalRequest = global.wx.request;
+  const originalGetStorageSync = global.wx.getStorageSync;
+  const originalSetStorageSync = global.wx.setStorageSync;
+  const storage = new Map([
+    [
+      "xf_native_books_first_page_v3",
+      {
+        profile: "",
+        records: [{ _id: "cached-native-1", title: "缓存中文书", author: "中文作者", hasMetadataDetail: true }],
+        total: 2784,
+        current: 1,
+        pages: 116,
+        size: 24
+      }
+    ]
+  ]);
+  let finishNativeRefresh = null;
+  const context = {
+    ...definition,
+    allBooks: [{ id: "external-visible", title: "英文书" }],
+    data: {
+      ...definition.data,
+      books: [{ id: "external-visible", title: "英文书" }],
+      useExternalLibrarySource: true,
+      activeReadingTag: "",
+      activeReadingTags: [],
+      loading: false
+    },
+    setData(payload) {
+      this.data = { ...this.data, ...payload };
+    }
+  };
+
+  try {
+    global.wx.getStorageSync = (key) => storage.get(key) || "";
+    global.wx.setStorageSync = (key, value) => storage.set(key, value);
+    global.wx.request = (options) => {
+      if (String(options.url).includes("/api/books?")) {
+        finishNativeRefresh = () => options.success({
+          statusCode: 200,
+          data: {
+            records: [{ _id: "fresh-native-1", title: "刷新中文书", author: "中文作者", hasMetadataDetail: true }],
+            total: 2784,
+            current: 1,
+            pages: 116,
+            size: 24
+          }
+        });
+      }
+    };
+
+    const togglePromise = definition.toggleReadingLibrarySource.call(context);
+
+    assert.equal(context.data.useExternalLibrarySource, false);
+    assert.equal(context.data.loading, false);
+    assert.equal(context.data.refreshing, true);
+    assert.equal(context.data.books[0].id, "cached-native-1");
+    assert.ok(finishNativeRefresh, "native refresh should continue after the cached first page renders");
+
+    finishNativeRefresh();
+    await togglePromise;
+    assert.equal(context.data.loading, false);
+    assert.equal(context.data.refreshing, false);
+    assert.equal(context.data.books[0].id, "fresh-native-1");
   } finally {
     global.wx.request = originalRequest;
     global.wx.getStorageSync = originalGetStorageSync;

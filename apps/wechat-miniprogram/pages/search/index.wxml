@@ -37,7 +37,7 @@
   </view>
 
   <view wx:if="{{!submittedQuery}}" class="xf-native-search-start">
-    <view class="xf-native-search-card">
+    <view wx:if="{{readingSource === 'native'}}" class="xf-native-search-card">
       <text class="xf-native-search-card-title">大家都在搜</text>
       <view class="xf-native-search-chips">
         <button wx:for="{{suggestions}}" wx:key="*this" class="xf-native-search-chip" data-keyword="{{item}}" bindtap="pickKeyword">{{item}}</button>

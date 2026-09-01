@@ -12,6 +12,8 @@ const SEARCH_HISTORY_KEY = "xf_native_search_history";
 const SEARCH_ANALYTICS_IDLE_MS = 800;
 const READING_PENDING_FILTER_KEY = "xf_reading_pending_filter_v1";
 const SEARCH_PAGE_SIZE = 80;
+const EXTERNAL_SEARCH_PAGE_SIZE = 20;
+const SEARCH_INPUT_DEBOUNCE_MS = 450;
 const LOGO_HEIGHT_RPX = 56;
 const GUEST_FALLBACK_AVATAR = "/assets/wel-avatar/no-hat.png";
 const MATERIAL_SHARE_CANVAS_ID = "searchMaterialsShareCanvas";
@@ -383,6 +385,17 @@ function normalizeGuests(response) {
   }).filter((item) => item.path);
 }
 
+function normalizeSearchResponse(response, bookResults) {
+  const data = response || {};
+  const books = Array.isArray(bookResults) ? bookResults : normalizeBooks(data.books || []);
+  return []
+    .concat(normalizePrograms({ programs: data.programs || [] }))
+    .concat(books)
+    .concat(normalizeMaterials(data.materials || []))
+    .concat(normalizeTopics({ topics: data.topics || [] }))
+    .concat(normalizeGuests({ guests: data.experts || [] }));
+}
+
 function applyGuestFallbackAvatar(result) {
   if (!result || result.type !== "experts") return result;
   return {
@@ -590,13 +603,7 @@ Page({
       return request({ url: `/api/search?q=${encodeURIComponent(query)}` })
         .then((response) => {
           if (this._searchLoadGeneration !== loadGeneration) return;
-          const data = response || {};
-          const allResults = []
-            .concat(normalizePrograms({ programs: data.programs || [] }))
-            .concat(normalizeBooks(data.books || []))
-            .concat(normalizeMaterials(data.materials || []))
-            .concat(normalizeTopics({ topics: data.topics || [] }))
-            .concat(normalizeGuests({ guests: data.experts || [] }));
+          const allResults = normalizeSearchResponse(response);
           this.setData({ allResults, loading: false, searchProgress: 100, error: "" });
           this.applySearch(query);
           this.scheduleSearchAnalytics(query, allResults.filter((item) => resultMatches(item, query)));
@@ -606,9 +613,76 @@ Page({
           return this.loadLegacySearchData(loadGeneration, query);
         });
     }
+    if (this.data.searchSource !== "reading") {
+      let summaryResponse = null;
+      let externalBooks = [];
+      let completedRequests = 0;
+      let failedRequests = 0;
+      const publishPartialResults = () => {
+        if (this._searchLoadGeneration !== loadGeneration) return;
+        const allResults = normalizeSearchResponse(summaryResponse, externalBooks);
+        this.setData({
+          allResults,
+          searchProgress: 12 + completedRequests * 38,
+          error: ""
+        });
+        this.applySearch(query);
+      };
+      const summaryRequest = request({ url: `/api/search?q=${encodeURIComponent(query)}` })
+        .then((response) => {
+          summaryResponse = response;
+          completedRequests += 1;
+          publishPartialResults();
+          return response;
+        })
+        .catch(() => {
+          failedRequests += 1;
+          completedRequests += 1;
+          publishPartialResults();
+          return null;
+        });
+      const externalBooksRequest = request({
+        url: `/api/books/external?current=1&size=${EXTERNAL_SEARCH_PAGE_SIZE}&q=${encodeURIComponent(query)}`
+      }).then(normalizeExternalBooks)
+        .then((books) => {
+          externalBooks = books;
+          completedRequests += 1;
+          publishPartialResults();
+          return books;
+        })
+        .catch(() => {
+          failedRequests += 1;
+          completedRequests += 1;
+          publishPartialResults();
+          return [];
+        });
+      return Promise.all([summaryRequest, externalBooksRequest])
+        .then(([response, externalBooks]) => {
+          if (this._searchLoadGeneration !== loadGeneration) return;
+          const allResults = normalizeSearchResponse(response, externalBooks);
+          this.setData({
+            allResults,
+            loading: false,
+            searchProgress: 100,
+            error: !allResults.length && failedRequests ? "搜索内容加载失败，请稍后重试" : ""
+          });
+          this.applySearch(query);
+          this.scheduleSearchAnalytics(query, allResults.filter((item) => resultMatches(item, query)));
+        })
+        .catch((error) => {
+          if (this._searchLoadGeneration !== loadGeneration) return;
+          this.setData({
+            loading: false,
+            searchProgress: 100,
+            error: (error && error.message) || "搜索内容加载失败，请稍后重试"
+          });
+        });
+    }
     if (this.data.searchSource === "reading") {
       const booksRequest = this.data.readingSource === "external"
-        ? request({ url: `/api/books/external?current=1&size=${SEARCH_PAGE_SIZE}` }).then(normalizeExternalBooks)
+        ? request({
+          url: `/api/books/external?current=1&size=${EXTERNAL_SEARCH_PAGE_SIZE}&q=${encodeURIComponent(query)}`
+        }).then(normalizeExternalBooks)
         : request({ url: "/api/books" }).then(normalizeBooks);
       return booksRequest.then((allResults) => {
         if (this._searchLoadGeneration !== loadGeneration) return;
@@ -616,7 +690,7 @@ Page({
           allResults,
           loading: false,
           searchProgress: 100,
-          error: allResults.length ? "" : "搜索内容加载失败，请稍后重试"
+          error: ""
         });
         if (this.data.submittedQuery) this.applySearch(this.data.submittedQuery);
         this.scheduleSearchAnalytics(query, allResults.filter((item) => resultMatches(item, query)));
@@ -634,7 +708,9 @@ Page({
 
   loadLegacySearchData(loadGeneration, query) {
     const booksRequest = this.data.readingSource === "external"
-      ? request({ url: `/api/books/external?current=1&size=${SEARCH_PAGE_SIZE}` }).then(normalizeExternalBooks).catch(() => [])
+      ? request({
+        url: `/api/books/external?current=1&size=${EXTERNAL_SEARCH_PAGE_SIZE}&q=${encodeURIComponent(query)}`
+      }).then(normalizeExternalBooks).catch(() => [])
       : request({ url: "/api/books" }).then(normalizeBooks).catch(() => []);
     const resultGroups = [[], [], [], [], []];
     let completedGroups = 0;
@@ -716,7 +792,7 @@ Page({
     this.setData({ submittedQuery: query });
     this.applySearch(query);
     clearTimeout(this._searchInputTimer);
-    this._searchInputTimer = setTimeout(() => this.loadData(), 220);
+    this._searchInputTimer = setTimeout(() => this.loadData(), SEARCH_INPUT_DEBOUNCE_MS);
   },
 
   focusSearchInput() {
