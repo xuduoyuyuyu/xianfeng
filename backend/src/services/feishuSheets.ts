@@ -67,7 +67,7 @@ export async function readFeishuSheet(rawUrl: string) {
   const sheet = await resolveSheet(rawUrl, token);
   const range = `${sheet.sheetId}!A1:ZZ2000`;
   const data = await feishuRequest<{ valueRange: { values?: FeishuBackfillValue[][] } }>(
-    `/sheets/v2/spreadsheets/${encodeURIComponent(sheet.spreadsheetToken)}/values/${encodeURIComponent(range)}?valueRenderOption=ToString&dateTimeRenderOption=FormattedString`,
+    `/sheets/v2/spreadsheets/${encodeURIComponent(sheet.spreadsheetToken)}/values/${encodeURIComponent(range)}`,
     { method: "GET" },
     token,
     "读取飞书电子表格",

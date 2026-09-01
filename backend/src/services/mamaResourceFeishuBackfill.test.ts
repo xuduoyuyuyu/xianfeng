@@ -36,3 +36,32 @@ test("profile URL keeps only the URL from shared text", () => {
   }]]));
   assert.equal(preview.changes.find((item) => item.field === "主页链接")?.value, "https://xhslink.cn/o/3UIWwSA19pH");
 });
+
+test("preview matches a Feishu rich link across tenant domains and tracking parameters", () => {
+  const values = [
+    ["UID", "达人名称", "稿件的链接", "发布时间", "发布链接"],
+    ["123", "", { text: "查看稿件", link: "https://shuyuxinzhi.feishu.cn/wiki/ManuscriptToken?sheet=abc" }, "", ""],
+  ];
+  const preview = buildFeishuBackfillPreview(values, new Map([["123", {
+    publicUid: "123", displayName: "张三", accountName: "", profileUrl: "", followerCount: null,
+    alipayAccount: "", alipayVerifiedName: "", publications: [{
+      contentUrl: "https://my.feishu.cn/wiki/ManuscriptToken?from=from_copylink",
+      publishedAt: "2026-08-26 10:00",
+      proofLink: "https://xhslink.com/o/published-note",
+    }],
+  }]]));
+  assert.deepEqual(preview.changes.filter((item) => ["发布时间", "发布链接"].includes(item.field)).map((item) => item.cell), ["D2", "E2"]);
+});
+
+test("publication proof keeps only the URL from shared text", () => {
+  const values = [["UID", "稿件的链接", "发布时间", "发布链接"], ["123", "稿件 https://my.feishu.cn/wiki/manuscript", "", ""]];
+  const preview = buildFeishuBackfillPreview(values, new Map([["123", {
+    publicUid: "123", displayName: "", accountName: "", profileUrl: "", followerCount: null,
+    alipayAccount: "", alipayVerifiedName: "", publications: [{
+      contentUrl: "https://my.feishu.cn/wiki/manuscript?from=from_copylink",
+      publishedAt: "2026-08-26 10:00",
+      proofLink: "复制口令打开作品 https://xhslink.cn/o/published-note 。",
+    }],
+  }]]));
+  assert.equal(preview.changes.find((item) => item.field === "发布链接")?.value, "https://xhslink.cn/o/published-note");
+});

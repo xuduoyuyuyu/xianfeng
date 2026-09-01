@@ -96,12 +96,18 @@ function validPublicationUrl(value: string): boolean {
 }
 
 function comparableUrl(value: string): string {
+  const extracted = firstHttpUrl(value) || value.trim();
   try {
-    const url = new URL(value);
+    const url = new URL(extracted);
     url.hash = "";
+    const pathParts = url.pathname.split("/").filter(Boolean);
+    const wikiIndex = pathParts.indexOf("wiki");
+    if ((url.hostname.endsWith("feishu.cn") || url.hostname.endsWith("larksuite.com")) && wikiIndex >= 0 && pathParts[wikiIndex + 1]) {
+      return `feishu-wiki:${pathParts[wikiIndex + 1]}`;
+    }
     return url.toString().replace(/\/$/, "");
   } catch (_error) {
-    return value.trim();
+    return extracted;
   }
 }
 
@@ -149,8 +155,9 @@ export function buildFeishuBackfillPreview(
       changes.push({ rowNumber: rowIndex + 1, uid, field: "发布时间", cell: `${columnName(columns.publishedAt)}${rowIndex + 1}`, value: publication.publishedAt });
     }
     if (columns.proofLink !== undefined && !cellText(row[columns.proofLink]) && publication.proofLink) {
-      if (validPublicationUrl(publication.proofLink)) {
-        changes.push({ rowNumber: rowIndex + 1, uid, field: "发布链接", cell: `${columnName(columns.proofLink)}${rowIndex + 1}`, value: publication.proofLink });
+      const proofLink = firstHttpUrl(publication.proofLink);
+      if (validPublicationUrl(proofLink)) {
+        changes.push({ rowNumber: rowIndex + 1, uid, field: "发布链接", cell: `${columnName(columns.proofLink)}${rowIndex + 1}`, value: proofLink });
       } else {
         issues.push({ rowNumber: rowIndex + 1, uid, reason: "回传内容不是有效发布链接，已跳过" });
       }
