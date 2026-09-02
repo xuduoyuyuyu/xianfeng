@@ -35,6 +35,9 @@
   pages keep the complete list visible.
 - Public program detail pages render same-guest related programs as a card grid
   at the bottom of the page and hide the section when the API returns no match.
+- Admin program edits may save an already `published` or `group-only` legacy
+  record without backfilling missing episode, description, or guest fields.
+  New programs and drafts keep the complete-field requirements.
 - Child profile drawer creates local unnamed draft profiles immediately in the
   tabs UI, but only one unnamed draft may exist at a time; Xiaowanzi only
   treats saved non-draft profiles as selectable or syncable.

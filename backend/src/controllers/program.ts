@@ -598,7 +598,7 @@ async function buildProgramResponse(program: any, extra: Record<string, any> = {
   };
 }
 
-function sanitizeProgramPayload(payload: any, requireEpisode: boolean) {
+function sanitizeProgramPayload(payload: any, requireEpisode: boolean, allowIncompleteEpisodeFields = false) {
   const cleaned = { ...payload };
   delete cleaned.autoGenerate;
   delete cleaned.uploadedAudioUrl;
@@ -664,13 +664,15 @@ function sanitizeProgramPayload(payload: any, requireEpisode: boolean) {
       .filter((episode: { title: string; duration: string; url: string }) => episode.title || episode.duration || episode.url);
 
     if (sanitizedEpisodes.length === 0) {
-      throw new Error("请至少填写一条单集信息");
+      if (allowIncompleteEpisodeFields) delete cleaned.episodes;
+      else throw new Error("请至少填写一条单集信息");
+    } else {
+      const first = sanitizedEpisodes[0];
+      if (!allowIncompleteEpisodeFields && !first.title) throw new Error("单集标题不能为空");
+      if (!allowIncompleteEpisodeFields && !first.duration) throw new Error("单集时长不能为空");
+      if (!allowIncompleteEpisodeFields && !first.url) throw new Error("音频 URL 不能为空");
+      cleaned.episodes = sanitizedEpisodes;
     }
-    const first = sanitizedEpisodes[0];
-    if (!first.title) throw new Error("单集标题不能为空");
-    if (!first.duration) throw new Error("单集时长不能为空");
-    if (!first.url) throw new Error("音频 URL 不能为空");
-    cleaned.episodes = sanitizedEpisodes;
   } else if (requireEpisode) {
     throw new Error("请至少填写一条单集信息");
   }
@@ -1839,9 +1841,10 @@ export class ProgramController {
         res.status(404).json({ message: "节目不存在" });
         return;
       }
+      const canSaveIncompleteVisibleProgram = existing.status === "published" || existing.status === "group-only";
       const aiResult = await tryAutoGenerate(req.body || {});
       logStep("tryAutoGenerate");
-      let payload = await applyShowNotesRendering(sanitizeProgramPayload(aiResult.payload, false));
+      let payload = await applyShowNotesRendering(sanitizeProgramPayload(aiResult.payload, false, canSaveIncompleteVisibleProgram));
       logStep("applyShowNotesRendering");
       const hasIncomingGuestBindings = Array.isArray(req.body?.guestBindings);
       payload = await ensureGuestBindingsWithLazyMigration(payload, existing.toObject());
@@ -1856,7 +1859,9 @@ export class ProgramController {
         return;
       }
       if ((payload.status === "published" || payload.status === "group-only") && !payload.publishedAt) {
-        payload.publishedAt = new Date();
+        payload.publishedAt = canSaveIncompleteVisibleProgram
+          ? existing.publishedAt || new Date()
+          : new Date();
       }
       if (payload.status === "draft") {
         payload.publishedAt = null;

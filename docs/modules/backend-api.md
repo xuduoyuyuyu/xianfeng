@@ -44,6 +44,9 @@
   `transcript`, `contentPack`, and `deepDive`. Public program lists project one
   lightweight item from those fields to derive accurate content-availability
   flags without returning the complete generated payload.
+- Updates to an already `published` or `group-only` program accept historical
+  incomplete episode fields and preserve its original `publishedAt`. Program
+  creation and draft-to-visible transitions retain strict episode validation.
 - Remote program parsing follows source redirects before streaming audio to a
   temporary file, removes that file after each attempt, and treats Volcengine
   standard-query status `20000000` as completion even when the response omits

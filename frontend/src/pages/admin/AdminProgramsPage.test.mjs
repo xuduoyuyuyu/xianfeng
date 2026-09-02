@@ -85,3 +85,28 @@ test("admin programs page keeps related label pills on one row", () => {
     "pending dictionary label should stay on one line"
   );
 });
+
+test("admin programs page lets an already visible program save legacy empty fields", () => {
+  assert.match(
+    source,
+    /const canSaveIncompleteVisibleProgram = Boolean\(editingProgram && \(editingProgram\.status === "published" \|\| editingProgram\.status === "group-only"\)\);/,
+    "only programs that were already visible should use the relaxed edit contract"
+  );
+  assert.match(
+    source,
+    /if \(!canSaveIncompleteVisibleProgram && guestBindingRows\.length === 0\)/,
+    "legacy visible programs should not be blocked by a missing guest binding"
+  );
+  for (const placeholder of ["单集标题", "时长（如 45分钟）", "音频 URL"]) {
+    assert.match(
+      source,
+      new RegExp(`placeholder="${placeholder.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}"[^>]*required=\\{!canSaveIncompleteVisibleProgram\\}`),
+      `${placeholder} should stay required outside legacy visible edits`
+    );
+  }
+  assert.match(
+    source,
+    /placeholder="节目简介（最多120字）"[\s\S]*?required=\{!canSaveIncompleteVisibleProgram\}/,
+    "legacy visible programs should save without backfilling a description"
+  );
+});

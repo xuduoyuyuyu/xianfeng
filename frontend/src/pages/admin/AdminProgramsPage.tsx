@@ -701,6 +701,7 @@ const AdminProgramsPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isTranscriptModalOpen, setIsTranscriptModalOpen] = useState(false);
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
+  const canSaveIncompleteVisibleProgram = Boolean(editingProgram && (editingProgram.status === "published" || editingProgram.status === "group-only"));
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [isUploadingAudio, setIsUploadingAudio] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -1439,7 +1440,7 @@ const AdminProgramsPage: React.FC = () => {
     event.preventDefault();
     setSaving(true);
     setError(null);
-    if (guestBindingRows.length === 0) {
+    if (!canSaveIncompleteVisibleProgram && guestBindingRows.length === 0) {
       setSaving(false);
       setError("请至少从先疯智库关联 1 位嘉宾后再保存。");
       return;
@@ -2042,10 +2043,10 @@ const AdminProgramsPage: React.FC = () => {
                   }}
                 />
               </div>
-              <input className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-input" placeholder="单集标题" required value={form.episodeTitle} onChange={(event) => setForm((prev) => ({ ...prev, episodeTitle: event.target.value }))} />
-              <input className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-input" placeholder="时长（如 45分钟）" required value={form.episodeDuration} onChange={(event) => setForm((prev) => ({ ...prev, episodeDuration: event.target.value }))} />
+              <input className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-input" placeholder="单集标题" required={!canSaveIncompleteVisibleProgram} value={form.episodeTitle} onChange={(event) => setForm((prev) => ({ ...prev, episodeTitle: event.target.value }))} />
+              <input className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-input" placeholder="时长（如 45分钟）" required={!canSaveIncompleteVisibleProgram} value={form.episodeDuration} onChange={(event) => setForm((prev) => ({ ...prev, episodeDuration: event.target.value }))} />
               <div className="flex gap-2 md:col-span-2">
-                <input className="flex-1 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-input" placeholder="音频 URL" required value={form.episodeUrl} onChange={(event) => setForm((prev) => ({ ...prev, episodeUrl: event.target.value }))} />
+                <input className="flex-1 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-input" placeholder="音频 URL" required={!canSaveIncompleteVisibleProgram} value={form.episodeUrl} onChange={(event) => setForm((prev) => ({ ...prev, episodeUrl: event.target.value }))} />
                 <label className={`inline-flex cursor-pointer items-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold transition-all ${isUploadingAudio ? 'bg-violet-100 text-violet-600' : 'bg-violet-50 text-violet-600 hover:bg-violet-100 active:bg-violet-200'}`}>
                   {isUploadingAudio ? (
                     <span className="flex items-center gap-2">
@@ -2090,7 +2091,7 @@ const AdminProgramsPage: React.FC = () => {
                 <textarea
                   className="min-h-[140px] w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm admin-form-textarea"
                   placeholder="节目简介（最多120字）"
-                  required
+                  required={!canSaveIncompleteVisibleProgram}
                   maxLength={120}
                   value={form.description}
                   onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value.slice(0, 120) }))}
