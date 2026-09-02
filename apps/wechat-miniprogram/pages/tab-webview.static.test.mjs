@@ -10548,6 +10548,7 @@ test("native first-level tabs match web paging and append on scroll", () => {
   assert.match(programs.js, /request\(\{ url: `\/api\/programs\?page=\$\{page\}&pageSize=\$\{PROGRAM_FILTER_PAGE_SIZE\}` \}\)/);
   assert.match(programs.js, /mergeProgramsById\(previousPrograms, pagePrograms\)/);
   assert.match(programs.js, /onReachBottom\(\)\s*\{[\s\S]*this\.loadMorePrograms\(\);[\s\S]*\}/);
+  assert.match(programs.js, /onLoad\(\)[\s\S]*this\._programsPageHasShown = false;/);
 
   assert.match(reading.js, /const BOOK_PAGE_SIZE = 24;/, "reading should match web PAGE_SIZE");
   assert.match(reading.js, /visibleBookCount: BOOK_PAGE_SIZE/);
@@ -10619,6 +10620,28 @@ test("programs tab displays appended normal list pages instead of resetting to t
   } finally {
     global.wx = originalWx;
   }
+});
+
+test("programs tab refreshes server order when the existing tab becomes visible again", () => {
+  const definition = loadPageDefinition("programs");
+  const refreshes = [];
+  const context = {
+    ...definition,
+    data: { ...definition.data },
+    _programsPageHasShown: false,
+    syncTopbarMetrics() {},
+    syncAccountEntry() {},
+    loadPrograms(options) {
+      refreshes.push(options);
+      return Promise.resolve();
+    }
+  };
+
+  definition.onShow.call(context);
+  assert.deepEqual(refreshes, [], "initial onShow should reuse the onLoad request");
+
+  definition.onShow.call(context);
+  assert.deepEqual(refreshes, [{ showRefreshing: false }]);
 });
 
 test("topics tab displays appended normal list pages instead of resetting to the first page size", async () => {

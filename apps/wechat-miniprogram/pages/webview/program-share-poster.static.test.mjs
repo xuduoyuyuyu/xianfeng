@@ -213,6 +213,52 @@ test("program poster places the QR panel directly after a single guest", () => {
   assert.deepEqual(qrImage, ["/tmp/single-guest-program-qr.png", 52, 1222, 144, 144]);
 });
 
+test("program poster restores left alignment after Android canvas image state", () => {
+  const poster = require("./programSharePoster.js");
+  const texts = [];
+  let textAlign = "left";
+  const ctx = {
+    setFillStyle() {},
+    fillRect() {},
+    createLinearGradient() { return { addColorStop() {} }; },
+    setFontSize() {},
+    setTextAlign(value) {
+      if (value === "center") textAlign = value;
+    },
+    set textAlign(value) { textAlign = value; },
+    setGlobalAlpha() {},
+    setStrokeStyle() {},
+    setLineWidth() {},
+    beginPath() {},
+    moveTo() {},
+    lineTo() {},
+    arcTo() {},
+    closePath() {},
+    fill() {},
+    stroke() {},
+    save() {},
+    restore() {},
+    arc() {},
+    clip() {},
+    measureText(value) { return { width: String(value).length * 30 }; },
+    fillText(value, x, y) { texts.push({ value: String(value), x, y, textAlign }); },
+    drawImage() {}
+  };
+
+  poster.drawProgramSharePoster(ctx, {
+    title: "优绩主义不该被批评，应该被兑现",
+    summaryHeadline: "批评而应被兑现",
+    summaryBody: "从自我效能到无条件爱",
+    guests: [{ name: "邓建国", title: "教授", bio: "传播学学者" }]
+  }, "/tmp/program-qr.png", { path: "/tmp/program-cover.jpg", width: 1000, height: 1000 }, [
+    { path: "/tmp/guest.jpg", width: 300, height: 300 }
+  ]);
+
+  assert.equal(texts.find((item) => item.value.includes("优绩主义")).textAlign, "left");
+  assert.equal(texts.find((item) => item.value === "批评而应被兑现").textAlign, "left");
+  assert.equal(texts.find((item) => item.value === "从自我效能到无条件爱").textAlign, "left");
+});
+
 test("program poster keeps Chinese punctuation off the start of wrapped lines", () => {
   const poster = require("./programSharePoster.js");
   const lines = poster.wrapPosterText({ measureText(value) { return { width: String(value).length * 10 }; } }, "一二三四，五六", 40, 10, 3);

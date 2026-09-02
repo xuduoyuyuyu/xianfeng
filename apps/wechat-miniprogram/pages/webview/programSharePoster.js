@@ -115,6 +115,11 @@ function setFont(ctx, size, weight = "normal") {
 
 function setTextAlign(ctx, align) {
   if (ctx && typeof ctx.setTextAlign === "function") ctx.setTextAlign(align);
+  try {
+    ctx.textAlign = align;
+  } catch (_error) {
+    // Some Android CanvasContext implementations only honor setTextAlign.
+  }
 }
 
 function roundedRect(ctx, x, y, width, height, radius) {
@@ -230,6 +235,7 @@ function drawProgramSharePoster(ctx, program, qrImagePath, coverImagePath, guest
 
   ctx.setFillStyle("#ffffff");
   setFont(ctx, 46, "bold");
+  setTextAlign(ctx, "left");
   const titleLines = wrapPosterText(ctx, item.title || "节目详情", 650, 46, 3);
   drawLines(ctx, titleLines, 50, 178, 60);
 

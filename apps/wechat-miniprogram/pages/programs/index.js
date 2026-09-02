@@ -323,6 +323,7 @@ Page({
   },
 
   onLoad() {
+    this._programsPageHasShown = false;
     enableShareMenu();
     this.loadPreferredViewMode();
     this.syncTopbarMetrics();
@@ -341,6 +342,11 @@ Page({
     setSelectedTab(this, 0);
     this.syncTopbarMetrics();
     this.syncAccountEntry();
+    const shouldRefreshPrograms = this._programsPageHasShown;
+    this._programsPageHasShown = true;
+    if (shouldRefreshPrograms && !this._programsRequestInFlight && !this.data.loadingMorePrograms) {
+      this.loadPrograms({ showRefreshing: false });
+    }
   },
 
   onUnload() {
@@ -452,7 +458,7 @@ Page({
       error: ""
     });
 
-    return request({ url: appendProfileQuery(`/api/programs?page=${nextPage}&pageSize=${PROGRAM_PAGE_SIZE}`) })
+    const loadPromise = request({ url: appendProfileQuery(`/api/programs?page=${nextPage}&pageSize=${PROGRAM_PAGE_SIZE}`) })
       .then((response) => {
         const pagePrograms = normalizePrograms(response);
         const allPrograms = append ? mergeProgramsById(previousPrograms, pagePrograms) : pagePrograms;
@@ -511,6 +517,13 @@ Page({
             : (error && error.message) || "节目加载失败，请稍后重试"
         });
       });
+    if (!append) {
+      this._programsRequestInFlight = loadPromise;
+      loadPromise.then(() => {
+        if (this._programsRequestInFlight === loadPromise) this._programsRequestInFlight = null;
+      });
+    }
+    return loadPromise;
   },
 
   loadMorePrograms() {
