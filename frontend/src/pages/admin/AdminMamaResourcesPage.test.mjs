@@ -86,7 +86,7 @@ test("admin mama resources page shows account cards without removed offer and ca
   assert.match(source, /运营备注/);
   assert.match(source, /className="flex flex-wrap content-start items-start gap-1"/);
   assert.match(source, /className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-\[#f6f0ff\] px-2 py-1 text-xs font-bold leading-none text-\[#5e17eb\]"/);
-  assert.match(source, /profile\.mediaAccounts\?\.length \? profile\.mediaAccounts : \[profile\.socialAccount\]/);
+  assert.match(source, /getProfileMediaAccounts\(profile\)/);
   assert.match(source, /mediaPlatformLabel\[account\.platform\] \|\| "其他"/);
   assert.match(source, /account\.nickname \|\| "未填昵称"/);
   assert.match(source, /account\.followerCount === undefined \|\| account\.followerCount === null \? "待补" : `\$\{toCount\(account\.followerCount\)\} 粉丝`/);
@@ -252,7 +252,7 @@ test("admin mama resource profiles mask Alipay accounts in lists and edit full s
 
 test("admin mama resource review edits and saves every submitted media account", () => {
   assert.match(source, /manualMediaAccounts/);
-  assert.match(source, /profile\.mediaAccounts\?\.length[\s\S]*profile\.socialAccount/);
+  assert.match(source, /const mediaAccounts = getProfileMediaAccounts\(profile\)/);
   assert.match(source, /manualMediaAccounts\.map\(\(account, index\) =>/);
   assert.match(source, /账号 \{index \+ 1\}/);
   assert.match(source, /account\.platform/);
@@ -269,6 +269,16 @@ test("admin mama resource review edits and saves every submitted media account",
   assert.match(source, /function extractProfileUrl\(value\?: string\)/);
   assert.match(source, /match\(\/https\?:\\\/\\\/\[\^\\s<>/);
   assert.match(source, /href=\{extractProfileUrl\(account\.profileUrl\)\}/);
+});
+
+test("admin mama resource review tolerates profiles without media accounts", () => {
+  assert.match(apiSource, /socialAccount\?: MamaResourceMediaAccount & \{ platform: 'xiaohongshu' \}/);
+  assert.match(source, /return accounts\.length \? accounts : profile\.socialAccount \? \[profile\.socialAccount\] : \[\]/);
+  assert.match(source, /const primaryAccount = getPrimaryProfileMediaAccount\(profile\)/);
+  assert.match(source, /editingPrimaryAccount\?\.realNameVerified/);
+  assert.match(source, /未填写平台账号/);
+  assert.doesNotMatch(source, /profile\.socialAccount\.(?:profileUrl|nickname|realNameVerified|screenshotUrl)/);
+  assert.doesNotMatch(source, /editing\.socialAccount\.(?:realNameVerified|screenshotUrl|dataSource)/);
 });
 
 test("admin task assignments support manual and previewed personal content link imports", () => {

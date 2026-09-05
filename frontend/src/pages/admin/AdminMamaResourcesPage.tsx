@@ -196,6 +196,16 @@ function extractProfileUrl(value?: string): string {
   return String(value || "").match(/https?:\/\/[^\s<>"'，。；、]+/i)?.[0].replace(/[)\]}，。！？；：,!?;:]+$/, "") || "";
 }
 
+function getProfileMediaAccounts(profile: MamaResourceProfile): MamaResourceMediaAccount[] {
+  const accounts = (profile.mediaAccounts || []).filter((account): account is MamaResourceMediaAccount => Boolean(account));
+  return accounts.length ? accounts : profile.socialAccount ? [profile.socialAccount] : [];
+}
+
+function getPrimaryProfileMediaAccount(profile: MamaResourceProfile): MamaResourceMediaAccount | undefined {
+  const accounts = getProfileMediaAccounts(profile);
+  return profile.socialAccount || accounts.find((account) => account.platform === "xiaohongshu") || accounts[0];
+}
+
 function maskAlipayAccount(value: string | undefined): string {
   const account = String(value || "").trim();
   if (!account) return "未填支付宝";
@@ -445,7 +455,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
     setReviewNote(profile.reviewNote?.note || "");
     setSuitableCategoriesText((profile.reviewNote?.suitableCategories || []).join("、"));
     setRiskTagsText((profile.reviewNote?.riskTags || []).join("、"));
-    const mediaAccounts = profile.mediaAccounts?.length ? profile.mediaAccounts : [profile.socialAccount];
+    const mediaAccounts = getProfileMediaAccounts(profile);
     setManualMediaAccounts(mediaAccounts.map((account) => ({
       ...account,
       profileUrl: extractProfileUrl(account.profileUrl) || account.profileUrl,
@@ -538,7 +548,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
         alipayVerifiedName: manualAlipayVerifiedName.trim(),
         mediaAccounts,
         socialAccount: primaryXiaohongshuAccount ? {
-          ...editing.socialAccount,
+          ...(editing.socialAccount || {}),
           ...primaryXiaohongshuAccount,
           platform: "xiaohongshu",
         } : editing.socialAccount,
@@ -892,6 +902,8 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
     }
   };
 
+  const editingPrimaryAccount = editing ? getPrimaryProfileMediaAccount(editing) : undefined;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -1028,41 +1040,45 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
         ) : items.length === 0 ? (
           <div className="px-4 py-10 text-center text-sm font-semibold text-stone-500">暂无资源</div>
         ) : (
-          items.map((profile) => (
-            <div key={profile._id} className="grid grid-cols-[1.2fr_0.9fr_1.25fr_0.65fr_auto] gap-3 border-b border-stone-100 px-4 py-4 text-sm last:border-b-0">
-              <div className="min-w-0">
-                <div className="font-black text-stone-900">{profile.displayName}</div>
-                {profile.publicUid ? <div className="mt-1 text-xs font-normal text-[#6c27d6]">UID {profile.publicUid}</div> : null}
-                {extractProfileUrl(profile.socialAccount.profileUrl) ? <a className="mt-1 block truncate text-xs font-semibold text-[#6c27d6]" href={extractProfileUrl(profile.socialAccount.profileUrl)} target="_blank" rel="noreferrer">{profile.socialAccount.nickname || profile.socialAccount.profileUrl}</a> : <div className="mt-1 truncate text-xs font-semibold text-stone-500">{profile.socialAccount.nickname || "未识别主页链接"}</div>}
-                <div className="mt-1 text-xs text-stone-500">{profile.city || "未填城市"} · {profile.childStage || "未填阶段"} · {profile.childGender || "未填性别"}</div>
-                {profile.contentCapabilities?.length ? <div className="mt-1 text-xs font-semibold text-stone-500">创作能力 {profile.contentCapabilities.join("、")}</div> : null}
-                <div className="mt-1 text-xs font-semibold text-stone-500">{maskAlipayAccount(profile.alipayAccount)}</div>
-                <div className="mt-1 text-xs font-semibold text-stone-500">
-                  <span className={profile.socialAccount.realNameVerified === true ? "inline-flex rounded-full bg-emerald-50 px-2 py-1 text-emerald-700" : ""}>{realNameLabel(profile.socialAccount.realNameVerified)}</span>
-                  {profile.socialAccount.screenshotUrl ? <a className="ml-2 text-[#6c27d6]" href={profile.socialAccount.screenshotUrl} target="_blank" rel="noreferrer">主页截图</a> : <span className="ml-2">未传截图</span>}
+          items.map((profile) => {
+            const mediaAccounts = getProfileMediaAccounts(profile);
+            const primaryAccount = getPrimaryProfileMediaAccount(profile);
+            return (
+              <div key={profile._id} className="grid grid-cols-[1.2fr_0.9fr_1.25fr_0.65fr_auto] gap-3 border-b border-stone-100 px-4 py-4 text-sm last:border-b-0">
+                <div className="min-w-0">
+                  <div className="font-black text-stone-900">{profile.displayName}</div>
+                  {profile.publicUid ? <div className="mt-1 text-xs font-normal text-[#6c27d6]">UID {profile.publicUid}</div> : null}
+                  {primaryAccount ? (extractProfileUrl(primaryAccount.profileUrl) ? <a className="mt-1 block truncate text-xs font-semibold text-[#6c27d6]" href={extractProfileUrl(primaryAccount.profileUrl)} target="_blank" rel="noreferrer">{primaryAccount.nickname || primaryAccount.profileUrl}</a> : <div className="mt-1 truncate text-xs font-semibold text-stone-500">{primaryAccount.nickname || "未识别主页链接"}</div>) : <div className="mt-1 truncate text-xs font-semibold text-stone-500">未填写平台账号</div>}
+                  <div className="mt-1 text-xs text-stone-500">{profile.city || "未填城市"} · {profile.childStage || "未填阶段"} · {profile.childGender || "未填性别"}</div>
+                  {profile.contentCapabilities?.length ? <div className="mt-1 text-xs font-semibold text-stone-500">创作能力 {profile.contentCapabilities.join("、")}</div> : null}
+                  <div className="mt-1 text-xs font-semibold text-stone-500">{maskAlipayAccount(profile.alipayAccount)}</div>
+                  <div className="mt-1 text-xs font-semibold text-stone-500">
+                    <span className={primaryAccount?.realNameVerified === true ? "inline-flex rounded-full bg-emerald-50 px-2 py-1 text-emerald-700" : ""}>{realNameLabel(primaryAccount?.realNameVerified)}</span>
+                    {primaryAccount?.screenshotUrl ? <a className="ml-2 text-[#6c27d6]" href={primaryAccount.screenshotUrl} target="_blank" rel="noreferrer">主页截图</a> : <span className="ml-2">未传截图</span>}
+                  </div>
+                </div>
+                <div className="flex flex-wrap content-start items-start gap-1">
+                  {(profile.categories || []).slice(0, 3).map((category) => <span key={category} className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[#f6f0ff] px-2 py-1 text-xs font-bold leading-none text-[#5e17eb]">{category}</span>)}
+                </div>
+                <div className="space-y-1 text-xs text-stone-700">
+                  {mediaAccounts.length ? mediaAccounts.map((account, index) => (
+                    <div key={`${account.platform}-${account.profileUrl}-${index}`} className="flex h-5 min-w-0 items-center gap-1.5">
+                      <span className="shrink-0 text-stone-400">{mediaPlatformLabel[account.platform] || "其他"}</span>
+                      {extractProfileUrl(account.profileUrl) ? <a className="min-w-0 truncate font-semibold text-[#6c27d6]" href={extractProfileUrl(account.profileUrl)} target="_blank" rel="noreferrer">{account.nickname || "未填昵称"}</a> : <span className="min-w-0 truncate font-semibold">{account.nickname || "未填昵称"}</span>}
+                      <span className="shrink-0 font-black text-stone-900">{account.followerCount === undefined || account.followerCount === null ? "待补" : `${toCount(account.followerCount)} 粉丝`}</span>
+                    </div>
+                  )) : <div className="text-stone-400">未填写平台账号</div>}
+                </div>
+                <div><span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-black ${statusClass[profile.status]}`}>{statusLabel[profile.status]}</span></div>
+                <div className="flex flex-col gap-2">
+                  {profile.userId ? <Link to={`/admin/users?userId=${encodeURIComponent(profile.userId)}`} className="inline-flex h-9 items-center justify-center rounded-full bg-[#6c27d6] px-4 text-xs font-black text-white shadow-sm transition hover:bg-[#5e17eb]">用户详情</Link> : null}
+                  <button type="button" onClick={() => openEdit(profile)} className="inline-flex h-9 items-center justify-center rounded-full border border-[#e6d7ff] bg-[#f7f2ff] px-5 text-xs font-black text-[#5e17eb] shadow-sm transition hover:border-[#6c27d6] hover:bg-[#efe5ff]">
+                    查看资料
+                  </button>
                 </div>
               </div>
-              <div className="flex flex-wrap content-start items-start gap-1">
-                {(profile.categories || []).slice(0, 3).map((category) => <span key={category} className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[#f6f0ff] px-2 py-1 text-xs font-bold leading-none text-[#5e17eb]">{category}</span>)}
-              </div>
-              <div className="space-y-1 text-xs text-stone-700">
-                {(profile.mediaAccounts?.length ? profile.mediaAccounts : [profile.socialAccount]).map((account, index) => (
-                  <div key={`${account.platform}-${account.profileUrl}-${index}`} className="flex h-5 min-w-0 items-center gap-1.5">
-                    <span className="shrink-0 text-stone-400">{mediaPlatformLabel[account.platform] || "其他"}</span>
-                    {extractProfileUrl(account.profileUrl) ? <a className="min-w-0 truncate font-semibold text-[#6c27d6]" href={extractProfileUrl(account.profileUrl)} target="_blank" rel="noreferrer">{account.nickname || "未填昵称"}</a> : <span className="min-w-0 truncate font-semibold">{account.nickname || "未填昵称"}</span>}
-                    <span className="shrink-0 font-black text-stone-900">{account.followerCount === undefined || account.followerCount === null ? "待补" : `${toCount(account.followerCount)} 粉丝`}</span>
-                  </div>
-                ))}
-              </div>
-              <div><span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-black ${statusClass[profile.status]}`}>{statusLabel[profile.status]}</span></div>
-              <div className="flex flex-col gap-2">
-                {profile.userId ? <Link to={`/admin/users?userId=${encodeURIComponent(profile.userId)}`} className="inline-flex h-9 items-center justify-center rounded-full bg-[#6c27d6] px-4 text-xs font-black text-white shadow-sm transition hover:bg-[#5e17eb]">用户详情</Link> : null}
-                <button type="button" onClick={() => openEdit(profile)} className="inline-flex h-9 items-center justify-center rounded-full border border-[#e6d7ff] bg-[#f7f2ff] px-5 text-xs font-black text-[#5e17eb] shadow-sm transition hover:border-[#6c27d6] hover:bg-[#efe5ff]">
-                  查看资料
-                </button>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
         <div className="flex items-center justify-between border-t border-stone-100 px-4 py-3 text-sm text-stone-500">
           <span>共 {total} 条</span>
@@ -1083,9 +1099,9 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                 <h2 className="mt-1 text-xl font-black text-stone-900">{editing.displayName}</h2>
                 {editing.publicUid ? <div className="mt-1 text-xs font-normal text-[#6c27d6]">UID {editing.publicUid}</div> : null}
                 <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold text-stone-600">
-                  <span className={`rounded-full px-2.5 py-1 ${editing.socialAccount.realNameVerified === true ? "bg-emerald-50 text-emerald-700" : "bg-stone-100"}`}>{realNameLabel(editing.socialAccount.realNameVerified)}</span>
+                  <span className={`rounded-full px-2.5 py-1 ${editingPrimaryAccount?.realNameVerified === true ? "bg-emerald-50 text-emerald-700" : "bg-stone-100"}`}>{realNameLabel(editingPrimaryAccount?.realNameVerified)}</span>
                   <span className={`rounded-full border px-2.5 py-1 ${statusClass[editing.status]}`}>{statusLabel[editing.status]}</span>
-                  {editing.socialAccount.screenshotUrl ? <a className="rounded-full bg-[#f6f0ff] px-2.5 py-1 text-[#6c27d6]" href={editing.socialAccount.screenshotUrl} target="_blank" rel="noreferrer">查看主页截图</a> : <span className="rounded-full bg-stone-100 px-2.5 py-1">未上传主页截图</span>}
+                  {editingPrimaryAccount?.screenshotUrl ? <a className="rounded-full bg-[#f6f0ff] px-2.5 py-1 text-[#6c27d6]" href={editingPrimaryAccount.screenshotUrl} target="_blank" rel="noreferrer">查看主页截图</a> : <span className="rounded-full bg-stone-100 px-2.5 py-1">未上传主页截图</span>}
                 </div>
               </div>
               <button type="button" onClick={closeEdit} disabled={saving} className="rounded-full border border-stone-200 px-4 py-2 text-sm font-bold text-stone-600 hover:bg-stone-50 disabled:opacity-50">关闭</button>
@@ -1095,6 +1111,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                 <div className="text-sm font-black text-stone-900">账号资料</div>
                 <p className="mt-2 text-sm leading-6 text-stone-600">{editing.accountPositioning || "未填写账号定位"}</p>
                 <div className="mt-4 space-y-3">
+                  {manualMediaAccounts.length === 0 ? <div className="rounded-xl bg-stone-50 px-3 py-4 text-sm font-semibold text-stone-500">未填写平台账号</div> : null}
                   {manualMediaAccounts.map((account, index) => (
                     <div key={`${account.normalizedProfileUrl || account.profileUrl}-${index}`} className="rounded-xl border border-stone-200 bg-stone-50 p-3">
                       <div className="flex items-center justify-between gap-3">
@@ -1118,7 +1135,7 @@ const AdminMamaResourcesPageContent: React.FC<{ mode: PageMode }> = ({ mode }) =
                   <label className="text-sm font-bold text-stone-700">运营备注<textarea value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} className="mt-1 min-h-[96px] w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" /></label>
                   <label className="text-sm font-bold text-stone-700">适合品类<input value={suitableCategoriesText} onChange={(event) => setSuitableCategoriesText(event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" /></label>
                   <label className="text-sm font-bold text-stone-700">风险标签<input value={riskTagsText} onChange={(event) => setRiskTagsText(event.target.value)} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-sm" placeholder="需补近期账号数据、内容不稳定" /></label>
-                  <div className="rounded-xl bg-stone-50 px-3 py-2 text-xs font-semibold text-stone-500">最近更新：{toDateText(editing.updatedAt)} · 数据来源：{editing.socialAccount.dataSource || "pending"}</div>
+                  <div className="rounded-xl bg-stone-50 px-3 py-2 text-xs font-semibold text-stone-500">最近更新：{toDateText(editing.updatedAt)} · 数据来源：{editingPrimaryAccount?.dataSource || "pending"}</div>
                 </div>
                 <button onClick={saveManualData} disabled={saving} className="mt-4 w-full rounded-xl bg-[#6c27d6] px-4 py-3 text-sm font-black text-white disabled:bg-stone-300">{saving ? "保存中..." : "保存资料"}</button>
               </div>

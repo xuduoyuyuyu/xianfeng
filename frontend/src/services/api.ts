@@ -645,17 +645,7 @@ export interface MamaResourceProfile {
   status: MamaResourceStatus;
   accountPositioning?: string;
   consentAccepted: boolean;
-  socialAccount: {
-    platform: 'xiaohongshu';
-    profileUrl: string;
-    normalizedProfileUrl: string;
-    nickname?: string;
-    followerCount?: number | null;
-    screenshotUrl?: string;
-    realNameVerified?: boolean | null;
-    dataSource: 'pending' | 'auto' | 'manual' | 'screenshot';
-    lastCapturedAt?: string | null;
-  };
+  socialAccount?: MamaResourceMediaAccount & { platform: 'xiaohongshu' };
   mediaAccounts?: MamaResourceMediaAccount[];
   contentCases: MamaResourceContentCase[];
   rateCard: {
