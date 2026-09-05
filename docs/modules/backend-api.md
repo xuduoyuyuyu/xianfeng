@@ -384,3 +384,15 @@
 ### Deferred / Obsolete
 
 - Document durable API contracts in this module doc as they stabilize.
+
+## Book QR image recovery (2026-09-05)
+
+- `GET /api/wechat-mini/book-qrcode` returns the WeChat mini-program image for
+  SEESEA book recommendations. Chinese books must be published and use `b=<id>`;
+  Readly books use `e=<id>`. Both target `pages/webview/index`.
+- Production baseline `8dcbb0bd` omitted this route. The isolated recovery adds
+  only this endpoint and focused tests; existing account, task, and sharing
+  behavior stays on the production baseline.
+- Route tests cover image bytes and content types, exact source scenes, invalid
+  parameters, unpublished Chinese books, and upstream errors. Live image and
+  real-device scan acceptance remain separate release gates.

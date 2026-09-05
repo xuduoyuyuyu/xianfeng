@@ -3,6 +3,7 @@ import bcryptjs from "bcryptjs";
 import mongoose from "mongoose";
 import User from "../models/User";
 import Topic from "../models/Topic";
+import Book from "../models/Book";
 import XiaowanziShare from "../models/XiaowanziShare";
 import MamaResourceTask from "../models/MamaResourceTask";
 import { authenticate, AuthenticatedRequest } from "../middlewares/auth";
@@ -273,6 +274,52 @@ router.get("/topic-qrcode", async (req, res) => {
     res.send(code);
   } catch (error: any) {
     res.status(500).json({ error: error?.message || "生成小程序码失败" });
+  }
+});
+
+router.get("/book-qrcode", async (req, res) => {
+  try {
+    const bookId = String(req.query.bookId || "").trim();
+    const source = String(req.query.source || "xianfeng_zh").trim();
+    if (!bookId) {
+      res.status(400).json({ error: "缺少图书 ID" });
+      return;
+    }
+    if (source !== "xianfeng_zh" && source !== "readly_en") {
+      res.status(400).json({ error: "不支持的图书来源" });
+      return;
+    }
+    if (source === "xianfeng_zh") {
+      if (!mongoose.Types.ObjectId.isValid(bookId)) {
+        res.status(404).json({ error: "图书不存在或未上架" });
+        return;
+      }
+      const book = await Book.findOne({ _id: bookId, status: "published" }).select("_id").lean();
+      if (!book) {
+        res.status(404).json({ error: "图书不存在或未上架" });
+        return;
+      }
+    }
+
+    const scene = `${source === "readly_en" ? "e" : "b"}=${bookId}`;
+    if (scene.length > 32) {
+      res.status(400).json({ error: "图书 ID 超出小程序码参数限制" });
+      return;
+    }
+    const envVersion = requestedMiniEnvVersion(req.query.envVersion);
+    const code = await fetchWechatMiniUnlimitedQRCode({
+      scene,
+      page: "pages/webview/index",
+      width: 280,
+      envVersion,
+      checkPath: shouldCheckMiniPagePath(envVersion),
+    });
+    const contentType = code[0] === 0xff && code[1] === 0xd8 ? "image/jpeg" : "image/png";
+    res.setHeader("content-type", contentType);
+    res.setHeader("cache-control", "public, max-age=3600");
+    res.send(code);
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || "生成图书小程序码失败" });
   }
 });
 
